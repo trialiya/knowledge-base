@@ -9,12 +9,30 @@ repositories {
     mavenCentral()
 }
 
-dependencies {
-    testImplementation platform('org.junit:junit-bom:5.10.0')
-    testImplementation 'org.junit.jupiter:junit-jupiter'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+subprojects {
+    dependencyLocking {
+        lockAllConfigurations()
+    }
 }
 
-test {
-    useJUnitPlatform()
+dependencyLocking {
+    lockAllConfigurations()
+}
+
+tasks.register('resolveAndLockAll') {
+    description = 'Resolves all configurations to generate complete dependency lock files'
+    group = 'dependency locking'
+    doLast {
+        allprojects.each { project ->
+            project.configurations.findAll { config ->
+                config.canBeResolved && !config.name.toLowerCase().contains('detached')
+            }.each { config ->
+                try {
+                    config.resolve()
+                } catch (Exception e) {
+                    logger.warn("Could not resolve configuration ${project.path}:${config.name}: ${e.message}")
+                }
+            }
+        }
+    }
 }
