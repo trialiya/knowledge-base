@@ -1,0 +1,56 @@
+spring:
+  application:
+    name: chat-demo
+  ai:
+    openai:
+      base-url: ${AI_BASE_URL}
+      api-key: ${AI_API_KEY}
+      chat:
+        options:
+          model: ${AI_MODEL}
+          max-tokens: 30000
+          extra-body:
+            thinking:
+              type: disabled
+    chat:
+      memory:
+        repository:
+          jdbc:
+            initialize-schema: always
+      client:
+        enabled: off
+    retry:
+      max-attempts: 2
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: "jdbc:postgresql://localhost:5432/knowledgebase"
+    username: "knowledgebase"
+    password: "knowledgebase"
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:db/init-schema.sql
+  threads:
+    virtual:
+      enabled: true
+
+server:
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+
+kb:
+  documents:
+    export-path: ${DOCUMENTS_EXPORT_PATH}
+    replace: true
+  project-path: ${PROJECT_PATH}
+
+logging:
+  level:
+    org:
+      springframework:
+        jdbc:
+          core:
+            JdbcTemplate: DEBUG

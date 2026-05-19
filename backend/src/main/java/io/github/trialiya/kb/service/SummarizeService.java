@@ -1,0 +1,308 @@
+package io.github.trialiya.kb.service;
+
+import static io.github.trialiya.kb.utils.ChatUtils.buildContext;
+
+import com.google.common.util.concurrent.Striped;
+import io.github.trialiya.kb.config.ChatConfig;
+import io.github.trialiya.kb.functions.MessageLookupFunction;
+import io.github.trialiya.kb.model.chat.entity.ChatMessage;
+import io.github.trialiya.kb.repository.ChatMessageRepository;
+import io.micrometer.core.instrument.util.IOUtils;
+import jakarta.annotation.Nonnull;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.locks.Lock;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.logging.log4j.util.Strings;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.messages.MessageType;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.beans.factory.DisposableBean;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
+@Slf4j
+@Service
+public class SummarizeService implements DisposableBean {
+
+    /**
+     * Approximate token budget for the "live" messages window. When the total estimated tokens
+     * across unsummarized messages exceeds this value, a new summarization round is triggered.
+     *
+     * <p>Rule of thumb: 1 token ≈ 4 characters (English/code mix). 4 000 tokens → ~16 000
+     * characters before we compress.
+     */
+    private static final int TOKEN_THRESHOLD = 3000;
+
+    private static final int MESSAGE_COUNT_THRESHOLD = 20;
+
+    /**
+     * Number of recent messages kept *outside* the summarized window so the model always has some
+     * live context to anchor against.
+     */
+    private static final int OVERLAP_MESSAGES = 10;
+
+    /**
+     * When the number of stored summary messages reaches this value, they are collapsed into a
+     * single meta-summary.
+     */
+    private static final int SUMMARY_COLLAPSE_THRESHOLD = 5;
+
+    /**
+     * How many characters we use per estimated token. Increase to 3 for mostly-code conversations,
+     * decrease to 5 for prose.
+     */
+    private static final int CHARS_PER_TOKEN = 4;
+
+    private final ChatClient chatClient;
+    private final ChatMessageRepository chatMessageRepository;
+    private final ExecutorService executorService;
+    private final TransactionTemplate transactionTemplate;
+
+    private final Striped<Lock> locks = Striped.lock(1028);
+
+    public SummarizeService(
+            OpenAiChatModel openAiChatModel,
+            ChatMessageRepository chatMessageRepository,
+            PlatformTransactionManager transactionManager) {
+        this.chatClient =
+                ChatClient.builder(openAiChatModel)
+                        .defaultSystem(
+                                IOUtils.toString(
+                                        ChatConfig.class
+                                                .getClassLoader()
+                                                .getResourceAsStream("promt/summarizer.md")))
+                        .defaultTools(new MessageLookupFunction(chatMessageRepository))
+                        .build();
+        this.chatMessageRepository = chatMessageRepository;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.executorService = Executors.newVirtualThreadPerTaskExecutor();
+    }
+
+    @Override
+    public void destroy() {
+        executorService.shutdown();
+    }
+
+    // -------------------------------------------------------------------------
+    // Public API
+    // -------------------------------------------------------------------------
+
+    public void trySummarize(@Nonnull final String conversationId) {
+        executorService.submit(
+                () -> {
+                    final Lock lock = locks.get(conversationId);
+                    lock.lock();
+                    try {
+                        doSummarize(conversationId);
+                    } catch (Exception e) {
+                        log.error(
+                                "[{}] Summarization failed: {}", conversationId, e.getMessage(), e);
+                    } finally {
+                        lock.unlock();
+                    }
+                });
+    }
+
+    // -------------------------------------------------------------------------
+    // Core summarization logic
+    // -------------------------------------------------------------------------
+
+    public void doSummarize(@Nonnull final String conversationId) {
+        // 1. Fetch all live (non-summarized) messages, excluding blanks and system msgs.
+        final List<ChatMessage> liveMessages =
+                chatMessageRepository
+                        .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAt(
+                                conversationId)
+                        .stream()
+                        .filter(m -> m.getMessageType() != MessageType.SYSTEM)
+                        .filter(m -> Strings.isNotBlank(m.getText()))
+                        .toList();
+
+        // 2. Determine the slice to compress: everything except the last OVERLAP_MESSAGES.
+        final int cutoff = liveMessages.size() - OVERLAP_MESSAGES;
+        if (cutoff <= 0) {
+            log.info(
+                    "[{}] Not enough messages to compress (live={}, overlap={})",
+                    conversationId,
+                    liveMessages.size(),
+                    OVERLAP_MESSAGES);
+            return;
+        }
+
+        // 3. Decide whether the token budget for the compressible slice is exceeded.
+        final int estimatedTokens = estimateTokens(liveMessages, cutoff);
+        if (cutoff < MESSAGE_COUNT_THRESHOLD && estimatedTokens < TOKEN_THRESHOLD) {
+            log.info(
+                    "[{}] Skipping summarization. Messages: {} < threshold: {}. Estimated tokens: {} < threshold: {}",
+                    conversationId,
+                    cutoff,
+                    MESSAGE_COUNT_THRESHOLD,
+                    estimatedTokens,
+                    TOKEN_THRESHOLD);
+            return;
+        }
+
+        final List<ChatMessage> toCompress = liveMessages.subList(0, cutoff);
+
+        log.info(
+                "[{}] Compressing: {} - {}",
+                conversationId,
+                toCompress.getFirst().getPosition(),
+                toCompress.getLast().getPosition());
+
+        // 4. Load existing summaries to give the LLM prior context.
+        final List<ChatMessage> existingSummaries =
+                chatMessageRepository
+                        .findChatMessageByConversationIdAndSummarizedFalseAndSummaryTrueOrderByCreatedAt(
+                                conversationId);
+
+        // 5. Generate summary text via LLM.
+        final boolean collapseSummaries =
+                existingSummaries.size() >= SUMMARY_COLLAPSE_THRESHOLD - 1;
+        final String summaryContent =
+                generateSummary(
+                        conversationId, existingSummaries, toCompress, cutoff, collapseSummaries);
+
+        // 6. Build the summary message stored as SYSTEM context.
+        final String summaryText =
+                collapseSummaries
+                        ? buildMetaSummaryText(summaryContent)
+                        : buildSummaryText(summaryContent, cutoff);
+
+        log.info(
+                "[{}] Summarization finished ({} messages ({} tokens) compressed) -> {} tokens",
+                conversationId,
+                cutoff,
+                estimatedTokens,
+                summaryText.length() / CHARS_PER_TOKEN);
+
+        // 7. Persist: mark compressed messages as summarized, insert new summary row.
+        persistSummary(
+                conversationId, toCompress, existingSummaries, collapseSummaries, summaryText);
+    }
+
+    // -------------------------------------------------------------------------
+    // Helpers
+    // -------------------------------------------------------------------------
+
+    /**
+     * Rough token estimate for the first {@code limit} messages: total characters /
+     * CHARS_PER_TOKEN. Good enough for a threshold check; no need for a full tokenizer here.
+     */
+    private int estimateTokens(List<ChatMessage> messages, int limit) {
+        return messages.stream().limit(limit).mapToInt(m -> m.getText().length()).sum()
+                / CHARS_PER_TOKEN;
+    }
+
+    private String generateSummary(
+            String conversationId,
+            List<ChatMessage> existingSummaries,
+            List<ChatMessage> toCompress,
+            int count,
+            boolean collapseSummaries) {
+        final StringBuilder prompt = new StringBuilder();
+
+        if (collapseSummaries) {
+            log.info(
+                    "[{}] Including {} summaries into one meta-summary",
+                    conversationId,
+                    existingSummaries.size());
+
+            prompt.append("The following are consecutive summaries of a long conversation:\n");
+            for (int i = 0; i < existingSummaries.size(); i++) {
+                prompt.append("Summary ")
+                        .append(i + 1)
+                        .append(":\n")
+                        .append(existingSummaries.get(i).getText())
+                        .append("\n\n");
+            }
+        } else if (!existingSummaries.isEmpty()) {
+            prompt.append("Previous summaries (for context only — do not re-summarize):\n");
+            for (int i = 0; i < existingSummaries.size(); i++) {
+                prompt.append("Summary ")
+                        .append(i + 1)
+                        .append(":\n")
+                        .append(existingSummaries.get(i).getText())
+                        .append("\n\n");
+            }
+        }
+
+        prompt.append("Summarize the following ").append(count).append(" messages:\n");
+        toCompress.forEach(
+                m ->
+                        prompt.append("[msg:")
+                                .append(m.getPosition())
+                                .append("] ")
+                                .append(m.getMessageType())
+                                .append(": \"")
+                                .append(m.getText())
+                                .append("\"\n"));
+        if (collapseSummaries) {
+            prompt.append(
+                            "Now produce a SINGLE merged summary that combines ALL the previous summaries (above) ")
+                    .append(
+                            "and the following new messages. The result must be a cohesive summary of the entire conversation so far.");
+        }
+
+        return chatClient
+                .prompt(prompt.toString())
+                .toolContext(buildContext(conversationId))
+                .call()
+                .content();
+    }
+
+    private String buildSummaryText(String content, int lastIndex) {
+        return "Earlier conversation summary (first "
+                + lastIndex
+                + " messages):\n"
+                + "<summary>\n"
+                + content
+                + "\n</summary>\n"
+                + "Continue from message "
+                + (lastIndex + 1)
+                + " onward. "
+                + "Treat the summary as authoritative context.";
+    }
+
+    private String buildMetaSummaryText(String content) {
+        return "Merged conversation summary:\n"
+                + "<summary>\n"
+                + content
+                + "\n</summary>\n"
+                + "Treat this as authoritative context for the entire conversation so far.";
+    }
+
+    /** Marks old messages as summarized and inserts the new summary row, atomically. */
+    private void persistSummary(
+            String conversationId,
+            List<ChatMessage> oldMessages,
+            List<ChatMessage> existingSummaries,
+            boolean collapseSummaries,
+            String metaSummaryText) {
+        if (oldMessages.isEmpty()) {
+            return;
+        }
+        final ChatMessage firstMsg =
+                collapseSummaries ? existingSummaries.getFirst() : oldMessages.getFirst();
+        final ChatMessage lastMsg = oldMessages.getLast();
+
+        transactionTemplate.executeWithoutResult(
+                s -> {
+                    chatMessageRepository.updateSummarized(
+                            conversationId, firstMsg.getPosition(), lastMsg.getPosition());
+                    chatMessageRepository.save(
+                            new ChatMessage(
+                                    0L,
+                                    conversationId,
+                                    metaSummaryText,
+                                    MessageType.SYSTEM,
+                                    lastMsg.getPosition(),
+                                    false,
+                                    true,
+                                    lastMsg.getCreatedAt()));
+                });
+    }
+}

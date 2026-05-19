@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <!-- Обязательные мета-теги -->
+    <meta charset="utf-8"/>
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <meta name="theme-color" content="#000000"/>
+
+    <!--
+      Оптимизация для SEO и описания приложения.
+      Это описание будет показываться в результатах поиска Google.
+    -->
+    <meta name="description"
+          content="AI Knowledge Base"/>
+
+    <!--
+      Manifest.json файл для PWA (Progressive Web App).
+      Позволяет установить приложение на главный экран мобильного устройства.
+    -->
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json"/>
+
+    <!-- Заголовок вкладки в браузере -->
+    <title>AI Knowledge Base </title>
+</head>
+<body>
+<!--
+  Если у пользователя отключен JavaScript, он увидит это сообщение.
+  React-приложения не могут работать без JS.
+-->
+<noscript>Для работы этого приложения необходимо включить JavaScript.</noscript>
+
+<!--
+  САМАЯ ВАЖНАЯ ЧАСТЬ!
+  Это "корневой" контейнер, в который React будет "монтировать" все компоненты.
+  Весь ваш интерфейс (App.js, ChatWindow.js и т.д.) будет отображен внутри этого div.
+-->
+<div id="root"></div>
+
+<!--
+  Скрипты вашего приложения (собранные и сжатые) будут автоматически вставлены сюда
+  во время сборки (npm run build). Вам не нужно добавлять их вручную.
+-->
+</body>
+</html>

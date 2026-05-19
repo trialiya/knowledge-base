@@ -1,0 +1,35 @@
+plugins {
+    id 'com.github.node-gradle.node' version '7.1.0'
+    id 'com.diffplug.spotless' version '6.25.0'
+}
+
+node {
+    version = '22.22.3'
+
+    yarnVersion = '1.22.22'
+
+    workDir = file("${project.projectDir}/.gradle/nodejs")
+
+    yarnWorkDir = file("${project.projectDir}/.gradle/yarn")
+
+    nodeProjectDir = file("${project.projectDir}")
+
+    download = true
+}
+
+task yarnServe(type: YarnTask) {
+    args = ['run', 'start']
+}
+
+spotless {
+    format 'react', {
+        target 'src/**/*.js', 'src/**/*.jsx', 'src/**/*.ts', 'src/**/*.tsx', 'src/**/*.css', 'src/**/*.scss'
+
+        prettier().config([
+                'semi': true,
+                'singleQuote': true,
+                'trailingComma': 'all',
+                'printWidth': 120
+        ])
+    }
+}

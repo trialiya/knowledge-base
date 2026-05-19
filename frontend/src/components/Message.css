@@ -1,0 +1,103 @@
+/* Базовые стили для любого сообщения */
+.message {
+  padding: 0.75rem 1.25rem;
+  border-radius: 20px;
+  max-width: 75%;
+  line-height: 1.5;
+  word-wrap: break-word;
+  margin-bottom: 10px;
+}
+
+/* Сообщение от пользователя */
+.message.user {
+  background-color: #007bff;
+  color: white;
+  align-self: flex-start; /* пользователь слева */
+  margin-left: auto;
+  border-bottom-right-radius: 6px;
+}
+
+.user-message-text {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* Сообщение от AI */
+.message.ai {
+  background-color: #e9e9eb;
+  color: #333;
+  align-self: flex-start;
+  border-bottom-left-radius: 6px;
+  white-space: normal; /* обязательно для Markdown */
+}
+
+/* Параграфы */
+.message.ai p {
+  margin: 8px 0;
+}
+
+/* Маркированные списки */
+.message.ai ul {
+  margin: 8px 0;
+  padding-left: 20px;
+  list-style-type: disc;
+}
+
+/* Нумерованные списки */
+.message.ai ol {
+  margin: 8px 0;
+  padding-left: 20px;
+  list-style-type: decimal;
+}
+
+.message.ai li {
+  margin-bottom: 4px;
+}
+
+/* Таблицы */
+.markdown-table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+  font-size: 0.9em;
+}
+.markdown-table th,
+.markdown-table td {
+  border: 1px solid #ddd;
+  padding: 8px 12px;
+  text-align: left;
+}
+.markdown-table th {
+  background-color: #f2f2f2;
+  font-weight: bold;
+}
+
+/* Кодовые блоки */
+.message.ai pre {
+  background-color: #1e1e1e !important;
+  border-radius: 8px;
+  padding: 0;
+  margin: 1em 0;
+  overflow: auto;
+}
+.message.ai code:not(pre > code) {
+  background-color: rgba(175, 184, 193, 0.2);
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  font-size: 0.9em;
+  color: #d73a49;
+}
+
+/* Заголовки */
+.message.ai h1,
+.message.ai h2,
+.message.ai h3 {
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  color: #333;
+}
+.message.ai h3 {
+  font-size: 1.2em;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 0.3em;
+}
