@@ -1,6 +1,6 @@
 package io.github.trialiya.kb.config;
 
-import static org.springframework.ai.chat.memory.ChatMemory.DEFAULT_CONVERSATION_ID;
+import static io.github.trialiya.kb.utils.ChatUtils.DEFAULT_CONVERSATION_ID;
 
 import io.github.trialiya.kb.model.chat.entity.ChatMessage;
 import io.github.trialiya.kb.repository.ChatMessageRepository;

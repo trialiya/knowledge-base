@@ -7,6 +7,8 @@ import org.springframework.ai.chat.memory.ChatMemory;
 
 public class ChatUtils {
 
+    public static String DEFAULT_CONVERSATION_ID = "default";
+
     // todo this is temporarily
     public static Map<String, Object> buildContext(String conversationId) {
         return Map.of(ChatMemory.CONVERSATION_ID, conversationId, USER_NAME, getUser());

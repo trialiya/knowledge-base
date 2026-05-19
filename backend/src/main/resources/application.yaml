@@ -12,6 +12,12 @@ spring:
           extra-body:
             thinking:
               type: disabled
+      embedding:
+        base-url: ${AI_EMBED_BASE_URL:${AI_BASE_URL}}
+        api-key: ${AI_EMBED_API_KEY:${AI_API_KEY}}
+        embeddings-path: /embeddings
+        options:
+          model: ${AI_EMBED_MODEL}   # 1536-dim
     chat:
       memory:
         repository:
@@ -47,10 +53,10 @@ kb:
     replace: true
   project-path: ${PROJECT_PATH}
 
-logging:
-  level:
-    org:
-      springframework:
-        jdbc:
-          core:
-            JdbcTemplate: DEBUG
+#logging:
+#  level:
+#    org:
+#      springframework:
+#        jdbc:
+#          core:
+#            JdbcTemplate: DEBUG

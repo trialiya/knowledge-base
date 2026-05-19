@@ -43,4 +43,22 @@ create table if not exists documents
     updated_at  timestamp with time zone default now()            not null
 );
 
+-- Stores one embedding row per document.
+-- Dimension 1536 matches text-embedding-3-small / text-embedding-ada-002.
+-- Use 3072 for text-embedding-3-large.
+CREATE TABLE IF NOT EXISTS document_embeddings (
+                                                   id             BIGSERIAL PRIMARY KEY,
+                                                   document_id    BIGINT NOT NULL UNIQUE
+                                                       REFERENCES documents(id) ON DELETE CASCADE,
+                                                   embedding      VECTOR(1536) NOT NULL,
+                                                   model          TEXT        NOT NULL,
+                                                   updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
+-- IVFFlat index for approximate nearest-neighbour search.
+-- lists = sqrt(row_count) is a common starting point; tune for your data size.
+-- Rebuild (DROP + recreate) whenever you add significant data.
+CREATE INDEX IF NOT EXISTS document_embeddings_ivfflat_idx
+    ON document_embeddings
+        USING ivfflat (embedding vector_cosine_ops)
+    WITH (lists = 100);
