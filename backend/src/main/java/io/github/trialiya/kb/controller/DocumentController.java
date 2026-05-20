@@ -6,6 +6,7 @@ import io.github.trialiya.kb.model.doc.dto.DocumentNode;
 import io.github.trialiya.kb.model.doc.dto.ReorderRequest;
 import io.github.trialiya.kb.model.doc.dto.SearchResult;
 import io.github.trialiya.kb.model.doc.dto.UpdateDocumentRequest;
+import io.github.trialiya.kb.service.DocumentExportService;
 import io.github.trialiya.kb.service.DocumentService;
 import io.github.trialiya.kb.service.SemanticSearchService;
 import java.util.List;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 public class DocumentController {
 
     private final DocumentService service;
+    private final DocumentExportService documentExportService;
     private final SemanticSearchService semanticSearchService;
 
     // ── Tree ──────────────────────────────────────────────────────────────────
@@ -136,6 +138,12 @@ public class DocumentController {
     public ReindexResponse reindex() {
         int count = semanticSearchService.reindexAll();
         return new ReindexResponse(count);
+    }
+
+    @PostMapping("/documents/admin/export")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void export() {
+        documentExportService.exportAll();
     }
 
     public record ReindexResponse(int indexed) {}

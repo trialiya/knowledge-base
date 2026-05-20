@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -20,30 +21,45 @@ import org.springframework.stereotype.Service;
 /**
  * Exports every document/folder to the configured {@code kb.documents.export-path}.
  *
- * <p>Layout on disk mirrors the document tree:
+ * <p>Layout on disk mirrors the document tree. Each node is prefixed with a zero-padded ordinal
+ * that reflects its {@code position} among siblings, preserving the user-defined order.
+ *
+ * <p>Content and metadata are written as separate files:
+ *
+ * <ul>
+ *   <li>{@code .md} — document/folder description (content)
+ *   <li>{@code .yaml} — structured metadata (id, title, type, timestamps, …)
+ * </ul>
  *
  * <pre>
  *   &lt;exportPath&gt;/
- *     .folder.md          ← description of the root virtual folder (optional)
- *     my-folder/
- *       .folder.md        ← description of "my-folder"
- *       some-document.md
- *       nested-folder/
- *         .folder.md
- *         child-doc.md
+ *     001.my-folder/
+ *       .meta.yaml            ← metadata of "my-folder"
+ *       .content.md           ← description of "my-folder" (if any)
+ *       001.some-document.md
+ *       001.some-document.yaml
+ *       002.nested-folder/
+ *         .meta.yaml
+ *         .content.md
+ *         001.child-doc.md
+ *         001.child-doc.yaml
+ *     002.another-doc.md
+ *     002.another-doc.yaml
  * </pre>
- *
- * <p>File names are derived from the document title by replacing characters that are unsafe on most
- * filesystems with hyphens and lower-casing the result. Duplicate sibling names get a numeric
- * suffix ({@code -1}, {@code -2}, …).
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class DocumentExportService {
 
-    /** Reserved filename used to store a folder's own description. */
-    static final String FOLDER_FILE = ".folder.md";
+    /** Hidden file that stores a folder's own content (description). */
+    static final String FOLDER_CONTENT_FILE = ".content.md";
+
+    /** Hidden file that stores a folder's metadata. */
+    static final String FOLDER_META_FILE = ".meta.yaml";
+
+    /** Width of the zero-padded ordinal prefix (e.g. 3 → 001, 002, …). */
+    private static final int ORDINAL_PAD = 3;
 
     private final DocumentRepository repo;
     private final DocumentsConfiguration config;
@@ -58,82 +74,113 @@ public class DocumentExportService {
      */
     public int exportAll() {
         Path root = Paths.get(config.exportPath());
-        // Build parent → children index
+
+        // Build parent → children index, sorted by position
         Map<Long, List<DocumentEntity>> byParent =
                 Streams.stream(repo.findAll())
                         .filter(e -> e.getParentId() != null)
                         .collect(Collectors.groupingBy(DocumentEntity::getParentId));
 
-        List<DocumentEntity> roots = repo.findRoots();
+        // Sort each group by position
+        byParent.values()
+                .forEach(list -> list.sort(Comparator.comparingInt(DocumentEntity::getPosition)));
 
-        int[] count = {0};
+        List<DocumentEntity> roots = repo.findRoots();
+        roots.sort(Comparator.comparingInt(DocumentEntity::getPosition));
+
+        int count = 0;
+        int ordinal = 1;
         for (DocumentEntity rootDoc : roots) {
-            count[0] += exportNode(rootDoc, root, byParent);
+            count += exportNode(rootDoc, root, byParent, ordinal++);
         }
 
-        log.info("Export complete: {} file(s) written to {}", count[0], root.toAbsolutePath());
-        return count[0];
+        log.info("Export complete: {} file(s) written to {}", count, root.toAbsolutePath());
+        return count;
     }
 
     // ── Recursive tree walk ──────────────────────────────────────────────────
 
     private int exportNode(
-            DocumentEntity entity, Path parentDir, Map<Long, List<DocumentEntity>> byParent) {
+            DocumentEntity entity,
+            Path parentDir,
+            Map<Long, List<DocumentEntity>> byParent,
+            int ordinal) {
 
         boolean isFolder = "folder".equalsIgnoreCase(entity.getType());
+        String prefix = padOrdinal(ordinal);
         int written = 0;
 
         if (isFolder) {
-            // The folder itself becomes a directory; its description goes into .folder.md
-            Path folderDir = parentDir.resolve(safeName(entity.getTitle()));
+            // Folder → directory with ordinal prefix
+            Path folderDir = parentDir.resolve(prefix + "." + safeName(entity.getTitle()));
             createDirectories(folderDir);
 
+            // Meta (always written for folders)
+            writeFile(folderDir.resolve(FOLDER_META_FILE), renderMeta(entity));
+            written++;
+
+            // Content (only if folder has a description)
             if (hasContent(entity.getDescription())) {
-                Path folderMeta = folderDir.resolve(FOLDER_FILE);
-                String md = renderFolderMd(entity);
-                writeFile(folderMeta, md);
+                writeFile(folderDir.resolve(FOLDER_CONTENT_FILE), renderContent(entity));
                 written++;
-                log.debug("Written folder meta: {}", folderMeta);
+                log.debug("Written folder content: {}", folderDir.resolve(FOLDER_CONTENT_FILE));
             }
 
-            // Recurse into children
-            for (DocumentEntity child : childrenOf(entity.getId(), byParent)) {
-                written += exportNode(child, folderDir, byParent);
+            // Recurse into children (already sorted by position)
+            List<DocumentEntity> children = childrenOf(entity.getId(), byParent);
+            int childOrdinal = 1;
+            for (DocumentEntity child : children) {
+                written += exportNode(child, folderDir, byParent, childOrdinal++);
             }
 
         } else {
-            // Regular document → single .md file in the current directory
-            String fileName = safeName(entity.getTitle()) + ".md";
-            Path file = uniquePath(parentDir, fileName);
-            String md = renderDocumentMd(entity);
+            // Regular document → .md (content) + .yaml (meta)
+            String baseName = prefix + "." + safeName(entity.getTitle());
             createDirectories(parentDir);
-            writeFile(file, md);
+
+            // Content
+            Path contentFile = uniquePath(parentDir, baseName + ".md");
+            writeFile(contentFile, renderContent(entity));
             written++;
-            log.debug("Written document: {}", file);
+            log.debug("Written document content: {}", contentFile);
+
+            // Meta — derive yaml name from the actual content file name (respects uniquePath
+            // suffix)
+            String contentFileName = contentFile.getFileName().toString();
+            String metaFileName =
+                    contentFileName.substring(0, contentFileName.lastIndexOf('.')) + ".yaml";
+            Path metaFile = parentDir.resolve(metaFileName);
+            writeFile(metaFile, renderMeta(entity));
+            written++;
+            log.debug("Written document meta: {}", metaFile);
         }
 
         return written;
     }
 
-    // ── Markdown rendering ───────────────────────────────────────────────────
+    // ── Rendering ────────────────────────────────────────────────────────────
 
-    private String renderDocumentMd(DocumentEntity e) {
+    /** Renders the document/folder description as Markdown content. */
+    private String renderContent(DocumentEntity e) {
         StringBuilder sb = new StringBuilder();
         sb.append("# ").append(e.getTitle()).append("\n\n");
         if (hasContent(e.getDescription())) {
             sb.append(e.getDescription().trim()).append("\n");
         }
-        sb.append("\n---\n");
-        sb.append("_Last updated: ").append(e.getUpdatedAt()).append("_\n");
         return sb.toString();
     }
 
-    private String renderFolderMd(DocumentEntity e) {
+    /** Renders structured metadata as YAML. */
+    private String renderMeta(DocumentEntity e) {
         StringBuilder sb = new StringBuilder();
-        sb.append("# ").append(e.getTitle()).append("\n\n");
-        sb.append(e.getDescription().trim()).append("\n");
-        sb.append("\n---\n");
-        sb.append("_Last updated: ").append(e.getUpdatedAt()).append("_\n");
+        sb.append("id: ").append(e.getId()).append("\n");
+        sb.append("title: \"").append(escapeYaml(e.getTitle())).append("\"\n");
+        sb.append("type: ").append(e.getType()).append("\n");
+        if (e.getParentId() != null) {
+            sb.append("parentId: ").append(e.getParentId()).append("\n");
+        }
+        sb.append("position: ").append(e.getPosition()).append("\n");
+        sb.append("updatedAt: ").append(e.getUpdatedAt()).append("\n");
         return sb.toString();
     }
 
@@ -153,16 +200,20 @@ public class DocumentExportService {
                 .replaceAll("^-+|-+$", ""); // trim leading/trailing hyphens
     }
 
+    /** Zero-pads an ordinal to {@link #ORDINAL_PAD} digits (e.g. 1 → "001"). */
+    private static String padOrdinal(int ordinal) {
+        return String.format("%0" + ORDINAL_PAD + "d", ordinal);
+    }
+
     /**
-     * Returns a path that does not collide with existing siblings. E.g. {@code report.md} → {@code
-     * report-1.md} → {@code report-2.md} …
+     * Returns a path that does not collide with existing siblings. E.g. {@code 001.report.md} →
+     * {@code 001.report-1.md} → {@code 001.report-2.md} …
      */
     private Path uniquePath(Path dir, String fileName) {
         Path candidate = dir.resolve(fileName);
         if (!Files.exists(candidate)) {
             return candidate;
         } else if (!config.replace()) {
-            // Split name and extension
             int dot = fileName.lastIndexOf('.');
             String base = dot >= 0 ? fileName.substring(0, dot) : fileName;
             String ext = dot >= 0 ? fileName.substring(dot) : "";
@@ -191,6 +242,12 @@ public class DocumentExportService {
         } catch (IOException e) {
             throw new UncheckedIOException("Cannot write file: " + path, e);
         }
+    }
+
+    /** Escapes double quotes for safe YAML string values. */
+    private static String escapeYaml(String value) {
+        if (value == null) return "";
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     // ── Misc helpers ─────────────────────────────────────────────────────────
