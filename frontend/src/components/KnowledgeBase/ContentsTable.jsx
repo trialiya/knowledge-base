@@ -1,4 +1,6 @@
 import React from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { IconFolder, IconDoc } from './icons';
 import { makeSnippet } from './utils';
 
@@ -23,7 +25,30 @@ const ContentsTable = ({ children, onNavigate }) => (
           </span>
           <span className="contents-row__name-wrap">
             <span className="contents-row__name">{child.title}</span>
-            {snippet && <span className="contents-row__snippet">{snippet}</span>}
+            {snippet && (
+              <span className="contents-row__snippet contents-row__snippet--md">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    // Рендерим всё inline: параграфы → span, убираем блочные элементы
+                    p: ({ children }) => <span>{children}</span>,
+                    h1: ({ children }) => <strong>{children}</strong>,
+                    h2: ({ children }) => <strong>{children}</strong>,
+                    h3: ({ children }) => <strong>{children}</strong>,
+                    h4: ({ children }) => <strong>{children}</strong>,
+                    h5: ({ children }) => <strong>{children}</strong>,
+                    h6: ({ children }) => <strong>{children}</strong>,
+                    ul: ({ children }) => <span>{children}</span>,
+                    ol: ({ children }) => <span>{children}</span>,
+                    li: ({ children }) => <span>{children}; </span>,
+                    blockquote: ({ children }) => <span>{children}</span>,
+                    pre: ({ children }) => <code>{children}</code>,
+                  }}
+                >
+                  {snippet}
+                </ReactMarkdown>
+              </span>
+            )}
           </span>
           <span className="contents-row__type">{child.type === 'folder' ? 'Folder' : 'Document'}</span>
           <span className="contents-row__date">{new Date(child.updatedAt).toLocaleDateString('ru-RU')}</span>

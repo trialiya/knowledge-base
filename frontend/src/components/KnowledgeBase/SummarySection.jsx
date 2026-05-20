@@ -1,4 +1,6 @@
 import React from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { IconEdit, IconChevronRight } from './icons';
 import { makeSnippet } from './utils';
 
@@ -43,21 +45,22 @@ const SummarySection = ({ label, description, onEdit, showMoreBtn, onMore, child
       {children ? (
         children
       ) : (
-        <p className={`summary-about ${!description ? 'summary-about--empty' : ''}`}>
+        <div className={`summary-about ${!description ? 'summary-about--empty' : ''}`}>
           {description ? (
             <>
-              {snippet}
+              <div className="summary-markdown">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{snippet}</ReactMarkdown>
+              </div>
               {truncated && (
                 <button className="summary-read-more" onClick={onEdit}>
-                  {' '}
                   …читать далее
                 </button>
               )}
             </>
           ) : (
-            'Нет содержимого — нажмите ✏️ чтобы добавить'
+            <p style={{ margin: 0 }}>Нет содержимого — нажмите ✏️ чтобы добавить</p>
           )}
-        </p>
+        </div>
       )}
     </section>
   );

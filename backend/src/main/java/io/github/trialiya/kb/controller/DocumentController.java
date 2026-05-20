@@ -45,6 +45,17 @@ public class DocumentController {
         return service.getChildren(pid);
     }
 
+    /**
+     * Returns the ancestor IDs from root down to (but not including) the given node. Used by the UI
+     * on direct-link open to expand the correct branch in the tree.
+     *
+     * <pre>GET /api/documents/{id}/ancestors → ["1", "7", "42"]</pre>
+     */
+    @GetMapping("/documents/{id}/ancestors")
+    public List<String> getAncestors(@PathVariable String id) {
+        return service.getAncestorIds(Long.parseLong(id));
+    }
+
     // ── CRUD ──────────────────────────────────────────────────────────────────
 
     @PostMapping("/documents")

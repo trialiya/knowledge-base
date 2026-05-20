@@ -41,6 +41,13 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
   const childrenLoaded = node._childrenLoaded || (node.children && node.children.length > 0);
   const isSelected = node.id === selectedId;
 
+  // Auto-open ancestor nodes pre-loaded for direct-link navigation
+  useEffect(() => {
+    if (node._openOnLoad && !open) {
+      setOpen(true);
+    }
+  }, [node._openOnLoad]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-expand ancestor when selection changes
   useEffect(() => {
     if (isFolder && node.children && findNodeById(node.children, selectedId)) {

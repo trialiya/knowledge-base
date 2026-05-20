@@ -551,6 +551,60 @@
   opacity: 0.75;
 }
 
+/* ── Formatted markdown inside summary ── */
+.summary-markdown {
+  font-size: 0.88rem;
+  line-height: 1.6;
+  color: var(--kb-text);
+}
+.summary-markdown p {
+  margin: 0 0 0.5em;
+}
+.summary-markdown p:last-child {
+  margin-bottom: 0;
+}
+.summary-markdown h1,
+.summary-markdown h2,
+.summary-markdown h3,
+.summary-markdown h4 {
+  font-size: 0.92rem;
+  font-weight: 700;
+  margin: 0.6em 0 0.3em;
+  color: var(--kb-text);
+}
+.summary-markdown h1:first-child,
+.summary-markdown h2:first-child,
+.summary-markdown h3:first-child {
+  margin-top: 0;
+}
+.summary-markdown ul,
+.summary-markdown ol {
+  padding-left: 1.3em;
+  margin: 0 0 0.5em;
+}
+.summary-markdown li {
+  margin-bottom: 0.15em;
+}
+.summary-markdown code {
+  font-family: 'Fira Mono', 'Consolas', monospace;
+  font-size: 0.83em;
+  background: var(--kb-bg);
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--kb-accent);
+}
+.summary-markdown strong {
+  font-weight: 600;
+}
+.summary-markdown blockquote {
+  border-left: 3px solid var(--kb-accent);
+  margin: 0 0 0.5em;
+  padding: 0.2em 0.8em;
+  color: var(--kb-muted);
+  background: var(--kb-accent-light);
+  border-radius: 0 6px 6px 0;
+}
+
 /* ═══════════════════════════════════════════════
    CONTENTS TABLE
 ═══════════════════════════════════════════════ */
@@ -621,6 +675,21 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   margin-top: 1px;
+}
+.contents-row__snippet--md code {
+  font-family: 'Fira Mono', 'Consolas', monospace;
+  font-size: 0.9em;
+  background: var(--kb-bg);
+  padding: 0 3px;
+  border-radius: 3px;
+  color: var(--kb-accent);
+}
+.contents-row__snippet--md strong {
+  font-weight: 600;
+  color: var(--kb-text);
+}
+.contents-row__snippet--md em {
+  font-style: italic;
 }
 .contents-row__type {
   font-size: 0.78rem;

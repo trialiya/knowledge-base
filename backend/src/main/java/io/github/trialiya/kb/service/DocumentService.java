@@ -81,6 +81,20 @@ public class DocumentService {
     }
 
     /**
+     * Returns ancestor IDs from root down to (but not including) the given node. e.g. node at depth
+     * 3 → [rootId, folderId, parentFolderId]. Empty list for root-level nodes.
+     */
+    public List<String> getAncestorIds(Long id) {
+        List<String> chain = new ArrayList<>();
+        Long current = repo.findById(id).map(DocumentEntity::getParentId).orElse(null);
+        while (current != null) {
+            chain.add(0, String.valueOf(current));
+            current = repo.findById(current).map(DocumentEntity::getParentId).orElse(null);
+        }
+        return chain;
+    }
+
+    /**
      * Returns one level of children for a given parent (null = root). Each node includes {@code
      * hasChildren} so the UI can show a chevron without loading the next level eagerly.
      */

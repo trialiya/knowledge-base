@@ -16,6 +16,7 @@ const api = {
   fetchTree: () => fetch('/api/documents/tree').then((r) => r.json()),
   fetchChildren: (parentId) =>
     fetch(`/api/documents/children${parentId ? `?parentId=${parentId}` : ''}`).then((r) => r.json()),
+  fetchAncestors: (id) => fetch(`/api/documents/${id}/ancestors`).then((r) => r.json()),
   search: (q, mode) => fetch(`/api/search?q=${encodeURIComponent(q)}&mode=${mode}`).then((r) => r.json()),
   create: (body) =>
     fetch('/api/documents', {
@@ -182,25 +183,49 @@ const KnowledgeBase = () => {
 
   useEffect(() => {
     const init = async () => {
-      // Always load root nodes first
-      const rootNodes = await (async () => {
-        try {
-          const data = await api.fetchChildren(null);
-          const nodes = Array.isArray(data) ? data : [];
-          setTree(nodes);
-          return nodes;
-        } catch {
-          setTree([]);
-          return [];
-        }
-      })();
+      // Load root nodes
+      let rootNodes = [];
+      try {
+        const data = await api.fetchChildren(null);
+        rootNodes = Array.isArray(data) ? data : [];
+        setTree(rootNodes);
+      } catch {
+        setTree([]);
+      }
 
       const { docId, tab, searchQuery: urlSearch, searchMode: urlMode } = getUrlState();
       setActiveTab(tab);
+
       if (docId) {
-        const node = findNodeById(rootNodes, docId);
-        if (node) {
-          setSelectedNode(node);
+        // Fetch ancestor chain [rootId, ..., parentId] and load each level in order
+        let currentTree = rootNodes;
+        try {
+          const ancestorIds = await api.fetchAncestors(docId);
+          // Load and splice each ancestor level into the tree
+          for (const ancestorId of ancestorIds) {
+            const children = await api.fetchChildren(ancestorId);
+            currentTree = await new Promise((resolve) => {
+              setTree((prev) => {
+                const clone = JSON.parse(JSON.stringify(prev));
+                const parent = findNodeById(clone, ancestorId);
+                if (parent) {
+                  parent.children = Array.isArray(children) ? children : [];
+                  parent._childrenLoaded = true;
+                  parent.hasChildren = children.length > 0;
+                  parent._openOnLoad = true; // signal TreeNode to open
+                }
+                resolve(clone);
+                return clone;
+              });
+            });
+          }
+          // Find the target node in the fully-loaded tree
+          const target = findNodeById(currentTree, docId);
+          if (target) setSelectedNode(target);
+        } catch {
+          // fallback: just try root
+          const target = findNodeById(rootNodes, docId);
+          if (target) setSelectedNode(target);
         }
       } else if (urlSearch) {
         setSearchQuery(urlSearch);
