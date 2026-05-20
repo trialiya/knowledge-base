@@ -148,7 +148,7 @@ public class DocumentService {
         List<SemanticSearchResult> raw =
                 (threshold != null || limit != null)
                         ? semanticSearchService.search(
-                                q, threshold != null ? threshold : 0.30, limit != null ? limit : 20)
+                                q, threshold != null ? threshold : 0.25, limit != null ? limit : 20)
                         : semanticSearchService.search(q);
 
         return raw.stream()

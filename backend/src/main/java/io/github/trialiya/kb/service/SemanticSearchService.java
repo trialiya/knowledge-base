@@ -1,13 +1,14 @@
 package io.github.trialiya.kb.service;
 
+import io.github.trialiya.kb.config.model.EmbeddingConfiguration;
 import io.github.trialiya.kb.model.doc.entity.DocumentEmbeddingEntity;
 import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
 import io.github.trialiya.kb.model.search.SemanticSearchResult;
 import io.github.trialiya.kb.repository.DocumentEmbeddingRepository;
 import io.github.trialiya.kb.repository.DocumentRepository;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.stereotype.Service;
@@ -19,37 +20,46 @@ import org.springframework.transaction.annotation.Transactional;
  * <h3>Indexing</h3>
  *
  * <ul>
- *   <li>{@link #indexDocument} – upserts the embedding for one document.
- *   <li>{@link #reindexAll} – full reindex (call once on startup or via admin endpoint).
+ *   <li>{@link #indexDocument} – upserts the embedding for one document (uses Postgres cache).
+ *   <li>{@link #reindexAll} – full reindex using batch API calls for efficiency.
  *   <li>{@link #deleteIndex} – removes the embedding when a document is deleted.
  * </ul>
  *
  * <h3>Search</h3>
  *
- * {@link #search} embeds the query on the fly and runs a cosine similarity search against the
- * stored vectors.
+ * {@link #search} embeds the query (cache-first) and runs a cosine similarity search.
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class SemanticSearchService {
 
-    /** Default cosine-similarity threshold – tune to taste. */
     private static final double DEFAULT_THRESHOLD = 0.30;
-
-    /** Default maximum number of results returned. */
     private static final int DEFAULT_LIMIT = 20;
+
+    /**
+     * How many documents are sent to {@link EmbeddingService#embedBatch} in one go during reindex.
+     * Tune to stay within OpenAI's request-size limits (~2 048 items / ~300 k tokens per batch).
+     * Configured via {@code kb.embedding.reindex-batch-size}.
+     */
+    private final int reindexBatchSize;
 
     private final EmbeddingService embeddingService;
     private final DocumentEmbeddingRepository embeddingRepo;
     private final DocumentRepository documentRepo;
 
-    // ── Indexing ─────────────────────────────────────────────────────────────
+    public SemanticSearchService(
+            EmbeddingService embeddingService,
+            DocumentEmbeddingRepository embeddingRepo,
+            DocumentRepository documentRepo,
+            EmbeddingConfiguration embeddingConfig) {
+        this.embeddingService = embeddingService;
+        this.embeddingRepo = embeddingRepo;
+        this.documentRepo = documentRepo;
+        this.reindexBatchSize = embeddingConfig.reindexBatchSize();
+    }
 
-    /**
-     * Creates or updates the embedding for a single document. Call this whenever a document's title
-     * or description changes.
-     */
+    // ── Indexing ──────────────────────────────────────────────────────────────
+
     @Transactional
     public void indexDocument(Long documentId, String title, String description) {
         EmbeddingResponse embeddingResponse = embeddingService.embedDocument(title, description);
@@ -72,7 +82,6 @@ public class SemanticSearchService {
         log.debug("Indexed document id={} title='{}'", documentId, title);
     }
 
-    /** Removes the stored embedding for a document (called on document deletion). */
     @Transactional
     public void deleteIndex(Long documentId) {
         embeddingRepo.deleteByDocumentId(documentId);
@@ -80,46 +89,96 @@ public class SemanticSearchService {
     }
 
     /**
-     * Re-embeds every document in the database. Useful for initial population or after changing the
-     * embedding model.
+     * Re-embeds every document using batched API calls.
      *
-     * @return number of documents indexed
+     * <p>Documents are processed in slices of {@link #reindexBatchSize}. Within each slice, {@link
+     * EmbeddingService#embedBatch} sends all cache-miss texts in a single HTTP request, so a full
+     * reindex on a warm cache costs zero API calls.
+     *
+     * @return total number of documents processed (including failures)
      */
     @Transactional
     public int reindexAll() {
-        Iterable<DocumentEntity> all = documentRepo.findAll();
+        List<DocumentEntity> all = new ArrayList<>();
+        documentRepo.findAll().forEach(all::add);
 
-        int count = 0;
+        int total = all.size();
         int countSuccess = 0;
-        for (var doc : all) {
-            count++;
+
+        for (int offset = 0; offset < total; offset += reindexBatchSize) {
+            List<DocumentEntity> slice =
+                    all.subList(offset, Math.min(offset + reindexBatchSize, total));
+
+            List<String> texts =
+                    slice.stream()
+                            .map(doc -> buildDocumentText(doc.getTitle(), doc.getDescription()))
+                            .toList();
+
+            List<float[]> vectors;
             try {
-                indexDocument(doc.getId(), doc.getTitle(), doc.getDescription());
-                countSuccess++;
+                vectors = embeddingService.embedBatch(texts);
             } catch (Exception ex) {
-                log.error("Failed to index document id={}: {}", doc.getId(), ex.getMessage(), ex);
+                log.error(
+                        "Batch embedding failed for slice offset={}: {}",
+                        offset,
+                        ex.getMessage(),
+                        ex);
+                continue;
+            }
+
+            for (int i = 0; i < slice.size(); i++) {
+                DocumentEntity doc = slice.get(i);
+                try {
+                    upsertEmbedding(doc.getId(), vectors.get(i));
+                    countSuccess++;
+                } catch (Exception ex) {
+                    log.error(
+                            "Failed to persist embedding for document id={}: {}",
+                            doc.getId(),
+                            ex.getMessage(),
+                            ex);
+                }
             }
         }
-        log.info("Reindex complete: {}/{} documents indexed", countSuccess, count);
-        return count;
+
+        log.info("Reindex complete: {}/{} documents indexed", countSuccess, total);
+        return total;
     }
 
-    // ── Search ───────────────────────────────────────────────────────────────
+    // ── Search ────────────────────────────────────────────────────────────────
 
-    /**
-     * Embeds {@code query} and returns the most similar documents.
-     *
-     * @param query natural-language query
-     * @param threshold minimum cosine similarity (0–1); results below are excluded
-     * @param limit maximum number of results
-     */
     public List<SemanticSearchResult> search(String query, double threshold, int limit) {
         float[] queryVector = embeddingService.embed(query).getResult().getOutput();
         return embeddingRepo.findSimilar(queryVector, threshold, limit);
     }
 
-    /** Overload with sensible defaults. */
     public List<SemanticSearchResult> search(String query) {
         return search(query, DEFAULT_THRESHOLD, DEFAULT_LIMIT);
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private void upsertEmbedding(Long documentId, float[] vector) {
+        DocumentEmbeddingEntity entity =
+                embeddingRepo
+                        .findByDocumentId(documentId)
+                        .orElseGet(
+                                () -> {
+                                    DocumentEmbeddingEntity e = new DocumentEmbeddingEntity();
+                                    e.setDocumentId(documentId);
+                                    return e;
+                                });
+        entity.setEmbedding(vector);
+        entity.setUpdatedAt(OffsetDateTime.now());
+        entity.setModel(embeddingService.getModelName());
+        embeddingRepo.save(entity);
+    }
+
+    private static String buildDocumentText(String title, String description) {
+        StringBuilder sb = new StringBuilder(title == null ? "" : title.trim());
+        if (description != null && !description.isBlank()) {
+            sb.append('\n').append(description.trim());
+        }
+        return sb.toString();
     }
 }

@@ -62,3 +62,46 @@ CREATE INDEX IF NOT EXISTS document_embeddings_ivfflat_idx
     ON document_embeddings
         USING ivfflat (embedding vector_cosine_ops)
     WITH (lists = 100);
+
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Embedding cache
+--
+-- Key   : SHA-256 hash of the input text + model name
+--         (hex string, 64 chars – stored as TEXT for readability)
+-- Value : float[] vector, same VECTOR(1536) type as document_embeddings
+--
+-- Eviction: EmbeddingCacheCleanupTask deletes rows whose last_used_at
+--           is older than the configured TTL (default 30 days).
+-- ─────────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS embedding_cache (
+                                               id           BIGSERIAL    PRIMARY KEY,
+
+    -- SHA-256(text) expressed as lowercase hex (64 chars).
+                                               text_hash    CHAR(64)     NOT NULL,
+
+    -- Model name used to produce this embedding, e.g. "text-embedding-3-small".
+    -- Included in the lookup key so a model switch doesn't serve stale vectors.
+                                               model        TEXT         NOT NULL,
+
+    -- The cached vector. Dimension must match document_embeddings.embedding.
+                                               embedding    VECTOR(1536) NOT NULL,
+
+    -- When this row was first inserted.
+                                               created_at   TIMESTAMPTZ  NOT NULL DEFAULT now(),
+
+    -- Updated on every cache hit so LRU-style eviction is possible.
+                                               last_used_at TIMESTAMPTZ  NOT NULL DEFAULT now(),
+
+    -- Composite uniqueness: one vector per (text, model) combination.
+                                               CONSTRAINT uq_embedding_cache UNIQUE (text_hash, model)
+);
+
+-- Fast equality lookup on (text_hash, model).
+CREATE INDEX IF NOT EXISTS idx_embedding_cache_lookup
+    ON embedding_cache (text_hash, model);
+
+-- Fast range scan for the cleanup job (DELETE … WHERE last_used_at < ?).
+CREATE INDEX IF NOT EXISTS idx_embedding_cache_last_used
+    ON embedding_cache (last_used_at);

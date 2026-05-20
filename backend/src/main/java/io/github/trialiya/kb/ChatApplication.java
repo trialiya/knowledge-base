@@ -1,12 +1,16 @@
 package io.github.trialiya.kb;
 
 import io.github.trialiya.kb.config.model.DocumentsConfiguration;
+import io.github.trialiya.kb.config.model.EmbeddingConfiguration;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
 @SpringBootApplication
-@EnableConfigurationProperties(DocumentsConfiguration.class)
+@EnableConfigurationProperties({
+    DocumentsConfiguration.class,
+    EmbeddingConfiguration.class // <-- добавить
+})
 public class ChatApplication {
 
     public static void main(String[] args) {

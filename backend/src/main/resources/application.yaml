@@ -1,6 +1,6 @@
 spring:
   application:
-    name: chat-demo
+    name: kb-demo
   ai:
     openai:
       base-url: ${AI_BASE_URL}
@@ -52,6 +52,26 @@ kb:
     export-path: ${DOCUMENTS_EXPORT_PATH}
     replace: true
   project-path: ${PROJECT_PATH}
+  embedding:
+    # Must match spring.ai.openai.embedding.options.model.
+    # Stored alongside every cached vector so that model upgrades invalidate old cache rows.
+    model: ${AI_EMBED_MODEL}
+    # Number of documents sent to embedBatch() per slice during reindexAll().
+    # Keep below OpenAI's per-request limit (~2 048 inputs / ~300 k tokens).
+    reindex-batch-size: 50
+    cache:
+      # Set to false to bypass the Postgres cache entirely (e.g. in tests).
+      enabled: true
+      # Rows not accessed for this many days are deleted by EmbeddingCacheCleanupTask.
+      ttl-days: 30
+      # Spring cron expression for the cleanup job (server local time).
+      # Default: every day at 02:00.
+      cleanup-cron: "0 0 2 * * *"
+    chunker:
+      # Maximum tokens per chunk. Must be well below the model's 8 192-token limit.
+      max-tokens: 512
+      # Token overlap between adjacent chunks to avoid missing cross-boundary context.
+      overlap-tokens: 64
 
 #logging:
 #  level:
