@@ -40,6 +40,13 @@ const ChatWindow = () => {
   // Ref to hold activeChatId at mount time so the initial fetch effect
   // doesn't need it in its dependency array (we only want this to run once).
   const initialActiveChatIdRef = useRef(activeChatId);
+  // Mirror of `chats` so callbacks can read the latest value synchronously
+  // without listing `chats` in their dependency arrays (which would recreate
+  // them on every streaming chunk).
+  const chatsRef = useRef(chats);
+  useEffect(() => {
+    chatsRef.current = chats;
+  }, [chats]);
 
   // Загрузка списка чатов
   useEffect(() => {
@@ -143,12 +150,18 @@ const ChatWindow = () => {
     async (text) => {
       if (!activeChatId) return;
 
-      let initialAiIndex = -1;
+      // Вычисляем индекс нового AI-сообщения СИНХРОННО, до setChats.
+      // Updater в setChats выполняется асинхронно, поэтому нельзя
+      // полагаться на значение, присвоенное внутри него.
+      const currentChat = chatsRef.current.find((c) => c.id === activeChatId);
+      const baseMessages = currentChat?.messages || [];
+      // После добавления [user, ai] AI-сообщение будет последним.
+      const initialAiIndex = baseMessages.length + 1;
+
       setChats((prev) => {
         const activeChat = prev.find((c) => c.id === activeChatId);
         if (!activeChat) return prev;
         const newMessages = [...(activeChat.messages || []), { text, sender: 'user' }, { text: '', sender: 'ai' }];
-        initialAiIndex = newMessages.length - 1;
         const updatedChat = { ...activeChat, messages: newMessages };
         const otherChats = prev.filter((c) => c.id !== activeChatId);
         return [updatedChat, ...otherChats];
@@ -212,17 +225,46 @@ const ChatWindow = () => {
 
               let textChanged = false;
               let shouldFinishSegment = false;
+              let isDone = false;
               try {
                 const parsed = JSON.parse(jsonString);
-                if (parsed.content) {
-                  aiMessageTextRef.current += parsed.content;
+                // Бэкенд присылает текст в поле "message".
+                if (parsed.message) {
+                  aiMessageTextRef.current += parsed.message;
                   textChanged = true;
                 }
-                if (parsed.finishReason === 'TOOL_EXECUTION') {
+                // Завершение всего ответа.
+                if (parsed.finishReason === 'STOP') {
+                  isDone = true;
+                }
+                // Граница сегмента (вызов инструмента) — начинаем новое
+                // AI-сообщение, но только если в текущем уже есть текст.
+                if (parsed.finishReason === 'TOOL_CALLS' && aiMessageTextRef.current.trim() !== '') {
                   shouldFinishSegment = true;
                 }
               } catch {
                 /* ignore parse errors */
+              }
+
+              if (isDone) {
+                aiMessageTextRef.current = aiMessageTextRef.current.trimEnd();
+                const finalText = aiMessageTextRef.current;
+                const idx = aiMessageIndexRef.current;
+                setChats((prev) => {
+                  const chatIndex = prev.findIndex((c) => c.id === activeChatId);
+                  if (chatIndex === -1) return prev;
+                  const updated = { ...prev[chatIndex] };
+                  const messages = [...updated.messages];
+                  if (messages[idx]?.sender === 'ai') {
+                    messages[idx] = { ...messages[idx], text: finalText };
+                    updated.messages = messages;
+                  }
+                  const others = prev.filter((c) => c.id !== activeChatId);
+                  return [updated, ...others];
+                });
+                fetchAndUpdateTitle(activeChatId);
+                setIsLoading(false);
+                return;
               }
 
               if (shouldFinishSegment) {
