@@ -17,8 +17,16 @@ node {
     download = true
 }
 
-task yarnServe(type: YarnTask) {
+tasks.register('yarnServe', YarnTask) {
     args = ['run', 'start']
+}
+
+tasks.register('yarnInstall', YarnTask) {
+    args = ['install']
+}
+
+tasks.register('yarnBuild', YarnTask) {
+    args = ['build']
 }
 
 spotless {
