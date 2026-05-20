@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.functions;
 
 import io.github.trialiya.kb.model.git.dto.GitCommit;
+import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.service.GitService;
@@ -167,5 +168,21 @@ public class GitFunction {
         GitFileContent fileContent = gitService.getFileContent(filePath);
         log.info("getFileContent called: fileContent='{}'", fileContent);
         return fileContent;
+    }
+
+    /**
+     * Returns uncommitted changes in the working tree, excluding files matched by {@code
+     * .gitignore}.
+     *
+     * @param includePatch whether to include unified diff text for modified files
+     */
+    @Tool(description = "Returns uncommitted changes in the working tree")
+    public List<GitDiffEntry> getUncommittedChanges(
+            @ToolParam(description = "whether to include unified diff text for modified files")
+                    boolean includePatch) {
+        log.info("getUncommittedChanges called: includePatch='{}'", includePatch);
+        List<GitDiffEntry> gitDiffEntries = gitService.getUncommittedChanges(includePatch);
+        log.info("getUncommittedChanges called: gitDiffEntries='{}'", gitDiffEntries);
+        return gitDiffEntries;
     }
 }

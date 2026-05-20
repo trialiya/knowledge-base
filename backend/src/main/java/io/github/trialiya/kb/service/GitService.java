@@ -7,6 +7,7 @@ import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -36,6 +37,16 @@ public class GitService {
 
     private static final long MAX_FILE_SIZE = 512 * 1024; // 512 KB — skip huge files
     private static final int MAX_DIFF_LINES = 500; // truncate very large diffs
+
+    /** File names to always exclude from uncommitted changes (OS/IDE junk). */
+    private static final java.util.Set<String> IGNORED_FILES =
+            java.util.Set.of(".DS_Store", "Thumbs.db", "desktop.ini", ".directory");
+
+    /** File extensions to always exclude from uncommitted changes. */
+    private static final java.util.Set<String> IGNORED_EXTENSIONS =
+            java.util.Set.of(
+                    ".class", ".jar", ".war", ".ear", ".o", ".so", ".dylib", ".dll", ".exe", ".pyc",
+                    ".pyo", ".swp", ".swo", ".bak", ".tmp", ".orig");
 
     /** Record separator used in custom git log format. */
     private static final String RS = "\u001e";
@@ -288,7 +299,111 @@ public class GitService {
         }
     }
 
+    // ── Uncommitted changes ────────────────────────────────────────────────
+
+    /**
+     * Returns uncommitted changes in the working tree, excluding files matched by {@code
+     * .gitignore}.
+     *
+     * <p>Covers three categories:
+     *
+     * <ul>
+     *   <li><b>Modified/deleted tracked files</b> (both staged and unstaged) — via {@code git diff
+     *       HEAD --numstat}
+     *   <li><b>New untracked files</b> not ignored — via {@code git ls-files --others
+     *       --exclude-standard}
+     * </ul>
+     *
+     * @param includePatch whether to include unified diff text for modified files
+     */
+    public List<GitDiffEntry> getUncommittedChanges(boolean includePatch) {
+        List<GitDiffEntry> entries = new ArrayList<>();
+
+        // 1) Staged + unstaged modifications vs HEAD
+        List<String> statLines =
+                exec(List.of("git", "diff", "HEAD", "--numstat", "--find-renames"));
+
+        List<String> patchLines =
+                includePatch
+                        ? exec(List.of("git", "diff", "HEAD", "-p", "--find-renames"))
+                        : Collections.emptyList();
+        var patches =
+                includePatch
+                        ? parsePatchBlocks(patchLines)
+                        : Collections.<String, String>emptyMap();
+
+        for (String line : statLines) {
+            if (line.isBlank()) continue;
+            String[] parts = line.split("\t", 3);
+            if (parts.length < 3) continue;
+            int add = parseStat(parts[0]);
+            int del = parseStat(parts[1]);
+            String pathPart = parts[2];
+            String oldPath = null;
+            String filePath;
+            if (pathPart.contains(" => ")) {
+                String[] rp = parseRenamePath(pathPart);
+                oldPath = rp[0];
+                filePath = rp[1];
+            } else {
+                filePath = pathPart;
+            }
+            if (isJunkFile(filePath)) continue;
+
+            String status;
+            if (oldPath != null) {
+                status = "R";
+            } else {
+                // Check if file exists on disk to distinguish delete from modify
+                boolean existsOnDisk = Files.exists(repoPath.resolve(filePath));
+                status = !existsOnDisk ? "D" : (add > 0 && del == 0 ? "A" : "M");
+            }
+
+            String patch = patches.getOrDefault(filePath, patches.get(oldPath));
+            if (patch != null && patch.lines().count() > MAX_DIFF_LINES) {
+                patch =
+                        patch.lines().limit(MAX_DIFF_LINES).collect(Collectors.joining("\n"))
+                                + "\n... (truncated)";
+            }
+            entries.add(new GitDiffEntry(status, filePath, oldPath, add, del, patch));
+        }
+
+        // 2) Untracked files (not ignored by .gitignore)
+        List<String> untrackedFiles =
+                exec(List.of("git", "ls-files", "--others", "--exclude-standard"));
+
+        for (String file : untrackedFiles) {
+            if (file.isBlank()) continue;
+            // Skip if already covered by diff HEAD (shouldn't happen, but be safe)
+            String f = file.strip();
+            if (isJunkFile(f)) continue;
+            if (entries.stream().anyMatch(e -> f.equals(e.path()))) continue;
+
+            long size = fileSize(f);
+            int lineCount = 0;
+            if (size > 0 && size <= MAX_FILE_SIZE) {
+                try {
+                    lineCount =
+                            (int) Files.lines(repoPath.resolve(f), StandardCharsets.UTF_8).count();
+                } catch (IOException | UncheckedIOException ignored) {
+                    // binary or unreadable — leave lineCount as 0
+                }
+            }
+            entries.add(new GitDiffEntry("A", f, null, lineCount, 0, null));
+        }
+
+        return entries;
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /** Returns {@code true} for OS/IDE artefacts that should never appear in results. */
+    private static boolean isJunkFile(String path) {
+        String name = path.contains("/") ? path.substring(path.lastIndexOf('/') + 1) : path;
+        if (IGNORED_FILES.contains(name)) return true;
+        int dot = name.lastIndexOf('.');
+        return dot >= 0 && IGNORED_EXTENSIONS.contains(name.substring(dot).toLowerCase());
+    }
 
     private List<String> exec(List<String> command) {
         try {

@@ -74,7 +74,7 @@ public class ChatController {
             HttpEntity<String> httpEntity) {
         checkChat(conversationId, true);
 
-        final SseEmitter emitter = new SseEmitter();
+        final SseEmitter emitter = new SseEmitter(300_000L);
         final AtomicReference<Disposable> disposableRef = new AtomicReference<>();
 
         try {
