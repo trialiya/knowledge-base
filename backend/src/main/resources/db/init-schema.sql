@@ -109,17 +109,66 @@ CREATE INDEX IF NOT EXISTS idx_embedding_cache_last_used
 -- Migration: add ordering support to documents
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS position INTEGER NOT NULL DEFAULT 0;
 
--- Back-fill: assign positions based on current sort order
--- (folders first, then alphabetically — mirrors the existing Java query)
--- WITH ranked AS (
---     SELECT id,
---            ROW_NUMBER() OVER (
---                PARTITION BY COALESCE(parent_id, -1)   -- group by parent (-1 = root)
---                ORDER BY type DESC, title               -- folders first, then alpha
---                ) - 1 AS pos
---     FROM documents
--- )
--- UPDATE documents d
--- SET position = r.pos
--- FROM ranked r
--- WHERE d.id = r.id;
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Attachments
+--
+-- A single table for files attached to documents OR chat messages.
+-- Exactly one of (document_id, conversation_id) is non-null.
+--
+-- owner_type is a discriminator: 'document' or 'chat'.
+-- content stores the raw text for text-based files (plain text, markdown, csv, …).
+-- summary stores an AI-generated description (populated on demand).
+-- ─────────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS attachments (
+                                           id              BIGSERIAL       PRIMARY KEY,
+
+    -- Polymorphic owner --------------------------------------------------
+                                           owner_type      TEXT            NOT NULL CHECK (owner_type IN ('document', 'chat')),
+                                           document_id     BIGINT          REFERENCES documents(id) ON DELETE CASCADE,
+                                           conversation_id VARCHAR(255)    REFERENCES chat_topic(conversation_id) ON DELETE CASCADE,
+
+    -- File metadata ------------------------------------------------------
+                                           file_name       TEXT            NOT NULL,
+                                           content_type    TEXT            NOT NULL DEFAULT 'text/plain',
+                                           file_size       BIGINT          NOT NULL DEFAULT 0,
+
+    -- Textual content (for text-based attachments) -----------------------
+                                           content         TEXT,
+
+    -- AI-generated summary (populated on demand) -------------------------
+                                           summary         TEXT,
+
+                                           created_at      TIMESTAMPTZ     NOT NULL DEFAULT now(),
+                                           updated_at      TIMESTAMPTZ     NOT NULL DEFAULT now(),
+
+    -- Exactly one owner must be set
+                                           CONSTRAINT chk_attachment_owner CHECK (
+                                               (owner_type = 'document' AND document_id IS NOT NULL AND conversation_id IS NULL) OR
+                                               (owner_type = 'chat'     AND conversation_id IS NOT NULL AND document_id IS NULL)
+                                               )
+);
+
+CREATE INDEX IF NOT EXISTS idx_attachments_document
+    ON attachments (document_id) WHERE document_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_attachments_conversation
+    ON attachments (conversation_id) WHERE conversation_id IS NOT NULL;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Attachment embeddings (same pattern as document_embeddings)
+-- ─────────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS attachment_embeddings (
+                                                     id              BIGSERIAL       PRIMARY KEY,
+                                                     attachment_id   BIGINT          NOT NULL UNIQUE
+                                                         REFERENCES attachments(id) ON DELETE CASCADE,
+                                                     embedding       VECTOR(1536)    NOT NULL,
+                                                     model           TEXT            NOT NULL,
+                                                     updated_at      TIMESTAMPTZ     NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS attachment_embeddings_ivfflat_idx
+    ON attachment_embeddings
+        USING ivfflat (embedding vector_cosine_ops)
+    WITH (lists = 100);

@@ -1,16 +1,19 @@
-import React from 'react';
+import React, { useState } from 'react';
 import DetailHeader from './DetailHeader';
 import ContentsTable from './ContentsTable';
 import SummarySection from './SummarySection';
 import MarkdownEditor from './MarkdownEditor';
+import AttachmentPanel from './AttachmentPanel';
 
 const TABS = [
   { key: 'summary', label: 'Summary' },
   { key: 'content', label: 'Content' },
   { key: 'contents', label: 'Contents' },
+  { key: 'attachments', label: 'Attachments' },
 ];
 
 const FolderDetail = ({ node, path, tab, onTabChange, onUpdate, onDelete, onNavigate, onRename }) => {
+  const [attachmentCount, setAttachmentCount] = useState(0);
   const children = node.children || [];
 
   return (
@@ -25,6 +28,9 @@ const FolderDetail = ({ node, path, tab, onTabChange, onUpdate, onDelete, onNavi
             onClick={() => onTabChange(key)}
           >
             {label}
+            {key === 'attachments' && attachmentCount > 0 && (
+              <span className="detail-tab__count">{attachmentCount}</span>
+            )}
           </button>
         ))}
       </div>
@@ -38,6 +44,9 @@ const FolderDetail = ({ node, path, tab, onTabChange, onUpdate, onDelete, onNavi
                 <ContentsTable children={children} onNavigate={onNavigate} />
               </SummarySection>
             )}
+            <SummarySection label="Attachments" showMoreBtn onMore={() => onTabChange('attachments')}>
+              <AttachmentPanel ownerType="document" ownerId={node.id} compact onCountChange={setAttachmentCount} />
+            </SummarySection>
           </div>
         )}
 
@@ -57,6 +66,10 @@ const FolderDetail = ({ node, path, tab, onTabChange, onUpdate, onDelete, onNavi
               <ContentsTable children={children} onNavigate={onNavigate} />
             )}
           </div>
+        )}
+
+        {tab === 'attachments' && (
+          <AttachmentPanel ownerType="document" ownerId={node.id} onCountChange={setAttachmentCount} />
         )}
       </div>
     </div>

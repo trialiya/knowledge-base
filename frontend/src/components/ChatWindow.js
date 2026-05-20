@@ -3,8 +3,10 @@ import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import ChatList from './ChatList';
+import AttachmentPanel, { IconPaperclip } from './KnowledgeBase/AttachmentPanel';
 import { getUrlState, setChatUrlState } from './KnowledgeBase/utils';
 import './ChatWindow.css';
+import './KnowledgeBase/AttachmentPanel.css';
 
 const generateUUID = () => {
   if (crypto?.randomUUID) {
@@ -29,9 +31,11 @@ const ChatWindow = () => {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [sidebarTab, setSidebarTab] = useState('chats'); // 'chats' | 'attachments'
   const aiMessageTextRef = useRef('');
   const aiMessageIndexRef = useRef(-1);
   const abortControllerRef = useRef(null);
+  const attachFileRef = useRef(null);
 
   // Загрузка списка чатов
   useEffect(() => {
@@ -59,7 +63,7 @@ const ChatWindow = () => {
       }
     };
     fetchChats();
-  }, []); // убрал лишнюю зависимость
+  }, []);
 
   // Переименование чата
   const renameChat = useCallback(async (chatId, newTitle) => {
@@ -134,7 +138,6 @@ const ChatWindow = () => {
     async (text) => {
       if (!activeChatId) return;
 
-      // Обновляем состояние: поднимаем чат наверх И добавляем сообщения
       let initialAiIndex = -1;
       setChats((prev) => {
         const activeChat = prev.find((c) => c.id === activeChatId);
@@ -206,23 +209,18 @@ const ChatWindow = () => {
               let shouldFinishSegment = false;
               try {
                 const parsed = JSON.parse(jsonString);
-                if (parsed.message) {
-                  aiMessageTextRef.current += parsed.message;
+                if (parsed.content) {
+                  aiMessageTextRef.current += parsed.content;
                   textChanged = true;
                 }
-                if (parsed.finishReason === 'TOOL_CALLS' && aiMessageTextRef.current.trim().length !== 0) {
+                if (parsed.finishReason === 'TOOL_EXECUTION') {
                   shouldFinishSegment = true;
                 }
-              } catch (e) {
-                /* ignore */
+              } catch {
+                /* ignore parse errors */
               }
 
-              if (!textChanged && !shouldFinishSegment) continue;
-
               if (shouldFinishSegment) {
-                // Финализируем текущее AI-сообщение и создаём новое.
-                // Индекс вычисляем ВНЕ updater, чтобы StrictMode (двойной вызов
-                // updater в dev) не сдвинул индекс дважды.
                 const finalText = aiMessageTextRef.current.trimEnd();
                 aiMessageTextRef.current = '';
                 const finishedIdx = aiMessageIndexRef.current;
@@ -236,7 +234,6 @@ const ChatWindow = () => {
                   if (messages[finishedIdx]?.sender === 'ai') {
                     messages[finishedIdx] = { ...messages[finishedIdx], text: finalText };
                   }
-                  // Создаём новый слот только если его ещё нет (идемпотентно)
                   if (messages.length <= newIdx) {
                     messages.push({ text: '', sender: 'ai' });
                   }
@@ -244,8 +241,7 @@ const ChatWindow = () => {
                   const others = prev.filter((c) => c.id !== activeChatId);
                   return [updated, ...others];
                 });
-              } else {
-                // Обычный стриминг — обновляем текст текущего AI-сообщения
+              } else if (textChanged) {
                 const idx = aiMessageIndexRef.current;
                 const currentText = aiMessageTextRef.current;
                 setChats((prev) => {
@@ -334,6 +330,7 @@ const ChatWindow = () => {
     setChats((prev) => [newChat, ...prev]);
     setActiveChatId(newId);
     localStorage.setItem(STORAGE_KEY_ACTIVE_ID, newId);
+    setSidebarTab('chats'); // switch back to chat list on new chat
   }, []);
 
   const handleDeleteChat = useCallback(
@@ -363,16 +360,70 @@ const ChatWindow = () => {
     [activeChatId],
   );
 
+  // Quick file upload from message input area
+  const handleAttachFile = useCallback(
+    async (file) => {
+      if (!activeChatId || !file) return;
+      const formData = new FormData();
+      formData.append('file', file);
+      try {
+        await fetch(`/api/chat/${activeChatId}/attachments`, {
+          method: 'POST',
+          body: formData,
+        });
+        // Switch to attachments tab to show the uploaded file
+        setSidebarTab('attachments');
+      } catch (err) {
+        console.error('Upload error:', err);
+        alert('Ошибка загрузки файла');
+      }
+    },
+    [activeChatId],
+  );
+
   return (
     <div className="chat-app-container">
-      <ChatList
-        chats={chats}
-        activeChatId={activeChatId}
-        onSelectChat={handleSelectChat}
-        onNewChat={handleNewChat}
-        onDeleteChat={handleDeleteChat}
-        onRenameChat={renameChat}
-      />
+      {/* ── Left sidebar ── */}
+      <div className="chat-list">
+        {/* Tab switcher: Chats / Attachments */}
+        <div className="chat-sidebar-tabs">
+          <button
+            className={`chat-sidebar-tab ${sidebarTab === 'chats' ? 'chat-sidebar-tab--active' : ''}`}
+            onClick={() => setSidebarTab('chats')}
+          >
+            💬 Чаты
+          </button>
+          <button
+            className={`chat-sidebar-tab ${sidebarTab === 'attachments' ? 'chat-sidebar-tab--active' : ''}`}
+            onClick={() => setSidebarTab('attachments')}
+          >
+            📎 Файлы
+          </button>
+        </div>
+
+        {sidebarTab === 'chats' ? (
+          <ChatList
+            chats={chats}
+            activeChatId={activeChatId}
+            onSelectChat={handleSelectChat}
+            onNewChat={handleNewChat}
+            onDeleteChat={handleDeleteChat}
+            onRenameChat={renameChat}
+          />
+        ) : (
+          <div className="chat-attachments-wrapper">
+            {activeChatId ? (
+              <AttachmentPanel key={activeChatId} ownerType="chat" ownerId={activeChatId} />
+            ) : (
+              <p style={{ color: 'var(--kb-muted)', fontSize: '0.84rem', textAlign: 'center', padding: '2rem 0' }}>
+                Выберите чат
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Right: chat window ── */}
       <div className="chat-window">
         {/* Шапка активного чата */}
         {activeChat && (
@@ -421,7 +472,29 @@ const ChatWindow = () => {
         ) : (
           <MessageList messages={activeMessages} />
         )}
-        <MessageInput onSend={handleSendMessage} onStop={handleStopGeneration} disabled={isLoading} />
+
+        {/* Message input with attach button */}
+        <div className="message-input-row">
+          <button
+            className="message-input-attach"
+            title="Прикрепить файл"
+            onClick={() => attachFileRef.current?.click()}
+          >
+            <IconPaperclip size={18} />
+          </button>
+          <input
+            ref={attachFileRef}
+            type="file"
+            style={{ display: 'none' }}
+            accept="text/*,.md,.json,.yaml,.yml,.xml,.csv,.log,.sql,.java,.js,.jsx,.ts,.tsx,.py,.go,.rs,.html,.css"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleAttachFile(file);
+              e.target.value = '';
+            }}
+          />
+          <MessageInput onSend={handleSendMessage} onStop={handleStopGeneration} disabled={isLoading} />
+        </div>
       </div>
     </div>
   );

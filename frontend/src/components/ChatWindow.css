@@ -318,3 +318,22 @@
 .stop-button:hover {
   background: #c73057;
 }
+
+/* Wrap MessageInput + attach button together */
+.message-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 0.6rem 1.2rem 1.2rem;
+  border-top: 1px solid var(--kb-border);
+  background: var(--kb-bg);
+  flex-shrink: 0;
+}
+
+/* The MessageInput inside the row should not have its own border-top/padding */
+.message-input-row .message-input-form {
+  flex: 1;
+  border-top: none;
+  padding: 0;
+  background: transparent;
+}

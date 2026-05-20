@@ -1,11 +1,13 @@
 package io.github.trialiya.kb.config;
 
+import io.github.trialiya.kb.functions.AttachmentFunction;
 import io.github.trialiya.kb.functions.DocumentFunction;
 import io.github.trialiya.kb.functions.GitFunction;
 import io.github.trialiya.kb.functions.MessageLookupFunction;
 import io.github.trialiya.kb.functions.TopicFunction;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
+import io.github.trialiya.kb.service.AttachmentService;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.service.DocumentService;
 import io.github.trialiya.kb.service.GitService;
@@ -19,6 +21,7 @@ import org.springframework.ai.model.tool.ToolCallingManager;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 
 @Configuration
 @Slf4j
@@ -40,6 +43,7 @@ public class ChatConfig {
             ChatMessageRepository chatMessageRepository,
             DocumentService documentService,
             GitService gitService,
+            @Lazy AttachmentService attachmentService,
             ToolCallingManager toolCallingManager) {
         log.info("Model: {}", openAiChatModel.getDefaultOptions());
         return ChatClient.builder(openAiChatModel)
@@ -59,7 +63,8 @@ public class ChatConfig {
                         new TopicFunction(chatTopicRepository),
                         new MessageLookupFunction(chatMessageRepository),
                         new DocumentFunction(documentService),
-                        new GitFunction(gitService))
+                        new GitFunction(gitService),
+                        new AttachmentFunction(attachmentService))
                 .build();
     }
 }

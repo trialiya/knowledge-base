@@ -9,10 +9,11 @@ spring:
         options:
           model: ${AI_MODEL}
           max-tokens: 30000
+          temperature: 0.2
+          stream-usage: true
           extra-body:
             thinking:
               type: disabled
-          temperature: 0.2
       embedding:
         base-url: ${AI_EMBED_BASE_URL:${AI_BASE_URL}}
         api-key: ${AI_EMBED_API_KEY:${AI_API_KEY}}
@@ -40,6 +41,10 @@ spring:
   threads:
     virtual:
       enabled: true
+  servlet:
+    multipart:
+      max-file-size: 1MB
+      max-request-size: 2MB
 
 server:
   servlet:

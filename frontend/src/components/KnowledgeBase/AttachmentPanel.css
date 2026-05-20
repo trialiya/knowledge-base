@@ -1,0 +1,338 @@
+/* ═══════════════════════════════════════════════
+   ATTACHMENT PANEL — shared styles for docs & chat
+═══════════════════════════════════════════════ */
+
+/* ── Drop zone ── */
+.attachment-dropzone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 1rem;
+  border: 2px dashed var(--kb-border);
+  border-radius: 12px;
+  background: var(--kb-bg);
+  color: var(--kb-muted);
+  font-size: 0.84rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  margin-bottom: 1rem;
+}
+.attachment-dropzone:hover {
+  border-color: var(--kb-accent);
+  color: var(--kb-accent);
+  background: var(--kb-accent-light);
+}
+.attachment-dropzone--active {
+  border-color: var(--kb-accent);
+  background: var(--kb-accent-bg);
+  color: var(--kb-accent);
+}
+.attachment-dropzone--uploading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* ── Table (full mode) ── */
+.attachment-table {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--kb-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.attachment-table__header {
+  display: grid;
+  grid-template-columns: 28px 1fr 70px 100px;
+  padding: 7px 16px;
+  font-size: 0.71rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--kb-muted);
+  background: var(--kb-bg);
+  border-bottom: 1px solid var(--kb-border);
+}
+
+.attachment-row {
+  display: grid;
+  grid-template-columns: 28px 1fr 70px 100px;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--kb-border-light, var(--kb-border));
+  transition: background 0.1s;
+}
+.attachment-row:last-child {
+  border-bottom: none;
+}
+.attachment-row:hover {
+  background: var(--kb-accent-light);
+}
+
+.attachment-row__icon {
+  display: flex;
+  align-items: center;
+  color: var(--kb-muted);
+}
+
+.attachment-row__name-wrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+.attachment-row__name {
+  font-size: 0.87rem;
+  font-weight: 500;
+  color: var(--kb-accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.attachment-row__summary {
+  font-size: 0.76rem;
+  color: var(--kb-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 1px;
+}
+.attachment-row__no-summary {
+  font-size: 0.74rem;
+  color: var(--kb-border);
+  font-style: italic;
+  margin-top: 1px;
+}
+
+.attachment-row__size {
+  font-size: 0.78rem;
+  color: var(--kb-muted);
+}
+
+.attachment-row__actions {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.attachment-row__delete:hover {
+  color: #e84d6a !important;
+  background: #fdedf0 !important;
+}
+
+/* ── Panel states ── */
+.attachment-panel__loading,
+.attachment-panel__empty {
+  color: var(--kb-muted);
+  font-size: 0.88rem;
+  text-align: center;
+  padding: 2rem 0;
+  font-style: italic;
+  margin: 0;
+}
+
+/* ── Compact list (summary tab) ── */
+.attachment-compact-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.attachment-compact-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--kb-border-light, var(--kb-border));
+  font-size: 0.84rem;
+  color: var(--kb-text);
+}
+.attachment-compact-item:last-child {
+  border-bottom: none;
+}
+
+.attachment-compact-item__name {
+  font-weight: 500;
+  color: var(--kb-accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.attachment-compact-item__size {
+  font-size: 0.75rem;
+  color: var(--kb-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.attachment-compact-item__summary {
+  font-size: 0.75rem;
+  color: var(--kb-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.attachment-compact__loading,
+.attachment-compact__empty {
+  color: var(--kb-muted);
+  font-size: 0.84rem;
+  padding: 10px 16px;
+  font-style: italic;
+  margin: 0;
+}
+
+/* ── Content viewer overlay ── */
+.attachment-viewer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(45, 43, 85, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 2rem;
+}
+
+.attachment-viewer {
+  background: var(--kb-white);
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(91, 79, 207, 0.2);
+  width: 100%;
+  max-width: 720px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.attachment-viewer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--kb-border);
+  background: var(--kb-bg);
+  flex-shrink: 0;
+}
+.attachment-viewer__name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--kb-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-viewer__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  min-height: 0;
+}
+
+.attachment-viewer__loading {
+  color: var(--kb-muted);
+  font-style: italic;
+  text-align: center;
+  padding: 2rem;
+  margin: 0;
+}
+
+.attachment-viewer__content {
+  margin: 0;
+  padding: 0;
+  font-family: 'Fira Mono', 'Consolas', monospace;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--kb-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ═══════════════════════════════════════════════
+   CHAT ATTACHMENTS SIDEBAR
+═══════════════════════════════════════════════ */
+
+/* Sidebar tab switcher (chats ↔ attachments) */
+.chat-sidebar-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--kb-border);
+  background: var(--kb-bg);
+  flex-shrink: 0;
+}
+
+.chat-sidebar-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 10px 8px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--kb-muted);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.chat-sidebar-tab:hover {
+  color: var(--kb-text);
+}
+.chat-sidebar-tab--active {
+  color: var(--kb-accent);
+  border-bottom-color: var(--kb-accent);
+  font-weight: 600;
+}
+
+/* Chat attachments panel wrapper */
+.chat-attachments-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 0.8rem;
+}
+
+.chat-attachments-wrapper .attachment-dropzone {
+  margin-bottom: 0.8rem;
+  padding: 0.8rem;
+  font-size: 0.8rem;
+}
+
+.chat-attachments-wrapper .attachment-table__header {
+  grid-template-columns: 24px 1fr 64px;
+}
+.chat-attachments-wrapper .attachment-row {
+  grid-template-columns: 24px 1fr 64px;
+  padding: 8px 12px;
+}
+.chat-attachments-wrapper .attachment-row__size {
+  display: none;
+}
+.chat-attachments-wrapper .attachment-row__actions {
+  gap: 1px;
+}
+
+/* ── Paperclip button in message input ── */
+.message-input-attach {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--kb-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 8px;
+  transition: color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+.message-input-attach:hover {
+  color: var(--kb-accent);
+  background: var(--kb-accent-bg);
+}
