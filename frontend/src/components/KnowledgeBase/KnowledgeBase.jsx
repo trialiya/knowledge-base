@@ -303,12 +303,38 @@ const KnowledgeBase = () => {
     }
   };
 
+  // ─── Helper: update node in tree recursively ──────────────────────────────
+  function updateNodeInTree(tree, id, updates) {
+    return tree.map((node) => {
+      if (node.id === id) {
+        return { ...node, ...updates };
+      }
+      if (node.children) {
+        return { ...node, children: updateNodeInTree(node.children, id, updates) };
+      }
+      return node;
+    });
+  }
+
+  // внутри компонента KnowledgeBase
+
   const handleUpdate = async (id, patch) => {
+    // Сохраняем предыдущее состояние дерева для возможного отката
+    const previousTree = JSON.parse(JSON.stringify(tree));
+
+    // Оптимистично обновляем локальное дерево
+    setTree((prev) => updateNodeInTree(prev, id, patch));
+
     try {
       const res = await api.update(id, patch);
-      if (res.ok) loadTree();
-    } catch {
-      /* noop */
+      if (!res.ok) throw new Error('Update failed');
+      // Если обновление затронуло выбранный узел, он уже обновлён через setTree,
+      // useEffect синхронизирует selectedNode автоматически
+    } catch (err) {
+      console.error('Update error, rolling back:', err);
+      // Откатываем дерево до предыдущего состояния
+      setTree(previousTree);
+      alert('Ошибка при сохранении. Попробуйте позже.');
     }
   };
 
