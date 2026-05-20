@@ -31,7 +31,8 @@ const ChatWindow = () => {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
   const [loadingMessages, setLoadingMessages] = useState(false);
-  const [sidebarTab, setSidebarTab] = useState('chats'); // 'chats' | 'attachments'
+  const [attachPanelOpen, setAttachPanelOpen] = useState(false);
+  const [attachCount, setAttachCount] = useState(0);
   const aiMessageTextRef = useRef('');
   const aiMessageIndexRef = useRef(-1);
   const abortControllerRef = useRef(null);
@@ -330,7 +331,7 @@ const ChatWindow = () => {
     setChats((prev) => [newChat, ...prev]);
     setActiveChatId(newId);
     localStorage.setItem(STORAGE_KEY_ACTIVE_ID, newId);
-    setSidebarTab('chats'); // switch back to chat list on new chat
+    // (attachment panel stays as-is on new chat)
   }, []);
 
   const handleDeleteChat = useCallback(
@@ -371,8 +372,8 @@ const ChatWindow = () => {
           method: 'POST',
           body: formData,
         });
-        // Switch to attachments tab to show the uploaded file
-        setSidebarTab('attachments');
+        // Open attachment panel to show the uploaded file
+        setAttachPanelOpen(true);
       } catch (err) {
         console.error('Upload error:', err);
         alert('Ошибка загрузки файла');
@@ -383,47 +384,17 @@ const ChatWindow = () => {
 
   return (
     <div className="chat-app-container">
-      {/* ── Left sidebar ── */}
-      <div className="chat-list">
-        {/* Tab switcher: Chats / Attachments */}
-        <div className="chat-sidebar-tabs">
-          <button
-            className={`chat-sidebar-tab ${sidebarTab === 'chats' ? 'chat-sidebar-tab--active' : ''}`}
-            onClick={() => setSidebarTab('chats')}
-          >
-            💬 Чаты
-          </button>
-          <button
-            className={`chat-sidebar-tab ${sidebarTab === 'attachments' ? 'chat-sidebar-tab--active' : ''}`}
-            onClick={() => setSidebarTab('attachments')}
-          >
-            📎 Файлы
-          </button>
-        </div>
+      {/* ── Left sidebar: chat list only ── */}
+      <ChatList
+        chats={chats}
+        activeChatId={activeChatId}
+        onSelectChat={handleSelectChat}
+        onNewChat={handleNewChat}
+        onDeleteChat={handleDeleteChat}
+        onRenameChat={renameChat}
+      />
 
-        {sidebarTab === 'chats' ? (
-          <ChatList
-            chats={chats}
-            activeChatId={activeChatId}
-            onSelectChat={handleSelectChat}
-            onNewChat={handleNewChat}
-            onDeleteChat={handleDeleteChat}
-            onRenameChat={renameChat}
-          />
-        ) : (
-          <div className="chat-attachments-wrapper">
-            {activeChatId ? (
-              <AttachmentPanel key={activeChatId} ownerType="chat" ownerId={activeChatId} />
-            ) : (
-              <p style={{ color: 'var(--kb-muted)', fontSize: '0.84rem', textAlign: 'center', padding: '2rem 0' }}>
-                Выберите чат
-              </p>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ── Right: chat window ── */}
+      {/* ── Center: chat window ── */}
       <div className="chat-window">
         {/* Шапка активного чата */}
         {activeChat && (
@@ -461,6 +432,15 @@ const ChatWindow = () => {
                 {activeChat.createdAt ? `Создан: ${new Date(activeChat.createdAt).toLocaleString()}` : 'Новый чат'}
               </div>
             </div>
+            {/* Attachment toggle button in header */}
+            <button
+              className={`chat-header-attachments-btn ${attachPanelOpen ? 'chat-header-attachments-btn--active' : ''}`}
+              onClick={() => setAttachPanelOpen((v) => !v)}
+              title="Вложения"
+            >
+              <IconPaperclip size={15} />
+              {attachCount > 0 && <span className="attach-badge">{attachCount}</span>}
+            </button>
             <button className="chat-header-delete" onClick={() => handleDeleteChat(activeChat.id)}>
               Удалить
             </button>
@@ -496,6 +476,30 @@ const ChatWindow = () => {
           <MessageInput onSend={handleSendMessage} onStop={handleStopGeneration} disabled={isLoading} />
         </div>
       </div>
+
+      {/* ── Right panel: attachments ── */}
+      {attachPanelOpen && (
+        <div className="chat-attachment-panel">
+          <div className="chat-attachment-panel__header">
+            <span>📎 Вложения</span>
+            <button className="chat-attachment-panel__close" onClick={() => setAttachPanelOpen(false)} title="Закрыть">
+              ✕
+            </button>
+          </div>
+          <div className="chat-attachment-panel__body">
+            {activeChatId ? (
+              <AttachmentPanel
+                key={activeChatId}
+                ownerType="chat"
+                ownerId={activeChatId}
+                onCountChange={setAttachCount}
+              />
+            ) : (
+              <p className="chat-attachment-panel__empty">Выберите чат</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
