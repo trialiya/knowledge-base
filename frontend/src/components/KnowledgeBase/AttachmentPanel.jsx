@@ -147,6 +147,25 @@ const ContentViewer = ({ attachment, onClose }) => {
   );
 };
 
+// компонент для просмотра полного текста summary в модальном окне
+const SummaryViewer = ({ attachment, onClose }) => {
+  return (
+    <div className="attachment-viewer-overlay" onClick={onClose}>
+      <div className="attachment-viewer" onClick={(e) => e.stopPropagation()}>
+        <div className="attachment-viewer__header">
+          <span className="attachment-viewer__name">Описание: {attachment.fileName}</span>
+          <button className="detail-icon-btn" onClick={onClose} title="Закрыть">
+            ✕
+          </button>
+        </div>
+        <div className="attachment-viewer__body">
+          <pre className="attachment-viewer__content">{attachment.summary || 'Нет описания'}</pre>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ─── Main component ──────────────────────────────────────────────────────────
 
 /**
@@ -165,6 +184,7 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
   const [dragOver, setDragOver] = useState(false);
   const [summarizingId, setSummarizingId] = useState(null);
   const [viewingAttachment, setViewingAttachment] = useState(null);
+  const [viewingSummaryFor, setViewingSummaryFor] = useState(null);
   const fileInputRef = useRef(null);
 
   // ── Load attachments ────────────────────────────────────────────────────
@@ -272,12 +292,21 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
             <span className="attachment-compact-item__name">{a.fileName}</span>
             <span className="attachment-compact-item__size">{formatFileSize(a.fileSize)}</span>
             {a.summary && (
-              <span className="attachment-compact-item__summary" title={a.summary}>
+              <span
+                className="attachment-compact-item__summary"
+                title="Кликните для просмотра полного описания"
+                onClick={() => setViewingSummaryFor(a)} // ✨ NEW
+                style={{ cursor: 'pointer' }}
+              >
                 {a.summary.length > 60 ? a.summary.slice(0, 60) + '…' : a.summary}
               </span>
             )}
           </div>
         ))}
+        {/* Модалка для просмотра summary в компактном режиме */}
+        {viewingSummaryFor && (
+          <SummaryViewer attachment={viewingSummaryFor} onClose={() => setViewingSummaryFor(null)} />
+        )}
       </div>
     );
   }
@@ -303,7 +332,7 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
           type="file"
           style={{ display: 'none' }}
           onChange={handleFileSelect}
-          accept="text/*,.md,.json,.yaml,.yml,.xml,.csv,.log,.sql,.java,.js,.jsx,.ts,.tsx,.py,.go,.rs,.html,.css"
+          accept="text/*,.md,.json,.yaml,.yml,.xml,.csv,.log,.sql,.gradle,.java,.js,.jsx,.ts,.tsx,.py,.go,.rs,.html,.css"
         />
       </div>
 
@@ -327,7 +356,16 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
               </span>
               <span className="attachment-row__name-wrap">
                 <span className="attachment-row__name">{a.fileName}</span>
-                {a.summary && <span className="attachment-row__summary">{a.summary}</span>}
+                {a.summary && (
+                  <span
+                    className="attachment-row__summary"
+                    onClick={() => setViewingSummaryFor(a)}
+                    title="Кликните для просмотра полного описания"
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {a.summary}
+                  </span>
+                )}
                 {!a.summary && <span className="attachment-row__no-summary">Нет описания</span>}
               </span>
               <span className="attachment-row__size">{formatFileSize(a.fileSize)}</span>
@@ -358,6 +396,9 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
 
       {/* Content viewer */}
       {viewingAttachment && <ContentViewer attachment={viewingAttachment} onClose={() => setViewingAttachment(null)} />}
+
+      {/* Модалка для просмотра summary в полном режиме */}
+      {viewingSummaryFor && <SummaryViewer attachment={viewingSummaryFor} onClose={() => setViewingSummaryFor(null)} />}
     </div>
   );
 };
