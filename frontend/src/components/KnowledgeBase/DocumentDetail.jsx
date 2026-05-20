@@ -3,7 +3,6 @@ import DetailHeader from './DetailHeader';
 import SummarySection from './SummarySection';
 import MarkdownEditor from './MarkdownEditor';
 import AttachmentPanel from './AttachmentPanel';
-import { IconPaperclip } from './AttachmentPanel';
 
 const TABS = [
   { key: 'summary', label: 'Summary' },

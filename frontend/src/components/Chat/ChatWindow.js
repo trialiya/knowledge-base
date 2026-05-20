@@ -3,10 +3,10 @@ import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import ChatList from './ChatList';
-import AttachmentPanel, { IconPaperclip } from './KnowledgeBase/AttachmentPanel';
-import { getUrlState, setChatUrlState } from './KnowledgeBase/utils';
+import AttachmentPanel, { IconPaperclip } from '../KnowledgeBase/AttachmentPanel';
+import { getUrlState, setChatUrlState } from '../KnowledgeBase/utils';
 import './ChatWindow.css';
-import './KnowledgeBase/AttachmentPanel.css';
+import '../KnowledgeBase/AttachmentPanel.css';
 
 const generateUUID = () => {
   if (crypto?.randomUUID) {
@@ -37,6 +37,9 @@ const ChatWindow = () => {
   const aiMessageIndexRef = useRef(-1);
   const abortControllerRef = useRef(null);
   const attachFileRef = useRef(null);
+  // Ref to hold activeChatId at mount time so the initial fetch effect
+  // doesn't need it in its dependency array (we only want this to run once).
+  const initialActiveChatIdRef = useRef(activeChatId);
 
   // Загрузка списка чатов
   useEffect(() => {
@@ -52,7 +55,8 @@ const ChatWindow = () => {
           createdAt: chat.createdAt || null,
         }));
         setChats(chatList);
-        if (!activeChatId || !chatList.find((c) => c.id === activeChatId)) {
+        const currentId = initialActiveChatIdRef.current;
+        if (!currentId || !chatList.find((c) => c.id === currentId)) {
           const firstId = chatList[0]?.id;
           if (firstId) {
             setActiveChatId(firstId);
@@ -64,7 +68,7 @@ const ChatWindow = () => {
       }
     };
     fetchChats();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Переименование чата
   const renameChat = useCallback(async (chatId, newTitle) => {

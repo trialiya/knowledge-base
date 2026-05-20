@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import ChatWindow from './components/ChatWindow';
+import ChatWindow from './components/Chat/ChatWindow';
 import KnowledgeBase from './components/KnowledgeBase/KnowledgeBase';
 import { getUrlState, setChatUrlState } from './components/KnowledgeBase/utils';
 import './App.css';
 
 function getInitialTab() {
-  const { docId, searchQuery, chatId } = getUrlState();
+  const { docId, searchQuery } = getUrlState();
   if (docId || searchQuery) return 'knowledge';
   // chatId или пустой URL → чат
   return 'chat';

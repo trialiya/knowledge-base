@@ -2,6 +2,7 @@
   "name": "kb-frontend",
   "version": "0.1.0",
   "private": true,
+  "license": "UNLICENSED",
   "proxy": "http://localhost:8080",
   "dependencies": {
     "react": "^19.2.6",

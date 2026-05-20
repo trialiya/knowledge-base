@@ -13,9 +13,9 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
     EmbeddingConfiguration.class,
     SearchConfiguration.class
 })
-public class ChatApplication {
+public class KnowledgeBaseApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(ChatApplication.class, args);
+        SpringApplication.run(KnowledgeBaseApplication.class, args);
     }
 }

@@ -107,8 +107,6 @@ const KnowledgeBase = () => {
   const [moveConfirm, setMoveConfirm] = useState(null);
   // moveConfirm shape: { dropInfo, fromTitle, toTitle }
 
-  const initialLoadDone = useRef(false);
-
   // ── Tree loading ─────────────────────────────────────────────────────────
 
   const loadTree = useCallback(async () => {

@@ -13,7 +13,7 @@ const preprocessText = (text) => {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const prevLine = result.length > 0 ? result[result.length - 1] : null;
-    if (/^(\d+\.|\-|\*)\s/.test(line.trim()) && prevLine !== null && prevLine.trim() !== '') {
+    if (/^(\d+\.|-|\*)\s/.test(line.trim()) && prevLine !== null && prevLine.trim() !== '') {
       result.push('');
     }
     result.push(line);
