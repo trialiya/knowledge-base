@@ -38,6 +38,7 @@ export function flatFolders(nodes, acc = []) {
 export function getUrlState() {
   const params = new URLSearchParams(window.location.search);
   return {
+    chatId: params.get('chat') || null,
     docId: params.get('doc') || null,
     tab: params.get('tab') || 'summary',
     searchQuery: params.get('search') || '',
@@ -56,6 +57,15 @@ export function setUrlState(docId, tab, searchQuery, searchMode) {
   const search = params.toString();
   const url = search ? `?${search}` : window.location.pathname;
   window.history.pushState({}, '', url);
+}
+
+/** Update URL with the active chat id (clears doc/search params) */
+export function setChatUrlState(chatId) {
+  if (chatId) {
+    window.history.pushState({}, '', `?chat=${encodeURIComponent(chatId)}`);
+  } else {
+    window.history.pushState({}, '', window.location.pathname);
+  }
 }
 
 // ─── Content helpers ──────────────────────────────────────────────────────────

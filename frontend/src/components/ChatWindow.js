@@ -3,6 +3,7 @@ import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import ChatList from './ChatList';
+import { getUrlState, setChatUrlState } from './KnowledgeBase/utils';
 import './ChatWindow.css';
 
 const generateUUID = () => {
@@ -21,7 +22,8 @@ const STORAGE_KEY_ACTIVE_ID = 'chat_activeId';
 const ChatWindow = () => {
   const [chats, setChats] = useState([]);
   const [activeChatId, setActiveChatId] = useState(() => {
-    return localStorage.getItem(STORAGE_KEY_ACTIVE_ID) || null;
+    const { chatId } = getUrlState();
+    return chatId || localStorage.getItem(STORAGE_KEY_ACTIVE_ID) || null;
   });
   const [isLoading, setIsLoading] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -120,6 +122,7 @@ const ChatWindow = () => {
         loadMessages(activeChatId);
       }
       localStorage.setItem(STORAGE_KEY_ACTIVE_ID, activeChatId);
+      setChatUrlState(activeChatId);
     }
   }, [activeChatId, chats, loadMessages]);
 
@@ -189,7 +192,8 @@ const ChatWindow = () => {
                     messages[idx] = { ...messages[idx], text: aiMessageTextRef.current };
                     updated.messages = messages;
                   }
-                  return [updated, ...prev.slice(0, chatIndex), ...prev.slice(chatIndex + 1)];
+                  const others = prev.filter((c) => c.id !== activeChatId);
+                  return [updated, ...others];
                 });
                 fetchAndUpdateTitle(activeChatId);
                 setIsLoading(false);
@@ -199,6 +203,7 @@ const ChatWindow = () => {
               if (!jsonString) continue;
 
               let textChanged = false;
+              let shouldFinishSegment = false;
               try {
                 const parsed = JSON.parse(jsonString);
                 if (parsed.message) {
@@ -206,42 +211,56 @@ const ChatWindow = () => {
                   textChanged = true;
                 }
                 if (parsed.finishReason === 'TOOL_CALLS' && aiMessageTextRef.current.trim().length !== 0) {
-                  const finalText = aiMessageTextRef.current.trimEnd();
-                  aiMessageTextRef.current = '';
-                  setChats((prev) => {
-                    const chatIndex = prev.findIndex((c) => c.id === activeChatId);
-                    if (chatIndex === -1) return prev;
-                    const updated = { ...prev[chatIndex] };
-                    const messages = [...updated.messages];
-                    const idx = aiMessageIndexRef.current;
-                    if (messages[idx]?.sender === 'ai') {
-                      messages[idx] = { ...messages[idx], text: finalText };
-                    }
-                    messages.push({ text: '', sender: 'ai' });
-                    aiMessageIndexRef.current = messages.length - 1;
-                    updated.messages = messages;
-                    return [updated, ...prev.slice(0, chatIndex), ...prev.slice(chatIndex + 1)];
-                  });
-                  continue;
+                  shouldFinishSegment = true;
                 }
               } catch (e) {
                 /* ignore */
               }
 
-              if (!textChanged) continue;
+              if (!textChanged && !shouldFinishSegment) continue;
 
-              setChats((prev) => {
-                const chatIndex = prev.findIndex((c) => c.id === activeChatId);
-                if (chatIndex === -1) return prev;
-                const updated = { ...prev[chatIndex] };
-                const messages = [...updated.messages];
-                const idx = aiMessageIndexRef.current;
-                if (messages[idx]?.sender === 'ai') {
-                  messages[idx] = { ...messages[idx], text: aiMessageTextRef.current };
+              if (shouldFinishSegment) {
+                // Финализируем текущее AI-сообщение и создаём новое.
+                // Индекс вычисляем ВНЕ updater, чтобы StrictMode (двойной вызов
+                // updater в dev) не сдвинул индекс дважды.
+                const finalText = aiMessageTextRef.current.trimEnd();
+                aiMessageTextRef.current = '';
+                const finishedIdx = aiMessageIndexRef.current;
+                const newIdx = finishedIdx + 1;
+                aiMessageIndexRef.current = newIdx;
+                setChats((prev) => {
+                  const chatIndex = prev.findIndex((c) => c.id === activeChatId);
+                  if (chatIndex === -1) return prev;
+                  const updated = { ...prev[chatIndex] };
+                  const messages = [...updated.messages];
+                  if (messages[finishedIdx]?.sender === 'ai') {
+                    messages[finishedIdx] = { ...messages[finishedIdx], text: finalText };
+                  }
+                  // Создаём новый слот только если его ещё нет (идемпотентно)
+                  if (messages.length <= newIdx) {
+                    messages.push({ text: '', sender: 'ai' });
+                  }
                   updated.messages = messages;
-                }
-                return [updated, ...prev.slice(0, chatIndex), ...prev.slice(chatIndex + 1)];
-              });
+                  const others = prev.filter((c) => c.id !== activeChatId);
+                  return [updated, ...others];
+                });
+              } else {
+                // Обычный стриминг — обновляем текст текущего AI-сообщения
+                const idx = aiMessageIndexRef.current;
+                const currentText = aiMessageTextRef.current;
+                setChats((prev) => {
+                  const chatIndex = prev.findIndex((c) => c.id === activeChatId);
+                  if (chatIndex === -1) return prev;
+                  const updated = { ...prev[chatIndex] };
+                  const messages = [...updated.messages];
+                  if (messages[idx]?.sender === 'ai') {
+                    messages[idx] = { ...messages[idx], text: currentText };
+                    updated.messages = messages;
+                  }
+                  const others = prev.filter((c) => c.id !== activeChatId);
+                  return [updated, ...others];
+                });
+              }
             }
           }
         }
@@ -258,7 +277,8 @@ const ChatWindow = () => {
             messages[idx] = { ...messages[idx], text: aiMessageTextRef.current };
             updated.messages = messages;
           }
-          return [updated, ...prev.slice(0, chatIndex), ...prev.slice(chatIndex + 1)];
+          const others = prev.filter((c) => c.id !== activeChatId);
+          return [updated, ...others];
         });
         fetchAndUpdateTitle(activeChatId);
       } catch (error) {
@@ -274,7 +294,8 @@ const ChatWindow = () => {
               messages[idx] = { ...messages[idx], text: (aiMessageTextRef.current || '').trimEnd() + ' [остановлено]' };
               updated.messages = messages;
             }
-            return [updated, ...prev.slice(0, chatIndex), ...prev.slice(chatIndex + 1)];
+            const others = prev.filter((c) => c.id !== activeChatId);
+            return [updated, ...others];
           });
         } else {
           console.error('Failed to send message:', error);
@@ -288,7 +309,8 @@ const ChatWindow = () => {
               messages[idx] = { text: 'Произошла ошибка. Попробуйте еще раз.', sender: 'ai' };
               updated.messages = messages;
             }
-            return [updated, ...prev.slice(0, chatIndex), ...prev.slice(chatIndex + 1)];
+            const others = prev.filter((c) => c.id !== activeChatId);
+            return [updated, ...others];
           });
         }
       } finally {
