@@ -12,6 +12,7 @@ spring:
           extra-body:
             thinking:
               type: disabled
+          temperature: 0.2
       embedding:
         base-url: ${AI_EMBED_BASE_URL:${AI_BASE_URL}}
         api-key: ${AI_EMBED_API_KEY:${AI_API_KEY}}
@@ -72,6 +73,17 @@ kb:
       max-tokens: 512
       # Token overlap between adjacent chunks to avoid missing cross-boundary context.
       overlap-tokens: 64
+  search:
+    keyword:
+      limit: 20
+    semantic:
+      threshold: 0.20
+      limit: 20
+    hybrid:
+      keyword-weight: 0.4   # вес keyword-результатов (0..1)
+      semantic-weight: 0.6  # вес semantic-результатов (0..1)
+      threshold: 0.20       # минимальная семантическая схожесть
+      limit: 20
 
 #logging:
 #  level:

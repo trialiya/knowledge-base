@@ -13,4 +13,5 @@ public class DocumentNode {
     private final String description;
     private final LocalDateTime updatedAt;
     private final List<DocumentNode> children;
+    private final boolean hasChildren;
 }

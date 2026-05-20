@@ -23,9 +23,26 @@ public class DocumentController {
 
     // ── Tree ──────────────────────────────────────────────────────────────────
 
+    /** Full recursive tree (legacy, kept for backward compat). */
     @GetMapping("/documents/tree")
     public List<DocumentNode> getTree() {
         return service.getTree();
+    }
+
+    /**
+     * Lazy-load one level of children.
+     *
+     * <pre>
+     * GET /api/documents/children          → root nodes
+     * GET /api/documents/children?parentId=42  → children of node 42
+     * </pre>
+     *
+     * Each node includes {@code hasChildren} so the UI knows whether to show a chevron.
+     */
+    @GetMapping("/documents/children")
+    public List<DocumentNode> getChildren(@RequestParam(required = false) String parentId) {
+        Long pid = parentId != null ? Long.parseLong(parentId) : null;
+        return service.getChildren(pid);
     }
 
     // ── CRUD ──────────────────────────────────────────────────────────────────
@@ -73,20 +90,26 @@ public class DocumentController {
      * Unified search endpoint.
      *
      * <pre>
-     * GET /api/search?q=...                  → keyword (default / hybrid)
-     * GET /api/search?q=...&mode=semantic    → vector search (cosine similarity)
-     * GET /api/search?q=...&mode=semantic&threshold=0.5&limit=10
+     * GET /api/search?q=...                   → keyword (default)
+     * GET /api/search?q=...&mode=semantic     → vector search
+     * GET /api/search?q=...&mode=hybrid       → keyword + semantic combined
+     * GET /api/search?q=...&mode=hybrid&threshold=0.2&limit=10&kwWeight=0.4&semWeight=0.6
      * </pre>
+     *
+     * <p>{@code kwWeight} and {@code semWeight} are only used in hybrid mode.
      */
     @GetMapping("/search")
     public List<SearchResult> search(
             @RequestParam String q,
             @RequestParam(defaultValue = "keyword") String mode,
             @RequestParam(required = false) Double threshold,
-            @RequestParam(required = false) Integer limit) {
+            @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false) Double kwWeight,
+            @RequestParam(required = false) Double semWeight) {
 
         return switch (mode.toLowerCase()) {
             case "semantic" -> service.semanticSearch(q, threshold, limit);
+            case "hybrid" -> service.hybridSearch(q, threshold, limit, kwWeight, semWeight);
             default -> service.search(q);
         };
     }
@@ -94,8 +117,7 @@ public class DocumentController {
     // ── Admin ─────────────────────────────────────────────────────────────────
 
     /**
-     * Triggers a full reindex of all documents. Useful after switching embedding models or on first
-     * deployment.
+     * Triggers a full reindex of all documents.
      *
      * <pre>POST /api/documents/reindex</pre>
      */

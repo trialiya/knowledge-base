@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.service;
 
 import io.github.trialiya.kb.config.model.EmbeddingConfiguration;
+import io.github.trialiya.kb.config.model.SearchConfiguration;
 import io.github.trialiya.kb.model.doc.entity.DocumentEmbeddingEntity;
 import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
 import io.github.trialiya.kb.model.search.SemanticSearchResult;
@@ -33,15 +34,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SemanticSearchService {
 
-    private static final double DEFAULT_THRESHOLD = 0.30;
-    private static final int DEFAULT_LIMIT = 20;
-
-    /**
-     * How many documents are sent to {@link EmbeddingService#embedBatch} in one go during reindex.
-     * Tune to stay within OpenAI's request-size limits (~2 048 items / ~300 k tokens per batch).
-     * Configured via {@code kb.embedding.reindex-batch-size}.
-     */
     private final int reindexBatchSize;
+    private final double defaultThreshold;
+    private final int defaultLimit;
 
     private final EmbeddingService embeddingService;
     private final DocumentEmbeddingRepository embeddingRepo;
@@ -51,11 +46,14 @@ public class SemanticSearchService {
             EmbeddingService embeddingService,
             DocumentEmbeddingRepository embeddingRepo,
             DocumentRepository documentRepo,
-            EmbeddingConfiguration embeddingConfig) {
+            EmbeddingConfiguration embeddingConfig,
+            SearchConfiguration searchConfig) {
         this.embeddingService = embeddingService;
         this.embeddingRepo = embeddingRepo;
         this.documentRepo = documentRepo;
         this.reindexBatchSize = embeddingConfig.reindexBatchSize();
+        this.defaultThreshold = searchConfig.semantic().threshold();
+        this.defaultLimit = searchConfig.semantic().limit();
     }
 
     // ── Indexing ──────────────────────────────────────────────────────────────
@@ -90,10 +88,6 @@ public class SemanticSearchService {
 
     /**
      * Re-embeds every document using batched API calls.
-     *
-     * <p>Documents are processed in slices of {@link #reindexBatchSize}. Within each slice, {@link
-     * EmbeddingService#embedBatch} sends all cache-miss texts in a single HTTP request, so a full
-     * reindex on a warm cache costs zero API calls.
      *
      * @return total number of documents processed (including failures)
      */
@@ -152,8 +146,9 @@ public class SemanticSearchService {
         return embeddingRepo.findSimilar(queryVector, threshold, limit);
     }
 
+    /** Uses defaults from {@code kb.search.semantic.*}. */
     public List<SemanticSearchResult> search(String query) {
-        return search(query, DEFAULT_THRESHOLD, DEFAULT_LIMIT);
+        return search(query, defaultThreshold, defaultLimit);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

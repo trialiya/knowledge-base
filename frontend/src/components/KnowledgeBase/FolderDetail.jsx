@@ -7,7 +7,7 @@ import MarkdownEditor from './MarkdownEditor';
 const TABS = [
   { key: 'summary', label: 'Summary' },
   { key: 'content', label: 'Content' },
-  { key: 'contents', label: 'Contents', countFrom: 'children' },
+  { key: 'contents', label: 'Contents' },
 ];
 
 const FolderDetail = ({ node, path, tab, onTabChange, onUpdate, onDelete, onNavigate, onRename }) => {
@@ -18,14 +18,13 @@ const FolderDetail = ({ node, path, tab, onTabChange, onUpdate, onDelete, onNavi
       <DetailHeader node={node} path={path} onNavigate={onNavigate} onRename={onRename} onDelete={onDelete} />
 
       <div className="detail-tabs">
-        {TABS.map(({ key, label, countFrom }) => (
+        {TABS.map(({ key, label }) => (
           <button
             key={key}
             className={`detail-tab ${tab === key ? 'detail-tab--active' : ''}`}
             onClick={() => onTabChange(key)}
           >
             {label}
-            {countFrom && <span className="detail-tab__count">{children.length}</span>}
           </button>
         ))}
       </div>

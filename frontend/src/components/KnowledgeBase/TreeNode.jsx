@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { IconFolder, IconDoc, IconChevron } from './icons';
 import { findNodeById } from './utils';
 
@@ -30,20 +30,34 @@ const DragHandle = () => (
   </span>
 );
 
-const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder }) => {
-  const [open, setOpen] = useState(level === 0);
+const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLoadChildren }) => {
+  const [open, setOpen] = useState(false);
   const [dropPos, setDropPos] = useState(null); // 'before' | 'after' | 'inside'
   const rowRef = useRef(null);
 
   const isFolder = node.type === 'folder';
-  const hasChildren = isFolder && node.children && node.children.length > 0;
+  // hasChildren from server OR already loaded children
+  const hasChildren = isFolder && (node.hasChildren || (node.children && node.children.length > 0));
+  const childrenLoaded = node._childrenLoaded || (node.children && node.children.length > 0);
   const isSelected = node.id === selectedId;
 
+  // Auto-expand ancestor when selection changes
   useEffect(() => {
-    if (isFolder && hasChildren && findNodeById(node.children, selectedId)) {
+    if (isFolder && node.children && findNodeById(node.children, selectedId)) {
       setOpen(true);
     }
   }, [selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggleOpen = useCallback(
+    async (e) => {
+      if (e) e.stopPropagation();
+      if (!open && isFolder && !childrenLoaded && onLoadChildren) {
+        await onLoadChildren(node.id);
+      }
+      setOpen((o) => !o);
+    },
+    [open, isFolder, childrenLoaded, onLoadChildren, node.id],
+  );
 
   // ── Drag source ───────────────────────────────────────────────────────────
 
@@ -127,7 +141,10 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder }) =>
       position: pos,
     });
 
-    if (pos === 'inside' && isFolder) setOpen(true);
+    if (pos === 'inside' && isFolder) {
+      if (!childrenLoaded && onLoadChildren) onLoadChildren(node.id);
+      setOpen(true);
+    }
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -155,18 +172,12 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder }) =>
         onDrop={handleDrop}
         onClick={() => {
           onSelect(node);
-          if (isFolder) setOpen((o) => !o);
+          if (isFolder) toggleOpen(null);
         }}
       >
         <DragHandle />
 
-        <span
-          className="tree-row__chevron"
-          onClick={(e) => {
-            e.stopPropagation();
-            setOpen((o) => !o);
-          }}
-        >
+        <span className="tree-row__chevron" onClick={(e) => toggleOpen(e)}>
           {hasChildren ? <IconChevron open={open} /> : <span style={{ display: 'inline-block', width: 12 }} />}
         </span>
 
@@ -175,8 +186,6 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder }) =>
         </span>
 
         <span className="tree-row__label">{node.title}</span>
-
-        {isFolder && node.children && <span className="tree-row__count">{node.children.length}</span>}
 
         <button
           className="tree-row__del"
@@ -201,6 +210,7 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder }) =>
               onSelect={onSelect}
               onDelete={onDelete}
               onReorder={onReorder}
+              onLoadChildren={onLoadChildren}
             />
           ))}
         </div>

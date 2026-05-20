@@ -14,6 +14,8 @@ import { findNodeById, findPath, getUrlState, setUrlState } from './utils';
 
 const api = {
   fetchTree: () => fetch('/api/documents/tree').then((r) => r.json()),
+  fetchChildren: (parentId) =>
+    fetch(`/api/documents/children${parentId ? `?parentId=${parentId}` : ''}`).then((r) => r.json()),
   search: (q, mode) => fetch(`/api/search?q=${encodeURIComponent(q)}&mode=${mode}`).then((r) => r.json()),
   create: (body) =>
     fetch('/api/documents', {
@@ -110,10 +112,31 @@ const KnowledgeBase = () => {
 
   const loadTree = useCallback(async () => {
     try {
-      const data = await api.fetchTree();
+      const data = await api.fetchChildren(null); // root level only
       setTree(Array.isArray(data) ? data : []);
     } catch {
       setTree([]);
+    }
+  }, []);
+
+  /**
+   * Lazy-loads children of a node and splices them into the tree.
+   * Called by TreeNode when user expands a folder.
+   */
+  const handleLoadChildren = useCallback(async (parentId) => {
+    try {
+      const children = await api.fetchChildren(parentId);
+      setTree((prev) => {
+        const clone = JSON.parse(JSON.stringify(prev));
+        const parent = findNodeById(clone, parentId);
+        if (parent) {
+          parent.children = Array.isArray(children) ? children : [];
+          parent._childrenLoaded = true;
+        }
+        return clone;
+      });
+    } catch {
+      /* noop */
     }
   }, []);
 
@@ -158,33 +181,37 @@ const KnowledgeBase = () => {
   // ── Restore from URL ──────────────────────────────────────────────────────
 
   useEffect(() => {
-    const restoreFromUrl = async () => {
+    const init = async () => {
+      // Always load root nodes first
+      const rootNodes = await (async () => {
+        try {
+          const data = await api.fetchChildren(null);
+          const nodes = Array.isArray(data) ? data : [];
+          setTree(nodes);
+          return nodes;
+        } catch {
+          setTree([]);
+          return [];
+        }
+      })();
+
       const { docId, tab, searchQuery: urlSearch, searchMode: urlMode } = getUrlState();
       setActiveTab(tab);
       if (docId) {
-        if (tree.length === 0) await loadTree();
-        const node = findNodeById(tree, docId);
+        const node = findNodeById(rootNodes, docId);
         if (node) {
           setSelectedNode(node);
-          setSearchQuery('');
-          setSearchResults([]);
-        } else {
-          setSelectedNode(null);
         }
       } else if (urlSearch) {
         setSearchQuery(urlSearch);
         setSearchMode(urlMode);
-        setSelectedNode(null);
         await performSearch(urlSearch, urlMode);
       }
     };
-    restoreFromUrl();
-  }, [loadTree, tree, performSearch]); // eslint-disable-line react-hooks/exhaustive-deps
+    init();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    loadTree();
-  }, [loadTree]);
-
+  // Sync selectedNode when tree updates after CRUD
   useEffect(() => {
     if (!selectedNode) return;
     const updated = findNodeById(tree, selectedNode.id);
@@ -227,7 +254,24 @@ const KnowledgeBase = () => {
       const res = await api.create(body);
       if (res.ok) {
         setShowAddModal(false);
-        loadTree();
+        // Reload the parent scope of the new node
+        const parentId = body.parentId ?? null;
+        if (parentId === null) {
+          loadTree(); // reload roots
+        } else {
+          // Invalidate that folder's children in the tree
+          const children = await api.fetchChildren(parentId);
+          setTree((prev) => {
+            const clone = JSON.parse(JSON.stringify(prev));
+            const parent = findNodeById(clone, parentId);
+            if (parent) {
+              parent.children = Array.isArray(children) ? children : [];
+              parent._childrenLoaded = true;
+              parent.hasChildren = children.length > 0;
+            }
+            return clone;
+          });
+        }
       }
     } catch {
       /* noop */
@@ -253,7 +297,24 @@ const KnowledgeBase = () => {
       const res = await api.delete(id);
       if (res.ok) {
         if (selectedNode?.id === id) setSelectedNode(null);
-        loadTree();
+        // Find the node's parentId before removing from tree
+        const node = findNodeById(tree, id);
+        const parentId = node?.parentId ?? null;
+        if (parentId === null) {
+          loadTree();
+        } else {
+          const children = await api.fetchChildren(parentId);
+          setTree((prev) => {
+            const clone = JSON.parse(JSON.stringify(prev));
+            const parent = findNodeById(clone, parentId);
+            if (parent) {
+              parent.children = Array.isArray(children) ? children : [];
+              parent._childrenLoaded = true;
+              parent.hasChildren = children.length > 0;
+            }
+            return clone;
+          });
+        }
       }
     } catch {
       /* noop */
@@ -371,6 +432,7 @@ const KnowledgeBase = () => {
                 onSelect={selectNode}
                 onDelete={handleDelete}
                 onReorder={handleReorder}
+                onLoadChildren={handleLoadChildren}
               />
             ))}
           </div>

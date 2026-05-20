@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.service;
 
+import io.github.trialiya.kb.config.model.SearchConfiguration;
 import io.github.trialiya.kb.model.doc.dto.CreateDocumentRequest;
 import io.github.trialiya.kb.model.doc.dto.Document;
 import io.github.trialiya.kb.model.doc.dto.DocumentNode;
@@ -14,10 +15,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -26,14 +27,24 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class DocumentService {
 
     private final DocumentRepository repo;
     private final SemanticSearchService semanticSearchService;
+    private final SearchConfiguration searchConfig;
+
+    public DocumentService(
+            DocumentRepository repo,
+            SemanticSearchService semanticSearchService,
+            SearchConfiguration searchConfig) {
+        this.repo = repo;
+        this.semanticSearchService = semanticSearchService;
+        this.searchConfig = searchConfig;
+    }
 
     // ── Tree ─────────────────────────────────────────────────────────────────
 
+    /** Full recursive tree (kept for backward compat, not used by UI anymore). */
     public List<DocumentNode> getTree() {
         List<DocumentEntity> roots = repo.findRoots();
         Map<Long, List<DocumentEntity>> byParent = new HashMap<>();
@@ -45,17 +56,79 @@ public class DocumentService {
                                         .add(e);
                             }
                         });
-        // Sort each child list by position (findAll doesn't guarantee order)
         byParent.values()
                 .forEach(list -> list.sort(Comparator.comparingInt(DocumentEntity::getPosition)));
 
         return roots.stream().map(r -> buildNode(r, byParent)).collect(Collectors.toList());
     }
 
-    private DocumentNode buildNode(DocumentEntity e, Map<Long, List<DocumentEntity>> byParent) {
+    /**
+     * Finds documents/folders whose title contains {@code name} (case-insensitive). Exact matches
+     * are returned first; partial matches follow ordered by title length. Each result includes full
+     * description and direct children count via {@code hasChildren}.
+     *
+     * @param name full or partial title to look up
+     * @return list of matching nodes (up to 20), never null
+     */
+    public List<DocumentNode> findByName(String name) {
+        return repo.findByTitleContaining(name).stream()
+                .map(this::toStubNode)
+                .collect(Collectors.toList());
+    }
+
+    public DocumentNode getById(Long id) {
+        return repo.findById(id).map(this::toShallowNode).orElse(null);
+    }
+
+    /**
+     * Returns one level of children for a given parent (null = root). Each node includes {@code
+     * hasChildren} so the UI can show a chevron without loading the next level eagerly.
+     */
+    public List<DocumentNode> getChildren(Long parentId) {
+        List<DocumentEntity> items =
+                parentId == null ? repo.findRoots() : repo.findByParentId(parentId);
+        return items.stream().map(this::toStubNode).collect(Collectors.toList());
+    }
+
+    /**
+     * Flat tree skeleton: only id + title + type + parentId + hasChildren. Used by the AI tool so
+     * the model gets the full structure without the heavy description content.
+     */
+    public List<DocumentNode> getTreeSkeleton() {
+        List<DocumentNode> result = new ArrayList<>();
+        repo.findAll()
+                .forEach(
+                        e ->
+                                result.add(
+                                        new DocumentNode(
+                                                String.valueOf(e.getId()),
+                                                e.getTitle(),
+                                                e.getType(),
+                                                e.getParentId() == null
+                                                        ? null
+                                                        : String.valueOf(e.getParentId()),
+                                                null,
+                                                null,
+                                                Collections.emptyList(),
+                                                repo.hasChildren(e.getId()))));
+        return result;
+    }
+
+    /** Full shallow node: entity + its direct children (used by getById). */
+    private DocumentNode toShallowNode(DocumentEntity e) {
         List<DocumentNode> children =
-                byParent.getOrDefault(e.getId(), Collections.emptyList()).stream()
-                        .map(child -> buildNode(child, byParent))
+                repo.findByParentId(e.getId()).stream()
+                        .map(
+                                c ->
+                                        new DocumentNode(
+                                                String.valueOf(c.getId()),
+                                                c.getTitle(),
+                                                c.getType(),
+                                                String.valueOf(c.getParentId()),
+                                                null,
+                                                null,
+                                                Collections.emptyList(),
+                                                repo.hasChildren(c.getId())))
                         .collect(Collectors.toList());
         return new DocumentNode(
                 String.valueOf(e.getId()),
@@ -64,7 +137,39 @@ public class DocumentService {
                 e.getParentId() == null ? null : String.valueOf(e.getParentId()),
                 e.getDescription(),
                 e.getUpdatedAt(),
-                children);
+                children,
+                !children.isEmpty());
+    }
+
+    /** Stub node without loading children — used for listing one level (getChildren). */
+    private DocumentNode toStubNode(DocumentEntity e) {
+        boolean hc = repo.hasChildren(e.getId());
+        return new DocumentNode(
+                String.valueOf(e.getId()),
+                e.getTitle(),
+                e.getType(),
+                e.getParentId() == null ? null : String.valueOf(e.getParentId()),
+                e.getDescription(),
+                e.getUpdatedAt(),
+                Collections.emptyList(),
+                hc);
+    }
+
+    private DocumentNode buildNode(DocumentEntity e, Map<Long, List<DocumentEntity>> byParent) {
+        List<DocumentNode> children =
+                byParent.getOrDefault(e.getId(), Collections.emptyList()).stream()
+                        .map(child -> buildNode(child, byParent))
+                        .collect(Collectors.toList());
+        boolean hc = !children.isEmpty() || repo.hasChildren(e.getId());
+        return new DocumentNode(
+                String.valueOf(e.getId()),
+                e.getTitle(),
+                e.getType(),
+                e.getParentId() == null ? null : String.valueOf(e.getParentId()),
+                e.getDescription(),
+                e.getUpdatedAt(),
+                children,
+                hc);
     }
 
     // ── CRUD ─────────────────────────────────────────────────────────────────
@@ -72,8 +177,6 @@ public class DocumentService {
     @Transactional
     public Document create(CreateDocumentRequest req) {
         String type = "folder".equals(req.getType()) ? "folder" : "document";
-
-        // New items go to the end: find current max position among siblings
         int nextPos =
                 nextSiblingPosition(
                         req.getParentId() == null ? null : Long.parseLong(req.getParentId()));
@@ -89,9 +192,7 @@ public class DocumentService {
                         nextPos);
         DocumentEntity saved = repo.save(entity);
 
-        // Index embedding asynchronously-ish; failure must not roll back the save
         tryIndex(saved.getId(), saved.getTitle(), saved.getDescription());
-
         return toDto(saved);
     }
 
@@ -109,7 +210,6 @@ public class DocumentService {
         DocumentEntity saved = repo.save(existing);
 
         tryIndex(saved.getId(), saved.getTitle(), saved.getDescription());
-
         return toDto(saved);
     }
 
@@ -118,8 +218,6 @@ public class DocumentService {
         findOrThrow(id);
         List<Long> ids = repo.findDescendantIds(Long.parseLong(id));
         repo.deleteAllById(ids);
-        // Embeddings are removed via ON DELETE CASCADE in the DB, but we also
-        // clean up explicitly in case the cascade is not available in the env.
         ids.forEach(
                 docId -> {
                     try {
@@ -144,7 +242,6 @@ public class DocumentService {
     public void reorder(ReorderRequest req) {
         List<String> ids = req.getOrderedIds();
         if (ids == null || ids.isEmpty()) return;
-
         for (int i = 0; i < ids.size(); i++) {
             repo.updatePosition(Long.parseLong(ids.get(i)), i);
         }
@@ -175,13 +272,10 @@ public class DocumentService {
      * @param limit max results; pass {@code null} for default
      */
     public List<SearchResult> semanticSearch(String q, Double threshold, Integer limit) {
-        List<SemanticSearchResult> raw =
-                (threshold != null || limit != null)
-                        ? semanticSearchService.search(
-                                q, threshold != null ? threshold : 0.25, limit != null ? limit : 20)
-                        : semanticSearchService.search(q);
+        double t = threshold != null ? threshold : searchConfig.semantic().threshold();
+        int l = limit != null ? limit : searchConfig.semantic().limit();
 
-        return raw.stream()
+        return semanticSearchService.search(q, t, l).stream()
                 .map(
                         r ->
                                 new SearchResult(
@@ -189,6 +283,83 @@ public class DocumentService {
                                         r.title(),
                                         generateSnippet(r.description(), q.toLowerCase()),
                                         r.updatedAt()))
+                .collect(Collectors.toList());
+    }
+
+    // ── Hybrid search ─────────────────────────────────────────────────────────
+
+    /**
+     * Combines keyword and semantic results using configurable weights.
+     *
+     * <p>Algorithm:
+     *
+     * <ol>
+     *   <li>Collect keyword hits (normalised score = rank position inverted over result count).
+     *   <li>Collect semantic hits (score = cosine similarity, already in 0..1).
+     *   <li>Merge by document id: {@code hybridScore = kw * keywordWeight + sem * semanticWeight}.
+     *   <li>Sort descending, return top {@code limit}.
+     * </ol>
+     *
+     * @param q search query
+     * @param threshold min semantic similarity; {@code null} → from config
+     * @param limit max results; {@code null} → from config
+     * @param kwWeight keyword weight 0..1; {@code null} → from config
+     * @param semWeight semantic weight 0..1; {@code null} → from config
+     */
+    public List<SearchResult> hybridSearch(
+            String q, Double threshold, Integer limit, Double kwWeight, Double semWeight) {
+
+        SearchConfiguration.HybridConfig cfg = searchConfig.hybrid();
+        double kw = kwWeight != null ? kwWeight : cfg.keywordWeight();
+        double sem = semWeight != null ? semWeight : cfg.semanticWeight();
+        double thr = threshold != null ? threshold : cfg.threshold();
+        int lim = limit != null ? limit : cfg.limit();
+
+        // ── 1. Keyword hits ───────────────────────────────────────────────────
+        List<SearchResult> kwResults = search(q);
+        Map<String, Double> kwScores = new LinkedHashMap<>();
+        int kwSize = kwResults.size();
+        for (int i = 0; i < kwSize; i++) {
+            // Rank-based score: best hit = 1.0, worst = 1/n
+            kwScores.put(kwResults.get(i).getId(), (double) (kwSize - i) / kwSize);
+        }
+
+        // ── 2. Semantic hits ──────────────────────────────────────────────────
+        List<SemanticSearchResult> semResults =
+                semanticSearchService.search(q, thr, searchConfig.semantic().limit());
+        Map<String, Double> semScores = new LinkedHashMap<>();
+        for (SemanticSearchResult r : semResults) {
+            semScores.put(r.id(), r.similarity());
+        }
+
+        // ── 3. Build unified candidate set ────────────────────────────────────
+        Map<String, SearchResult> snippets = new HashMap<>();
+        for (SearchResult sr : kwResults) {
+            snippets.put(sr.getId(), sr);
+        }
+        for (SemanticSearchResult sr : semResults) {
+            snippets.computeIfAbsent(
+                    sr.id(),
+                    id ->
+                            new SearchResult(
+                                    id,
+                                    sr.title(),
+                                    generateSnippet(sr.description(), q.toLowerCase()),
+                                    sr.updatedAt()));
+        }
+
+        // ── 4. Combine scores & sort ──────────────────────────────────────────
+        return snippets.keySet().stream()
+                .map(
+                        id -> {
+                            double score =
+                                    kw * kwScores.getOrDefault(id, 0.0)
+                                            + sem * semScores.getOrDefault(id, 0.0);
+                            return Map.entry(score, snippets.get(id));
+                        })
+                .sorted(Map.Entry.<Double, SearchResult>comparingByKey().reversed())
+                .limit(lim)
+                .map(Map.Entry::getValue)
                 .collect(Collectors.toList());
     }
 
@@ -221,10 +392,6 @@ public class DocumentService {
                 + (end < content.length() ? "..." : "");
     }
 
-    /**
-     * Tries to index the document; logs a warning but never throws, so that an OpenAI outage cannot
-     * break document CRUD operations.
-     */
     private void tryIndex(Long id, String title, String description) {
         try {
             semanticSearchService.indexDocument(id, title, description);
@@ -233,10 +400,6 @@ public class DocumentService {
         }
     }
 
-    /**
-     * Returns the next available position index for a new sibling under {@code parentId}. A {@code
-     * null} parentId means root level.
-     */
     private int nextSiblingPosition(Long parentId) {
         List<DocumentEntity> siblings =
                 parentId == null ? repo.findRoots() : repo.findByParentId(parentId);
