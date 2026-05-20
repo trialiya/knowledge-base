@@ -19,4 +19,7 @@ public class DocumentEntity {
     private Long parentId;
     private String description;
     private LocalDateTime updatedAt;
+
+    /** Zero-based display order among siblings. */
+    private int position;
 }

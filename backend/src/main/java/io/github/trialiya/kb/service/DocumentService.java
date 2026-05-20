@@ -3,6 +3,7 @@ package io.github.trialiya.kb.service;
 import io.github.trialiya.kb.model.doc.dto.CreateDocumentRequest;
 import io.github.trialiya.kb.model.doc.dto.Document;
 import io.github.trialiya.kb.model.doc.dto.DocumentNode;
+import io.github.trialiya.kb.model.doc.dto.ReorderRequest;
 import io.github.trialiya.kb.model.doc.dto.SearchResult;
 import io.github.trialiya.kb.model.doc.dto.UpdateDocumentRequest;
 import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
@@ -11,6 +12,7 @@ import io.github.trialiya.kb.repository.DocumentRepository;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +45,10 @@ public class DocumentService {
                                         .add(e);
                             }
                         });
+        // Sort each child list by position (findAll doesn't guarantee order)
+        byParent.values()
+                .forEach(list -> list.sort(Comparator.comparingInt(DocumentEntity::getPosition)));
+
         return roots.stream().map(r -> buildNode(r, byParent)).collect(Collectors.toList());
     }
 
@@ -66,6 +72,12 @@ public class DocumentService {
     @Transactional
     public Document create(CreateDocumentRequest req) {
         String type = "folder".equals(req.getType()) ? "folder" : "document";
+
+        // New items go to the end: find current max position among siblings
+        int nextPos =
+                nextSiblingPosition(
+                        req.getParentId() == null ? null : Long.parseLong(req.getParentId()));
+
         DocumentEntity entity =
                 new DocumentEntity(
                         null,
@@ -73,7 +85,8 @@ public class DocumentService {
                         type,
                         req.getParentId() == null ? null : Long.parseLong(req.getParentId()),
                         req.getDescription(),
-                        LocalDateTime.now());
+                        LocalDateTime.now(),
+                        nextPos);
         DocumentEntity saved = repo.save(entity);
 
         // Index embedding asynchronously-ish; failure must not roll back the save
@@ -120,7 +133,24 @@ public class DocumentService {
                 });
     }
 
-    // ── Keyword search (legacy) ───────────────────────────────────────────────
+    // ── Reorder ───────────────────────────────────────────────────────────────
+
+    /**
+     * Reassigns {@code position} for a group of siblings.
+     *
+     * @param req contains the parent scope and the full ordered list of sibling IDs
+     */
+    @Transactional
+    public void reorder(ReorderRequest req) {
+        List<String> ids = req.getOrderedIds();
+        if (ids == null || ids.isEmpty()) return;
+
+        for (int i = 0; i < ids.size(); i++) {
+            repo.updatePosition(Long.parseLong(ids.get(i)), i);
+        }
+    }
+
+    // ── Keyword search ────────────────────────────────────────────────────────
 
     public List<SearchResult> search(String q) {
         return repo.search(q).stream()
@@ -201,5 +231,15 @@ public class DocumentService {
         } catch (Exception ex) {
             log.warn("Embedding index failed for document id={}: {}", id, ex.getMessage());
         }
+    }
+
+    /**
+     * Returns the next available position index for a new sibling under {@code parentId}. A {@code
+     * null} parentId means root level.
+     */
+    private int nextSiblingPosition(Long parentId) {
+        List<DocumentEntity> siblings =
+                parentId == null ? repo.findRoots() : repo.findByParentId(parentId);
+        return siblings.stream().mapToInt(DocumentEntity::getPosition).max().orElse(-1) + 1;
     }
 }

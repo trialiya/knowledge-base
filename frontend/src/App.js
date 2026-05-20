@@ -3,8 +3,14 @@ import ChatWindow from './components/ChatWindow';
 import KnowledgeBase from './components/KnowledgeBase/KnowledgeBase';
 import './App.css';
 
+function getInitialTab() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('doc') || params.get('search')) return 'knowledge';
+  return 'chat';
+}
+
 function App() {
-  const [activeTab, setActiveTab] = useState('chat'); // 'chat' или 'knowledge'
+  const [activeTab, setActiveTab] = useState(getInitialTab); // 'chat' или 'knowledge'
 
   return (
     <div className="App">

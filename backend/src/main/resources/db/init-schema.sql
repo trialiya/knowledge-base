@@ -105,3 +105,21 @@ CREATE INDEX IF NOT EXISTS idx_embedding_cache_lookup
 -- Fast range scan for the cleanup job (DELETE … WHERE last_used_at < ?).
 CREATE INDEX IF NOT EXISTS idx_embedding_cache_last_used
     ON embedding_cache (last_used_at);
+
+-- Migration: add ordering support to documents
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS position INTEGER NOT NULL DEFAULT 0;
+
+-- Back-fill: assign positions based on current sort order
+-- (folders first, then alphabetically — mirrors the existing Java query)
+-- WITH ranked AS (
+--     SELECT id,
+--            ROW_NUMBER() OVER (
+--                PARTITION BY COALESCE(parent_id, -1)   -- group by parent (-1 = root)
+--                ORDER BY type DESC, title               -- folders first, then alpha
+--                ) - 1 AS pos
+--     FROM documents
+-- )
+-- UPDATE documents d
+-- SET position = r.pos
+-- FROM ranked r
+-- WHERE d.id = r.id;

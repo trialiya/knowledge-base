@@ -3,6 +3,7 @@ package io.github.trialiya.kb.controller;
 import io.github.trialiya.kb.model.doc.dto.CreateDocumentRequest;
 import io.github.trialiya.kb.model.doc.dto.Document;
 import io.github.trialiya.kb.model.doc.dto.DocumentNode;
+import io.github.trialiya.kb.model.doc.dto.ReorderRequest;
 import io.github.trialiya.kb.model.doc.dto.SearchResult;
 import io.github.trialiya.kb.model.doc.dto.UpdateDocumentRequest;
 import io.github.trialiya.kb.service.DocumentService;
@@ -45,6 +46,25 @@ public class DocumentController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteDocument(@PathVariable String id) {
         service.delete(id);
+    }
+
+    // ── Reorder ───────────────────────────────────────────────────────────────
+
+    /**
+     * Updates the display order of siblings in a folder (or at root level).
+     *
+     * <pre>
+     * PATCH /api/documents/reorder
+     * {
+     *   "parentId": "42",          // null → root
+     *   "orderedIds": ["7","3","1"]
+     * }
+     * </pre>
+     */
+    @PatchMapping("/documents/reorder")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void reorder(@RequestBody ReorderRequest request) {
+        service.reorder(request);
     }
 
     // ── Search ────────────────────────────────────────────────────────────────

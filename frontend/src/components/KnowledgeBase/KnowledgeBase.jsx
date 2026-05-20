@@ -5,6 +5,7 @@ import TreeNode from './TreeNode';
 import FolderDetail from './FolderDetail';
 import DocumentDetail from './DocumentDetail';
 import AddModal from './AddModal';
+import MoveConfirmModal from './MoveConfirmModal';
 import SearchResults from './SearchResults';
 import { IconPlus } from './icons';
 import { findNodeById, findPath, getUrlState, setUrlState } from './utils';
@@ -27,7 +28,65 @@ const api = {
       body: JSON.stringify(patch),
     }),
   delete: (id) => fetch(`/api/documents/${id}`, { method: 'DELETE' }),
+  reorder: (parentId, orderedIds) =>
+    fetch('/api/documents/reorder', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parentId, orderedIds }),
+    }),
 };
+
+// ─── Pure tree helpers ────────────────────────────────────────────────────────
+
+function getSiblings(tree, parentId) {
+  if (parentId === null) return tree;
+  const parent = findNodeById(tree, parentId);
+  return parent?.children ?? [];
+}
+
+function applyReorder(tree, { draggedId, draggedParent, targetId, targetParent, position }) {
+  const clone = JSON.parse(JSON.stringify(tree));
+
+  const getChildren = (parentId) => {
+    if (parentId === null) return clone;
+    return findNodeById(clone, parentId)?.children ?? [];
+  };
+
+  const srcList = getChildren(draggedParent);
+  const dragIdx = srcList.findIndex((n) => n.id === draggedId);
+  if (dragIdx === -1) return tree;
+
+  const [dragged] = srcList.splice(dragIdx, 1);
+
+  if (position === 'inside') {
+    const targetNode = findNodeById(clone, targetId);
+    if (!targetNode || targetNode.type !== 'folder') return tree;
+    targetNode.children = targetNode.children ?? [];
+    dragged.parentId = targetId;
+    targetNode.children.push(dragged);
+  } else {
+    const dstList = getChildren(targetParent);
+    const targetIdx = dstList.findIndex((n) => n.id === targetId);
+    if (targetIdx === -1) return tree;
+    dragged.parentId = targetParent;
+    const insertAt = position === 'before' ? targetIdx : targetIdx + 1;
+    dstList.splice(insertAt, 0, dragged);
+  }
+
+  return clone;
+}
+
+/** Display name for a parent node (null = root). */
+function parentTitle(tree, parentId) {
+  if (parentId === null) return 'Корневой уровень';
+  return findNodeById(tree, parentId)?.title ?? 'Неизвестно';
+}
+
+/** True when a drop changes the node's parent. */
+function isParentChange({ draggedParent, targetParent, position, targetId }) {
+  if (position === 'inside') return draggedParent !== targetId;
+  return draggedParent !== targetParent;
+}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -39,6 +98,11 @@ const KnowledgeBase = () => {
   const [searchMode, setSearchMode] = useState('hybrid');
   const [searchResults, setSearchResults] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
+
+  // ── Move confirmation modal state ──────────────────────────────────────
+  // Holds the pending drop info while we wait for user confirmation.
+  const [moveConfirm, setMoveConfirm] = useState(null);
+  // moveConfirm shape: { dropInfo, fromTitle, toTitle }
 
   const initialLoadDone = useRef(false);
 
@@ -53,7 +117,7 @@ const KnowledgeBase = () => {
     }
   }, []);
 
-  // ── Search function ──────────────────────────────────────────────────────
+  // ── Search ───────────────────────────────────────────────────────────────
 
   const performSearch = useCallback(async (query, mode) => {
     if (!query.trim()) {
@@ -78,12 +142,7 @@ const KnowledgeBase = () => {
     setUrlState(node.id, 'summary', null, null);
   }, []);
 
-  const clearSearchAndShowNode = useCallback(
-    (node) => {
-      selectNode(node);
-    },
-    [selectNode],
-  );
+  const clearSearchAndShowNode = useCallback((node) => selectNode(node), [selectNode]);
 
   const handleSearch = useCallback(async () => {
     if (!searchQuery.trim()) {
@@ -96,14 +155,13 @@ const KnowledgeBase = () => {
     await performSearch(searchQuery, searchMode);
   }, [searchQuery, searchMode, activeTab, performSearch]);
 
-  // ── Restore state from URL on mount ──────────────────────────────────────
+  // ── Restore from URL ──────────────────────────────────────────────────────
 
   useEffect(() => {
     const restoreFromUrl = async () => {
       const { docId, tab, searchQuery: urlSearch, searchMode: urlMode } = getUrlState();
       setActiveTab(tab);
       if (docId) {
-        // Ждём загрузки дерева, затем выбираем документ
         if (tree.length === 0) await loadTree();
         const node = findNodeById(tree, docId);
         if (node) {
@@ -121,21 +179,17 @@ const KnowledgeBase = () => {
       }
     };
     restoreFromUrl();
-  }, [loadTree, tree, performSearch]);
+  }, [loadTree, tree, performSearch]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Загружаем дерево при монтировании
   useEffect(() => {
     loadTree();
   }, [loadTree]);
 
-  // Синхронизация выбранного узла после обновления дерева
   useEffect(() => {
     if (!selectedNode) return;
     const updated = findNodeById(tree, selectedNode.id);
     if (updated) setSelectedNode(updated);
-  }, [tree, selectedNode]);
-
-  // ── Обработчик кнопки «Назад»/«Вперёд» ────────────────────────────────────
+  }, [tree]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const onPopState = async () => {
@@ -206,6 +260,65 @@ const KnowledgeBase = () => {
     }
   };
 
+  // ── Reorder ───────────────────────────────────────────────────────────────
+
+  /**
+   * Executes the actual reorder: optimistic UI update → PATCH → rollback on error.
+   */
+  const executeReorder = useCallback(
+    async (dropInfo) => {
+      const { draggedId, draggedParent, targetId, targetParent, position } = dropInfo;
+
+      const newTree = applyReorder(tree, dropInfo);
+      setTree(newTree);
+
+      const affectedParent = position === 'inside' ? targetId : targetParent;
+      const siblings = getSiblings(newTree, affectedParent);
+      const orderedIds = siblings.map((n) => n.id);
+
+      try {
+        const res = await api.reorder(affectedParent, orderedIds);
+        if (!res.ok) throw new Error('reorder failed');
+
+        if (draggedParent !== affectedParent) {
+          await api.update(draggedId, { parentId: affectedParent });
+        }
+      } catch (err) {
+        console.error('Reorder error, rolling back:', err);
+        loadTree();
+      }
+    },
+    [tree, loadTree],
+  );
+
+  /**
+   * Called by TreeNode on drop.
+   * If the drop changes the node's parent → show confirmation modal first.
+   * Otherwise execute immediately.
+   */
+  const handleReorder = useCallback(
+    (dropInfo) => {
+      if (isParentChange(dropInfo)) {
+        const newParentId = dropInfo.position === 'inside' ? dropInfo.targetId : dropInfo.targetParent;
+        setMoveConfirm({
+          dropInfo,
+          fromTitle: parentTitle(tree, dropInfo.draggedParent),
+          toTitle: parentTitle(tree, newParentId),
+        });
+      } else {
+        executeReorder(dropInfo);
+      }
+    },
+    [tree, executeReorder],
+  );
+
+  const handleMoveConfirm = () => {
+    if (moveConfirm) executeReorder(moveConfirm.dropInfo);
+    setMoveConfirm(null);
+  };
+
+  const handleMoveCancel = () => setMoveConfirm(null);
+
   // ── Render ───────────────────────────────────────────────────────────────
 
   const path = selectedNode ? findPath(tree, selectedNode.id) || [] : [];
@@ -257,6 +370,7 @@ const KnowledgeBase = () => {
                 selectedId={selectedNode?.id}
                 onSelect={selectNode}
                 onDelete={handleDelete}
+                onReorder={handleReorder}
               />
             ))}
           </div>
@@ -286,6 +400,17 @@ const KnowledgeBase = () => {
           }
           onClose={() => setShowAddModal(false)}
           onCreate={handleCreate}
+        />
+      )}
+
+      {/* ── Move confirmation modal ── */}
+      {moveConfirm && (
+        <MoveConfirmModal
+          draggedTitle={moveConfirm.dropInfo.draggedTitle}
+          fromTitle={moveConfirm.fromTitle}
+          toTitle={moveConfirm.toTitle}
+          onConfirm={handleMoveConfirm}
+          onCancel={handleMoveCancel}
         />
       )}
     </div>
