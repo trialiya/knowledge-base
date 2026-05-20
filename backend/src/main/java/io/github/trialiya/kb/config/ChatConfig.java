@@ -1,12 +1,14 @@
 package io.github.trialiya.kb.config;
 
 import io.github.trialiya.kb.functions.DocumentFunction;
+import io.github.trialiya.kb.functions.GitFunction;
 import io.github.trialiya.kb.functions.MessageLookupFunction;
 import io.github.trialiya.kb.functions.TopicFunction;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.service.DocumentService;
+import io.github.trialiya.kb.service.GitService;
 import io.micrometer.core.instrument.util.IOUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -37,6 +39,7 @@ public class ChatConfig {
             ChatTopicRepository chatTopicRepository,
             ChatMessageRepository chatMessageRepository,
             DocumentService documentService,
+            GitService gitService,
             ToolCallingManager toolCallingManager) {
         log.info("Model: {}", openAiChatModel.getDefaultOptions());
         return ChatClient.builder(openAiChatModel)
@@ -55,7 +58,8 @@ public class ChatConfig {
                 .defaultTools(
                         new TopicFunction(chatTopicRepository),
                         new MessageLookupFunction(chatMessageRepository),
-                        new DocumentFunction(documentService))
+                        new DocumentFunction(documentService),
+                        new GitFunction(gitService))
                 .build();
     }
 }
