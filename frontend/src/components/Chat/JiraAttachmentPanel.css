@@ -97,8 +97,8 @@
 .jira-att-panel__error {
   margin: 0 12px;
   padding: 7px 10px;
-  background: #fdedf0;
-  color: #e84d6a;
+  background: var(--kb-error-bg);
+  color: var(--kb-error);
   border-radius: 8px;
   font-size: 0.8rem;
 }
@@ -296,8 +296,8 @@
   flex-shrink: 0;
 }
 .jira-drawer__close:hover {
-  background: #fdedf0;
-  color: #e84d6a;
+  background: var(--kb-error-bg);
+  color: var(--kb-error);
 }
 
 .jira-drawer__body {

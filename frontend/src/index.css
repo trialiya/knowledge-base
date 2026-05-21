@@ -1,2 +1,30 @@
+:root {
+  /* accent */
+  --kb-accent: #5b4fcf;
+  --kb-accent-hover: #4a3eb8;
+  --kb-accent-bg: #ededf8;
+  --kb-accent-light: #f3f2fd;
+
+  /* borders */
+  --kb-border: #e4e4f0;
+  --kb-border-light: #f0f0f8;
+
+  /* text */
+  --kb-text: #2d2b55;
+  --kb-muted: #8886aa;
+
+  /* surfaces */
+  --kb-bg: #f8f8fc;
+  --kb-white: #ffffff;
+
+  /* misc */
+  --kb-radius: 16px;
+  --tree-indent: 16px;
+
+  /* error / danger */
+  --kb-error: #e84d6a;
+  --kb-error-bg: #fdedf0;
+}
+
 body {
 }

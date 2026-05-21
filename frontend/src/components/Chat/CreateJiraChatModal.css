@@ -71,8 +71,8 @@
   transition: background 0.15s, color 0.15s;
 }
 .jira-modal__close:hover {
-  background: #fdedf0;
-  color: #e84d6a;
+  background: var(--kb-error-bg);
+  color: var(--kb-error);
 }
 
 .jira-modal__body {
@@ -93,7 +93,7 @@
 }
 
 .jira-modal__required {
-  color: #e84d6a;
+  color: var(--kb-error);
 }
 
 .jira-modal__input {
@@ -120,8 +120,8 @@
 
 .jira-modal__error {
   font-size: 0.82rem;
-  color: #e84d6a;
-  background: #fdedf0;
+  color: var(--kb-error);
+  background: var(--kb-error-bg);
   padding: 8px 12px;
   border-radius: 8px;
 }
@@ -164,26 +164,27 @@
   background: #4a59a8;
 }
 
-/* ── JIRA button in chat list ── */
+/* Кнопка «JIRA чат» — вторичная, контурная */
 .new-jira-chat-button {
-  width: 100%;
-  padding: 8px 12px;
-  margin-bottom: 4px;
-  background: none;
-  border: 1.5px dashed var(--kb-border, #e4e7ec);
-  border-radius: 8px;
-  color: var(--kb-muted, #8b95a5);
-  font-size: 0.82rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
+  box-sizing: border-box;
+  width: calc(100% - 2rem);
+  margin: 0 1rem 0.75rem;
+  padding: 8px 14px;
+  background: var(--kb-white);
+  color: var(--kb-accent);
+  border: 1.5px dashed var(--kb-border);
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 600;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
 }
 .new-jira-chat-button:hover {
-  border-color: var(--kb-accent, #5b6abf);
-  color: var(--kb-accent, #5b6abf);
-  background: var(--kb-accent-bg, rgba(91, 106, 191, 0.06));
+  border-color: var(--kb-accent);
+  background: var(--kb-accent-light);
+  transform: scale(1.02);
 }

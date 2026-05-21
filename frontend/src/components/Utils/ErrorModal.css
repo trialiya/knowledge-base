@@ -74,6 +74,6 @@
   box-shadow: 0 2px 8px rgba(91, 79, 207, 0.25);
 }
 .error-modal__btn:hover {
-  background: #4a3eb8;
+  background: var(--kb-accent-hover);
   transform: scale(1.03);
 }

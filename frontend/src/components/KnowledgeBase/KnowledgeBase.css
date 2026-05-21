@@ -1,19 +1,3 @@
-/* ── Palette ── */
-:root {
-  --kb-accent: #5b4fcf;
-  --kb-accent-hover: #4a3eb8;
-  --kb-accent-bg: #ededf8;
-  --kb-accent-light: #f3f2fd;
-  --kb-border: #e4e4f0;
-  --kb-border-light: #f0f0f8;
-  --kb-text: #2d2b55;
-  --kb-muted: #8886aa;
-  --kb-bg: #f8f8fc;
-  --kb-white: #ffffff;
-  --kb-radius: 16px;
-  --tree-indent: 16px;
-}
-
 /* ═══════════════════════════════════════════════
    LAYOUT
 ═══════════════════════════════════════════════ */
@@ -1479,7 +1463,7 @@
 
 /* Subtle visual distinction: slightly muted label */
 .tree-row--system .tree-row__label {
-  color: var(--text-secondary, #6b7280);
+  color: var(--kb-muted);
 }
 
 /* Lock badge replaces the delete button */
@@ -1491,7 +1475,7 @@
   height: 22px;
   margin-left: auto;
   flex-shrink: 0;
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--kb-muted);
   opacity: 0;
   transition: opacity 0.15s;
 }
@@ -1513,6 +1497,6 @@
   display: inline-flex;
   align-items: center;
   margin-left: 6px;
-  color: var(--text-tertiary, #9ca3af);
+  color: var(--kb-muted);
   vertical-align: middle;
 }
