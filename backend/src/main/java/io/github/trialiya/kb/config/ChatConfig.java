@@ -47,13 +47,7 @@ public class ChatConfig {
             ToolCallingManager toolCallingManager) {
         log.info("Model: {}", openAiChatModel.getDefaultOptions());
         return ChatClient.builder(openAiChatModel)
-                .defaultAdvisors(
-                        MessageChatMemoryAdvisor.builder(chatMemory).build(),
-                        new SingleCallToolCallAdvisor(
-                                toolCallingManager,
-                                chatTopicRepository,
-                                chatMessageRepository,
-                                "recordChatInsights"))
+                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
                 .defaultSystem(
                         IOUtils.toString(
                                 ChatConfig.class

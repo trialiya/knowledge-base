@@ -44,13 +44,12 @@ create table if not exists documents
 );
 
 -- Stores one embedding row per document.
--- Dimension 1536 matches text-embedding-3-small / text-embedding-ada-002.
--- Use 3072 for text-embedding-3-large.
+-- Dimension 1024 matches bge-m3
 CREATE TABLE IF NOT EXISTS document_embeddings (
                                                    id             BIGSERIAL PRIMARY KEY,
                                                    document_id    BIGINT NOT NULL UNIQUE
                                                        REFERENCES documents(id) ON DELETE CASCADE,
-                                                   embedding      VECTOR(1536) NOT NULL,
+                                                   embedding      VECTOR(1024) NOT NULL,
                                                    model          TEXT        NOT NULL,
                                                    updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -69,7 +68,7 @@ CREATE INDEX IF NOT EXISTS document_embeddings_ivfflat_idx
 --
 -- Key   : SHA-256 hash of the input text + model name
 --         (hex string, 64 chars – stored as TEXT for readability)
--- Value : float[] vector, same VECTOR(1536) type as document_embeddings
+-- Value : float[] vector, same VECTOR(1024) type as document_embeddings
 --
 -- Eviction: EmbeddingCacheCleanupTask deletes rows whose last_used_at
 --           is older than the configured TTL (default 30 days).
@@ -86,7 +85,7 @@ CREATE TABLE IF NOT EXISTS embedding_cache (
                                                model        TEXT         NOT NULL,
 
     -- The cached vector. Dimension must match document_embeddings.embedding.
-                                               embedding    VECTOR(1536) NOT NULL,
+                                               embedding    VECTOR(1024) NOT NULL,
 
     -- When this row was first inserted.
                                                created_at   TIMESTAMPTZ  NOT NULL DEFAULT now(),
@@ -163,7 +162,7 @@ CREATE TABLE IF NOT EXISTS attachment_embeddings (
                                                      id              BIGSERIAL       PRIMARY KEY,
                                                      attachment_id   BIGINT          NOT NULL UNIQUE
                                                          REFERENCES attachments(id) ON DELETE CASCADE,
-                                                     embedding       VECTOR(1536)    NOT NULL,
+                                                     embedding       VECTOR(1024)    NOT NULL,
                                                      model           TEXT            NOT NULL,
                                                      updated_at      TIMESTAMPTZ     NOT NULL DEFAULT now()
 );
@@ -172,3 +171,6 @@ CREATE INDEX IF NOT EXISTS attachment_embeddings_ivfflat_idx
     ON attachment_embeddings
         USING ivfflat (embedding vector_cosine_ops)
     WITH (lists = 100);
+
+-- Add source_url to attachments (nullable; set when fetched from external source)
+ALTER TABLE attachments ADD COLUMN IF NOT EXISTS source_url TEXT;

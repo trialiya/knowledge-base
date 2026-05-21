@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const ChatList = ({ chats, activeChatId, onSelectChat, onNewChat, onDeleteChat, onRenameChat }) => {
+const ChatList = ({ chats, activeChatId, onSelectChat, onNewChat, onDeleteChat, onRenameChat, onNewJiraChat }) => {
   const [editingId, setEditingId] = useState(null);
   const [editValue, setEditValue] = useState('');
 
@@ -34,6 +34,11 @@ const ChatList = ({ chats, activeChatId, onSelectChat, onNewChat, onDeleteChat, 
       <button onClick={onNewChat} className="new-chat-button">
         + Новый чат
       </button>
+      {onNewJiraChat && (
+        <button onClick={onNewJiraChat} className="new-jira-chat-button">
+          🔗 JIRA чат
+        </button>
+      )}
       <ul>
         {chats.map((chat) => (
           <li

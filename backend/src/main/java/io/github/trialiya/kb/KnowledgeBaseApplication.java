@@ -1,5 +1,6 @@
 package io.github.trialiya.kb;
 
+import io.github.trialiya.kb.config.model.AtlassianConfiguration;
 import io.github.trialiya.kb.config.model.DocumentsConfiguration;
 import io.github.trialiya.kb.config.model.EmbeddingConfiguration;
 import io.github.trialiya.kb.config.model.SearchConfiguration;
@@ -11,7 +12,8 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 @EnableConfigurationProperties({
     DocumentsConfiguration.class,
     EmbeddingConfiguration.class,
-    SearchConfiguration.class
+    SearchConfiguration.class,
+    AtlassianConfiguration.class
 })
 public class KnowledgeBaseApplication {
 

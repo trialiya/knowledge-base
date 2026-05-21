@@ -45,6 +45,20 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class AttachmentService {
 
+    private static final int PROMPT_MAX_CHARS = 12_000;
+    private static final String SUMMARIZE_PROMPT =
+            """
+        Создай краткое описание содержимого файла "{fileName}".
+        Описание должно быть информативным: тип контента, основные темы, \
+        ключевые сущности, структура. 2-4 предложения.
+        Используй простой текст без форматирования.
+
+        Содержимое файла:
+        ```
+        {content}
+        ```
+        """;
+
     private final AttachmentRepository attachmentRepo;
     private final AttachmentEmbeddingRepository embeddingRepo;
     private final EmbeddingService embeddingService;
@@ -99,6 +113,13 @@ public class AttachmentService {
                 .toList();
     }
 
+    public List<Attachment> getByFileName(String conversationId, String fileName) {
+        return attachmentRepo.findByConversationId(conversationId).stream()
+                .filter(attachment -> attachment.getFileName().contains(fileName))
+                .map(this::toDto)
+                .toList();
+    }
+
     public Attachment getById(Long id) {
         return toDto(findOrThrow(id));
     }
@@ -136,25 +157,14 @@ public class AttachmentService {
                     HttpStatus.UNPROCESSABLE_ENTITY, "Attachment has no text content to summarize");
         }
 
-        String truncated = truncateForPrompt(entity.getContent(), 12_000);
+        String truncated = truncateForPrompt(entity.getContent(), PROMPT_MAX_CHARS);
 
         String summaryText =
                 chatClient
                         .prompt()
                         .user(
                                 u ->
-                                        u.text(
-                                                        """
-                                Создай краткое описание содержимого файла "{fileName}".
-                                Описание должно быть информативным: тип контента, основные темы, \
-                                ключевые сущности, структура. 2-4 предложения.
-                                Используй простой текст без форматирования.
-
-                                Содержимое файла:
-                                ```
-                                {content}
-                                ```
-                                """)
+                                        u.text(SUMMARIZE_PROMPT)
                                                 .param("fileName", entity.getFileName())
                                                 .param("content", truncated))
                         .call()
@@ -187,6 +197,10 @@ public class AttachmentService {
     }
 
     // ── Keyword search ────────────────────────────────────────────────────────
+
+    public List<Attachment> search(String conversationId, String q) {
+        return attachmentRepo.search(q).stream().map(this::toDto).toList();
+    }
 
     public List<Attachment> search(String q) {
         return attachmentRepo.search(q).stream().map(this::toDto).toList();
@@ -324,6 +338,7 @@ public class AttachmentService {
                 e.getContentType(),
                 e.getFileSize(),
                 e.getSummary(),
+                e.getSourceUrl(),
                 e.getCreatedAt(),
                 e.getUpdatedAt());
     }

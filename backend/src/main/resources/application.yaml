@@ -17,9 +17,9 @@ spring:
       embedding:
         base-url: ${AI_EMBED_BASE_URL:${AI_BASE_URL}}
         api-key: ${AI_EMBED_API_KEY:${AI_API_KEY}}
-        embeddings-path: /embeddings
+        embeddings-path: /v1/embeddings
         options:
-          model: ${AI_EMBED_MODEL}   # 1536-dim
+          model: ${AI_EMBED_MODEL:bge-m3}   # 1024-dim
     chat:
       memory:
         repository:
@@ -89,6 +89,13 @@ kb:
       semantic-weight: 0.6  # вес semantic-результатов (0..1)
       threshold: 0.20       # минимальная семантическая схожесть
       limit: 20
+  atlassian:
+    jira:
+      base-url: ${JIRA_BASE_URL}
+      api-token: ${JIRA_TOKEN}
+    confluence:
+      base-url: ${CONFLUENCE_BASE_URL}
+      api-token: ${CONFLUENCE_TOKEN}
 
 #logging:
 #  level:

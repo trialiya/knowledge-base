@@ -176,7 +176,9 @@ public class GitFunction {
      *
      * @param includePatch whether to include unified diff text for modified files
      */
-    @Tool(description = "Returns uncommitted changes in the working tree")
+    @Tool(
+            name = "getUncommittedChanges",
+            description = "Returns uncommitted changes in the working tree")
     public List<GitDiffEntry> getUncommittedChanges(
             @ToolParam(description = "whether to include unified diff text for modified files")
                     boolean includePatch) {

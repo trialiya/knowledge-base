@@ -56,6 +56,14 @@ public class AttachmentEntity {
     /** AI-generated summary / description. */
     private String summary;
 
+    // ── Source ────────────────────────────────────────────────────────────────
+
+    /**
+     * URL of the external source this attachment was fetched from (JIRA, Confluence, etc.). Null
+     * for user-uploaded files.
+     */
+    private String sourceUrl;
+
     // ── Timestamps ───────────────────────────────────────────────────────────
 
     private OffsetDateTime createdAt;

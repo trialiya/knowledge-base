@@ -336,3 +336,15 @@
   color: var(--kb-accent);
   background: var(--kb-accent-bg);
 }
+.attachment-row__source {
+  font-size: 0.72rem;
+  color: var(--kb-accent, #5b6abf);
+  text-decoration: none;
+  margin-top: 1px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.attachment-row__source:hover {
+  text-decoration: underline;
+}

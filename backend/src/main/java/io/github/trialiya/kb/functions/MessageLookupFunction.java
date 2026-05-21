@@ -1,13 +1,12 @@
 package io.github.trialiya.kb.functions;
 
+import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
+
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.jspecify.annotations.NonNull;
-import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -56,12 +55,5 @@ public class MessageLookupFunction {
         }
 
         return String.join("\n", lines);
-    }
-
-    @NonNull
-    private String conversationId(ToolContext context) {
-        return Optional.ofNullable(context.getContext().get(ChatMemory.CONVERSATION_ID))
-                .map(Object::toString)
-                .orElse("default");
     }
 }

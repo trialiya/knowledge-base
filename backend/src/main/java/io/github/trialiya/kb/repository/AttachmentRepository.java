@@ -33,4 +33,19 @@ public interface AttachmentRepository extends CrudRepository<AttachmentEntity, L
         LIMIT 20
         """)
     List<AttachmentEntity> search(@Param("q") String q);
+
+    /** Full-text search across file name, content and summary. */
+    @Query(
+            """
+        SELECT *
+        FROM attachments
+        WHERE conversation_id = :conversationId
+           AND (file_name ILIKE '%' || :q || '%'
+           OR content   ILIKE '%' || :q || '%'
+           OR summary   ILIKE '%' || :q || '%')
+        ORDER BY updated_at DESC
+        LIMIT 20
+        """)
+    List<AttachmentEntity> search(
+            @Param("conversationId") String conversationId, @Param("q") String q);
 }

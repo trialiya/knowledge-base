@@ -56,6 +56,15 @@ public class SummarizeService implements DisposableBean {
      */
     private static final int CHARS_PER_TOKEN = 4;
 
+    private static final String COLLAPSE_HEADER =
+            "The following are consecutive summaries of a long conversation:\n";
+    private static final String CONTEXT_HEADER =
+            "Previous summaries (for context only — do not re-summarize):\n";
+    private static final String COLLAPSE_FOOTER =
+            """
+        Now produce a SINGLE merged summary that combines ALL the previous summaries (above) \
+        and the following new messages. The result must be a cohesive summary of the entire conversation so far.""";
+
     private final ChatClient chatClient;
     private final ChatMessageRepository chatMessageRepository;
     private final ExecutorService executorService;
@@ -210,24 +219,16 @@ public class SummarizeService implements DisposableBean {
                     "[{}] Including {} summaries into one meta-summary",
                     conversationId,
                     existingSummaries.size());
-
-            prompt.append("The following are consecutive summaries of a long conversation:\n");
-            for (int i = 0; i < existingSummaries.size(); i++) {
-                prompt.append("Summary ")
-                        .append(i + 1)
-                        .append(":\n")
-                        .append(existingSummaries.get(i).getText())
-                        .append("\n\n");
-            }
+            prompt.append(COLLAPSE_HEADER);
         } else if (!existingSummaries.isEmpty()) {
-            prompt.append("Previous summaries (for context only — do not re-summarize):\n");
-            for (int i = 0; i < existingSummaries.size(); i++) {
-                prompt.append("Summary ")
-                        .append(i + 1)
-                        .append(":\n")
-                        .append(existingSummaries.get(i).getText())
-                        .append("\n\n");
-            }
+            prompt.append(CONTEXT_HEADER);
+        }
+        for (int i = 0; i < existingSummaries.size(); i++) {
+            prompt.append("Summary ")
+                    .append(i + 1)
+                    .append(":\n")
+                    .append(existingSummaries.get(i).getText())
+                    .append("\n\n");
         }
 
         prompt.append("Summarize the following ").append(count).append(" messages:\n");
@@ -241,10 +242,7 @@ public class SummarizeService implements DisposableBean {
                                 .append(m.getText())
                                 .append("\"\n"));
         if (collapseSummaries) {
-            prompt.append(
-                            "Now produce a SINGLE merged summary that combines ALL the previous summaries (above) ")
-                    .append(
-                            "and the following new messages. The result must be a cohesive summary of the entire conversation so far.");
+            prompt.append(COLLAPSE_FOOTER);
         }
 
         return chatClient

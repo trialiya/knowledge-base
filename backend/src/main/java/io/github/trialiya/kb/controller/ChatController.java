@@ -7,10 +7,12 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 import io.github.trialiya.kb.model.chat.dto.Chat;
 import io.github.trialiya.kb.model.chat.dto.ChatMessage;
+import io.github.trialiya.kb.model.chat.dto.CreateJiraChatRequest;
 import io.github.trialiya.kb.model.chat.entity.ChatTopic;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.ChatMemoryService;
+import io.github.trialiya.kb.service.JiraChatService;
 import io.github.trialiya.kb.service.SummarizeService;
 import jakarta.annotation.Nonnull;
 import java.io.IOException;
@@ -31,6 +33,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -51,6 +54,7 @@ public class ChatController {
     private final ChatMessageRepository chatMessageRepository;
     private final ChatMemoryService chatMemoryService;
     private final SummarizeService summarizeService;
+    private final JiraChatService jiraChatService;
 
     public ChatController(
             ChatClient chatClient,
@@ -58,13 +62,15 @@ public class ChatController {
             ChatTopicRepository chatTopicRepository,
             ChatMessageRepository chatMessageRepository,
             ChatMemoryService chatMemoryService,
-            SummarizeService summarizeService) {
+            SummarizeService summarizeService,
+            JiraChatService jiraChatService) {
         this.chatClient = chatClient;
         this.chatMemory = chatMemory;
         this.chatTopicRepository = chatTopicRepository;
         this.chatMessageRepository = chatMessageRepository;
         this.chatMemoryService = chatMemoryService;
         this.summarizeService = summarizeService;
+        this.jiraChatService = jiraChatService;
     }
 
     @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -112,6 +118,14 @@ public class ChatController {
                                     },
                                     emitter::completeWithError,
                                     () -> {
+                                        try {
+                                            emitter.send(
+                                                    Map.of(
+                                                            "message", "",
+                                                            "finishReason", "DONE"));
+                                        } catch (IOException e) {
+                                            log.error(e.getMessage());
+                                        }
                                         summarizeService.trySummarize(conversationId);
                                         emitter.complete();
                                     });
@@ -261,6 +275,41 @@ public class ChatController {
                                                 null,
                                                 null,
                                                 true)));
+    }
+
+    /**
+     * Creates a new "JIRA chat" — a conversation pre-loaded with context from a JIRA issue and
+     * optionally a Confluence page.
+     *
+     * <pre>
+     * POST /api/chat/jira
+     * {
+     *   "jiraUrl": "https://instance.atlassian.net/browse/PROJ-123",
+     *   "confluenceUrl": "https://instance.atlassian.net/wiki/spaces/.../pages/12345",
+     *   "title": "Optional custom title"
+     * }
+     * </pre>
+     *
+     * @return the created Chat (with empty messages list)
+     */
+    @PostMapping("jira")
+    public Chat createJiraChat(@RequestBody CreateJiraChatRequest request) {
+        return jiraChatService.createJiraChat(request);
+    }
+
+    /**
+     * Refreshes a JIRA chat by re-fetching issue data and replacing attachments.
+     *
+     * <pre>
+     * POST /api/chat/jira/{conversationId}/refresh
+     * Body: "https://instance.atlassian.net/browse/PROJ-123"   (raw JIRA URL string)
+     * </pre>
+     *
+     * @return updated Chat metadata
+     */
+    @PostMapping("jira/{conversationId}/refresh")
+    public Chat refreshJiraChat(@PathVariable String conversationId, @RequestBody String jiraUrl) {
+        return jiraChatService.refreshJiraChat(conversationId, jiraUrl.trim());
     }
 
     private void checkChat(@Nonnull final String conversationId, boolean update) {

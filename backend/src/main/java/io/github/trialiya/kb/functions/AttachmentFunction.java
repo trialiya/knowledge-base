@@ -1,10 +1,14 @@
 package io.github.trialiya.kb.functions;
 
+import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
+
 import io.github.trialiya.kb.model.attachment.dto.Attachment;
 import io.github.trialiya.kb.service.AttachmentService;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.NonNull;
+import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 
@@ -40,10 +44,10 @@ public class AttachmentFunction {
 
     @Tool(
             description =
-                    "Получить список вложений (файлов) для чат-беседы по conversationId. "
+                    "Получить список вложений (файлов) для чат-беседы. "
                             + "Возвращает метаданные: имя файла, тип, размер, краткое описание (если есть).")
-    public List<Attachment> getChatAttachments(
-            @ToolParam(description = "ID беседы (conversationId)") String conversationId) {
+    public List<Attachment> getChatAttachments(ToolContext context) {
+        final String conversationId = conversationId(context);
         log.info("getChatAttachments called: conversationId={}", conversationId);
         return attachmentService.findByConversation(conversationId);
     }
@@ -55,19 +59,39 @@ public class AttachmentFunction {
                     "Получить полное текстовое содержимое вложения по его id. "
                             + "Используй когда нужно проанализировать или процитировать содержимое файла.")
     public String getAttachmentContent(
-            @ToolParam(description = "ID вложения") String attachmentId) {
-        log.info("getAttachmentContent called: attachmentId={}", attachmentId);
+            ToolContext context, @ToolParam(description = "ID вложения") String attachmentId) {
+        log.info(
+                "[{}] getAttachmentContent called: attachmentId={}",
+                conversationId(context),
+                attachmentId);
         String content = attachmentService.getContent(Long.parseLong(attachmentId));
         if (content == null) return "(пустое содержимое)";
-        // Truncate for tool response to avoid flooding the context window
-        if (content.length() > 15_000) {
-            return content.substring(0, 15_000)
-                    + "\n... (содержимое обрезано, всего символов: "
-                    + content.length()
-                    + ")";
-        }
-        return content;
+        return getTruncatedContent(content);
     }
+
+    @Tool(
+            description =
+                    "Получить полное текстовое содержимое вложения по имени файла. "
+                            + "Используй когда нужно проанализировать или процитировать содержимое файла.")
+    public List<AttachmentContext> getAttachmentContentByFileName(
+            ToolContext context, @ToolParam(description = "Имя файла") String fileName) {
+        final String conversationId = conversationId(context);
+        log.info(
+                "[{}] getAttachmentContentByFileName called: fileName='{}'",
+                conversationId,
+                fileName);
+        return attachmentService.getByFileName(conversationId, fileName).stream()
+                .map(
+                        attachment ->
+                                new AttachmentContext(
+                                        attachment.id(),
+                                        attachment.fileName(),
+                                        getTruncatedContent(
+                                                attachmentService.getContent(attachment.id()))))
+                .toList();
+    }
+
+    public record AttachmentContext(long id, String fileName, String content) {}
 
     // ── Search ────────────────────────────────────────────────────────────────
 
@@ -76,8 +100,20 @@ public class AttachmentFunction {
                     "Поиск по вложениям (файлам) в базе знаний: по имени файла, содержимому и описанию. "
                             + "Используй когда пользователь ищет информацию, которая может быть в прикреплённых файлах.")
     public List<Attachment> searchAttachments(
-            @ToolParam(description = "Поисковый запрос") String query) {
+            ToolContext context, @ToolParam(description = "Поисковый запрос") String query) {
+        final String conversationId = conversationId(context);
         log.info("searchAttachments called: query='{}'", query);
-        return attachmentService.search(query);
+        return attachmentService.search(conversationId, query);
+    }
+
+    private static @NonNull String getTruncatedContent(String content) {
+        // Truncate for tool response to avoid flooding the context window
+        if (content.length() > 15_000) {
+            return content.substring(0, 15_000)
+                    + "\n... (содержимое обрезано, всего символов: "
+                    + content.length()
+                    + ")";
+        }
+        return content;
     }
 }

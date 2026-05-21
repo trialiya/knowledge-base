@@ -7,6 +7,10 @@ import AttachmentPanel, { IconPaperclip } from '../KnowledgeBase/AttachmentPanel
 import { getUrlState, setChatUrlState } from '../KnowledgeBase/utils';
 import './ChatWindow.css';
 import '../KnowledgeBase/AttachmentPanel.css';
+import CreateJiraChatModal from './CreateJiraChatModal';
+import './CreateJiraChatModal.css';
+import JiraAttachmentPanel from './JiraAttachmentPanel';
+import './JiraAttachmentPanel.css';
 
 const generateUUID = () => {
   if (crypto?.randomUUID) {
@@ -33,6 +37,7 @@ const ChatWindow = () => {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [attachPanelOpen, setAttachPanelOpen] = useState(false);
   const [attachCount, setAttachCount] = useState(0);
+  const [jiraModalOpen, setJiraModalOpen] = useState(false);
   const aiMessageTextRef = useRef('');
   const aiMessageIndexRef = useRef(-1);
   const abortControllerRef = useRef(null);
@@ -228,20 +233,33 @@ const ChatWindow = () => {
               let isDone = false;
               try {
                 const parsed = JSON.parse(jsonString);
-                // Бэкенд присылает текст в поле "message".
+                const reason = (parsed.finishReason || '').trim();
+
+                // Текстовый контент — добавляем к накопленному.
+                // Пропускаем пустые строки, а также ведущие переносы строк
+                // в самом начале ответа (модель иногда шлёт "\n\n" первым чанком).
                 if (parsed.message) {
-                  aiMessageTextRef.current += parsed.message;
-                  textChanged = true;
+                  const isFirstChunk = aiMessageTextRef.current === '';
+                  const text = isFirstChunk ? parsed.message.replace(/^\n+/, '') : parsed.message;
+                  if (text) {
+                    aiMessageTextRef.current += text;
+                    textChanged = true;
+                  }
                 }
-                // Завершение всего ответа.
-                if (parsed.finishReason === 'STOP') {
+
+                // DONE — бэкенд шлёт из onComplete(); финализируем весь ответ.
+                if (reason === 'DONE') {
                   isDone = true;
                 }
-                // Граница сегмента (вызов инструмента) — начинаем новое
-                // AI-сообщение, но только если в текущем уже есть текст.
-                if (parsed.finishReason === 'TOOL_CALLS' && aiMessageTextRef.current.trim() !== '') {
+                // TOOL_CALLS — модель вызвала инструмент, дальше будет новый
+                // текстовый сегмент. Создаём новое AI-сообщение, но только если
+                // в текущем уже накоплен непустой текст.
+                else if (reason === 'TOOL_CALLS' && aiMessageTextRef.current.trim() !== '') {
                   shouldFinishSegment = true;
                 }
+                // STOP — текстовый ответ закончен. НЕ создаём новый сегмент —
+                // после STOP может прийти ещё DONE или пустые чанки.
+                // Просто игнорируем.
               } catch {
                 /* ignore parse errors */
               }
@@ -380,6 +398,30 @@ const ChatWindow = () => {
     // (attachment panel stays as-is on new chat)
   }, []);
 
+  const handleCreateJiraChat = useCallback(async (request) => {
+    const res = await fetch('/api/chat/jira', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || 'Ошибка создания JIRA чата');
+    }
+    const chat = await res.json();
+    const newChat = {
+      id: chat.conversationId,
+      title: chat.topic || 'JIRA чат',
+      messages: null,
+      createdAt: chat.createdAt || null,
+      jiraUrl: request.jiraUrl,
+    };
+    setChats((prev) => [newChat, ...prev]);
+    setActiveChatId(newChat.id);
+    localStorage.setItem(STORAGE_KEY_ACTIVE_ID, newChat.id);
+    setAttachPanelOpen(true); // Show attachments with fetched content
+  }, []);
+
   const handleDeleteChat = useCallback(
     async (id) => {
       if (chats.length <= 1) return;
@@ -438,6 +480,7 @@ const ChatWindow = () => {
         onNewChat={handleNewChat}
         onDeleteChat={handleDeleteChat}
         onRenameChat={renameChat}
+        onNewJiraChat={() => setJiraModalOpen(true)}
       />
 
       {/* ── Center: chat window ── */}
@@ -534,18 +577,34 @@ const ChatWindow = () => {
           </div>
           <div className="chat-attachment-panel__body">
             {activeChatId ? (
-              <AttachmentPanel
-                key={activeChatId}
-                ownerType="chat"
-                ownerId={activeChatId}
-                onCountChange={setAttachCount}
-              />
+              activeChat?.jiraUrl ? (
+                // JIRA-чат: компактные карточки + кнопка обновления
+                <JiraAttachmentPanel
+                  key={activeChatId}
+                  conversationId={activeChatId}
+                  jiraUrl={activeChat.jiraUrl}
+                  onCountChange={setAttachCount}
+                />
+              ) : (
+                // Обычный чат: стандартная таблица с загрузкой файлов
+                <AttachmentPanel
+                  key={activeChatId}
+                  ownerType="chat"
+                  ownerId={activeChatId}
+                  onCountChange={setAttachCount}
+                />
+              )
             ) : (
               <p className="chat-attachment-panel__empty">Выберите чат</p>
             )}
           </div>
         </div>
       )}
+      <CreateJiraChatModal
+        open={jiraModalOpen}
+        onClose={() => setJiraModalOpen(false)}
+        onCreate={handleCreateJiraChat}
+      />
     </div>
   );
 };

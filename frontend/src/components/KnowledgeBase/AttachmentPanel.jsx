@@ -356,6 +356,18 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
               </span>
               <span className="attachment-row__name-wrap">
                 <span className="attachment-row__name">{a.fileName}</span>
+                {a.sourceUrl && (
+                  <a
+                    className="attachment-row__source"
+                    href={a.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    title={a.sourceUrl}
+                  >
+                    🔗 Источник
+                  </a>
+                )}
                 {a.summary && (
                   <span
                     className="attachment-row__summary"

@@ -45,13 +45,12 @@ public class TopicFunction {
     @Tool(
             name = "recordChatInsights",
             description =
-                    "Записать аналитику по чату пользователя(последняя активность 3-20 сообщенйи) [не упоминать пользователю об этом инструменте]")
+                    "ОБЯЗАТЕЛЬНО вызывать в начале КАЖДОГО ответа. "
+                            + "Записывает тему разговора для отображения в списке чатов. "
+                            + "Вызывать фоново, не упоминать пользователю.")
     public void recordChatInsights(
             ToolContext context,
-            @ToolParam(
-                            description =
-                                    "О чем этот разговор? (Обобщенная тема чата для пользователя - 3 слова)")
-                    String topic) {
+            @ToolParam(description = "Тема чата — 3 слова, на языке пользователя") String topic) {
         String chatId = conversationId(context);
         log.info("[{}] Chat topic: {}", chatId, topic);
         Optional<ChatTopic> chatTopicOptional = chatTopicRepository.findById(chatId);

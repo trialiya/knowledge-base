@@ -13,6 +13,7 @@ import java.time.OffsetDateTime;
  * @param contentType MIME type
  * @param fileSize size in bytes
  * @param summary AI-generated summary (null until requested)
+ * @param sourceUrl source url
  * @param createdAt upload timestamp
  * @param updatedAt last modification timestamp
  */
@@ -25,5 +26,6 @@ public record Attachment(
         String contentType,
         long fileSize,
         String summary,
+        String sourceUrl,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt) {}
