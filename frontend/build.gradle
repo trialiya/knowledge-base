@@ -29,6 +29,12 @@ tasks.register('yarnBuild', YarnTask) {
     args = ['build']
 }
 
+tasks.register('copyFrontendBuild', Copy) {
+    dependsOn yarnBuild
+    from "${project.projectDir}/build"
+    into "${project(':backend').projectDir}/src/main/resources/static"
+}
+
 spotless {
     format 'react', {
         target 'src/**/*.js', 'src/**/*.jsx', 'src/**/*.ts', 'src/**/*.tsx', 'src/**/*.css', 'src/**/*.scss'

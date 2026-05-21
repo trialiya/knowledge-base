@@ -76,3 +76,7 @@ spotless {
 tasks.named('test') {
     useJUnitPlatform()
 }
+
+bootJar {
+    dependsOn ':frontend:copyFrontendBuild'
+}

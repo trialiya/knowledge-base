@@ -9,6 +9,10 @@ repositories {
     mavenCentral()
 }
 
+project(':backend') {
+    evaluationDependsOn(':frontend')
+}
+
 subprojects {
     dependencyLocking {
         lockAllConfigurations()
