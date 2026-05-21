@@ -21,12 +21,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AbstractMessage;
 import org.springframework.ai.chat.metadata.ChatGenerationMetadata;
+import org.springframework.ai.chat.metadata.ChatResponseMetadata;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.http.HttpEntity;
@@ -95,6 +97,7 @@ public class ChatController {
                             .subscribe(
                                     response -> {
                                         try {
+                                            printUsageStatistics(conversationId, response);
                                             emitter.send(
                                                     Map.of(
                                                             "message",
@@ -334,5 +337,28 @@ public class ChatController {
                                                 null,
                                                 null,
                                                 true)));
+    }
+
+    private void printUsageStatistics(String conversationId, ChatResponse response) {
+        Optional.ofNullable(response)
+                .map(ChatResponse::getResult)
+                .map(Generation::getMetadata)
+                .map(ChatGenerationMetadata::getFinishReason)
+                .filter(Predicate.not(String::isBlank))
+                // reset to response.getMetadata()
+                .map(
+                        reason -> {
+                            log.info("[{}] FinishReason: {}", conversationId, reason);
+                            return response.getMetadata();
+                        })
+                .map(ChatResponseMetadata::getUsage)
+                .ifPresent(
+                        usage ->
+                                log.info(
+                                        "[{}] Usage:\n PromptToken: {}\n CompletionTokens: {}\n TotalTokens: {}",
+                                        conversationId,
+                                        usage.getPromptTokens(),
+                                        usage.getCompletionTokens(),
+                                        usage.getTotalTokens()));
     }
 }

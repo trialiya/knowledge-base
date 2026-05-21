@@ -44,24 +44,28 @@ const Message = ({ text, sender }) => {
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{
-                code({ node, inline, className, children, ...props }) {
+                code({ node, className, children, ...props }) {
                   const match = /language-(\w+)/.exec(className || '');
-                  if (inline) {
+                  const raw = String(children).replace(/\n$/, '');
+                  // В react-markdown v10 проп `inline` не передаётся.
+                  // Блок кода определяем по наличию указанного языка
+                  // или по переносу строки внутри содержимого.
+                  const isBlock = !!match || raw.includes('\n');
+
+                  if (!isBlock) {
                     return (
                       <code className={className} {...props}>
                         {children}
                       </code>
                     );
                   }
-                  // Block code: use highlighter when language is known,
-                  // otherwise render a plain <pre> block (NOT inline <code>).
                   return match ? (
                     <SyntaxHighlighter style={vscDarkPlus} language={match[1]} PreTag="div" {...props}>
-                      {String(children).replace(/\n$/, '')}
+                      {raw}
                     </SyntaxHighlighter>
                   ) : (
                     <pre className="message-code-block">
-                      <code>{String(children).replace(/\n$/, '')}</code>
+                      <code>{raw}</code>
                     </pre>
                   );
                 },

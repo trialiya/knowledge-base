@@ -4,13 +4,14 @@ import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import ChatList from './ChatList';
 import AttachmentPanel, { IconPaperclip } from '../KnowledgeBase/AttachmentPanel';
-import { getUrlState, setChatUrlState } from '../KnowledgeBase/utils';
+import { getUrlState, setChatUrlState } from '../Utils/utils';
 import './ChatWindow.css';
 import '../KnowledgeBase/AttachmentPanel.css';
 import CreateJiraChatModal from './CreateJiraChatModal';
 import './CreateJiraChatModal.css';
 import JiraAttachmentPanel from './JiraAttachmentPanel';
 import './JiraAttachmentPanel.css';
+import ErrorModal from '../Utils/ErrorModal';
 
 const generateUUID = () => {
   if (crypto?.randomUUID) {
@@ -38,6 +39,8 @@ const ChatWindow = () => {
   const [attachPanelOpen, setAttachPanelOpen] = useState(false);
   const [attachCount, setAttachCount] = useState(0);
   const [jiraModalOpen, setJiraModalOpen] = useState(false);
+  // Модалка ошибки загрузки чата: null | { notFound: bool, status }
+  const [chatErrorModal, setChatErrorModal] = useState(null);
   const aiMessageTextRef = useRef('');
   const aiMessageIndexRef = useRef(-1);
   const abortControllerRef = useRef(null);
@@ -66,13 +69,25 @@ const ChatWindow = () => {
           messages: null,
           createdAt: chat.createdAt || null,
         }));
-        setChats(chatList);
+
         const currentId = initialActiveChatIdRef.current;
-        if (!currentId || !chatList.find((c) => c.id === currentId)) {
-          const firstId = chatList[0]?.id;
-          if (firstId) {
-            setActiveChatId(firstId);
-            localStorage.setItem(STORAGE_KEY_ACTIVE_ID, firstId);
+        const existsInList = chatList.find((c) => c.id === currentId);
+
+        if (currentId && !existsInList) {
+          // ID из URL/localStorage не найден в списке — добавляем заглушку,
+          // loadMessages попробует загрузить и пометит как ошибку.
+          // Автоматически НЕ переключаемся — пусть пользователь видит ошибку.
+          const placeholder = { id: currentId, title: '...', messages: null, createdAt: null };
+          setChats([placeholder, ...chatList]);
+        } else {
+          setChats(chatList);
+          if (!currentId) {
+            // URL был пустой — открываем первый чат
+            const firstId = chatList[0]?.id;
+            if (firstId) {
+              setActiveChatId(firstId);
+              localStorage.setItem(STORAGE_KEY_ACTIVE_ID, firstId);
+            }
           }
         }
       } catch (err) {
@@ -129,6 +144,7 @@ const ChatWindow = () => {
             chat.id === chatId ? { ...chat, messages: [], notFound: isNotFound, loadError: res.status } : chat,
           ),
         );
+        setChatErrorModal({ notFound: isNotFound, status: res.status });
         return;
       }
       const data = await res.json();
@@ -151,6 +167,7 @@ const ChatWindow = () => {
       setChats((prev) =>
         prev.map((chat) => (chat.id === chatId ? { ...chat, messages: [], loadError: 'network' } : chat)),
       );
+      setChatErrorModal({ notFound: false, status: 'network' });
     } finally {
       setLoadingMessages(false);
     }
@@ -165,7 +182,10 @@ const ChatWindow = () => {
       if (!chat?.messages && !chat?.notFound && !chat?.loadError && !alreadyFailed) {
         loadMessages(activeChatId);
       }
-      localStorage.setItem(STORAGE_KEY_ACTIVE_ID, activeChatId);
+      // Сохраняем в localStorage только реально существующий чат
+      if (!chat?.notFound && !chat?.loadError && !alreadyFailed) {
+        localStorage.setItem(STORAGE_KEY_ACTIVE_ID, activeChatId);
+      }
       setChatUrlState(activeChatId);
     }
   }, [activeChatId, chats, loadMessages]);
@@ -188,6 +208,17 @@ const ChatWindow = () => {
   const handleSendMessage = useCallback(
     async (text) => {
       if (!activeChatId) return;
+
+      // Если активный чат недоступен (не найден / ошибка загрузки) —
+      // не отправляем запрос, а показываем модалку.
+      const chatForSend = chatsRef.current.find((c) => c.id === activeChatId);
+      if (chatForSend?.notFound || chatForSend?.loadError) {
+        setChatErrorModal({
+          notFound: !!chatForSend.notFound,
+          status: chatForSend.loadError,
+        });
+        return;
+      }
 
       // Вычисляем индекс нового AI-сообщения СИНХРОННО, до setChats.
       // Updater в setChats выполняется асинхронно, поэтому нельзя
@@ -600,12 +631,22 @@ const ChatWindow = () => {
             e.target.value = '';
           }}
         />
-        <MessageInput
-          onSend={handleSendMessage}
-          onStop={handleStopGeneration}
-          disabled={isLoading}
-          onAttach={() => attachFileRef.current?.click()}
-        />
+        {activeChat?.notFound || activeChat?.loadError ? (
+          <div className="message-input-wrapper message-input-wrapper--disabled">
+            <span className="message-input-disabled-note">
+              {activeChat?.notFound
+                ? 'Этот чат недоступен — выберите другой или создайте новый.'
+                : 'Чат не загружен. Выберите другой чат или попробуйте позже.'}
+            </span>
+          </div>
+        ) : (
+          <MessageInput
+            onSend={handleSendMessage}
+            onStop={handleStopGeneration}
+            disabled={isLoading}
+            onAttach={() => attachFileRef.current?.click()}
+          />
+        )}
       </div>
 
       {/* ── Right panel: attachments ── */}
@@ -646,6 +687,19 @@ const ChatWindow = () => {
         open={jiraModalOpen}
         onClose={() => setJiraModalOpen(false)}
         onCreate={handleCreateJiraChat}
+      />
+      <ErrorModal
+        open={!!chatErrorModal}
+        icon={chatErrorModal?.notFound ? '🔍' : '⚠️'}
+        title={chatErrorModal?.notFound ? 'Чат не найден' : 'Не удалось загрузить чат'}
+        message={
+          chatErrorModal?.notFound
+            ? 'Возможно, он был удалён или ссылка устарела. Выберите другой чат или создайте новый.'
+            : `Ошибка при загрузке чата${
+                chatErrorModal && chatErrorModal.status !== 'network' ? ` (${chatErrorModal.status})` : ''
+              }. Попробуйте позже.`
+        }
+        onClose={() => setChatErrorModal(null)}
       />
     </div>
   );

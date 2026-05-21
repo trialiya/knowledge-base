@@ -2,7 +2,7 @@ import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { IconFolder, IconDoc } from './icons';
-import { makeSnippet } from './utils';
+import { makeSnippet } from '../Utils/utils';
 
 const ContentsTable = ({ children, onNavigate }) => (
   <div className="contents-table">

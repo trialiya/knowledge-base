@@ -432,3 +432,16 @@
   background: #c73057;
   transform: scale(1.08);
 }
+
+/* ── Disabled input state (chat unavailable) ── */
+.message-input-wrapper--disabled {
+  justify-content: center;
+  align-items: center;
+  min-height: 42px;
+}
+.message-input-disabled-note {
+  color: var(--kb-muted);
+  font-size: 0.85rem;
+  font-style: italic;
+  text-align: center;
+}

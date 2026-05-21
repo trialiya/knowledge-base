@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { IconFolder, IconDoc, IconChevron, IconLock } from './icons';
-import { findNodeById } from './utils';
+import { findNodeById } from '../Utils/utils';
 
 /*
  * Shared module-level drag state.

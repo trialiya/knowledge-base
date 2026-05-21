@@ -2,7 +2,7 @@ import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { IconEdit, IconChevronRight } from './icons';
-import { makeSnippet } from './utils';
+import { makeSnippet } from '../Utils/utils';
 
 const LIMIT = 300;
 

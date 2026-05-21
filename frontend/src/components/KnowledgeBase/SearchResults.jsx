@@ -1,6 +1,6 @@
 import React from 'react';
 import { IconDoc, IconFolder, IconChevronRight } from './icons';
-import { findPath } from './utils';
+import { findPath } from '../Utils/utils';
 
 const ResultBreadcrumb = ({ resultId, tree }) => {
   const path = findPath(tree, resultId) || [];

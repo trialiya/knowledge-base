@@ -7,8 +7,9 @@ import DocumentDetail from './DocumentDetail';
 import AddModal from './AddModal';
 import MoveConfirmModal from './MoveConfirmModal';
 import SearchResults from './SearchResults';
+import ErrorModal from '../Utils/ErrorModal';
 import { IconPlus } from './icons';
-import { findNodeById, findPath, getUrlState, setUrlState } from './utils';
+import { findNodeById, findPath, getUrlState, setUrlState } from '../Utils/utils';
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
 
@@ -233,6 +234,8 @@ const KnowledgeBase = () => {
           const target = findNodeById(currentTree, docId);
           if (target) setSelectedNode(target);
         } catch (err) {
+          // Очищаем doc из URL чтобы при перезагрузке не повторять запрос
+          setUrlState(null, tab, null, null);
           if (err.status === 404) {
             setNotFoundDocId(docId);
           } else if (err.status) {
@@ -509,27 +512,7 @@ const KnowledgeBase = () => {
 
         {/* ── Detail / Search Results ── */}
         <div className="kb-preview">
-          {notFoundDocId || docLoadError ? (
-            <div
-              className="empty-preview"
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.5rem',
-                alignItems: 'center',
-                justifyContent: 'center',
-                height: '100%',
-              }}
-            >
-              <span style={{ fontSize: '2rem' }}>{notFoundDocId ? '🔍' : '⚠️'}</span>
-              <span>{notFoundDocId ? 'Документ не найден' : 'Не удалось загрузить документ'}</span>
-              <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>
-                {notFoundDocId
-                  ? 'Возможно, он был удалён или ссылка устарела'
-                  : `Ошибка сервера (${docLoadError?.status}). Попробуйте позже.`}
-              </span>
-            </div>
-          ) : searchResults.length > 0 && !selectedNode ? (
+          {searchResults.length > 0 && !selectedNode ? (
             <SearchResults query={searchQuery} results={searchResults} tree={tree} onSelect={clearSearchAndShowNode} />
           ) : selectedNode ? (
             selectedNode.type === 'folder' ? (
@@ -564,6 +547,24 @@ const KnowledgeBase = () => {
           onCancel={handleMoveCancel}
         />
       )}
+
+      {/* ── Document load error modal ── */}
+      <ErrorModal
+        open={!!notFoundDocId || !!docLoadError}
+        icon={notFoundDocId ? '🔍' : '⚠️'}
+        title={notFoundDocId ? 'Документ не найден' : 'Не удалось загрузить документ'}
+        message={
+          notFoundDocId
+            ? 'Возможно, он был удалён или ссылка устарела.'
+            : `Ошибка при загрузке документа${
+                docLoadError && docLoadError.status !== 'network' ? ` (${docLoadError.status})` : ''
+              }. Попробуйте позже.`
+        }
+        onClose={() => {
+          setNotFoundDocId(null);
+          setDocLoadError(null);
+        }}
+      />
     </div>
   );
 };

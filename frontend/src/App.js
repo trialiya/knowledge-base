@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import ChatWindow from './components/Chat/ChatWindow';
 import KnowledgeBase from './components/KnowledgeBase/KnowledgeBase';
-import { getUrlState, setChatUrlState } from './components/KnowledgeBase/utils';
+import { getUrlState, setChatUrlState } from './components/Utils/utils';
 import './App.css';
 
 function getInitialTab() {

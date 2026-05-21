@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { IconFolder, IconChevron } from './icons';
-import { findNodeById } from './utils';
+import { findNodeById } from '../Utils/utils';
 
 // ─── Folder tree picker ───────────────────────────────────────────────────────
 
