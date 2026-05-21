@@ -22,4 +22,10 @@ public class DocumentEntity {
 
     /** Zero-based display order among siblings. */
     private int position;
+
+    /**
+     * System-protected nodes cannot be deleted or renamed. Content (description) and attachments
+     * are still editable.
+     */
+    private boolean isSystem;
 }

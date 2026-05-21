@@ -16,7 +16,15 @@ const api = {
   fetchTree: () => fetch('/api/documents/tree').then((r) => r.json()),
   fetchChildren: (parentId) =>
     fetch(`/api/documents/children${parentId ? `?parentId=${parentId}` : ''}`).then((r) => r.json()),
-  fetchAncestors: (id) => fetch(`/api/documents/${id}/ancestors`).then((r) => r.json()),
+  fetchAncestors: async (id) => {
+    const r = await fetch(`/api/documents/${id}/ancestors`);
+    if (!r.ok) {
+      const err = new Error(r.status === 404 ? 'Not found' : `Server error ${r.status}`);
+      err.status = r.status;
+      throw err;
+    }
+    return r.json();
+  },
   search: (q, mode) => fetch(`/api/search?q=${encodeURIComponent(q)}&mode=${mode}`).then((r) => r.json()),
   create: (body) =>
     fetch('/api/documents', {
@@ -101,6 +109,8 @@ const KnowledgeBase = () => {
   const [searchMode, setSearchMode] = useState('hybrid');
   const [searchResults, setSearchResults] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [notFoundDocId, setNotFoundDocId] = useState(null);
+  const [docLoadError, setDocLoadError] = useState(null); // { status, docId }
 
   // ── Move confirmation modal state ──────────────────────────────────────
   // Holds the pending drop info while we wait for user confirmation.
@@ -161,6 +171,8 @@ const KnowledgeBase = () => {
     setActiveTab('summary');
     setSearchResults([]);
     setSearchQuery('');
+    setNotFoundDocId(null);
+    setDocLoadError(null);
     setUrlState(node.id, 'summary', null, null);
   }, []);
 
@@ -220,10 +232,18 @@ const KnowledgeBase = () => {
           // Find the target node in the fully-loaded tree
           const target = findNodeById(currentTree, docId);
           if (target) setSelectedNode(target);
-        } catch {
-          // fallback: just try root
-          const target = findNodeById(rootNodes, docId);
-          if (target) setSelectedNode(target);
+        } catch (err) {
+          if (err.status === 404) {
+            setNotFoundDocId(docId);
+          } else if (err.status) {
+            // Другая HTTP-ошибка (5xx и т.д.)
+            setDocLoadError({ status: err.status, docId });
+          } else {
+            // Сетевая ошибка — fallback: пробуем найти в уже загруженном дереве
+            const target = findNodeById(rootNodes, docId);
+            if (target) setSelectedNode(target);
+            else setDocLoadError({ status: 'network', docId });
+          }
         }
       } else if (urlSearch) {
         setSearchQuery(urlSearch);
@@ -489,7 +509,27 @@ const KnowledgeBase = () => {
 
         {/* ── Detail / Search Results ── */}
         <div className="kb-preview">
-          {searchResults.length > 0 && !selectedNode ? (
+          {notFoundDocId || docLoadError ? (
+            <div
+              className="empty-preview"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.5rem',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '100%',
+              }}
+            >
+              <span style={{ fontSize: '2rem' }}>{notFoundDocId ? '🔍' : '⚠️'}</span>
+              <span>{notFoundDocId ? 'Документ не найден' : 'Не удалось загрузить документ'}</span>
+              <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>
+                {notFoundDocId
+                  ? 'Возможно, он был удалён или ссылка устарела'
+                  : `Ошибка сервера (${docLoadError?.status}). Попробуйте позже.`}
+              </span>
+            </div>
+          ) : searchResults.length > 0 && !selectedNode ? (
             <SearchResults query={searchQuery} results={searchResults} tree={tree} onSelect={clearSearchAndShowNode} />
           ) : selectedNode ? (
             selectedNode.type === 'folder' ? (

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { IconFolder, IconDoc, IconChevron } from './icons';
+import { IconFolder, IconDoc, IconChevron, IconLock } from './icons';
 import { findNodeById } from './utils';
 
 /*
@@ -17,18 +17,22 @@ import { findNodeById } from './utils';
  */
 const dragState = { current: null };
 
-const DragHandle = () => (
-  <span className="tree-row__drag-handle" title="Drag to reorder">
-    <svg width="10" height="14" viewBox="0 0 10 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="3" cy="2" r="1.2" fill="currentColor" />
-      <circle cx="7" cy="2" r="1.2" fill="currentColor" />
-      <circle cx="3" cy="7" r="1.2" fill="currentColor" />
-      <circle cx="7" cy="7" r="1.2" fill="currentColor" />
-      <circle cx="3" cy="12" r="1.2" fill="currentColor" />
-      <circle cx="7" cy="12" r="1.2" fill="currentColor" />
-    </svg>
-  </span>
-);
+const DragHandle = ({ disabled }) =>
+  disabled ? (
+    // Spacer keeps alignment intact; no drag affordance for system nodes
+    <span className="tree-row__drag-handle tree-row__drag-handle--disabled" aria-hidden="true" />
+  ) : (
+    <span className="tree-row__drag-handle" title="Drag to reorder">
+      <svg width="10" height="14" viewBox="0 0 10 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="3" cy="2" r="1.2" fill="currentColor" />
+        <circle cx="7" cy="2" r="1.2" fill="currentColor" />
+        <circle cx="3" cy="7" r="1.2" fill="currentColor" />
+        <circle cx="7" cy="7" r="1.2" fill="currentColor" />
+        <circle cx="3" cy="12" r="1.2" fill="currentColor" />
+        <circle cx="7" cy="12" r="1.2" fill="currentColor" />
+      </svg>
+    </span>
+  );
 
 const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLoadChildren }) => {
   const [open, setOpen] = useState(false);
@@ -36,6 +40,7 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
   const rowRef = useRef(null);
 
   const isFolder = node.type === 'folder';
+  const isSystem = !!node.system;
   // hasChildren from server OR already loaded children
   const hasChildren = isFolder && (node.hasChildren || (node.children && node.children.length > 0));
   const childrenLoaded = node._childrenLoaded || (node.children && node.children.length > 0);
@@ -69,6 +74,11 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
   // ── Drag source ───────────────────────────────────────────────────────────
 
   const handleDragStart = (e) => {
+    // System nodes cannot be moved
+    if (isSystem) {
+      e.preventDefault();
+      return;
+    }
     e.stopPropagation();
     const payload = {
       id: node.id,
@@ -76,9 +86,7 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
       parentId: node.parentId ?? null,
       type: node.type,
     };
-    // Stash for dragover (where dataTransfer is read-blocked)
     dragState.current = payload;
-    // Still set on dataTransfer for the drop handler / cross-window fallback
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', JSON.stringify(payload));
 
@@ -108,14 +116,25 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
   const handleDragOver = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    e.dataTransfer.dropEffect = 'move';
 
     const payload = dragState.current;
     if (!payload || payload.id === node.id) {
       setDropPos(null);
       return;
     }
-    setDropPos(getDropPosition(e));
+
+    const pos = getDropPosition(e);
+
+    // Cannot reorder a system node by dropping before/after it
+    // (dropping inside a system folder is allowed)
+    if (isSystem && pos !== 'inside') {
+      e.dataTransfer.dropEffect = 'none';
+      setDropPos(null);
+      return;
+    }
+
+    e.dataTransfer.dropEffect = 'move';
+    setDropPos(pos);
   };
 
   const handleDragLeave = (e) => {
@@ -127,7 +146,6 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
     e.stopPropagation();
     setDropPos(null);
 
-    // Try the module ref first, fall back to dataTransfer
     let payload = dragState.current;
     if (!payload) {
       try {
@@ -139,6 +157,10 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
     if (!payload?.id || payload.id === node.id) return;
 
     const pos = getDropPosition(e);
+
+    // Block reordering around system nodes (inside is still allowed)
+    if (isSystem && pos !== 'inside') return;
+
     onReorder({
       draggedId: payload.id,
       draggedTitle: payload.title,
@@ -169,9 +191,11 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
     <div className="tree-node-wrap">
       <div
         ref={rowRef}
-        className={`tree-row ${isSelected ? 'tree-row--selected' : ''} ${dropClass}`}
+        className={`tree-row ${isSelected ? 'tree-row--selected' : ''} ${dropClass} ${
+          isSystem ? 'tree-row--system' : ''
+        }`}
         style={{ '--depth': level }}
-        draggable
+        draggable={!isSystem}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         onDragOver={handleDragOver}
@@ -182,7 +206,7 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
           if (isFolder) toggleOpen(null);
         }}
       >
-        <DragHandle />
+        <DragHandle disabled={isSystem} />
 
         <span className="tree-row__chevron" onClick={(e) => toggleOpen(e)}>
           {hasChildren ? <IconChevron open={open} /> : <span style={{ display: 'inline-block', width: 12 }} />}
@@ -194,16 +218,23 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
 
         <span className="tree-row__label">{node.title}</span>
 
-        <button
-          className="tree-row__del"
-          title="Удалить"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(node.id);
-          }}
-        >
-          ✕
-        </button>
+        {isSystem ? (
+          /* Lock badge — visually signals the node is protected */
+          <span className="tree-row__system-badge" title="Системный документ: удаление и переименование недоступны">
+            <IconLock />
+          </span>
+        ) : (
+          <button
+            className="tree-row__del"
+            title="Удалить"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(node.id);
+            }}
+          >
+            ✕
+          </button>
+        )}
       </div>
 
       {hasChildren && open && (

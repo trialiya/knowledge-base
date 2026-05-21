@@ -112,12 +112,25 @@ const ChatWindow = () => {
     }
   }, []);
 
+  // Ref для защиты от повторных попыток по chatId, которых нет в списке chats
+  const failedChatIdsRef = useRef(new Set());
+
   // Загрузка сообщений
   const loadMessages = useCallback(async (chatId) => {
     setLoadingMessages(true);
     try {
       const res = await fetch(`/api/chat/chat?conversationId=${encodeURIComponent(chatId)}`);
-      if (!res.ok) throw new Error('Failed to load messages');
+      if (!res.ok) {
+        // Любая ошибка (404, 500, …) — помечаем чат флагом, чтобы остановить повторные запросы
+        const isNotFound = res.status === 404;
+        failedChatIdsRef.current.add(chatId);
+        setChats((prev) =>
+          prev.map((chat) =>
+            chat.id === chatId ? { ...chat, messages: [], notFound: isNotFound, loadError: res.status } : chat,
+          ),
+        );
+        return;
+      }
       const data = await res.json();
       const msgs =
         data.messages?.map((msg) => ({
@@ -125,11 +138,18 @@ const ChatWindow = () => {
           sender: msg.type?.toLowerCase?.() === 'user' ? 'user' : 'ai',
         })) || [];
       const finalMessages = msgs.length > 0 ? msgs : [{ ...DEFAULT_MESSAGE }];
-      setChats((prev) => prev.map((chat) => (chat.id === chatId ? { ...chat, messages: finalMessages } : chat)));
-    } catch (err) {
-      console.error('Ошибка загрузки сообщений:', err);
+      failedChatIdsRef.current.delete(chatId);
       setChats((prev) =>
-        prev.map((chat) => (chat.id === chatId ? { ...chat, messages: [{ ...DEFAULT_MESSAGE }] } : chat)),
+        prev.map((chat) =>
+          chat.id === chatId ? { ...chat, messages: finalMessages, notFound: false, loadError: null } : chat,
+        ),
+      );
+    } catch (err) {
+      // Сетевая ошибка или иное исключение
+      console.error('Ошибка загрузки сообщений:', err);
+      failedChatIdsRef.current.add(chatId);
+      setChats((prev) =>
+        prev.map((chat) => (chat.id === chatId ? { ...chat, messages: [], loadError: 'network' } : chat)),
       );
     } finally {
       setLoadingMessages(false);
@@ -139,7 +159,10 @@ const ChatWindow = () => {
   useEffect(() => {
     if (activeChatId) {
       const chat = chats.find((c) => c.id === activeChatId);
-      if (!chat?.messages) {
+      // Не загружаем если: сообщения уже есть, чат помечен как ошибочный,
+      // или chatId уже в ref (защита когда чат ещё не появился в списке)
+      const alreadyFailed = failedChatIdsRef.current.has(activeChatId);
+      if (!chat?.messages && !chat?.notFound && !chat?.loadError && !alreadyFailed) {
         loadMessages(activeChatId);
       }
       localStorage.setItem(STORAGE_KEY_ACTIVE_ID, activeChatId);
@@ -551,6 +574,16 @@ const ChatWindow = () => {
 
         {loadingMessages ? (
           <div className="loading-messages">Загрузка сообщений...</div>
+        ) : activeChat?.notFound || activeChat?.loadError ? (
+          <div className="loading-messages" style={{ flexDirection: 'column', gap: '0.5rem' }}>
+            <span style={{ fontSize: '2rem' }}>{activeChat?.notFound ? '🔍' : '⚠️'}</span>
+            <span>{activeChat?.notFound ? 'Чат не найден' : 'Не удалось загрузить чат'}</span>
+            <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>
+              {activeChat?.notFound
+                ? 'Возможно, он был удалён или ссылка устарела'
+                : `Ошибка сервера (${activeChat?.loadError}). Попробуйте позже.`}
+            </span>
+          </div>
         ) : (
           <MessageList messages={activeMessages} />
         )}

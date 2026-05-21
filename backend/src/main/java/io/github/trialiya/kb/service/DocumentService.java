@@ -124,7 +124,8 @@ public class DocumentService {
                                                 null,
                                                 null,
                                                 Collections.emptyList(),
-                                                repo.hasChildren(e.getId()))));
+                                                repo.hasChildren(e.getId()),
+                                                e.isSystem())));
         return result;
     }
 
@@ -142,7 +143,8 @@ public class DocumentService {
                                                 null,
                                                 null,
                                                 Collections.emptyList(),
-                                                repo.hasChildren(c.getId())))
+                                                repo.hasChildren(c.getId()),
+                                                c.isSystem()))
                         .collect(Collectors.toList());
         return new DocumentNode(
                 String.valueOf(e.getId()),
@@ -152,7 +154,8 @@ public class DocumentService {
                 e.getDescription(),
                 e.getUpdatedAt(),
                 children,
-                !children.isEmpty());
+                !children.isEmpty(),
+                e.isSystem());
     }
 
     /** Stub node without loading children — used for listing one level (getChildren). */
@@ -166,7 +169,8 @@ public class DocumentService {
                 e.getDescription(),
                 e.getUpdatedAt(),
                 Collections.emptyList(),
-                hc);
+                hc,
+                e.isSystem());
     }
 
     private DocumentNode buildNode(DocumentEntity e, Map<Long, List<DocumentEntity>> byParent) {
@@ -183,7 +187,8 @@ public class DocumentService {
                 e.getDescription(),
                 e.getUpdatedAt(),
                 children,
-                hc);
+                hc,
+                e.isSystem());
     }
 
     // ── CRUD ─────────────────────────────────────────────────────────────────
@@ -203,7 +208,8 @@ public class DocumentService {
                         req.getParentId() == null ? null : Long.parseLong(req.getParentId()),
                         req.getDescription(),
                         LocalDateTime.now(),
-                        nextPos);
+                        nextPos,
+                        false); // новые узлы никогда не системные
         DocumentEntity saved = repo.save(entity);
 
         tryIndex(saved.getId(), saved.getTitle(), saved.getDescription());
@@ -214,9 +220,18 @@ public class DocumentService {
     public Document update(String id, UpdateDocumentRequest req) {
         DocumentEntity existing = findOrThrow(id);
 
-        if (req.getTitle() != null && !req.getTitle().isBlank()) {
-            existing.setTitle(req.getTitle());
+        // Системный узел: разрешаем менять только description
+        if (existing.isSystem()) {
+            if (req.getTitle() != null && !req.getTitle().equals(existing.getTitle())) {
+                throw new ResponseStatusException(
+                        HttpStatus.FORBIDDEN, "Cannot rename a system document");
+            }
+        } else {
+            if (req.getTitle() != null && !req.getTitle().isBlank()) {
+                existing.setTitle(req.getTitle());
+            }
         }
+
         if (req.getDescription() != null) {
             existing.setDescription(req.getDescription());
         }
@@ -229,7 +244,11 @@ public class DocumentService {
 
     @Transactional
     public void delete(String id) {
-        findOrThrow(id);
+        DocumentEntity entity = findOrThrow(id);
+        if (entity.isSystem()) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "Cannot delete a system document");
+        }
         List<Long> ids = repo.findDescendantIds(Long.parseLong(id));
         repo.deleteAllById(ids);
         ids.forEach(
@@ -248,16 +267,24 @@ public class DocumentService {
     // ── Reorder ───────────────────────────────────────────────────────────────
 
     /**
-     * Reassigns {@code position} for a group of siblings.
-     *
-     * @param req contains the parent scope and the full ordered list of sibling IDs
+     * Reassigns {@code position} for a group of siblings. System nodes are excluded from reordering
+     * silently — their position stays fixed.
      */
     @Transactional
     public void reorder(ReorderRequest req) {
         List<String> ids = req.getOrderedIds();
         if (ids == null || ids.isEmpty()) return;
         for (int i = 0; i < ids.size(); i++) {
-            repo.updatePosition(Long.parseLong(ids.get(i)), i);
+            Long nodeId = Long.parseLong(ids.get(i));
+            // Skip position update for system nodes
+            repo.findById(nodeId)
+                    .ifPresent(
+                            e -> {
+                                if (!e.isSystem()) {
+                                    repo.updatePosition(
+                                            nodeId, ids.indexOf(String.valueOf(nodeId)));
+                                }
+                            });
         }
     }
 

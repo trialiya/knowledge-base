@@ -14,4 +14,10 @@ public class DocumentNode {
     private final LocalDateTime updatedAt;
     private final List<DocumentNode> children;
     private final boolean hasChildren;
+
+    /**
+     * When true: the UI must hide delete/rename controls and the server will reject delete/rename
+     * requests with 403.
+     */
+    private final boolean system;
 }

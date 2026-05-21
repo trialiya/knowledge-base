@@ -1474,3 +1474,45 @@
   color: var(--kb-muted);
   padding-left: 22px; /* aligns with the folder icons above/below */
 }
+
+/* ── System node styles (add to KnowledgeBase.css) ─────────────────────────── */
+
+/* Subtle visual distinction: slightly muted label */
+.tree-row--system .tree-row__label {
+  color: var(--text-secondary, #6b7280);
+}
+
+/* Lock badge replaces the delete button */
+.tree-row__system-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--text-tertiary, #9ca3af);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+/* Show lock on hover so it doesn't clutter the default view */
+.tree-row--system:hover .tree-row__system-badge,
+.tree-row--system.tree-row--selected .tree-row__system-badge {
+  opacity: 1;
+}
+
+/* Disabled drag handle: same width as normal handle, no pointer */
+.tree-row__drag-handle--disabled {
+  display: inline-block;
+  width: 10px; /* matches the SVG width */
+  cursor: default;
+}
+
+.detail-header__system-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  color: var(--text-tertiary, #9ca3af);
+  vertical-align: middle;
+}

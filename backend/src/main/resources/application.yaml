@@ -34,10 +34,9 @@ spring:
     url: "jdbc:postgresql://localhost:5432/knowledgebase"
     username: "knowledgebase"
     password: "knowledgebase"
-  sql:
-    init:
-      mode: always
-      schema-locations: classpath:db/init-schema.sql
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
   threads:
     virtual:
       enabled: true

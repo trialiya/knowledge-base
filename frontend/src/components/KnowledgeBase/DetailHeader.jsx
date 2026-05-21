@@ -1,5 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { IconFolder, IconDoc, IconChevronRight, IconEdit, IconTrash, IconArrowLeft, IconCheck, IconX } from './icons';
+import {
+  IconFolder,
+  IconDoc,
+  IconChevronRight,
+  IconEdit,
+  IconTrash,
+  IconArrowLeft,
+  IconCheck,
+  IconX,
+  IconLock,
+} from './icons';
 
 // ─── Inline rename ────────────────────────────────────────────────────────────
 
@@ -63,6 +73,7 @@ const Breadcrumb = ({ path, onNavigate }) => {
 const DetailHeader = ({ node, path, onNavigate, onRename, onDelete }) => {
   const [renaming, setRenaming] = useState(false);
   const isFolder = node.type === 'folder';
+  const isSystem = !!node.system;
   const parent = path && path.length > 0 ? path[path.length - 1] : null;
 
   return (
@@ -93,13 +104,22 @@ const DetailHeader = ({ node, path, onNavigate, onRename, onDelete }) => {
           ) : (
             <h2 className="detail-header__title">
               {node.title}
-              <button
-                className="detail-icon-btn detail-header__rename-btn"
-                title="Переименовать"
-                onClick={() => setRenaming(true)}
-              >
-                <IconEdit />
-              </button>
+              {isSystem ? (
+                <span
+                  className="detail-header__system-badge"
+                  title="Системный документ: переименование и удаление недоступны"
+                >
+                  <IconLock size={13} />
+                </span>
+              ) : (
+                <button
+                  className="detail-icon-btn detail-header__rename-btn"
+                  title="Переименовать"
+                  onClick={() => setRenaming(true)}
+                >
+                  <IconEdit />
+                </button>
+              )}
             </h2>
           )}
         </div>
@@ -109,9 +129,11 @@ const DetailHeader = ({ node, path, onNavigate, onRename, onDelete }) => {
             {isFolder ? 'Folder' : 'Document'}
           </span>
           <span className="detail-date">{new Date(node.updatedAt).toLocaleDateString('ru-RU')}</span>
-          <button className="detail-icon-btn" title="Удалить" onClick={() => onDelete(node.id)}>
-            <IconTrash />
-          </button>
+          {!isSystem && (
+            <button className="detail-icon-btn" title="Удалить" onClick={() => onDelete(node.id)}>
+              <IconTrash />
+            </button>
+          )}
         </div>
       </div>
 
