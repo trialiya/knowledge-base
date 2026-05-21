@@ -12,6 +12,8 @@ public interface AttachmentRepository extends CrudRepository<AttachmentEntity, L
     @Query("SELECT * FROM attachments WHERE document_id = :docId ORDER BY created_at")
     List<AttachmentEntity> findByDocumentId(@Param("docId") Long documentId);
 
+    long countByConversationId(String conversationId);
+
     /** All attachments for a given chat conversation, ordered by creation time. */
     @Query("SELECT * FROM attachments WHERE conversation_id = :convId ORDER BY created_at")
     List<AttachmentEntity> findByConversationId(@Param("convId") String conversationId);

@@ -79,6 +79,11 @@ public class AttachmentController {
         return service.findByConversation(conversationId);
     }
 
+    @GetMapping("/chat/{conversationId}/attachments/count")
+    public long countForChat(@PathVariable String conversationId) {
+        return service.countByConversation(conversationId);
+    }
+
     // ── Single ────────────────────────────────────────────────────────────────
 
     @GetMapping("/attachments/{id}")

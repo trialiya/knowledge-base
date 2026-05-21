@@ -147,6 +147,17 @@ const ChatWindow = () => {
     }
   }, [activeChatId, chats, loadMessages]);
 
+  // Fetch attachment count independently so the badge stays accurate
+  // even when the attachment panel is closed.
+  useEffect(() => {
+    if (!activeChatId) return;
+    setAttachCount(0);
+    fetch(`/api/chat/${encodeURIComponent(activeChatId)}/attachments/count`)
+      .then((r) => (r.ok ? r.json() : 0))
+      .then((count) => setAttachCount(typeof count === 'number' ? count : 0))
+      .catch(() => setAttachCount(0));
+  }, [activeChatId]);
+
   const activeMessages = useMemo(() => chats.find((c) => c.id === activeChatId)?.messages || [], [chats, activeChatId]);
   const activeChat = useMemo(() => chats.find((c) => c.id === activeChatId) || null, [chats, activeChatId]);
 
@@ -445,6 +456,7 @@ const ChatWindow = () => {
     (id) => {
       if (id === activeChatId) return;
       setActiveChatId(id);
+      setAttachCount(0); // reset until new panel loads count for new chat
     },
     [activeChatId],
   );
@@ -460,6 +472,7 @@ const ChatWindow = () => {
           method: 'POST',
           body: formData,
         });
+        setAttachCount((n) => n + 1);
         // Open attachment panel to show the uploaded file
         setAttachPanelOpen(true);
       } catch (err) {
@@ -542,28 +555,24 @@ const ChatWindow = () => {
           <MessageList messages={activeMessages} />
         )}
 
-        {/* Message input with attach button */}
-        <div className="message-input-row">
-          <button
-            className="message-input-attach"
-            title="Прикрепить файл"
-            onClick={() => attachFileRef.current?.click()}
-          >
-            <IconPaperclip size={18} />
-          </button>
-          <input
-            ref={attachFileRef}
-            type="file"
-            style={{ display: 'none' }}
-            accept="text/*,.md,.json,.yaml,.yml,.xml,.csv,.log,.sql,.java,.js,.jsx,.ts,.tsx,.py,.go,.rs,.html,.css"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleAttachFile(file);
-              e.target.value = '';
-            }}
-          />
-          <MessageInput onSend={handleSendMessage} onStop={handleStopGeneration} disabled={isLoading} />
-        </div>
+        {/* Message input with inline attach */}
+        <input
+          ref={attachFileRef}
+          type="file"
+          style={{ display: 'none' }}
+          accept="text/*,.md,.json,.yaml,.yml,.xml,.csv,.log,.sql,.java,.js,.jsx,.ts,.tsx,.py,.go,.rs,.html,.css"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleAttachFile(file);
+            e.target.value = '';
+          }}
+        />
+        <MessageInput
+          onSend={handleSendMessage}
+          onStop={handleStopGeneration}
+          disabled={isLoading}
+          onAttach={() => attachFileRef.current?.click()}
+        />
       </div>
 
       {/* ── Right panel: attachments ── */}

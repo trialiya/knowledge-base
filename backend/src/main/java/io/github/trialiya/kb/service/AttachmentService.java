@@ -113,6 +113,10 @@ public class AttachmentService {
                 .toList();
     }
 
+    public long countByConversation(String conversationId) {
+        return attachmentRepo.countByConversationId(conversationId);
+    }
+
     public List<Attachment> getByFileName(String conversationId, String fileName) {
         return attachmentRepo.findByConversationId(conversationId).stream()
                 .filter(attachment -> attachment.getFileName().contains(fileName))
