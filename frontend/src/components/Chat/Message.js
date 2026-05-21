@@ -46,14 +46,23 @@ const Message = ({ text, sender }) => {
               components={{
                 code({ node, inline, className, children, ...props }) {
                   const match = /language-(\w+)/.exec(className || '');
-                  return !inline && match ? (
+                  if (inline) {
+                    return (
+                      <code className={className} {...props}>
+                        {children}
+                      </code>
+                    );
+                  }
+                  // Block code: use highlighter when language is known,
+                  // otherwise render a plain <pre> block (NOT inline <code>).
+                  return match ? (
                     <SyntaxHighlighter style={vscDarkPlus} language={match[1]} PreTag="div" {...props}>
                       {String(children).replace(/\n$/, '')}
                     </SyntaxHighlighter>
                   ) : (
-                    <code className={className} {...props}>
-                      {children}
-                    </code>
+                    <pre className="message-code-block">
+                      <code>{String(children).replace(/\n$/, '')}</code>
+                    </pre>
                   );
                 },
                 table({ children }) {

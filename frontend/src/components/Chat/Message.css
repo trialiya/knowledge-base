@@ -72,20 +72,40 @@
   font-weight: bold;
 }
 
-/* Кодовые блоки */
+/* Кодовые блоки (общий контейнер) */
 .message.ai pre {
-  background-color: #1e1e1e !important;
   border-radius: 8px;
   padding: 0;
-  margin: 1em 0;
+  margin: 0.6em 0;
   overflow: auto;
+  max-width: 100%;
+}
+
+/* Блок кода без указанного языка */
+.message.ai pre.message-code-block {
+  background-color: #1e1e1e;
+  border-radius: 8px;
+  padding: 0.75em 1em;
+  margin: 0.6em 0;
+  overflow-x: auto;
+}
+.message.ai pre.message-code-block code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #e6e6e6;
+  font-family: 'Fira Mono', 'Consolas', monospace;
+  font-size: 0.85em;
+  font-weight: bold;
+  white-space: pre;
 }
 .message.ai code:not(pre > code) {
-  background-color: rgba(175, 184, 193, 0.2);
-  padding: 0.2em 0.4em;
-  border-radius: 4px;
-  font-size: 0.9em;
-  color: #d73a49;
+  background-color: rgba(0, 0, 0, 0.07);
+  padding: 0.15em 0.45em;
+  border-radius: 5px;
+  font-size: 0.88em;
+  color: #444;
+  font-family: 'Fira Mono', 'Consolas', monospace;
 }
 
 /* Заголовки */
@@ -131,16 +151,20 @@
   background: rgba(0, 123, 255, 0.06);
 }
 
-.message-raw-source {
+.message.ai pre.message-raw-source {
   white-space: pre-wrap;
   word-wrap: break-word;
   font-family: 'Fira Mono', 'Consolas', 'Courier New', monospace;
-  font-size: 0.82em;
+  font-size: 0.85em;
+  font-weight: bold;
   line-height: 1.6;
-  background: rgba(0, 0, 0, 0.03);
-  border-radius: 8px;
-  padding: 10px 12px;
-  margin: 0;
-  color: #e6b3b3;
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: #1e1e1e;
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin: 4px 0;
+  color: #e6e6e6;
+  border: none;
+  overflow-x: auto;
+  box-sizing: border-box;
+  width: 100%;
 }
