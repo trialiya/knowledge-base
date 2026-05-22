@@ -1,10 +1,8 @@
-import React from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import React, { useState, useRef, useEffect } from 'react';
+import MarkdownEditor from './MarkdownEditor';
 import { IconEdit, IconChevronRight } from './icons';
-import { makeSnippet } from '../Utils/utils';
 
-const LIMIT = 300;
+const MAX_LINES = 8;
 
 /**
  * props:
@@ -16,13 +14,19 @@ const LIMIT = 300;
  *   children     — optional slot rendered inside the section card (e.g. ContentsTable)
  */
 const SummarySection = ({ label, description, onEdit, showMoreBtn, onMore, children }) => {
-  const snippet = makeSnippet(description, LIMIT);
-  const truncated =
-    description &&
-    description
-      .replace(/^#{1,6}\s+/gm, '')
-      .replace(/[*_`~>]/g, '')
-      .trim().length > LIMIT;
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isTruncated, setIsTruncated] = useState(false);
+  const contentRef = useRef(null);
+
+  // Проверяем, нужно ли обрезать контент
+  useEffect(() => {
+    if (contentRef.current && description) {
+      const lineHeight = parseFloat(getComputedStyle(contentRef.current).lineHeight);
+      const maxHeight = lineHeight * MAX_LINES;
+      const actualHeight = contentRef.current.scrollHeight;
+      setIsTruncated(actualHeight > maxHeight + 2); // +2 для погрешности
+    }
+  }, [description]);
 
   return (
     <section className="summary-section">
@@ -48,13 +52,24 @@ const SummarySection = ({ label, description, onEdit, showMoreBtn, onMore, child
         <div className={`summary-about ${!description ? 'summary-about--empty' : ''}`}>
           {description ? (
             <>
-              <div className="summary-markdown">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{snippet}</ReactMarkdown>
+              {/* MarkdownEditor locked in preview mode, clipped to MAX_LINES */}
+              <div
+                ref={contentRef}
+                className="summary-markdown summary-markdown--preview"
+                style={{
+                  maxHeight: isExpanded ? 'none' : `${MAX_LINES * 1.5}em`,
+                  overflow: 'hidden',
+                  position: 'relative',
+                }}
+              >
+                <MarkdownEditor value={description} previewOnly onSave={() => {}} />
               </div>
-              {truncated && (
-                <button className="summary-read-more" onClick={onEdit}>
-                  …читать далее
-                </button>
+              {isTruncated && (
+                <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+                  <button className="summary-read-more" onClick={() => setIsExpanded(!isExpanded)}>
+                    {isExpanded ? 'Свернуть' : 'Развернуть'}
+                  </button>
+                </div>
               )}
             </>
           ) : (

@@ -45,10 +45,18 @@ function prependLine(textarea, prefix) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-const MarkdownEditor = ({ value, placeholder = '# Markdown...', onSave }) => {
+/**
+ * props:
+ *   value       — markdown string
+ *   placeholder — placeholder text for textarea
+ *   onSave      — async (val: string) => void
+ *   previewOnly — if true, renders only the preview pane without toolbar or editor controls
+ */
+const MarkdownEditor = ({ value, placeholder = '# Markdown...', onSave, previewOnly = false }) => {
   const [val, setVal] = useState(value);
   const [dirty, setDirty] = useState(false);
   const [preview, setPreview] = useState(false);
+  const [saving, setSaving] = useState(false);
   const textareaRef = useRef(null);
 
   useEffect(() => {
@@ -97,6 +105,20 @@ const MarkdownEditor = ({ value, placeholder = '# Markdown...', onSave }) => {
     }
   };
 
+  // ─── Preview-only mode (used in SummarySection) ───────────────────────────
+  if (previewOnly) {
+    return (
+      <div className="md-preview md-preview--embedded">
+        {val ? (
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{val}</ReactMarkdown>
+        ) : (
+          <p className="md-preview__empty">Нечего показывать</p>
+        )}
+      </div>
+    );
+  }
+
+  // ─── Full editor mode ─────────────────────────────────────────────────────
   return (
     <div className="md-editor">
       {/* Toolbar */}
@@ -147,15 +169,26 @@ const MarkdownEditor = ({ value, placeholder = '# Markdown...', onSave }) => {
         <div className="save-bar">
           <button
             className="save-bar__save"
-            onClick={() => {
-              onSave(val);
-              setDirty(false);
+            disabled={saving}
+            onClick={async () => {
+              setSaving(true);
+              try {
+                await onSave(val);
+                setDirty(false);
+              } catch (err) {
+                // При ошибке изменения остаются в редакторе
+                console.error('Save error in MarkdownEditor:', err);
+                // dirty остается true, панель сохранения не исчезает
+              } finally {
+                setSaving(false);
+              }
             }}
           >
-            Сохранить
+            {saving ? 'Сохранение...' : 'Сохранить'}
           </button>
           <button
             className="save-bar__cancel"
+            disabled={saving}
             onClick={() => {
               setVal(value);
               setDirty(false);

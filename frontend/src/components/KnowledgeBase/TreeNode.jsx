@@ -49,7 +49,11 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
   // Auto-open ancestor nodes pre-loaded for direct-link navigation
   useEffect(() => {
     if (node._openOnLoad && !open) {
-      setOpen(true);
+      if (isFolder && !childrenLoaded && onLoadChildren) {
+        onLoadChildren(node.id).then(() => setOpen(true));
+      } else {
+        setOpen(true);
+      }
     }
   }, [node._openOnLoad]); // eslint-disable-line react-hooks/exhaustive-deps
 

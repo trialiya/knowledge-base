@@ -112,6 +112,7 @@ const KnowledgeBase = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [notFoundDocId, setNotFoundDocId] = useState(null);
   const [docLoadError, setDocLoadError] = useState(null); // { status, docId }
+  const [saveError, setSaveError] = useState(null); // { message, id }
 
   // ── Move confirmation modal state ──────────────────────────────────────
   // Holds the pending drop info while we wait for user confirmation.
@@ -232,7 +233,30 @@ const KnowledgeBase = () => {
           }
           // Find the target node in the fully-loaded tree
           const target = findNodeById(currentTree, docId);
-          if (target) setSelectedNode(target);
+          if (target) {
+            // If the target is a folder, also load its children so
+            // FolderDetail can render Contents immediately
+            if (target.type === 'folder' && !target._childrenLoaded) {
+              const children = await api.fetchChildren(docId);
+              // Update tree and read back the enriched node in one step
+              let enrichedTarget = target;
+              setTree((prev) => {
+                const clone = JSON.parse(JSON.stringify(prev));
+                const folder = findNodeById(clone, docId);
+                if (folder) {
+                  folder.children = Array.isArray(children) ? children : [];
+                  folder._childrenLoaded = true;
+                  folder.hasChildren = children.length > 0;
+                  enrichedTarget = folder;
+                }
+                return clone;
+              });
+              // Use the enriched node (with children) as selectedNode
+              setSelectedNode(enrichedTarget);
+            } else {
+              setSelectedNode(target);
+            }
+          }
         } catch (err) {
           // Очищаем doc из URL чтобы при перезагрузке не повторять запрос
           setUrlState(null, tab, null, null);
@@ -340,9 +364,6 @@ const KnowledgeBase = () => {
   // внутри компонента KnowledgeBase
 
   const handleUpdate = async (id, patch) => {
-    // Сохраняем предыдущее состояние дерева для возможного отката
-    const previousTree = JSON.parse(JSON.stringify(tree));
-
     // Оптимистично обновляем локальное дерево
     setTree((prev) => updateNodeInTree(prev, id, patch));
 
@@ -352,10 +373,10 @@ const KnowledgeBase = () => {
       // Если обновление затронуло выбранный узел, он уже обновлён через setTree,
       // useEffect синхронизирует selectedNode автоматически
     } catch (err) {
-      console.error('Update error, rolling back:', err);
-      // Откатываем дерево до предыдущего состояния
-      setTree(previousTree);
-      alert('Ошибка при сохранении. Попробуйте позже.');
+      console.error('Update error:', err);
+      // НЕ откатываем дерево - изменения остаются в UI
+      // Показываем модалку с ошибкой
+      setSaveError({ message: 'Не удалось сохранить изменения. Попробуйте позже.', id });
     }
   };
 
@@ -564,6 +585,15 @@ const KnowledgeBase = () => {
           setNotFoundDocId(null);
           setDocLoadError(null);
         }}
+      />
+
+      {/* ── Save error modal ── */}
+      <ErrorModal
+        open={!!saveError}
+        icon="⚠️"
+        title="Ошибка сохранения"
+        message={saveError?.message || 'Не удалось сохранить изменения. Попробуйте позже.'}
+        onClose={() => setSaveError(null)}
       />
     </div>
   );
