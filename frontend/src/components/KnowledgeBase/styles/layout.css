@@ -1,0 +1,108 @@
+/* ═══════════════════════════════════════════════
+   LAYOUT
+═══════════════════════════════════════════════ */
+
+.knowledge-base-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--kb-white);
+  border-radius: var(--kb-radius);
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(91, 79, 207, 0.1);
+  margin: 1rem;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  color: var(--kb-text);
+}
+
+/* ── Header ── */
+.kb-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0.9rem 1.4rem;
+  border-bottom: 1px solid var(--kb-border);
+  background: var(--kb-white);
+  flex-wrap: wrap;
+}
+
+.kb-header__title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--kb-text);
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+
+.kb-search-row {
+  flex: 1;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.kb-search-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 14px 7px 34px;
+  font-size: 0.84rem;
+  border: 1.5px solid var(--kb-border);
+  border-radius: 20px;
+  outline: none;
+  color: var(--kb-text);
+  background: var(--kb-bg)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238886aa' stroke-width='2.5'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E")
+    no-repeat 10px center;
+  transition: border-color 0.15s;
+}
+.kb-search-row input:focus {
+  border-color: var(--kb-accent);
+}
+
+.kb-search-row select {
+  flex: 0 0 auto;
+  width: 116px;
+  padding: 7px 8px;
+  font-size: 0.78rem;
+  border-radius: 20px;
+  border: 1.5px solid var(--kb-border);
+  background-color: var(--kb-white);
+  color: var(--kb-text);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.kb-search-row select:focus {
+  border-color: var(--kb-accent);
+}
+
+.add-doc-btn {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--kb-accent);
+  border: none;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, transform 0.1s;
+  box-shadow: 0 2px 8px rgba(91, 79, 207, 0.28);
+  margin-left: auto;
+}
+.add-doc-btn:hover {
+  background: var(--kb-accent-hover);
+  transform: scale(1.08);
+}
+
+/* ── Main ── */
+.kb-main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}

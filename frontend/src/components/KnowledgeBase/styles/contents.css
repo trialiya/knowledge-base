@@ -1,0 +1,194 @@
+/* ═══════════════════════════════════════════════
+   CONTENTS TABLE
+═══════════════════════════════════════════════ */
+
+.contents-table {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.contents-table__header {
+  display: grid;
+  grid-template-columns: 28px 1fr 80px 84px;
+  padding: 7px 16px;
+  font-size: 0.71rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--kb-muted);
+  background: var(--kb-bg);
+  border-bottom: 1px solid var(--kb-border);
+}
+
+.contents-row {
+  display: grid;
+  grid-template-columns: 28px 1fr 80px 84px;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--kb-border-light);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.contents-row:last-child {
+  border-bottom: none;
+}
+.contents-row:hover {
+  background: var(--kb-accent-light);
+}
+
+.contents-row__icon {
+  display: flex;
+  align-items: center;
+}
+.contents-row__icon--folder {
+  color: var(--kb-accent);
+}
+.contents-row__icon--doc {
+  color: var(--kb-muted);
+}
+
+.contents-row__name-wrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+.contents-row__name {
+  font-size: 0.87rem;
+  font-weight: 500;
+  color: var(--kb-accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.contents-row__snippet {
+  font-size: 0.76rem;
+  color: var(--kb-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 1px;
+}
+.contents-row__snippet--md code {
+  font-family: 'Fira Mono', 'Consolas', monospace;
+  font-size: 0.9em;
+  background: var(--kb-bg);
+  padding: 0 3px;
+  border-radius: 3px;
+  color: var(--kb-accent);
+}
+.contents-row__snippet--md strong {
+  font-weight: 600;
+  color: var(--kb-text);
+}
+.contents-row__snippet--md em {
+  font-style: italic;
+}
+.contents-row__type {
+  font-size: 0.78rem;
+  color: var(--kb-muted);
+}
+.contents-row__date {
+  font-size: 0.78rem;
+  color: var(--kb-muted);
+}
+
+.contents-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--kb-border);
+  border-radius: 12px;
+  overflow: hidden;
+  min-height: 0;
+}
+.empty-tab {
+  color: var(--kb-muted);
+  font-size: 0.88rem;
+  text-align: center;
+  padding: 2.5rem 0;
+  font-style: italic;
+  margin: 0;
+}
+
+/* ═══════════════════════════════════════════════
+   CONTENTS TABLE: PAGINATION
+═══════════════════════════════════════════════ */
+
+/* Scrollable body for table rows */
+.contents-table__body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* Pagination bar — pinned at bottom */
+.contents-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--kb-border);
+  background: var(--kb-bg);
+  flex-shrink: 0;
+}
+
+.contents-pagination__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--kb-border);
+  background: var(--kb-white);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--kb-text);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.contents-pagination__btn:hover:not(:disabled) {
+  background: var(--kb-accent-light);
+  border-color: var(--kb-accent);
+  color: var(--kb-accent);
+}
+
+.contents-pagination__btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.contents-pagination__page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: none;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--kb-muted);
+  transition: background 0.15s, color 0.15s;
+  padding: 0 4px;
+}
+
+.contents-pagination__page:hover {
+  background: var(--kb-accent-light);
+  color: var(--kb-accent);
+}
+
+.contents-pagination__page--active {
+  background: var(--kb-accent);
+  color: white;
+  font-weight: 700;
+  border-color: var(--kb-accent);
+  cursor: default;
+}
