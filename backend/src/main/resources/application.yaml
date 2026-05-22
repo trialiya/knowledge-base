@@ -31,9 +31,9 @@ spring:
       max-attempts: 2
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: "jdbc:postgresql://localhost:5432/knowledgebase"
-    username: "knowledgebase"
-    password: "knowledgebase"
+    url: ${DATASOURCE_URL:jdbc:postgresql://localhost:5432/knowledgebase}
+    username: ${DATASOURCE_USERNAME:knowledgebase}
+    password: ${DATASOURCE_PASSWORD:knowledgebase}
   flyway:
     enabled: true
     locations: classpath:db/migration

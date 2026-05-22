@@ -1,0 +1,60 @@
+version: '3.9'
+
+# PROJECT_PATH_MOUNT читается из example.env через env_file ниже.
+# docker-compose подхватывает переменные из env_file для подстановки
+# в самом файле, только если они объявлены на верхнем уровне через
+# `env_file` секцию compose-файла ИЛИ если файл называется .env и
+# лежит рядом. Простейший способ — симлинк или копия: cp example.env .env
+#
+# Либо запускайте явно:
+#   env $(cat example.env | grep -v '^#' | xargs) docker compose up
+
+services:
+  # ── PostgreSQL 17 + pgvector ────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: kb-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: knowledgebase
+      POSTGRES_USER: knowledgebase
+      POSTGRES_PASSWORD: knowledgebase
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U knowledgebase -d knowledgebase"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend (Spring Boot) ───────────────────────────────────────
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: kb-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - ./example.env
+    ports:
+      - "8080:8080"
+    volumes:
+      # PROJECT_PATH_MOUNT берётся из example.env.
+      # docker compose подставляет переменные из env_file сервиса
+      # в блок volumes начиная с Compose Spec (v3.9+).
+      - ${PROJECT_PATH_MOUNT:-../}:/project:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  pgdata:

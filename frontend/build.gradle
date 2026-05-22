@@ -17,24 +17,6 @@ node {
     download = true
 }
 
-tasks.register('yarnServe', YarnTask) {
-    args = ['run', 'start']
-}
-
-tasks.register('yarnInstall', YarnTask) {
-    args = ['install']
-}
-
-tasks.register('yarnBuild', YarnTask) {
-    args = ['build']
-}
-
-tasks.register('copyFrontendBuild', Copy) {
-    dependsOn yarnBuild
-    from "${project.projectDir}/build"
-    into "${project(':backend').projectDir}/src/main/resources/static"
-}
-
 spotless {
     format 'react', {
         target 'src/**/*.js', 'src/**/*.jsx', 'src/**/*.ts', 'src/**/*.tsx', 'src/**/*.css', 'src/**/*.scss'
@@ -46,4 +28,34 @@ spotless {
                 'printWidth': 120
         ])
     }
+}
+
+tasks.register('yarnServe', YarnTask) {
+    args = ['run', 'start']
+}
+
+tasks.register('yarnInstall', YarnTask) {
+    args = ['install', '--frozen-lockfile']  // падает если yarn.lock устарел
+    inputs.files('package.json', 'yarn.lock')
+    outputs.dir('node_modules')
+}
+
+tasks.register('yarnBuild', YarnTask) {
+    dependsOn('yarnInstall')
+    args = ['run', 'build']
+}
+
+tasks.register('copyFrontend', Copy) {
+    dependsOn('yarnBuild')
+    from('build')
+    into("${project(':backend').projectDir}/build/resources/main/static")
+}
+
+tasks.named('build') {
+    dependsOn('copyFrontend')
+}
+
+tasks.named('clean') {
+    delete('build')
+    // node_modules не чистим — это дорого
 }
