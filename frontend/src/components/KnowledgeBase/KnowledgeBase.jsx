@@ -15,8 +15,11 @@ import { findNodeById, findPath, getUrlState, setUrlState } from '../Utils/utils
 
 const api = {
   fetchTree: () => fetch('/api/documents/tree').then((r) => r.json()),
-  fetchChildren: (parentId) =>
-    fetch(`/api/documents/children${parentId ? `?parentId=${parentId}` : ''}`).then((r) => r.json()),
+  fetchChildren: (parentId, page = 0, size = 10) => {
+    const params = new URLSearchParams({ page: String(page), size: String(size) });
+    if (parentId) params.set('parentId', parentId);
+    return fetch(`/api/documents/children?${params}`).then((r) => r.json());
+  },
   fetchAncestors: async (id) => {
     const r = await fetch(`/api/documents/${id}/ancestors`);
     if (!r.ok) {
@@ -123,31 +126,48 @@ const KnowledgeBase = () => {
 
   const loadTree = useCallback(async () => {
     try {
-      const data = await api.fetchChildren(null); // root level only
-      setTree(Array.isArray(data) ? data : []);
+      const paged = await api.fetchChildren(null, 0, 10);
+      const items = Array.isArray(paged.items) ? paged.items : [];
+      setTree(items);
+      // Store root-level total so root "load more" works
+      return paged;
     } catch {
       setTree([]);
+      return null;
     }
   }, []);
 
   /**
-   * Lazy-loads children of a node and splices them into the tree.
-   * Called by TreeNode when user expands a folder.
+   * Lazy-loads one page of children for a node and splices them into the tree.
+   * Called by TreeNode when user expands a folder or clicks "load more".
+   * Returns the paged response { items, totalElements, totalPages, page, size, hasNext }.
    */
-  const handleLoadChildren = useCallback(async (parentId) => {
+  const handleLoadChildren = useCallback(async (parentId, page = 0, size = 10) => {
     try {
-      const children = await api.fetchChildren(parentId);
+      const paged = await api.fetchChildren(parentId, page, size);
       setTree((prev) => {
         const clone = JSON.parse(JSON.stringify(prev));
         const parent = findNodeById(clone, parentId);
         if (parent) {
-          parent.children = Array.isArray(children) ? children : [];
+          if (page === 0) {
+            // First page: replace children entirely
+            parent.children = Array.isArray(paged.items) ? paged.items : [];
+          } else {
+            // Subsequent pages: append, deduplicating by id
+            const existing = parent.children ?? [];
+            const existingIds = new Set(existing.map((c) => c.id));
+            const newItems = (paged.items ?? []).filter((c) => !existingIds.has(c.id));
+            parent.children = [...existing, ...newItems];
+          }
           parent._childrenLoaded = true;
+          parent.hasChildren = (paged.totalElements ?? 0) > 0;
+          parent._totalChildren = paged.totalElements ?? null;
         }
         return clone;
       });
+      return paged;
     } catch {
-      /* noop */
+      return null;
     }
   }, []);
 
@@ -168,15 +188,23 @@ const KnowledgeBase = () => {
 
   // ── Navigation & URL sync ────────────────────────────────────────────────
 
-  const selectNode = useCallback((node) => {
-    setSelectedNode(node);
-    setActiveTab('summary');
-    setSearchResults([]);
-    setSearchQuery('');
-    setNotFoundDocId(null);
-    setDocLoadError(null);
-    setUrlState(node.id, 'summary', null, null);
-  }, []);
+  const selectNode = useCallback(
+    (node) => {
+      setSelectedNode(node);
+      setActiveTab('summary');
+      setSearchResults([]);
+      setSearchQuery('');
+      setNotFoundDocId(null);
+      setDocLoadError(null);
+      setUrlState(node.id, 'summary', null, null);
+
+      // Auto-load children for folders so Summary/Contents tabs have data
+      if (node.type === 'folder' && !node._childrenLoaded && (!node.children || node.children.length === 0)) {
+        handleLoadChildren(node.id, 0, 10);
+      }
+    },
+    [handleLoadChildren],
+  );
 
   const clearSearchAndShowNode = useCallback((node) => selectNode(node), [selectNode]);
 
@@ -198,8 +226,8 @@ const KnowledgeBase = () => {
       // Load root nodes
       let rootNodes = [];
       try {
-        const data = await api.fetchChildren(null);
-        rootNodes = Array.isArray(data) ? data : [];
+        const paged = await api.fetchChildren(null, 0, 10);
+        rootNodes = Array.isArray(paged.items) ? paged.items : [];
         setTree(rootNodes);
       } catch {
         setTree([]);
@@ -215,15 +243,16 @@ const KnowledgeBase = () => {
           const ancestorIds = await api.fetchAncestors(docId);
           // Load and splice each ancestor level into the tree
           for (const ancestorId of ancestorIds) {
-            const children = await api.fetchChildren(ancestorId);
+            const paged = await api.fetchChildren(ancestorId, 0, 10);
             currentTree = await new Promise((resolve) => {
               setTree((prev) => {
                 const clone = JSON.parse(JSON.stringify(prev));
                 const parent = findNodeById(clone, ancestorId);
                 if (parent) {
-                  parent.children = Array.isArray(children) ? children : [];
+                  parent.children = Array.isArray(paged.items) ? paged.items : [];
                   parent._childrenLoaded = true;
-                  parent.hasChildren = children.length > 0;
+                  parent.hasChildren = (paged.totalElements ?? 0) > 0;
+                  parent._totalChildren = paged.totalElements ?? null;
                   parent._openOnLoad = true; // signal TreeNode to open
                 }
                 resolve(clone);
@@ -237,16 +266,17 @@ const KnowledgeBase = () => {
             // If the target is a folder, also load its children so
             // FolderDetail can render Contents immediately
             if (target.type === 'folder' && !target._childrenLoaded) {
-              const children = await api.fetchChildren(docId);
+              const paged = await api.fetchChildren(docId, 0, 10);
               // Update tree and read back the enriched node in one step
               let enrichedTarget = target;
               setTree((prev) => {
                 const clone = JSON.parse(JSON.stringify(prev));
                 const folder = findNodeById(clone, docId);
                 if (folder) {
-                  folder.children = Array.isArray(children) ? children : [];
+                  folder.children = Array.isArray(paged.items) ? paged.items : [];
                   folder._childrenLoaded = true;
-                  folder.hasChildren = children.length > 0;
+                  folder.hasChildren = (paged.totalElements ?? 0) > 0;
+                  folder._totalChildren = paged.totalElements ?? null;
                   enrichedTarget = folder;
                 }
                 return clone;
@@ -330,14 +360,15 @@ const KnowledgeBase = () => {
           loadTree(); // reload roots
         } else {
           // Invalidate that folder's children in the tree
-          const children = await api.fetchChildren(parentId);
+          const paged = await api.fetchChildren(parentId, 0, 1000);
           setTree((prev) => {
             const clone = JSON.parse(JSON.stringify(prev));
             const parent = findNodeById(clone, parentId);
             if (parent) {
-              parent.children = Array.isArray(children) ? children : [];
+              parent.children = Array.isArray(paged.items) ? paged.items : [];
               parent._childrenLoaded = true;
-              parent.hasChildren = children.length > 0;
+              parent.hasChildren = (paged.totalElements ?? 0) > 0;
+              parent._totalChildren = paged.totalElements ?? null;
             }
             return clone;
           });
@@ -396,14 +427,15 @@ const KnowledgeBase = () => {
         if (parentId === null) {
           loadTree();
         } else {
-          const children = await api.fetchChildren(parentId);
+          const paged = await api.fetchChildren(parentId, 0, 1000);
           setTree((prev) => {
             const clone = JSON.parse(JSON.stringify(prev));
             const parent = findNodeById(clone, parentId);
             if (parent) {
-              parent.children = Array.isArray(children) ? children : [];
+              parent.children = Array.isArray(paged.items) ? paged.items : [];
               parent._childrenLoaded = true;
-              parent.hasChildren = children.length > 0;
+              parent.hasChildren = (paged.totalElements ?? 0) > 0;
+              parent._totalChildren = paged.totalElements ?? null;
             }
             return clone;
           });

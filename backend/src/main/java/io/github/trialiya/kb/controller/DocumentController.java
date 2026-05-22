@@ -3,6 +3,7 @@ package io.github.trialiya.kb.controller;
 import io.github.trialiya.kb.model.doc.dto.CreateDocumentRequest;
 import io.github.trialiya.kb.model.doc.dto.Document;
 import io.github.trialiya.kb.model.doc.dto.DocumentNode;
+import io.github.trialiya.kb.model.doc.dto.PagedChildren;
 import io.github.trialiya.kb.model.doc.dto.ReorderRequest;
 import io.github.trialiya.kb.model.doc.dto.SearchResult;
 import io.github.trialiya.kb.model.doc.dto.UpdateDocumentRequest;
@@ -11,6 +12,9 @@ import io.github.trialiya.kb.service.DocumentService;
 import io.github.trialiya.kb.service.SemanticSearchService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -32,19 +36,24 @@ public class DocumentController {
     }
 
     /**
-     * Lazy-load one level of children.
+     * Lazy-load one page of children with Spring Pageable.
      *
      * <pre>
-     * GET /api/documents/children          → root nodes
-     * GET /api/documents/children?parentId=42  → children of node 42
+     * GET /api/documents/children                          → root nodes, page 0, size 10
+     * GET /api/documents/children?parentId=42              → children of 42, page 0, size 10
+     * GET /api/documents/children?parentId=42&page=1&size=10 → second page
      * </pre>
      *
-     * Each node includes {@code hasChildren} so the UI knows whether to show a chevron.
+     * Response is {@link PagedChildren} with totalElements, totalPages, hasNext, etc.
      */
     @GetMapping("/documents/children")
-    public List<DocumentNode> getChildren(@RequestParam(required = false) String parentId) {
+    public PagedChildren getChildren(
+            @RequestParam(required = false) String parentId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
         Long pid = parentId != null ? Long.parseLong(parentId) : null;
-        return service.getChildren(pid);
+        Pageable pageable = PageRequest.of(page, size, Sort.by("position"));
+        return service.getChildrenPaged(pid, pageable);
     }
 
     /**

@@ -2,24 +2,17 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { IconFolder, IconDoc, IconChevron, IconLock } from './icons';
 import { findNodeById } from '../Utils/utils';
 
+const PAGE_SIZE = 10;
+
 /*
  * Shared module-level drag state.
- *
- * Why not e.dataTransfer.getData() inside dragover?
- * Browsers (Chrome, Safari, Firefox) deliberately block reading drag data
- * during `dragover`/`dragenter` for security reasons — getData() returns "".
- * The data is only readable in `drop`. That means we cannot identify the
- * dragged node during hover using dataTransfer alone.
- *
- * Workaround: stash the dragged node info in a module-level ref at dragstart
- * and read it back during dragover. dataTransfer is still set as a fallback
- * for the drop handler (and for cross-window cases).
+ * Browsers block reading drag data during dragover/dragenter for security — getData() returns "".
+ * Workaround: stash the dragged node info in a module-level ref at dragstart.
  */
 const dragState = { current: null };
 
 const DragHandle = ({ disabled }) =>
   disabled ? (
-    // Spacer keeps alignment intact; no drag affordance for system nodes
     <span className="tree-row__drag-handle tree-row__drag-handle--disabled" aria-hidden="true" />
   ) : (
     <span className="tree-row__drag-handle" title="Drag to reorder">
@@ -37,20 +30,42 @@ const DragHandle = ({ disabled }) =>
 const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLoadChildren }) => {
   const [open, setOpen] = useState(false);
   const [dropPos, setDropPos] = useState(null); // 'before' | 'after' | 'inside'
+  const [nextPage, setNextPage] = useState(1); // next page number to load
+  const [totalElements, setTotalElements] = useState(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const rowRef = useRef(null);
 
   const isFolder = node.type === 'folder';
   const isSystem = !!node.system;
-  // hasChildren from server OR already loaded children
   const hasChildren = isFolder && (node.hasChildren || (node.children && node.children.length > 0));
   const childrenLoaded = node._childrenLoaded || (node.children && node.children.length > 0);
   const isSelected = node.id === selectedId;
+
+  // Sync totalElements from node._totalChildren (set by KnowledgeBase)
+  useEffect(() => {
+    if (node._totalChildren != null) {
+      setTotalElements(node._totalChildren);
+    }
+  }, [node._totalChildren]);
+
+  // Reset nextPage when children are replaced (page 0 reload)
+  useEffect(() => {
+    if (node.children) {
+      // If the number of loaded children equals one page, next page is 1.
+      // Otherwise compute from the loaded count.
+      const loaded = node.children.length;
+      setNextPage(Math.ceil(loaded / PAGE_SIZE));
+    }
+  }, [node.children?.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-open ancestor nodes pre-loaded for direct-link navigation
   useEffect(() => {
     if (node._openOnLoad && !open) {
       if (isFolder && !childrenLoaded && onLoadChildren) {
-        onLoadChildren(node.id).then(() => setOpen(true));
+        onLoadChildren(node.id, 0, PAGE_SIZE).then((paged) => {
+          if (paged?.totalElements != null) setTotalElements(paged.totalElements);
+          setOpen(true);
+        });
       } else {
         setOpen(true);
       }
@@ -68,32 +83,44 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
     async (e) => {
       if (e) e.stopPropagation();
       if (!open && isFolder && !childrenLoaded && onLoadChildren) {
-        await onLoadChildren(node.id);
+        const paged = await onLoadChildren(node.id, 0, PAGE_SIZE);
+        if (paged?.totalElements != null) setTotalElements(paged.totalElements);
       }
       setOpen((o) => !o);
     },
     [open, isFolder, childrenLoaded, onLoadChildren, node.id],
   );
 
+  const handleLoadMore = useCallback(
+    async (e) => {
+      e.stopPropagation();
+      if (loadingMore || !onLoadChildren) return;
+      setLoadingMore(true);
+      try {
+        const paged = await onLoadChildren(node.id, nextPage, PAGE_SIZE);
+        if (paged?.totalElements != null) setTotalElements(paged.totalElements);
+        if (paged?.hasNext === false) {
+          // All loaded — no more pages
+        }
+      } finally {
+        setLoadingMore(false);
+      }
+    },
+    [loadingMore, onLoadChildren, node.id, nextPage],
+  );
+
   // ── Drag source ───────────────────────────────────────────────────────────
 
   const handleDragStart = (e) => {
-    // System nodes cannot be moved
     if (isSystem) {
       e.preventDefault();
       return;
     }
     e.stopPropagation();
-    const payload = {
-      id: node.id,
-      title: node.title,
-      parentId: node.parentId ?? null,
-      type: node.type,
-    };
+    const payload = { id: node.id, title: node.title, parentId: node.parentId ?? null, type: node.type };
     dragState.current = payload;
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', JSON.stringify(payload));
-
     requestAnimationFrame(() => {
       rowRef.current?.classList.add('tree-row--dragging');
     });
@@ -120,23 +147,17 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
   const handleDragOver = (e) => {
     e.preventDefault();
     e.stopPropagation();
-
     const payload = dragState.current;
     if (!payload || payload.id === node.id) {
       setDropPos(null);
       return;
     }
-
     const pos = getDropPosition(e);
-
-    // Cannot reorder a system node by dropping before/after it
-    // (dropping inside a system folder is allowed)
     if (isSystem && pos !== 'inside') {
       e.dataTransfer.dropEffect = 'none';
       setDropPos(null);
       return;
     }
-
     e.dataTransfer.dropEffect = 'move';
     setDropPos(pos);
   };
@@ -149,7 +170,6 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
     e.preventDefault();
     e.stopPropagation();
     setDropPos(null);
-
     let payload = dragState.current;
     if (!payload) {
       try {
@@ -159,12 +179,8 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
       }
     }
     if (!payload?.id || payload.id === node.id) return;
-
     const pos = getDropPosition(e);
-
-    // Block reordering around system nodes (inside is still allowed)
     if (isSystem && pos !== 'inside') return;
-
     onReorder({
       draggedId: payload.id,
       draggedTitle: payload.title,
@@ -173,9 +189,8 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
       targetParent: node.parentId ?? null,
       position: pos,
     });
-
     if (pos === 'inside' && isFolder) {
-      if (!childrenLoaded && onLoadChildren) onLoadChildren(node.id);
+      if (!childrenLoaded && onLoadChildren) onLoadChildren(node.id, 0, PAGE_SIZE);
       setOpen(true);
     }
   };
@@ -190,6 +205,12 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
       : dropPos === 'inside'
       ? 'tree-row--drop-inside'
       : '';
+
+  // Show "load more" when we know total and have loaded fewer
+  const knownTotal = totalElements ?? node._totalChildren ?? null;
+  const currentCount = node.children?.length ?? 0;
+  const showLoadMore = open && isFolder && knownTotal !== null && currentCount < knownTotal;
+  const remaining = knownTotal !== null ? knownTotal - currentCount : 0;
 
   return (
     <div className="tree-node-wrap">
@@ -223,7 +244,6 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
         <span className="tree-row__label">{node.title}</span>
 
         {isSystem ? (
-          /* Lock badge — visually signals the node is protected */
           <span className="tree-row__system-badge" title="Системный документ: удаление и переименование недоступны">
             <IconLock />
           </span>
@@ -255,6 +275,18 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
               onLoadChildren={onLoadChildren}
             />
           ))}
+
+          {/* "Load more" trigger */}
+          {showLoadMore && (
+            <button
+              className="tree-load-more"
+              style={{ '--depth': level + 1 }}
+              onClick={handleLoadMore}
+              disabled={loadingMore}
+            >
+              {loadingMore ? '…' : `··· ещё ${remaining}`}
+            </button>
+          )}
         </div>
       )}
     </div>

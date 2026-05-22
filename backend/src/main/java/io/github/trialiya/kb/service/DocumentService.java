@@ -4,6 +4,7 @@ import io.github.trialiya.kb.config.model.SearchConfiguration;
 import io.github.trialiya.kb.model.doc.dto.CreateDocumentRequest;
 import io.github.trialiya.kb.model.doc.dto.Document;
 import io.github.trialiya.kb.model.doc.dto.DocumentNode;
+import io.github.trialiya.kb.model.doc.dto.PagedChildren;
 import io.github.trialiya.kb.model.doc.dto.ReorderRequest;
 import io.github.trialiya.kb.model.doc.dto.SearchResult;
 import io.github.trialiya.kb.model.doc.dto.UpdateDocumentRequest;
@@ -20,6 +21,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -95,8 +98,22 @@ public class DocumentService {
     }
 
     /**
-     * Returns one level of children for a given parent (null = root). Each node includes {@code
-     * hasChildren} so the UI can show a chevron without loading the next level eagerly.
+     * Returns one page of children for a given parent (null = root), using Spring's {@link
+     * Pageable}. Each node includes {@code hasChildren} so the UI can show a chevron without
+     * loading the next level eagerly.
+     */
+    public PagedChildren getChildrenPaged(Long parentId, Pageable pageable) {
+        Page<DocumentEntity> page =
+                parentId == null
+                        ? repo.findByParentIdIsNull(pageable)
+                        : repo.findByParentId(parentId, pageable);
+        Page<DocumentNode> mapped = page.map(this::toStubNode);
+        return PagedChildren.from(mapped);
+    }
+
+    /**
+     * Returns ALL children for a given parent (null = root), unpaged. Kept for backward compat (AI
+     * tools, reorder, etc.).
      */
     public List<DocumentNode> getChildren(Long parentId) {
         List<DocumentEntity> items =
