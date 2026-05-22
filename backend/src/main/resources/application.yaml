@@ -19,7 +19,7 @@ spring:
         api-key: ${AI_EMBED_API_KEY:${AI_API_KEY}}
         embeddings-path: /v1/embeddings
         options:
-          model: ${AI_EMBED_MODEL:bge-m3}   # 1024-dim
+          model: ${kb.embedding.model:bge-m3}   # 1024-dim
     chat:
       memory:
         repository:
@@ -37,6 +37,7 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+    validate-on-migrate: false
   threads:
     virtual:
       enabled: true

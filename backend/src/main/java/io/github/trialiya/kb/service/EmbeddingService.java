@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.embedding.Embedding;
 import org.springframework.ai.embedding.EmbeddingRequest;
@@ -196,28 +197,32 @@ public class EmbeddingService {
         List<String> chunks = chunker.split(text);
         log.debug("Text split into {} chunks for embedding", chunks.size());
 
-        List<float[]> chunkVectors = new ArrayList<>(chunks.size());
-        List<String> missChunks = new ArrayList<>();
+        // Use indexed slots so vectors stay in chunk order regardless of cache hit pattern
+        float[][] chunkResults = new float[chunks.size()][];
+        List<Integer> missIndexes = new ArrayList<>();
 
-        for (String chunk : chunks) {
-            Optional<float[]> cached = lookupCache(chunk, modelName);
+        for (int i = 0; i < chunks.size(); i++) {
+            Optional<float[]> cached = lookupCache(chunks.get(i), modelName);
             if (cached.isPresent()) {
-                chunkVectors.add(cached.get());
+                chunkResults[i] = cached.get();
             } else {
-                missChunks.add(chunk);
+                missIndexes.add(i);
             }
         }
 
-        if (!missChunks.isEmpty()) {
-            EmbeddingResponse resp = callApi(missChunks);
-            for (int i = 0; i < missChunks.size(); i++) {
-                float[] vec = resp.getResults().get(i).getOutput();
-                chunkVectors.add(vec);
-                writeCache(missChunks.get(i), modelName, vec);
+        if (!missIndexes.isEmpty()) {
+            List<String> missTexts =
+                    missIndexes.stream().map(chunks::get).collect(Collectors.toList());
+            EmbeddingResponse resp = callApi(missTexts);
+            for (int k = 0; k < missIndexes.size(); k++) {
+                float[] vec = resp.getResults().get(k).getOutput();
+                int originalIndex = missIndexes.get(k);
+                chunkResults[originalIndex] = vec;
+                writeCache(chunks.get(originalIndex), modelName, vec);
             }
         }
 
-        return meanPool(chunkVectors);
+        return meanPool(Arrays.asList(chunkResults));
     }
 
     // ── Cache helpers ─────────────────────────────────────────────────────────
@@ -264,14 +269,21 @@ public class EmbeddingService {
         return sb.toString();
     }
 
+    private static final ThreadLocal<MessageDigest> SHA256_DIGEST =
+            ThreadLocal.withInitial(
+                    () -> {
+                        try {
+                            return MessageDigest.getInstance("SHA-256");
+                        } catch (NoSuchAlgorithmException e) {
+                            throw new IllegalStateException("SHA-256 not available", e);
+                        }
+                    });
+
     static String sha256(String text) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] digest = md.digest(text.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(digest);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 not available", e);
-        }
+        MessageDigest md = SHA256_DIGEST.get();
+        md.reset();
+        byte[] digest = md.digest(text.getBytes(StandardCharsets.UTF_8));
+        return HexFormat.of().formatHex(digest);
     }
 
     static float[] meanPool(List<float[]> vectors) {

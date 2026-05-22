@@ -21,6 +21,7 @@ export default function useKnowledgeBase() {
   const [notFoundDocId, setNotFoundDocId] = useState(null);
   const [docLoadError, setDocLoadError] = useState(null); // { status, docId }
   const [saveError, setSaveError] = useState(null); // { message, id }
+  const [refreshing, setRefreshing] = useState(false);
 
   // Pending drop info awaiting user confirmation: { dropInfo, fromTitle, toTitle }
   const [moveConfirm, setMoveConfirm] = useState(null);
@@ -327,6 +328,60 @@ export default function useKnowledgeBase() {
 
   const handleMoveCancel = () => setMoveConfirm(null);
 
+  const handleRefresh = useCallback(async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      // 1. Reload root-level tree
+      const paged = await api.fetchChildren(null, 0, PAGE_SIZE);
+      const rootNodes = Array.isArray(paged.items) ? paged.items : [];
+      setTree(rootNodes);
+
+      // 2. If a node is selected, reload its ancestor chain to restore tree path
+      if (selectedNode) {
+        let currentTree = rootNodes;
+        try {
+          const ancestorIds = await api.fetchAncestors(selectedNode.id);
+          for (const ancestorId of ancestorIds) {
+            const ancestorPaged = await api.fetchChildren(ancestorId, 0, PAGE_SIZE);
+            currentTree = await new Promise((resolve) => {
+              setTree((prev) => {
+                const clone = JSON.parse(JSON.stringify(prev));
+                const parent = spliceChildren(clone, ancestorId, ancestorPaged, { replace: true });
+                if (parent) parent._openOnLoad = true;
+                resolve(clone);
+                return clone;
+              });
+            });
+          }
+
+          const target = findNodeById(currentTree, selectedNode.id);
+          if (target) {
+            // For folders, also reload children
+            if (target.type === 'folder') {
+              const folderPaged = await api.fetchChildren(selectedNode.id, 0, PAGE_SIZE);
+              setTree((prev) => {
+                const clone = JSON.parse(JSON.stringify(prev));
+                spliceChildren(clone, selectedNode.id, folderPaged, { replace: true });
+                return clone;
+              });
+            }
+            // selectedNode will be re-synced by the tree effect
+          } else {
+            setSelectedNode(null);
+          }
+        } catch {
+          // If ancestors fail (deleted node?), just clear selection
+          setSelectedNode(null);
+        }
+      }
+    } catch {
+      // Tree reload failed — leave current state
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshing, selectedNode]);
+
   // ── Derived ────────────────────────────────────────────────────────────────
   const path = selectedNode ? findPath(tree, selectedNode.id) || [] : [];
 
@@ -342,6 +397,7 @@ export default function useKnowledgeBase() {
     notFoundDocId,
     docLoadError,
     saveError,
+    refreshing,
     moveConfirm,
     path,
     // setters used directly by the view
@@ -363,5 +419,6 @@ export default function useKnowledgeBase() {
     handleReorder,
     handleMoveConfirm,
     handleMoveCancel,
+    handleRefresh,
   };
 }

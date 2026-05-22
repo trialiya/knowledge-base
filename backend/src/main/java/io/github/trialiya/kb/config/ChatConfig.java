@@ -17,11 +17,9 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
-import org.springframework.ai.model.tool.ToolCallingManager;
-import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Lazy;
 
 @Configuration
 @Slf4j
@@ -37,16 +35,15 @@ public class ChatConfig {
 
     @Bean
     public ChatClient chatClientBuilder(
-            OpenAiChatModel openAiChatModel,
+            ChatModel chatModel,
             ChatMemory chatMemory,
             ChatTopicRepository chatTopicRepository,
             ChatMessageRepository chatMessageRepository,
             DocumentService documentService,
             GitService gitService,
-            @Lazy AttachmentService attachmentService,
-            ToolCallingManager toolCallingManager) {
-        log.info("Model: {}", openAiChatModel.getDefaultOptions());
-        return ChatClient.builder(openAiChatModel)
+            AttachmentService attachmentService) {
+        log.info("Model: {}", chatModel.getDefaultOptions());
+        return ChatClient.builder(chatModel)
                 .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
                 .defaultSystem(
                         IOUtils.toString(
@@ -56,7 +53,7 @@ public class ChatConfig {
                 .defaultTools(
                         new TopicFunction(chatTopicRepository),
                         new MessageLookupFunction(chatMessageRepository),
-                        new DocumentFunction(documentService),
+                        new DocumentFunction(documentService, attachmentService),
                         new GitFunction(gitService),
                         new AttachmentFunction(attachmentService))
                 .build();

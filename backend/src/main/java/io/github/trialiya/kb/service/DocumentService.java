@@ -19,7 +19,9 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -88,13 +90,7 @@ public class DocumentService {
      * 3 → [rootId, folderId, parentFolderId]. Empty list for root-level nodes.
      */
     public List<String> getAncestorIds(Long id) {
-        List<String> chain = new ArrayList<>();
-        Long current = repo.findById(id).map(DocumentEntity::getParentId).orElse(null);
-        while (current != null) {
-            chain.add(0, String.valueOf(current));
-            current = repo.findById(current).map(DocumentEntity::getParentId).orElse(null);
-        }
-        return chain;
+        return repo.findAncestorIds(id).stream().map(String::valueOf).collect(Collectors.toList());
     }
 
     /**
@@ -126,24 +122,23 @@ public class DocumentService {
      * the model gets the full structure without the heavy description content.
      */
     public List<DocumentNode> getTreeSkeleton() {
-        List<DocumentNode> result = new ArrayList<>();
-        repo.findAll()
-                .forEach(
+        Set<Long> parentIds = repo.findAllParentIds();
+        return StreamSupport.stream(repo.findAll().spliterator(), false)
+                .map(
                         e ->
-                                result.add(
-                                        new DocumentNode(
-                                                String.valueOf(e.getId()),
-                                                e.getTitle(),
-                                                e.getType(),
-                                                e.getParentId() == null
-                                                        ? null
-                                                        : String.valueOf(e.getParentId()),
-                                                null,
-                                                null,
-                                                Collections.emptyList(),
-                                                repo.hasChildren(e.getId()),
-                                                e.isSystem())));
-        return result;
+                                new DocumentNode(
+                                        String.valueOf(e.getId()),
+                                        e.getTitle(),
+                                        e.getType(),
+                                        e.getParentId() == null
+                                                ? null
+                                                : String.valueOf(e.getParentId()),
+                                        null,
+                                        null,
+                                        Collections.emptyList(),
+                                        parentIds.contains(e.getId()),
+                                        e.isSystem()))
+                .collect(Collectors.toList());
     }
 
     /** Full shallow node: entity + its direct children (used by getById). */
@@ -291,17 +286,21 @@ public class DocumentService {
     public void reorder(ReorderRequest req) {
         List<String> ids = req.getOrderedIds();
         if (ids == null || ids.isEmpty()) return;
+
+        // Build id→position map, excluding system nodes in one query
+        List<Long> longIds = ids.stream().map(Long::parseLong).collect(Collectors.toList());
+        Set<Long> systemIds = repo.findSystemIdsByIdIn(longIds);
+
+        Map<Long, Integer> positionMap = new LinkedHashMap<>();
         for (int i = 0; i < ids.size(); i++) {
             Long nodeId = Long.parseLong(ids.get(i));
-            // Skip position update for system nodes
-            repo.findById(nodeId)
-                    .ifPresent(
-                            e -> {
-                                if (!e.isSystem()) {
-                                    repo.updatePosition(
-                                            nodeId, ids.indexOf(String.valueOf(nodeId)));
-                                }
-                            });
+            if (!systemIds.contains(nodeId)) {
+                positionMap.put(nodeId, i);
+            }
+        }
+
+        if (!positionMap.isEmpty()) {
+            repo.batchUpdatePositions(positionMap);
         }
     }
 

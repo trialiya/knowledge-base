@@ -8,7 +8,7 @@ import AddModal from './AddModal';
 import MoveConfirmModal from './MoveConfirmModal';
 import SearchResults from './SearchResults';
 import ErrorModal from '../Utils/ErrorModal';
-import { IconPlus } from './icons';
+import { IconPlus, IconRefresh } from './icons';
 import useKnowledgeBase from './useKnowledgeBase';
 
 const KnowledgeBase = () => {
@@ -24,6 +24,7 @@ const KnowledgeBase = () => {
     docLoadError,
     saveError,
     moveConfirm,
+    refreshing,
     path,
     setActiveTab,
     setSearchQuery,
@@ -42,6 +43,7 @@ const KnowledgeBase = () => {
     handleReorder,
     handleMoveConfirm,
     handleMoveCancel,
+    handleRefresh,
   } = useKnowledgeBase();
 
   const detailProps = {
@@ -74,9 +76,19 @@ const KnowledgeBase = () => {
             <option value="keyword">По словам</option>
           </select>
         </div>
-        <button className="add-doc-btn" onClick={() => setShowAddModal(true)} title="Добавить">
-          <IconPlus />
-        </button>
+        <div className="kb-header__actions">
+          <button className="add-doc-btn" onClick={() => setShowAddModal(true)} title="Добавить">
+            <IconPlus />
+          </button>
+          <button
+            className={`add-doc-btn${refreshing ? ' kb-refresh-btn--spinning' : ''}`}
+            onClick={handleRefresh}
+            disabled={refreshing}
+            title="Обновить"
+          >
+            <IconRefresh />
+          </button>
+        </div>
       </div>
 
       <div className="kb-main">

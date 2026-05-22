@@ -1,49 +1,55 @@
 package io.github.trialiya.kb.functions;
 
+import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
+
+import io.github.trialiya.kb.model.doc.dto.CreateDocumentRequest;
+import io.github.trialiya.kb.model.doc.dto.Document;
 import io.github.trialiya.kb.model.doc.dto.DocumentNode;
 import io.github.trialiya.kb.model.doc.dto.SearchResult;
+import io.github.trialiya.kb.model.doc.dto.UpdateDocumentRequest;
+import io.github.trialiya.kb.service.AttachmentService;
 import io.github.trialiya.kb.service.DocumentService;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 
 /**
- * Spring AI tools that give the chat model read-only access to the knowledge-base.
+ * Spring AI tools that give the chat model read/write access to the knowledge-base.
  *
- * <p>Four capabilities are exposed:
+ * <p>Capabilities:
  *
  * <ul>
- *   <li>{@link #searchDocuments} — hybrid search (keyword + semantic) with configurable params.
+ *   <li>{@link #searchDocuments} — hybrid search (keyword + semantic).
  *   <li>{@link #findDocumentsByName} — lookup by title (exact or partial match).
  *   <li>{@link #getTreeSkeleton} — lightweight flat list of all nodes (id/title/type only).
  *   <li>{@link #getDocument} — full content of a single node by id.
+ *   <li>{@link #createDocument} — create a new document or folder.
+ *   <li>{@link #updateDocument} — edit title and/or content of an existing document.
+ *   <li>{@link #deleteDocument} — delete a document (and its descendants).
+ *   <li>{@link #copyAttachmentToDocument} — copy an attachment from the current chat to a document.
  * </ul>
- *
- * <p>Register as a bean and pass to the chat model's tool callbacks, the same way {@link
- * TopicFunction} is wired up.
  */
 @Slf4j
 @AllArgsConstructor
 public class DocumentFunction {
 
     private final DocumentService documentService;
+    private final AttachmentService attachmentService;
 
     // ── Search ────────────────────────────────────────────────────────────────
 
     /**
      * Hybrid search across the knowledge base (keyword + semantic).
      *
-     * <p>Use this to find documents or folders relevant to the user's question. Prefer this over
-     * {@link #getDocumentTree} when looking for specific content.
-     *
      * @param query natural-language or keyword search string
      * @param mode search mode: "hybrid" (default), "semantic", or "keyword"
-     * @param threshold minimum cosine similarity for semantic/hybrid (0..1); null → config default
-     * @param limit maximum number of results; null → config default
-     * @param kwWeight keyword score weight for hybrid mode (0..1); null → config default
-     * @param semWeight semantic score weight for hybrid mode (0..1); null → config default
+     * @param threshold minimum cosine similarity for semantic/hybrid (0..1)
+     * @param limit maximum number of results
+     * @param kwWeight keyword score weight for hybrid mode (0..1)
+     * @param semWeight semantic score weight for hybrid mode (0..1)
      * @return list of matching documents with title, snippet, and update time
      */
     @Tool(
@@ -138,9 +144,135 @@ public class DocumentFunction {
      */
     @Tool(
             description =
-                    "Получить конкретный документ или папку по id, включая полное содержимое (description) и список прямых дочерних узлов")
+                    "Получить конкретный документ или папку по id, включая полное содержимое "
+                            + "(description) и список прямых дочерних узлов")
     public DocumentNode getDocument(@ToolParam(description = "ID документа или папки") String id) {
         log.info("getDocument called: id={}", id);
         return documentService.getById(Long.parseLong(id));
+    }
+
+    /**
+     * Creates a new document or folder in the knowledge base.
+     *
+     * @param title document title
+     * @param type "document" or "folder"
+     * @param parentId parent folder id (null for root level)
+     * @param description document content / body text
+     * @return created document with its new id
+     */
+    @Tool(
+            description =
+                    "Создать новый документ или папку в базе знаний. "
+                            + "Укажи title, type (document или folder), parentId (или null для корня) "
+                            + "и description (содержимое).")
+    public Document createDocument(
+            @ToolParam(description = "Название документа или папки") String title,
+            @ToolParam(description = "Тип: 'document' или 'folder'", required = false) String type,
+            @ToolParam(
+                            description =
+                                    "ID родительской папки (null или пусто для корневого уровня)",
+                            required = false)
+                    String parentId,
+            @ToolParam(description = "Содержимое документа (текст, markdown)", required = false)
+                    String description) {
+
+        log.info("createDocument called: title='{}' type={} parentId={}", title, type, parentId);
+
+        CreateDocumentRequest req = new CreateDocumentRequest();
+        req.setTitle(title);
+        req.setType(type != null && !type.isBlank() ? type : "document");
+        req.setParentId(parentId != null && !parentId.isBlank() ? parentId : null);
+        req.setDescription(description);
+
+        return documentService.create(req);
+    }
+
+    /**
+     * Updates an existing document's title and/or content.
+     *
+     * @param id document id
+     * @param title new title (null to keep current)
+     * @param description new content (null to keep current)
+     * @return updated document
+     */
+    @Tool(
+            description =
+                    "Обновить существующий документ: изменить название и/или содержимое. "
+                            + "Передай только те поля, которые нужно изменить.")
+    public Document updateDocument(
+            @ToolParam(description = "ID документа для обновления") String id,
+            @ToolParam(
+                            description = "Новое название (null чтобы оставить текущее)",
+                            required = false)
+                    String title,
+            @ToolParam(
+                            description = "Новое содержимое (null чтобы оставить текущее)",
+                            required = false)
+                    String description) {
+
+        log.info("updateDocument called: id={} title='{}'", id, title);
+
+        UpdateDocumentRequest req = new UpdateDocumentRequest();
+        req.setTitle(title);
+        req.setDescription(description);
+
+        return documentService.update(id, req);
+    }
+
+    //    /**
+    //     * Deletes a document or folder (and all its descendants). System documents cannot be
+    // deleted.
+    //     *
+    //     * @param id document id
+    //     * @return confirmation message
+    //     */
+    //    @Tool(
+    //            description =
+    //                    "Удалить документ или папку по id (вместе со всеми дочерними узлами). "
+    //                            + "Системные документы удалить нельзя.")
+    //    public String deleteDocument(
+    //            @ToolParam(description = "ID документа или папки для удаления") String id) {
+    //        log.info("deleteDocument called: id={}", id);
+    //        documentService.delete(id);
+    //        return "Документ id=" + id + " успешно удалён.";
+    //    }
+
+    /**
+     * Copies an attachment from the current chat conversation to a knowledge-base document. This
+     * allows users to persist useful files from chat into the permanent knowledge base.
+     *
+     * @param context tool context (provides conversation id)
+     * @param attachmentId id of the attachment to copy
+     * @param targetDocumentId id of the target document to attach the file to
+     * @return confirmation message with new attachment id
+     */
+    @Tool(
+            description =
+                    "Скопировать вложение из текущего чата в документ базы знаний. "
+                            + "Используй когда пользователь хочет сохранить файл из чата в документ.")
+    public String copyAttachmentToDocument(
+            ToolContext context,
+            @ToolParam(description = "ID вложения из чата") String attachmentId,
+            @ToolParam(description = "ID целевого документа в базе знаний")
+                    String targetDocumentId) {
+
+        final String conversationId = conversationId(context);
+        log.info(
+                "[{}] copyAttachmentToDocument called: attachmentId={} targetDocumentId={}",
+                conversationId,
+                attachmentId,
+                targetDocumentId);
+
+        var newAttachment =
+                attachmentService.copyToDocument(
+                        Long.parseLong(attachmentId), Long.parseLong(targetDocumentId));
+
+        return "Вложение '"
+                + newAttachment.fileName()
+                + "' скопировано в документ id="
+                + targetDocumentId
+                + " (новый id вложения: "
+                + newAttachment.id()
+                + ").";
     }
 }

@@ -9,47 +9,73 @@
 ## Возможности
 
 - **Иерархическая база знаний** — папки и документы с древовидной структурой
-
 - **Markdown-редактор** — создание и редактирование документов прямо в интерфейсе
-
 - **Гибридный поиск** — комбинация keyword + semantic (векторный) поиск по содержимому
-
-- **AI-чат** — ассистент на базе OpenAI, отвечающий с учётом контекста базы знаний
-
+- **AI-чат** — ассистент на базе OpenAI-совместимого API, отвечающий с учётом контекста базы знаний
 - **Экспорт документов** — выгрузка базы знаний в файловую систему
+- **Docker** — готовый compose-файл для быстрого развёртывания
 
 ## Стек технологий
 
-| Компонент    | Технологии                                              |
-|--------------|---------------------------------------------------------|
-| **Бэкенд**   | Java 25, Spring Boot 3.5, Spring AI, PostgreSQL         |
-| **Фронтенд** | React 19, CSS                                           |
-| **Поиск**    | Гибридный (keyword + векторные эмбеддинги через OpenAI) |
+| Компонент    | Технологии                                                         |
+|--------------|--------------------------------------------------------------------|
+| **Бэкенд**   | Java 25, Spring Boot 3.5, Spring AI, PostgreSQL 17 + pgvector      |
+| **Фронтенд** | React 19, CSS                                                      |
+| **Поиск**    | Гибридный (keyword + векторные эмбеддинги)                         |
+| **Сборка**   | Gradle (мультипроект), Node.js 22, Yarn 1.22                       |
+| **Инфра**    | Docker, docker-compose                                              |
 
 ## Быстрый старт
 
-1. Настройте переменные окружения (см. `backend/src/main/resources/application.yaml`):
+### Запуск через Docker (рекомендуется)
 
-    - `AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL` — для чата
+```bash
+cd docker
+cp example.env .env
+# Отредактируйте .env — укажите AI_API_KEY, AI_EMBED_API_KEY и PROJECT_PATH_MOUNT
+docker compose up -d
+```
 
-    - `AI_EMBED_API_KEY`, `AI_EMBED_BASE_URL`, `AI_EMBED_MODEL` — для эмбеддингов
+Приложение будет доступно на `http://localhost:8080`.
 
-    - `DOCUMENTS_EXPORT_PATH` — пути для экспорта
+### Локальный запуск (для разработки)
 
-    - `PROJECT_PATH` - путь git-проекта
+1. Убедитесь, что PostgreSQL 17 + pgvector запущен (по умолчанию `localhost:5432`, БД `knowledgebase`)
+2. Скопируйте `docker/example.env` в `.env` в корне проекта и укажите свои ключи
+3. Запустите backend (frontend соберётся автоматически через Gradle):
 
-2. Запустите PostgreSQL (по умолчанию `localhost:5432`, БД `knowledgebase`)
+   ```bash
+   ./gradlew :backend:bootJar
+   ./gradlew :backend:bootRun
+   ```
 
-3. Запустите бэкенд: `./gradlew bootRun`
+   Или для разработки с hot-reload фронта:
 
-4. Запустите фронтенд: `cd frontend && npm start`
+   ```bash
+   # Терминал 1: backend
+   ./gradlew :backend:bootRun
+   # Терминал 2: frontend (отдельный dev-сервер на localhost:3000)
+   ./gradlew:frontend:yarnServe
+   ```
 
-## Планируется
+## Конфигурация
 
-- [ ] Авторизация и разграничение доступа
+Все настройки задаются через переменные окружения (см. `docker/example.env`):
 
-- [ ] Поддержка других AI-провайдеров (например, Ollama для локальных моделей)
-
-- [ ] Импорт документов (Markdown, HTML)
-
-- [ ] Полнотекстовый поиск по истории чатов
+| Переменная              | Описание                                      | По умолчанию                                     |
+|-------------------------|-----------------------------------------------|--------------------------------------------------|
+| `AI_BASE_URL`           | Базовый URL OpenAI-совместимого API для чата  | `https://api.openai.com/`                        |
+| `AI_API_KEY`            | API-ключ для чата                             | —                                                |
+| `AI_MODEL`              | Модель для чата                               | `deepseek-v4-flash`                              |
+| `AI_EMBED_BASE_URL`     | Базовый URL для эмбеддингов (если отличается) | `${AI_BASE_URL}`                                 |
+| `AI_EMBED_API_KEY`      | API-ключ для эмбеддингов (если отличается)    | `${AI_API_KEY}`                                  |
+| `AI_EMBED_MODEL`        | Модель эмбеддингов (1024-dim)                 | `bge-m3`                                         |
+| `DATASOURCE_URL`        | JDBC URL для PostgreSQL                       | `jdbc:postgresql://localhost:5432/knowledgebase` |
+| `DATASOURCE_USERNAME`   | Пользователь БД                               | `knowledgebase`                                  |
+| `DATASOURCE_PASSWORD`   | Пароль БД                                     | `knowledgebase`                                  |
+| `PROJECT_PATH`          | Путь к git-репозиторию на диске               | —                                                |
+| `DOCUMENTS_EXPORT_PATH` | Путь для экспорта документов                  | —                                                |
+| `JIRA_BASE_URL`         | Базовый URL Jira (опционально)                | —                                                |
+| `JIRA_TOKEN`            | API-токен Jira (опционально)                  | —                                                |
+| `CONFLUENCE_BASE_URL`   | Базовый URL Confluence (опционально)          | —                                                |
+| `CONFLUENCE_TOKEN`      | API-токен Confluence (опционально)            | —                                                |
