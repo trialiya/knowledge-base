@@ -1,170 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { IconTrash, IconDoc } from './icons';
+import { IconTrash, IconDoc, IconEye, IconUpload, IconSummarize } from './icons';
+import attachmentApi, { formatFileSize } from './attachmentApi';
+import AttachmentModal from './AttachmentModal';
+import ConfirmModal from './ConfirmModal';
+import ErrorModal from '../Utils/ErrorModal';
 
-// ─── Icons specific to attachments ───────────────────────────────────────────
-
-export const IconUpload = ({ size = 14 }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-    <polyline points="17 8 12 3 7 8" />
-    <line x1="12" y1="3" x2="12" y2="15" />
-  </svg>
-);
-
-export const IconPaperclip = ({ size = 14 }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-  </svg>
-);
-
-const IconSummarize = ({ size = 13 }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <line x1="4" y1="6" x2="20" y2="6" />
-    <line x1="4" y1="10" x2="14" y2="10" />
-    <line x1="4" y1="14" x2="18" y2="14" />
-    <line x1="4" y1="18" x2="10" y2="18" />
-  </svg>
-);
-
-const IconEye = ({ size = 13 }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-    <circle cx="12" cy="12" r="3" />
-  </svg>
-);
-
-// ─── API helpers ─────────────────────────────────────────────────────────────
-
-const attachmentApi = {
-  list: (ownerType, ownerId) =>
-    fetch(`/api/${ownerType === 'document' ? 'documents' : 'chat'}/${ownerId}/attachments`).then((r) => r.json()),
-  upload: (ownerType, ownerId, file) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    return fetch(`/api/${ownerType === 'document' ? 'documents' : 'chat'}/${ownerId}/attachments`, {
-      method: 'POST',
-      body: formData,
-    }).then((r) => {
-      if (!r.ok) throw new Error(`Upload failed: ${r.status}`);
-      return r.json();
-    });
-  },
-  delete: (id) => fetch(`/api/attachments/${id}`, { method: 'DELETE' }),
-  summarize: (id) => fetch(`/api/attachments/${id}/summarize`, { method: 'POST' }).then((r) => r.json()),
-  getContent: (id) => fetch(`/api/attachments/${id}/content`).then((r) => r.text()),
-};
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function formatFileSize(bytes) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-// ─── Content viewer modal ────────────────────────────────────────────────────
-
-const ContentViewer = ({ attachment, onClose }) => {
-  const [content, setContent] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    attachmentApi
-      .getContent(attachment.id)
-      .then((text) => {
-        if (!cancelled) {
-          setContent(text);
-          setLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setContent('Ошибка загрузки содержимого');
-          setLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [attachment.id]);
-
-  return (
-    <div className="attachment-viewer-overlay" onClick={onClose}>
-      <div className="attachment-viewer" onClick={(e) => e.stopPropagation()}>
-        <div className="attachment-viewer__header">
-          <span className="attachment-viewer__name">{attachment.fileName}</span>
-          <button className="detail-icon-btn" onClick={onClose} title="Закрыть">
-            ✕
-          </button>
-        </div>
-        <div className="attachment-viewer__body">
-          {loading ? (
-            <p className="attachment-viewer__loading">Загрузка…</p>
-          ) : (
-            <pre className="attachment-viewer__content">{content}</pre>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// компонент для просмотра полного текста summary в модальном окне
-const SummaryViewer = ({ attachment, onClose }) => {
-  return (
-    <div className="attachment-viewer-overlay" onClick={onClose}>
-      <div className="attachment-viewer" onClick={(e) => e.stopPropagation()}>
-        <div className="attachment-viewer__header">
-          <span className="attachment-viewer__name">Описание: {attachment.fileName}</span>
-          <button className="detail-icon-btn" onClick={onClose} title="Закрыть">
-            ✕
-          </button>
-        </div>
-        <div className="attachment-viewer__body">
-          <pre className="attachment-viewer__content">{attachment.summary || 'Нет описания'}</pre>
-        </div>
-      </div>
-    </div>
-  );
-};
+// Re-exported for backward compatibility (icons now live in icons.jsx).
+export { IconUpload, IconPaperclip } from './icons';
 
 // ─── Main component ──────────────────────────────────────────────────────────
 
@@ -183,9 +25,17 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [summarizingId, setSummarizingId] = useState(null);
-  const [viewingAttachment, setViewingAttachment] = useState(null);
-  const [viewingSummaryFor, setViewingSummaryFor] = useState(null);
+
+  // Unified viewer state: { attachment, mode: 'content' | 'summary' } | null
+  const [viewing, setViewing] = useState(null);
+  // Pending delete awaiting confirmation: attachment id | null
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [error, setError] = useState(null); // string | null
+
   const fileInputRef = useRef(null);
+
+  const showContent = (a) => setViewing({ attachment: a, mode: 'content' });
+  const showSummary = (a) => setViewing({ attachment: a, mode: 'summary' });
 
   // ── Load attachments ────────────────────────────────────────────────────
 
@@ -194,8 +44,9 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
     setLoading(true);
     try {
       const data = await attachmentApi.list(ownerType, ownerId);
-      setAttachments(Array.isArray(data) ? data : []);
-      onCountChange?.(Array.isArray(data) ? data.length : 0);
+      const list = Array.isArray(data) ? data : [];
+      setAttachments(list);
+      onCountChange?.(list.length);
     } catch {
       setAttachments([]);
       onCountChange?.(0);
@@ -222,7 +73,7 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
       });
     } catch (err) {
       console.error('Upload error:', err);
-      alert('Ошибка загрузки файла. Поддерживаются только текстовые файлы.');
+      setError('Ошибка загрузки файла. Поддерживаются только текстовые файлы.');
     } finally {
       setUploading(false);
     }
@@ -250,8 +101,10 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
 
   // ── Delete ──────────────────────────────────────────────────────────────
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Удалить вложение?')) return;
+  const confirmDelete = async () => {
+    const id = pendingDelete;
+    setPendingDelete(null);
+    if (id == null) return;
     try {
       await attachmentApi.delete(id);
       setAttachments((prev) => {
@@ -260,7 +113,7 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
         return next;
       });
     } catch {
-      alert('Ошибка удаления');
+      setError('Ошибка удаления');
     }
   };
 
@@ -272,11 +125,31 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
       const updated = await attachmentApi.summarize(id);
       setAttachments((prev) => prev.map((a) => (a.id === id ? updated : a)));
     } catch {
-      alert('Ошибка создания описания');
+      setError('Ошибка создания описания');
     } finally {
       setSummarizingId(null);
     }
   };
+
+  // ── Shared modals (rendered in every mode) ────────────────────────────────
+
+  const modals = (
+    <>
+      {viewing && (
+        <AttachmentModal attachment={viewing.attachment} mode={viewing.mode} onClose={() => setViewing(null)} />
+      )}
+      <ConfirmModal
+        open={pendingDelete != null}
+        icon="🗑️"
+        title="Удалить вложение?"
+        message="Это действие нельзя отменить."
+        confirmLabel="Удалить"
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
+      <ErrorModal open={!!error} icon="⚠️" title="Ошибка" message={error || ''} onClose={() => setError(null)} />
+    </>
+  );
 
   // ── Compact mode (for summary tab) ──────────────────────────────────────
 
@@ -293,20 +166,16 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
             <span className="attachment-compact-item__size">{formatFileSize(a.fileSize)}</span>
             {a.summary && (
               <span
-                className="attachment-compact-item__summary"
+                className="attachment-compact-item__summary attachment-summary--clickable"
                 title="Кликните для просмотра полного описания"
-                onClick={() => setViewingSummaryFor(a)} // ✨ NEW
-                style={{ cursor: 'pointer' }}
+                onClick={() => showSummary(a)}
               >
                 {a.summary.length > 60 ? a.summary.slice(0, 60) + '…' : a.summary}
               </span>
             )}
           </div>
         ))}
-        {/* Модалка для просмотра summary в компактном режиме */}
-        {viewingSummaryFor && (
-          <SummaryViewer attachment={viewingSummaryFor} onClose={() => setViewingSummaryFor(null)} />
-        )}
+        {modals}
       </div>
     );
   }
@@ -368,21 +237,21 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
                     🔗 Источник
                   </a>
                 )}
-                {a.summary && (
+                {a.summary ? (
                   <span
-                    className="attachment-row__summary"
-                    onClick={() => setViewingSummaryFor(a)}
+                    className="attachment-row__summary attachment-summary--clickable"
+                    onClick={() => showSummary(a)}
                     title="Кликните для просмотра полного описания"
-                    style={{ cursor: 'pointer' }}
                   >
                     {a.summary}
                   </span>
+                ) : (
+                  <span className="attachment-row__no-summary">Нет описания</span>
                 )}
-                {!a.summary && <span className="attachment-row__no-summary">Нет описания</span>}
               </span>
               <span className="attachment-row__size">{formatFileSize(a.fileSize)}</span>
               <span className="attachment-row__actions">
-                <button className="detail-icon-btn" title="Просмотреть" onClick={() => setViewingAttachment(a)}>
+                <button className="detail-icon-btn" title="Просмотреть" onClick={() => showContent(a)}>
                   <IconEye />
                 </button>
                 <button
@@ -396,7 +265,7 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
                 <button
                   className="detail-icon-btn attachment-row__delete"
                   title="Удалить"
-                  onClick={() => handleDelete(a.id)}
+                  onClick={() => setPendingDelete(a.id)}
                 >
                   <IconTrash />
                 </button>
@@ -406,11 +275,7 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
         </div>
       )}
 
-      {/* Content viewer */}
-      {viewingAttachment && <ContentViewer attachment={viewingAttachment} onClose={() => setViewingAttachment(null)} />}
-
-      {/* Модалка для просмотра summary в полном режиме */}
-      {viewingSummaryFor && <SummaryViewer attachment={viewingSummaryFor} onClose={() => setViewingSummaryFor(null)} />}
+      {modals}
     </div>
   );
 };

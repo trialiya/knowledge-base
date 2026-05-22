@@ -348,3 +348,8 @@
 .attachment-row__source:hover {
   text-decoration: underline;
 }
+
+/* ── Clickable summary text (opens summary modal) ── */
+.attachment-summary--clickable {
+  cursor: pointer;
+}

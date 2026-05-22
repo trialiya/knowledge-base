@@ -195,3 +195,30 @@
 .modal-buttons button:last-child:hover {
   background: var(--kb-border);
 }
+
+/* ── Generic confirm modal (shares MoveConfirmModal's look) ── */
+.confirm-modal {
+  gap: 1rem;
+}
+.confirm-modal__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.confirm-modal__icon {
+  font-size: 1.3rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.confirm-modal__header h3 {
+  margin: 0;
+  color: var(--kb-text);
+  font-size: 1rem;
+  font-weight: 700;
+}
+.confirm-modal__body {
+  margin: 0;
+  font-size: 0.87rem;
+  color: var(--kb-muted);
+  line-height: 1.55;
+}
