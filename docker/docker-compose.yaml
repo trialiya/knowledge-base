@@ -49,6 +49,7 @@ services:
       # docker compose подставляет переменные из env_file сервиса
       # в блок volumes начиная с Compose Spec (v3.9+).
       - ${PROJECT_PATH_MOUNT:-../}:/project:ro
+      - ${DOCUMENTS_EXPORT_PATH:-../doc-export}:/doc-export
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
       interval: 10s
