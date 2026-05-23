@@ -101,7 +101,12 @@ public class ChatController {
                                     testToolCalls(
                                             liveSink,
                                             "file" + j % 2,
-                                            Map.of("id", index + j*10, "action", "readingreadingreadingreading reading file id = " + index));
+                                            Map.of(
+                                                    "id",
+                                                    index + j * 10,
+                                                    "action",
+                                                    "readingreadingreadingreading reading file id = "
+                                                            + index));
                                 }
                                 if (j % 2 == 0) {
                                     liveSink.accept(new StreamMessage("\n\n", null));

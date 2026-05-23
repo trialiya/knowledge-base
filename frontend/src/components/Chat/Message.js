@@ -24,18 +24,22 @@ const preprocessText = (text) => {
 
 const statusIcon = (status) => {
   switch (status) {
-    case 'STARTED': return '⏳';
-    case 'OK': return '✅';
-    case 'ERROR': return '❌';
-    default: return '⚙️';
+    case 'STARTED':
+      return '⏳';
+    case 'OK':
+      return '✅';
+    case 'ERROR':
+      return '❌';
+    default:
+      return '⚙️';
   }
 };
 
 const formatArgs = (args) => {
   if (!args || Object.keys(args).length === 0) return null;
   return Object.entries(args)
-      .map(([key, val]) => `${key}: ${typeof val === 'string' ? val : JSON.stringify(val)}`)
-      .join(', ');
+    .map(([key, val]) => `${key}: ${typeof val === 'string' ? val : JSON.stringify(val)}`)
+    .join(', ');
 };
 
 /** Build a copyable text summary of a tool call */
@@ -75,37 +79,32 @@ const ToolCallItem = ({ tc }) => {
   };
 
   return (
-      <div
-          ref={itemRef}
-          className={`tool-call-item tool-call-item--${(tc.status || 'STARTED').toLowerCase()}`}
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={() => setHover(false)}
-          onClick={handleClick}
-      >
-        <span className="tool-call-icon">{statusIcon(tc.status)}</span>
-        <div className="tool-call-body">
-          <span className="tool-call-name">{tc.name}</span>
-          {argsStr && <span className="tool-call-args">{argsStr}</span>}
-          {tc.status === 'ERROR' && tc.error && (
-              <span className="tool-call-error">{tc.error}</span>
-          )}
-        </div>
-        {copied && <span className="tool-call-copied">✓</span>}
-        {hover && !copied && ReactDOM.createPortal(
-            <div
-                className="tool-call-tooltip"
-                style={{ top: tooltipPos.top, left: tooltipPos.left }}
-            >
-              <div className="tool-call-tooltip-name">{tc.name}</div>
-              {argsStr && <div className="tool-call-tooltip-args">{argsStr}</div>}
-              <div className="tool-call-tooltip-status">Статус: {tc.status || '—'}</div>
-              {tc.status === 'ERROR' && tc.error && (
-                  <div className="tool-call-tooltip-error">{tc.error}</div>
-              )}
-            </div>,
-            document.body,
-        )}
+    <div
+      ref={itemRef}
+      className={`tool-call-item tool-call-item--${(tc.status || 'STARTED').toLowerCase()}`}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={() => setHover(false)}
+      onClick={handleClick}
+    >
+      <span className="tool-call-icon">{statusIcon(tc.status)}</span>
+      <div className="tool-call-body">
+        <span className="tool-call-name">{tc.name}</span>
+        {argsStr && <span className="tool-call-args">{argsStr}</span>}
+        {tc.status === 'ERROR' && tc.error && <span className="tool-call-error">{tc.error}</span>}
       </div>
+      {copied && <span className="tool-call-copied">✓</span>}
+      {hover &&
+        !copied &&
+        ReactDOM.createPortal(
+          <div className="tool-call-tooltip" style={{ top: tooltipPos.top, left: tooltipPos.left }}>
+            <div className="tool-call-tooltip-name">{tc.name}</div>
+            {argsStr && <div className="tool-call-tooltip-args">{argsStr}</div>}
+            <div className="tool-call-tooltip-status">Статус: {tc.status || '—'}</div>
+            {tc.status === 'ERROR' && tc.error && <div className="tool-call-tooltip-error">{tc.error}</div>}
+          </div>,
+          document.body,
+        )}
+    </div>
   );
 };
 
@@ -123,35 +122,35 @@ const ToolCallGroup = ({ name, items }) => {
   const first = items[0];
   const firstArgsStr = formatArgs(first.arguments);
   const groupStatus = items.some((t) => t.status === 'ERROR')
-                      ? 'ERROR'
-                      : items.some((t) => t.status === 'STARTED')
-                        ? 'STARTED'
-                        : 'OK';
+    ? 'ERROR'
+    : items.some((t) => t.status === 'STARTED')
+    ? 'STARTED'
+    : 'OK';
 
   return (
-      <div className="tool-call-group">
-        <div
-            className={`tool-call-item tool-call-item--${groupStatus.toLowerCase()} tool-call-item--group-header`}
-            onClick={() => setOpen((v) => !v)}
-        >
-          <span className="tool-call-icon">{statusIcon(groupStatus)}</span>
-          <div className="tool-call-body">
+    <div className="tool-call-group">
+      <div
+        className={`tool-call-item tool-call-item--${groupStatus.toLowerCase()} tool-call-item--group-header`}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="tool-call-icon">{statusIcon(groupStatus)}</span>
+        <div className="tool-call-body">
           <span className="tool-call-name">
             {name}
             <span className="tool-call-count">×{items.length}</span>
           </span>
-            {firstArgsStr && <span className="tool-call-args">{firstArgsStr}</span>}
-          </div>
-          <span className={`tool-call-chevron ${open ? 'tool-call-chevron--open' : ''}`}>›</span>
+          {firstArgsStr && <span className="tool-call-args">{firstArgsStr}</span>}
         </div>
-        {open && (
-            <div className="tool-call-group-children">
-              {items.map((tc, i) => (
-                  <ToolCallItem key={i} tc={tc} />
-              ))}
-            </div>
-        )}
+        <span className={`tool-call-chevron ${open ? 'tool-call-chevron--open' : ''}`}>›</span>
       </div>
+      {open && (
+        <div className="tool-call-group-children">
+          {items.map((tc, i) => (
+            <ToolCallItem key={i} tc={tc} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -170,13 +169,13 @@ const ToolCallNotifications = ({ toolCalls }) => {
   }
 
   return (
-      <div className="tool-call-notifications">
-        <div className="tool-call-scroll">
-          {groups.map((g, i) => (
-              <ToolCallGroup key={`${g.name}-${i}`} name={g.name} items={g.items} />
-          ))}
-        </div>
+    <div className="tool-call-notifications">
+      <div className="tool-call-scroll">
+        {groups.map((g, i) => (
+          <ToolCallGroup key={`${g.name}-${i}`} name={g.name} items={g.items} />
+        ))}
       </div>
+    </div>
   );
 };
 
@@ -186,67 +185,67 @@ const Message = ({ text, sender, toolCalls }) => {
   const hasToolCalls = toolCalls && toolCalls.length > 0;
 
   const messageContent = (
-      <div className={messageClass}>
-        {sender === 'ai' ? (
-            <>
-              <div className="message-source-toggle">
-                <button
-                    className={`message-source-btn ${showSource ? 'message-source-btn--active' : ''}`}
-                    onClick={() => setShowSource((v) => !v)}
-                    title={showSource ? 'Показать с форматированием' : 'Показать исходник'}
-                >
-                  {showSource ? '◈ Markdown' : '{ } Исходник'}
-                </button>
-              </div>
-              {showSource ? (
-                  <pre className="message-raw-source">{text}</pre>
-              ) : (
-                   <ReactMarkdown
-                       remarkPlugins={[remarkGfm]}
-                       components={{
-                         code({ node, className, children, ...props }) {
-                           const match = /language-(\w+)/.exec(className || '');
-                           const raw = String(children).replace(/\n$/, '');
-                           const isBlock = !!match || raw.includes('\n');
+    <div className={messageClass}>
+      {sender === 'ai' ? (
+        <>
+          <div className="message-source-toggle">
+            <button
+              className={`message-source-btn ${showSource ? 'message-source-btn--active' : ''}`}
+              onClick={() => setShowSource((v) => !v)}
+              title={showSource ? 'Показать с форматированием' : 'Показать исходник'}
+            >
+              {showSource ? '◈ Markdown' : '{ } Исходник'}
+            </button>
+          </div>
+          {showSource ? (
+            <pre className="message-raw-source">{text}</pre>
+          ) : (
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                code({ node, className, children, ...props }) {
+                  const match = /language-(\w+)/.exec(className || '');
+                  const raw = String(children).replace(/\n$/, '');
+                  const isBlock = !!match || raw.includes('\n');
 
-                           if (!isBlock) {
-                             return (
-                                 <code className={className} {...props}>
-                                   {children}
-                                 </code>
-                             );
-                           }
-                           return match ? (
-                               <SyntaxHighlighter style={vscDarkPlus} language={match[1]} PreTag="div" {...props}>
-                                 {raw}
-                               </SyntaxHighlighter>
-                           ) : (
-                                      <pre className="message-code-block">
+                  if (!isBlock) {
+                    return (
+                      <code className={className} {...props}>
+                        {children}
+                      </code>
+                    );
+                  }
+                  return match ? (
+                    <SyntaxHighlighter style={vscDarkPlus} language={match[1]} PreTag="div" {...props}>
+                      {raw}
+                    </SyntaxHighlighter>
+                  ) : (
+                    <pre className="message-code-block">
                       <code>{raw}</code>
                     </pre>
-                                  );
-                         },
-                         table({ children }) {
-                           return <table className="markdown-table">{children}</table>;
-                         },
-                       }}
-                   >
-                     {preprocessText(text)}
-                   </ReactMarkdown>
-               )}
-            </>
-        ) : (
-             <div className="user-message-text">{text}</div>
-         )}
-      </div>
+                  );
+                },
+                table({ children }) {
+                  return <table className="markdown-table">{children}</table>;
+                },
+              }}
+            >
+              {preprocessText(text)}
+            </ReactMarkdown>
+          )}
+        </>
+      ) : (
+        <div className="user-message-text">{text}</div>
+      )}
+    </div>
   );
 
   if (hasToolCalls && sender === 'ai') {
     return (
-        <div className="message-row-with-tools">
-          {messageContent}
-          <ToolCallNotifications toolCalls={toolCalls} />
-        </div>
+      <div className="message-row-with-tools">
+        {messageContent}
+        <ToolCallNotifications toolCalls={toolCalls} />
+      </div>
     );
   }
 
