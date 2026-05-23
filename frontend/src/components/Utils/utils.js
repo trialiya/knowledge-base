@@ -34,39 +34,92 @@ export function flatFolders(nodes, acc = []) {
 }
 
 // ─── URL state ────────────────────────────────────────────────────────────────
+//
+// Unified URL scheme: ?view=chat|knowledge&chat=<id>&doc=<id>&tab=<tab>&search=<q>&mode=<m>
+//
+// `view` determines which tab is active.
+// `chat` and `doc` params coexist peacefully — each component reads only its own.
 
 export function getUrlState() {
   const params = new URLSearchParams(window.location.search);
   return {
+    tab: params.get('view') || null, // active top-level tab
     chatId: params.get('chat') || null,
     docId: params.get('doc') || null,
-    tab: params.get('tab') || 'summary',
+    docTab: params.get('tab') || 'summary', // KB detail tab
     searchQuery: params.get('search') || '',
     searchMode: params.get('mode') || 'hybrid',
   };
 }
 
-export function setUrlState(docId, tab, searchQuery, searchMode) {
-  const params = new URLSearchParams();
-  if (docId) params.set('doc', docId);
-  if (tab && tab !== 'summary') params.set('tab', tab);
+/**
+ * Switch the active top-level tab without clobbering other params.
+ */
+export function setUrlTab(view) {
+  const params = new URLSearchParams(window.location.search);
+  params.set('view', view);
+  window.history.pushState({}, '', `?${params.toString()}`);
+}
+
+/**
+ * Update KB-specific URL params (doc, tab, search, mode).
+ * Preserves `view` and `chat` params.
+ */
+export function setKBUrlState(docId, docTab, searchQuery, searchMode) {
+  const params = new URLSearchParams(window.location.search);
+
+  // Always keep view=knowledge when KB is updating its URL
+  params.set('view', 'knowledge');
+
+  // Set or remove KB params
+  if (docId) {
+    params.set('doc', docId);
+    params.delete('search');
+    params.delete('mode');
+  } else {
+    params.delete('doc');
+  }
+
+  if (docTab && docTab !== 'summary') {
+    params.set('tab', docTab);
+  } else {
+    params.delete('tab');
+  }
+
   if (searchQuery && !docId) {
     params.set('search', searchQuery);
     if (searchMode) params.set('mode', searchMode);
+  } else if (!searchQuery) {
+    params.delete('search');
+    params.delete('mode');
   }
-  const search = params.toString();
-  const url = search ? `?${search}` : window.location.pathname;
+
+  const url = `?${params.toString()}`;
   window.history.pushState({}, '', url);
 }
 
-/** Update URL with the active chat id (clears doc/search params) */
+/**
+ * Update chat-specific URL param.
+ * Preserves `view` and KB params.
+ */
 export function setChatUrlState(chatId) {
+  const params = new URLSearchParams(window.location.search);
+
+  // Always keep view=chat when chat is updating its URL
+  params.set('view', 'chat');
+
   if (chatId) {
-    window.history.pushState({}, '', `?chat=${encodeURIComponent(chatId)}`);
+    params.set('chat', chatId);
   } else {
-    window.history.pushState({}, '', window.location.pathname);
+    params.delete('chat');
   }
+
+  const url = `?${params.toString()}`;
+  window.history.pushState({}, '', url);
 }
+
+// ── Legacy alias (used internally by KnowledgeBase before refactor) ───────────
+export const setUrlState = setKBUrlState;
 
 // ─── Content helpers ──────────────────────────────────────────────────────────
 

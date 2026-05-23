@@ -11,7 +11,7 @@ import ErrorModal from '../Utils/ErrorModal';
 import { IconPlus, IconRefresh } from './icons';
 import useKnowledgeBase from './useKnowledgeBase';
 
-const KnowledgeBase = () => {
+const KnowledgeBase = ({ onNavigateToChat }) => {
   const {
     tree,
     selectedNode,

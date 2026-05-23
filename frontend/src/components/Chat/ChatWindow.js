@@ -26,7 +26,7 @@ const generateUUID = () => {
 const DEFAULT_MESSAGE = {};
 const STORAGE_KEY_ACTIVE_ID = 'chat_activeId';
 
-const ChatWindow = () => {
+const ChatWindow = ({ onNavigateToDoc }) => {
   const [chats, setChats] = useState([]);
   const [activeChatId, setActiveChatId] = useState(() => {
     const { chatId } = getUrlState();
@@ -57,6 +57,19 @@ const ChatWindow = () => {
   useEffect(() => {
     chatsRef.current = chats;
   }, [chats]);
+
+  // Listen for cross-component navigation (e.g. KB → specific chat)
+  useEffect(() => {
+    const handleNavigateChat = (e) => {
+      const { chatId } = e.detail || {};
+      if (chatId) {
+        setActiveChatId(chatId);
+        localStorage.setItem(STORAGE_KEY_ACTIVE_ID, chatId);
+      }
+    };
+    window.addEventListener('app:navigate-chat', handleNavigateChat);
+    return () => window.removeEventListener('app:navigate-chat', handleNavigateChat);
+  }, []);
 
   // Загрузка списка чатов
   useEffect(() => {

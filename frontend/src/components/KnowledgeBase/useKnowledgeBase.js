@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 
 import api from './api';
 import { getSiblings, applyReorder, parentTitle, isParentChange, updateNodeInTree, spliceChildren } from './treeOps';
-import { findNodeById, findPath, getUrlState, setUrlState } from '../Utils/utils';
+import { findNodeById, findPath, getUrlState, setKBUrlState } from '../Utils/utils';
 
 const PAGE_SIZE = 10;
 
@@ -99,7 +99,7 @@ export default function useKnowledgeBase() {
       setSearchQuery('');
       setNotFoundDocId(null);
       setDocLoadError(null);
-      setUrlState(node.id, 'summary', null, null);
+      setKBUrlState(node.id, 'summary', null, null);
 
       // Auto-load children for folders so Summary/Contents tabs have data
       if (node.type === 'folder' && !node._childrenLoaded && (!node.children || node.children.length === 0)) {
@@ -112,13 +112,90 @@ export default function useKnowledgeBase() {
   const handleSearch = useCallback(async () => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
-      setUrlState(null, activeTab, null, null);
+      setKBUrlState(null, activeTab, null, null);
       return;
     }
     setSelectedNode(null);
-    setUrlState(null, activeTab, searchQuery, searchMode);
+    setKBUrlState(null, activeTab, searchQuery, searchMode);
     await performSearch(searchQuery, searchMode);
   }, [searchQuery, searchMode, activeTab, performSearch]);
+
+  // ── Navigate to a specific doc by ID (used by cross-component navigation) ──
+
+  const navigateToDocById = useCallback(
+    async (docId) => {
+      if (!docId) return;
+
+      // If the doc is already in the tree, select it directly
+      const existing = findNodeById(tree, docId);
+      if (existing) {
+        selectNode(existing);
+        return;
+      }
+
+      // Otherwise load the ancestor chain and then select
+      try {
+        let currentTree = tree.length > 0 ? tree : [];
+        if (currentTree.length === 0) {
+          const paged = await api.fetchChildren(null, 0, PAGE_SIZE);
+          currentTree = Array.isArray(paged.items) ? paged.items : [];
+          setTree(currentTree);
+        }
+
+        const ancestorIds = await api.fetchAncestors(docId);
+        for (const ancestorId of ancestorIds) {
+          const paged = await api.fetchChildren(ancestorId, 0, PAGE_SIZE);
+          currentTree = await new Promise((resolve) => {
+            setTree((prev) => {
+              const clone = JSON.parse(JSON.stringify(prev));
+              const parent = spliceChildren(clone, ancestorId, paged, { replace: true });
+              if (parent) parent._openOnLoad = true;
+              resolve(clone);
+              return clone;
+            });
+          });
+        }
+
+        const target = findNodeById(currentTree, docId);
+        if (target) {
+          if (target.type === 'folder' && !target._childrenLoaded) {
+            const paged = await api.fetchChildren(docId, 0, PAGE_SIZE);
+            let enrichedTarget = target;
+            setTree((prev) => {
+              const clone = JSON.parse(JSON.stringify(prev));
+              const folder = spliceChildren(clone, docId, paged, { replace: true });
+              if (folder) enrichedTarget = folder;
+              return clone;
+            });
+            setSelectedNode(enrichedTarget);
+          } else {
+            setSelectedNode(target);
+          }
+          setActiveTab('summary');
+        } else {
+          setNotFoundDocId(docId);
+        }
+      } catch (err) {
+        if (err.status === 404) {
+          setNotFoundDocId(docId);
+        } else {
+          setDocLoadError({ status: err.status || 'network', docId });
+        }
+      }
+    },
+    [tree, selectNode],
+  );
+
+  // ── Listen for cross-component navigation events ─────────────────────────
+
+  useEffect(() => {
+    const handleNavigateDoc = (e) => {
+      const { docId } = e.detail || {};
+      if (docId) navigateToDocById(docId);
+    };
+    window.addEventListener('app:navigate-doc', handleNavigateDoc);
+    return () => window.removeEventListener('app:navigate-doc', handleNavigateDoc);
+  }, [navigateToDocById]);
 
   // ── Restore from URL on first mount ─────────────────────────────────────────
 
@@ -133,7 +210,7 @@ export default function useKnowledgeBase() {
         setTree([]);
       }
 
-      const { docId, tab, searchQuery: urlSearch, searchMode: urlMode } = getUrlState();
+      const { docId, docTab: tab, searchQuery: urlSearch, searchMode: urlMode } = getUrlState();
       setActiveTab(tab);
 
       if (docId) {
@@ -173,7 +250,7 @@ export default function useKnowledgeBase() {
           }
         } catch (err) {
           // Clear doc from URL so a reload doesn't repeat the failing request
-          setUrlState(null, tab, null, null);
+          setKBUrlState(null, tab, null, null);
           if (err.status === 404) {
             setNotFoundDocId(docId);
           } else if (err.status) {
@@ -204,7 +281,7 @@ export default function useKnowledgeBase() {
   // Browser back/forward navigation
   useEffect(() => {
     const onPopState = async () => {
-      const { docId, tab, searchQuery: urlSearch, searchMode: urlMode } = getUrlState();
+      const { docId, docTab: tab, searchQuery: urlSearch, searchMode: urlMode } = getUrlState();
       setActiveTab(tab);
       if (docId) {
         if (tree.length === 0) await loadTree();
@@ -214,7 +291,8 @@ export default function useKnowledgeBase() {
           setSearchResults([]);
           setSearchQuery('');
         } else {
-          setSelectedNode(null);
+          // Try loading the full path for this doc
+          navigateToDocById(docId);
         }
       } else if (urlSearch) {
         setSearchQuery(urlSearch);
@@ -229,7 +307,7 @@ export default function useKnowledgeBase() {
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
-  }, [loadTree, tree, performSearch]);
+  }, [loadTree, tree, performSearch, navigateToDocById]);
 
   // ── CRUD ─────────────────────────────────────────────────────────────────────
 

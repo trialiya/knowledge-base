@@ -21,8 +21,9 @@ body {
 
 .App main {
   flex: 1;
-  overflow: hidden; /* дочерний компонент сам управляет скроллом */
+  overflow: hidden;
   display: flex;
+  position: relative;
 }
 
 .App-header {
@@ -32,12 +33,38 @@ body {
   border-bottom: 1px solid #ddd;
 }
 
+/* ── Tab panels ── */
+
+.app-tab-panel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  /* Smooth transition optional — remove if you prefer instant switch */
+}
+
+.app-tab-panel--active {
+  visibility: visible;
+  opacity: 1;
+  z-index: 1;
+  pointer-events: auto;
+}
+
+.app-tab-panel--hidden {
+  visibility: hidden;
+  opacity: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ── Tab bar ── */
+
 .app-tabs {
   display: flex;
   gap: 1rem;
   background: white;
   padding: 0.75rem 2rem;
   border-bottom: 1px solid #ddd;
+  flex-shrink: 0;
 }
 
 .app-tabs button {
