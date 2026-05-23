@@ -44,6 +44,8 @@ const ChatWindow = () => {
   const aiMessageTextRef = useRef('');
   const aiMessageIndexRef = useRef(-1);
   const abortControllerRef = useRef(null);
+  // Tool calls accumulated for the current AI message segment
+  const toolCallsRef = useRef([]);
   const attachFileRef = useRef(null);
   // Ref to hold activeChatId at mount time so the initial fetch effect
   // doesn't need it in its dependency array (we only want this to run once).
@@ -240,6 +242,7 @@ const ChatWindow = () => {
       setIsLoading(true);
       aiMessageTextRef.current = '';
       aiMessageIndexRef.current = initialAiIndex;
+      toolCallsRef.current = [];
 
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
@@ -296,9 +299,54 @@ const ChatWindow = () => {
               let textChanged = false;
               let shouldFinishSegment = false;
               let isDone = false;
+              let toolCallChanged = false;
               try {
                 const parsed = JSON.parse(jsonString);
                 const reason = (parsed.finishReason || '').trim();
+
+                // ── Tool call events ──
+                if (parsed.toolCall) {
+                  const tc = parsed.toolCall;
+                  const argsKey = JSON.stringify(tc.arguments || {});
+                  const existingIdx = toolCallsRef.current.findIndex(
+                    (t) => t.name === tc.name && JSON.stringify(t.arguments || {}) === argsKey,
+                  );
+                  if (existingIdx >= 0) {
+                    toolCallsRef.current = toolCallsRef.current.map((t, i) =>
+                      i === existingIdx ? { ...t, status: tc.status, error: tc.error } : t,
+                    );
+                  } else {
+                    toolCallsRef.current = [
+                      ...toolCallsRef.current,
+                      { name: tc.name, arguments: tc.arguments, status: tc.status, error: tc.error },
+                    ];
+                  }
+                  toolCallChanged = true;
+                }
+
+                // ── toolCalls summary (final, from onComplete) ──
+                if (parsed.toolCalls && Array.isArray(parsed.toolCalls)) {
+                  // Merge any missing tool calls from the summary
+                  for (const tc of parsed.toolCalls) {
+                    const argsKey = JSON.stringify(tc.arguments || {});
+                    const exists = toolCallsRef.current.some(
+                      (t) => t.name === tc.name && JSON.stringify(t.arguments || {}) === argsKey,
+                    );
+                    if (!exists) {
+                      toolCallsRef.current = [
+                        ...toolCallsRef.current,
+                        { name: tc.name, arguments: tc.arguments, status: tc.status, error: tc.error },
+                      ];
+                    } else {
+                      toolCallsRef.current = toolCallsRef.current.map((t) =>
+                        t.name === tc.name && JSON.stringify(t.arguments || {}) === argsKey
+                          ? { ...t, status: tc.status, error: tc.error }
+                          : t,
+                      );
+                    }
+                  }
+                  toolCallChanged = true;
+                }
 
                 // Текстовый контент — добавляем к накопленному.
                 // Пропускаем пустые строки, а также ведущие переносы строк
@@ -332,6 +380,7 @@ const ChatWindow = () => {
               if (isDone) {
                 aiMessageTextRef.current = aiMessageTextRef.current.trimEnd();
                 const finalText = aiMessageTextRef.current;
+                const finalToolCalls = [...toolCallsRef.current];
                 const idx = aiMessageIndexRef.current;
                 setChats((prev) => {
                   const chatIndex = prev.findIndex((c) => c.id === activeChatId);
@@ -339,7 +388,7 @@ const ChatWindow = () => {
                   const updated = { ...prev[chatIndex] };
                   const messages = [...updated.messages];
                   if (messages[idx]?.sender === 'ai') {
-                    messages[idx] = { ...messages[idx], text: finalText };
+                    messages[idx] = { ...messages[idx], text: finalText, toolCalls: finalToolCalls };
                     updated.messages = messages;
                   }
                   const others = prev.filter((c) => c.id !== activeChatId);
@@ -352,7 +401,9 @@ const ChatWindow = () => {
 
               if (shouldFinishSegment) {
                 const finalText = aiMessageTextRef.current.trimEnd();
+                const segmentToolCalls = [...toolCallsRef.current];
                 aiMessageTextRef.current = '';
+                toolCallsRef.current = [];
                 const finishedIdx = aiMessageIndexRef.current;
                 const newIdx = finishedIdx + 1;
                 aiMessageIndexRef.current = newIdx;
@@ -362,7 +413,7 @@ const ChatWindow = () => {
                   const updated = { ...prev[chatIndex] };
                   const messages = [...updated.messages];
                   if (messages[finishedIdx]?.sender === 'ai') {
-                    messages[finishedIdx] = { ...messages[finishedIdx], text: finalText };
+                    messages[finishedIdx] = { ...messages[finishedIdx], text: finalText, toolCalls: segmentToolCalls };
                   }
                   if (messages.length <= newIdx) {
                     messages.push({ text: '', sender: 'ai' });
@@ -371,16 +422,17 @@ const ChatWindow = () => {
                   const others = prev.filter((c) => c.id !== activeChatId);
                   return [updated, ...others];
                 });
-              } else if (textChanged) {
+              } else if (textChanged || toolCallChanged) {
                 const idx = aiMessageIndexRef.current;
                 const currentText = aiMessageTextRef.current;
+                const currentToolCalls = [...toolCallsRef.current];
                 setChats((prev) => {
                   const chatIndex = prev.findIndex((c) => c.id === activeChatId);
                   if (chatIndex === -1) return prev;
                   const updated = { ...prev[chatIndex] };
                   const messages = [...updated.messages];
                   if (messages[idx]?.sender === 'ai') {
-                    messages[idx] = { ...messages[idx], text: currentText };
+                    messages[idx] = { ...messages[idx], text: currentText, toolCalls: currentToolCalls };
                     updated.messages = messages;
                   }
                   const others = prev.filter((c) => c.id !== activeChatId);

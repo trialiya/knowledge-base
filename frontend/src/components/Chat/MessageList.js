@@ -15,7 +15,7 @@ const MessageList = ({ messages }) => {
   return (
     <div className="message-list" ref={containerRef}>
       {messages.map((msg, index) => (
-        <Message key={index} text={msg.text} sender={msg.sender} />
+        <Message key={index} text={msg.text} sender={msg.sender} toolCalls={msg.toolCalls} />
       ))}
     </div>
   );

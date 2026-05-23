@@ -8,19 +8,26 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 import io.github.trialiya.kb.model.chat.dto.Chat;
 import io.github.trialiya.kb.model.chat.dto.ChatMessage;
 import io.github.trialiya.kb.model.chat.dto.CreateJiraChatRequest;
+import io.github.trialiya.kb.model.chat.dto.StreamMessage;
+import io.github.trialiya.kb.model.chat.dto.ToolCallMessage;
+import io.github.trialiya.kb.model.chat.dto.ToolCallsMessage;
 import io.github.trialiya.kb.model.chat.entity.ChatTopic;
-import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.service.JiraChatService;
 import io.github.trialiya.kb.service.SummarizeService;
+import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import jakarta.annotation.Nonnull;
-import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
@@ -31,7 +38,6 @@ import org.springframework.ai.chat.metadata.ChatGenerationMetadata;
 import org.springframework.ai.chat.metadata.ChatResponseMetadata;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
-import org.springframework.http.HttpEntity;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -53,7 +59,6 @@ public class ChatController {
     private final ChatClient chatClient;
     private final ChatMemory chatMemory;
     private final ChatTopicRepository chatTopicRepository;
-    private final ChatMessageRepository chatMessageRepository;
     private final ChatMemoryService chatMemoryService;
     private final SummarizeService summarizeService;
     private final JiraChatService jiraChatService;
@@ -62,76 +67,121 @@ public class ChatController {
             ChatClient chatClient,
             ChatMemory chatMemory,
             ChatTopicRepository chatTopicRepository,
-            ChatMessageRepository chatMessageRepository,
             ChatMemoryService chatMemoryService,
             SummarizeService summarizeService,
             JiraChatService jiraChatService) {
         this.chatClient = chatClient;
         this.chatMemory = chatMemory;
         this.chatTopicRepository = chatTopicRepository;
-        this.chatMessageRepository = chatMessageRepository;
         this.chatMemoryService = chatMemoryService;
         this.summarizeService = summarizeService;
         this.jiraChatService = jiraChatService;
     }
 
+    @PostMapping(value = "/streamTest", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter chatTestStream(
+            @RequestBody final String userMessage,
+            @RequestParam("conversationId") final String conversationId) {
+        checkChat(conversationId, true);
+
+        final SseEmitter emitter = new SseEmitter(300_000L);
+
+        Executors.newVirtualThreadPerTaskExecutor()
+                .submit(
+                        () -> {
+                            final Consumer<Object> liveSink = sendSseEmitterData(emitter);
+                            liveSink.accept(new StreamMessage("Ok", null));
+                            testToolCalls(liveSink, "test", Map.of());
+                            testToolCalls(liveSink, "files", Map.of("id", 1));
+                            for (int j = 1; j < 7; j++) {
+                                for (int index = 0; index < j; index++) {
+                                    liveSink.accept(
+                                            new StreamMessage(
+                                                    "reading file " + index + "\n", null));
+                                    testToolCalls(
+                                            liveSink,
+                                            "file" + j % 2,
+                                            Map.of("id", index + j*10, "action", "readingreadingreadingreading reading file id = " + index));
+                                }
+                                if (j % 2 == 0) {
+                                    liveSink.accept(new StreamMessage("\n\n", null));
+                                }
+                            }
+                            emitter.complete();
+                        });
+        return emitter;
+    }
+
+    private static void testToolCalls(
+            Consumer<Object> liveSink, String name, Map<Object, Object> arguments) {
+        liveSink.accept(
+                new ToolCallMessage(
+                        new ToolInvocationCollector.ToolInvocation(
+                                name,
+                                arguments,
+                                ToolInvocationCollector.ToolInvocationStatus.STARTED,
+                                null)));
+        try {
+            TimeUnit.MILLISECONDS.sleep(400);
+        } catch (InterruptedException e) {
+            // nothing - testing
+        }
+        liveSink.accept(
+                new ToolCallMessage(
+                        new ToolInvocationCollector.ToolInvocation(
+                                name,
+                                arguments,
+                                ToolInvocationCollector.ToolInvocationStatus.OK,
+                                null)));
+    }
+
     @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter chatStream(
             @RequestBody final String userMessage,
-            @RequestParam("conversationId") final String conversationId,
-            HttpEntity<String> httpEntity) {
+            @RequestParam("conversationId") final String conversationId) {
         checkChat(conversationId, true);
 
         final SseEmitter emitter = new SseEmitter(300_000L);
         final AtomicReference<Disposable> disposableRef = new AtomicReference<>();
-
+        final Consumer<Object> liveSink = sendSseEmitterData(emitter);
+        final ToolInvocationCollector toolCollector = new ToolInvocationCollector(liveSink);
         try {
             Disposable disposable =
                     chatClient
                             .prompt()
                             .user(userMessage)
-                            .toolContext(buildContext(conversationId))
+                            .toolContext(buildContext(conversationId, toolCollector))
                             .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
                             .stream()
                             .chatResponse()
                             .subscribe(
                                     response -> {
-                                        try {
-                                            printUsageStatistics(conversationId, response);
-                                            emitter.send(
-                                                    Map.of(
-                                                            "message",
-                                                            Optional.ofNullable(response)
-                                                                    .map(ChatResponse::getResult)
-                                                                    .map(Generation::getOutput)
-                                                                    .map(AbstractMessage::getText)
-                                                                    .orElse(""),
-                                                            "finishReason",
-                                                            Optional.ofNullable(response)
-                                                                    .map(ChatResponse::getResult)
-                                                                    .map(Generation::getMetadata)
-                                                                    .map(
-                                                                            ChatGenerationMetadata
-                                                                                    ::getFinishReason)
-                                                                    .orElse("")),
-                                                    MediaType.APPLICATION_JSON);
-                                        } catch (IOException e) {
-                                            emitter.completeWithError(e);
-                                        }
+                                        printUsageStatistics(conversationId, response);
+                                        liveSink.accept(
+                                                new StreamMessage(
+                                                        Optional.ofNullable(response)
+                                                                .map(ChatResponse::getResult)
+                                                                .map(Generation::getOutput)
+                                                                .map(AbstractMessage::getText)
+                                                                .orElse(""),
+                                                        Optional.ofNullable(response)
+                                                                .map(ChatResponse::getResult)
+                                                                .map(Generation::getMetadata)
+                                                                .map(
+                                                                        ChatGenerationMetadata
+                                                                                ::getFinishReason)
+                                                                .orElse(null)));
                                     },
                                     emitter::completeWithError,
                                     () -> {
-                                        try {
-                                            emitter.send(
-                                                    Map.of(
-                                                            "message", "",
-                                                            "finishReason", "DONE"));
-                                        } catch (IOException e) {
-                                            log.error(e.getMessage());
-                                        }
+                                        liveSink.accept(
+                                                new ToolCallsMessage(
+                                                        toolCollector.completedSnapshot()));
+                                        liveSink.accept(new StreamMessage("", "DONE"));
                                         summarizeService.trySummarize(conversationId);
                                         emitter.complete();
                                     });
+
             disposableRef.set(disposable);
             emitter.onTimeout(
                     () -> {
@@ -161,12 +211,13 @@ public class ChatController {
             @RequestBody String userMessage,
             @RequestParam("conversationId") final String conversationId) {
         checkChat(conversationId, true);
+        final ToolInvocationCollector toolCollector = new ToolInvocationCollector();
 
         ChatResponse chatResponse =
                 chatClient
                         .prompt()
                         .user(userMessage)
-                        .toolContext(buildContext(conversationId))
+                        .toolContext(buildContext(conversationId, toolCollector))
                         .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
                         .call()
                         .chatResponse();
@@ -337,6 +388,20 @@ public class ChatController {
                                                 null,
                                                 null,
                                                 true)));
+    }
+
+    private static Consumer<Object> sendSseEmitterData(@Nonnull final SseEmitter emitter) {
+        final Lock lock = new ReentrantLock();
+        return obj -> {
+            lock.lock();
+            try {
+                emitter.send(obj, MediaType.APPLICATION_JSON);
+            } catch (Exception e) {
+                log.warn("Failed to push tool call to SSE: {}", e.getMessage());
+            } finally {
+                lock.unlock();
+            }
+        };
     }
 
     private void printUsageStatistics(String conversationId, ChatResponse response) {

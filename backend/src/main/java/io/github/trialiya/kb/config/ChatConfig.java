@@ -11,13 +11,17 @@ import io.github.trialiya.kb.service.AttachmentService;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.service.DocumentService;
 import io.github.trialiya.kb.service.GitService;
+import io.github.trialiya.kb.tools.RecordingToolCallback;
 import io.micrometer.core.instrument.util.IOUtils;
+import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.support.ToolCallbacks;
+import org.springframework.ai.tool.ToolCallback;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -43,6 +47,16 @@ public class ChatConfig {
             GitService gitService,
             AttachmentService attachmentService) {
         log.info("Model: {}", chatModel.getDefaultOptions());
+        ToolCallback[] callbacks =
+                Stream.of(
+                                ToolCallbacks.from(
+                                        new TopicFunction(chatTopicRepository),
+                                        new MessageLookupFunction(chatMessageRepository),
+                                        new DocumentFunction(documentService, attachmentService),
+                                        new GitFunction(gitService),
+                                        new AttachmentFunction(attachmentService)))
+                        .map(RecordingToolCallback::new)
+                        .toArray(ToolCallback[]::new);
         return ChatClient.builder(chatModel)
                 .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
                 .defaultSystem(
@@ -50,12 +64,7 @@ public class ChatConfig {
                                 ChatConfig.class
                                         .getClassLoader()
                                         .getResourceAsStream("promt/sys.md")))
-                .defaultTools(
-                        new TopicFunction(chatTopicRepository),
-                        new MessageLookupFunction(chatMessageRepository),
-                        new DocumentFunction(documentService, attachmentService),
-                        new GitFunction(gitService),
-                        new AttachmentFunction(attachmentService))
+                .defaultToolCallbacks(callbacks)
                 .build();
     }
 }

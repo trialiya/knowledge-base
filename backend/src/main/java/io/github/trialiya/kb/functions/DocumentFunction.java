@@ -139,16 +139,17 @@ public class DocumentFunction {
      * Fetches a single document or folder by id, including its full description/content and a list
      * of its direct children (shallow, without their descriptions).
      *
-     * @param id document or folder id (from {@link #getTreeSkeleton} results)
+     * @param documentId document or folder id (from {@link #getTreeSkeleton} results)
      * @return document node with description, updatedAt, and direct children list
      */
     @Tool(
             description =
                     "Получить конкретный документ или папку по id, включая полное содержимое "
                             + "(description) и список прямых дочерних узлов")
-    public DocumentNode getDocument(@ToolParam(description = "ID документа или папки") String id) {
-        log.info("getDocument called: id={}", id);
-        return documentService.getById(Long.parseLong(id));
+    public DocumentNode getDocument(
+            @ToolParam(description = "ID документа или папки") String documentId) {
+        log.info("getDocument called: documentId={}", documentId);
+        return documentService.getById(Long.parseLong(documentId));
     }
 
     /**
@@ -190,7 +191,7 @@ public class DocumentFunction {
     /**
      * Updates an existing document's title and/or content.
      *
-     * @param id document id
+     * @param documentId document id
      * @param title new title (null to keep current)
      * @param description new content (null to keep current)
      * @return updated document
@@ -200,7 +201,7 @@ public class DocumentFunction {
                     "Обновить существующий документ: изменить название и/или содержимое. "
                             + "Передай только те поля, которые нужно изменить.")
     public Document updateDocument(
-            @ToolParam(description = "ID документа для обновления") String id,
+            @ToolParam(description = "ID документа для обновления") String documentId,
             @ToolParam(
                             description = "Новое название (null чтобы оставить текущее)",
                             required = false)
@@ -210,13 +211,13 @@ public class DocumentFunction {
                             required = false)
                     String description) {
 
-        log.info("updateDocument called: id={} title='{}'", id, title);
+        log.info("updateDocument called: id={} title='{}'", documentId, title);
 
         UpdateDocumentRequest req = new UpdateDocumentRequest();
         req.setTitle(title);
         req.setDescription(description);
 
-        return documentService.update(id, req);
+        return documentService.update(documentId, req);
     }
 
     //    /**

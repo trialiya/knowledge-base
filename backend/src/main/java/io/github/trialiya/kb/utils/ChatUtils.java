@@ -2,6 +2,7 @@ package io.github.trialiya.kb.utils;
 
 import static io.github.trialiya.kb.functions.TopicFunction.USER_NAME;
 
+import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import java.util.Map;
 import java.util.Optional;
 import org.jspecify.annotations.NonNull;
@@ -22,6 +23,17 @@ public class ChatUtils {
     // todo this is temporarily
     public static Map<String, Object> buildContext(String conversationId) {
         return Map.of(ChatMemory.CONVERSATION_ID, conversationId, USER_NAME, getUser());
+    }
+
+    public static Map<String, Object> buildContext(
+            String conversationId, ToolInvocationCollector toolCollector) {
+        return Map.of(
+                ChatMemory.CONVERSATION_ID,
+                conversationId,
+                ToolInvocationCollector.KEY,
+                toolCollector,
+                USER_NAME,
+                getUser());
     }
 
     public static String getUser() {

@@ -9,7 +9,7 @@ spring:
         options:
           model: ${AI_MODEL}
           max-tokens: 30000
-          temperature: 0.2
+          temperature: 0.1
           stream-usage: true
           extra-body:
             thinking:
@@ -24,7 +24,7 @@ spring:
       memory:
         repository:
           jdbc:
-            initialize-schema: always
+            initialize-schema: never
       client:
         enabled: off
     retry:
