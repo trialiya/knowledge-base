@@ -74,17 +74,26 @@
 
 /* Кодовые блоки (общий контейнер) */
 .message.ai pre {
-  border-radius: 8px;
+  border-radius: 0;
   padding: 0;
   margin: 0.6em 0;
-  overflow: auto;
+  overflow: hidden;
   max-width: 100%;
+}
+
+/* Горизонтальный скролл для содержимого кода внутри pre */
+.message.ai pre > div,
+.message.ai pre > code {
+  overflow-x: auto;
+  border-radius: 0 !important;
+  padding: 0.5em;
+  background: var(--kb-bg);
 }
 
 /* Блок кода без указанного языка */
 .message.ai pre.message-code-block {
   background-color: #1e1e1e;
-  border-radius: 8px;
+  border-radius: 0;
   padding: 0.75em 1em;
   margin: 0.6em 0;
   overflow-x: auto;
@@ -248,31 +257,45 @@
   filter: brightness(0.94);
 }
 
-/* ── Copied flash ── */
-.tool-call-copied {
+.tool-call-status-icon {
   flex-shrink: 0;
-  color: #34a853;
-  font-size: 0.8rem;
-  font-weight: 700;
-  margin-left: auto;
-  animation: tool-call-copied-fade 1.5s ease-out forwards;
+  display: flex;
+  align-items: center;
+  height: 1.1em;
+  margin-top: 1px;
 }
-@keyframes tool-call-copied-fade {
-  0% {
-    opacity: 1;
-  }
-  70% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
+
+/* Spinner animation for STARTED */
+.tool-call-status-svg--started {
+  animation: tc-spin 1.2s linear infinite;
+}
+@keyframes tc-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
-.tool-call-icon {
+.tool-call-copy-btn {
   flex-shrink: 0;
-  font-size: 0.75rem;
-  line-height: 1.4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 2px;
+  margin-left: auto;
+  cursor: pointer;
+  color: #bbb;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+}
+.tool-call-item:hover .tool-call-copy-btn {
+  opacity: 1;
+}
+.tool-call-copy-btn:hover {
+  color: #666;
+  background: rgba(0, 0, 0, 0.06);
 }
 
 .tool-call-body {

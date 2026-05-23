@@ -22,18 +22,75 @@ const preprocessText = (text) => {
   return result.join('\n');
 };
 
-const statusIcon = (status) => {
+/** SVG status indicators — not clickable, purely visual */
+const IconStarted = () => (
+  <svg className="tool-call-status-svg tool-call-status-svg--started" width="14" height="14" viewBox="0 0 16 16">
+    <circle cx="8" cy="8" r="6" fill="none" stroke="#d99a00" strokeWidth="2" strokeDasharray="9 5" />
+  </svg>
+);
+const IconOk = () => (
+  <svg className="tool-call-status-svg tool-call-status-svg--ok" width="14" height="14" viewBox="0 0 16 16">
+    <circle cx="8" cy="8" r="7" fill="#34a853" />
+    <path
+      d="M5 8.2l2 2 4-4.4"
+      fill="none"
+      stroke="#fff"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+const IconError = () => (
+  <svg className="tool-call-status-svg tool-call-status-svg--error" width="14" height="14" viewBox="0 0 16 16">
+    <circle cx="8" cy="8" r="7" fill="#ea4335" />
+    <path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+);
+
+const StatusIcon = ({ status }) => {
   switch (status) {
     case 'STARTED':
-      return '⏳';
+      return <IconStarted />;
     case 'OK':
-      return '✅';
+      return <IconOk />;
     case 'ERROR':
-      return '❌';
+      return <IconError />;
     default:
-      return '⚙️';
+      return <IconStarted />;
   }
 };
+
+/** Small copy button SVG */
+const IconCopy = () => (
+  <svg
+    width="12"
+    height="12"
+    viewBox="0 0 16 16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.6"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+    <path d="M10.5 5.5V3.5a1.5 1.5 0 0 0-1.5-1.5H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5h2" />
+  </svg>
+);
+const IconCopied = () => (
+  <svg
+    width="12"
+    height="12"
+    viewBox="0 0 16 16"
+    fill="none"
+    stroke="#34a853"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M3 8.5l3 3 7-7.5" />
+  </svg>
+);
 
 const formatArgs = (args) => {
   if (!args || Object.keys(args).length === 0) return null;
@@ -52,7 +109,7 @@ const buildCopyText = (tc) => {
   return parts.join('\n');
 };
 
-/** Одиночная плашка вызова — hover-тултип + клик копирует детали */
+/** Одиночная плашка вызова — hover-тултип + кнопка копирования */
 const ToolCallItem = ({ tc }) => {
   const argsStr = formatArgs(tc.arguments);
   const itemRef = useRef(null);
@@ -68,7 +125,8 @@ const ToolCallItem = ({ tc }) => {
     setHover(true);
   };
 
-  const handleClick = async () => {
+  const handleCopy = async (e) => {
+    e.stopPropagation();
     try {
       await navigator.clipboard.writeText(buildCopyText(tc));
       setCopied(true);
@@ -84,17 +142,19 @@ const ToolCallItem = ({ tc }) => {
       className={`tool-call-item tool-call-item--${(tc.status || 'STARTED').toLowerCase()}`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={() => setHover(false)}
-      onClick={handleClick}
     >
-      <span className="tool-call-icon">{statusIcon(tc.status)}</span>
+      <span className="tool-call-status-icon">
+        <StatusIcon status={tc.status} />
+      </span>
       <div className="tool-call-body">
         <span className="tool-call-name">{tc.name}</span>
         {argsStr && <span className="tool-call-args">{argsStr}</span>}
         {tc.status === 'ERROR' && tc.error && <span className="tool-call-error">{tc.error}</span>}
       </div>
-      {copied && <span className="tool-call-copied">✓</span>}
+      <button className="tool-call-copy-btn" onClick={handleCopy} title="Скопировать">
+        {copied ? <IconCopied /> : <IconCopy />}
+      </button>
       {hover &&
-        !copied &&
         ReactDOM.createPortal(
           <div className="tool-call-tooltip" style={{ top: tooltipPos.top, left: tooltipPos.left }}>
             <div className="tool-call-tooltip-name">{tc.name}</div>
@@ -133,7 +193,9 @@ const ToolCallGroup = ({ name, items }) => {
         className={`tool-call-item tool-call-item--${groupStatus.toLowerCase()} tool-call-item--group-header`}
         onClick={() => setOpen((v) => !v)}
       >
-        <span className="tool-call-icon">{statusIcon(groupStatus)}</span>
+        <span className="tool-call-status-icon">
+          <StatusIcon status={groupStatus} />
+        </span>
         <div className="tool-call-body">
           <span className="tool-call-name">
             {name}
