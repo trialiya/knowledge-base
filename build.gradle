@@ -1,5 +1,6 @@
 plugins {
     id 'java'
+    id 'com.diffplug.spotless' version '8.5.1' apply false
 }
 
 group = 'io.github.trialiya.kb'
