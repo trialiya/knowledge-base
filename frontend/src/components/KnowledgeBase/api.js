@@ -30,6 +30,16 @@ const api = {
       body: JSON.stringify(body),
     }),
 
+  fetchById: async (id) => {
+    const r = await fetch(`/api/documents/${id}`);
+    if (!r.ok) {
+      const err = new Error(r.status === 404 ? 'Not found' : `Server error ${r.status}`);
+      err.status = r.status;
+      throw err;
+    }
+    return r.json();
+  },
+
   update: (id, patch) =>
     fetch(`/api/documents/${id}`, {
       method: 'PUT',

@@ -17,6 +17,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api")
@@ -73,6 +74,15 @@ public class DocumentController {
     @ResponseStatus(HttpStatus.CREATED)
     public Document createDocument(@RequestBody CreateDocumentRequest request) {
         return service.create(request);
+    }
+
+    @GetMapping("/documents/{id}")
+    public DocumentNode getDocument(@PathVariable String id) {
+        DocumentNode node = service.getById(Long.parseLong(id));
+        if (node == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+        return node;
     }
 
     @PutMapping("/documents/{id}")

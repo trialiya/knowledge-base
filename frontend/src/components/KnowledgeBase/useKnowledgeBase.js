@@ -91,7 +91,11 @@ export default function useKnowledgeBase() {
 
   // ── Navigation & URL sync ────────────────────────────────────────────────
 
-  const selectNode = useCallback(
+  /**
+   * Core selection logic — expects a full DocumentNode with `type` populated.
+   * Separated from selectNode so it can be called after async fetch enrichment.
+   */
+  const applySelectNode = useCallback(
     (node) => {
       setSelectedNode(node);
       setActiveTab('summary');
@@ -107,6 +111,44 @@ export default function useKnowledgeBase() {
       }
     },
     [handleLoadChildren],
+  );
+
+  /**
+   * Select a node for display in the detail panel.
+   *
+   * When called from SearchResults the incoming object is a lean SearchResult DTO
+   * that only has id/title/snippet/updatedAt — no `type` or `description`.
+   * In that case we fetch the full DocumentNode first so that the Summary and
+   * Content tabs always have the description to render.
+   */
+  const selectNode = useCallback(
+    (node) => {
+      if (!node.type) {
+        // Lean search result — fetch the full document before displaying it
+        api
+          .fetchById(node.id)
+          .then((full) => {
+            applySelectNode(full);
+            // Patch description into the tree cache so future tree-sync stays correct
+            setTree((prev) => {
+              const clone = JSON.parse(JSON.stringify(prev));
+              const existing = findNodeById(clone, full.id);
+              if (existing) {
+                existing.description = full.description;
+                existing.updatedAt = full.updatedAt;
+              }
+              return clone;
+            });
+          })
+          .catch((err) => {
+            if (err.status === 404) setNotFoundDocId(node.id);
+            else setDocLoadError({ status: err.status || 'network', docId: node.id });
+          });
+        return;
+      }
+      applySelectNode(node);
+    },
+    [applySelectNode], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const handleSearch = useCallback(async () => {
@@ -129,7 +171,7 @@ export default function useKnowledgeBase() {
       // If the doc is already in the tree, select it directly
       const existing = findNodeById(tree, docId);
       if (existing) {
-        selectNode(existing);
+        applySelectNode(existing);
         return;
       }
 
@@ -183,7 +225,7 @@ export default function useKnowledgeBase() {
         }
       }
     },
-    [tree, selectNode],
+    [tree, applySelectNode],
   );
 
   // ── Listen for cross-component navigation events ─────────────────────────
@@ -247,19 +289,14 @@ export default function useKnowledgeBase() {
             } else {
               setSelectedNode(target);
             }
+          } else {
+            setNotFoundDocId(docId);
           }
         } catch (err) {
-          // Clear doc from URL so a reload doesn't repeat the failing request
-          setKBUrlState(null, tab, null, null);
           if (err.status === 404) {
             setNotFoundDocId(docId);
-          } else if (err.status) {
-            setDocLoadError({ status: err.status, docId });
           } else {
-            // Network error — fall back to whatever is already in the tree
-            const target = findNodeById(rootNodes, docId);
-            if (target) setSelectedNode(target);
-            else setDocLoadError({ status: 'network', docId });
+            setDocLoadError({ status: err.status || 'network', docId });
           }
         }
       } else if (urlSearch) {
