@@ -4,6 +4,8 @@ import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
+import io.github.trialiya.kb.model.git.dto.GitFileOutline;
+import io.github.trialiya.kb.service.outline.LanguageDetector;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -41,6 +43,11 @@ public class GitService {
     /** Bytes inspected when sniffing for binary content (a NUL byte ⇒ binary). */
     private static final int BINARY_SNIFF_BYTES = 8192;
 
+    /** When a file exceeds MAX_FILE_SIZE, return this many lines from the head and tail. */
+    private static final int TRUNCATE_HEAD_LINES = 200;
+
+    private static final int TRUNCATE_TAIL_LINES = 50;
+
     /** File names to always exclude from uncommitted changes (OS/IDE junk). */
     private static final java.util.Set<String> IGNORED_FILES =
             java.util.Set.of(".DS_Store", "Thumbs.db", "desktop.ini", ".directory");
@@ -58,9 +65,12 @@ public class GitService {
     private static final String US = "\u001f";
 
     private final Path repoPath;
+    private final OutlineService outlineService;
 
-    public GitService(@Value("${kb.project-path}") String projectPath) {
+    public GitService(
+            @Value("${kb.project-path}") String projectPath, OutlineService outlineService) {
         this.repoPath = Path.of(projectPath).toAbsolutePath().normalize();
+        this.outlineService = outlineService;
         log.info("GitService initialised for repo: {}", repoPath);
     }
 
@@ -264,12 +274,129 @@ public class GitService {
      * unverified data to the model. Ignored files (via {@code .gitignore}) are untracked by
      * definition and therefore rejected too.
      *
-     * <p>Content retrieval is single-pass: the file is read once into a byte buffer, binary content
-     * is detected inline (NUL-byte heuristic) instead of spawning an extra {@code git diff
-     * --no-index} subprocess, and the bytes are decoded as UTF-8 only when textual. Binary and
-     * oversized files return no content so they never bloat the model's context.
+     * <p>The returned {@link GitFileContent} carries metadata the model can act on without extra
+     * calls: detected {@code language}, total {@code lineCount}, a {@code truncated} flag, and the
+     * {@code fromLine}/{@code toLine} actually returned.
+     *
+     * <p><b>Range reading.</b> When {@code fromLine}/{@code toLine} are supplied, only that 1-based
+     * inclusive slice is returned — letting the model read one function out of a large file instead
+     * of the whole thing. When omitted, the full file is returned, except oversized files (&gt; 512
+     * KB) which return a head+tail excerpt with {@code truncated=true}.
+     *
+     * @param filePath path relative to repo root
+     * @param fromLine first line to return (1-based, inclusive); null for start of file
+     * @param toLine last line to return (1-based, inclusive); null for end of file
      */
+    public GitFileContent getFileContent(
+            @NonNull String filePath, @Nullable Integer fromLine, @Nullable Integer toLine) {
+        FileBytes fb = readTrackedFile(filePath);
+        String language = LanguageDetector.detect(fb.path());
+
+        if (fb.binary()) {
+            return new GitFileContent(
+                    fb.path(), null, true, fb.size(), language, 0, false, null, null);
+        }
+
+        String full = new String(fb.bytes(), StandardCharsets.UTF_8);
+        // Split keeping a stable line index; -1 keeps trailing empty lines.
+        String[] lines = full.split("\n", -1);
+        int total = lines.length;
+
+        boolean rangeRequested = fromLine != null || toLine != null;
+
+        // Oversized file with no explicit range → head+tail excerpt.
+        if (!rangeRequested && fb.size() > MAX_FILE_SIZE) {
+            String excerpt = headTailExcerpt(lines);
+            return new GitFileContent(
+                    fb.path(), excerpt, false, fb.size(), language, total, true, null, null);
+        }
+
+        if (!rangeRequested) {
+            return new GitFileContent(
+                    fb.path(), full, false, fb.size(), language, total, false, null, null);
+        }
+
+        // Clamp the requested range into [1, total].
+        int from = fromLine == null ? 1 : Math.max(1, fromLine);
+        int to = toLine == null ? total : Math.min(total, toLine);
+        if (from > total || from > to) {
+            // Empty/invalid slice — return no content but keep metadata truthful.
+            return new GitFileContent(
+                    fb.path(),
+                    "",
+                    false,
+                    fb.size(),
+                    language,
+                    total,
+                    true,
+                    from,
+                    Math.max(from, to));
+        }
+        String slice = String.join("\n", java.util.Arrays.asList(lines).subList(from - 1, to));
+        boolean truncated = from > 1 || to < total;
+        return new GitFileContent(
+                fb.path(), slice, false, fb.size(), language, total, truncated, from, to);
+    }
+
+    /** Convenience overload: full file, no range. */
     public GitFileContent getFileContent(@NonNull String filePath) {
+        return getFileContent(filePath, null, null);
+    }
+
+    /**
+     * Returns a structural outline (classes, methods, functions, ...) of a tracked source file
+     * without its full text. Backed by tree-sitter when available, regex otherwise; the {@code
+     * parser} field reports which was used.
+     *
+     * @param filePath path relative to repo root
+     * @throws IllegalArgumentException if the file is binary or its language is not supported for
+     *     outlining (supported: java, javascript, typescript, python, sql)
+     */
+    public GitFileOutline getFileOutline(@NonNull String filePath) {
+        FileBytes fb = readTrackedFile(filePath);
+        String language = LanguageDetector.detect(fb.path());
+
+        if (fb.binary()) {
+            throw new IllegalArgumentException("Cannot outline a binary file: " + fb.path());
+        }
+        if (!outlineService.isLanguageSupported(language)) {
+            throw new IllegalArgumentException(
+                    "Unsupported language for outline: "
+                            + (language == null ? "unknown" : language)
+                            + " (supported: java, javascript, typescript, python, sql)");
+        }
+
+        String source = new String(fb.bytes(), StandardCharsets.UTF_8);
+        int total = source.split("\n", -1).length;
+        OutlineService.Result result = outlineService.outline(language, source);
+        return new GitFileOutline(fb.path(), language, total, result.parser(), result.symbols());
+    }
+
+    /** Returns the first {@code TRUNCATE_HEAD_LINES} and last {@code TRUNCATE_TAIL_LINES} lines. */
+    private static String headTailExcerpt(String[] lines) {
+        if (lines.length <= TRUNCATE_HEAD_LINES + TRUNCATE_TAIL_LINES) {
+            return String.join("\n", lines);
+        }
+        var sb = new StringBuilder();
+        for (int i = 0; i < TRUNCATE_HEAD_LINES; i++) {
+            sb.append(lines[i]).append('\n');
+        }
+        int omitted = lines.length - TRUNCATE_HEAD_LINES - TRUNCATE_TAIL_LINES;
+        sb.append("... (").append(omitted).append(" lines omitted) ...\n");
+        for (int i = lines.length - TRUNCATE_TAIL_LINES; i < lines.length; i++) {
+            sb.append(lines[i]).append('\n');
+        }
+        return sb.toString();
+    }
+
+    /** Bytes of a validated, tracked file plus whether it sniffed as binary. */
+    private record FileBytes(String path, byte[] bytes, long size, boolean binary) {}
+
+    /**
+     * Validates that {@code filePath} is a tracked, in-repo file and reads it once. Centralises the
+     * security checks shared by {@link #getFileContent} and {@link #getFileOutline}.
+     */
+    private FileBytes readTrackedFile(String filePath) {
         String normalized = filePath.strip();
 
         // Security: confine to the repo before touching the filesystem.
@@ -291,7 +418,6 @@ public class GitService {
                         .anyMatch(p -> p.equals(normalized));
         if (!isTracked) {
             if (Files.exists(absolute)) {
-                // Exists on disk but Git does not track it → untracked or .gitignore'd.
                 throw new IllegalArgumentException(
                         "Refusing to read untracked file: " + normalized);
             }
@@ -305,13 +431,6 @@ public class GitService {
             throw new IllegalStateException("Cannot read file size: " + normalized, e);
         }
 
-        if (size > MAX_FILE_SIZE) {
-            return new GitFileContent(
-                    normalized, "(file too large: " + size + " bytes)", false, size);
-        }
-
-        // Single read: detect binary inline, decode text only if appropriate. This avoids the
-        // extra `git diff --no-index` process the previous implementation spawned per call.
         byte[] bytes;
         try {
             bytes = Files.readAllBytes(absolute);
@@ -319,12 +438,7 @@ public class GitService {
             throw new IllegalStateException("Cannot read file: " + normalized, e);
         }
 
-        if (isBinary(bytes)) {
-            return new GitFileContent(normalized, null, true, size);
-        }
-
-        String content = new String(bytes, StandardCharsets.UTF_8);
-        return new GitFileContent(normalized, content, false, size);
+        return new FileBytes(normalized, bytes, size, isBinary(bytes));
     }
 
     /**

@@ -4,6 +4,7 @@ import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
+import io.github.trialiya.kb.model.git.dto.GitFileOutline;
 import io.github.trialiya.kb.service.GitService;
 import java.util.List;
 import lombok.AllArgsConstructor;
@@ -15,14 +16,15 @@ import org.springframework.ai.tool.annotation.ToolParam;
  * Spring AI tools that give the chat model read-only access to the Git repository configured via
  * {@code kb.project-path}.
  *
- * <p>Six capabilities are exposed:
+ * <p>Seven capabilities are exposed:
  *
  * <ul>
  *   <li>{@link #getFileTree} — browse tracked files/directories one level at a time.
  *   <li>{@link #getCommitLog} — recent commit history, optionally filtered by file.
  *   <li>{@link #getCommitDiff} — changed files and patches for one or more commits.
  *   <li>{@link #searchFiles} — find tracked files by name/path substring.
- *   <li>{@link #getFileContent} — read the full UTF-8 text of a tracked file.
+ *   <li>{@link #getFileOutline} — structural map (classes/methods) of a source file.
+ *   <li>{@link #getFileContent} — read the full UTF-8 text, or a line range, of a tracked file.
  *   <li>{@link #getUncommittedChanges} — staged and unstaged working-tree changes.
  * </ul>
  *
@@ -180,23 +182,63 @@ public class GitFunction {
         return gitFileNodes;
     }
 
-    // ── File content ────────────────────────────────────────────────────────
+    // ── File outline ──────────────────────────────────────────────────────────
 
     /**
-     * Returns the full content of a tracked file. Binary files are detected and flagged without
-     * content. Files larger than 512 KB are truncated.
+     * Returns a structural outline (classes, methods, functions, ...) of a tracked source file
+     * without its full text. Lets the model map a large file cheaply, then read only the relevant
+     * lines via {@link #getFileContent}.
      *
      * @param filePath path relative to repo root
-     * @return file content or binary marker
+     * @return outline with symbols and their line ranges
      */
     @Tool(
             description =
                     """
-                    Возвращает UTF-8 содержимое tracked файла. Ответ содержит: path, content \
-                    (текст файла), binary (true/false), sizeBytes. Если binary=true — content=null, \
-                    файл нечитаем как текст. Если файл > 512 КБ — content содержит сообщение об \
-                    усечении вместо реального текста. Untracked и .gitignore файлы недоступны — \
-                    используй getFileTree или searchFiles для нахождения точного пути.\
+                    Возвращает структурный обзор файла кода БЕЗ полного текста: список символов \
+                    (класс, интерфейс, метод, функция, поле, таблица и т.д.) с именем и диапазоном \
+                    строк (startLine, endLine). Поддерживаемые языки: Java, JavaScript/TypeScript, \
+                    Python, SQL. Поле parser показывает движок ("tree-sitter" или "regex"). \
+                    Рекомендуемый порядок для больших файлов: сначала getFileOutline → затем \
+                    getFileContent с нужным диапазоном строк. Для бинарных файлов и неподдерживаемых \
+                    языков возвращается ошибка — используй getFileContent для таких файлов.\
+                    """)
+    public GitFileOutline getFileOutline(
+            @ToolParam(
+                            description =
+                                    "Точный путь к файлу относительно корня репозитория, например: "
+                                            + "\"src/main/java/com/example/App.java\".")
+                    String filePath) {
+        log.info("getFileOutline called: filePath='{}'", filePath);
+        GitFileOutline outline = gitService.getFileOutline(filePath);
+        log.info("getFileOutline called: outline={}", outline);
+        return outline;
+    }
+
+    // ── File content ────────────────────────────────────────────────────────
+
+    /**
+     * Returns the content of a tracked file, optionally limited to a line range. Binary files are
+     * flagged without content. Files larger than 512 KB return a head+tail excerpt with {@code
+     * truncated=true}.
+     *
+     * @param filePath path relative to repo root
+     * @param fromLine first line to return (1-based, inclusive); null for start of file
+     * @param toLine last line to return (1-based, inclusive); null for end of file
+     * @return file content (full, ranged, or excerpt) with metadata
+     */
+    @Tool(
+            description =
+                    """
+                    Возвращает содержимое tracked файла. Ответ содержит: path, content (текст), \
+                    binary, sizeBytes, language (определяется по расширению), lineCount (всего строк \
+                    в файле), truncated (вернулась ли только часть), fromLine/toLine (фактически \
+                    возвращённый диапазон, null если весь файл). \
+                    Если binary=true — content=null. Для больших файлов (>512 КБ) без указания \
+                    диапазона возвращается фрагмент: начало + конец, truncated=true. \
+                    Чтобы прочитать только часть большого файла, укажи fromLine/toLine (например, \
+                    диапазон метода из getFileOutline) — это экономит токены. \
+                    Untracked и .gitignore файлы недоступны.\
                     """)
     public GitFileContent getFileContent(
             @ToolParam(
@@ -204,9 +246,27 @@ public class GitFunction {
                                     "Точный путь к файлу относительно корня репозитория, например: "
                                             + "\"src/main/java/com/example/App.java\". "
                                             + "Используй getFileTree или searchFiles для уточнения пути.")
-                    String filePath) {
-        log.info("getFileContent called: filePath='{}'", filePath);
-        GitFileContent fileContent = gitService.getFileContent(filePath);
+                    String filePath,
+            @ToolParam(
+                            description =
+                                    "Первая строка для чтения (1-based, включительно). "
+                                            + "null — с начала файла. Используй вместе с toLine для "
+                                            + "чтения только нужного фрагмента большого файла.",
+                            required = false)
+                    Integer fromLine,
+            @ToolParam(
+                            description =
+                                    "Последняя строка для чтения (1-based, включительно). "
+                                            + "null — до конца файла. Выход за пределы файла "
+                                            + "автоматически усекается.",
+                            required = false)
+                    Integer toLine) {
+        log.info(
+                "getFileContent called: filePath='{}', fromLine={}, toLine={}",
+                filePath,
+                fromLine,
+                toLine);
+        GitFileContent fileContent = gitService.getFileContent(filePath, fromLine, toLine);
         log.info("getFileContent called: fileContent='{}'", fileContent);
         return fileContent;
     }

@@ -26,7 +26,7 @@ repositories {
 }
 
 ext {
-    set('springAiVersion', "1.1.6")
+    set('springAiVersion', '1.1.6')
 }
 
 dependencies {
@@ -34,17 +34,23 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.apache.httpcomponents.client5:httpclient5'
 
-    implementation "org.springframework.boot:spring-boot-starter-data-jdbc"
-    implementation "org.postgresql:postgresql"
+    implementation 'org.springframework.boot:spring-boot-starter-data-jdbc'
+    implementation 'org.postgresql:postgresql'
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'
 
     implementation 'org.springframework.ai:spring-ai-starter-model-openai'
     implementation 'org.springframework.ai:spring-ai-starter-model-chat-memory-repository-jdbc'
 
-    implementation "com.google.guava:guava:33.6.0-jre"
+    implementation 'com.google.guava:guava:33.6.0-jre'
 
-    implementation "org.jspecify:jspecify:1.0.0"
+    implementation 'io.github.bonede:tree-sitter:0.26.6'
+    implementation 'io.github.bonede:tree-sitter-java:0.23.5'
+    implementation 'io.github.bonede:tree-sitter-javascript:0.23.1'
+    implementation 'io.github.bonede:tree-sitter-typescript:0.23.2'
+    implementation 'io.github.bonede:tree-sitter-python:0.25.0'
+
+    implementation 'org.jspecify:jspecify:1.0.0'
     compileOnly 'org.projectlombok:lombok'
 
 //	developmentOnly 'org.springframework.boot:spring-boot-devtools'

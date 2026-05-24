@@ -33,16 +33,19 @@ COPY --from=build /workspace/backend/build/libs/*.jar app.jar
 RUN java -Djarmode=tools -jar app.jar extract --layers --destination extracted
 
 # ── Stage 3: Runtime ─────────────────────────────────────────────
-FROM eclipse-temurin:25-jre-alpine
+FROM eclipse-temurin:25-jre-jammy
 WORKDIR /app
 
-RUN apk add --no-cache git curl
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git curl \
+    && rm -rf /var/lib/apt/lists/*
 
 ENV PROJECT_PATH=/project
 # Разрешаем git работать в /project для всех пользователей.
 RUN git config --system safe.directory /project
 
-RUN addgroup -S kb && adduser -S kb -G kb
+RUN groupadd --system kb && useradd --system --gid kb kb
+
 USER kb
 
 COPY --chmod=755 docker/start.sh /start.sh
