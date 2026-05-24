@@ -33,6 +33,10 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
   const [error, setError] = useState(null); // string | null
 
   const fileInputRef = useRef(null);
+  // Tracks the owner we've already kicked off a load for, so the fetch fires
+  // once per owner — not twice under StrictMode, and not again on unrelated
+  // parent re-renders.
+  const loadedOwnerRef = useRef(null);
 
   const showContent = (a) => setViewing({ attachment: a, mode: 'content' });
   const showSummary = (a) => setViewing({ attachment: a, mode: 'summary' });
@@ -56,8 +60,11 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
   }, [ownerType, ownerId, onCountChange]);
 
   useEffect(() => {
+    const ownerKey = `${ownerType}:${ownerId}`;
+    if (!ownerId || loadedOwnerRef.current === ownerKey) return;
+    loadedOwnerRef.current = ownerKey;
     loadAttachments();
-  }, [loadAttachments]);
+  }, [ownerType, ownerId, loadAttachments]);
 
   // ── Upload ──────────────────────────────────────────────────────────────
 

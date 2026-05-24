@@ -55,6 +55,7 @@ const KnowledgeBase = ({ onNavigateToChat }) => {
     onDelete: handleDelete,
     onNavigate: selectNode,
     onRename: handleRename,
+    onLoadChildren: handleLoadChildren,
   };
 
   return (

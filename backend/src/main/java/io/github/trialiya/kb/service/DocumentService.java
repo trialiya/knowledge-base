@@ -163,7 +163,7 @@ public class DocumentService {
                 e.getTitle(),
                 e.getType(),
                 e.getParentId() == null ? null : String.valueOf(e.getParentId()),
-                null, // description omitted — fetch via GET /api/documents/{id}
+                e.getDescription(),
                 e.getUpdatedAt(),
                 children,
                 !children.isEmpty(),

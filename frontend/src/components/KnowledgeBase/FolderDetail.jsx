@@ -13,10 +13,11 @@ const TABS = [
   { key: 'attachments', label: 'Attachments' },
 ];
 
-const FolderDetail = ({ node, path, tab, onTabChange, onUpdate, onDelete, onNavigate, onRename }) => {
+const FolderDetail = ({ node, path, tab, onTabChange, onUpdate, onDelete, onNavigate, onRename, onLoadChildren }) => {
   const [attachmentCount, setAttachmentCount] = useState(0);
-  // Single source of truth for this folder's children.
-  const { children, loading: childrenLoading } = useFolderChildren(node);
+  // Single source of truth for this folder's children, loaded through the
+  // shared (deduplicated) tree loader so it doesn't duplicate the tree's fetch.
+  const { children, loading: childrenLoading } = useFolderChildren(node, onLoadChildren);
 
   return (
     <div className="detail-panel">

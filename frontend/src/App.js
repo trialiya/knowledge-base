@@ -71,7 +71,7 @@ function App() {
           This preserves scroll position, loaded data, streaming state, etc.
         */}
         <div className={`app-tab-panel ${activeTab === 'chat' ? 'app-tab-panel--active' : 'app-tab-panel--hidden'}`}>
-          <ChatWindow onNavigateToDoc={navigateToDoc} />
+          <ChatWindow onNavigateToDoc={navigateToDoc} isActive={activeTab === 'chat'} />
         </div>
         <div
           className={`app-tab-panel ${activeTab === 'knowledge' ? 'app-tab-panel--active' : 'app-tab-panel--hidden'}`}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 import api from './api';
 import { getSiblings, applyReorder, parentTitle, isParentChange, updateNodeInTree, spliceChildren } from './treeOps';
@@ -26,6 +26,16 @@ export default function useKnowledgeBase() {
   // Pending drop info awaiting user confirmation: { dropInfo, fromTitle, toTitle }
   const [moveConfirm, setMoveConfirm] = useState(null);
 
+  // Guards the one-time init effect against React 18 StrictMode's intentional
+  // double-invocation of effects in development, which would otherwise fire the
+  // whole tree + ancestor-chain fetch sequence twice on first load.
+  const didInitRef = useRef(false);
+
+  // In-flight children requests, keyed by `${parentId}|${page}|${size}`. Lets
+  // concurrent callers (tree expand + folder detail) share one network request
+  // instead of each firing their own.
+  const inflightChildrenRef = useRef(new Map());
+
   // ── Tree loading ─────────────────────────────────────────────────────────
 
   const loadTree = useCallback(async () => {
@@ -41,20 +51,36 @@ export default function useKnowledgeBase() {
 
   /**
    * Lazy-loads one page of children for a node and splices them into the tree.
-   * Called by TreeNode when a folder is expanded or "load more" is clicked.
+   * Called by TreeNode when a folder is expanded or "load more" is clicked,
+   * and by the folder detail (via the full-list loader below).
+   *
+   * Concurrent calls for the same parentId+page+size share a single in-flight
+   * request, so a row click that both selects and expands a folder can't fire
+   * two identical fetches.
    */
   const handleLoadChildren = useCallback(async (parentId, page = 0, size = PAGE_SIZE) => {
-    try {
-      const paged = await api.fetchChildren(parentId, page, size);
-      setTree((prev) => {
-        const clone = JSON.parse(JSON.stringify(prev));
-        spliceChildren(clone, parentId, paged, { replace: page === 0 });
-        return clone;
-      });
-      return paged;
-    } catch {
-      return null;
-    }
+    const key = `${parentId}|${page}|${size}`;
+    const inflight = inflightChildrenRef.current;
+    if (inflight.has(key)) return inflight.get(key);
+
+    const promise = (async () => {
+      try {
+        const paged = await api.fetchChildren(parentId, page, size);
+        setTree((prev) => {
+          const clone = JSON.parse(JSON.stringify(prev));
+          spliceChildren(clone, parentId, paged, { replace: page === 0 });
+          return clone;
+        });
+        return paged;
+      } catch {
+        return null;
+      } finally {
+        inflight.delete(key);
+      }
+    })();
+
+    inflight.set(key, promise);
+    return promise;
   }, []);
 
   /** Reloads a parent's children scope after a mutation (create/delete). */
@@ -64,7 +90,7 @@ export default function useKnowledgeBase() {
         await loadTree();
         return;
       }
-      const paged = await api.fetchChildren(parentId, 0, 1000);
+      const paged = await api.fetchChildren(parentId, 0, PAGE_SIZE);
       setTree((prev) => {
         const clone = JSON.parse(JSON.stringify(prev));
         spliceChildren(clone, parentId, paged, { replace: true });
@@ -95,23 +121,20 @@ export default function useKnowledgeBase() {
    * Core selection logic — expects a full DocumentNode with `type` populated.
    * Separated from selectNode so it can be called after async fetch enrichment.
    */
-  const applySelectNode = useCallback(
-    (node) => {
-      setSelectedNode(node);
-      setActiveTab('summary');
-      setSearchResults([]);
-      setSearchQuery('');
-      setNotFoundDocId(null);
-      setDocLoadError(null);
-      setKBUrlState(node.id, 'summary', null, null);
+  const applySelectNode = useCallback((node) => {
+    setSelectedNode(node);
+    setActiveTab('summary');
+    setSearchResults([]);
+    setSearchQuery('');
+    setNotFoundDocId(null);
+    setDocLoadError(null);
+    setKBUrlState(node.id, 'summary', null, null);
 
-      // Auto-load children for folders so Summary/Contents tabs have data
-      if (node.type === 'folder' && !node._childrenLoaded && (!node.children || node.children.length === 0)) {
-        handleLoadChildren(node.id, 0, PAGE_SIZE);
-      }
-    },
-    [handleLoadChildren],
-  );
+    // NOTE: folder children are loaded by FolderDetail's useFolderChildren
+    // through the shared (deduplicated) loader. We intentionally do NOT fetch
+    // them here — doing so fired a second, differently-sized request
+    // (size=10 here vs size=1000 there) that couldn't be deduplicated.
+  }, []);
 
   /**
    * Select a node for display in the detail panel.
@@ -200,19 +223,9 @@ export default function useKnowledgeBase() {
 
         const target = findNodeById(currentTree, docId);
         if (target) {
-          if (target.type === 'folder' && !target._childrenLoaded) {
-            const paged = await api.fetchChildren(docId, 0, PAGE_SIZE);
-            let enrichedTarget = target;
-            setTree((prev) => {
-              const clone = JSON.parse(JSON.stringify(prev));
-              const folder = spliceChildren(clone, docId, paged, { replace: true });
-              if (folder) enrichedTarget = folder;
-              return clone;
-            });
-            setSelectedNode(enrichedTarget);
-          } else {
-            setSelectedNode(target);
-          }
+          // FolderDetail's useFolderChildren loads folder children (deduplicated);
+          // no separate fetch here.
+          setSelectedNode(target);
           setActiveTab('summary');
         } else {
           setNotFoundDocId(docId);
@@ -242,6 +255,8 @@ export default function useKnowledgeBase() {
   // ── Restore from URL on first mount ─────────────────────────────────────────
 
   useEffect(() => {
+    if (didInitRef.current) return;
+    didInitRef.current = true;
     const init = async () => {
       let rootNodes = [];
       try {
@@ -275,20 +290,10 @@ export default function useKnowledgeBase() {
 
           const target = findNodeById(currentTree, docId);
           if (target) {
-            // For folders, also load children so FolderDetail renders Contents immediately
-            if (target.type === 'folder' && !target._childrenLoaded) {
-              const paged = await api.fetchChildren(docId, 0, PAGE_SIZE);
-              let enrichedTarget = target;
-              setTree((prev) => {
-                const clone = JSON.parse(JSON.stringify(prev));
-                const folder = spliceChildren(clone, docId, paged, { replace: true });
-                if (folder) enrichedTarget = folder;
-                return clone;
-              });
-              setSelectedNode(enrichedTarget);
-            } else {
-              setSelectedNode(target);
-            }
+            // Just select it. If it's a folder, FolderDetail's useFolderChildren
+            // loads the children (full list, deduplicated). No separate fetch
+            // here — that produced the duplicate size=10 + size=1000 pair.
+            setSelectedNode(target);
           } else {
             setNotFoundDocId(docId);
           }

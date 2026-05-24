@@ -91,6 +91,16 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
     [open, isFolder, childrenLoaded, onLoadChildren, node.id],
   );
 
+  // Used by the row click (which also selects the node). It does NOT fetch:
+  // selecting a folder mounts FolderDetail, whose useFolderChildren loads the
+  // full child list through the shared (deduplicated) loader and splices it
+  // into this same tree node. Firing a second PAGE_SIZE fetch here would just
+  // duplicate that request (the size=10 + size=1000 pair). We only flip the
+  // open state; children render as soon as the shared load lands in node.children.
+  const toggleOpenVisual = useCallback(() => {
+    setOpen((o) => !o);
+  }, []);
+
   const handleLoadMore = useCallback(
     async (e) => {
       e.stopPropagation();
@@ -228,7 +238,7 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
         onDrop={handleDrop}
         onClick={() => {
           onSelect(node);
-          if (isFolder) toggleOpen(null);
+          if (isFolder) toggleOpenVisual();
         }}
       >
         <DragHandle disabled={isSystem} />

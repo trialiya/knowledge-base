@@ -26,7 +26,7 @@ const generateUUID = () => {
 const DEFAULT_MESSAGE = {};
 const STORAGE_KEY_ACTIVE_ID = 'chat_activeId';
 
-const ChatWindow = ({ onNavigateToDoc }) => {
+const ChatWindow = ({ onNavigateToDoc, isActive = true }) => {
   const [chats, setChats] = useState([]);
   const [activeChatId, setActiveChatId] = useState(() => {
     const { chatId } = getUrlState();
@@ -54,6 +54,8 @@ const ChatWindow = ({ onNavigateToDoc }) => {
   // without listing `chats` in their dependency arrays (which would recreate
   // them on every streaming chunk).
   const chatsRef = useRef(chats);
+  // Guards the one-time chat-list fetch against StrictMode's double-invoke.
+  const didFetchChatsRef = useRef(false);
   useEffect(() => {
     chatsRef.current = chats;
   }, [chats]);
@@ -73,6 +75,8 @@ const ChatWindow = ({ onNavigateToDoc }) => {
 
   // Загрузка списка чатов
   useEffect(() => {
+    if (didFetchChatsRef.current) return;
+    didFetchChatsRef.current = true;
     const fetchChats = async () => {
       try {
         const res = await fetch('/api/chat');
@@ -201,9 +205,18 @@ const ChatWindow = ({ onNavigateToDoc }) => {
       if (!chat?.notFound && !chat?.loadError && !alreadyFailed) {
         localStorage.setItem(STORAGE_KEY_ACTIVE_ID, activeChatId);
       }
-      setChatUrlState(activeChatId);
     }
   }, [activeChatId, chats, loadMessages]);
+
+  // Sync the chat id into the URL — but ONLY while the chat tab is the active
+  // one. Both ChatWindow and KnowledgeBase stay mounted (App hides them via
+  // CSS), so without this guard the chat panel would rewrite `view=chat` over
+  // whatever the KB just set — e.g. when opening ?view=knowledge&chat=…&doc=…
+  useEffect(() => {
+    if (isActive && activeChatId) {
+      setChatUrlState(activeChatId);
+    }
+  }, [isActive, activeChatId]);
 
   // Fetch attachment count independently so the badge stays accurate
   // even when the attachment panel is closed.
