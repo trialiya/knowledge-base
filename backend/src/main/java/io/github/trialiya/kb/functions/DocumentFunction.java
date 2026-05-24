@@ -174,7 +174,11 @@ public class DocumentFunction {
                                     "ID родительской папки (null или пусто для корневого уровня)",
                             required = false)
                     String parentId,
-            @ToolParam(description = "Содержимое документа (текст, markdown)", required = false)
+            @ToolParam(
+                            description =
+                                    "Содержимое документа (текст, markdown). "
+                                            + "Ссылки на другие документы базы знаний оформляй как [Название](/?doc=ID).",
+                            required = false)
                     String description) {
 
         log.info("createDocument called: title='{}' type={} parentId={}", title, type, parentId);
@@ -207,7 +211,9 @@ public class DocumentFunction {
                             required = false)
                     String title,
             @ToolParam(
-                            description = "Новое содержимое (null чтобы оставить текущее)",
+                            description =
+                                    "Новое содержимое (null чтобы оставить текущее). "
+                                            + "Ссылки на другие документы базы знаний оформляй как [Название](/?doc=ID).",
                             required = false)
                     String description) {
 

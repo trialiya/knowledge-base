@@ -27,15 +27,28 @@ dependencyLocking {
 tasks.register('resolveAndLockAll') {
     description = 'Resolves all configurations to generate complete dependency lock files'
     group = 'dependency locking'
+
+    notCompatibleWithConfigurationCache(
+            'Generates lock files by resolving every configuration; intended to be run on demand with --write-locks'
+    )
+
+    doFirst {
+        if (!gradle.startParameter.writeDependencyLocks) {
+            throw new GradleException(
+                    'Run this task with --write-locks, e.g. ./gradlew resolveAndLockAll --write-locks'
+            )
+        }
+    }
+
     doLast {
-        allprojects.each { project ->
-            project.configurations.findAll { config ->
+        allprojects.each { p ->
+            p.configurations.findAll { config ->
                 config.canBeResolved && !config.name.toLowerCase().contains('detached')
             }.each { config ->
                 try {
                     config.resolve()
                 } catch (Exception e) {
-                    logger.warn("Could not resolve configuration ${project.path}:${config.name}: ${e.message}")
+                    logger.warn("Could not resolve configuration ${p.path}:${config.name}: ${e.message}")
                 }
             }
         }

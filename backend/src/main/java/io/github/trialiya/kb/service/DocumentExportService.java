@@ -11,8 +11,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,20 +27,24 @@ import org.springframework.stereotype.Service;
  * <p>Layout on disk mirrors the document tree. Each node is prefixed with a zero-padded ordinal
  * that reflects its {@code position} among siblings, preserving the user-defined order.
  *
- * <p>Content and metadata are written as separate files:
+ * <p>Content and (optionally) metadata are written as separate files:
  *
  * <ul>
  *   <li>{@code .md} — document/folder description (content)
- *   <li>{@code .yaml} — structured metadata (id, title, type, timestamps, …)
+ *   <li>{@code .yaml} — structured metadata (id, title, type, timestamps, …), only when {@code
+ *       includeMeta=true}
  * </ul>
+ *
+ * <p>Internal KB links ({@code /?doc=ID}) are rewritten to relative file paths so the exported
+ * Markdown is navigable in any file browser or static site.
  *
  * <pre>
  *   &lt;exportPath&gt;/
  *     001.my-folder/
- *       .meta.yaml            ← metadata of "my-folder"
+ *       .meta.yaml            ← metadata of "my-folder" (only with includeMeta)
  *       .content.md           ← description of "my-folder" (if any)
  *       001.some-document.md
- *       001.some-document.yaml
+ *       001.some-document.yaml  ← only with includeMeta
  *       002.nested-folder/
  *         .meta.yaml
  *         .content.md
@@ -61,98 +68,170 @@ public class DocumentExportService {
     /** Width of the zero-padded ordinal prefix (e.g. 3 → 001, 002, …). */
     private static final int ORDINAL_PAD = 3;
 
+    /** Matches internal KB doc links inside Markdown link targets: {@code (/?doc=123)}. */
+    private static final Pattern DOC_LINK_PATTERN = Pattern.compile("\\(/\\?doc=(\\d+)\\)");
+
     private final DocumentRepository repo;
     private final DocumentsConfiguration config;
 
     // ── Public API ───────────────────────────────────────────────────────────
 
     /**
-     * Exports the entire document tree to {@code exportPath}. Existing files are overwritten;
-     * directories are created as needed.
+     * Exports the entire document tree to {@code exportPath} with metadata files included.
+     * Convenience overload — equivalent to {@code exportAll(true)}.
      *
      * @return the number of files written
      */
     public int exportAll() {
+        return exportAll(true);
+    }
+
+    /**
+     * Exports the entire document tree to {@code exportPath}. Existing files are overwritten;
+     * directories are created as needed.
+     *
+     * <p>Internal {@code /?doc=ID} links in document content are rewritten to relative file paths
+     * so the exported Markdown is self-contained.
+     *
+     * @param includeMeta whether to write {@code .yaml} / {@code .meta.yaml} sidecar files
+     * @return the number of files written
+     */
+    public int exportAll(boolean includeMeta) {
         Path root = Paths.get(config.exportPath());
 
-        // Build parent → children index, sorted by position
+        List<DocumentEntity> all = Streams.stream(repo.findAll()).collect(Collectors.toList());
+
+        // Build parent → children index
         Map<Long, List<DocumentEntity>> byParent =
-                Streams.stream(repo.findAll())
+                all.stream()
                         .filter(e -> e.getParentId() != null)
                         .collect(Collectors.groupingBy(DocumentEntity::getParentId));
 
-        // Sort each group by position
         byParent.values()
                 .forEach(list -> list.sort(Comparator.comparingInt(DocumentEntity::getPosition)));
 
         List<DocumentEntity> roots = repo.findRoots();
         roots.sort(Comparator.comparingInt(DocumentEntity::getPosition));
 
-        int count = 0;
+        // Pass 1: build id → absolute .md path map (needed for link rewriting)
+        Map<Long, Path> idToPath = new HashMap<>();
         int ordinal = 1;
         for (DocumentEntity rootDoc : roots) {
-            count += exportNode(rootDoc, root, byParent, ordinal++);
+            collectPaths(rootDoc, root, byParent, ordinal++, idToPath);
+        }
+
+        // Pass 2: write files
+        int count = 0;
+        ordinal = 1;
+        for (DocumentEntity rootDoc : roots) {
+            count += exportNode(rootDoc, root, byParent, ordinal++, idToPath, includeMeta);
         }
 
         log.info("Export complete: {} file(s) written to {}", count, root.toAbsolutePath());
         return count;
     }
 
-    // ── Recursive tree walk ──────────────────────────────────────────────────
+    // ── Pass 1: collect id → path ────────────────────────────────────────────
+
+    /**
+     * Dry-run walk that populates {@code idToPath} with the absolute {@code .md} path each entity
+     * will be written to. Folder content maps to the {@code .content.md} hidden file inside the
+     * folder directory.
+     */
+    private void collectPaths(
+            DocumentEntity entity,
+            Path parentDir,
+            Map<Long, List<DocumentEntity>> byParent,
+            int ordinal,
+            Map<Long, Path> idToPath) {
+
+        boolean isFolder = "folder".equalsIgnoreCase(entity.getType());
+        String prefix = padOrdinal(ordinal);
+
+        if (isFolder) {
+            Path folderDir = parentDir.resolve(prefix + "." + safeName(entity.getTitle()));
+            idToPath.put(entity.getId(), folderDir.resolve(FOLDER_CONTENT_FILE));
+
+            List<DocumentEntity> children = childrenOf(entity.getId(), byParent);
+            int childOrdinal = 1;
+            for (DocumentEntity child : children) {
+                collectPaths(child, folderDir, byParent, childOrdinal++, idToPath);
+            }
+        } else {
+            Path candidate = parentDir.resolve(prefix + "." + safeName(entity.getTitle()) + ".md");
+            if (Files.exists(candidate) && !config.replace()) {
+                int suffix = 1;
+                do {
+                    candidate =
+                            parentDir.resolve(
+                                    prefix
+                                            + "."
+                                            + safeName(entity.getTitle())
+                                            + "-"
+                                            + suffix
+                                            + ".md");
+                    suffix++;
+                } while (Files.exists(candidate));
+            }
+            idToPath.put(entity.getId(), candidate);
+        }
+    }
+
+    // ── Pass 2: recursive tree walk ──────────────────────────────────────────
 
     private int exportNode(
             DocumentEntity entity,
             Path parentDir,
             Map<Long, List<DocumentEntity>> byParent,
-            int ordinal) {
+            int ordinal,
+            Map<Long, Path> idToPath,
+            boolean includeMeta) {
 
         boolean isFolder = "folder".equalsIgnoreCase(entity.getType());
         String prefix = padOrdinal(ordinal);
         int written = 0;
 
         if (isFolder) {
-            // Folder → directory with ordinal prefix
             Path folderDir = parentDir.resolve(prefix + "." + safeName(entity.getTitle()));
             createDirectories(folderDir);
 
-            // Meta (always written for folders)
-            writeFile(folderDir.resolve(FOLDER_META_FILE), renderMeta(entity));
-            written++;
-
-            // Content (only if folder has a description)
-            if (hasContent(entity.getDescription())) {
-                writeFile(folderDir.resolve(FOLDER_CONTENT_FILE), renderContent(entity));
+            if (includeMeta) {
+                writeFile(folderDir.resolve(FOLDER_META_FILE), renderMeta(entity));
                 written++;
-                log.debug("Written folder content: {}", folderDir.resolve(FOLDER_CONTENT_FILE));
             }
 
-            // Recurse into children (already sorted by position)
+            if (hasContent(entity.getDescription())) {
+                Path contentFile = folderDir.resolve(FOLDER_CONTENT_FILE);
+                writeFile(contentFile, renderContent(entity, contentFile, idToPath));
+                written++;
+                log.debug("Written folder content: {}", contentFile);
+            }
+
             List<DocumentEntity> children = childrenOf(entity.getId(), byParent);
             int childOrdinal = 1;
             for (DocumentEntity child : children) {
-                written += exportNode(child, folderDir, byParent, childOrdinal++);
+                written +=
+                        exportNode(
+                                child, folderDir, byParent, childOrdinal++, idToPath, includeMeta);
             }
 
         } else {
-            // Regular document → .md (content) + .yaml (meta)
             String baseName = prefix + "." + safeName(entity.getTitle());
             createDirectories(parentDir);
 
-            // Content
             Path contentFile = uniquePath(parentDir, baseName + ".md");
-            writeFile(contentFile, renderContent(entity));
+            writeFile(contentFile, renderContent(entity, contentFile, idToPath));
             written++;
             log.debug("Written document content: {}", contentFile);
 
-            // Meta — derive yaml name from the actual content file name (respects uniquePath
-            // suffix)
-            String contentFileName = contentFile.getFileName().toString();
-            String metaFileName =
-                    contentFileName.substring(0, contentFileName.lastIndexOf('.')) + ".yaml";
-            Path metaFile = parentDir.resolve(metaFileName);
-            writeFile(metaFile, renderMeta(entity));
-            written++;
-            log.debug("Written document meta: {}", metaFile);
+            if (includeMeta) {
+                String contentFileName = contentFile.getFileName().toString();
+                String metaFileName =
+                        contentFileName.substring(0, contentFileName.lastIndexOf('.')) + ".yaml";
+                writeFile(parentDir.resolve(metaFileName), renderMeta(entity));
+                written++;
+                log.debug("Written document meta: {}", parentDir.resolve(metaFileName));
+            }
         }
 
         return written;
@@ -160,14 +239,45 @@ public class DocumentExportService {
 
     // ── Rendering ────────────────────────────────────────────────────────────
 
-    /** Renders the document/folder description as Markdown content. */
-    private String renderContent(DocumentEntity e) {
+    /**
+     * Renders the document/folder description as Markdown content, rewriting any {@code /?doc=ID}
+     * links to relative file paths based on {@code idToPath}.
+     *
+     * @param e entity to render
+     * @param thisFile absolute path of the file being written (used to compute relative links)
+     * @param idToPath map of document id → absolute export path
+     */
+    private String renderContent(DocumentEntity e, Path thisFile, Map<Long, Path> idToPath) {
         StringBuilder sb = new StringBuilder();
         sb.append("# ").append(e.getTitle()).append("\n\n");
         if (hasContent(e.getDescription())) {
-            sb.append(e.getDescription().trim()).append("\n");
+            sb.append(rewriteDocLinks(e.getDescription().trim(), thisFile, idToPath)).append("\n");
         }
         return sb.toString();
+    }
+
+    /**
+     * Replaces every {@code (/?doc=ID)} occurrence in {@code text} with a relative Markdown path
+     * pointing from {@code sourceFile} to the target document's exported {@code .md} file.
+     *
+     * <p>If the ID is not found in {@code idToPath} the original link is left unchanged.
+     */
+    private String rewriteDocLinks(String text, Path sourceFile, Map<Long, Path> idToPath) {
+        Matcher m = DOC_LINK_PATTERN.matcher(text);
+        StringBuilder out = new StringBuilder();
+        while (m.find()) {
+            long targetId = Long.parseLong(m.group(1));
+            Path targetPath = idToPath.get(targetId);
+            if (targetPath == null) {
+                m.appendReplacement(out, Matcher.quoteReplacement(m.group(0)));
+            } else {
+                String rel =
+                        sourceFile.getParent().relativize(targetPath).toString().replace('\\', '/');
+                m.appendReplacement(out, Matcher.quoteReplacement("(" + rel + ")"));
+            }
+        }
+        m.appendTail(out);
+        return out.toString();
     }
 
     /** Renders structured metadata as YAML. */

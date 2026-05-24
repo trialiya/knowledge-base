@@ -161,8 +161,8 @@ public class DocumentController {
 
     @PostMapping("/documents/admin/export")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void export() {
-        documentExportService.exportAll();
+    public void export(@RequestParam(defaultValue = "true") boolean meta) {
+        documentExportService.exportAll(meta);
     }
 
     public record ReindexResponse(int indexed) {}
