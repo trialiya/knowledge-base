@@ -3,13 +3,16 @@ package io.github.trialiya.kb.service;
 import io.github.trialiya.kb.config.model.SearchConfiguration;
 import io.github.trialiya.kb.model.doc.dto.CreateDocumentRequest;
 import io.github.trialiya.kb.model.doc.dto.Document;
+import io.github.trialiya.kb.model.doc.dto.DocumentHistoryEntry;
 import io.github.trialiya.kb.model.doc.dto.DocumentNode;
 import io.github.trialiya.kb.model.doc.dto.PagedChildren;
 import io.github.trialiya.kb.model.doc.dto.ReorderRequest;
 import io.github.trialiya.kb.model.doc.dto.SearchResult;
 import io.github.trialiya.kb.model.doc.dto.UpdateDocumentRequest;
 import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
+import io.github.trialiya.kb.model.doc.entity.DocumentHistoryEntity;
 import io.github.trialiya.kb.model.search.SemanticSearchResult;
+import io.github.trialiya.kb.repository.DocumentHistoryRepository;
 import io.github.trialiya.kb.repository.DocumentRepository;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -23,6 +26,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -35,14 +39,17 @@ import org.springframework.web.server.ResponseStatusException;
 public class DocumentService {
 
     private final DocumentRepository repo;
+    private final DocumentHistoryRepository historyRepo;
     private final SemanticSearchService semanticSearchService;
     private final SearchConfiguration searchConfig;
 
     public DocumentService(
             DocumentRepository repo,
+            DocumentHistoryRepository historyRepo,
             SemanticSearchService semanticSearchService,
             SearchConfiguration searchConfig) {
         this.repo = repo;
+        this.historyRepo = historyRepo;
         this.semanticSearchService = semanticSearchService;
         this.searchConfig = searchConfig;
     }
@@ -233,18 +240,38 @@ public class DocumentService {
                         req.getDescription(),
                         LocalDateTime.now(),
                         nextPos,
-                        false); // новые узлы никогда не системные
+                        false, // новые узлы никогда не системные
+                        0); // version — Spring Data JDBC проставит 1 при INSERT
         DocumentEntity saved = repo.save(entity);
 
         tryIndex(saved.getId(), saved.getTitle(), saved.getDescription());
         return toDto(saved);
     }
 
+    /**
+     * Updates a document and saves a history snapshot of the previous state.
+     *
+     * <p>Flow inside the transaction:
+     *
+     * <ol>
+     *   <li>Load current entity (holds current {@code version}).
+     *   <li>Write a {@link DocumentHistoryEntity} snapshot of the current state.
+     *   <li>Apply the requested changes to the entity.
+     *   <li>Call {@code repo.save()} — Spring Data JDBC appends {@code AND version = ?} to the
+     *       {@code UPDATE}, then increments the column.
+     *   <li>If another transaction committed in between, Spring throws {@link
+     *       OptimisticLockingFailureException}, which we surface as HTTP 409.
+     * </ol>
+     *
+     * @throws ResponseStatusException 403 if trying to rename a system document
+     * @throws ResponseStatusException 404 if the document does not exist
+     * @throws ResponseStatusException 409 if a concurrent modification was detected
+     */
     @Transactional
     public Document update(String id, UpdateDocumentRequest req) {
         DocumentEntity existing = findOrThrow(id);
 
-        // Системный узел: разрешаем менять только description
+        // ── 1. Apply changes ──────────────────────────────────────────────────
         if (existing.isSystem()) {
             if (req.getTitle() != null && !req.getTitle().equals(existing.getTitle())) {
                 throw new ResponseStatusException(
@@ -260,7 +287,19 @@ public class DocumentService {
             existing.setDescription(req.getDescription());
         }
         existing.setUpdatedAt(LocalDateTime.now());
-        DocumentEntity saved = repo.save(existing);
+
+        // ── 2. Save (optimistic lock check happens here) ──────────────────────
+        DocumentEntity saved;
+        try {
+            saved = repo.save(existing);
+        } catch (OptimisticLockingFailureException ex) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Document was modified by another request. Please reload and try again.");
+        }
+
+        // ── 3. Persist snapshot of current state ──────────────────────────────
+        historyRepo.save(snapshotOf(saved));
 
         tryIndex(saved.getId(), saved.getTitle(), saved.getDescription());
         return toDto(saved);
@@ -274,6 +313,7 @@ public class DocumentService {
                     HttpStatus.FORBIDDEN, "Cannot delete a system document");
         }
         List<Long> ids = repo.findDescendantIds(Long.parseLong(id));
+        // document_history rows are removed automatically via ON DELETE CASCADE
         repo.deleteAllById(ids);
         ids.forEach(
                 docId -> {
@@ -299,7 +339,6 @@ public class DocumentService {
         List<String> ids = req.getOrderedIds();
         if (ids == null || ids.isEmpty()) return;
 
-        // Build id→position map, excluding system nodes in one query
         List<Long> longIds = ids.stream().map(Long::parseLong).collect(Collectors.toList());
         Set<Long> systemIds = repo.findSystemIdsByIdIn(longIds);
 
@@ -314,6 +353,45 @@ public class DocumentService {
         if (!positionMap.isEmpty()) {
             repo.batchUpdatePositions(positionMap);
         }
+    }
+
+    // ── History ───────────────────────────────────────────────────────────────
+
+    /**
+     * Returns the change history for a document, newest first.
+     *
+     * <p>Each entry represents a past state — the current state is <em>not</em> included. To see
+     * the full picture, combine this list with the response from {@code GET /api/documents/{id}}.
+     *
+     * @param id the document id
+     * @return list of history entries, possibly empty for documents that have never been edited
+     */
+    @Transactional(readOnly = true)
+    public List<DocumentHistoryEntry> getHistory(String id) {
+        long docId = Long.parseLong(id);
+        // Ensure the document actually exists before returning history
+        if (!repo.existsById(docId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+        return historyRepo.findByDocumentId(docId).stream()
+                .map(this::toHistoryDto)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Returns one specific history snapshot.
+     *
+     * @param id the document id
+     * @param version the exact version to retrieve
+     * @throws ResponseStatusException 404 if the document or the requested version do not exist
+     */
+    @Transactional(readOnly = true)
+    public DocumentHistoryEntry getHistoryVersion(String id, int version) {
+        long docId = Long.parseLong(id);
+        return historyRepo
+                .findByDocumentIdAndVersion(docId, version)
+                .map(this::toHistoryDto)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     }
 
     // ── Keyword search ────────────────────────────────────────────────────────
@@ -389,7 +467,6 @@ public class DocumentService {
         Map<String, Double> kwScores = new LinkedHashMap<>();
         int kwSize = kwResults.size();
         for (int i = 0; i < kwSize; i++) {
-            // Rank-based score: best hit = 1.0, worst = 1/n
             kwScores.put(kwResults.get(i).getId(), (double) (kwSize - i) / kwSize);
         }
 
@@ -439,6 +516,23 @@ public class DocumentService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     }
 
+    /**
+     * Builds an unsaved history snapshot from the current state of {@code entity}. The snapshot
+     * captures the version <em>before</em> the upcoming increment, so if {@code entity.version ==
+     * 3}, the history row will record version 3, and after save {@code documents.version} becomes
+     * 4.
+     */
+    private DocumentHistoryEntity snapshotOf(DocumentEntity entity) {
+        return new DocumentHistoryEntity(
+                null,
+                entity.getId(),
+                entity.getVersion() + 1,
+                entity.getTitle(),
+                entity.getType(),
+                entity.getDescription(),
+                entity.getUpdatedAt());
+    }
+
     private Document toDto(DocumentEntity e) {
         return new Document(
                 String.valueOf(e.getId()),
@@ -448,6 +542,16 @@ public class DocumentService {
                 null, // description omitted — fetch via GET /api/documents/{id}
                 e.getUpdatedAt(),
                 null);
+    }
+
+    private DocumentHistoryEntry toHistoryDto(DocumentHistoryEntity e) {
+        return new DocumentHistoryEntry(
+                String.valueOf(e.getDocumentId()),
+                e.getVersion(),
+                e.getTitle(),
+                e.getType(),
+                e.getDescription(),
+                e.getUpdatedAt());
     }
 
     private String generateSnippet(String content, String query) {
