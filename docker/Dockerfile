@@ -19,18 +19,20 @@ COPY frontend/src frontend/src/
 COPY frontend/public frontend/public/
 
 # Собираем bootJar (включает frontend build через :frontend:copyFrontend)
-# Кэш-папки определяются настройками node-gradle в frontend/build.gradle:
-#   /root/.gradle                        — Gradle зависимости и кэш задач
-#   /workspace/frontend/.gradle/nodejs   — бинарник Node (node-gradle workDir)
-#   /workspace/frontend/.gradle/yarn     — бинарник Yarn (node-gradle yarnWorkDir)
-#   /workspace/frontend/node_modules     — npm/yarn пакеты
 RUN --mount=type=cache,target=/root/.gradle \
     --mount=type=cache,target=/workspace/frontend/.gradle/nodejs \
     --mount=type=cache,target=/workspace/frontend/.gradle/yarn \
     --mount=type=cache,target=/workspace/frontend/node_modules \
     ./gradlew :backend:bootJar --no-daemon -x test
 
-# ── Stage 2: Runtime ─────────────────────────────────────────────
+# ── Stage 2: Extract layers ──────────────────────────────────────
+# Распаковываем слоистый JAR на отдельные директории по слоям.
+FROM eclipse-temurin:25-jre-alpine AS extract
+WORKDIR /workspace
+COPY --from=build /workspace/backend/build/libs/*.jar app.jar
+RUN java -Djarmode=tools -jar app.jar extract --layers --destination extracted
+
+# ── Stage 3: Runtime ─────────────────────────────────────────────
 FROM eclipse-temurin:25-jre-alpine
 WORKDIR /app
 
@@ -43,9 +45,12 @@ RUN git config --system safe.directory /project
 RUN addgroup -S kb && adduser -S kb -G kb
 USER kb
 
-COPY --from=build /workspace/backend/build/libs/*.jar app.jar
 COPY --chmod=755 docker/start.sh /start.sh
 
+COPY --from=extract --chown=kb:kb /workspace/extracted/dependencies/ ./
+COPY --from=extract --chown=kb:kb /workspace/extracted/spring-boot-loader/ ./
+COPY --from=extract --chown=kb:kb /workspace/extracted/snapshot-dependencies/ ./
+COPY --from=extract --chown=kb:kb /workspace/extracted/application/ ./
+
 EXPOSE 8080
-ENTRYPOINT ["java"]
-CMD ["-jar", "app.jar"]
+CMD /start.sh
