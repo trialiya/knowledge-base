@@ -15,18 +15,21 @@ import org.springframework.ai.tool.annotation.ToolParam;
  * Spring AI tools that give the chat model read-only access to the Git repository configured via
  * {@code kb.project-path}.
  *
- * <p>Five capabilities are exposed:
+ * <p>Six capabilities are exposed:
  *
  * <ul>
- *   <li>{@link #getFileTree} — browse tracked files/directories (respects .gitignore).
+ *   <li>{@link #getFileTree} — browse tracked files/directories one level at a time.
  *   <li>{@link #getCommitLog} — recent commit history, optionally filtered by file.
- *   <li>{@link #getCommitDiff} — changed files and patches for specific commit(s).
- *   <li>{@link #searchFiles} — find tracked files by name pattern.
- *   <li>{@link #getFileContent} — read full content of a tracked file.
+ *   <li>{@link #getCommitDiff} — changed files and patches for one or more commits.
+ *   <li>{@link #searchFiles} — find tracked files by name/path substring.
+ *   <li>{@link #getFileContent} — read the full UTF-8 text of a tracked file.
+ *   <li>{@link #getUncommittedChanges} — staged and unstaged working-tree changes.
  * </ul>
  *
- * <p>All operations are read-only; no modifications are made to the repository. Files excluded by
- * {@code .gitignore} are never returned.
+ * <p><b>Security constraints:</b> all operations are strictly read-only. Only files tracked by Git
+ * are accessible — untracked files (including those matching {@code .gitignore}) are refused even
+ * if they exist on disk. Binary files and files larger than 512 KB are detected and returned
+ * without content so they never bloat the model context.
  */
 @Slf4j
 @AllArgsConstructor
@@ -46,13 +49,18 @@ public class GitFunction {
      */
     @Tool(
             description =
-                    "Получить дерево файлов git-репозитория (tracked файлы, .gitignore исключены). "
-                            + "Показывает один уровень вложенности — для раскрытия подкаталога вызови повторно с path.")
+                    """
+                    Возвращает один уровень файлового дерева git-репозитория: только tracked файлы \
+                    (.gitignore и untracked исключены). Каждый узел содержит: path (полный путь от \
+                    корня репо), name (имя файла/каталога), type ("file" | "directory"), size (байты, \
+                    только для файлов). Каталоги не раскрываются — вызови повторно с нужным path для \
+                    следующего уровня. Используй для навигации по структуре проекта перед чтением файлов.\
+                    """)
     public List<GitFileNode> getFileTree(
             @ToolParam(
                             description =
-                                    "Путь к подкаталогу (относительно корня репозитория). "
-                                            + "Пустая строка или null — корень.",
+                                    "Путь к подкаталогу относительно корня репозитория (например, "
+                                            + "\"src/main/java\"). Пустая строка или null — корень репо.",
                             required = false)
                     String path) {
         log.info("getFileTree called: path='{}'", path);
@@ -72,17 +80,24 @@ public class GitFunction {
      */
     @Tool(
             description =
-                    "Получить историю коммитов git-репозитория. "
-                            + "Можно ограничить количество и/или фильтровать по конкретному файлу.")
+                    """
+                    Возвращает историю коммитов репозитория в обратном хронологическом порядке. \
+                    Каждый коммит содержит: hash (полный SHA), shortHash (первые 8 символов), \
+                    author, email, date (ISO-8601), message. Поле files всегда null — для просмотра \
+                    изменений используй getCommitDiff. Используй shortHash как аргумент для \
+                    getCommitDiff.\
+                    """)
     public List<GitCommit> getCommitLog(
             @ToolParam(
                             description =
-                                    "Максимальное количество коммитов (по умолчанию 20, макс. 100)",
+                                    "Максимальное количество коммитов для возврата. "
+                                            + "Допустимый диапазон: 1–100, по умолчанию 20.",
                             required = false)
                     Integer maxCount,
             @ToolParam(
                             description =
-                                    "Путь к файлу — показать только коммиты, затрагивающие этот файл",
+                                    "Путь к файлу (относительно корня репо) — вернуть только коммиты, "
+                                            + "затрагивающие этот файл. Null — вся история.",
                             required = false)
                     String filePath) {
         int limit = (maxCount != null && maxCount > 0) ? maxCount : 20;
@@ -104,15 +119,24 @@ public class GitFunction {
      */
     @Tool(
             description =
-                    "Получить изменения для указанного коммита или нескольких коммитов "
-                            + "(список файлов, количество изменений, и опционально unified diff).")
+                    """
+                    Возвращает изменённые файлы для одного или нескольких коммитов. Каждый элемент \
+                    содержит: status (A/M/D/R), path (новый путь), oldPath (при переименовании), \
+                    additions и deletions (количество строк). При includePatch=true добавляется \
+                    unified diff (усечённый до 500 строк на файл). Для получения хешей сначала \
+                    вызови getCommitLog.\
+                    """)
     public List<GitCommit> getCommitDiff(
-            @ToolParam(description = "Хеш коммита или несколько хешей через запятую")
+            @ToolParam(
+                            description =
+                                    "Хеш коммита (полный или короткий) или несколько хешей через запятую, "
+                                            + "например: \"abc1234\" или \"abc1234,def5678\".")
                     String commitHashes,
             @ToolParam(
                             description =
-                                    "Включить текст diff (unified patch) для каждого файла? "
-                                            + "По умолчанию false — только список файлов и статистика.",
+                                    "Включить unified diff (patch) для каждого файла. "
+                                            + "false (по умолчанию) — только список файлов и статистика строк; "
+                                            + "true — добавляет текст изменений, увеличивает объём ответа.",
                             required = false)
                     Boolean includePatch) {
         boolean patch = includePatch != null && includePatch;
@@ -133,12 +157,20 @@ public class GitFunction {
      */
     @Tool(
             description =
-                    "Поиск файлов в репозитории по имени/пути (подстрока, регистронезависимо). "
-                            + "Файлы из .gitignore исключены.")
+                    """
+                    Ищет tracked файлы по подстроке пути (регистронезависимо). Файлы из .gitignore \
+                    и untracked исключены. Возвращает узлы с path, name, type="file", size (байты). \
+                    Используй перед getFileContent, если не знаешь точный путь файла.\
+                    """)
     public List<GitFileNode> searchFiles(
-            @ToolParam(description = "Подстрока для поиска в пути файла") String pattern,
             @ToolParam(
-                            description = "Максимальное количество результатов (по умолчанию 20)",
+                            description =
+                                    "Подстрока для поиска в пути файла, например: \"Controller\", "
+                                            + "\".yml\", \"src/test\". Регистронезависимо.")
+                    String pattern,
+            @ToolParam(
+                            description =
+                                    "Максимальное количество результатов. Диапазон: 1–50, по умолчанию 20.",
                             required = false)
                     Integer maxResults) {
         int limit = (maxResults != null && maxResults > 0) ? maxResults : 20;
@@ -159,10 +191,19 @@ public class GitFunction {
      */
     @Tool(
             description =
-                    "Получить содержимое конкретного файла из репозитория по его пути. "
-                            + "Бинарные файлы помечаются без содержимого. Макс. размер 512 КБ.")
+                    """
+                    Возвращает UTF-8 содержимое tracked файла. Ответ содержит: path, content \
+                    (текст файла), binary (true/false), sizeBytes. Если binary=true — content=null, \
+                    файл нечитаем как текст. Если файл > 512 КБ — content содержит сообщение об \
+                    усечении вместо реального текста. Untracked и .gitignore файлы недоступны — \
+                    используй getFileTree или searchFiles для нахождения точного пути.\
+                    """)
     public GitFileContent getFileContent(
-            @ToolParam(description = "Путь к файлу относительно корня репозитория")
+            @ToolParam(
+                            description =
+                                    "Точный путь к файлу относительно корня репозитория, например: "
+                                            + "\"src/main/java/com/example/App.java\". "
+                                            + "Используй getFileTree или searchFiles для уточнения пути.")
                     String filePath) {
         log.info("getFileContent called: filePath='{}'", filePath);
         GitFileContent fileContent = gitService.getFileContent(filePath);
@@ -178,9 +219,21 @@ public class GitFunction {
      */
     @Tool(
             name = "getUncommittedChanges",
-            description = "Returns uncommitted changes in the working tree")
+            description =
+                    """
+                    Возвращает незакоммиченные изменения рабочего дерева: staged и unstaged. \
+                    Каждая запись содержит: status (A/M/D/R), path, oldPath (при переименовании), \
+                    additions и deletions. Новые untracked файлы (ещё не добавленные через git add) \
+                    включаются со статусом A, patch=null. .gitignore и бинарные артефакты \
+                    (.class, .jar и др.) исключены. При includePatch=true добавляется unified diff \
+                    для изменённых файлов (усечённый до 500 строк).\
+                    """)
     public List<GitDiffEntry> getUncommittedChanges(
-            @ToolParam(description = "whether to include unified diff text for modified files")
+            @ToolParam(
+                            description =
+                                    "Включить unified diff для изменённых файлов. "
+                                            + "false — только список файлов и статистика строк (быстро); "
+                                            + "true — добавляет текст изменений (увеличивает объём ответа).")
                     boolean includePatch) {
         log.info("getUncommittedChanges called: includePatch='{}'", includePatch);
         List<GitDiffEntry> gitDiffEntries = gitService.getUncommittedChanges(includePatch);

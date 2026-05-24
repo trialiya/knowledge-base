@@ -38,6 +38,9 @@ public class GitService {
     private static final long MAX_FILE_SIZE = 512 * 1024; // 512 KB — skip huge files
     private static final int MAX_DIFF_LINES = 500; // truncate very large diffs
 
+    /** Bytes inspected when sniffing for binary content (a NUL byte ⇒ binary). */
+    private static final int BINARY_SNIFF_BYTES = 8192;
+
     /** File names to always exclude from uncommitted changes (OS/IDE junk). */
     private static final java.util.Set<String> IGNORED_FILES =
             java.util.Set.of(".DS_Store", "Thumbs.db", "desktop.ini", ".directory");
@@ -253,21 +256,46 @@ public class GitService {
     // ── File content ────────────────────────────────────────────────────────
 
     /**
-     * Returns the content of a tracked file. Binary files are detected and returned with {@code
-     * binary=true} and no content.
+     * Returns the content of a <b>tracked</b> file, optimised for AI/LLM consumption.
+     *
+     * <p>Only files tracked by Git are served. Untracked files (those returned by {@code git
+     * ls-files --others}) are explicitly rejected even though they exist on disk: their content is
+     * unreviewed working-tree state and serving it would both leak arbitrary local files and feed
+     * unverified data to the model. Ignored files (via {@code .gitignore}) are untracked by
+     * definition and therefore rejected too.
+     *
+     * <p>Content retrieval is single-pass: the file is read once into a byte buffer, binary content
+     * is detected inline (NUL-byte heuristic) instead of spawning an extra {@code git diff
+     * --no-index} subprocess, and the bytes are decoded as UTF-8 only when textual. Binary and
+     * oversized files return no content so they never bloat the model's context.
      */
     public GitFileContent getFileContent(@NonNull String filePath) {
         String normalized = filePath.strip();
-        // Verify the file is tracked (security: prevent reading arbitrary files)
-        List<String> tracked =
-                exec(List.of("git", "ls-files", "--full-name", "--error-unmatch", normalized));
-        if (tracked.isEmpty()) {
-            throw new IllegalArgumentException("File not tracked or not found: " + normalized);
-        }
 
+        // Security: confine to the repo before touching the filesystem.
         Path absolute = repoPath.resolve(normalized).normalize();
         if (!absolute.startsWith(repoPath)) {
             throw new IllegalArgumentException("Path traversal not allowed: " + normalized);
+        }
+
+        // Only tracked files may be served. `git ls-files -- <path>` prints the path on stdout
+        // iff Git tracks it, and prints nothing otherwise (untracked, ignored, or missing) — with
+        // no stderr noise, which matters because exec() merges stderr into its returned lines. We
+        // then disambiguate untracked-but-present from genuinely-missing so the caller (and the
+        // AI) gets a precise, intentional rejection rather than a vague "not found".
+        List<String> tracked =
+                exec(List.of("git", "ls-files", "--full-name", "-z", "--", normalized));
+        boolean isTracked =
+                tracked.stream()
+                        .flatMap(l -> java.util.Arrays.stream(l.split("\0")))
+                        .anyMatch(p -> p.equals(normalized));
+        if (!isTracked) {
+            if (Files.exists(absolute)) {
+                // Exists on disk but Git does not track it → untracked or .gitignore'd.
+                throw new IllegalArgumentException(
+                        "Refusing to read untracked file: " + normalized);
+            }
+            throw new IllegalArgumentException("File not found: " + normalized);
         }
 
         long size;
@@ -282,21 +310,36 @@ public class GitService {
                     normalized, "(file too large: " + size + " bytes)", false, size);
         }
 
-        // Check binary via git
-        List<String> binaryCheck =
-                exec(List.of("git", "diff", "--no-index", "--numstat", "/dev/null", normalized));
-        boolean binary = binaryCheck.stream().anyMatch(l -> l.startsWith("-\t-\t"));
-
-        if (binary) {
-            return new GitFileContent(normalized, null, true, size);
-        }
-
+        // Single read: detect binary inline, decode text only if appropriate. This avoids the
+        // extra `git diff --no-index` process the previous implementation spawned per call.
+        byte[] bytes;
         try {
-            String content = Files.readString(absolute, StandardCharsets.UTF_8);
-            return new GitFileContent(normalized, content, false, size);
+            bytes = Files.readAllBytes(absolute);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot read file: " + normalized, e);
         }
+
+        if (isBinary(bytes)) {
+            return new GitFileContent(normalized, null, true, size);
+        }
+
+        String content = new String(bytes, StandardCharsets.UTF_8);
+        return new GitFileContent(normalized, content, false, size);
+    }
+
+    /**
+     * Heuristic binary detection matching Git's own behaviour: a file is treated as binary if a NUL
+     * byte appears within the first {@value #BINARY_SNIFF_BYTES} bytes. Cheap and allocation-free,
+     * and accurate for the source/text files an AI assistant is asked to read.
+     */
+    private static boolean isBinary(byte[] bytes) {
+        int limit = Math.min(bytes.length, BINARY_SNIFF_BYTES);
+        for (int i = 0; i < limit; i++) {
+            if (bytes[i] == 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // ── Uncommitted changes ────────────────────────────────────────────────
