@@ -28,6 +28,8 @@ const ContentsTable = ({ children, onNavigate }) => {
 
       <div className="contents-table__body">
         {pageItems.map((child) => {
+          // description is already a server-side snippet (≤150 chars); makeSnippet
+          // just strips markdown syntax and trims to the display limit.
           const snippet = makeSnippet(child.description, 120);
           return (
             <div key={child.id} className="contents-row" onClick={() => onNavigate(child)}>

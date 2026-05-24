@@ -163,14 +163,20 @@ public class DocumentService {
                 e.getTitle(),
                 e.getType(),
                 e.getParentId() == null ? null : String.valueOf(e.getParentId()),
-                e.getDescription(),
+                null, // description omitted — fetch via GET /api/documents/{id}
                 e.getUpdatedAt(),
                 children,
                 !children.isEmpty(),
                 e.isSystem());
     }
 
-    /** Stub node without loading children — used for listing one level (getChildren). */
+    /**
+     * Stub node for tree/children listing. Description is truncated to {@value #SNIPPET_LENGTH}
+     * characters so ContentsTable can show a preview without transferring the full content. Use
+     * {@link #getById(Long)} for the complete document.
+     */
+    private static final int SNIPPET_LENGTH = 150;
+
     private DocumentNode toStubNode(DocumentEntity e) {
         boolean hc = repo.hasChildren(e.getId());
         return new DocumentNode(
@@ -178,11 +184,17 @@ public class DocumentService {
                 e.getTitle(),
                 e.getType(),
                 e.getParentId() == null ? null : String.valueOf(e.getParentId()),
-                e.getDescription(),
+                snippetOf(e.getDescription()),
                 e.getUpdatedAt(),
                 Collections.emptyList(),
                 hc,
                 e.isSystem());
+    }
+
+    /** Returns the first {@value #SNIPPET_LENGTH} characters of {@code text}, or null. */
+    private static String snippetOf(String text) {
+        if (text == null || text.isBlank()) return null;
+        return text.length() <= SNIPPET_LENGTH ? text : text.substring(0, SNIPPET_LENGTH);
     }
 
     private DocumentNode buildNode(DocumentEntity e, Map<Long, List<DocumentEntity>> byParent) {
@@ -196,7 +208,7 @@ public class DocumentService {
                 e.getTitle(),
                 e.getType(),
                 e.getParentId() == null ? null : String.valueOf(e.getParentId()),
-                e.getDescription(),
+                null, // description omitted — fetch via GET /api/documents/{id}
                 e.getUpdatedAt(),
                 children,
                 hc,
@@ -433,7 +445,7 @@ public class DocumentService {
                 e.getTitle(),
                 e.getType(),
                 e.getParentId() == null ? null : String.valueOf(e.getParentId()),
-                e.getDescription(),
+                null, // description omitted — fetch via GET /api/documents/{id}
                 e.getUpdatedAt(),
                 null);
     }

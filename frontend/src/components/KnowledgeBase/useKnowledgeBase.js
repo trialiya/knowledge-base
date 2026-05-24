@@ -116,37 +116,37 @@ export default function useKnowledgeBase() {
   /**
    * Select a node for display in the detail panel.
    *
-   * When called from SearchResults the incoming object is a lean SearchResult DTO
-   * that only has id/title/snippet/updatedAt — no `type` or `description`.
-   * In that case we fetch the full DocumentNode first so that the Summary and
-   * Content tabs always have the description to render.
+   * Tree nodes from /api/documents/children carry only a short snippet of description
+   * (≤150 chars) to keep list payloads lean. Search result DTOs also lack full content.
+   * In all cases we fetch the complete document via GET /api/documents/{id} before
+   * rendering, then patch it back into the tree cache so the tree-sync effect never
+   * overwrites the full content with a stale stub.
    */
   const selectNode = useCallback(
     (node) => {
-      if (!node.type) {
-        // Lean search result — fetch the full document before displaying it
-        api
-          .fetchById(node.id)
-          .then((full) => {
-            applySelectNode(full);
-            // Patch description into the tree cache so future tree-sync stays correct
-            setTree((prev) => {
-              const clone = JSON.parse(JSON.stringify(prev));
-              const existing = findNodeById(clone, full.id);
-              if (existing) {
-                existing.description = full.description;
-                existing.updatedAt = full.updatedAt;
-              }
-              return clone;
-            });
-          })
-          .catch((err) => {
-            if (err.status === 404) setNotFoundDocId(node.id);
-            else setDocLoadError({ status: err.status || 'network', docId: node.id });
+      // Always fetch the full document — tree stubs contain only a snippet (≤150 chars),
+      // not the full description needed by Summary/Content tabs.
+      api
+        .fetchById(node.id)
+        .then((full) => {
+          applySelectNode(full);
+          // Patch the full data back into the tree cache so the tree-sync
+          // effect (which runs on every tree update) doesn't clobber it.
+          setTree((prev) => {
+            const clone = JSON.parse(JSON.stringify(prev));
+            const existing = findNodeById(clone, full.id);
+            if (existing) {
+              existing.description = full.description;
+              existing.updatedAt = full.updatedAt;
+              existing.system = full.system;
+            }
+            return clone;
           });
-        return;
-      }
-      applySelectNode(node);
+        })
+        .catch((err) => {
+          if (err.status === 404) setNotFoundDocId(node.id);
+          else setDocLoadError({ status: err.status || 'network', docId: node.id });
+        });
     },
     [applySelectNode], // eslint-disable-line react-hooks/exhaustive-deps
   );
