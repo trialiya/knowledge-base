@@ -122,7 +122,10 @@ export default function useKnowledgeBase() {
    * Separated from selectNode so it can be called after async fetch enrichment.
    */
   const applySelectNode = useCallback((node) => {
-    setSelectedNode(node);
+    // `_full` marks this as a complete document (from GET /documents/{id}),
+    // so the tree-sync effect won't later overwrite its description with a
+    // tree stub (which carries only a ≤150-char snippet).
+    setSelectedNode({ ...node, _full: true });
     setActiveTab('summary');
     setSearchResults([]);
     setSearchQuery('');
@@ -145,16 +148,22 @@ export default function useKnowledgeBase() {
    * rendering, then patch it back into the tree cache so the tree-sync effect never
    * overwrites the full content with a stale stub.
    */
-  const selectNode = useCallback(
-    (node) => {
-      // Always fetch the full document — tree stubs contain only a snippet (≤150 chars),
-      // not the full description needed by Summary/Content tabs.
-      api
-        .fetchById(node.id)
+  /**
+   * Fetches the COMPLETE document via GET /api/documents/{id} and selects it.
+   * Used by every selection path (tree click, cross-component navigation, direct
+   * link, refresh) because tree/search nodes carry only a ≤150-char snippet of
+   * the description — never the full content the Summary/Content tabs need.
+   *
+   * The full data is also patched back into the tree cache so the tree-sync
+   * effect can't later overwrite the detail with a stale stub.
+   */
+  const fetchFullAndSelect = useCallback(
+    (idOrNode) => {
+      const id = typeof idOrNode === 'object' ? idOrNode.id : idOrNode;
+      return api
+        .fetchById(id)
         .then((full) => {
           applySelectNode(full);
-          // Patch the full data back into the tree cache so the tree-sync
-          // effect (which runs on every tree update) doesn't clobber it.
           setTree((prev) => {
             const clone = JSON.parse(JSON.stringify(prev));
             const existing = findNodeById(clone, full.id);
@@ -165,13 +174,22 @@ export default function useKnowledgeBase() {
             }
             return clone;
           });
+          return full;
         })
         .catch((err) => {
-          if (err.status === 404) setNotFoundDocId(node.id);
-          else setDocLoadError({ status: err.status || 'network', docId: node.id });
+          if (err.status === 404) setNotFoundDocId(id);
+          else setDocLoadError({ status: err.status || 'network', docId: id });
+          return null;
         });
     },
     [applySelectNode], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
+  const selectNode = useCallback(
+    (node) => {
+      fetchFullAndSelect(node);
+    },
+    [fetchFullAndSelect],
   );
 
   const handleSearch = useCallback(async () => {
@@ -191,10 +209,11 @@ export default function useKnowledgeBase() {
     async (docId) => {
       if (!docId) return;
 
-      // If the doc is already in the tree, select it directly
+      // If the doc is already in the tree, still fetch the full document — the
+      // tree node holds only a snippet, not the full description.
       const existing = findNodeById(tree, docId);
       if (existing) {
-        applySelectNode(existing);
+        fetchFullAndSelect(existing);
         return;
       }
 
@@ -223,10 +242,10 @@ export default function useKnowledgeBase() {
 
         const target = findNodeById(currentTree, docId);
         if (target) {
-          // FolderDetail's useFolderChildren loads folder children (deduplicated);
-          // no separate fetch here.
-          setSelectedNode(target);
-          setActiveTab('summary');
+          // Fetch the full document (the tree stub has only a snippet).
+          // FolderDetail's useFolderChildren loads folder children separately
+          // (deduplicated); no child fetch needed here.
+          fetchFullAndSelect(target);
         } else {
           setNotFoundDocId(docId);
         }
@@ -238,7 +257,7 @@ export default function useKnowledgeBase() {
         }
       }
     },
-    [tree, applySelectNode],
+    [tree, fetchFullAndSelect],
   );
 
   // ── Listen for cross-component navigation events ─────────────────────────
@@ -290,10 +309,11 @@ export default function useKnowledgeBase() {
 
           const target = findNodeById(currentTree, docId);
           if (target) {
-            // Just select it. If it's a folder, FolderDetail's useFolderChildren
-            // loads the children (full list, deduplicated). No separate fetch
-            // here — that produced the duplicate size=10 + size=1000 pair.
-            setSelectedNode(target);
+            // Fetch the full document — the tree stub holds only a ≤150-char
+            // snippet, which previously showed as a truncated description on
+            // direct-link open. If it's a folder, FolderDetail's
+            // useFolderChildren loads its children (deduplicated) separately.
+            fetchFullAndSelect(target);
           } else {
             setNotFoundDocId(docId);
           }
@@ -313,11 +333,34 @@ export default function useKnowledgeBase() {
     init();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Keep selectedNode in sync when the tree updates after CRUD
+  // Keep selectedNode in sync when the tree updates after CRUD.
+  //
+  // The tree holds only stubs (description is a ≤150-char snippet), so we must
+  // NOT blindly replace the selected node with the tree version — that's what
+  // made a freshly-refreshed document flash full and then collapse to the
+  // truncated snippet. Instead we merge the tree's structural fields (title,
+  // children, flags, updatedAt) into the current selection while keeping the
+  // full `description` whenever the current selection is a complete document.
   useEffect(() => {
     if (!selectedNode) return;
-    const updated = findNodeById(tree, selectedNode.id);
-    if (updated) setSelectedNode(updated);
+    const fromTree = findNodeById(tree, selectedNode.id);
+    if (!fromTree) return;
+
+    setSelectedNode((prev) => {
+      if (!prev || prev.id !== selectedNode.id) return prev;
+      const keepFullDescription = prev._full;
+      const merged = {
+        ...prev,
+        ...fromTree,
+        // Preserve full content for a fully-loaded document; otherwise take the
+        // tree's (possibly fresher) snippet.
+        description: keepFullDescription ? prev.description : fromTree.description,
+        // Don't let a childless stub wipe children we've already loaded.
+        children: fromTree.children ?? prev.children,
+        _full: prev._full,
+      };
+      return merged;
+    });
   }, [tree]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Browser back/forward navigation
@@ -329,7 +372,7 @@ export default function useKnowledgeBase() {
         if (tree.length === 0) await loadTree();
         const node = findNodeById(tree, docId);
         if (node) {
-          setSelectedNode(node);
+          fetchFullAndSelect(node);
           setSearchResults([]);
           setSearchQuery('');
         } else {
@@ -366,12 +409,15 @@ export default function useKnowledgeBase() {
   };
 
   const handleUpdate = async (id, patch) => {
-    // Optimistically update the local tree
+    // Optimistically update the local tree…
     setTree((prev) => updateNodeInTree(prev, id, patch));
+    // …and the selected node directly, so the full-content detail reflects the
+    // edit immediately. (The tree-sync effect preserves prev.description for a
+    // fully-loaded doc, so it won't pick up the patch on its own.)
+    setSelectedNode((prev) => (prev && prev.id === id ? { ...prev, ...patch } : prev));
     try {
       const res = await api.update(id, patch);
       if (!res.ok) throw new Error('Update failed');
-      // selectedNode is re-synced by the tree effect above
     } catch (err) {
       console.error('Update error:', err);
       // Do NOT roll back — keep the user's edits in the UI, surface an error
@@ -486,7 +532,11 @@ export default function useKnowledgeBase() {
                 return clone;
               });
             }
-            // selectedNode will be re-synced by the tree effect
+            // Re-fetch the FULL document and re-select it. The tree reload above
+            // replaced the node with a snippet-only stub; without this the
+            // tree-sync effect would push that stub into the detail and the
+            // description would appear truncated after a manual refresh.
+            await fetchFullAndSelect(target);
           } else {
             setSelectedNode(null);
           }
@@ -500,7 +550,7 @@ export default function useKnowledgeBase() {
     } finally {
       setRefreshing(false);
     }
-  }, [refreshing, selectedNode]);
+  }, [refreshing, selectedNode, fetchFullAndSelect]);
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const path = selectedNode ? findPath(tree, selectedNode.id) || [] : [];
