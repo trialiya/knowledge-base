@@ -62,6 +62,16 @@ const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ parentId, orderedIds }),
     }),
+
+  summarize: async (id) => {
+    const r = await fetch(`/api/documents/${id}/summarize`, { method: 'POST' });
+    if (!r.ok) {
+      const err = new Error(`Summarize failed: ${r.status}`);
+      err.status = r.status;
+      throw err;
+    }
+    return r.json();
+  },
 };
 
 export default api;

@@ -3,6 +3,7 @@ import DetailHeader from './DetailHeader';
 import SummarySection from './SummarySection';
 import MarkdownEditor from './MarkdownEditor';
 import AttachmentPanel from './AttachmentPanel';
+import { IconSparkle, IconSparkleLoading } from './icons';
 
 const TABS = [
   { key: 'summary', label: 'Summary' },
@@ -10,7 +11,85 @@ const TABS = [
   { key: 'attachments', label: 'Attachments' },
 ];
 
-const DocumentDetail = ({ node, path, tab, onTabChange, onUpdate, onDelete, onNavigate, onRename }) => {
+// ─── AI Summary block ─────────────────────────────────────────────────────────
+
+const AISummarySection = ({ node, onSummarize }) => {
+  const [summarizing, setSummarizing] = useState(false);
+
+  const handleSummarize = async () => {
+    if (!onSummarize || summarizing) return;
+    setSummarizing(true);
+    try {
+      await onSummarize(node.id);
+    } finally {
+      setSummarizing(false);
+    }
+  };
+
+  const label = (
+    <span className="summary-section__label-ai">
+      {summarizing ? <IconSparkleLoading size={12} /> : <IconSparkle size={12} />}
+      AI Summary
+      {node.summaryStale && !summarizing && (
+        <span className="summary-stale-badge" title="Описание изменилось — summary может быть устаревшим">
+          устарел
+        </span>
+      )}
+    </span>
+  );
+
+  // ── Has summary ──────────────────────────────────────────────────────────────
+  if (node.summary) {
+    return (
+      <section className="summary-section ai-summary-section">
+        <div className="summary-section__head">
+          <span className="summary-section__label">{label}</span>
+          <button
+            className={`ai-summary-regenerate${summarizing ? ' ai-summary-regenerate--loading' : ''}${
+              node.summaryStale ? ' ai-summary-regenerate--stale' : ''
+            }`}
+            onClick={handleSummarize}
+            disabled={summarizing}
+            title={node.summaryStale ? 'Обновить устаревший summary' : 'Перегенерировать summary'}
+          >
+            {summarizing ? <IconSparkleLoading size={11} /> : <IconSparkle size={11} />}
+            {summarizing ? 'Генерация…' : node.summaryStale ? 'Обновить' : 'Перегенерировать'}
+          </button>
+        </div>
+        <div className="summary-about">
+          <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{node.summary}</p>
+        </div>
+      </section>
+    );
+  }
+
+  // ── No summary yet ───────────────────────────────────────────────────────────
+  return (
+    <section className="summary-section ai-summary-section">
+      <div className="summary-section__head">
+        <span className="summary-section__label">{label}</span>
+      </div>
+      <div className="ai-summary-empty">
+        {/*<IconSparkle size={28} />*/}
+        <p className="ai-summary-empty__text">AI ещё не сгенерировал краткое содержание этого документа</p>
+        <button
+          className={`ai-summary-generate-btn${summarizing ? ' ai-summary-generate-btn--loading' : ''}`}
+          onClick={handleSummarize}
+          disabled={summarizing || !node.description}
+          title={!node.description ? 'Добавьте описание документа, чтобы сгенерировать summary' : undefined}
+        >
+          {summarizing ? <IconSparkleLoading size={13} /> : <IconSparkle size={13} />}
+          {summarizing ? 'Генерация…' : 'Сгенерировать summary'}
+        </button>
+        {!node.description && <p className="ai-summary-empty__hint">Сначала добавьте описание во вкладке Content</p>}
+      </div>
+    </section>
+  );
+};
+
+// ─── DocumentDetail ───────────────────────────────────────────────────────────
+
+const DocumentDetail = ({ node, path, tab, onTabChange, onUpdate, onDelete, onNavigate, onRename, onSummarize }) => {
   const [attachmentCount, setAttachmentCount] = useState(0);
 
   const handleRename = (id, name) => {
@@ -40,9 +119,10 @@ const DocumentDetail = ({ node, path, tab, onTabChange, onUpdate, onDelete, onNa
       <div className="detail-body">
         {tab === 'summary' && (
           <div className="summary-tab">
-            <SummarySection label="About" description={node.description} onEdit={() => onTabChange('content')} />
+            <AISummarySection node={node} onSummarize={onSummarize} />
 
-            {/* Attachments summary */}
+            <SummarySection label="DESCRIPTION" description={node.description} onEdit={() => onTabChange('content')} />
+
             <SummarySection label="Attachments" showMoreBtn onMore={() => onTabChange('attachments')}>
               <AttachmentPanel ownerType="document" ownerId={node.id} compact onCountChange={setAttachmentCount} />
             </SummarySection>

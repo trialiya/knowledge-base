@@ -322,6 +322,63 @@
   opacity: 0.75;
 }
 
+/* ── Summarize button ── */
+.detail-summarize-btn {
+  color: var(--kb-accent);
+  border: 1.5px solid var(--kb-accent-bg);
+  background: var(--kb-accent-bg);
+}
+.detail-summarize-btn:hover {
+  background: var(--kb-accent);
+  color: #fff;
+}
+.detail-summarize-btn--stale {
+  border-color: #f59e0b;
+  background: #fffbeb;
+  color: #d97706;
+}
+.detail-summarize-btn--stale:hover {
+  background: #f59e0b;
+  color: #fff;
+}
+.detail-summarize-btn--loading {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+.spin {
+  animation: kb-spin 0.9s linear infinite;
+}
+@keyframes kb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── AI summary label ── */
+.summary-section__label-ai {
+  display: flex;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--kb-accent);
+}
+.summary-stale-badge {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #d97706;
+  background: #fffbeb;
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+  padding: 1px 7px;
+  vertical-align: middle;
+}
+
 /* ── Formatted markdown inside summary ── */
 .summary-markdown {
   font-size: 0.88rem;
@@ -374,4 +431,134 @@
   color: var(--kb-muted);
   background: var(--kb-accent-light);
   border-radius: 0 6px 6px 0;
+}
+
+/* ═══════════════════════════════════════════════
+   AI SUMMARY SECTION
+═══════════════════════════════════════════════ */
+
+.ai-summary-section {
+  border-color: var(--kb-accent-bg);
+  background: linear-gradient(135deg, #fafbff 0%, #f5f7ff 100%);
+}
+
+.ai-summary-section .summary-section__head {
+  background: var(--kb-accent-bg);
+  border-bottom-color: var(--kb-accent-bg);
+}
+
+/* Label with sparkle icon */
+.summary-section__label-ai {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--kb-accent);
+}
+
+/* Regenerate button (shown when summary exists) */
+.ai-summary-regenerate {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: 1.5px solid var(--kb-accent-bg);
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--kb-accent);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.ai-summary-regenerate:hover {
+  background: var(--kb-accent);
+  border-color: var(--kb-accent);
+  color: #fff;
+}
+.ai-summary-regenerate--stale {
+  border-color: #f59e0b;
+  color: #d97706;
+  background: #fffbeb;
+}
+.ai-summary-regenerate--stale:hover {
+  background: #f59e0b;
+  border-color: #f59e0b;
+  color: #fff;
+}
+.ai-summary-regenerate--loading {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+/* Empty state — no summary yet */
+.ai-summary-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 28px 24px 24px;
+  color: var(--kb-accent);
+}
+.ai-summary-empty__text {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--kb-muted);
+  text-align: center;
+  max-width: 280px;
+}
+.ai-summary-empty__hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--kb-muted);
+  opacity: 0.7;
+  text-align: center;
+}
+
+/* Generate button */
+.ai-summary-generate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--kb-accent);
+  color: #fff;
+  border: none;
+  border-radius: 20px;
+  padding: 7px 18px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.ai-summary-generate-btn:hover:not(:disabled) {
+  opacity: 0.88;
+  transform: translateY(-1px);
+}
+.ai-summary-generate-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+.ai-summary-generate-btn--loading {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Stale badge */
+.summary-stale-badge {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #d97706;
+  background: #fffbeb;
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+  padding: 1px 7px;
+  vertical-align: middle;
 }

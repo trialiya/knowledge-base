@@ -59,6 +59,7 @@ public class DocumentEmbeddingRepository {
                     d.title,
                     d.description,
                     d.updated_at,
+                    d.summary,
                     1 - (de.embedding <=> ?::vector) AS similarity
                 FROM document_embeddings de
                 JOIN documents d ON d.id = de.document_id
@@ -83,6 +84,7 @@ public class DocumentEmbeddingRepository {
                                 rs.getTimestamp("updated_at") != null
                                         ? rs.getTimestamp("updated_at").toLocalDateTime()
                                         : null,
+                                rs.getString("summary"),
                                 rs.getDouble("similarity")));
     }
 

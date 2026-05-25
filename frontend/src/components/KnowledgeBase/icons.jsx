@@ -377,6 +377,37 @@ export const IconSummarize = ({ size = 13 }) => (
   </svg>
 );
 
+/** Sparkle / AI-summary icon — used in the header button and the summary section label */
+export const IconSparkle = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    {/* centre star */}
+    <path
+      d="M8 1.5C8 1.5 8.6 4.2 10 5.5C11.4 6.8 14 7.5 14 7.5C14 7.5 11.4 8.2 10 9.5C8.6 10.8 8 13.5 8 13.5C8 13.5 7.4 10.8 6 9.5C4.6 8.2 2 7.5 2 7.5C2 7.5 4.6 6.8 6 5.5C7.4 4.2 8 1.5 8 1.5Z"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinejoin="round"
+      fill="currentColor"
+      fillOpacity="0.15"
+    />
+    {/* small top-right sparkle */}
+    <path
+      d="M13 1C13 1 13.3 2.2 14 2.8C14.7 3.4 16 3.5 16 3.5C16 3.5 14.7 3.7 14 4.3C13.3 4.9 13 6 13 6C13 6 12.7 4.9 12 4.3C11.3 3.7 10 3.5 10 3.5C10 3.5 11.3 3.4 12 2.8C12.7 2.2 13 1 13 1Z"
+      stroke="currentColor"
+      strokeWidth="1.1"
+      strokeLinejoin="round"
+      fill="currentColor"
+      fillOpacity="0.2"
+    />
+  </svg>
+);
+
+/** Spinning variant for loading state */
+export const IconSparkleLoading = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" className="spin">
+    <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.5" strokeDasharray="22 10" />
+  </svg>
+);
+
 export const IconRefresh = ({ size = 14 }) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path

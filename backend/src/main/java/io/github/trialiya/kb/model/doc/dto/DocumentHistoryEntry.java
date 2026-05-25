@@ -18,4 +18,5 @@ public record DocumentHistoryEntry(
         String title,
         String type,
         String description,
-        LocalDateTime updatedAt) {}
+        LocalDateTime updatedAt,
+        String summary) {}

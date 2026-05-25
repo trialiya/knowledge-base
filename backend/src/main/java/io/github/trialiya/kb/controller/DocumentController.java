@@ -10,6 +10,7 @@ import io.github.trialiya.kb.model.doc.dto.SearchResult;
 import io.github.trialiya.kb.model.doc.dto.UpdateDocumentRequest;
 import io.github.trialiya.kb.service.DocumentExportService;
 import io.github.trialiya.kb.service.DocumentService;
+import io.github.trialiya.kb.service.DocumentSummaryService;
 import io.github.trialiya.kb.service.SemanticSearchService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ public class DocumentController {
     private final DocumentService service;
     private final DocumentExportService documentExportService;
     private final SemanticSearchService semanticSearchService;
+    private final DocumentSummaryService documentSummaryService;
 
     // ── Tree ──────────────────────────────────────────────────────────────────
 
@@ -96,6 +98,26 @@ public class DocumentController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteDocument(@PathVariable String id) {
         service.delete(id);
+    }
+
+    /**
+     * Generates (or regenerates) an AI summary for the document description and persists it.
+     *
+     * <p>The summary is always generated on demand — it is never updated automatically. After the
+     * call, {@code summaryStale} in the response will be {@code false}. It will become {@code true}
+     * again the next time the description is saved with different content.
+     *
+     * <pre>POST /api/documents/{id}/summarize</pre>
+     *
+     * @return the updated {@link DocumentNode} with {@code summary}, {@code summaryStale = false},
+     *     and {@code summarySourceVersion} reflecting the current description version
+     * @throws ResponseStatusException 404 document not found
+     * @throws ResponseStatusException 422 document has no description to summarise
+     * @throws ResponseStatusException 409 concurrent modification detected
+     */
+    @PostMapping("/documents/{id}/summarize")
+    public DocumentNode summarizeDocument(@PathVariable String id) {
+        return service.summarize(id);
     }
 
     // ── Reorder ───────────────────────────────────────────────────────────────

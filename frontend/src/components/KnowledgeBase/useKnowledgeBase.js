@@ -429,6 +429,25 @@ export default function useKnowledgeBase() {
     if (title?.trim()) handleUpdate(id, { title: title.trim() });
   };
 
+  const handleSummarize = useCallback(
+    async (id) => {
+      try {
+        const updated = await api.summarize(id);
+        // Patch summary fields into selected node and tree cache
+        const patch = {
+          summary: updated.summary,
+          summaryStale: updated.summaryStale,
+          summarySourceVersion: updated.summarySourceVersion,
+        };
+        setSelectedNode((prev) => (prev && prev.id === id ? { ...prev, ...patch } : prev));
+        setTree((prev) => updateNodeInTree(prev, id, patch));
+      } catch (err) {
+        setSaveError({ message: err.message || 'Не удалось сгенерировать summary.' });
+      }
+    },
+    [updateNodeInTree],
+  );
+
   const handleDelete = async (id) => {
     if (!window.confirm('Удалить?')) return;
     try {
@@ -595,6 +614,7 @@ export default function useKnowledgeBase() {
     handleCreate,
     handleUpdate,
     handleRename,
+    handleSummarize,
     handleDelete,
     handleReorder,
     handleMoveConfirm,

@@ -62,6 +62,7 @@ public class AttachmentEmbeddingRepository {
                     a.file_name                                AS title,
                     COALESCE(a.summary, LEFT(a.content, 300))  AS description,
                     a.updated_at,
+                    a.summary,
                     1 - (ae.embedding <=> ?::vector)           AS similarity
                 FROM attachment_embeddings ae
                 JOIN attachments a ON a.id = ae.attachment_id
@@ -86,6 +87,7 @@ public class AttachmentEmbeddingRepository {
                                 rs.getTimestamp("updated_at") != null
                                         ? rs.getTimestamp("updated_at").toLocalDateTime()
                                         : null,
+                                rs.getString("summary"),
                                 rs.getDouble("similarity")));
     }
 }

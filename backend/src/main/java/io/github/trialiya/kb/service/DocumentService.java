@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -40,16 +41,19 @@ public class DocumentService {
 
     private final DocumentRepository repo;
     private final DocumentHistoryRepository historyRepo;
+    private final DocumentSummaryService documentSummaryService;
     private final SemanticSearchService semanticSearchService;
     private final SearchConfiguration searchConfig;
 
     public DocumentService(
             DocumentRepository repo,
             DocumentHistoryRepository historyRepo,
+            DocumentSummaryService documentSummaryService,
             SemanticSearchService semanticSearchService,
             SearchConfiguration searchConfig) {
         this.repo = repo;
         this.historyRepo = historyRepo;
+        this.documentSummaryService = documentSummaryService;
         this.semanticSearchService = semanticSearchService;
         this.searchConfig = searchConfig;
     }
@@ -144,7 +148,12 @@ public class DocumentService {
                                         null,
                                         Collections.emptyList(),
                                         parentIds.contains(e.getId()),
-                                        e.isSystem()))
+                                        e.isSystem(),
+                                        // summary fields omitted in skeleton —
+                                        // UI does not need them for tree navigation
+                                        null,
+                                        false,
+                                        null))
                 .collect(Collectors.toList());
     }
 
@@ -163,7 +172,12 @@ public class DocumentService {
                                                 null,
                                                 Collections.emptyList(),
                                                 repo.hasChildren(c.getId()),
-                                                c.isSystem()))
+                                                c.isSystem(),
+                                                // children in the list carry their own summary
+                                                // state so the UI can show badges in the tree
+                                                c.getSummary(),
+                                                c.isSummaryStale(),
+                                                c.getSummarySourceVersion()))
                         .collect(Collectors.toList());
         return new DocumentNode(
                 String.valueOf(e.getId()),
@@ -174,7 +188,10 @@ public class DocumentService {
                 e.getUpdatedAt(),
                 children,
                 !children.isEmpty(),
-                e.isSystem());
+                e.isSystem(),
+                e.getSummary(),
+                e.isSummaryStale(),
+                e.getSummarySourceVersion());
     }
 
     /**
@@ -195,7 +212,10 @@ public class DocumentService {
                 e.getUpdatedAt(),
                 Collections.emptyList(),
                 hc,
-                e.isSystem());
+                e.isSystem(),
+                e.getSummary(),
+                e.isSummaryStale(),
+                e.getSummarySourceVersion());
     }
 
     /** Returns the first {@value #SNIPPET_LENGTH} characters of {@code text}, or null. */
@@ -219,7 +239,11 @@ public class DocumentService {
                 e.getUpdatedAt(),
                 children,
                 hc,
-                e.isSystem());
+                e.isSystem(),
+                // summary omitted in full tree — same rationale as description
+                null,
+                false,
+                null);
     }
 
     // ── CRUD ─────────────────────────────────────────────────────────────────
@@ -241,8 +265,13 @@ public class DocumentService {
                         LocalDateTime.now(),
                         nextPos,
                         false, // новые узлы никогда не системные
-                        0); // version — Spring Data JDBC проставит 1 при INSERT
+                        0, // version — Spring Data JDBC проставит 1 при INSERT
+                        null, // summary — ещё не генерировалось
+                        null, // summarySourceVersion
+                        1); // descriptionVersion starts at 1
         DocumentEntity saved = repo.save(entity);
+
+        historyRepo.save(snapshotOf(saved));
 
         tryIndex(saved.getId(), saved.getTitle(), saved.getDescription());
         return toDto(saved);
@@ -257,6 +286,11 @@ public class DocumentService {
      *   <li>Load current entity (holds current {@code version}).
      *   <li>Write a {@link DocumentHistoryEntity} snapshot of the current state.
      *   <li>Apply the requested changes to the entity.
+     *   <li>If {@code description} actually changed, increment {@code descriptionVersion}. This
+     *       makes any existing summary stale ({@code summarySourceVersion < descriptionVersion})
+     *       without touching the summary itself — the user can still read it and decide whether to
+     *       regenerate. Rename / move / reorder do NOT increment {@code descriptionVersion}, so
+     *       they never affect summary staleness.
      *   <li>Call {@code repo.save()} — Spring Data JDBC appends {@code AND version = ?} to the
      *       {@code UPDATE}, then increments the column.
      *   <li>If another transaction committed in between, Spring throws {@link
@@ -271,7 +305,7 @@ public class DocumentService {
     public Document update(String id, UpdateDocumentRequest req) {
         DocumentEntity existing = findOrThrow(id);
 
-        // ── 1. Apply changes ──────────────────────────────────────────────────
+        // ── 1. Apply title change ─────────────────────────────────────────────
         if (existing.isSystem()) {
             if (req.getTitle() != null && !req.getTitle().equals(existing.getTitle())) {
                 throw new ResponseStatusException(
@@ -283,12 +317,22 @@ public class DocumentService {
             }
         }
 
+        // ── 2. Apply description change & track descriptionVersion ────────────
         if (req.getDescription() != null) {
+            boolean descriptionChanged =
+                    !Objects.equals(existing.getDescription(), req.getDescription());
             existing.setDescription(req.getDescription());
+            if (descriptionChanged) {
+                // Incrementing descriptionVersion is the sole mechanism that marks the
+                // summary as stale. The summary itself is not modified here — the user
+                // can still read it and choose to regenerate via POST …/summarize.
+                existing.setDescriptionVersion(existing.getDescriptionVersion() + 1);
+            }
         }
+
         existing.setUpdatedAt(LocalDateTime.now());
 
-        // ── 2. Save (optimistic lock check happens here) ──────────────────────
+        // ── 3. Save (optimistic lock check happens here) ──────────────────────
         DocumentEntity saved;
         try {
             saved = repo.save(existing);
@@ -298,11 +342,47 @@ public class DocumentService {
                     "Document was modified by another request. Please reload and try again.");
         }
 
-        // ── 3. Persist snapshot of current state ──────────────────────────────
+        // ── 4. Persist snapshot of current state (always, as before) ──────────
         historyRepo.save(snapshotOf(saved));
 
         tryIndex(saved.getId(), saved.getTitle(), saved.getDescription());
         return toDto(saved);
+    }
+
+    /**
+     * Generates an AI summary for the document's description and persists it.
+     *
+     * <p>The description is sent to the LLM in full — no truncation. {@code summarySourceVersion}
+     * is set to the current {@code descriptionVersion}, clearing the stale flag until the
+     * description changes again.
+     *
+     * @param id document id
+     * @return updated {@link DocumentNode} with summary fields populated
+     * @throws ResponseStatusException 404 if the document does not exist
+     * @throws ResponseStatusException 422 if the document has no description to summarise
+     * @throws ResponseStatusException 409 on optimistic lock conflict
+     */
+    @Transactional
+    public DocumentNode summarize(String id) {
+        DocumentEntity entity = findOrThrow(id);
+
+        if (entity.getDescription() == null || entity.getDescription().isBlank()) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNPROCESSABLE_ENTITY, "Document has no description to summarise");
+        }
+
+        String summaryText = documentSummaryService.summarize(entity);
+
+        entity.setSummary(summaryText);
+        entity.setSummarySourceVersion(entity.getDescriptionVersion());
+        entity.setUpdatedAt(LocalDateTime.now());
+
+        DocumentEntity saved = repo.save(entity);
+
+        historyRepo.save(snapshotOf(saved));
+
+        log.info("Summarised document id={} title='{}'", id, saved.getTitle());
+        return toShallowNode(saved);
     }
 
     @Transactional
@@ -428,6 +508,9 @@ public class DocumentService {
         node.setPosition(newPosition);
         node.setUpdatedAt(LocalDateTime.now());
 
+        // Note: descriptionVersion is NOT incremented here — a move does not affect
+        // the description, so an existing summary remains valid after the move.
+
         DocumentEntity saved;
         try {
             saved = repo.save(node);
@@ -489,7 +572,8 @@ public class DocumentService {
                                         String.valueOf(e.getId()),
                                         e.getTitle(),
                                         generateSnippet(e.getDescription(), q.toLowerCase()),
-                                        e.getUpdatedAt()))
+                                        e.getUpdatedAt(),
+                                        e.getSummary()))
                 .collect(Collectors.toList());
     }
 
@@ -514,7 +598,8 @@ public class DocumentService {
                                         r.id(),
                                         r.title(),
                                         generateSnippet(r.description(), q.toLowerCase()),
-                                        r.updatedAt()))
+                                        r.updatedAt(),
+                                        r.summary()))
                 .collect(Collectors.toList());
     }
 
@@ -576,7 +661,8 @@ public class DocumentService {
                                     id,
                                     sr.title(),
                                     generateSnippet(sr.description(), q.toLowerCase()),
-                                    sr.updatedAt()));
+                                    sr.updatedAt(),
+                                    sr.summary()));
         }
 
         // ── 4. Combine scores & sort ──────────────────────────────────────────
@@ -615,7 +701,10 @@ public class DocumentService {
                 entity.getTitle(),
                 entity.getType(),
                 entity.getDescription(),
-                entity.getUpdatedAt());
+                entity.getUpdatedAt(),
+                entity.getSummary(),
+                entity.getSummarySourceVersion(),
+                entity.getDescriptionVersion());
     }
 
     private Document toDto(DocumentEntity e) {
@@ -626,7 +715,10 @@ public class DocumentService {
                 e.getParentId() == null ? null : String.valueOf(e.getParentId()),
                 null, // description omitted — fetch via GET /api/documents/{id}
                 e.getUpdatedAt(),
-                null);
+                null, // children
+                e.getSummary(),
+                e.isSummaryStale(),
+                e.getSummarySourceVersion());
     }
 
     private DocumentHistoryEntry toHistoryDto(DocumentHistoryEntity e) {
@@ -636,7 +728,8 @@ public class DocumentService {
                 e.getTitle(),
                 e.getType(),
                 e.getDescription(),
-                e.getUpdatedAt());
+                e.getUpdatedAt(),
+                e.getSummary());
     }
 
     private String generateSnippet(String content, String query) {

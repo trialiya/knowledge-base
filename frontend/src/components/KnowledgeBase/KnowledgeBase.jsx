@@ -39,6 +39,7 @@ const KnowledgeBase = ({ onNavigateToChat }) => {
     handleCreate,
     handleUpdate,
     handleRename,
+    handleSummarize,
     handleDelete,
     handleReorder,
     handleMoveConfirm,
@@ -55,6 +56,7 @@ const KnowledgeBase = ({ onNavigateToChat }) => {
     onDelete: handleDelete,
     onNavigate: selectNode,
     onRename: handleRename,
+    onSummarize: handleSummarize,
     onLoadChildren: handleLoadChildren,
   };
 

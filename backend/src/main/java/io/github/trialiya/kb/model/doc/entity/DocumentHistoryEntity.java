@@ -36,4 +36,7 @@ public class DocumentHistoryEntity {
     private String type;
     private String description;
     private LocalDateTime updatedAt;
+    private String summary;
+    private Integer summarySourceVersion;
+    private int descriptionVersion;
 }

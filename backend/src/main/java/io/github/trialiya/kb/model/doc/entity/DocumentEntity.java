@@ -45,4 +45,34 @@ public class DocumentEntity {
      * to HTTP 409 Conflict.
      */
     @Version private int version;
+
+    // ── Summary ───────────────────────────────────────────────────────────────
+
+    /**
+     * AI-generated summary of the document description. {@code null} until the user explicitly
+     * triggers summarisation via {@code POST /api/documents/{id}/summarize}.
+     */
+    private String summary;
+
+    /**
+     * The value of {@link #descriptionVersion} at the time {@link #summary} was last generated.
+     * {@code null} while {@link #summary} is {@code null}.
+     *
+     * <p>Stale check: {@code summarySourceVersion < descriptionVersion}.
+     */
+    private Integer summarySourceVersion;
+
+    /**
+     * Incremented <em>only</em> when {@link #description} actually changes. Intentionally separate
+     * from {@link #version}, which also grows on rename / move / reorder and must not affect the
+     * stale calculation.
+     *
+     * <p>Starts at 1 for all rows (DB default = 1).
+     */
+    private int descriptionVersion;
+
+    public boolean isSummaryStale() {
+        if (getSummary() == null || getSummarySourceVersion() == null) return false;
+        return getSummarySourceVersion() < getDescriptionVersion();
+    }
 }

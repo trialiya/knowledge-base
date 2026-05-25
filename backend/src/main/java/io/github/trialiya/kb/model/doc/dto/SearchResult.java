@@ -9,4 +9,5 @@ public class SearchResult {
     private final String title;
     private final String snippet;
     private final LocalDateTime updatedAt;
+    private final String summary;
 }
