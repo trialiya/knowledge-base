@@ -75,11 +75,19 @@ function commitUrl(params, { replace = false } = {}) {
 
 /**
  * Switch the active top-level tab without clobbering other params.
+ * opts.clearKb — убрать KB-параметры (doc/tab/search/mode), напр. при переходе в чат.
  */
-export function setUrlTab(view, opts) {
+export function setUrlTab(view, opts = {}) {
+  const { clearKb = false, ...commitOpts } = opts;
   const params = new URLSearchParams(window.location.search);
   params.set('view', view);
-  commitUrl(params, opts);
+  if (clearKb) {
+    params.delete('doc');
+    params.delete('tab');
+    params.delete('search');
+    params.delete('mode');
+  }
+  commitUrl(params, commitOpts);
 }
 
 /**
@@ -120,7 +128,9 @@ export function setKBUrlState(docId, docTab, searchQuery, searchMode, opts) {
 
 /**
  * Update chat-specific URL param.
- * Preserves `view` and KB params.
+ * Keeps `view=chat` and `chat`; strips KB-only params (doc/tab/search/mode)
+ * so the chat URL stays clean and chat/KB history entries don't blend
+ * together (a stale `doc` in a chat URL broke the browser Back button).
  */
 export function setChatUrlState(chatId, opts) {
   const params = new URLSearchParams(window.location.search);
@@ -133,6 +143,14 @@ export function setChatUrlState(chatId, opts) {
   } else {
     params.delete('chat');
   }
+
+  // В чате KB-параметрам не место — убираем, чтобы история не смешивалась.
+  // Последний открытый документ App.js хранит в памяти (lastDocId) и
+  // восстанавливает при клике на вкладку «База знаний».
+  params.delete('doc');
+  params.delete('tab');
+  params.delete('search');
+  params.delete('mode');
 
   commitUrl(params, opts);
 }

@@ -56,15 +56,25 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true }) => {
   const chatsRef = useRef(chats);
   // Guards the one-time chat-list fetch against StrictMode's double-invoke.
   const didFetchChatsRef = useRef(false);
+  // Последний chatId, записанный в URL. Нужен, чтобы отличать реальную смену
+  // чата (push — для работы кнопки «Назад» между чатами) от простого возврата
+  // на вкладку с тем же чатом (replace — чтобы не плодить записи истории).
+  const lastUrlChatIdRef = useRef(activeChatId);
   useEffect(() => {
     chatsRef.current = chats;
   }, [chats]);
 
-  // Listen for cross-component navigation (e.g. KB → specific chat)
+  // Listen for cross-component navigation (e.g. KB → specific chat, или
+  // восстановление состояния при popstate из App.js).
   useEffect(() => {
     const handleNavigateChat = (e) => {
       const { chatId } = e.detail || {};
       if (chatId) {
+        // URL в этих случаях уже выставлен инициатором (popstate откатил его,
+        // либо App.js его установил). Помечаем chatId как «уже записанный»,
+        // чтобы эффект синхронизации сделал replace и commitUrl пропустил
+        // запись (URL не меняется) — иначе «Назад» плодил бы лишние записи.
+        lastUrlChatIdRef.current = chatId;
         setActiveChatId(chatId);
         localStorage.setItem(STORAGE_KEY_ACTIVE_ID, chatId);
       }
@@ -212,9 +222,17 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true }) => {
   // one. Both ChatWindow and KnowledgeBase stay mounted (App hides them via
   // CSS), so without this guard the chat panel would rewrite `view=chat` over
   // whatever the KB just set — e.g. when opening ?view=knowledge&chat=…&doc=…
+  //
+  // push vs replace:
+  //   • сменился activeChatId (пользователь выбрал другой чат) → push,
+  //     чтобы «Назад» возвращал к предыдущему чату;
+  //   • вкладка просто снова стала активной (тот же чат) → replace,
+  //     чтобы не плодить дубли истории, ломающие кнопку «Назад».
   useEffect(() => {
     if (isActive && activeChatId) {
-      setChatUrlState(activeChatId);
+      const isChatChange = lastUrlChatIdRef.current !== activeChatId;
+      setChatUrlState(activeChatId, { replace: !isChatChange });
+      lastUrlChatIdRef.current = activeChatId;
     }
   }, [isActive, activeChatId]);
 

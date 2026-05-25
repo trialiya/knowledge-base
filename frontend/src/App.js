@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import ChatWindow from './components/Chat/ChatWindow';
 import KnowledgeBase from './components/KnowledgeBase/KnowledgeBase';
 import { getUrlState, setUrlTab, setKBUrlState, setChatUrlState } from './components/Utils/utils';
@@ -16,9 +16,26 @@ function getInitialTab() {
 function App() {
   const [activeTab, setActiveTab] = useState(getInitialTab);
 
+  // Последний документ, открытый в «Базе знаний». Хранится в памяти (не в URL),
+  // чтобы при переключении на чат URL оставался чистым (без doc), а клик по
+  // вкладке «База знаний» снова открыл тот же документ.
+  const lastDocIdRef = useRef(getUrlState().docId || null);
+
   const switchTab = useCallback((tab) => {
     setActiveTab(tab);
-    setUrlTab(tab);
+    if (tab === 'knowledge') {
+      if (lastDocIdRef.current) {
+        // Восстанавливаем последний прочитанный документ
+        setKBUrlState(lastDocIdRef.current, 'summary', '', '');
+        window.dispatchEvent(new CustomEvent('app:navigate-doc', { detail: { docId: lastDocIdRef.current } }));
+      } else {
+        setUrlTab(tab);
+      }
+    } else {
+      // Переход в чат: убираем KB-параметры из URL, чтобы история не смешивалась.
+      // (ChatWindow затем уточнит chat= через свой эффект синхронизации.)
+      setUrlTab(tab, { clearKb: true });
+    }
   }, []);
 
   // Синхронизация состояния с URL при навигации браузера (кнопки «Назад»/«Вперёд»).
@@ -41,6 +58,10 @@ function App() {
 
       setActiveTab(nextTab);
 
+      // Помним последний документ из истории, чтобы вкладка «База знаний»
+      // открывала именно его.
+      if (docId) lastDocIdRef.current = docId;
+
       // Переиспользуем существующий механизм синхронизации внутри вкладок:
       // KnowledgeBase слушает app:navigate-doc, ChatWindow — app:navigate-chat.
       if (nextTab === 'knowledge' && docId) {
@@ -54,12 +75,25 @@ function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  // Следим за навигацией по документам ВНУТРИ «Базы знаний» (листание узлов,
+  // клики по doc-ссылкам), чтобы lastDocIdRef всегда указывал на актуальный
+  // документ. KnowledgeBase уже диспатчит app:navigate-doc при таких переходах.
+  useEffect(() => {
+    const handleNavigateDoc = (e) => {
+      const id = e.detail?.docId;
+      if (id) lastDocIdRef.current = String(id);
+    };
+    window.addEventListener('app:navigate-doc', handleNavigateDoc);
+    return () => window.removeEventListener('app:navigate-doc', handleNavigateDoc);
+  }, []);
+
   /**
    * Cross-component navigation: ChatWindow can call this to jump to a
    * specific document in the Knowledge Base (and vice versa in the future).
    */
   const navigateToDoc = useCallback((docId) => {
     setActiveTab('knowledge');
+    lastDocIdRef.current = String(docId);
     // Запись URL идёт через общий commitUrl (с дедупликацией истории).
     // searchQuery/mode сбрасываются автоматически при наличии docId.
     setKBUrlState(docId, 'summary', '', '');
