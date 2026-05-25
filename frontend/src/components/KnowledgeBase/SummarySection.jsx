@@ -12,19 +12,20 @@ const MAX_LINES = 8;
  *   showMoreBtn  — show a › button (to switch to contents tab)
  *   onMore       — called when › is clicked
  *   children     — optional slot rendered inside the section card (e.g. ContentsTable)
+ *   tree         — KB tree array (forwarded to MarkdownEditor for DocLinkTooltip)
+ *   onNavigate   — (node) => void (forwarded to MarkdownEditor for DocLinkTooltip)
  */
-const SummarySection = ({ label, description, onEdit, showMoreBtn, onMore, children }) => {
+const SummarySection = ({ label, description, onEdit, showMoreBtn, onMore, children, tree = [], onNavigate }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isTruncated, setIsTruncated] = useState(false);
   const contentRef = useRef(null);
 
-  // Проверяем, нужно ли обрезать контент
   useEffect(() => {
     if (contentRef.current && description) {
       const lineHeight = parseFloat(getComputedStyle(contentRef.current).lineHeight);
       const maxHeight = lineHeight * MAX_LINES;
       const actualHeight = contentRef.current.scrollHeight;
-      setIsTruncated(actualHeight > maxHeight + 2); // +2 для погрешности
+      setIsTruncated(actualHeight > maxHeight + 2);
     }
   }, [description]);
 
@@ -52,7 +53,6 @@ const SummarySection = ({ label, description, onEdit, showMoreBtn, onMore, child
         <div className={`summary-about ${!description ? 'summary-about--empty' : ''}`}>
           {description ? (
             <>
-              {/* MarkdownEditor locked in preview mode, clipped to MAX_LINES */}
               <div
                 ref={contentRef}
                 className="summary-markdown summary-markdown--preview"
@@ -62,7 +62,8 @@ const SummarySection = ({ label, description, onEdit, showMoreBtn, onMore, child
                   position: 'relative',
                 }}
               >
-                <MarkdownEditor value={description} previewOnly onSave={() => {}} />
+                {/* tree + onNavigate enable DocLinkTooltip inside rendered markdown */}
+                <MarkdownEditor value={description} previewOnly onSave={() => {}} tree={tree} onNavigate={onNavigate} />
               </div>
               {isTruncated && (
                 <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>

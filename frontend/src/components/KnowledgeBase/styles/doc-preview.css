@@ -1,0 +1,392 @@
+/* ═══════════════════════════════════════════════
+   DOC LINK — inline anchor in rendered markdown
+   ═══════════════════════════════════════════════ */
+
+.doc-link {
+  color: var(--kb-accent);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--kb-accent);
+  cursor: pointer;
+  transition: opacity 0.15s, border-bottom-style 0.15s;
+}
+
+.doc-link:hover {
+  opacity: 0.8;
+  border-bottom-style: solid;
+}
+
+/* ═══════════════════════════════════════════════
+   DOC PREVIEW TOOLTIP
+   Rendered via React portal → document.body,
+   so position:fixed uses raw viewport coords.
+   ═══════════════════════════════════════════════ */
+
+.doc-preview-tooltip {
+  position: fixed;
+  z-index: 9100;
+  width: 300px;
+  background: var(--kb-white);
+  border: 1.5px solid var(--kb-border);
+  border-radius: var(--kb-radius);
+  box-shadow: 0 8px 32px rgba(91, 79, 207, 0.18);
+  overflow: hidden;
+  pointer-events: auto;
+  animation: doc-tooltip-in 0.12s ease;
+}
+
+@keyframes doc-tooltip-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Loading / error states ── */
+
+.doc-preview-tooltip__loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  font-size: 0.84rem;
+  color: var(--kb-muted);
+}
+
+.doc-preview-tooltip__error {
+  padding: 14px 16px;
+  font-size: 0.84rem;
+  color: #d95f5f;
+}
+
+/* ── Header: icon + title + type badge ── */
+
+.doc-preview-tooltip__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px 9px;
+  background: var(--kb-bg);
+  border-bottom: 1px solid var(--kb-border);
+}
+
+.doc-preview-tooltip__icon {
+  display: flex;
+  align-items: center;
+  color: var(--kb-muted);
+  flex-shrink: 0;
+}
+
+.doc-preview-tooltip__icon--folder {
+  color: var(--kb-accent);
+}
+
+.doc-preview-tooltip__title {
+  flex: 1;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--kb-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+}
+
+.doc-preview-tooltip__badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: #f0f0f8;
+  color: var(--kb-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.doc-preview-tooltip__badge--folder {
+  background: var(--kb-accent-bg);
+  color: var(--kb-accent);
+}
+
+/* ── AI Summary block ── */
+
+.doc-preview-tooltip__summary {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--kb-border);
+}
+
+.doc-preview-tooltip__summary-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--kb-accent);
+  margin-bottom: 5px;
+}
+
+.doc-preview-tooltip__stale {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: #fffbeb;
+  border: 1px solid #f59e0b;
+  color: #d97706;
+}
+
+.doc-preview-tooltip__summary-text {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--kb-text);
+  /* Full summary, capped at ~5 visual lines */
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── Plain description snippet (fallback) ── */
+
+.doc-preview-tooltip__description {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--kb-border);
+}
+
+.doc-preview-tooltip__description-text {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--kb-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.doc-preview-tooltip__empty {
+  margin: 0;
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  color: var(--kb-muted);
+  font-style: italic;
+  border-bottom: 1px solid var(--kb-border);
+}
+
+/* ── Footer: date + open button ── */
+
+.doc-preview-tooltip__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 14px;
+  background: var(--kb-bg);
+}
+
+.doc-preview-tooltip__date {
+  font-size: 0.74rem;
+  color: var(--kb-muted);
+}
+
+.doc-preview-tooltip__open {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--kb-accent);
+  padding: 0;
+  transition: opacity 0.15s;
+}
+
+.doc-preview-tooltip__open:hover {
+  opacity: 0.75;
+  text-decoration: underline;
+}
+
+/* ── Spinner ── */
+
+.doc-preview-tooltip__spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--kb-border);
+  border-top-color: var(--kb-accent);
+  border-radius: 50%;
+  animation: doc-spin 0.65s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes doc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   @MENTION DROPDOWN
+   position:fixed — same reasoning as tooltip.
+   ═══════════════════════════════════════════════ */
+
+.at-mention-dropdown {
+  position: fixed;
+  z-index: 9100;
+  width: 300px;
+  background: var(--kb-white);
+  border: 1.5px solid var(--kb-border);
+  border-radius: var(--kb-radius);
+  box-shadow: 0 8px 32px rgba(91, 79, 207, 0.18);
+  overflow: hidden;
+  animation: doc-tooltip-in 0.1s ease;
+}
+
+/* Header: "Search: «query»" */
+.at-mention-dropdown__header {
+  padding: 6px 12px 5px;
+  background: var(--kb-bg);
+  border-bottom: 1px solid var(--kb-border);
+}
+
+.at-mention-dropdown__hint {
+  font-size: 0.74rem;
+  color: var(--kb-muted);
+  font-style: italic;
+}
+
+/* Loading row */
+.at-mention-dropdown__loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  color: var(--kb-muted);
+}
+
+.at-mention-dropdown__spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--kb-border);
+  border-top-color: var(--kb-accent);
+  border-radius: 50%;
+  animation: doc-spin 0.65s linear infinite;
+  flex-shrink: 0;
+}
+
+/* Empty state */
+.at-mention-dropdown__empty {
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  color: var(--kb-muted);
+  font-style: italic;
+}
+
+/* Scrollable list */
+.at-mention-dropdown__list {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+/* ── Individual result row ── */
+
+.at-mention-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--kb-border-light);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.at-mention-item:last-child {
+  border-bottom: none;
+}
+
+.at-mention-item:hover,
+.at-mention-item--selected {
+  background: var(--kb-accent-light);
+}
+
+.at-mention-item__icon {
+  display: flex;
+  align-items: center;
+  margin-top: 1px;
+  color: var(--kb-muted);
+  flex-shrink: 0;
+}
+
+.at-mention-item__icon--folder {
+  color: var(--kb-accent);
+}
+
+.at-mention-item__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.at-mention-item__title {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--kb-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.at-mention-item__snippet {
+  font-size: 0.74rem;
+  color: var(--kb-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.at-mention-item__type {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--kb-muted);
+  padding-top: 2px;
+  flex-shrink: 0;
+}
+
+/* ── Keyboard hint footer ── */
+
+.at-mention-dropdown__footer {
+  padding: 5px 12px;
+  background: var(--kb-bg);
+  border-top: 1px solid var(--kb-border);
+  font-size: 0.7rem;
+  color: var(--kb-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.at-mention-dropdown__footer kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  background: var(--kb-white);
+  border: 1px solid var(--kb-border);
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-family: inherit;
+  color: var(--kb-text);
+  line-height: 1.4;
+}

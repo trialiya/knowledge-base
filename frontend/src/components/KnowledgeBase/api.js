@@ -23,6 +23,15 @@ const api = {
 
   search: (q, mode) => fetch(`/api/search?q=${encodeURIComponent(q)}&mode=${mode}`).then((r) => r.json()),
 
+  /**
+   * Find documents by name fragment — used by @mention autocomplete.
+   * Returns up to `limit` DocumentNode objects, exact matches first.
+   */
+  searchByName: (name, limit = 10) => {
+    const params = new URLSearchParams({ name, limit: String(limit) });
+    return fetch(`/api/documents/search-by-name?${params}`).then((r) => r.json());
+  },
+
   create: (body) =>
     fetch('/api/documents', {
       method: 'POST',

@@ -58,6 +58,7 @@ const KnowledgeBase = ({ onNavigateToChat }) => {
     onRename: handleRename,
     onSummarize: handleSummarize,
     onLoadChildren: handleLoadChildren,
+    tree,
   };
 
   return (

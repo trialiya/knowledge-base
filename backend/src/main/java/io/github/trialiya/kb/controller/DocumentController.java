@@ -187,6 +187,28 @@ public class DocumentController {
         };
     }
 
+    // ── @mention autocomplete ─────────────────────────────────────────────────────
+
+    /**
+     * Find documents/folders whose title contains {@code name} (case-insensitive). Used by the
+     * markdown editor's {@code @mention} autocomplete.
+     *
+     * <p>Exact matches are returned first; partial matches follow ordered by title length.
+     *
+     * <pre>GET /api/documents/search-by-name?name=введение&limit=10</pre>
+     *
+     * @param name full or partial title fragment to look up (required, min 1 char)
+     * @param limit max results to return (default 10, max 20)
+     */
+    @GetMapping("/documents/search-by-name")
+    public List<DocumentNode> searchByName(
+            @RequestParam String name, @RequestParam(defaultValue = "10") int limit) {
+        if (name == null || name.isBlank()) return List.of();
+        return service.findByName(name).stream()
+                .limit(Math.min(limit, 20))
+                .collect(java.util.stream.Collectors.toList());
+    }
+
     // ── Admin ─────────────────────────────────────────────────────────────────
 
     /**

@@ -38,7 +38,6 @@ const AISummarySection = ({ node, onSummarize }) => {
     </span>
   );
 
-  // ── Has summary ──────────────────────────────────────────────────────────────
   if (node.summary) {
     return (
       <section className="summary-section ai-summary-section">
@@ -63,15 +62,12 @@ const AISummarySection = ({ node, onSummarize }) => {
     );
   }
 
-  // ── No summary yet ───────────────────────────────────────────────────────────
   return (
     <section className="summary-section ai-summary-section">
       <div className="summary-section__head">
         <span className="summary-section__label">{label}</span>
       </div>
       <div className="ai-summary-empty">
-        {/*<IconSparkle size={28} />*/}
-        <p className="ai-summary-empty__text">AI ещё не сгенерировал краткое содержание этого документа</p>
         <button
           className={`ai-summary-generate-btn${summarizing ? ' ai-summary-generate-btn--loading' : ''}`}
           onClick={handleSummarize}
@@ -89,7 +85,18 @@ const AISummarySection = ({ node, onSummarize }) => {
 
 // ─── DocumentDetail ───────────────────────────────────────────────────────────
 
-const DocumentDetail = ({ node, path, tab, onTabChange, onUpdate, onDelete, onNavigate, onRename, onSummarize }) => {
+const DocumentDetail = ({
+  node,
+  path,
+  tab,
+  onTabChange,
+  onUpdate,
+  onDelete,
+  onNavigate,
+  onRename,
+  onSummarize,
+  tree = [],
+}) => {
   const [attachmentCount, setAttachmentCount] = useState(0);
 
   const handleRename = (id, name) => {
@@ -121,7 +128,13 @@ const DocumentDetail = ({ node, path, tab, onTabChange, onUpdate, onDelete, onNa
           <div className="summary-tab">
             <AISummarySection node={node} onSummarize={onSummarize} />
 
-            <SummarySection label="DESCRIPTION" description={node.description} onEdit={() => onTabChange('content')} />
+            <SummarySection
+              label="About"
+              description={node.description}
+              onEdit={() => onTabChange('content')}
+              tree={tree}
+              onNavigate={onNavigate}
+            />
 
             <SummarySection label="Attachments" showMoreBtn onMore={() => onTabChange('attachments')}>
               <AttachmentPanel ownerType="document" ownerId={node.id} compact onCountChange={setAttachmentCount} />
@@ -134,6 +147,8 @@ const DocumentDetail = ({ node, path, tab, onTabChange, onUpdate, onDelete, onNa
             value={node.description || ''}
             placeholder="# Markdown контент..."
             onSave={(val) => onUpdate(node.id, { description: val })}
+            tree={tree}
+            onNavigate={onNavigate}
           />
         )}
 

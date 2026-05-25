@@ -13,10 +13,19 @@ const TABS = [
   { key: 'attachments', label: 'Attachments' },
 ];
 
-const FolderDetail = ({ node, path, tab, onTabChange, onUpdate, onDelete, onNavigate, onRename, onLoadChildren }) => {
+const FolderDetail = ({
+  node,
+  path,
+  tab,
+  onTabChange,
+  onUpdate,
+  onDelete,
+  onNavigate,
+  onRename,
+  onLoadChildren,
+  tree = [],
+}) => {
   const [attachmentCount, setAttachmentCount] = useState(0);
-  // Single source of truth for this folder's children, loaded through the
-  // shared (deduplicated) tree loader so it doesn't duplicate the tree's fetch.
   const { children, loading: childrenLoading } = useFolderChildren(node, onLoadChildren);
 
   return (
@@ -41,7 +50,13 @@ const FolderDetail = ({ node, path, tab, onTabChange, onUpdate, onDelete, onNavi
       <div className="detail-body">
         {tab === 'summary' && (
           <div className="summary-tab">
-            <SummarySection label="About" description={node.description} onEdit={() => onTabChange('content')} />
+            <SummarySection
+              label="About"
+              description={node.description}
+              onEdit={() => onTabChange('content')}
+              tree={tree}
+              onNavigate={onNavigate}
+            />
             {children.length > 0 && (
               <SummarySection label="Contents" showMoreBtn onMore={() => onTabChange('contents')}>
                 <ContentsTable children={children} onNavigate={onNavigate} />
@@ -58,6 +73,8 @@ const FolderDetail = ({ node, path, tab, onTabChange, onUpdate, onDelete, onNavi
             value={node.description || ''}
             placeholder="Описание папки..."
             onSave={(val) => onUpdate(node.id, { description: val })}
+            tree={tree}
+            onNavigate={onNavigate}
           />
         )}
 

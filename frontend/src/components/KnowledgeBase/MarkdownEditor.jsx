@@ -2,6 +2,23 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { IconBold, IconItalic, IconCode, IconLink, IconH1, IconList, IconQuote, IconEye, IconEyeOff } from './icons';
+import DocLinkTooltip from './DocLinkTooltip';
+import AtMentionDropdown from './AtMentionDropdown';
+import useAtMention from './useAtMention';
+
+// ─── Markdown components factory ──────────────────────────────────────────────
+// Returns a ReactMarkdown `components` map that intercepts /?doc=N links.
+// Called outside the component so the object reference is stable per (tree, onNavigate) pair.
+
+function getMarkdownComponents(tree, onNavigate) {
+  return {
+    a: ({ href, children, ...props }) => (
+      <DocLinkTooltip href={href} tree={tree} onNavigate={onNavigate} {...props}>
+        {children}
+      </DocLinkTooltip>
+    ),
+  };
+}
 
 // ─── Toolbar button ───────────────────────────────────────────────────────────
 
@@ -25,7 +42,6 @@ function wrapSelection(textarea, before, after = before) {
   const { selectionStart: s, selectionEnd: e, value } = textarea;
   const selected = value.slice(s, e) || 'текст';
   const newVal = value.slice(0, s) + before + selected + after + value.slice(e);
-  // Return new value and new cursor range
   return { newVal, from: s + before.length, to: s + before.length + selected.length };
 }
 
@@ -51,8 +67,17 @@ function prependLine(textarea, prefix) {
  *   placeholder — placeholder text for textarea
  *   onSave      — async (val: string) => void
  *   previewOnly — if true, renders only the preview pane without toolbar or editor controls
+ *   tree        — KB tree array (for DocLinkTooltip instant lookup)
+ *   onNavigate  — (node) => void (for DocLinkTooltip "Открыть" button)
  */
-const MarkdownEditor = ({ value, placeholder = '# Markdown...', onSave, previewOnly = false }) => {
+const MarkdownEditor = ({
+  value,
+  placeholder = '# Markdown...',
+  onSave,
+  previewOnly = false,
+  tree = [],
+  onNavigate,
+}) => {
   const [val, setVal] = useState(value);
   const [dirty, setDirty] = useState(false);
   const [preview, setPreview] = useState(false);
@@ -64,10 +89,22 @@ const MarkdownEditor = ({ value, placeholder = '# Markdown...', onSave, previewO
     setDirty(false);
   }, [value]);
 
+  // ── @mention ──────────────────────────────────────────────────────────────
+
+  const mention = useAtMention(textareaRef, val, (newVal, newCursor) => {
+    setVal(newVal);
+    setDirty(true);
+    requestAnimationFrame(() => {
+      const ta = textareaRef.current;
+      if (ta) ta.setSelectionRange(newCursor, newCursor);
+    });
+  });
+
+  // ── Toolbar ───────────────────────────────────────────────────────────────
+
   const applyTransform = useCallback(({ newVal, from, to }) => {
     setVal(newVal);
     setDirty(true);
-    // Restore focus + selection after React re-render
     requestAnimationFrame(() => {
       const ta = textareaRef.current;
       if (!ta) return;
@@ -90,8 +127,12 @@ const MarkdownEditor = ({ value, placeholder = '# Markdown...', onSave, previewO
     },
   ];
 
-  // Tab key → indent with 2 spaces
+  // Tab key → indent with 2 spaces; also route to mention keyboard handler
   const handleKeyDown = (e) => {
+    // Let @mention consume arrow keys / Enter / Escape when active
+    mention.handleKeyDown(e);
+    if (e.defaultPrevented) return;
+
     if (e.key === 'Tab') {
       e.preventDefault();
       const ta = e.target;
@@ -105,12 +146,14 @@ const MarkdownEditor = ({ value, placeholder = '# Markdown...', onSave, previewO
     }
   };
 
-  // ─── Preview-only mode (used in SummarySection) ───────────────────────────
+  // ── Preview-only mode (used in SummarySection) ────────────────────────────
   if (previewOnly) {
     return (
       <div className="md-preview md-preview--embedded">
         {val ? (
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{val}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={getMarkdownComponents(tree, onNavigate)}>
+            {val}
+          </ReactMarkdown>
         ) : (
           <p className="md-preview__empty">Нечего показывать</p>
         )}
@@ -118,7 +161,7 @@ const MarkdownEditor = ({ value, placeholder = '# Markdown...', onSave, previewO
     );
   }
 
-  // ─── Full editor mode ─────────────────────────────────────────────────────
+  // ── Full editor mode ──────────────────────────────────────────────────────
   return (
     <div className="md-editor">
       {/* Toolbar */}
@@ -138,25 +181,43 @@ const MarkdownEditor = ({ value, placeholder = '# Markdown...', onSave, previewO
       </div>
 
       {/* Pane */}
-      <div className="md-pane">
+      <div className="md-pane" style={{ position: 'relative' }}>
         {!preview && (
-          <textarea
-            ref={textareaRef}
-            className="md-textarea"
-            placeholder={placeholder}
-            value={val}
-            onChange={(e) => {
-              setVal(e.target.value);
-              setDirty(true);
-            }}
-            onKeyDown={handleKeyDown}
-            spellCheck={false}
-          />
+          <>
+            <textarea
+              ref={textareaRef}
+              className="md-textarea"
+              placeholder={placeholder}
+              value={val}
+              onChange={(e) => {
+                setVal(e.target.value);
+                setDirty(true);
+              }}
+              onKeyDown={handleKeyDown}
+              spellCheck={false}
+            />
+
+            {/* @mention dropdown — rendered in a portal-like fixed div via CSS position:fixed */}
+            {mention.active && (
+              <AtMentionDropdown
+                results={mention.results}
+                loading={mention.loading}
+                query={mention.query}
+                anchorRect={mention.anchorRect}
+                selectedIdx={mention.selectedIdx}
+                onSelect={mention.select}
+                onDismiss={mention.dismiss}
+              />
+            )}
+          </>
         )}
+
         {preview && (
           <div className="md-preview">
             {val ? (
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{val}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={getMarkdownComponents(tree, onNavigate)}>
+                {val}
+              </ReactMarkdown>
             ) : (
               <p className="md-preview__empty">Нечего показывать</p>
             )}
@@ -176,9 +237,7 @@ const MarkdownEditor = ({ value, placeholder = '# Markdown...', onSave, previewO
                 await onSave(val);
                 setDirty(false);
               } catch (err) {
-                // При ошибке изменения остаются в редакторе
                 console.error('Save error in MarkdownEditor:', err);
-                // dirty остается true, панель сохранения не исчезает
               } finally {
                 setSaving(false);
               }
