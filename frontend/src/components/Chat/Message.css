@@ -31,104 +31,140 @@
   white-space: normal; /* обязательно для Markdown */
 }
 
-/* Параграфы */
-.message.ai p {
-  margin: 8px 0;
+/* ═══════════════════════════════════════════════
+   MARKDOWN В СООБЩЕНИЯХ AI — стиль KnowledgeBase (.md-preview)
+   Адаптировано из KnowledgeBase/styles/editor.css.
+   Светлые блоки кода (без тёмного SyntaxHighlighter),
+   акцентные ссылки/код, аккуратные таблицы и цитаты.
+═══════════════════════════════════════════════ */
+
+.message.ai .md-preview {
+  font-size: 0.9rem;
+  line-height: 1.75;
+  color: var(--kb-text);
+  background: transparent;
+  padding: 0;
 }
 
-/* Маркированные списки */
-.message.ai ul {
-  margin: 8px 0;
-  padding-left: 20px;
+/* Первый/последний потомок без лишних внешних отступов */
+.message.ai .md-preview > :first-child {
+  margin-top: 0;
+}
+.message.ai .md-preview > :last-child {
+  margin-bottom: 0;
+}
+
+.message.ai .md-preview h1,
+.message.ai .md-preview h2,
+.message.ai .md-preview h3,
+.message.ai .md-preview h4,
+.message.ai .md-preview h5,
+.message.ai .md-preview h6 {
+  color: var(--kb-text);
+  margin: 1.2em 0 0.4em;
+  font-weight: 700;
+  line-height: 1.3;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.message.ai .md-preview h1 {
+  font-size: 1.5rem;
+}
+.message.ai .md-preview h2 {
+  font-size: 1.25rem;
+}
+.message.ai .md-preview h3 {
+  font-size: 1.05rem;
+}
+.message.ai .md-preview p {
+  margin: 0 0 0.8em;
+}
+.message.ai .md-preview ul,
+.message.ai .md-preview ol {
+  padding-left: 1.4em;
+  margin: 0 0 0.8em;
+}
+.message.ai .md-preview ul {
   list-style-type: disc;
 }
-
-/* Нумерованные списки */
-.message.ai ol {
-  margin: 8px 0;
-  padding-left: 20px;
+.message.ai .md-preview ol {
   list-style-type: decimal;
 }
-
-.message.ai li {
-  margin-bottom: 4px;
+.message.ai .md-preview li {
+  margin-bottom: 0.2em;
 }
-
-/* Таблицы */
-.markdown-table {
-  border-collapse: collapse;
-  width: 100%;
-  margin: 1em 0;
-  font-size: 0.9em;
+.message.ai .md-preview code {
+  font-family: 'Fira Mono', 'Consolas', monospace;
+  font-size: 0.83em;
+  background: var(--kb-bg);
+  padding: 2px 5px;
+  border-radius: 4px;
+  color: var(--kb-accent);
 }
-.markdown-table th,
-.markdown-table td {
-  border: 1px solid #ddd;
-  padding: 8px 12px;
-  text-align: left;
-}
-.markdown-table th {
-  background-color: #f2f2f2;
-  font-weight: bold;
-}
-
-/* Кодовые блоки (общий контейнер) */
-.message.ai pre {
-  border-radius: 0;
-  padding: 0;
-  margin: 0.6em 0;
-  overflow: hidden;
+.message.ai .md-preview pre {
+  background: var(--kb-bg);
+  border: 1px solid var(--kb-border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  margin: 0 0 0.8em;
   max-width: 100%;
 }
-
-/* Горизонтальный скролл для содержимого кода внутри pre */
-.message.ai pre > div,
-.message.ai pre > code {
-  overflow-x: auto;
-  border-radius: 0 !important;
-  padding: 0.5em;
-  background: var(--kb-bg);
-}
-
-/* Блок кода без указанного языка */
-.message.ai pre.message-code-block {
-  background-color: #1e1e1e;
-  border-radius: 0;
-  padding: 0.75em 1em;
-  margin: 0.6em 0;
-  overflow-x: auto;
-}
-.message.ai pre.message-code-block code {
+.message.ai .md-preview pre code {
   background: none;
-  border: none;
   padding: 0;
-  color: #e6e6e6;
-  font-family: 'Fira Mono', 'Consolas', monospace;
+  color: var(--kb-text);
   font-size: 0.85em;
-  font-weight: bold;
   white-space: pre;
 }
-.message.ai code:not(pre > code) {
-  background-color: rgba(0, 0, 0, 0.07);
-  padding: 0.15em 0.45em;
-  border-radius: 5px;
-  font-size: 0.88em;
-  color: #444;
-  font-family: 'Fira Mono', 'Consolas', monospace;
+.message.ai .md-preview blockquote {
+  border-left: 3px solid var(--kb-accent);
+  margin: 0 0 0.8em;
+  padding: 0.4em 1em;
+  color: var(--kb-muted);
+  background: var(--kb-accent-light);
+  border-radius: 0 6px 6px 0;
+}
+.message.ai .md-preview a {
+  color: var(--kb-accent);
+  text-decoration: underline;
+}
+.message.ai .md-preview a:hover {
+  opacity: 0.75;
+}
+.message.ai .md-preview hr {
+  border: none;
+  border-top: 1px solid var(--kb-border);
+  margin: 1em 0;
+}
+.message.ai .md-preview table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 0.8em;
+  font-size: 0.87rem;
+}
+.message.ai .md-preview th,
+.message.ai .md-preview td {
+  border: 1px solid var(--kb-border);
+  padding: 6px 10px;
+}
+.message.ai .md-preview th {
+  background: var(--kb-bg);
+  font-weight: 600;
 }
 
-/* Заголовки */
-.message.ai h1,
-.message.ai h2,
-.message.ai h3 {
-  margin-top: 1em;
-  margin-bottom: 0.5em;
-  color: #333;
+/* ── doc-link внутри рендеренного markdown (стиль KB) ── */
+/* Перекрывает общее .md-preview a, чтобы внутренние KB-ссылки были пунктирными */
+.message.ai .md-preview a.doc-link {
+  color: var(--kb-accent);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--kb-accent);
+  cursor: pointer;
+  transition: opacity 0.15s, border-bottom-style 0.15s;
 }
-.message.ai h3 {
-  font-size: 1.2em;
-  border-bottom: 1px solid #eee;
-  padding-bottom: 0.3em;
+.message.ai .md-preview a.doc-link:hover {
+  opacity: 0.8;
+  border-bottom-style: solid;
 }
 
 /* ── Source toggle ── */
@@ -176,6 +212,211 @@
   overflow-x: auto;
   box-sizing: border-box;
   width: 100%;
+}
+
+/* ═══════════════════════════════════════════════
+   DOC PREVIEW TOOLTIP (рендерится через портал в document.body)
+   Скопировано из KnowledgeBase/styles/doc-preview.css — портал
+   находится вне .message.ai, поэтому классы НЕ скоупятся.
+═══════════════════════════════════════════════ */
+
+.doc-preview-tooltip {
+  position: fixed;
+  z-index: 9100;
+  width: 300px;
+  background: var(--kb-white);
+  border: 1.5px solid var(--kb-border);
+  border-radius: var(--kb-radius);
+  box-shadow: 0 8px 32px rgba(91, 79, 207, 0.18);
+  overflow: hidden;
+  pointer-events: auto;
+  animation: doc-tooltip-in 0.12s ease;
+}
+
+@keyframes doc-tooltip-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.doc-preview-tooltip__loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  font-size: 0.84rem;
+  color: var(--kb-muted);
+}
+
+.doc-preview-tooltip__error {
+  padding: 14px 16px;
+  font-size: 0.84rem;
+  color: #d95f5f;
+}
+
+.doc-preview-tooltip__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px 9px;
+  background: var(--kb-bg);
+  border-bottom: 1px solid var(--kb-border);
+}
+
+.doc-preview-tooltip__icon {
+  display: flex;
+  align-items: center;
+  color: var(--kb-muted);
+  flex-shrink: 0;
+}
+
+.doc-preview-tooltip__icon--folder {
+  color: var(--kb-accent);
+}
+
+.doc-preview-tooltip__title {
+  flex: 1;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--kb-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+}
+
+.doc-preview-tooltip__badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: #f0f0f8;
+  color: var(--kb-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.doc-preview-tooltip__badge--folder {
+  background: var(--kb-accent-bg);
+  color: var(--kb-accent);
+}
+
+.doc-preview-tooltip__summary {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--kb-border);
+}
+
+.doc-preview-tooltip__summary-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--kb-accent);
+  margin-bottom: 5px;
+}
+
+.doc-preview-tooltip__stale {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: #fffbeb;
+  border: 1px solid #f59e0b;
+  color: #d97706;
+}
+
+.doc-preview-tooltip__summary-text {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--kb-text);
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.doc-preview-tooltip__description {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--kb-border);
+}
+
+.doc-preview-tooltip__description-text {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--kb-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.doc-preview-tooltip__empty {
+  margin: 0;
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  color: var(--kb-muted);
+  font-style: italic;
+  border-bottom: 1px solid var(--kb-border);
+}
+
+.doc-preview-tooltip__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 14px;
+  background: var(--kb-bg);
+}
+
+.doc-preview-tooltip__date {
+  font-size: 0.74rem;
+  color: var(--kb-muted);
+}
+
+.doc-preview-tooltip__open {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--kb-accent);
+  padding: 0;
+  transition: opacity 0.15s;
+}
+
+.doc-preview-tooltip__open:hover {
+  opacity: 0.75;
+  text-decoration: underline;
+}
+
+.doc-preview-tooltip__spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--kb-border);
+  border-top-color: var(--kb-accent);
+  border-radius: 50%;
+  animation: doc-spin 0.65s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes doc-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ── Tool call notifications ── */

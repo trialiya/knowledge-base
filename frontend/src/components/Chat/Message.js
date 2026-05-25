@@ -1,9 +1,8 @@
 import React, { useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import ReactMarkdown from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import remarkGfm from 'remark-gfm';
+import ChatDocLink from './ChatDocLink';
 import './Message.css';
 
 // Добавляем пустую строку перед списками, если она отсутствует
@@ -241,7 +240,42 @@ const ToolCallNotifications = ({ toolCalls }) => {
   );
 };
 
-const Message = ({ text, sender, toolCalls }) => {
+// ─── Markdown components (стиль KnowledgeBase .md-preview) ─────────────────────
+// Вынесено в фабрику, чтобы ссылки получали onNavigateToDoc через замыкание.
+
+function getMarkdownComponents(onNavigateToDoc) {
+  return {
+    // Все ссылки проходят через ChatDocLink: внутренние /?doc=N → превью+навигация,
+    // внешние → обычная <a target="_blank">.
+    a: ({ href, children, ...props }) => (
+      <ChatDocLink href={href} onNavigateToDoc={onNavigateToDoc} {...props}>
+        {children}
+      </ChatDocLink>
+    ),
+    // Светлые блоки кода в стиле .md-preview pre/code (без тёмного SyntaxHighlighter).
+    code({ inline, className, children, ...props }) {
+      const raw = String(children).replace(/\n$/, '');
+      const isBlock = !inline && (raw.includes('\n') || /language-(\w+)/.test(className || ''));
+
+      if (!isBlock) {
+        return (
+          <code className={className} {...props}>
+            {children}
+          </code>
+        );
+      }
+      return (
+        <pre>
+          <code className={className} {...props}>
+            {raw}
+          </code>
+        </pre>
+      );
+    },
+  };
+}
+
+const Message = ({ text, sender, toolCalls, onNavigateToDoc }) => {
   const [showSource, setShowSource] = useState(false);
   const messageClass = `message ${sender}`;
   const hasToolCalls = toolCalls && toolCalls.length > 0;
@@ -262,38 +296,11 @@ const Message = ({ text, sender, toolCalls }) => {
           {showSource ? (
             <pre className="message-raw-source">{text}</pre>
           ) : (
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                code({ node, className, children, ...props }) {
-                  const match = /language-(\w+)/.exec(className || '');
-                  const raw = String(children).replace(/\n$/, '');
-                  const isBlock = !!match || raw.includes('\n');
-
-                  if (!isBlock) {
-                    return (
-                      <code className={className} {...props}>
-                        {children}
-                      </code>
-                    );
-                  }
-                  return match ? (
-                    <SyntaxHighlighter style={vscDarkPlus} language={match[1]} PreTag="div" {...props}>
-                      {raw}
-                    </SyntaxHighlighter>
-                  ) : (
-                    <pre className="message-code-block">
-                      <code>{raw}</code>
-                    </pre>
-                  );
-                },
-                table({ children }) {
-                  return <table className="markdown-table">{children}</table>;
-                },
-              }}
-            >
-              {preprocessText(text)}
-            </ReactMarkdown>
+            <div className="md-preview md-preview--chat">
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={getMarkdownComponents(onNavigateToDoc)}>
+                {preprocessText(text)}
+              </ReactMarkdown>
+            </div>
           )}
         </>
       ) : (

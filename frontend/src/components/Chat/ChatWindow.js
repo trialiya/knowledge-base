@@ -703,7 +703,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true }) => {
             </span>
           </div>
         ) : (
-          <MessageList messages={activeMessages} />
+          <MessageList messages={activeMessages} onNavigateToDoc={onNavigateToDoc} />
         )}
 
         {/* Message input with inline attach */}

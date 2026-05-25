@@ -53,19 +53,40 @@ export function getUrlState() {
 }
 
 /**
+ * Записывает URL в историю, но ТОЛЬКО если query реально изменился.
+ * Это устраняет дублирующие записи истории (например, когда App.js уже
+ * сделал pushState на переход, а компонент в ответ на навигацию пишет
+ * тот же самый URL повторно) — из-за них кнопка «Назад» работала через раз.
+ *
+ * @param {URLSearchParams} params
+ * @param {{ replace?: boolean }} [opts] — replace:true делает replaceState вместо pushState
+ */
+function commitUrl(params, { replace = false } = {}) {
+  const next = `?${params.toString()}`;
+  // location.search пустой ('') соответствует '?'
+  const current = window.location.search || '?';
+  if (next === current) return;
+  if (replace) {
+    window.history.replaceState({}, '', next);
+  } else {
+    window.history.pushState({}, '', next);
+  }
+}
+
+/**
  * Switch the active top-level tab without clobbering other params.
  */
-export function setUrlTab(view) {
+export function setUrlTab(view, opts) {
   const params = new URLSearchParams(window.location.search);
   params.set('view', view);
-  window.history.pushState({}, '', `?${params.toString()}`);
+  commitUrl(params, opts);
 }
 
 /**
  * Update KB-specific URL params (doc, tab, search, mode).
  * Preserves `view` and `chat` params.
  */
-export function setKBUrlState(docId, docTab, searchQuery, searchMode) {
+export function setKBUrlState(docId, docTab, searchQuery, searchMode, opts) {
   const params = new URLSearchParams(window.location.search);
 
   // Always keep view=knowledge when KB is updating its URL
@@ -94,15 +115,14 @@ export function setKBUrlState(docId, docTab, searchQuery, searchMode) {
     params.delete('mode');
   }
 
-  const url = `?${params.toString()}`;
-  window.history.pushState({}, '', url);
+  commitUrl(params, opts);
 }
 
 /**
  * Update chat-specific URL param.
  * Preserves `view` and KB params.
  */
-export function setChatUrlState(chatId) {
+export function setChatUrlState(chatId, opts) {
   const params = new URLSearchParams(window.location.search);
 
   // Always keep view=chat when chat is updating its URL
@@ -114,8 +134,7 @@ export function setChatUrlState(chatId) {
     params.delete('chat');
   }
 
-  const url = `?${params.toString()}`;
-  window.history.pushState({}, '', url);
+  commitUrl(params, opts);
 }
 
 // ── Legacy alias (used internally by KnowledgeBase before refactor) ───────────

@@ -1,7 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import ChatWindow from './components/Chat/ChatWindow';
 import KnowledgeBase from './components/KnowledgeBase/KnowledgeBase';
-import { getUrlState, setUrlTab } from './components/Utils/utils';
+import { getUrlState, setUrlTab, setKBUrlState, setChatUrlState } from './components/Utils/utils';
 import './App.css';
 
 function getInitialTab() {
@@ -21,36 +21,55 @@ function App() {
     setUrlTab(tab);
   }, []);
 
+  // Синхронизация состояния с URL при навигации браузера (кнопки «Назад»/«Вперёд»).
+  // Без этого pushState из navigateToDoc/navigateToChat/setUrlTab меняет URL,
+  // но React-состояние остаётся прежним, и «Назад» визуально не работает.
+  useEffect(() => {
+    // На старте гарантируем, что текущая запись истории несёт явный view —
+    // иначе первый «Назад» после перехода вести некуда (нет исходной записи).
+    const { tab: urlTab, docId: urlDoc, searchQuery: urlSearch } = getUrlState();
+    if (urlTab !== 'chat' && urlTab !== 'knowledge') {
+      const params = new URLSearchParams(window.location.search);
+      const inferred = urlDoc || urlSearch ? 'knowledge' : 'chat';
+      params.set('view', inferred);
+      window.history.replaceState({}, '', `?${params.toString()}`);
+    }
+
+    const handlePopState = () => {
+      const { tab, docId, chatId } = getUrlState();
+      const nextTab = tab === 'chat' || tab === 'knowledge' ? tab : docId ? 'knowledge' : 'chat';
+
+      setActiveTab(nextTab);
+
+      // Переиспользуем существующий механизм синхронизации внутри вкладок:
+      // KnowledgeBase слушает app:navigate-doc, ChatWindow — app:navigate-chat.
+      if (nextTab === 'knowledge' && docId) {
+        window.dispatchEvent(new CustomEvent('app:navigate-doc', { detail: { docId } }));
+      } else if (nextTab === 'chat' && chatId) {
+        window.dispatchEvent(new CustomEvent('app:navigate-chat', { detail: { chatId } }));
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   /**
    * Cross-component navigation: ChatWindow can call this to jump to a
    * specific document in the Knowledge Base (and vice versa in the future).
    */
   const navigateToDoc = useCallback((docId) => {
     setActiveTab('knowledge');
-    // KnowledgeBase will pick up the doc param from the URL
-    const params = new URLSearchParams(window.location.search);
-    params.set('view', 'knowledge');
-    params.set('doc', docId);
-    params.delete('search');
-    const url = `?${params.toString()}`;
-    window.history.pushState({}, '', url);
+    // Запись URL идёт через общий commitUrl (с дедупликацией истории).
+    // searchQuery/mode сбрасываются автоматически при наличии docId.
+    setKBUrlState(docId, 'summary', '', '');
     // Dispatch a custom event so KnowledgeBase can react without remounting
     window.dispatchEvent(new CustomEvent('app:navigate-doc', { detail: { docId } }));
   }, []);
 
   const navigateToChat = useCallback((chatId) => {
     setActiveTab('chat');
-    const params = new URLSearchParams(window.location.search);
-    params.set('view', 'chat');
-    if (chatId) {
-      params.set('chat', chatId);
-    } else {
-      params.delete('chat');
-    }
-    params.delete('doc');
-    params.delete('search');
-    const url = `?${params.toString()}`;
-    window.history.pushState({}, '', url);
+    setChatUrlState(chatId);
     window.dispatchEvent(new CustomEvent('app:navigate-chat', { detail: { chatId } }));
   }, []);
 
