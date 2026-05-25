@@ -49,6 +49,13 @@ const api = {
 
   delete: (id) => fetch(`/api/documents/${id}`, { method: 'DELETE' }),
 
+  moveToParent: (id, newParentId) =>
+    fetch(`/api/documents/${id}/parent`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parentId: newParentId ?? null }),
+    }),
+
   reorder: (parentId, orderedIds) =>
     fetch('/api/documents/reorder', {
       method: 'PATCH',

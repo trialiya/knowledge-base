@@ -3,6 +3,7 @@ package io.github.trialiya.kb.controller;
 import io.github.trialiya.kb.model.doc.dto.CreateDocumentRequest;
 import io.github.trialiya.kb.model.doc.dto.Document;
 import io.github.trialiya.kb.model.doc.dto.DocumentNode;
+import io.github.trialiya.kb.model.doc.dto.MoveToParentRequest;
 import io.github.trialiya.kb.model.doc.dto.PagedChildren;
 import io.github.trialiya.kb.model.doc.dto.ReorderRequest;
 import io.github.trialiya.kb.model.doc.dto.SearchResult;
@@ -114,6 +115,24 @@ public class DocumentController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void reorder(@RequestBody ReorderRequest request) {
         service.reorder(request);
+    }
+
+    /**
+     * Moves a document/folder to a new parent (or to the root level).
+     *
+     * <pre>
+     * PATCH /api/documents/{id}/parent
+     * { "parentId": "42" }   // move into folder 42
+     * { "parentId": null }   // move to root
+     * </pre>
+     *
+     * Returns the updated document. Responds 400 if the move would create a cycle, 403 for system
+     * nodes, 404 if either node is missing, 422 if the target is not a folder.
+     */
+    @PatchMapping("/documents/{id}/parent")
+    public Document moveToParent(
+            @PathVariable String id, @RequestBody MoveToParentRequest request) {
+        return service.moveToParent(id, request.getParentId());
     }
 
     // ── Search ────────────────────────────────────────────────────────────────

@@ -454,16 +454,26 @@ export default function useKnowledgeBase() {
       setTree(newTree);
 
       const affectedParent = position === 'inside' ? targetId : targetParent;
-      const orderedIds = getSiblings(newTree, affectedParent).map((n) => n.id);
+      const isMove = draggedParent !== affectedParent;
 
       try {
-        const res = await api.reorder(affectedParent, orderedIds);
-        if (!res.ok) throw new Error('reorder failed');
-        if (draggedParent !== affectedParent) {
-          await api.update(draggedId, { parentId: affectedParent });
+        // 1. Parent change: call the dedicated move endpoint first.
+        //    It handles the cycle check and sets the new parentId in one transaction.
+        if (isMove) {
+          const moveRes = await api.moveToParent(draggedId, affectedParent ?? null);
+          if (!moveRes.ok) {
+            const body = await moveRes.json().catch(() => ({}));
+            throw new Error(body.message || `Move failed: ${moveRes.status}`);
+          }
         }
+
+        // 2. Persist the visual order of the new sibling list.
+        const orderedIds = getSiblings(newTree, affectedParent).map((n) => n.id);
+        const reorderRes = await api.reorder(affectedParent, orderedIds);
+        if (!reorderRes.ok) throw new Error('reorder failed');
       } catch (err) {
         console.error('Reorder error, rolling back:', err);
+        setSaveError({ message: err.message || 'Не удалось переместить документ. Попробуйте позже.' });
         loadTree();
       }
     },

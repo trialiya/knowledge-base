@@ -355,6 +355,91 @@ public class DocumentService {
         }
     }
 
+    // ── Move to parent ────────────────────────────────────────────────────────
+
+    /**
+     * Moves a document/folder to a new parent (or to the root level).
+     *
+     * <p>Validation:
+     *
+     * <ol>
+     *   <li>The node must exist.
+     *   <li>System nodes cannot be moved.
+     *   <li>If {@code newParentId} is not null the target folder must exist and be a folder.
+     *   <li>Moving a folder into itself or any of its descendants is rejected (cycle check).
+     * </ol>
+     *
+     * After the move the node is appended at the end of the new sibling list.
+     *
+     * @param id the document/folder to move
+     * @param newParentId target folder id, or {@code null} to move to root
+     * @throws ResponseStatusException 400 if the move would create a cycle
+     * @throws ResponseStatusException 403 if the node is system-protected
+     * @throws ResponseStatusException 404 if either node does not exist
+     * @throws ResponseStatusException 422 if the target is not a folder
+     */
+    @Transactional
+    public Document moveToParent(String id, String newParentId) {
+        DocumentEntity node = findOrThrow(id);
+
+        if (node.isSystem()) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "Cannot move a system document");
+        }
+
+        Long targetParentId = newParentId == null ? null : Long.parseLong(newParentId);
+
+        // No-op: already in the requested parent
+        if (java.util.Objects.equals(node.getParentId(), targetParentId)) {
+            return toDto(node);
+        }
+
+        // Validate target folder exists and is actually a folder
+        if (targetParentId != null) {
+            DocumentEntity targetFolder =
+                    repo.findById(targetParentId)
+                            .orElseThrow(
+                                    () ->
+                                            new ResponseStatusException(
+                                                    HttpStatus.NOT_FOUND,
+                                                    "Target parent not found"));
+            if (!"folder".equals(targetFolder.getType())) {
+                throw new ResponseStatusException(
+                        HttpStatus.UNPROCESSABLE_ENTITY, "Target must be a folder");
+            }
+
+            // Cycle check: targetParentId must not be the node itself or any of its descendants
+            if (targetParentId.equals(Long.parseLong(id))) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "Cannot move a folder into itself");
+            }
+            List<Long> descendants = repo.findDescendantIds(Long.parseLong(id));
+            if (descendants.contains(targetParentId)) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Cannot move a folder into one of its own descendants");
+            }
+        }
+
+        // Append at the end of the new sibling list
+        int newPosition = nextSiblingPosition(targetParentId);
+
+        node.setParentId(targetParentId);
+        node.setPosition(newPosition);
+        node.setUpdatedAt(LocalDateTime.now());
+
+        DocumentEntity saved;
+        try {
+            saved = repo.save(node);
+        } catch (OptimisticLockingFailureException ex) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Document was modified by another request. Please reload and try again.");
+        }
+
+        return toDto(saved);
+    }
+
     // ── History ───────────────────────────────────────────────────────────────
 
     /**
