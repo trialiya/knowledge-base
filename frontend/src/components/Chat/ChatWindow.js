@@ -232,6 +232,15 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true }) => {
   const activeMessages = useMemo(() => chats.find((c) => c.id === activeChatId)?.messages || [], [chats, activeChatId]);
   const activeChat = useMemo(() => chats.find((c) => c.id === activeChatId) || null, [chats, activeChatId]);
 
+  // Чат считается пустым ТОЛЬКО когда сообщения уже загружены (messages !== null)
+  // и среди них нет ни одного реального (с полем sender). Пока messages === null
+  // (идёт загрузка старого чата), блок не показываем — иначе он мелькает.
+  const isChatEmpty = useMemo(() => {
+    const msgs = activeChat?.messages;
+    if (!Array.isArray(msgs)) return false; // ещё не загружено
+    return !msgs.some((m) => m && m.sender);
+  }, [activeChat]);
+
   // Отправка сообщения
   const handleSendMessage = useCallback(
     async (text) => {
@@ -354,7 +363,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true }) => {
                 if (parsed.toolCalls && Array.isArray(parsed.toolCalls)) {
                   // Merge any missing tool calls from the summary
                   for (const tc of parsed.toolCalls) {
-                    const argsKey = JSON.stringify(tc.arguments || {});
+                    const argsKey = JSON.stringify(tc?.arguments || {});
                     const exists = toolCallsRef.current.some(
                       (t) => t.name === tc.name && JSON.stringify(t.arguments || {}) === argsKey,
                     );
@@ -723,6 +732,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true }) => {
             onStop={handleStopGeneration}
             disabled={isLoading}
             onAttach={() => attachFileRef.current?.click()}
+            isEmpty={isChatEmpty && !loadingMessages}
           />
         )}
       </div>

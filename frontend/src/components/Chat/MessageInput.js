@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import GitPhrases from './GitPhrases';
 
 const IconSend = () => (
   <svg
@@ -37,7 +38,8 @@ const IconPaperclip = () => (
   </svg>
 );
 
-const MessageInput = ({ onSend, onStop, disabled, onAttach }) => {
+// isEmpty — true когда в чате ещё нет сообщений; тогда показываем git-подсказки
+const MessageInput = ({ onSend, onStop, disabled, onAttach, isEmpty = false }) => {
   const [text, setText] = useState('');
   const textareaRef = useRef(null);
 
@@ -72,40 +74,57 @@ const MessageInput = ({ onSend, onStop, disabled, onAttach }) => {
     }
   };
 
+  // Вставить выбранную git-фразу в textarea и поставить курсор в конец
+  const handleSelectPhrase = (phraseText) => {
+    setText(phraseText);
+    setTimeout(() => {
+      const el = textareaRef.current;
+      if (el) {
+        el.focus();
+        el.setSelectionRange(el.value.length, el.value.length);
+      }
+    }, 0);
+  };
+
   return (
-    <div className="message-input-wrapper">
-      {onAttach && (
+    <div className="message-input-area">
+      {/* Блок git-фраз — только когда чат пустой */}
+      {isEmpty && <GitPhrases onSelect={handleSelectPhrase} />}
+
+      <div className="message-input-wrapper">
+        {onAttach && (
+          <button
+            type="button"
+            className="message-input-attach-btn"
+            onClick={onAttach}
+            title="Прикрепить файл"
+            tabIndex={-1}
+          >
+            <IconPaperclip />
+          </button>
+        )}
+        <textarea
+          ref={textareaRef}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Сообщение... (Shift+Enter — новая строка)"
+          disabled={disabled}
+          className="message-input"
+          rows={1}
+        />
         <button
           type="button"
-          className="message-input-attach-btn"
-          onClick={onAttach}
-          title="Прикрепить файл"
-          tabIndex={-1}
+          className={
+            disabled ? 'message-action-btn message-action-btn--stop' : 'message-action-btn message-action-btn--send'
+          }
+          onClick={disabled ? onStop : handleSubmit}
+          disabled={!disabled && !text.trim()}
+          title={disabled ? 'Остановить' : 'Отправить'}
         >
-          <IconPaperclip />
+          {disabled ? <IconStop /> : <IconSend />}
         </button>
-      )}
-      <textarea
-        ref={textareaRef}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder="Сообщение... (Shift+Enter — новая строка)"
-        disabled={disabled}
-        className="message-input"
-        rows={1}
-      />
-      <button
-        type="button"
-        className={
-          disabled ? 'message-action-btn message-action-btn--stop' : 'message-action-btn message-action-btn--send'
-        }
-        onClick={disabled ? onStop : handleSubmit}
-        disabled={!disabled && !text.trim()}
-        title={disabled ? 'Остановить' : 'Отправить'}
-      >
-        {disabled ? <IconStop /> : <IconSend />}
-      </button>
+      </div>
     </div>
   );
 };

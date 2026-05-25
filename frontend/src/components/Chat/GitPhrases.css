@@ -1,0 +1,129 @@
+/* ── Блок готовых git-фраз (над полем ввода) ─────────────────────────── */
+
+.git-phrases-block {
+  border-top: 1px solid var(--kb-border);
+  background: var(--kb-bg);
+  padding: 0.85rem 1rem 0.6rem;
+  flex-shrink: 0;
+}
+
+.git-phrases-block-header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.git-phrases-block-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--kb-text);
+}
+
+.git-phrases-block-title svg {
+  color: var(--kb-accent);
+}
+
+.git-phrases-block-hint {
+  font-size: 0.72rem;
+  color: var(--kb-muted);
+}
+
+/* Категории-фильтры */
+.git-phrases-categories {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.git-phrases-cat-btn {
+  background: var(--kb-white);
+  border: 1px solid var(--kb-border);
+  border-radius: 20px;
+  color: var(--kb-muted);
+  font-size: 0.73rem;
+  font-weight: 600;
+  padding: 3px 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.git-phrases-cat-btn:hover {
+  border-color: var(--kb-accent);
+  color: var(--kb-accent);
+  background: var(--kb-accent-light);
+}
+
+.git-phrases-cat-btn--active {
+  background: var(--kb-accent);
+  border-color: var(--kb-accent);
+  color: #fff;
+}
+
+/* Сетка чипов с фразами */
+.git-phrases-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 168px;
+  overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--kb-border) transparent;
+}
+.git-phrases-grid::-webkit-scrollbar {
+  width: 5px;
+}
+.git-phrases-grid::-webkit-scrollbar-thumb {
+  background: var(--kb-border);
+  border-radius: 4px;
+}
+
+/* Чип одной фразы */
+.git-phrases-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  background: var(--kb-white);
+  border: 1px solid var(--kb-border);
+  border-radius: 12px;
+  padding: 6px 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.12s;
+  max-width: 100%;
+}
+
+.git-phrases-chip:hover {
+  border-color: var(--kb-accent);
+  background: var(--kb-accent-light);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(91, 79, 207, 0.12);
+}
+
+.git-phrases-chip-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--kb-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+}
+
+.git-phrases-chip:hover .git-phrases-chip-label {
+  color: var(--kb-accent);
+}
+
+.git-phrases-chip-category {
+  font-size: 0.65rem;
+  color: var(--kb-muted);
+  font-weight: 500;
+}
