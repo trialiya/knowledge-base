@@ -99,8 +99,9 @@ public class RecordingToolCallback implements ToolCallback {
                     .map(Map::entrySet)
                     .flatMap(Collection::stream)
                     .filter(entry -> ALLOWED_INPUT_ARGUMENTS.contains(entry.getKey().toString()))
+                    .filter(entry -> entry.getValue() != null)
                     .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
-        } catch (JsonProcessingException e) {
+        } catch (NullPointerException | JsonProcessingException e) {
             logger.error("Error parsing tool input {}", toolInput, e);
             return Map.of();
         }
