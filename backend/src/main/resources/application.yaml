@@ -46,6 +46,9 @@ spring:
     multipart:
       max-file-size: 1MB
       max-request-size: 2MB
+  mvc:
+    async:
+      request-timeout: 10m
 
 server:
   servlet:
@@ -53,7 +56,6 @@ server:
       charset: UTF-8
       enabled: true
       force: true
-
 kb:
   documents:
     export-path: ${DOCUMENTS_EXPORT_PATH}

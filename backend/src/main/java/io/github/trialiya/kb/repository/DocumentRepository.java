@@ -36,6 +36,7 @@ public interface DocumentRepository
             """
         SELECT * FROM documents
         WHERE (title ILIKE '%' || :q || '%'
+               OR summary ILIKE '%' || :q || '%'
                OR description ILIKE '%' || :q || '%')
         ORDER BY updated_at DESC
         LIMIT 20
