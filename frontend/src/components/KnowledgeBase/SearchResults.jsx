@@ -1,5 +1,5 @@
 import React from 'react';
-import { IconDoc, IconFolder, IconChevronRight } from './icons';
+import { IconDoc, IconFolder, IconChevronRight, IconSparkle } from './icons';
 import { findPath } from '../Utils/utils';
 
 const ResultBreadcrumb = ({ resultId, tree }) => {
@@ -49,6 +49,15 @@ const SearchResults = ({ query, results, tree, onSelect }) => (
               <span className="sr-card__date">{new Date(res.updatedAt).toLocaleDateString('ru-RU')}</span>
             </div>
             <ResultBreadcrumb resultId={res.id} tree={tree} />
+            {res.summary && (
+              <div className="sr-card__summary">
+                <span className="doc-preview-tooltip__summary-label">
+                  <IconSparkle size={11} />
+                  AI Summary
+                </span>
+                <p className="doc-preview-tooltip__summary-text">{res.summary}</p>
+              </div>
+            )}
             {res.snippet && <p className="sr-card__snippet">{res.snippet}</p>}
           </div>
         ))
