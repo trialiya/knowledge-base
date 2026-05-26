@@ -40,7 +40,7 @@ const SearchResults = ({ query, results, tree, onSelect }) => (
         <p className="sr-empty">Ничего не найдено</p>
       ) : (
         results.map((res) => (
-          <div key={res.id} className="sr-card" onClick={() => onSelect(res)}>
+          <div key={res.id} className="sr-card" onClick={() => onSelect(res.id)}>
             <div className="sr-card__head">
               <span className="sr-card__icon">
                 <IconDoc size={14} />
