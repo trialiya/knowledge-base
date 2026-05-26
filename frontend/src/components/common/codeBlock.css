@@ -1,0 +1,61 @@
+/* ── Code block + head (lang label + copy) ── */
+.code-block {
+  position: relative;
+  margin: 0 0 0.8em;
+}
+
+.code-block__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+  padding: 2px 6px 2px 12px;
+  background: var(--kb-bg);
+  border: 1px solid var(--kb-border);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+}
+
+.code-block__lang {
+  font-family: 'Fira Mono', 'Consolas', monospace;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--kb-muted);
+  user-select: none;
+}
+
+.code-block__copy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--kb-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, background 0.15s, border-color 0.15s;
+}
+.code-block:hover .code-block__copy {
+  opacity: 1;
+}
+.code-block__copy:hover {
+  color: var(--kb-accent);
+  border-color: var(--kb-border);
+  background: var(--kb-white);
+}
+.code-block__copy--done {
+  opacity: 1;
+}
+
+/* pre теперь стыкуется с шапкой — убираем верхний радиус и двойной отступ */
+.code-block > pre {
+  margin: 0;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}

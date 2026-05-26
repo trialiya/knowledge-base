@@ -5,6 +5,7 @@ import { IconBold, IconItalic, IconCode, IconLink, IconH1, IconList, IconQuote, 
 import DocLinkTooltip from './DocLinkTooltip';
 import AtMentionDropdown from './AtMentionDropdown';
 import useAtMention from './useAtMention';
+import CodeBlock from '../common/CodeBlock';
 
 // ─── Markdown components factory ──────────────────────────────────────────────
 // Returns a ReactMarkdown `components` map that intercepts /?doc=N links.
@@ -17,6 +18,23 @@ function getMarkdownComponents(tree, onNavigate) {
         {children}
       </DocLinkTooltip>
     ),
+    code({ inline, className, children, ...props }) {
+      const raw = String(children).replace(/\n$/, '');
+      const isBlock = !inline && (raw.includes('\n') || /language-(\w+)/.test(className || ''));
+
+      if (!isBlock) {
+        return (
+          <code className={className} {...props}>
+            {children}
+          </code>
+        );
+      }
+      return (
+        <CodeBlock code={raw} className={className} {...props}>
+          {raw}
+        </CodeBlock>
+      );
+    },
   };
 }
 

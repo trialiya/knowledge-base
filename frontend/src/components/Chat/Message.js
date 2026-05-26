@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import ChatDocLink from './ChatDocLink';
 import './Message.css';
+import CodeBlock from '../common/CodeBlock';
 
 // Добавляем пустую строку перед списками, если она отсутствует
 const preprocessText = (text) => {
@@ -109,17 +110,53 @@ const buildCopyText = (tc) => {
 };
 
 /** Одиночная плашка вызова — hover-тултип + кнопка копирования */
+/** Одиночная плашка вызова — hover-тултип + кнопка копирования */
 const ToolCallItem = ({ tc }) => {
   const argsStr = formatArgs(tc.arguments);
   const itemRef = useRef(null);
   const [hover, setHover] = useState(false);
-  const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 });
+  // placement: 'left' | 'right' — на какой стороне плашки рисуем тултип
+  const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0, placement: 'left' });
   const [copied, setCopied] = useState(false);
+
+  const TOOLTIP_WIDTH = 320; // должен совпадать с max-width в CSS
+  const GAP = 8;
 
   const handleMouseEnter = () => {
     if (itemRef.current) {
       const rect = itemRef.current.getBoundingClientRect();
-      setTooltipPos({ top: rect.top, left: rect.right + 8 });
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+
+      // Сколько места справа и слева от плашки
+      const spaceRight = vw - rect.right;
+      const spaceLeft = rect.left;
+
+      let placement;
+      let left;
+
+      if (spaceRight >= TOOLTIP_WIDTH + GAP) {
+        // помещается справа — как раньше
+        placement = 'right';
+        left = rect.right + GAP;
+      } else if (spaceLeft >= TOOLTIP_WIDTH + GAP) {
+        // не помещается справа, но помещается слева — рисуем слева
+        placement = 'left';
+        left = rect.left - GAP - TOOLTIP_WIDTH;
+      } else {
+        // тесно с обеих сторон — прижимаем к правому краю экрана с отступом
+        placement = 'right';
+        left = Math.max(GAP, vw - TOOLTIP_WIDTH - GAP);
+      }
+
+      // Вертикально: не даём уйти за нижнюю кромку экрана
+      let top = rect.top;
+      const approxHeight = 120; // запас на высоту тултипа
+      if (top + approxHeight > vh) {
+        top = Math.max(GAP, vh - approxHeight - GAP);
+      }
+
+      setTooltipPos({ top, left, placement });
     }
     setHover(true);
   };
@@ -155,7 +192,10 @@ const ToolCallItem = ({ tc }) => {
       </button>
       {hover &&
         ReactDOM.createPortal(
-          <div className="tool-call-tooltip" style={{ top: tooltipPos.top, left: tooltipPos.left }}>
+          <div
+            className={`tool-call-tooltip tool-call-tooltip--${tooltipPos.placement}`}
+            style={{ top: tooltipPos.top, left: tooltipPos.left }}
+          >
             <div className="tool-call-tooltip-name">{tc.name}</div>
             {argsStr && <div className="tool-call-tooltip-args">{argsStr}</div>}
             <div className="tool-call-tooltip-status">Статус: {tc.status || '—'}</div>
@@ -245,14 +285,11 @@ const ToolCallNotifications = ({ toolCalls }) => {
 
 function getMarkdownComponents(onNavigateToDoc) {
   return {
-    // Все ссылки проходят через ChatDocLink: внутренние /?doc=N → превью+навигация,
-    // внешние → обычная <a target="_blank">.
     a: ({ href, children, ...props }) => (
       <ChatDocLink href={href} onNavigateToDoc={onNavigateToDoc} {...props}>
         {children}
       </ChatDocLink>
     ),
-    // Светлые блоки кода в стиле .md-preview pre/code (без тёмного SyntaxHighlighter).
     code({ inline, className, children, ...props }) {
       const raw = String(children).replace(/\n$/, '');
       const isBlock = !inline && (raw.includes('\n') || /language-(\w+)/.test(className || ''));
@@ -265,11 +302,9 @@ function getMarkdownComponents(onNavigateToDoc) {
         );
       }
       return (
-        <pre>
-          <code className={className} {...props}>
-            {raw}
-          </code>
-        </pre>
+        <CodeBlock code={raw} className={className} {...props}>
+          {raw}
+        </CodeBlock>
       );
     },
   };
