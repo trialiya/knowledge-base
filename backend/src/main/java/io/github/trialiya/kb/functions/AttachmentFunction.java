@@ -71,8 +71,6 @@ public class AttachmentFunction {
 
     // ── Create attachment ──────────────────────────────────────────────────────────
 
-    // ── Create attachment ──────────────────────────────────────────────────────────
-
     /**
      * Creates a new attachment in the current chat conversation from raw text content.
      *
@@ -90,7 +88,9 @@ public class AttachmentFunction {
                     String content) {
         String conversationId = conversationId(context);
         log.info("[{}] createAttachment called: fileName={}", conversationId, fileName);
-        return attachmentService.createFromText(conversationId, fileName, contentType, content).id();
+        return attachmentService
+                .createFromText(conversationId, fileName, contentType, content)
+                .id();
     }
 
     @Tool(

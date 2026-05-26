@@ -129,12 +129,21 @@ export default function useAppNavigation() {
     const onPop = () => {
       const u = readUrl();
       const prev = navRef.current;
+      const view = u.view || (u.docId || u.search ? 'knowledge' : 'chat');
       fromPopRef.current = true;
       setNav({
-        view: u.view || (u.docId || u.search ? 'knowledge' : 'chat'),
-        // chatId/docId: берём из URL, иначе сохраняем прежний (память последнего).
+        view,
+        // chatId: в URL присутствует в обоих view (buildSearch его всегда пишет),
+        // поэтому при возврате на chat-запись он там есть. Fallback на prev нужен
+        // лишь как страховка для записей, сделанных до появления chat в URL.
         chatId: u.chatId ?? prev.chatId,
-        docId: u.docId ?? prev.docId,
+        // docId: СТРОГО из URL. buildSearch пишет doc только когда он реально
+        // активен (view=knowledge и нет поиска). Если в URL его нет — значит для
+        // этой записи истории документ не активен (идёт поиск, либо view=chat).
+        // Подмешивать prev.docId здесь нельзя: при возврате на запись поиска это
+        // вернуло бы устаревший документ, и экран рассинхронизировался бы с URL.
+        // Память «последнего документа для вкладки Чат» живёт в switchView, а не тут.
+        docId: u.docId,
         docTab: u.docTab,
         search: u.search,
         mode: u.mode,
