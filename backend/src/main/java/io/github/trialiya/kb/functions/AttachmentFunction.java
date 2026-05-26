@@ -69,6 +69,30 @@ public class AttachmentFunction {
         return getTruncatedContent(content);
     }
 
+    // ── Create attachment ──────────────────────────────────────────────────────────
+
+    // ── Create attachment ──────────────────────────────────────────────────────────
+
+    /**
+     * Creates a new attachment in the current chat conversation from raw text content.
+     *
+     * @param fileName name of the attachment file (e.g. "report.md")
+     * @param contentType MIME type (e.g. "text/markdown", "application/json")
+     * @param content the raw text content to store
+     * @return id of the newly created attachment
+     */
+    @Tool(description = "Создать новое вложение в текущем чате.")
+    public long createAttachment(
+            ToolContext context,
+            @ToolParam(description = "Название вложения - файла") String fileName,
+            @ToolParam(description = "MIME type") String contentType,
+            @ToolParam(description = "Содержимое вложения (текст, markdown, json, etc). ")
+                    String content) {
+        String conversationId = conversationId(context);
+        log.info("[{}] createAttachment called: fileName={}", conversationId, fileName);
+        return attachmentService.createFromText(conversationId, fileName, contentType, content).id();
+    }
+
     @Tool(
             description =
                     "Получить полное текстовое содержимое вложения по имени файла. "

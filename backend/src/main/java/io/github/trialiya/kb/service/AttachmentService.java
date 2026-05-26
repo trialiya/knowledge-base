@@ -6,6 +6,7 @@ import io.github.trialiya.kb.model.attachment.entity.AttachmentEntity;
 import io.github.trialiya.kb.model.search.SemanticSearchResult;
 import io.github.trialiya.kb.repository.AttachmentEmbeddingRepository;
 import io.github.trialiya.kb.repository.AttachmentRepository;
+import jakarta.annotation.Nonnull;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -109,6 +110,32 @@ public class AttachmentService implements DisposableBean {
     @Transactional
     public Attachment uploadForChat(String conversationId, MultipartFile file) {
         return upload("chat", null, conversationId, file);
+    }
+
+    /**
+     * Creates a chat attachment directly from text content (no file upload). Useful for AI tools
+     * that generate content on the fly.
+     *
+     * @param conversationId target chat conversation
+     * @param fileName logical file name (e.g. "summary.md")
+     * @param contentType MIME type (e.g. "text/markdown")
+     * @param content the text body
+     * @return persisted attachment DTO
+     */
+    @Transactional
+    public Attachment createFromText(
+            @Nonnull String conversationId,
+            @Nonnull String fileName,
+            String contentType,
+            @Nonnull String content) {
+        return persistAttachment(
+                "chat",
+                null,
+                conversationId,
+                fileName,
+                contentType,
+                content,
+                (long) content.getBytes(StandardCharsets.UTF_8).length);
     }
 
     /**
@@ -272,15 +299,37 @@ public class AttachmentService implements DisposableBean {
             throw new ResponseStatusException(
                     HttpStatus.INTERNAL_SERVER_ERROR, "Failed to read uploaded file", e);
         }
+        return persistAttachment(
+                ownerType,
+                documentId,
+                conversationId,
+                file.getOriginalFilename(),
+                file.getContentType(),
+                content,
+                file.getSize());
+    }
 
+    /**
+     * Low-level persistence of an attachment entity with all fields explicitly provided. Does NOT
+     * validate or read any external resource — the caller is responsible for preparing the content
+     * and metadata.
+     */
+    private Attachment persistAttachment(
+            String ownerType,
+            Long documentId,
+            String conversationId,
+            String fileName,
+            String contentType,
+            String content,
+            Long fileSize) {
         OffsetDateTime now = OffsetDateTime.now();
         AttachmentEntity entity = new AttachmentEntity();
         entity.setOwnerType(ownerType);
         entity.setDocumentId(documentId);
         entity.setConversationId(conversationId);
-        entity.setFileName(file.getOriginalFilename());
-        entity.setContentType(file.getContentType() != null ? file.getContentType() : "text/plain");
-        entity.setFileSize(file.getSize());
+        entity.setFileName(fileName);
+        entity.setContentType(contentType != null ? contentType : "text/plain");
+        entity.setFileSize(fileSize != null ? fileSize : content.length());
         entity.setContent(content);
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
