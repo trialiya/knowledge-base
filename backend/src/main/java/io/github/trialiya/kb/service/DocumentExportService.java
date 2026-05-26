@@ -24,15 +24,20 @@ import org.springframework.stereotype.Service;
 /**
  * Exports every document/folder to the configured {@code kb.documents.export-path}.
  *
- * <p>Layout on disk mirrors the document tree. Each node is prefixed with a zero-padded ordinal
- * that reflects its {@code position} among siblings, preserving the user-defined order.
+ * <p>Layout on disk mirrors the document tree. File and folder names contain no ordinal prefixes;
+ * sibling order is captured in a dedicated {@code .index.md} file written in every directory
+ * (including the export root).
  *
  * <p>Content and (optionally) metadata are written as separate files:
  *
  * <ul>
- *   <li>{@code .md} — document/folder description (content)
+ *   <li>{@code .md} — document body (description only, no title heading)
  *   <li>{@code .yaml} — structured metadata (id, title, type, timestamps, …), only when {@code
  *       includeMeta=true}
+ *   <li>{@code .index.md} — ordered list of children in this directory; folder entries link to the
+ *       folder's {@code .content.md}
+ *   <li>{@code .content.md} — folder description (always created, may be empty)
+ *   <li>{@code .meta.yaml} — folder metadata (only with {@code includeMeta=true})
  * </ul>
  *
  * <p>Internal KB links ({@code /?doc=ID}) are rewritten to relative file paths so the exported
@@ -40,18 +45,21 @@ import org.springframework.stereotype.Service;
  *
  * <pre>
  *   &lt;exportPath&gt;/
- *     001.my-folder/
+ *     .index.md               ← ordered list of root-level items
+ *     my-folder/
  *       .meta.yaml            ← metadata of "my-folder" (only with includeMeta)
- *       .content.md           ← description of "my-folder" (if any)
- *       001.some-document.md
- *       001.some-document.yaml  ← only with includeMeta
- *       002.nested-folder/
+ *       .content.md           ← description of "my-folder" (always created)
+ *       .index.md             ← ordered list of children
+ *       some-document.md
+ *       some-document.yaml    ← only with includeMeta
+ *       nested-folder/
  *         .meta.yaml
  *         .content.md
- *         001.child-doc.md
- *         001.child-doc.yaml
- *     002.another-doc.md
- *     002.another-doc.yaml
+ *         .index.md
+ *         child-doc.md
+ *         child-doc.yaml
+ *     another-doc.md
+ *     another-doc.yaml
  * </pre>
  */
 @Slf4j
@@ -65,8 +73,8 @@ public class DocumentExportService {
     /** Hidden file that stores a folder's metadata. */
     static final String FOLDER_META_FILE = ".meta.yaml";
 
-    /** Width of the zero-padded ordinal prefix (e.g. 3 → 001, 002, …). */
-    private static final int ORDINAL_PAD = 3;
+    /** File written in every directory listing children in their defined order. */
+    static final String INDEX_FILE = ".index.md";
 
     /** Matches internal KB doc links inside Markdown link targets: {@code (/?doc=123)}. */
     private static final Pattern DOC_LINK_PATTERN = Pattern.compile("\\(/\\?doc=(\\d+)\\)");
@@ -115,17 +123,20 @@ public class DocumentExportService {
 
         // Pass 1: build id → absolute .md path map (needed for link rewriting)
         Map<Long, Path> idToPath = new HashMap<>();
-        int ordinal = 1;
         for (DocumentEntity rootDoc : roots) {
-            collectPaths(rootDoc, root, byParent, ordinal++, idToPath);
+            collectPaths(rootDoc, root, byParent, idToPath);
         }
 
         // Pass 2: write files
+        createDirectories(root);
         int count = 0;
-        ordinal = 1;
         for (DocumentEntity rootDoc : roots) {
-            count += exportNode(rootDoc, root, byParent, ordinal++, idToPath, includeMeta);
+            count += exportNode(rootDoc, root, byParent, idToPath, includeMeta);
         }
+
+        // Write root-level index
+        writeFile(root.resolve(INDEX_FILE), renderIndex(roots, root, idToPath));
+        count++;
 
         log.info("Export complete: {} file(s) written to {}", count, root.toAbsolutePath());
         return count;
@@ -142,34 +153,25 @@ public class DocumentExportService {
             DocumentEntity entity,
             Path parentDir,
             Map<Long, List<DocumentEntity>> byParent,
-            int ordinal,
             Map<Long, Path> idToPath) {
 
         boolean isFolder = "folder".equalsIgnoreCase(entity.getType());
-        String prefix = padOrdinal(ordinal);
 
         if (isFolder) {
-            Path folderDir = parentDir.resolve(prefix + "." + safeName(entity.getTitle()));
+            Path folderDir = parentDir.resolve(safeName(entity.getTitle()));
             idToPath.put(entity.getId(), folderDir.resolve(FOLDER_CONTENT_FILE));
 
             List<DocumentEntity> children = childrenOf(entity.getId(), byParent);
-            int childOrdinal = 1;
             for (DocumentEntity child : children) {
-                collectPaths(child, folderDir, byParent, childOrdinal++, idToPath);
+                collectPaths(child, folderDir, byParent, idToPath);
             }
         } else {
-            Path candidate = parentDir.resolve(prefix + "." + safeName(entity.getTitle()) + ".md");
+            Path candidate = parentDir.resolve(safeName(entity.getTitle()) + ".md");
             if (Files.exists(candidate) && !config.replace()) {
                 int suffix = 1;
                 do {
                     candidate =
-                            parentDir.resolve(
-                                    prefix
-                                            + "."
-                                            + safeName(entity.getTitle())
-                                            + "-"
-                                            + suffix
-                                            + ".md");
+                            parentDir.resolve(safeName(entity.getTitle()) + "-" + suffix + ".md");
                     suffix++;
                 } while (Files.exists(candidate));
             }
@@ -183,16 +185,14 @@ public class DocumentExportService {
             DocumentEntity entity,
             Path parentDir,
             Map<Long, List<DocumentEntity>> byParent,
-            int ordinal,
             Map<Long, Path> idToPath,
             boolean includeMeta) {
 
         boolean isFolder = "folder".equalsIgnoreCase(entity.getType());
-        String prefix = padOrdinal(ordinal);
         int written = 0;
 
         if (isFolder) {
-            Path folderDir = parentDir.resolve(prefix + "." + safeName(entity.getTitle()));
+            Path folderDir = parentDir.resolve(safeName(entity.getTitle()));
             createDirectories(folderDir);
 
             if (includeMeta) {
@@ -200,23 +200,24 @@ public class DocumentExportService {
                 written++;
             }
 
-            if (hasContent(entity.getDescription())) {
-                Path contentFile = folderDir.resolve(FOLDER_CONTENT_FILE);
-                writeFile(contentFile, renderContent(entity, contentFile, idToPath));
-                written++;
-                log.debug("Written folder content: {}", contentFile);
-            }
+            // Always create .content.md (may be empty)
+            Path contentFile = folderDir.resolve(FOLDER_CONTENT_FILE);
+            writeFile(contentFile, renderContent(entity, contentFile, idToPath));
+            written++;
+            log.debug("Written folder content: {}", contentFile);
 
             List<DocumentEntity> children = childrenOf(entity.getId(), byParent);
-            int childOrdinal = 1;
             for (DocumentEntity child : children) {
-                written +=
-                        exportNode(
-                                child, folderDir, byParent, childOrdinal++, idToPath, includeMeta);
+                written += exportNode(child, folderDir, byParent, idToPath, includeMeta);
             }
 
+            // Write index for this folder
+            writeFile(folderDir.resolve(INDEX_FILE), renderIndex(children, folderDir, idToPath));
+            written++;
+            log.debug("Written folder index: {}", folderDir.resolve(INDEX_FILE));
+
         } else {
-            String baseName = prefix + "." + safeName(entity.getTitle());
+            String baseName = safeName(entity.getTitle());
             createDirectories(parentDir);
 
             Path contentFile = uniquePath(parentDir, baseName + ".md");
@@ -243,15 +244,44 @@ public class DocumentExportService {
      * Renders the document/folder description as Markdown content, rewriting any {@code /?doc=ID}
      * links to relative file paths based on {@code idToPath}.
      *
+     * <p>The title is intentionally omitted here — it lives in the metadata sidecar. An empty
+     * string is returned when the entity has no description (e.g. empty folder).
+     *
      * @param e entity to render
      * @param thisFile absolute path of the file being written (used to compute relative links)
      * @param idToPath map of document id → absolute export path
      */
     private String renderContent(DocumentEntity e, Path thisFile, Map<Long, Path> idToPath) {
+        if (!hasContent(e.getDescription())) {
+            return "";
+        }
+        return rewriteDocLinks(e.getDescription().trim(), thisFile, idToPath) + "\n";
+    }
+
+    /**
+     * Renders an ordered Markdown list of {@code children} as a {@code .index.md} file. Folder
+     * entries link to their {@code .content.md}; document entries link to their {@code .md}.
+     *
+     * @param children ordered list of sibling entities
+     * @param indexDir directory that will contain the index file (used to compute relative links)
+     * @param idToPath map of document id → absolute export path
+     */
+    private String renderIndex(
+            List<DocumentEntity> children, Path indexDir, Map<Long, Path> idToPath) {
+        if (children.isEmpty()) {
+            return "";
+        }
+        Path indexFile = indexDir.resolve(INDEX_FILE);
         StringBuilder sb = new StringBuilder();
-        sb.append("# ").append(e.getTitle()).append("\n\n");
-        if (hasContent(e.getDescription())) {
-            sb.append(rewriteDocLinks(e.getDescription().trim(), thisFile, idToPath)).append("\n");
+        for (DocumentEntity child : children) {
+            Path targetPath = idToPath.get(child.getId());
+            if (targetPath == null) {
+                sb.append("- ").append(child.getTitle()).append("\n");
+            } else {
+                String rel =
+                        indexFile.getParent().relativize(targetPath).toString().replace('\\', '/');
+                sb.append("- [").append(child.getTitle()).append("](").append(rel).append(")\n");
+            }
         }
         return sb.toString();
     }
@@ -310,14 +340,9 @@ public class DocumentExportService {
                 .replaceAll("^-+|-+$", ""); // trim leading/trailing hyphens
     }
 
-    /** Zero-pads an ordinal to {@link #ORDINAL_PAD} digits (e.g. 1 → "001"). */
-    private static String padOrdinal(int ordinal) {
-        return String.format("%0" + ORDINAL_PAD + "d", ordinal);
-    }
-
     /**
-     * Returns a path that does not collide with existing siblings. E.g. {@code 001.report.md} →
-     * {@code 001.report-1.md} → {@code 001.report-2.md} …
+     * Returns a path that does not collide with existing siblings. E.g. {@code report.md} → {@code
+     * report-1.md} → {@code report-2.md} …
      */
     private Path uniquePath(Path dir, String fileName) {
         Path candidate = dir.resolve(fileName);
