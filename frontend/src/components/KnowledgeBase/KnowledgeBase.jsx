@@ -11,7 +11,17 @@ import ErrorModal from '../Utils/ErrorModal';
 import { IconPlus, IconRefresh } from './icons';
 import useKnowledgeBase from './useKnowledgeBase';
 
-const KnowledgeBase = ({ onNavigateToChat }) => {
+const KnowledgeBase = ({
+  onNavigateToChat,
+  isActive,
+  docId,
+  docTab,
+  search,
+  mode,
+  onOpenDoc,
+  onTabChange,
+  onSearch,
+}) => {
   const {
     tree,
     selectedNode,
@@ -45,7 +55,7 @@ const KnowledgeBase = ({ onNavigateToChat }) => {
     handleMoveConfirm,
     handleMoveCancel,
     handleRefresh,
-  } = useKnowledgeBase();
+  } = useKnowledgeBase({ docId, docTab, search, mode, onOpenDoc, onTabChange, onSearch });
 
   const detailProps = {
     node: selectedNode,

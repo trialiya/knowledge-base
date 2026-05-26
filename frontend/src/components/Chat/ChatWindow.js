@@ -4,7 +4,6 @@ import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import ChatList from './ChatList';
 import AttachmentPanel, { IconPaperclip } from '../KnowledgeBase/AttachmentPanel';
-import { getUrlState, setChatUrlState } from '../Utils/utils';
 import './ChatWindow.css';
 import '../KnowledgeBase/AttachmentPanel.css';
 import CreateJiraChatModal from './CreateJiraChatModal';
@@ -26,12 +25,26 @@ const generateUUID = () => {
 const DEFAULT_MESSAGE = {};
 const STORAGE_KEY_ACTIVE_ID = 'chat_activeId';
 
-const ChatWindow = ({ onNavigateToDoc, isActive = true }) => {
+const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActiveChatId = null, onSelectChat }) => {
   const [chats, setChats] = useState([]);
-  const [activeChatId, setActiveChatId] = useState(() => {
-    const { chatId } = getUrlState();
-    return chatId || localStorage.getItem(STORAGE_KEY_ACTIVE_ID) || null;
-  });
+  // Внутреннее зеркало активного чата. Источник правды — проп propActiveChatId
+  // (его держит useAppNavigation в App). Локальные выборы поднимаются наверх
+  // через onSelectChat и возвращаются сюда уже как проп.
+  const [activeChatId, setActiveChatId] = useState(
+    propActiveChatId || localStorage.getItem(STORAGE_KEY_ACTIVE_ID) || null,
+  );
+
+  // Поднять выбор чата наверх (в навигацию). Локальный стейт обновится, когда
+  // App вернёт новый propActiveChatId — но мы также обновляем его сразу, чтобы
+  // не зависеть от round-trip и сохранить мгновенную реакцию UI.
+  const selectChat = useCallback(
+    (id) => {
+      setActiveChatId(id);
+      if (id) localStorage.setItem(STORAGE_KEY_ACTIVE_ID, id);
+      if (onSelectChat) onSelectChat(id);
+    },
+    [onSelectChat],
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
@@ -56,32 +69,18 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true }) => {
   const chatsRef = useRef(chats);
   // Guards the one-time chat-list fetch against StrictMode's double-invoke.
   const didFetchChatsRef = useRef(false);
-  // Последний chatId, записанный в URL. Нужен, чтобы отличать реальную смену
-  // чата (push — для работы кнопки «Назад» между чатами) от простого возврата
-  // на вкладку с тем же чатом (replace — чтобы не плодить записи истории).
-  const lastUrlChatIdRef = useRef(activeChatId);
   useEffect(() => {
     chatsRef.current = chats;
   }, [chats]);
 
-  // Listen for cross-component navigation (e.g. KB → specific chat, или
-  // восстановление состояния при popstate из App.js).
+  // Источник правды — проп из навигации. Когда он меняется (клик по вкладке,
+  // popstate, восстановление из URL), подхватываем активный чат.
   useEffect(() => {
-    const handleNavigateChat = (e) => {
-      const { chatId } = e.detail || {};
-      if (chatId) {
-        // URL в этих случаях уже выставлен инициатором (popstate откатил его,
-        // либо App.js его установил). Помечаем chatId как «уже записанный»,
-        // чтобы эффект синхронизации сделал replace и commitUrl пропустил
-        // запись (URL не меняется) — иначе «Назад» плодил бы лишние записи.
-        lastUrlChatIdRef.current = chatId;
-        setActiveChatId(chatId);
-        localStorage.setItem(STORAGE_KEY_ACTIVE_ID, chatId);
-      }
-    };
-    window.addEventListener('app:navigate-chat', handleNavigateChat);
-    return () => window.removeEventListener('app:navigate-chat', handleNavigateChat);
-  }, []);
+    if (propActiveChatId && propActiveChatId !== activeChatId) {
+      setActiveChatId(propActiveChatId);
+      localStorage.setItem(STORAGE_KEY_ACTIVE_ID, propActiveChatId);
+    }
+  }, [propActiveChatId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Загрузка списка чатов
   useEffect(() => {
@@ -114,8 +113,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true }) => {
             // URL был пустой — открываем первый чат
             const firstId = chatList[0]?.id;
             if (firstId) {
-              setActiveChatId(firstId);
-              localStorage.setItem(STORAGE_KEY_ACTIVE_ID, firstId);
+              selectChat(firstId);
             }
           }
         }
@@ -218,23 +216,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true }) => {
     }
   }, [activeChatId, chats, loadMessages]);
 
-  // Sync the chat id into the URL — but ONLY while the chat tab is the active
-  // one. Both ChatWindow and KnowledgeBase stay mounted (App hides them via
-  // CSS), so without this guard the chat panel would rewrite `view=chat` over
-  // whatever the KB just set — e.g. when opening ?view=knowledge&chat=…&doc=…
-  //
-  // push vs replace:
-  //   • сменился activeChatId (пользователь выбрал другой чат) → push,
-  //     чтобы «Назад» возвращал к предыдущему чату;
-  //   • вкладка просто снова стала активной (тот же чат) → replace,
-  //     чтобы не плодить дубли истории, ломающие кнопку «Назад».
-  useEffect(() => {
-    if (isActive && activeChatId) {
-      const isChatChange = lastUrlChatIdRef.current !== activeChatId;
-      setChatUrlState(activeChatId, { replace: !isChatChange });
-      lastUrlChatIdRef.current = activeChatId;
-    }
-  }, [isActive, activeChatId]);
+  // (Запись URL вынесена в useAppNavigation — ChatWindow историю не трогает.)
 
   // Fetch attachment count independently so the badge stays accurate
   // even when the attachment panel is closed.
@@ -563,34 +545,35 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true }) => {
     const newId = generateUUID();
     const newChat = { id: newId, title: 'Новый чат', messages: [{ ...DEFAULT_MESSAGE }] };
     setChats((prev) => [newChat, ...prev]);
-    setActiveChatId(newId);
-    localStorage.setItem(STORAGE_KEY_ACTIVE_ID, newId);
+    selectChat(newId);
     // (attachment panel stays as-is on new chat)
-  }, []);
+  }, [selectChat]);
 
-  const handleCreateJiraChat = useCallback(async (request) => {
-    const res = await fetch('/api/chat/jira', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(text || 'Ошибка создания JIRA чата');
-    }
-    const chat = await res.json();
-    const newChat = {
-      id: chat.conversationId,
-      title: chat.topic || 'JIRA чат',
-      messages: null,
-      createdAt: chat.createdAt || null,
-      jiraUrl: request.jiraUrl,
-    };
-    setChats((prev) => [newChat, ...prev]);
-    setActiveChatId(newChat.id);
-    localStorage.setItem(STORAGE_KEY_ACTIVE_ID, newChat.id);
-    setAttachPanelOpen(true); // Show attachments with fetched content
-  }, []);
+  const handleCreateJiraChat = useCallback(
+    async (request) => {
+      const res = await fetch('/api/chat/jira', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || 'Ошибка создания JIRA чата');
+      }
+      const chat = await res.json();
+      const newChat = {
+        id: chat.conversationId,
+        title: chat.topic || 'JIRA чат',
+        messages: null,
+        createdAt: chat.createdAt || null,
+        jiraUrl: request.jiraUrl,
+      };
+      setChats((prev) => [newChat, ...prev]);
+      selectChat(newChat.id);
+      setAttachPanelOpen(true); // Show attachments with fetched content
+    },
+    [selectChat],
+  );
 
   const handleDeleteChat = useCallback(
     async (id) => {
@@ -604,20 +587,19 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true }) => {
       if (activeChatId === id) {
         const remaining = chats.filter((chat) => chat.id !== id);
         const newActiveId = remaining[0]?.id || null;
-        setActiveChatId(newActiveId);
-        if (newActiveId) localStorage.setItem(STORAGE_KEY_ACTIVE_ID, newActiveId);
+        selectChat(newActiveId);
       }
     },
-    [chats, activeChatId],
+    [chats, activeChatId, selectChat],
   );
 
   const handleSelectChat = useCallback(
     (id) => {
       if (id === activeChatId) return;
-      setActiveChatId(id);
+      selectChat(id);
       setAttachCount(0); // reset until new panel loads count for new chat
     },
-    [activeChatId],
+    [activeChatId, selectChat],
   );
 
   // Quick file upload from message input area

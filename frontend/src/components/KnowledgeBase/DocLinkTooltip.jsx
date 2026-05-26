@@ -73,12 +73,20 @@ const DocLinkTooltip = ({ href, children, tree, onNavigate, ...rest }) => {
   );
 
   // ── Navigate ─────────────────────────────────────────────────────────────
-  // Uses the global event bus so useKnowledgeBase runs navigateToDocById —
-  // which loads ancestors, marks _openOnLoad, and reveals the node in the tree.
-
-  const navigateToDoc = useCallback((id) => {
-    window.dispatchEvent(new CustomEvent('app:navigate-doc', { detail: { docId: String(id) } }));
-  }, []);
+  // Навигация идёт через проп onNavigate (в KB это selectNode, принимающий id).
+  // selectNode → fetchFullAndSelect(id, {notify:true}) → документ грузится,
+  // выбирается, и useAppNavigation обновляет URL. Фолбэк на событие оставлен
+  // для обратной совместимости, если onNavigate почему-то не передан.
+  const navigateToDoc = useCallback(
+    (id) => {
+      if (onNavigate) {
+        onNavigate(String(id));
+      } else {
+        window.dispatchEvent(new CustomEvent('app:navigate-doc', { detail: { docId: String(id) } }));
+      }
+    },
+    [onNavigate],
+  );
 
   const handleClick = useCallback(
     (e) => {

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 
 import api from './api';
 import { getSiblings, applyReorder, parentTitle, isParentChange, updateNodeInTree, spliceChildren } from './treeOps';
-import { findNodeById, findPath, getUrlState, setKBUrlState } from '../Utils/utils';
+import { findNodeById, findPath } from '../Utils/utils';
 
 const PAGE_SIZE = 10;
 
@@ -10,12 +10,32 @@ const PAGE_SIZE = 10;
  * Encapsulates every piece of Knowledge Base state, side effect and handler.
  * The component consuming this hook is purely presentational.
  */
-export default function useKnowledgeBase() {
+/**
+ * props (из useAppNavigation через KnowledgeBase.jsx):
+ *   docId      — какой документ показать (null = ничего/поиск)
+ *   docTab     — вкладка детали (summary/content/…)
+ *   search     — поисковый запрос
+ *   mode       — режим поиска
+ *   onOpenDoc(id, tab?)      — KB сообщает навигации: выбран документ
+ *   onSearch(query, mode)    — KB сообщает навигации: запущен поиск
+ *   onTabChange(tab)         — KB сообщает навигации: сменилась вкладка детали
+ *
+ * Хук НЕ пишет URL и НЕ слушает popstate — этим владеет useAppNavigation.
+ */
+export default function useKnowledgeBase({
+  docId: navDocId = null,
+  docTab: navDocTab = 'summary',
+  search: navSearch = '',
+  mode: navMode = 'hybrid',
+  onOpenDoc,
+  onSearch,
+  onTabChange,
+} = {}) {
   const [tree, setTree] = useState([]);
   const [selectedNode, setSelectedNode] = useState(null);
-  const [activeTab, setActiveTab] = useState('summary');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchMode, setSearchMode] = useState('hybrid');
+  const [activeTab, setActiveTab] = useState(navDocTab || 'summary');
+  const [searchQuery, setSearchQuery] = useState(navSearch || '');
+  const [searchMode, setSearchMode] = useState(navMode || 'hybrid');
   const [searchResults, setSearchResults] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [notFoundDocId, setNotFoundDocId] = useState(null);
@@ -121,23 +141,28 @@ export default function useKnowledgeBase() {
    * Core selection logic — expects a full DocumentNode with `type` populated.
    * Separated from selectNode so it can be called after async fetch enrichment.
    */
-  const applySelectNode = useCallback((node) => {
-    // `_full` marks this as a complete document (from GET /documents/{id}),
-    // so the tree-sync effect won't later overwrite its description with a
-    // tree stub (which carries only a ≤150-char snippet).
-    setSelectedNode({ ...node, _full: true });
-    setActiveTab('summary');
-    setSearchResults([]);
-    setSearchQuery('');
-    setNotFoundDocId(null);
-    setDocLoadError(null);
-    setKBUrlState(node.id, 'summary', null, null);
+  const applySelectNode = useCallback(
+    (node, { notify = true } = {}) => {
+      // `_full` marks this as a complete document (from GET /documents/{id}),
+      // so the tree-sync effect won't later overwrite its description with a
+      // tree stub (which carries only a ≤150-char snippet).
+      setSelectedNode({ ...node, _full: true });
+      setActiveTab('summary');
+      setSearchResults([]);
+      setSearchQuery('');
+      setNotFoundDocId(null);
+      setDocLoadError(null);
+      // Сообщаем навигации (она пишет URL). notify=false, когда выбор пришёл
+      // ИЗ навигации (prop docId) — иначе была бы петля.
+      if (notify && onOpenDoc) onOpenDoc(node.id, 'summary');
 
-    // NOTE: folder children are loaded by FolderDetail's useFolderChildren
-    // through the shared (deduplicated) loader. We intentionally do NOT fetch
-    // them here — doing so fired a second, differently-sized request
-    // (size=10 here vs size=1000 there) that couldn't be deduplicated.
-  }, []);
+      // NOTE: folder children are loaded by FolderDetail's useFolderChildren
+      // through the shared (deduplicated) loader. We intentionally do NOT fetch
+      // them here — doing so fired a second, differently-sized request
+      // (size=10 here vs size=1000 there) that couldn't be deduplicated.
+    },
+    [onOpenDoc],
+  );
 
   /**
    * Select a node for display in the detail panel.
@@ -158,12 +183,12 @@ export default function useKnowledgeBase() {
    * effect can't later overwrite the detail with a stale stub.
    */
   const fetchFullAndSelect = useCallback(
-    (idOrNode) => {
+    (idOrNode, opts = {}) => {
       const id = typeof idOrNode === 'object' ? idOrNode.id : idOrNode;
       return api
         .fetchById(id)
         .then((full) => {
-          applySelectNode(full);
+          applySelectNode(full, opts);
           setTree((prev) => {
             const clone = JSON.parse(JSON.stringify(prev));
             const existing = findNodeById(clone, full.id);
@@ -185,35 +210,31 @@ export default function useKnowledgeBase() {
     [applySelectNode], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
-  const selectNode = useCallback(
-    (node) => {
-      fetchFullAndSelect(node);
-    },
-    [fetchFullAndSelect],
-  );
+  // selectNode объявлен ниже — после navigateToDocById (нужен для doc-ссылок
+  // на документы вне текущего дерева).
 
   const handleSearch = useCallback(async () => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
-      setKBUrlState(null, activeTab, null, null);
+      if (onSearch) onSearch('', searchMode);
       return;
     }
     setSelectedNode(null);
-    setKBUrlState(null, activeTab, searchQuery, searchMode);
+    if (onSearch) onSearch(searchQuery, searchMode);
     await performSearch(searchQuery, searchMode);
-  }, [searchQuery, searchMode, activeTab, performSearch]);
+  }, [searchQuery, searchMode, performSearch, onSearch]);
 
   // ── Navigate to a specific doc by ID (used by cross-component navigation) ──
 
   const navigateToDocById = useCallback(
-    async (docId) => {
+    async (docId, opts = {}) => {
       if (!docId) return;
 
       // If the doc is already in the tree, still fetch the full document — the
       // tree node holds only a snippet, not the full description.
       const existing = findNodeById(tree, docId);
       if (existing) {
-        fetchFullAndSelect(existing);
+        fetchFullAndSelect(existing, opts);
         return;
       }
 
@@ -245,7 +266,7 @@ export default function useKnowledgeBase() {
           // Fetch the full document (the tree stub has only a snippet).
           // FolderDetail's useFolderChildren loads folder children separately
           // (deduplicated); no child fetch needed here.
-          fetchFullAndSelect(target);
+          fetchFullAndSelect(target, opts);
         } else {
           setNotFoundDocId(docId);
         }
@@ -260,78 +281,80 @@ export default function useKnowledgeBase() {
     [tree, fetchFullAndSelect],
   );
 
-  // ── Listen for cross-component navigation events ─────────────────────────
+  /**
+   * Выбор узла из дерева/результатов поиска, ИЛИ навигация по id (doc-ссылка).
+   *   • Пришёл объект-узел → выбираем напрямую (он уже в дереве).
+   *   • Пришёл id и узел есть в дереве → выбираем напрямую.
+   *   • Пришёл id, узла в дереве нет → navigateToDocById грузит цепочку
+   *     предков, раскрывает дерево и выбирает документ.
+   * Во всех случаях notify:true — пользовательское действие, навигация
+   * обновит URL.
+   */
+  const selectNode = useCallback(
+    (nodeOrId) => {
+      if (nodeOrId && typeof nodeOrId === 'object') {
+        fetchFullAndSelect(nodeOrId, { notify: true });
+        return;
+      }
+      const id = String(nodeOrId);
+      const existing = findNodeById(tree, id);
+      if (existing) {
+        fetchFullAndSelect(existing, { notify: true });
+      } else {
+        // Документа нет в текущем дереве — грузим предков и раскрываем дерево.
+        navigateToDocById(id, { notify: true });
+      }
+    },
+    [tree, fetchFullAndSelect, navigateToDocById],
+  );
 
-  useEffect(() => {
-    const handleNavigateDoc = (e) => {
-      const { docId } = e.detail || {};
-      if (docId) navigateToDocById(docId);
-    };
-    window.addEventListener('app:navigate-doc', handleNavigateDoc);
-    return () => window.removeEventListener('app:navigate-doc', handleNavigateDoc);
-  }, [navigateToDocById]);
-
-  // ── Restore from URL on first mount ─────────────────────────────────────────
-
+  // ── Однократная загрузка корня дерева ────────────────────────────────────
   useEffect(() => {
     if (didInitRef.current) return;
     didInitRef.current = true;
-    const init = async () => {
-      let rootNodes = [];
+    (async () => {
       try {
         const paged = await api.fetchChildren(null, 0, PAGE_SIZE);
-        rootNodes = Array.isArray(paged.items) ? paged.items : [];
-        setTree(rootNodes);
+        setTree(Array.isArray(paged.items) ? paged.items : []);
       } catch {
         setTree([]);
       }
-
-      const { docId, docTab: tab, searchQuery: urlSearch, searchMode: urlMode } = getUrlState();
-      setActiveTab(tab);
-
-      if (docId) {
-        // Fetch ancestor chain [rootId, ..., parentId] and load each level in order
-        let currentTree = rootNodes;
-        try {
-          const ancestorIds = await api.fetchAncestors(docId);
-          for (const ancestorId of ancestorIds) {
-            const paged = await api.fetchChildren(ancestorId, 0, PAGE_SIZE);
-            currentTree = await new Promise((resolve) => {
-              setTree((prev) => {
-                const clone = JSON.parse(JSON.stringify(prev));
-                const parent = spliceChildren(clone, ancestorId, paged, { replace: true });
-                if (parent) parent._openOnLoad = true; // signal TreeNode to open
-                resolve(clone);
-                return clone;
-              });
-            });
-          }
-
-          const target = findNodeById(currentTree, docId);
-          if (target) {
-            // Fetch the full document — the tree stub holds only a ≤150-char
-            // snippet, which previously showed as a truncated description on
-            // direct-link open. If it's a folder, FolderDetail's
-            // useFolderChildren loads its children (deduplicated) separately.
-            fetchFullAndSelect(target);
-          } else {
-            setNotFoundDocId(docId);
-          }
-        } catch (err) {
-          if (err.status === 404) {
-            setNotFoundDocId(docId);
-          } else {
-            setDocLoadError({ status: err.status || 'network', docId });
-          }
-        }
-      } else if (urlSearch) {
-        setSearchQuery(urlSearch);
-        setSearchMode(urlMode);
-        await performSearch(urlSearch, urlMode);
-      }
-    };
-    init();
+    })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Реакция на навигацию (props из useAppNavigation) ─────────────────────
+  // Единственный вход для «показать документ N» / «показать поиск Q».
+  // Срабатывает при: открытии doc-ссылки в чате, клике вкладки «База знаний»
+  // с последним docId, popstate (App обновляет props), прямой ссылке.
+  // notify:false — выбор пришёл ИЗ навигации, обратно уведомлять не нужно.
+  const lastNavDocRef = useRef(undefined);
+  const lastNavSearchRef = useRef(undefined);
+
+  useEffect(() => {
+    if (navDocId) {
+      if (lastNavDocRef.current === navDocId) return; // уже показан
+      lastNavDocRef.current = navDocId;
+      lastNavSearchRef.current = undefined;
+      setActiveTab(navDocTab || 'summary');
+      navigateToDocById(navDocId, { notify: false });
+    } else if (navSearch) {
+      lastNavDocRef.current = undefined;
+      if (lastNavSearchRef.current === navSearch) return;
+      lastNavSearchRef.current = navSearch;
+      setSelectedNode(null);
+      setSearchQuery(navSearch);
+      setSearchMode(navMode || 'hybrid');
+      performSearch(navSearch, navMode || 'hybrid');
+    } else {
+      // Навигация без doc/search → очистить выбор (напр. ушли в чистый KB).
+      lastNavDocRef.current = undefined;
+      lastNavSearchRef.current = undefined;
+      setSelectedNode(null);
+      setSearchResults([]);
+      setSearchQuery('');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navDocId, navSearch, navDocTab, navMode]);
 
   // Keep selectedNode in sync when the tree updates after CRUD.
   //
@@ -363,36 +386,8 @@ export default function useKnowledgeBase() {
     });
   }, [tree]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Browser back/forward navigation
-  useEffect(() => {
-    const onPopState = async () => {
-      const { docId, docTab: tab, searchQuery: urlSearch, searchMode: urlMode } = getUrlState();
-      setActiveTab(tab);
-      if (docId) {
-        if (tree.length === 0) await loadTree();
-        const node = findNodeById(tree, docId);
-        if (node) {
-          fetchFullAndSelect(node);
-          setSearchResults([]);
-          setSearchQuery('');
-        } else {
-          // Try loading the full path for this doc
-          navigateToDocById(docId);
-        }
-      } else if (urlSearch) {
-        setSearchQuery(urlSearch);
-        setSearchMode(urlMode);
-        setSelectedNode(null);
-        await performSearch(urlSearch, urlMode);
-      } else {
-        setSelectedNode(null);
-        setSearchResults([]);
-        setSearchQuery('');
-      }
-    };
-    window.addEventListener('popstate', onPopState);
-    return () => window.removeEventListener('popstate', onPopState);
-  }, [loadTree, tree, performSearch, navigateToDocById]);
+  // (popstate вынесен в useAppNavigation — KB историю не слушает. Навигация
+  // приходит через props navDocId/navSearch, см. эффект выше.)
 
   // ── CRUD ─────────────────────────────────────────────────────────────────────
 
@@ -584,6 +579,15 @@ export default function useKnowledgeBase() {
   // ── Derived ────────────────────────────────────────────────────────────────
   const path = selectedNode ? findPath(tree, selectedNode.id) || [] : [];
 
+  // Смена вкладки детали документа → локально + уведомить навигацию (URL).
+  const changeTab = useCallback(
+    (tab) => {
+      setActiveTab(tab);
+      if (onTabChange) onTabChange(tab);
+    },
+    [onTabChange],
+  );
+
   return {
     // state
     tree,
@@ -600,7 +604,7 @@ export default function useKnowledgeBase() {
     moveConfirm,
     path,
     // setters used directly by the view
-    setActiveTab,
+    setActiveTab: changeTab,
     setSearchQuery,
     setSearchMode,
     setShowAddModal,

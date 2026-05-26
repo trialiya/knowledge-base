@@ -6,10 +6,9 @@ import { IconFolder, IconDoc, IconSparkle } from '../KnowledgeBase/icons';
 /**
  * Обёртка для внутренних KB-ссылок (`/?doc=N`) внутри сообщений чата.
  *
- * Отличия от KnowledgeBase/DocLinkTooltip:
  *   • дерева KB в чате нет → useDocPreview грузит документ через api.fetchById (tree=[]);
- *   • навигация идёт через проп onNavigateToDoc (он же переключает вкладку на «База знаний»
- *     и диспатчит app:navigate-doc), а не через прямой window.dispatchEvent.
+ *   • навигация идёт через проп onNavigateToDoc (= openDoc из useAppNavigation):
+ *     он переключает вкладку на «База знаний» и пишет URL централизованно.
  *
  * Внешние ссылки рендерятся как обычный <a target="_blank">.
  */
@@ -24,22 +23,17 @@ const ChatDocLink = ({ href, children, onNavigateToDoc, ...rest }) => {
   const docId = parseDocId(href);
   const isDocLink = docId !== null;
 
-  // tree=[] — в чате нет локального дерева, грузим по API
   const { node, loading, error } = useDocPreview(docId, [], visible && isDocLink);
 
-  // ── Позиционирование ───────────────────────────────────────────────────
   const calcPos = useCallback(() => {
     if (!linkRef.current) return;
     const rect = linkRef.current.getBoundingClientRect();
     const GAP = 8;
     const W = 300;
-
     const left = Math.min(Math.max(rect.left, 8), window.innerWidth - W - 8);
     const tooltipH = tooltipRef.current ? tooltipRef.current.offsetHeight : 160;
     const spaceBelow = window.innerHeight - rect.bottom - GAP;
-
     const top = spaceBelow >= tooltipH || spaceBelow >= rect.top - GAP ? rect.bottom + GAP : rect.top - tooltipH - GAP;
-
     setPos({ top, left });
   }, []);
 
@@ -47,7 +41,6 @@ const ChatDocLink = ({ href, children, onNavigateToDoc, ...rest }) => {
     if (visible) calcPos();
   }, [visible, node, loading, calcPos]);
 
-  // ── Hover ────────────────────────────────────────────────────────────────
   const handleMouseEnter = useCallback(() => {
     clearTimeout(leaveTimer.current);
     enterTimer.current = setTimeout(() => {
@@ -71,15 +64,9 @@ const ChatDocLink = ({ href, children, onNavigateToDoc, ...rest }) => {
     [],
   );
 
-  // ── Навигация ──────────────────────────────────────────────────────────
   const navigateToDoc = useCallback(
     (id) => {
-      if (onNavigateToDoc) {
-        onNavigateToDoc(String(id));
-      } else {
-        // Фолбэк: если проп не передан, ведём себя как KB-тултип
-        window.dispatchEvent(new CustomEvent('app:navigate-doc', { detail: { docId: String(id) } }));
-      }
+      if (onNavigateToDoc) onNavigateToDoc(String(id));
     },
     [onNavigateToDoc],
   );
@@ -92,7 +79,6 @@ const ChatDocLink = ({ href, children, onNavigateToDoc, ...rest }) => {
     [docId, navigateToDoc],
   );
 
-  // ── Внешняя ссылка ───────────────────────────────────────────────────────
   if (!isDocLink) {
     return (
       <a href={href} target="_blank" rel="noopener noreferrer" {...rest}>
@@ -133,11 +119,9 @@ const ChatDocLink = ({ href, children, onNavigateToDoc, ...rest }) => {
   );
 };
 
-// ── Карточка превью (идентична KB по разметке и классам) ───────────────────────
 const DocPreviewTooltip = React.forwardRef(
   ({ node, loading, error, pos, onMouseEnter, onMouseLeave, onNavigate }, ref) => {
     const isFolder = node?.type === 'folder';
-
     return (
       <div
         ref={ref}
@@ -209,13 +193,6 @@ const DocPreviewTooltip = React.forwardRef(
 
 DocPreviewTooltip.displayName = 'ChatDocPreviewTooltip';
 
-// ── Helpers (идентичны KB) ─────────────────────────────────────────────────────
-
-/**
- * Возвращает id документа ТОЛЬКО для внутренних KB-ссылок того же origin:
- *   /?doc=123 · ?doc=123 · /kb?doc=123 · https://<this-site>/?doc=123
- * Для внешних URL (другой origin) → null (рендерим как внешнюю <a>).
- */
 function parseDocId(href) {
   if (!href) return null;
   try {

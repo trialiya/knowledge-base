@@ -51,11 +51,13 @@ spring:
       request-timeout: 10m
 
 server:
+  port: 8080
   servlet:
     encoding:
       charset: UTF-8
       enabled: true
       force: true
+
 kb:
   documents:
     export-path: ${DOCUMENTS_EXPORT_PATH}
