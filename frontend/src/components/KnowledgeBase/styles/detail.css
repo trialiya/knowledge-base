@@ -562,3 +562,109 @@
   padding: 1px 7px;
   vertical-align: middle;
 }
+
+/* ═══════════════════════════════════════════════
+   FULLSCREEN EDITOR MODAL
+═══════════════════════════════════════════════ */
+
+.fs-editor-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9200;
+  background: rgba(40, 36, 80, 0.32);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3vh 3vw;
+  animation: fs-overlay-in 0.12s ease;
+}
+
+@keyframes fs-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.fs-editor {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 1100px;
+  height: 100%;
+  background: var(--kb-white);
+  border: 1.5px solid var(--kb-border);
+  border-radius: var(--kb-radius);
+  box-shadow: 0 16px 48px rgba(91, 79, 207, 0.22);
+  overflow: hidden;
+  animation: fs-editor-in 0.14s ease;
+}
+
+@keyframes fs-editor-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.fs-editor__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background: var(--kb-bg);
+  border-bottom: 1px solid var(--kb-border);
+  flex-shrink: 0;
+}
+
+.fs-editor__title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--kb-text);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fs-editor__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: none;
+  background: none;
+  color: var(--kb-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+.fs-editor__close:hover {
+  background: var(--kb-accent-bg);
+  color: var(--kb-accent);
+}
+
+/* Тело модалки — растягиваем MarkdownEditor на всю высоту */
+.fs-editor__body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  padding: 16px 18px;
+}
+.fs-editor__body .md-editor {
+  flex: 1;
+  min-height: 0;
+}
+/* preview-only режим (Summary.About): тоже на всю высоту со скроллом */
+.fs-editor__body .md-preview--embedded {
+  flex: 1;
+  overflow-y: auto;
+}

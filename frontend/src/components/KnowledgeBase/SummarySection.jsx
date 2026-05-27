@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import MarkdownEditor from './MarkdownEditor';
-import { IconEdit, IconChevronRight } from './icons';
+import { IconEdit, IconChevronRight, IconExpand } from './icons';
 
 const MAX_LINES = 8;
 
@@ -9,13 +9,24 @@ const MAX_LINES = 8;
  *   label        — section heading text
  *   description  — raw markdown / plain text
  *   onEdit       — called when pencil is clicked (switches to content tab)
+ *   onExpand     — called when expand button is clicked (opens fullscreen modal)
  *   showMoreBtn  — show a › button (to switch to contents tab)
  *   onMore       — called when › is clicked
  *   children     — optional slot rendered inside the section card (e.g. ContentsTable)
  *   tree         — KB tree array (forwarded to MarkdownEditor for DocLinkTooltip)
  *   onNavigate   — (node) => void (forwarded to MarkdownEditor for DocLinkTooltip)
  */
-const SummarySection = ({ label, description, onEdit, showMoreBtn, onMore, children, tree = [], onNavigate }) => {
+const SummarySection = ({
+  label,
+  description,
+  onEdit,
+  onExpand,
+  showMoreBtn,
+  onMore,
+  children,
+  tree = [],
+  onNavigate,
+}) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isTruncated, setIsTruncated] = useState(false);
   const contentRef = useRef(null);
@@ -42,6 +53,11 @@ const SummarySection = ({ label, description, onEdit, showMoreBtn, onMore, child
           {showMoreBtn && (
             <button className="detail-icon-btn" title="Открыть вкладку" onClick={onMore}>
               <IconChevronRight size={13} />
+            </button>
+          )}
+          {onExpand && (
+            <button className="detail-icon-btn" title="Развернуть" onClick={onExpand}>
+              <IconExpand />
             </button>
           )}
         </div>

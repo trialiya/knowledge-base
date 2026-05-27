@@ -1,7 +1,18 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { IconBold, IconItalic, IconCode, IconLink, IconH1, IconList, IconQuote, IconEye, IconEyeOff } from './icons';
+import {
+  IconBold,
+  IconItalic,
+  IconCode,
+  IconLink,
+  IconH1,
+  IconList,
+  IconQuote,
+  IconEye,
+  IconEyeOff,
+  IconExpand,
+} from './icons';
 import DocLinkTooltip from './DocLinkTooltip';
 import AtMentionDropdown from './AtMentionDropdown';
 import useAtMention from './useAtMention';
@@ -87,6 +98,7 @@ function prependLine(textarea, prefix) {
  *   previewOnly — if true, renders only the preview pane without toolbar or editor controls
  *   tree        — KB tree array (for DocLinkTooltip instant lookup)
  *   onNavigate  — (node) => void (for DocLinkTooltip "Открыть" button)
+ *   onExpand    — optional () => void; if set, shows an "expand" button in the toolbar right group
  */
 const MarkdownEditor = ({
   value,
@@ -95,10 +107,11 @@ const MarkdownEditor = ({
   previewOnly = false,
   tree = [],
   onNavigate,
+  onExpand,
 }) => {
   const [val, setVal] = useState(value);
   const [dirty, setDirty] = useState(false);
-  const [preview, setPreview] = useState(false);
+  const [preview, setPreview] = useState(true);
   const [saving, setSaving] = useState(false);
   const textareaRef = useRef(null);
 
@@ -195,6 +208,7 @@ const MarkdownEditor = ({
             title={preview ? 'Редактор' : 'Предпросмотр'}
             onClick={() => setPreview((p) => !p)}
           />
+          {onExpand && <ToolbarBtn icon={<IconExpand />} title="Развернуть" onClick={onExpand} />}
         </div>
       </div>
 
