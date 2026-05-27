@@ -4,6 +4,7 @@ import ContentsTable from './ContentsTable';
 import SummarySection from './SummarySection';
 import MarkdownEditor from './MarkdownEditor';
 import AttachmentPanel from './AttachmentPanel';
+import FullscreenEditorModal from './FullscreenEditorModal';
 import useFolderChildren from './useFolderChildren';
 
 const TABS = [
@@ -26,6 +27,7 @@ const FolderDetail = ({
   tree = [],
 }) => {
   const [attachmentCount, setAttachmentCount] = useState(0);
+  const [fullscreen, setFullscreen] = useState(null); // 'about' | 'content' | null
   const { children, loading: childrenLoading } = useFolderChildren(node, onLoadChildren);
 
   return (
@@ -54,6 +56,7 @@ const FolderDetail = ({
               label="About"
               description={node.description}
               onEdit={() => onTabChange('content')}
+              onExpand={() => setFullscreen('about')}
               tree={tree}
               onNavigate={onNavigate}
             />
@@ -73,6 +76,7 @@ const FolderDetail = ({
             value={node.description || ''}
             placeholder="Описание папки..."
             onSave={(val) => onUpdate(node.id, { description: val })}
+            onExpand={() => setFullscreen('content')}
             tree={tree}
             onNavigate={onNavigate}
           />
@@ -94,6 +98,18 @@ const FolderDetail = ({
           <AttachmentPanel ownerType="document" ownerId={node.id} onCountChange={setAttachmentCount} />
         )}
       </div>
+
+      {fullscreen && (
+        <FullscreenEditorModal
+          title={fullscreen === 'about' ? `${node.title} — About` : `${node.title} — Content`}
+          value={node.description || ''}
+          previewOnly={fullscreen === 'about'}
+          onSave={(val) => onUpdate(node.id, { description: val })}
+          onClose={() => setFullscreen(null)}
+          tree={tree}
+          onNavigate={onNavigate}
+        />
+      )}
     </div>
   );
 };

@@ -3,6 +3,7 @@ import DetailHeader from './DetailHeader';
 import SummarySection from './SummarySection';
 import MarkdownEditor from './MarkdownEditor';
 import AttachmentPanel from './AttachmentPanel';
+import FullscreenEditorModal from './FullscreenEditorModal';
 import { IconSparkle, IconSparkleLoading } from './icons';
 
 const TABS = [
@@ -98,6 +99,7 @@ const DocumentDetail = ({
   tree = [],
 }) => {
   const [attachmentCount, setAttachmentCount] = useState(0);
+  const [fullscreen, setFullscreen] = useState(null); // 'about' | 'content' | null
 
   const handleRename = (id, name) => {
     if (onRename) onRename(id, name);
@@ -132,6 +134,7 @@ const DocumentDetail = ({
               label="About"
               description={node.description}
               onEdit={() => onTabChange('content')}
+              onExpand={() => setFullscreen('about')}
               tree={tree}
               onNavigate={onNavigate}
             />
@@ -147,6 +150,7 @@ const DocumentDetail = ({
             value={node.description || ''}
             placeholder="# Markdown контент..."
             onSave={(val) => onUpdate(node.id, { description: val })}
+            onExpand={() => setFullscreen('content')}
             tree={tree}
             onNavigate={onNavigate}
           />
@@ -156,6 +160,18 @@ const DocumentDetail = ({
           <AttachmentPanel ownerType="document" ownerId={node.id} onCountChange={setAttachmentCount} />
         )}
       </div>
+
+      {fullscreen && (
+        <FullscreenEditorModal
+          title={fullscreen === 'about' ? `${node.title} — About` : `${node.title} — Content`}
+          value={node.description || ''}
+          previewOnly={fullscreen === 'about'}
+          onSave={(val) => onUpdate(node.id, { description: val })}
+          onClose={() => setFullscreen(null)}
+          tree={tree}
+          onNavigate={onNavigate}
+        />
+      )}
     </div>
   );
 };
