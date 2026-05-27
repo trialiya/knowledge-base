@@ -5,6 +5,7 @@ import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
+import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.service.GitService;
 import java.util.List;
 import lombok.AllArgsConstructor;
@@ -299,5 +300,95 @@ public class GitFunction {
         List<GitDiffEntry> gitDiffEntries = gitService.getUncommittedChanges(includePatch);
         log.info("getUncommittedChanges called: gitDiffEntries='{}'", gitDiffEntries);
         return gitDiffEntries;
+    }
+
+    // ── Content grep ────────────────────────────────────────────────────────
+
+    /**
+     * Searches the text content of all tracked files for lines matching {@code pattern}.
+     *
+     * @param pattern literal string (or regex when {@code regex=true}) to search for
+     * @param pathGlob optional glob pattern to restrict which files are searched
+     * @param regex if true, treat pattern as an extended regular expression
+     * @param contextLines lines of context before/after each match (0–10, default 0)
+     * @param maxResults maximum number of matches to return (1–200, default 50)
+     * @return list of matches with file path, line number, and line text
+     */
+    @Tool(
+            description =
+                    """
+            Ищет текст внутри содержимого tracked файлов репозитория (git grep). \
+            Возвращает: path (файл), line (номер строки, 1-based), text (текст строки). \
+            \
+            ОТЛИЧИЕ от searchFiles: searchFiles ищет по имени/пути файла; \
+            grepContent ищет внутри содержимого файлов. \
+            \
+            КОГДА ИСПОЛЬЗОВАТЬ: \
+            - найти все вызовы метода/функции: pattern="myMethod(", pathGlob="*.java" \
+            - найти константу, аннотацию, SQL-таблицу, конфигурационный ключ \
+            - найти все реализации паттерна: pattern="implements Runnable", regex=false \
+            - альтернации (несколько слов сразу): pattern="start|end|reset", regex=true \
+            - найти строку в конкретном типе файлов: pathGlob="*.yml" \
+            \
+            ПАРАМЕТРЫ: \
+            regex=false (по умолчанию) — буквальная подстрока, безопаснее и быстрее. \
+            regex=true — POSIX ERE: | . * + ? ^ $ [] () — используй если pattern содержит \
+            метасимволы (|, .*, ^, $). \
+            Поиск всегда регистронезависимый. \
+            contextLines — строки контекста вокруг совпадения (0–10); \
+            используй 2–5 чтобы видеть окружение без лишнего вызова getFileContent. \
+            \
+            ОГРАНИЧЕНИЯ: бинарные файлы пропускаются; .gitignore и untracked исключены.\
+            """)
+    public List<GitGrepMatch> grepContent(
+            @ToolParam(
+                            description =
+                                    "Что искать. Примеры: "
+                                            + "\"getLineageEndTimeMillis\" — буквальный метод; "
+                                            + "\"@(Bean|Service|Component)\" с regex=true — несколько аннотаций; "
+                                            + "\"TODO|FIXME\" с regex=true — технический долг. "
+                                            + "Если содержит | или другие regex-символы — установи regex=true.")
+                    String pattern,
+            @ToolParam(
+                            description =
+                                    "Glob для ограничения поиска по путям файлов. "
+                                            + "Примеры: \"*.java\", \"*.yml\", \"src/main/**\", \"**/*Service*.java\". "
+                                            + "null — искать во всех tracked файлах.",
+                            required = false)
+                    String pathGlob,
+            @ToolParam(
+                            description =
+                                    "true — pattern это POSIX ERE (используй при | .* ^ $ в pattern). "
+                                            + "false (по умолчанию) — буквальная подстрока.",
+                            required = false)
+                    Boolean regex,
+            @ToolParam(
+                            description =
+                                    "Строк контекста до и после совпадения (аналог grep -C). "
+                                            + "0 — только строка совпадения (по умолчанию). "
+                                            + "Рекомендуется 2–5 чтобы понять контекст без отдельного вызова getFileContent. "
+                                            + "Диапазон: 0–10.",
+                            required = false)
+                    Integer contextLines,
+            @ToolParam(
+                            description =
+                                    "Максимум совпадений. По умолчанию 50. Диапазон: 1–200. "
+                                            + "Уменьши при широком pattern (например regex с |) чтобы не перегружать контекст.",
+                            required = false)
+                    Integer maxResults) {
+        boolean useRegex = regex != null && regex;
+        int ctx = contextLines != null ? contextLines : 0;
+        int limit = maxResults != null ? maxResults : 50;
+        log.info(
+                "grepContent called: pattern='{}', pathGlob='{}', regex={}, contextLines={}, maxResults={}",
+                pattern,
+                pathGlob,
+                useRegex,
+                ctx,
+                limit);
+        List<GitGrepMatch> matches =
+                gitService.grepContent(pattern, pathGlob, useRegex, ctx, limit);
+        log.info("grepContent called: {} matches found", matches.size());
+        return matches;
     }
 }

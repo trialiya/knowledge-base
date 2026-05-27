@@ -5,6 +5,7 @@ import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
+import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.service.outline.LanguageDetector;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -261,6 +262,125 @@ public class GitService {
                             return new GitFileNode(f, name, "file", fileSize(f));
                         })
                 .toList();
+    }
+
+    // ── Content grep ────────────────────────────────────────────────────────
+
+    /**
+     * Searches the contents of tracked files for lines matching {@code pattern}.
+     *
+     * <p>Delegates to {@code git grep}, which searches only tracked files (honouring {@code
+     * .gitignore}) and is orders of magnitude faster than scanning the filesystem. Binary files are
+     * skipped automatically by git grep.
+     *
+     * <p>The search is <b>literal by default</b> ({@code --fixed-strings}). Pass {@code regex=true}
+     * to enable POSIX extended regular expressions. The search is always <b>case-insensitive</b>
+     * ({@code -i}) because the AI often doesn't know exact casing.
+     *
+     * @param pattern literal string or regex to search for
+     * @param pathGlob optional glob to restrict search to matching paths (e.g. {@code "*.java"},
+     *     {@code "src/main/**"}); null means all tracked files
+     * @param regex if true, treat {@code pattern} as an extended regex; otherwise literal
+     * @param contextLines number of context lines before and after each match (like grep -C); 0
+     *     means match line only; capped at 10
+     * @param maxResults maximum number of matches to return; capped at 200
+     * @return list of matches in order of appearance; empty list if nothing matched
+     */
+    public List<GitGrepMatch> grepContent(
+            @NonNull String pattern,
+            @Nullable String pathGlob,
+            boolean regex,
+            int contextLines,
+            int maxResults) {
+
+        int ctx = Math.min(Math.max(contextLines, 0), 10);
+        int limit = Math.min(Math.max(maxResults, 1), 200);
+
+        // Build: git grep -n -i [--fixed-strings | -E] [-C <ctx>] -- <pattern> [-- <glob>...]
+        List<String> args = new ArrayList<>();
+        args.add("git");
+        args.add("grep");
+        args.add("-n"); // line numbers
+        args.add("-i"); // case-insensitive
+        if (!regex) {
+            args.add("--fixed-strings");
+        } else {
+            args.add("-E"); // extended regex
+        }
+        if (ctx > 0) {
+            args.add("-C");
+            args.add(String.valueOf(ctx));
+        }
+        args.add("--");
+        args.add(pattern);
+        if (pathGlob != null && !pathGlob.isBlank()) {
+            args.add(pathGlob.strip());
+        }
+
+        List<String> lines = exec(args);
+
+        // git grep output with -C uses "--" as a separator between groups.
+        // Without -C format is: "path:linenum:text"
+        // With    -C format is: "path:linenum:text"  for match lines
+        //                       "path-linenum-text"  for context lines
+        //                       "--"                 between groups
+        List<GitGrepMatch> results = new ArrayList<>();
+        for (String line : lines) {
+            if (line.equals("--")) continue; // group separator when using -C
+            if (line.isBlank()) continue;
+
+            // Determine separator: ':' for match, '-' for context (only matters for display;
+            // we include both so the AI sees full context).
+            // Format: <path><sep><linenum><sep><text>
+            // Path may contain ':' on Unix only as part of the name (rare) — split at first colon
+            // followed by digits followed by another colon/dash.
+            int sepIdx = findFirstFieldSep(line);
+            if (sepIdx < 0) continue;
+
+            String filePath = line.substring(0, sepIdx);
+            String rest = line.substring(sepIdx + 1);
+
+            int sep2 = findLineNumEnd(rest);
+            if (sep2 < 0) continue;
+
+            int lineNum;
+            try {
+                lineNum = Integer.parseInt(rest.substring(0, sep2));
+            } catch (NumberFormatException e) {
+                continue;
+            }
+            String text = rest.substring(sep2 + 1);
+            results.add(new GitGrepMatch(filePath, lineNum, text));
+
+            if (results.size() >= limit) break;
+        }
+        return results;
+    }
+
+    /**
+     * Returns the index of the first {@code ':'} or {@code '-'} in {@code s} that is followed
+     * immediately by one or more digits and then another {@code ':'} or {@code '-'}, i.e. the
+     * git-grep field separator between path and line number.
+     */
+    private static int findFirstFieldSep(String s) {
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c != ':' && c != '-') continue;
+            // Check digits follow
+            int j = i + 1;
+            if (j >= s.length() || !Character.isDigit(s.charAt(j))) continue;
+            while (j < s.length() && Character.isDigit(s.charAt(j))) j++;
+            if (j < s.length() && (s.charAt(j) == ':' || s.charAt(j) == '-')) return i;
+        }
+        return -1;
+    }
+
+    private static int findLineNumEnd(String s) {
+        // rest всегда начинается с digits, затем ':' или '-'
+        int i = 0;
+        while (i < s.length() && Character.isDigit(s.charAt(i))) i++;
+        if (i > 0 && i < s.length() && (s.charAt(i) == ':' || s.charAt(i) == '-')) return i;
+        return -1;
     }
 
     // ── File content ────────────────────────────────────────────────────────
