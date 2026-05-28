@@ -43,6 +43,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SemanticSearchService {
 
+    private final boolean enabled;
+
     private final int reindexBatchSize;
     private final double defaultThreshold;
     private final int defaultLimit;
@@ -66,6 +68,7 @@ public class SemanticSearchService {
         this.documentRepo = documentRepo;
         this.attachmentEmbeddingRepo = attachmentEmbeddingRepo;
         this.attachmentRepo = attachmentRepo;
+        this.enabled = searchConfig.semantic().enabled();
         this.reindexBatchSize = embeddingConfig.reindexBatchSize();
         this.defaultThreshold = searchConfig.semantic().threshold();
         this.defaultLimit = searchConfig.semantic().limit();
@@ -75,7 +78,14 @@ public class SemanticSearchService {
 
     @Transactional
     public void indexDocument(Long documentId, String title, String description) {
-        EmbeddingResponse embeddingResponse = embeddingService.embedDocument(title, description);
+        if (!enabled) {
+            return;
+        }
+        final EmbeddingResponse embeddingResponse =
+                embeddingService.embedDocument(title, description);
+        if (embeddingResponse.getResults().isEmpty()) {
+            return;
+        }
 
         DocumentEmbeddingEntity entity =
                 embeddingRepo
@@ -97,6 +107,9 @@ public class SemanticSearchService {
 
     @Transactional
     public void deleteIndex(Long documentId) {
+        if (!enabled) {
+            return;
+        }
         embeddingRepo.deleteByDocumentId(documentId);
         log.debug("Removed embedding for document id={}", documentId);
     }
@@ -110,6 +123,9 @@ public class SemanticSearchService {
      */
     @Transactional
     public int reindexAll() {
+        if (!enabled) {
+            return 0;
+        }
         int docCount = reindexDocuments();
         int attCount = reindexAttachments();
         log.info("Full reindex complete: {} documents + {} attachments", docCount, attCount);
@@ -210,6 +226,9 @@ public class SemanticSearchService {
     // ── Search (documents only — backward compat) ─────────────────────────────
 
     public List<SemanticSearchResult> search(String query, double threshold, int limit) {
+        if (!enabled) {
+            return List.of();
+        }
         float[] queryVector = embeddingService.embed(query).getResult().getOutput();
         return embeddingRepo.findSimilar(queryVector, threshold, limit);
     }
@@ -225,6 +244,9 @@ public class SemanticSearchService {
      * by descending similarity.
      */
     public List<SemanticSearchResult> searchAll(String query, double threshold, int limit) {
+        if (!enabled) {
+            return List.of();
+        }
         float[] queryVector = embeddingService.embed(query).getResult().getOutput();
 
         List<SemanticSearchResult> docResults =

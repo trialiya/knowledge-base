@@ -11,6 +11,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *     keyword:
  *       limit: 20
  *     semantic:
+ *       enabled: true
  *       threshold: 0.30
  *       limit: 20
  *     hybrid:
@@ -26,7 +27,7 @@ public record SearchConfiguration(
 
     public record KeywordConfig(int limit) {}
 
-    public record SemanticConfig(double threshold, int limit) {}
+    public record SemanticConfig(boolean enabled, double threshold, int limit) {}
 
     public record HybridConfig(
             double keywordWeight, double semanticWeight, double threshold, int limit) {}

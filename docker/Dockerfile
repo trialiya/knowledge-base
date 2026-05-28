@@ -34,18 +34,21 @@ RUN java -Djarmode=tools -jar app.jar extract --layers --destination extracted
 
 # ── Stage 3: Runtime ─────────────────────────────────────────────
 FROM eclipse-temurin:25-jre-jammy
-WORKDIR /app
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git curl \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PROJECT_PATH=/project
-# Разрешаем git работать в /project для всех пользователей.
+
 RUN git config --system safe.directory /project
 
 RUN groupadd --system kb && useradd --system --gid kb kb
 
+# All as root: create /app, create local-db, set ownership
+RUN mkdir -p /app/local-db && chown -R kb:kb /app
+
+WORKDIR /app
 USER kb
 
 COPY --chmod=755 docker/start.sh /start.sh

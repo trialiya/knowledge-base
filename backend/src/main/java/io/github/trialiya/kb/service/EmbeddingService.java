@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.service;
 
 import io.github.trialiya.kb.config.model.EmbeddingConfiguration;
+import io.github.trialiya.kb.config.model.SearchConfiguration;
 import io.github.trialiya.kb.model.cache.EmbeddingCacheEntity;
 import io.github.trialiya.kb.repository.EmbeddingCacheRepository;
 import java.nio.charset.StandardCharsets;
@@ -50,6 +51,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class EmbeddingService {
 
+    private final boolean enabled;
     private final OpenAiEmbeddingModel embeddingModel;
     private final EmbeddingCacheRepository cacheRepo;
     private final TextChunker chunker;
@@ -62,9 +64,11 @@ public class EmbeddingService {
     private final String modelName;
 
     public EmbeddingService(
+            SearchConfiguration searchConfiguration,
             OpenAiEmbeddingModel embeddingModel,
             EmbeddingCacheRepository cacheRepo,
             EmbeddingConfiguration embeddingConfig) {
+        this.enabled = searchConfiguration.semantic().enabled();
         this.embeddingModel = embeddingModel;
         this.cacheRepo = cacheRepo;
         this.cacheEnabled = embeddingConfig.cache().enabled();
@@ -88,6 +92,9 @@ public class EmbeddingService {
      */
     @Transactional
     public EmbeddingResponse embed(String text) {
+        if (!enabled) {
+            return new EmbeddingResponse(List.of());
+        }
         float[] vector = embedWithCacheAndChunking(text);
         return wrapVector(vector, text);
     }
@@ -98,6 +105,9 @@ public class EmbeddingService {
      */
     @Transactional
     public EmbeddingResponse embedDocument(String title, String description) {
+        if (!enabled) {
+            return new EmbeddingResponse(List.of());
+        }
         String combined = buildDocumentText(title, description);
         return embed(combined);
     }
@@ -120,6 +130,9 @@ public class EmbeddingService {
      */
     @Transactional
     public List<float[]> embedBatch(List<String> texts) {
+        if (!enabled) {
+            return List.of();
+        }
         if (texts.isEmpty()) return List.of();
 
         float[][] results = new float[texts.size()][];

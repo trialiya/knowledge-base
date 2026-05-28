@@ -1,0 +1,42 @@
+version: '3.9'
+
+# ── Локальный запуск с H2 (без внешней БД) ───────────────────────
+#
+# Использование:
+#   cp docker/example.env .env
+#   # отредактируй .env — укажи PROJECT_PATH_MOUNT и AI-ключи
+#   docker compose -f docker/docker-compose-h2.yaml up
+#
+# Отличия от docker-compose.yaml:
+#   - Нет сервиса postgres
+#   - Backend запускается с профилем h2 (встроенная файловая БД)
+#   - Семантический поиск отключён (не требует embedding API)
+#   - H2-консоль доступна на http://localhost:8080/h2-console
+
+services:
+  # ── Backend (Spring Boot) с H2 ──────────────────────────────────
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: kb-backend
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      SPRING_PROFILES_ACTIVE: h2
+    ports:
+      - "8080:8080"
+    volumes:
+      - ${PROJECT_PATH_MOUNT:-../}:/project:ro
+      - ${DOCUMENTS_EXPORT_PATH:-../doc-export}:/doc-export
+      - kb-h2-data:/app/local-db
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  kb-h2-data:

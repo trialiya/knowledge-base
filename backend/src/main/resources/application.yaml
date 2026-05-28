@@ -87,6 +87,7 @@ kb:
     keyword:
       limit: 20
     semantic:
+      enabled: true
       threshold: 0.20
       limit: 20
     hybrid:

@@ -272,7 +272,11 @@ public class AttachmentService implements DisposableBean {
      * @return matching attachments ordered by relevance
      */
     public List<SemanticSearchResult> semanticSearch(String query, double threshold, int limit) {
-        float[] queryVector = embeddingService.embed(query).getResult().getOutput();
+        EmbeddingResponse embed = embeddingService.embed(query);
+        if (embed.getResults().isEmpty()) {
+            return List.of();
+        }
+        float[] queryVector = embed.getResult().getOutput();
         return embeddingRepo.findSimilar(queryVector, threshold, limit);
     }
 
@@ -358,7 +362,7 @@ public class AttachmentService implements DisposableBean {
      *
      * @param attachmentId the attachment to index
      */
-    public void indexAsync(Long attachmentId) {
+    private void indexAsync(Long attachmentId) {
         indexingExecutor.submit(
                 () -> {
                     try {
@@ -388,7 +392,9 @@ public class AttachmentService implements DisposableBean {
     private void doIndex(AttachmentEntity entity) {
         String textToEmbed = buildEmbeddingText(entity);
         EmbeddingResponse resp = embeddingService.embed(textToEmbed);
-
+        if (resp.getResults().isEmpty()) {
+            return;
+        }
         AttachmentEmbeddingEntity emb =
                 embeddingRepo
                         .findByAttachmentId(entity.getId())
