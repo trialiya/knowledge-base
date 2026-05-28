@@ -21,8 +21,8 @@
 ```bash
 cd docker
 cp example.env .env
-# Укажите AI_API_KEY, AI_EMBED_API_KEY и PROJECT_PATH_MOUNT
-docker compose up -d
+# Укажите AI_API_KEY, AI_BASE_URL, AI_MODEL и PROJECT_PATH_MOUNT
+docker compose -f docker-compose-h2.yaml up
 ```
 
 Приложение будет доступно на `http://localhost:8080`.

@@ -41,7 +41,7 @@ services:
       postgres:
         condition: service_healthy
     env_file:
-      - ./example.env
+      - ./.env
     ports:
       - "8080:8080"
     volumes:
