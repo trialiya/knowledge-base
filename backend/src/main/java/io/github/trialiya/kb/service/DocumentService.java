@@ -565,6 +565,11 @@ public class DocumentService {
     // ── Keyword search ────────────────────────────────────────────────────────
 
     public List<SearchResult> search(String q) {
+        return attachParents(keywordHits(q));
+    }
+
+    /** Keyword hits without breadcrumbs — shared building block for {@link #hybridSearch}. */
+    private List<SearchResult> keywordHits(String q) {
         return repo.search(q).stream()
                 .map(
                         e ->
@@ -573,7 +578,8 @@ public class DocumentService {
                                         e.getTitle(),
                                         generateSnippet(e.getDescription(), q.toLowerCase()),
                                         e.getUpdatedAt(),
-                                        e.getSummary()))
+                                        e.getSummary(),
+                                        List.of()))
                 .collect(Collectors.toList());
     }
 
@@ -591,16 +597,19 @@ public class DocumentService {
         double t = threshold != null ? threshold : searchConfig.semantic().threshold();
         int l = limit != null ? limit : searchConfig.semantic().limit();
 
-        return semanticSearchService.search(q, t, l).stream()
-                .map(
-                        r ->
-                                new SearchResult(
-                                        r.id(),
-                                        r.title(),
-                                        generateSnippet(r.description(), q.toLowerCase()),
-                                        r.updatedAt(),
-                                        r.summary()))
-                .collect(Collectors.toList());
+        List<SearchResult> hits =
+                semanticSearchService.search(q, t, l).stream()
+                        .map(
+                                r ->
+                                        new SearchResult(
+                                                r.id(),
+                                                r.title(),
+                                                generateSnippet(r.description(), q.toLowerCase()),
+                                                r.updatedAt(),
+                                                r.summary(),
+                                                List.of()))
+                        .collect(Collectors.toList());
+        return attachParents(hits);
     }
 
     // ── Hybrid search ─────────────────────────────────────────────────────────
@@ -633,11 +642,11 @@ public class DocumentService {
         int lim = limit != null ? limit : cfg.limit();
 
         // ── 1. Keyword hits ───────────────────────────────────────────────────
-        List<SearchResult> kwResults = search(q);
+        List<SearchResult> kwResults = keywordHits(q);
         Map<String, Double> kwScores = new LinkedHashMap<>();
         int kwSize = kwResults.size();
         for (int i = 0; i < kwSize; i++) {
-            kwScores.put(kwResults.get(i).getId(), (double) (kwSize - i) / kwSize);
+            kwScores.put(kwResults.get(i).id(), (double) (kwSize - i) / kwSize);
         }
 
         // ── 2. Semantic hits ──────────────────────────────────────────────────
@@ -651,7 +660,7 @@ public class DocumentService {
         // ── 3. Build unified candidate set ────────────────────────────────────
         Map<String, SearchResult> snippets = new HashMap<>();
         for (SearchResult sr : kwResults) {
-            snippets.put(sr.getId(), sr);
+            snippets.put(sr.id(), sr);
         }
         for (SemanticSearchResult sr : semResults) {
             snippets.computeIfAbsent(
@@ -662,21 +671,51 @@ public class DocumentService {
                                     sr.title(),
                                     generateSnippet(sr.description(), q.toLowerCase()),
                                     sr.updatedAt(),
-                                    sr.summary()));
+                                    sr.summary(),
+                                    List.of()));
         }
 
         // ── 4. Combine scores & sort ──────────────────────────────────────────
-        return snippets.keySet().stream()
+        List<SearchResult> top =
+                snippets.keySet().stream()
+                        .map(
+                                id -> {
+                                    double score =
+                                            kw * kwScores.getOrDefault(id, 0.0)
+                                                    + sem * semScores.getOrDefault(id, 0.0);
+                                    return Map.entry(score, snippets.get(id));
+                                })
+                        .sorted(Map.Entry.<Double, SearchResult>comparingByKey().reversed())
+                        .limit(lim)
+                        .map(Map.Entry::getValue)
+                        .collect(Collectors.toList());
+
+        // Resolve breadcrumbs once, only for the results we actually return.
+        return attachParents(top);
+    }
+
+    /**
+     * Populates {@code parentList} for every result with a single batched ancestor query, returning
+     * fresh {@link SearchResult} copies (the record is immutable). Resolving ancestors per result
+     * would be an N+1; this is one recursive query for the whole page.
+     */
+    private List<SearchResult> attachParents(List<SearchResult> results) {
+        if (results.isEmpty()) return results;
+
+        List<Long> ids =
+                results.stream().map(r -> Long.parseLong(r.id())).collect(Collectors.toList());
+        final Map<Long, List<SearchResult.Parent>> ancestors = repo.findAncestorsByIds(ids);
+
+        return results.stream()
                 .map(
-                        id -> {
-                            double score =
-                                    kw * kwScores.getOrDefault(id, 0.0)
-                                            + sem * semScores.getOrDefault(id, 0.0);
-                            return Map.entry(score, snippets.get(id));
-                        })
-                .sorted(Map.Entry.<Double, SearchResult>comparingByKey().reversed())
-                .limit(lim)
-                .map(Map.Entry::getValue)
+                        r ->
+                                new SearchResult(
+                                        r.id(),
+                                        r.title(),
+                                        r.snippet(),
+                                        r.updatedAt(),
+                                        r.summary(),
+                                        ancestors.getOrDefault(Long.parseLong(r.id()), List.of())))
                 .collect(Collectors.toList());
     }
 

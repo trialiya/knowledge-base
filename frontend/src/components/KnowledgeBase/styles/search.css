@@ -118,9 +118,15 @@
 .sr-card__title {
   font-weight: 700;
   font-size: 0.95rem;
-  color: var(--kb-accent);
+  color: #2563eb;
   flex: 1;
   letter-spacing: -0.01em;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.sr-card__title:hover {
+  text-decoration: underline;
 }
 
 .sr-card__date {

@@ -5,6 +5,10 @@ import { getSiblings, applyReorder, parentTitle, isParentChange, updateNodeInTre
 import { findNodeById, findPath } from '../Utils/utils';
 
 const PAGE_SIZE = 10;
+// Used when we must guarantee the WHOLE child list is present (e.g. restoring
+// the path to a selected node after refresh / direct-link navigation), so a
+// node sitting on page 2+ of its parent isn't missing from the tree.
+const FULL_PAGE = 1000;
 
 /**
  * Encapsulates every piece of Knowledge Base state, side effect and handler.
@@ -249,7 +253,10 @@ export default function useKnowledgeBase({
 
         const ancestorIds = await api.fetchAncestors(docId);
         for (const ancestorId of ancestorIds) {
-          const paged = await api.fetchChildren(ancestorId, 0, PAGE_SIZE);
+          // FULL_PAGE, not PAGE_SIZE: the target may sit on page 2+ of this
+          // ancestor's children — a first-page fetch would omit it and the
+          // findNodeById below would wrongly report it as not found.
+          const paged = await api.fetchChildren(ancestorId, 0, FULL_PAGE);
           currentTree = await new Promise((resolve) => {
             setTree((prev) => {
               const clone = JSON.parse(JSON.stringify(prev));
@@ -259,6 +266,13 @@ export default function useKnowledgeBase({
               return clone;
             });
           });
+        }
+
+        // A root-level target beyond the first page: reload the full root list.
+        if (ancestorIds.length === 0 && !findNodeById(currentTree, docId)) {
+          const fullRoot = await api.fetchChildren(null, 0, FULL_PAGE);
+          currentTree = Array.isArray(fullRoot.items) ? fullRoot.items : currentTree;
+          setTree(currentTree);
         }
 
         const target = findNodeById(currentTree, docId);
@@ -522,52 +536,66 @@ export default function useKnowledgeBase({
     if (refreshing) return;
     setRefreshing(true);
     try {
-      // 1. Reload root-level tree
+      // 1. Reload root-level tree (first page — keeps lazy pagination for the
+      //    common case where the selected node lives near the top).
       const paged = await api.fetchChildren(null, 0, PAGE_SIZE);
-      const rootNodes = Array.isArray(paged.items) ? paged.items : [];
-      setTree(rootNodes);
+      let currentTree = Array.isArray(paged.items) ? paged.items : [];
+      setTree(currentTree);
 
-      // 2. If a node is selected, reload its ancestor chain to restore tree path
-      if (selectedNode) {
-        let currentTree = rootNodes;
-        try {
-          const ancestorIds = await api.fetchAncestors(selectedNode.id);
-          for (const ancestorId of ancestorIds) {
-            const ancestorPaged = await api.fetchChildren(ancestorId, 0, PAGE_SIZE);
-            currentTree = await new Promise((resolve) => {
-              setTree((prev) => {
-                const clone = JSON.parse(JSON.stringify(prev));
-                const parent = spliceChildren(clone, ancestorId, ancestorPaged, { replace: true });
-                if (parent) parent._openOnLoad = true;
-                resolve(clone);
-                return clone;
-              });
-            });
-          }
+      if (!selectedNode) return;
 
-          const target = findNodeById(currentTree, selectedNode.id);
-          if (target) {
-            // For folders, also reload children
-            if (target.type === 'folder') {
-              const folderPaged = await api.fetchChildren(selectedNode.id, 0, PAGE_SIZE);
-              setTree((prev) => {
-                const clone = JSON.parse(JSON.stringify(prev));
-                spliceChildren(clone, selectedNode.id, folderPaged, { replace: true });
-                return clone;
-              });
-            }
-            // Re-fetch the FULL document and re-select it. The tree reload above
-            // replaced the node with a snippet-only stub; without this the
-            // tree-sync effect would push that stub into the detail and the
-            // description would appear truncated after a manual refresh.
-            await fetchFullAndSelect(target);
-          } else {
-            setSelectedNode(null);
+      // Splice a freshly-fetched page into a cloned tree and return the clone.
+      // (Tracking the clone in a plain variable avoids the awkward
+      // setTree-inside-a-Promise dance and keeps `currentTree` authoritative.)
+      const splice = (treeArr, parentId, pagedChildren, { open = false } = {}) => {
+        const clone = JSON.parse(JSON.stringify(treeArr));
+        const parent = spliceChildren(clone, parentId, pagedChildren, { replace: true });
+        if (parent && open) parent._openOnLoad = true;
+        return clone;
+      };
+
+      try {
+        const ancestorIds = (await api.fetchAncestors(selectedNode.id)) || [];
+
+        // 2. Restore the path to the selected node. The node may sit on page 2+
+        //    of its parent's children, which a PAGE_SIZE fetch would NOT include
+        //    — it would then be missing from the tree, findNodeById below would
+        //    fail, and the selection would be lost ("Выберите документ для
+        //    просмотра"). So load the FULL child list for each ancestor.
+        for (const ancestorId of ancestorIds) {
+          const ancestorPaged = await api.fetchChildren(ancestorId, 0, FULL_PAGE);
+          currentTree = splice(currentTree, ancestorId, ancestorPaged, { open: true });
+          setTree(currentTree);
+        }
+
+        // 3. A root-level node beyond the first page needs the full root list too
+        //    (it has no ancestors, so the loop above never runs for it).
+        if (ancestorIds.length === 0 && !findNodeById(currentTree, selectedNode.id)) {
+          const fullRoot = await api.fetchChildren(null, 0, FULL_PAGE);
+          currentTree = Array.isArray(fullRoot.items) ? fullRoot.items : currentTree;
+          setTree(currentTree);
+        }
+
+        const target = findNodeById(currentTree, selectedNode.id);
+        if (target) {
+          // For folders, also reload children (full list, so the tree shows them
+          // all without a stray "load more").
+          if (target.type === 'folder') {
+            const folderPaged = await api.fetchChildren(selectedNode.id, 0, FULL_PAGE);
+            currentTree = splice(currentTree, selectedNode.id, folderPaged);
+            setTree(currentTree);
           }
-        } catch {
-          // If ancestors fail (deleted node?), just clear selection
+          // Re-fetch the FULL document and re-select it. The tree reload above
+          // replaced the node with a snippet-only stub; without this the
+          // tree-sync effect would push that stub into the detail and the
+          // description would appear truncated after a manual refresh.
+          await fetchFullAndSelect(target);
+        } else {
           setSelectedNode(null);
         }
+      } catch {
+        // If ancestors fail (deleted node?), just clear selection
+        setSelectedNode(null);
       }
     } catch {
       // Tree reload failed — leave current state

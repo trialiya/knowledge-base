@@ -21,7 +21,7 @@ const api = {
     return r.json();
   },
 
-  search: (q, mode) => fetch(`/api/search?q=${encodeURIComponent(q)}&mode=${mode}`).then((r) => r.json()),
+  search: (q, mode) => fetch(`/api/documents/search?q=${encodeURIComponent(q)}&mode=${mode}`).then((r) => r.json()),
 
   /**
    * Find documents by name fragment — used by @mention autocomplete.

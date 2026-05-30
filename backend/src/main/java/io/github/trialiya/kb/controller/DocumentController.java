@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/documents")
 @RequiredArgsConstructor
 public class DocumentController {
 
@@ -34,7 +34,7 @@ public class DocumentController {
     // ── Tree ──────────────────────────────────────────────────────────────────
 
     /** Full recursive tree (legacy, kept for backward compat). */
-    @GetMapping("/documents/tree")
+    @GetMapping("/tree")
     public List<DocumentNode> getTree() {
         return service.getTree();
     }
@@ -50,7 +50,7 @@ public class DocumentController {
      *
      * Response is {@link PagedChildren} with totalElements, totalPages, hasNext, etc.
      */
-    @GetMapping("/documents/children")
+    @GetMapping("/children")
     public PagedChildren getChildren(
             @RequestParam(required = false) String parentId,
             @RequestParam(defaultValue = "0") int page,
@@ -66,20 +66,20 @@ public class DocumentController {
      *
      * <pre>GET /api/documents/{id}/ancestors → ["1", "7", "42"]</pre>
      */
-    @GetMapping("/documents/{id}/ancestors")
+    @GetMapping("/{id}/ancestors")
     public List<String> getAncestors(@PathVariable String id) {
         return service.getAncestorIds(Long.parseLong(id));
     }
 
     // ── CRUD ──────────────────────────────────────────────────────────────────
 
-    @PostMapping("/documents")
+    @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public Document createDocument(@RequestBody CreateDocumentRequest request) {
         return service.create(request);
     }
 
-    @GetMapping("/documents/{id}")
+    @GetMapping("/{id}")
     public DocumentNode getDocument(@PathVariable String id) {
         DocumentNode node = service.getById(Long.parseLong(id));
         if (node == null) {
@@ -88,13 +88,13 @@ public class DocumentController {
         return node;
     }
 
-    @PutMapping("/documents/{id}")
+    @PutMapping("/{id}")
     public Document updateDocument(
             @PathVariable String id, @RequestBody UpdateDocumentRequest request) {
         return service.update(id, request);
     }
 
-    @DeleteMapping("/documents/{id}")
+    @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteDocument(@PathVariable String id) {
         service.delete(id);
@@ -115,7 +115,7 @@ public class DocumentController {
      * @throws ResponseStatusException 422 document has no description to summarise
      * @throws ResponseStatusException 409 concurrent modification detected
      */
-    @PostMapping("/documents/{id}/summarize")
+    @PostMapping("/{id}/summarize")
     public DocumentNode summarizeDocument(@PathVariable String id) {
         return service.summarize(id);
     }
@@ -133,7 +133,7 @@ public class DocumentController {
      * }
      * </pre>
      */
-    @PatchMapping("/documents/reorder")
+    @PatchMapping("/reorder")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void reorder(@RequestBody ReorderRequest request) {
         service.reorder(request);
@@ -151,7 +151,7 @@ public class DocumentController {
      * Returns the updated document. Responds 400 if the move would create a cycle, 403 for system
      * nodes, 404 if either node is missing, 422 if the target is not a folder.
      */
-    @PatchMapping("/documents/{id}/parent")
+    @PatchMapping("/{id}/parent")
     public Document moveToParent(
             @PathVariable String id, @RequestBody MoveToParentRequest request) {
         return service.moveToParent(id, request.getParentId());
@@ -200,7 +200,7 @@ public class DocumentController {
      * @param name full or partial title fragment to look up (required, min 1 char)
      * @param limit max results to return (default 10, max 20)
      */
-    @GetMapping("/documents/search-by-name")
+    @GetMapping("/search-by-name")
     public List<DocumentNode> searchByName(
             @RequestParam String name, @RequestParam(defaultValue = "10") int limit) {
         if (name == null || name.isBlank()) return List.of();
@@ -216,13 +216,13 @@ public class DocumentController {
      *
      * <pre>POST /api/documents/reindex</pre>
      */
-    @PostMapping("/documents/reindex")
+    @PostMapping("/admin/reindex")
     public ReindexResponse reindex() {
         int count = semanticSearchService.reindexAll();
         return new ReindexResponse(count);
     }
 
-    @PostMapping("/documents/admin/export")
+    @PostMapping("/admin/export")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void export(@RequestParam(defaultValue = "true") boolean meta) {
         documentExportService.exportAll(meta);
