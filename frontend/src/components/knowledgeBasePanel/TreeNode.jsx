@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { IconFolder, IconDoc, IconChevron, IconLock } from './icons';
-import { findNodeById } from '../Utils/utils';
+import { findNodeById } from '../common/utils';
 
 const PAGE_SIZE = 10;
 

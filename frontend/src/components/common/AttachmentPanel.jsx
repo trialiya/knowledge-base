@@ -1,12 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { IconTrash, IconDoc, IconEye, IconUpload, IconSummarize } from './icons';
+import { IconTrash, IconDoc, IconEye, IconUpload, IconSummarize } from '../knowledgeBasePanel/icons';
 import attachmentApi, { formatFileSize } from './attachmentApi';
 import AttachmentModal from './AttachmentModal';
 import ConfirmModal from './ConfirmModal';
-import ErrorModal from '../Utils/ErrorModal';
-
-// Re-exported for backward compatibility (icons now live in icons.jsx).
-export { IconUpload, IconPaperclip } from './icons';
+import ErrorModal from './ErrorModal';
 
 // ─── Main component ──────────────────────────────────────────────────────────
 

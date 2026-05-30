@@ -1,6 +1,6 @@
 package io.github.trialiya.kb.functions;
 
-import io.github.trialiya.kb.model.chat.entity.ChatTopic;
+import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -53,16 +53,16 @@ public class TopicFunction {
             @ToolParam(description = "Тема чата — 3 слова, на языке пользователя") String topic) {
         String chatId = conversationId(context);
         log.info("[{}] Chat topic: {}", chatId, topic);
-        Optional<ChatTopic> chatTopicOptional = chatTopicRepository.findById(chatId);
-        if (!chatTopicOptional.map(ChatTopic::isUser).orElse(false)) {
+        Optional<ChatTopicEntity> chatTopicOptional = chatTopicRepository.findById(chatId);
+        if (!chatTopicOptional.map(ChatTopicEntity::isUser).orElse(false)) {
             chatTopicRepository.save(
-                    new ChatTopic(
+                    new ChatTopicEntity(
                             chatId,
                             chatUser(context),
                             false,
                             topic,
-                            chatTopicOptional.map(ChatTopic::getCreatedAt).orElse(null),
-                            chatTopicOptional.map(ChatTopic::getUpdatedAt).orElse(null),
+                            chatTopicOptional.map(ChatTopicEntity::getCreatedAt).orElse(null),
+                            chatTopicOptional.map(ChatTopicEntity::getUpdatedAt).orElse(null),
                             chatTopicOptional.isEmpty()));
         }
     }

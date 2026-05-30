@@ -568,18 +568,20 @@ public class DocumentService {
         return attachParents(keywordHits(q));
     }
 
+    private record RawSearchResult(
+            String id, String title, String snippet, LocalDateTime updatedAt, String summary) {}
+
     /** Keyword hits without breadcrumbs — shared building block for {@link #hybridSearch}. */
-    private List<SearchResult> keywordHits(String q) {
+    private List<RawSearchResult> keywordHits(String q) {
         return repo.search(q).stream()
                 .map(
                         e ->
-                                new SearchResult(
+                                new RawSearchResult(
                                         String.valueOf(e.getId()),
                                         e.getTitle(),
                                         generateSnippet(e.getDescription(), q.toLowerCase()),
                                         e.getUpdatedAt(),
-                                        e.getSummary(),
-                                        List.of()))
+                                        e.getSummary()))
                 .collect(Collectors.toList());
     }
 
@@ -597,17 +599,16 @@ public class DocumentService {
         double t = threshold != null ? threshold : searchConfig.semantic().threshold();
         int l = limit != null ? limit : searchConfig.semantic().limit();
 
-        List<SearchResult> hits =
+        List<RawSearchResult> hits =
                 semanticSearchService.search(q, t, l).stream()
                         .map(
                                 r ->
-                                        new SearchResult(
+                                        new RawSearchResult(
                                                 r.id(),
                                                 r.title(),
                                                 generateSnippet(r.description(), q.toLowerCase()),
                                                 r.updatedAt(),
-                                                r.summary(),
-                                                List.of()))
+                                                r.summary()))
                         .collect(Collectors.toList());
         return attachParents(hits);
     }
@@ -642,7 +643,7 @@ public class DocumentService {
         int lim = limit != null ? limit : cfg.limit();
 
         // ── 1. Keyword hits ───────────────────────────────────────────────────
-        List<SearchResult> kwResults = keywordHits(q);
+        List<RawSearchResult> kwResults = keywordHits(q);
         Map<String, Double> kwScores = new LinkedHashMap<>();
         int kwSize = kwResults.size();
         for (int i = 0; i < kwSize; i++) {
@@ -658,25 +659,24 @@ public class DocumentService {
         }
 
         // ── 3. Build unified candidate set ────────────────────────────────────
-        Map<String, SearchResult> snippets = new HashMap<>();
-        for (SearchResult sr : kwResults) {
+        Map<String, RawSearchResult> snippets = new HashMap<>();
+        for (RawSearchResult sr : kwResults) {
             snippets.put(sr.id(), sr);
         }
         for (SemanticSearchResult sr : semResults) {
             snippets.computeIfAbsent(
                     sr.id(),
                     id ->
-                            new SearchResult(
+                            new RawSearchResult(
                                     id,
                                     sr.title(),
                                     generateSnippet(sr.description(), q.toLowerCase()),
                                     sr.updatedAt(),
-                                    sr.summary(),
-                                    List.of()));
+                                    sr.summary()));
         }
 
         // ── 4. Combine scores & sort ──────────────────────────────────────────
-        List<SearchResult> top =
+        List<RawSearchResult> top =
                 snippets.keySet().stream()
                         .map(
                                 id -> {
@@ -685,7 +685,7 @@ public class DocumentService {
                                                     + sem * semScores.getOrDefault(id, 0.0);
                                     return Map.entry(score, snippets.get(id));
                                 })
-                        .sorted(Map.Entry.<Double, SearchResult>comparingByKey().reversed())
+                        .sorted(Map.Entry.<Double, RawSearchResult>comparingByKey().reversed())
                         .limit(lim)
                         .map(Map.Entry::getValue)
                         .collect(Collectors.toList());
@@ -699,8 +699,10 @@ public class DocumentService {
      * fresh {@link SearchResult} copies (the record is immutable). Resolving ancestors per result
      * would be an N+1; this is one recursive query for the whole page.
      */
-    private List<SearchResult> attachParents(List<SearchResult> results) {
-        if (results.isEmpty()) return results;
+    private List<SearchResult> attachParents(List<RawSearchResult> results) {
+        if (results.isEmpty()) {
+            return List.of();
+        }
 
         List<Long> ids =
                 results.stream().map(r -> Long.parseLong(r.id())).collect(Collectors.toList());

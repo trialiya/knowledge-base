@@ -3,7 +3,7 @@ import DetailHeader from './DetailHeader';
 import ContentsTable from './ContentsTable';
 import SummarySection from './SummarySection';
 import MarkdownEditor from './MarkdownEditor';
-import AttachmentPanel from './AttachmentPanel';
+import AttachmentPanel from '../common/AttachmentPanel';
 import FullscreenEditorModal from './FullscreenEditorModal';
 import useFolderChildren from './useFolderChildren';
 

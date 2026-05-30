@@ -5,7 +5,7 @@ import static io.github.trialiya.kb.utils.ChatUtils.buildContext;
 import com.google.common.util.concurrent.Striped;
 import io.github.trialiya.kb.config.ChatConfig;
 import io.github.trialiya.kb.functions.MessageLookupFunction;
-import io.github.trialiya.kb.model.chat.entity.ChatMessage;
+import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.micrometer.core.instrument.util.IOUtils;
 import jakarta.annotation.Nonnull;
@@ -82,7 +82,7 @@ public class SummarizeService implements DisposableBean {
                                 IOUtils.toString(
                                         ChatConfig.class
                                                 .getClassLoader()
-                                                .getResourceAsStream("promt/summarizer.md")))
+                                                .getResourceAsStream("prompt/summarizer.md")))
                         .defaultTools(new MessageLookupFunction(chatMessageRepository))
                         .build();
         this.chatMessageRepository = chatMessageRepository;
@@ -121,7 +121,7 @@ public class SummarizeService implements DisposableBean {
 
     public void doSummarize(@Nonnull final String conversationId) {
         // 1. Fetch all live (non-summarized) messages, excluding blanks and system msgs.
-        final List<ChatMessage> liveMessages =
+        final List<ChatMessageEntity> liveMessages =
                 chatMessageRepository
                         .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAt(
                                 conversationId)
@@ -154,7 +154,7 @@ public class SummarizeService implements DisposableBean {
             return;
         }
 
-        final List<ChatMessage> toCompress = liveMessages.subList(0, cutoff);
+        final List<ChatMessageEntity> toCompress = liveMessages.subList(0, cutoff);
 
         log.info(
                 "[{}] Compressing: {} - {}",
@@ -163,7 +163,7 @@ public class SummarizeService implements DisposableBean {
                 toCompress.getLast().getPosition());
 
         // 4. Load existing summaries to give the LLM prior context.
-        final List<ChatMessage> existingSummaries =
+        final List<ChatMessageEntity> existingSummaries =
                 chatMessageRepository
                         .findChatMessageByConversationIdAndSummarizedFalseAndSummaryTrueOrderByCreatedAt(
                                 conversationId);
@@ -201,15 +201,15 @@ public class SummarizeService implements DisposableBean {
      * Rough token estimate for the first {@code limit} messages: total characters /
      * CHARS_PER_TOKEN. Good enough for a threshold check; no need for a full tokenizer here.
      */
-    private int estimateTokens(List<ChatMessage> messages, int limit) {
+    private int estimateTokens(List<ChatMessageEntity> messages, int limit) {
         return messages.stream().limit(limit).mapToInt(m -> m.getText().length()).sum()
                 / CHARS_PER_TOKEN;
     }
 
     private String generateSummary(
             String conversationId,
-            List<ChatMessage> existingSummaries,
-            List<ChatMessage> toCompress,
+            List<ChatMessageEntity> existingSummaries,
+            List<ChatMessageEntity> toCompress,
             int count,
             boolean collapseSummaries) {
         final StringBuilder prompt = new StringBuilder();
@@ -276,23 +276,23 @@ public class SummarizeService implements DisposableBean {
     /** Marks old messages as summarized and inserts the new summary row, atomically. */
     private void persistSummary(
             String conversationId,
-            List<ChatMessage> oldMessages,
-            List<ChatMessage> existingSummaries,
+            List<ChatMessageEntity> oldMessages,
+            List<ChatMessageEntity> existingSummaries,
             boolean collapseSummaries,
             String metaSummaryText) {
         if (oldMessages.isEmpty()) {
             return;
         }
-        final ChatMessage firstMsg =
+        final ChatMessageEntity firstMsg =
                 collapseSummaries ? existingSummaries.getFirst() : oldMessages.getFirst();
-        final ChatMessage lastMsg = oldMessages.getLast();
+        final ChatMessageEntity lastMsg = oldMessages.getLast();
 
         transactionTemplate.executeWithoutResult(
                 s -> {
                     chatMessageRepository.updateSummarized(
                             conversationId, firstMsg.getPosition(), lastMsg.getPosition());
                     chatMessageRepository.save(
-                            new ChatMessage(
+                            new ChatMessageEntity(
                                     0L,
                                     conversationId,
                                     metaSummaryText,

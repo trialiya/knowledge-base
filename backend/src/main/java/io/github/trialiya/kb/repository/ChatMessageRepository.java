@@ -1,6 +1,6 @@
 package io.github.trialiya.kb.repository;
 
-import io.github.trialiya.kb.model.chat.entity.ChatMessage;
+import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jdbc.repository.query.Modifying;
@@ -8,18 +8,18 @@ import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.query.Param;
 
-public interface ChatMessageRepository extends CrudRepository<ChatMessage, String> {
+public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity, String> {
 
     int deleteChatMessageByConversationId(String conversationId);
 
-    List<ChatMessage> findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAt(
+    List<ChatMessageEntity> findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAt(
             @Param("conversationId") String conversationId);
 
-    List<ChatMessage> findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAt(
+    List<ChatMessageEntity> findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAt(
             @Param("conversationId") String conversationId);
 
     // findSummaries
-    List<ChatMessage>
+    List<ChatMessageEntity>
             findChatMessageByConversationIdAndSummarizedFalseAndSummaryTrueOrderByCreatedAt(
                     @Param("conversationId") String conversationId);
 
@@ -36,9 +36,10 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessage, Strin
             @Param("startPosition") long startPosition,
             @Param("endPosition") long endPosition);
 
-    List<ChatMessage> findChatMessagesByConversationIdAndPositionInOrderByCreatedAt(
+    List<ChatMessageEntity> findChatMessagesByConversationIdAndPositionInOrderByCreatedAt(
             @Param("conversationId") String conversationId,
             @Param("positions") List<Long> positions);
 
-    Optional<ChatMessage> findFirstByConversationIdOrderByCreatedAtDesc(String conversationId);
+    Optional<ChatMessageEntity> findFirstByConversationIdOrderByCreatedAtDesc(
+            String conversationId);
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import './JiraAttachmentPanel.css';
+import './jiraAttachmentPanel.css';
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 

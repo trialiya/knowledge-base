@@ -63,7 +63,7 @@ public class ChatConfig {
                         IOUtils.toString(
                                 ChatConfig.class
                                         .getClassLoader()
-                                        .getResourceAsStream("promt/sys.md")))
+                                        .getResourceAsStream("prompt/sys.md")))
                 .defaultToolCallbacks(callbacks)
                 .build();
     }

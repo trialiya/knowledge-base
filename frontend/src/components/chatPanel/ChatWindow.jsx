@@ -3,14 +3,15 @@ import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import ChatList from './ChatList';
-import AttachmentPanel, { IconPaperclip } from '../KnowledgeBase/AttachmentPanel';
-import './ChatWindow.css';
-import '../KnowledgeBase/AttachmentPanel.css';
+import AttachmentPanel from '../common/AttachmentPanel';
+import { IconPaperclip } from '../knowledgeBasePanel/icons'
+import './chatWindow.css';
+import '../common/attachmentPanel.css';
 import CreateJiraChatModal from './CreateJiraChatModal';
-import './CreateJiraChatModal.css';
+import './createJiraChatModal.css';
 import JiraAttachmentPanel from './JiraAttachmentPanel';
-import './JiraAttachmentPanel.css';
-import ErrorModal from '../Utils/ErrorModal';
+import './jiraAttachmentPanel.css';
+import ErrorModal from '../common/ErrorModal';
 
 const generateUUID = () => {
   if (crypto?.randomUUID) {

@@ -1,5 +1,5 @@
 import React from 'react';
-import './ErrorModal.css';
+import './errorModal.css';
 
 /**
  * Простое модальное окно для отображения ошибок.

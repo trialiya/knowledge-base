@@ -10,7 +10,7 @@ import org.springframework.data.domain.Persistable;
 import org.springframework.data.relational.core.mapping.Table;
 
 @Table(name = "chat_topic")
-public class ChatTopic implements Persistable<String> {
+public class ChatTopicEntity implements Persistable<String> {
 
     @Id private final String conversationId;
     private final String user;
@@ -21,7 +21,7 @@ public class ChatTopic implements Persistable<String> {
     @Transient private final boolean isNew;
 
     @PersistenceCreator
-    public ChatTopic(
+    public ChatTopicEntity(
             String conversationId,
             String user,
             boolean isUser,
@@ -31,12 +31,12 @@ public class ChatTopic implements Persistable<String> {
         this(conversationId, user, isUser, topic, createdAt, updatedAt, false);
     }
 
-    public ChatTopic(
+    public ChatTopicEntity(
             String conversationId, String user, boolean isUser, String topic, boolean isNew) {
         this(conversationId, user, isUser, topic, null, null, isNew);
     }
 
-    public ChatTopic(
+    public ChatTopicEntity(
             String conversationId,
             String user,
             boolean isUser,

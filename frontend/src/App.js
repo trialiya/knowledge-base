@@ -1,6 +1,6 @@
 import React from 'react';
-import ChatWindow from './components/Chat/ChatWindow';
-import KnowledgeBase from './components/KnowledgeBase/KnowledgeBase';
+import ChatWindow from './components/chatPanel/ChatWindow';
+import KnowledgeBase from './components/knowledgeBasePanel/KnowledgeBase';
 import useAppNavigation from './useAppNavigation';
 import './App.css';
 

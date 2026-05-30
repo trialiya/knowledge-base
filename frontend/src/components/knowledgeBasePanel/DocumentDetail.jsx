@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import DetailHeader from './DetailHeader';
 import SummarySection from './SummarySection';
 import MarkdownEditor from './MarkdownEditor';
-import AttachmentPanel from './AttachmentPanel';
+import AttachmentPanel from '../common/AttachmentPanel';
 import FullscreenEditorModal from './FullscreenEditorModal';
 import { IconSparkle, IconSparkleLoading } from './icons';
 

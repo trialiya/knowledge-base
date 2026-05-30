@@ -16,7 +16,7 @@ import org.springframework.data.domain.Persistable;
 import org.springframework.data.relational.core.mapping.Table;
 
 @Table(name = "chat_message")
-public class ChatMessage implements Message, Persistable<Long> {
+public class ChatMessageEntity implements Message, Persistable<Long> {
 
     @Id private long id;
     @Nonnull private String conversationId;
@@ -28,7 +28,7 @@ public class ChatMessage implements Message, Persistable<Long> {
     @Nonnull private LocalDateTime createdAt;
 
     @PersistenceCreator
-    public ChatMessage(
+    public ChatMessageEntity(
             long id,
             @Nonnull String conversationId,
             @Nonnull String content,

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import useDocPreview from '../KnowledgeBase/useDocPreview';
-import { IconFolder, IconDoc, IconSparkle } from '../KnowledgeBase/icons';
+import useDocPreview from '../knowledgeBasePanel/useDocPreview';
+import { IconFolder, IconDoc, IconSparkle } from '../knowledgeBasePanel/icons';
 
 /**
  * Обёртка для внутренних KB-ссылок (`/?doc=N`) внутри сообщений чата.

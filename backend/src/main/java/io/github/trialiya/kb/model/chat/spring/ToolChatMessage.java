@@ -1,20 +1,20 @@
 package io.github.trialiya.kb.model.chat.spring;
 
-import io.github.trialiya.kb.model.chat.entity.ChatMessage;
+import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import java.util.List;
 import java.util.Map;
 import org.springframework.ai.chat.messages.ToolResponseMessage;
 
 public class ToolChatMessage extends ToolResponseMessage implements IMessage {
 
-    private final ChatMessage chatMessage;
+    private final ChatMessageEntity chatMessageEntity;
 
-    public ToolChatMessage(ChatMessage chatMessage) {
+    public ToolChatMessage(ChatMessageEntity chatMessageEntity) {
         super(List.of(), Map.of());
-        this.chatMessage = chatMessage;
+        this.chatMessageEntity = chatMessageEntity;
     }
 
-    public ChatMessage chatMessage() {
-        return chatMessage;
+    public ChatMessageEntity chatMessage() {
+        return chatMessageEntity;
     }
 }

@@ -2,7 +2,7 @@
 // Side-effect-free helpers for manipulating the document tree. No React, no
 // fetch — easy to reason about and test in isolation.
 
-import { findNodeById } from '../Utils/utils';
+import { findNodeById } from '../common/utils';
 
 /** Children of a given parent (null = root level). */
 export function getSiblings(tree, parentId) {

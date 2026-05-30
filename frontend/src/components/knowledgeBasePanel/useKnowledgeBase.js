@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 
 import api from './api';
 import { getSiblings, applyReorder, parentTitle, isParentChange, updateNodeInTree, spliceChildren } from './treeOps';
-import { findNodeById, findPath } from '../Utils/utils';
+import { findNodeById, findPath } from '../common/utils';
 
 const PAGE_SIZE = 10;
 // Used when we must guarantee the WHOLE child list is present (e.g. restoring

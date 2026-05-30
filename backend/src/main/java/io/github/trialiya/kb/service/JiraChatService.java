@@ -5,8 +5,8 @@ import static io.github.trialiya.kb.utils.ChatUtils.getUser;
 import io.github.trialiya.kb.model.attachment.entity.AttachmentEntity;
 import io.github.trialiya.kb.model.chat.dto.Chat;
 import io.github.trialiya.kb.model.chat.dto.CreateJiraChatRequest;
-import io.github.trialiya.kb.model.chat.entity.ChatMessage;
-import io.github.trialiya.kb.model.chat.entity.ChatTopic;
+import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
+import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.repository.AttachmentRepository;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
@@ -32,7 +32,7 @@ import org.springframework.web.server.ResponseStatusException;
  *   <li>Parse the JIRA URL → issue key
  *   <li>Fetch issue content via {@link JiraService}
  *   <li>Optionally fetch Confluence page via {@link ConfluenceService}
- *   <li>Create a {@link ChatTopic} with the issue key as title (or custom title)
+ *   <li>Create a {@link ChatTopicEntity} with the issue key as title (or custom title)
  *   <li>Store fetched content as attachments with {@code source_url}
  *   <li>Trigger summarization for each attachment
  *   <li>Save an initial ASSISTANT message summarising the task context
@@ -67,8 +67,9 @@ public class JiraChatService {
                         ? request.title()
                         : issueKey + ": " + truncate(issue.summary(), 60);
 
-        ChatTopic chatTopic = new ChatTopic(conversationId, getUser(), true, title, true);
-        chatTopicRepository.save(chatTopic);
+        ChatTopicEntity chatTopicEntity =
+                new ChatTopicEntity(conversationId, getUser(), true, title, true);
+        chatTopicRepository.save(chatTopicEntity);
 
         // 3. Store JIRA content as attachment
         AttachmentEntity jiraAttachment =
@@ -133,7 +134,8 @@ public class JiraChatService {
                 title);
 
         // Reload to get timestamps
-        ChatTopic saved = chatTopicRepository.findById(conversationId).orElse(chatTopic);
+        ChatTopicEntity saved =
+                chatTopicRepository.findById(conversationId).orElse(chatTopicEntity);
 
         return new Chat(
                 saved.getConversationId(),
@@ -150,7 +152,7 @@ public class JiraChatService {
      */
     @Transactional
     public Chat refreshJiraChat(String conversationId, String jiraUrl) {
-        ChatTopic chatTopic =
+        ChatTopicEntity chatTopicEntity =
                 chatTopicRepository
                         .findById(conversationId)
                         .orElseThrow(
@@ -159,7 +161,7 @@ public class JiraChatService {
                                                 HttpStatus.NOT_FOUND,
                                                 "Chat not found: " + conversationId));
 
-        if (!chatTopic.getUser().equals(getUser())) {
+        if (!chatTopicEntity.getUser().equals(getUser())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Forbidden");
         }
 
@@ -182,7 +184,8 @@ public class JiraChatService {
 
         log.info("Refreshed JIRA chat: conversationId={}, issue={}", conversationId, issueKey);
 
-        ChatTopic saved = chatTopicRepository.findById(conversationId).orElse(chatTopic);
+        ChatTopicEntity saved =
+                chatTopicRepository.findById(conversationId).orElse(chatTopicEntity);
         return new Chat(
                 saved.getConversationId(),
                 saved.getUser(),
@@ -222,7 +225,7 @@ public class JiraChatService {
         sb.append("Чем могу помочь?");
 
         chatMessageRepository.save(
-                new ChatMessage(
+                new ChatMessageEntity(
                         0L,
                         conversationId,
                         sb.toString(),

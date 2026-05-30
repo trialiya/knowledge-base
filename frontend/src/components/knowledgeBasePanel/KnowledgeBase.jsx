@@ -7,7 +7,7 @@ import DocumentDetail from './DocumentDetail';
 import AddModal from './AddModal';
 import MoveConfirmModal from './MoveConfirmModal';
 import SearchResults from './SearchResults';
-import ErrorModal from '../Utils/ErrorModal';
+import ErrorModal from '../common/ErrorModal';
 import { IconPlus, IconRefresh } from './icons';
 import useKnowledgeBase from './useKnowledgeBase';
 

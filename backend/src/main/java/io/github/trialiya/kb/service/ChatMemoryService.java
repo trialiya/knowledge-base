@@ -1,6 +1,6 @@
 package io.github.trialiya.kb.service;
 
-import io.github.trialiya.kb.model.chat.entity.ChatMessage;
+import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.spring.IMessage;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
@@ -28,7 +28,7 @@ public class ChatMemoryService implements ChatMemoryRepository {
     @Override
     public void saveAll(String conversationId, List<Message> messages) {
         final AtomicLong lastPosition = new AtomicLong();
-        final List<ChatMessage> newMessagesToSave =
+        final List<ChatMessageEntity> newMessagesToSave =
                 messages.stream()
                         .filter(message -> Strings.isNotBlank(message.getText()))
                         .filter(
@@ -41,7 +41,7 @@ public class ChatMemoryService implements ChatMemoryRepository {
                                 })
                         .map(
                                 message ->
-                                        new ChatMessage(
+                                        new ChatMessageEntity(
                                                 0,
                                                 conversationId,
                                                 message.getText(),
@@ -59,7 +59,7 @@ public class ChatMemoryService implements ChatMemoryRepository {
         return chatMessageRepository
                 .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAt(conversationId)
                 .stream()
-                .map(ChatMessage::getMessage)
+                .map(ChatMessageEntity::getMessage)
                 .map(Message.class::cast)
                 .toList();
     }
@@ -69,7 +69,7 @@ public class ChatMemoryService implements ChatMemoryRepository {
         return chatTopicRepository.findIdsByUserOrderByUpdatedAtDesc(ChatUtils.getUser());
     }
 
-    public List<ChatMessage> findChatMessageByConversationId(String conversationId) {
+    public List<ChatMessageEntity> findChatMessageByConversationId(String conversationId) {
         return chatMessageRepository.findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAt(
                 conversationId);
     }

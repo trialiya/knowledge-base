@@ -11,7 +11,7 @@ import io.github.trialiya.kb.model.chat.dto.CreateJiraChatRequest;
 import io.github.trialiya.kb.model.chat.dto.StreamMessage;
 import io.github.trialiya.kb.model.chat.dto.ToolCallMessage;
 import io.github.trialiya.kb.model.chat.dto.ToolCallsMessage;
-import io.github.trialiya.kb.model.chat.entity.ChatTopic;
+import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.service.JiraChatService;
@@ -238,20 +238,20 @@ public class ChatController {
     public List<Chat> chats() {
         return chatTopicRepository.findAllByUserOrderByUpdatedAtDesc(getUser()).stream()
                 .map(
-                        chatTopic ->
+                        chatTopicEntity ->
                                 new Chat(
-                                        chatTopic.getConversationId(),
-                                        chatTopic.getUser(),
-                                        chatTopic.getTopic(),
-                                        chatTopic.getCreatedAt(),
-                                        chatTopic.getUpdatedAt(),
+                                        chatTopicEntity.getConversationId(),
+                                        chatTopicEntity.getUser(),
+                                        chatTopicEntity.getTopic(),
+                                        chatTopicEntity.getCreatedAt(),
+                                        chatTopicEntity.getUpdatedAt(),
                                         null))
                 .toList();
     }
 
     @GetMapping("chat")
     public Chat chatTopic(@RequestParam("conversationId") final String conversationId) {
-        final ChatTopic chatTopic =
+        final ChatTopicEntity chatTopicEntity =
                 chatTopicRepository
                         .findById(conversationId)
                         .orElseThrow(
@@ -259,15 +259,15 @@ public class ChatController {
                                         new ResponseStatusException(
                                                 NOT_FOUND,
                                                 "Not found conversation id " + conversationId));
-        if (!chatTopic.getUser().equals(getUser())) {
+        if (!chatTopicEntity.getUser().equals(getUser())) {
             throw new ResponseStatusException(FORBIDDEN, "Forbidden");
         }
         return new Chat(
                 conversationId,
-                chatTopic.getUser(),
-                chatTopic.getTopic(),
-                chatTopic.getCreatedAt(),
-                chatTopic.getUpdatedAt(),
+                chatTopicEntity.getUser(),
+                chatTopicEntity.getTopic(),
+                chatTopicEntity.getCreatedAt(),
+                chatTopicEntity.getUpdatedAt(),
                 Optional.ofNullable(
                                 chatMemoryService.findChatMessageByConversationId(conversationId))
                         .stream()
@@ -284,13 +284,13 @@ public class ChatController {
 
     @DeleteMapping("chat")
     public void deleteChat(@RequestParam("conversationId") final String conversationId) {
-        final ChatTopic chatTopic = getChatTopic(conversationId);
-        chatTopicRepository.deleteById(chatTopic.getConversationId());
+        final ChatTopicEntity chatTopicEntity = getChatTopic(conversationId);
+        chatTopicRepository.deleteById(chatTopicEntity.getConversationId());
         chatMemory.clear(conversationId);
     }
 
-    private @NonNull ChatTopic getChatTopic(String conversationId) {
-        final ChatTopic chatTopic =
+    private @NonNull ChatTopicEntity getChatTopic(String conversationId) {
+        final ChatTopicEntity chatTopicEntity =
                 chatTopicRepository
                         .findById(conversationId)
                         .orElseThrow(
@@ -298,10 +298,10 @@ public class ChatController {
                                         new ResponseStatusException(
                                                 NOT_FOUND,
                                                 "Not found conversation id " + conversationId));
-        if (!chatTopic.getUser().equals(getUser())) {
+        if (!chatTopicEntity.getUser().equals(getUser())) {
             throw new ResponseStatusException(FORBIDDEN, "Forbidden");
         }
-        return chatTopic;
+        return chatTopicEntity;
     }
 
     @PostMapping("topic")
@@ -311,23 +311,23 @@ public class ChatController {
         chatTopicRepository
                 .findById(conversationId)
                 .ifPresentOrElse(
-                        chatTopic -> {
-                            if (!chatTopic.getUser().equals(getUser())) {
+                        chatTopicEntity -> {
+                            if (!chatTopicEntity.getUser().equals(getUser())) {
                                 throw new ResponseStatusException(FORBIDDEN, "Forbidden");
                             }
                             chatTopicRepository.save(
-                                    new ChatTopic(
-                                            chatTopic.getConversationId(),
-                                            chatTopic.getUser(),
+                                    new ChatTopicEntity(
+                                            chatTopicEntity.getConversationId(),
+                                            chatTopicEntity.getUser(),
                                             true,
                                             topic,
-                                            chatTopic.getCreatedAt(),
-                                            chatTopic.getUpdatedAt(),
+                                            chatTopicEntity.getCreatedAt(),
+                                            chatTopicEntity.getUpdatedAt(),
                                             false));
                         },
                         () ->
                                 chatTopicRepository.save(
-                                        new ChatTopic(
+                                        new ChatTopicEntity(
                                                 conversationId,
                                                 getUser(),
                                                 true,
@@ -376,8 +376,8 @@ public class ChatController {
         chatTopicRepository
                 .findById(conversationId)
                 .ifPresentOrElse(
-                        chatTopic -> {
-                            if (!chatTopic.getUser().equals(getUser())) {
+                        chatTopicEntity -> {
+                            if (!chatTopicEntity.getUser().equals(getUser())) {
                                 throw new ResponseStatusException(FORBIDDEN, "Forbidden");
                             }
                             if (update) {
@@ -386,7 +386,7 @@ public class ChatController {
                         },
                         () ->
                                 chatTopicRepository.save(
-                                        new ChatTopic(
+                                        new ChatTopicEntity(
                                                 conversationId,
                                                 getUser(),
                                                 false,
