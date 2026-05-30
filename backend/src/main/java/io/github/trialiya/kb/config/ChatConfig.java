@@ -12,18 +12,21 @@ import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.service.DocumentService;
 import io.github.trialiya.kb.service.GitService;
 import io.github.trialiya.kb.tools.RecordingToolCallback;
-import io.micrometer.core.instrument.util.IOUtils;
 import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.client.advisor.ToolCallAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.model.tool.ToolCallingManager;
 import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.ai.tool.ToolCallback;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.Resource;
 
 @Configuration
 @Slf4j
@@ -41,6 +44,8 @@ public class ChatConfig {
     public ChatClient chatClientBuilder(
             ChatModel chatModel,
             ChatMemory chatMemory,
+            @Value("classpath:prompt/sys.md") Resource sysPrompt,
+            ToolCallingManager toolCallingManager,
             ChatTopicRepository chatTopicRepository,
             ChatMessageRepository chatMessageRepository,
             DocumentService documentService,
@@ -58,12 +63,13 @@ public class ChatConfig {
                         .map(RecordingToolCallback::new)
                         .toArray(ToolCallback[]::new);
         return ChatClient.builder(chatModel)
-                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
-                .defaultSystem(
-                        IOUtils.toString(
-                                ChatConfig.class
-                                        .getClassLoader()
-                                        .getResourceAsStream("prompt/sys.md")))
+                .defaultAdvisors(
+                        MessageChatMemoryAdvisor.builder(chatMemory).build(),
+                        ToolCallAdvisor.builder()
+                                .streamToolCallResponses(true)
+                                .toolCallingManager(toolCallingManager)
+                                .build())
+                .defaultSystem(sysPrompt)
                 .defaultToolCallbacks(callbacks)
                 .build();
     }

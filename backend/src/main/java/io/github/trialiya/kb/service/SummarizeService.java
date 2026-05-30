@@ -3,11 +3,9 @@ package io.github.trialiya.kb.service;
 import static io.github.trialiya.kb.utils.ChatUtils.buildContext;
 
 import com.google.common.util.concurrent.Striped;
-import io.github.trialiya.kb.config.ChatConfig;
 import io.github.trialiya.kb.functions.MessageLookupFunction;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
-import io.micrometer.core.instrument.util.IOUtils;
 import jakarta.annotation.Nonnull;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -19,6 +17,8 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.beans.factory.DisposableBean;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -75,14 +75,11 @@ public class SummarizeService implements DisposableBean {
     public SummarizeService(
             OpenAiChatModel openAiChatModel,
             ChatMessageRepository chatMessageRepository,
+            @Value("classpath:prompt/summarizer.md") Resource summarizerPrompt,
             PlatformTransactionManager transactionManager) {
         this.chatClient =
                 ChatClient.builder(openAiChatModel)
-                        .defaultSystem(
-                                IOUtils.toString(
-                                        ChatConfig.class
-                                                .getClassLoader()
-                                                .getResourceAsStream("prompt/summarizer.md")))
+                        .defaultSystem(summarizerPrompt)
                         .defaultTools(new MessageLookupFunction(chatMessageRepository))
                         .build();
         this.chatMessageRepository = chatMessageRepository;
