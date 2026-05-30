@@ -277,14 +277,19 @@ public class GitService {
      * to enable POSIX extended regular expressions. The search is always <b>case-insensitive</b>
      * ({@code -i}) because the AI often doesn't know exact casing.
      *
+     * <p>When {@code contextLines > 0} the raw git grep output contains context lines (prefixed
+     * with {@code -}) and groups separated by {@code --}. These are collapsed into one {@link
+     * GitGrepMatch} per contiguous block so the caller sees grouped context rather than one record
+     * per raw line.
+     *
      * @param pattern literal string or regex to search for
      * @param pathGlob optional glob to restrict search to matching paths (e.g. {@code "*.java"},
      *     {@code "src/main/**"}); null means all tracked files
      * @param regex if true, treat {@code pattern} as an extended regex; otherwise literal
      * @param contextLines number of context lines before and after each match (like grep -C); 0
      *     means match line only; capped at 10
-     * @param maxResults maximum number of matches to return; capped at 200
-     * @return list of matches in order of appearance; empty list if nothing matched
+     * @param maxResults maximum number of match blocks to return; capped at 200
+     * @return list of match blocks in order of appearance; empty list if nothing matched
      */
     public List<GitGrepMatch> grepContent(
             @NonNull String pattern,
@@ -296,7 +301,13 @@ public class GitService {
         int ctx = Math.min(Math.max(contextLines, 0), 10);
         int limit = Math.min(Math.max(maxResults, 1), 200);
 
-        // Build: git grep -n -i [--fixed-strings | -E] [-C <ctx>] -- <pattern> [-- <glob>...]
+        if (!regex && (pattern.contains(".*") || pattern.contains("|"))) {
+            log.warn(
+                    "grepContent: pattern '{}' looks like regex but regex=false — using literal match",
+                    pattern);
+        }
+
+        // Build: git grep -n -i [--fixed-strings|-E] [-C <ctx>] -- <pattern> [-- <glob>]
         List<String> args = new ArrayList<>();
         args.add("git");
         args.add("grep");
@@ -314,59 +325,147 @@ public class GitService {
         args.add("--");
         args.add(pattern);
         if (pathGlob != null && !pathGlob.isBlank()) {
+            args.add("--"); // second -- separates pattern from pathspecs
             args.add(pathGlob.strip());
         }
 
         List<String> lines = exec(args);
+        return parseGrepOutput(lines, ctx, limit);
+    }
 
-        // git grep output with -C uses "--" as a separator between groups.
-        // Without -C format is: "path:linenum:text"
-        // With    -C format is: "path:linenum:text"  for match lines
-        //                       "path-linenum-text"  for context lines
-        //                       "--"                 between groups
+    /**
+     * Parses raw {@code git grep [-C ctx]} output into grouped {@link GitGrepMatch} blocks.
+     *
+     * <p>Without context (ctx=0) each output line is {@code path:linenum:text} and maps directly to
+     * one match block.
+     *
+     * <p>With context git grep emits:
+     *
+     * <ul>
+     *   <li>{@code path:linenum:text} — match line (separator {@code :})
+     *   <li>{@code path-linenum-text} — context line (separator {@code -})
+     *   <li>{@code --} — group separator between non-adjacent blocks
+     * </ul>
+     *
+     * Adjacent lines belonging to the same file+block are folded into one {@link GitGrepMatch}
+     * whose {@code text} reproduces the git grep format ({@code :N:} for matches, {@code -N-} for
+     * context). The {@code matchLine} field holds the line number of the first match in the block.
+     */
+    private static List<GitGrepMatch> parseGrepOutput(List<String> lines, int ctx, int limit) {
+
         List<GitGrepMatch> results = new ArrayList<>();
+
+        if (ctx == 0) {
+            // Simple case: one match per line, format "path:linenum:text"
+            for (String line : lines) {
+                if (line.isBlank()) continue;
+                ParsedLine pl = parseLine(line);
+                if (pl == null) continue;
+                results.add(new GitGrepMatch(pl.path, pl.lineNum, pl.text));
+                if (results.size() >= limit) break;
+            }
+            return results;
+        }
+
+        // Context case: group consecutive lines into blocks separated by "--"
+        // A "block" = all lines until the next "--" separator.
+        // Within a block we accumulate lines and track the first match line number.
+        String currentPath = null;
+        int firstMatchLine = -1;
+        var blockBuf = new StringBuilder();
+
         for (String line : lines) {
-            if (line.equals("--")) continue; // group separator when using -C
-            if (line.isBlank()) continue;
-
-            // Determine separator: ':' for match, '-' for context (only matters for display;
-            // we include both so the AI sees full context).
-            // Format: <path><sep><linenum><sep><text>
-            // Path may contain ':' on Unix only as part of the name (rare) — split at first colon
-            // followed by digits followed by another colon/dash.
-            int sepIdx = findFirstFieldSep(line);
-            if (sepIdx < 0) continue;
-
-            String filePath = line.substring(0, sepIdx);
-            String rest = line.substring(sepIdx + 1);
-
-            int sep2 = findLineNumEnd(rest);
-            if (sep2 < 0) continue;
-
-            int lineNum;
-            try {
-                lineNum = Integer.parseInt(rest.substring(0, sep2));
-            } catch (NumberFormatException e) {
+            if (line.equals("--")) {
+                // Flush current block
+                if (currentPath != null && firstMatchLine >= 0) {
+                    results.add(new GitGrepMatch(currentPath, firstMatchLine, blockBuf.toString()));
+                    if (results.size() >= limit) return results;
+                }
+                currentPath = null;
+                firstMatchLine = -1;
+                blockBuf.setLength(0);
                 continue;
             }
-            String text = rest.substring(sep2 + 1);
-            results.add(new GitGrepMatch(filePath, lineNum, text));
+            if (line.isBlank()) continue;
 
-            if (results.size() >= limit) break;
+            ParsedLine pl = parseLine(line);
+            if (pl == null) continue;
+
+            // Start new block or continue existing one.
+            // git grep -C groups lines from the same file together between "--" separators,
+            // so path should be consistent within a block; reset on path change just in case.
+            if (!pl.path.equals(currentPath)) {
+                if (currentPath != null && firstMatchLine >= 0) {
+                    results.add(new GitGrepMatch(currentPath, firstMatchLine, blockBuf.toString()));
+                    if (results.size() >= limit) return results;
+                }
+                currentPath = pl.path;
+                firstMatchLine = -1;
+                blockBuf.setLength(0);
+            }
+
+            // Append formatted line: ":N:text" for match, "-N-text" for context
+            char sep = pl.isMatch ? ':' : '-';
+            blockBuf.append(sep).append(pl.lineNum).append(sep).append(pl.text).append('\n');
+
+            if (pl.isMatch && firstMatchLine < 0) {
+                firstMatchLine = pl.lineNum;
+            }
         }
+
+        // Flush last block
+        if (currentPath != null && firstMatchLine >= 0 && results.size() < limit) {
+            results.add(new GitGrepMatch(currentPath, firstMatchLine, blockBuf.toString()));
+        }
+
         return results;
+    }
+
+    /** Parsed representation of one raw git grep output line. */
+    private record ParsedLine(String path, int lineNum, String text, boolean isMatch) {}
+
+    /**
+     * Parses one raw git grep line.
+     *
+     * <p>Format: {@code <path><sep><linenum><sep><text>} where sep is {@code ':'} for match lines
+     * and {@code '-'} for context lines.
+     *
+     * <p>Returns {@code null} if the line cannot be parsed.
+     */
+    @Nullable
+    private static ParsedLine parseLine(String line) {
+        // Find first separator that matches pattern <sep><digits><sep>
+        int sepIdx = findFirstFieldSep(line);
+        if (sepIdx < 0) return null;
+
+        char sep = line.charAt(sepIdx);
+        boolean isMatch = sep == ':';
+        String path = line.substring(0, sepIdx);
+        String rest = line.substring(sepIdx + 1); // "linenum<sep>text"
+
+        // rest starts with digits followed by sep
+        int numEnd = findLineNumEnd(rest);
+        if (numEnd < 0) return null;
+
+        int lineNum;
+        try {
+            lineNum = Integer.parseInt(rest.substring(0, numEnd));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+        String text = rest.substring(numEnd + 1);
+        return new ParsedLine(path, lineNum, text, isMatch);
     }
 
     /**
      * Returns the index of the first {@code ':'} or {@code '-'} in {@code s} that is followed
-     * immediately by one or more digits and then another {@code ':'} or {@code '-'}, i.e. the
-     * git-grep field separator between path and line number.
+     * immediately by one or more digits and then another {@code ':'} or {@code '-'} — i.e. the git
+     * grep field separator between path and line number.
      */
     private static int findFirstFieldSep(String s) {
         for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);
             if (c != ':' && c != '-') continue;
-            // Check digits follow
             int j = i + 1;
             if (j >= s.length() || !Character.isDigit(s.charAt(j))) continue;
             while (j < s.length() && Character.isDigit(s.charAt(j))) j++;
@@ -375,8 +474,11 @@ public class GitService {
         return -1;
     }
 
+    /**
+     * Given {@code rest} = {@code "<digits><sep><text>"}, returns the index of {@code <sep>}.
+     * Returns -1 if the string does not start with digits followed by {@code ':'} or {@code '-'}.
+     */
     private static int findLineNumEnd(String s) {
-        // rest всегда начинается с digits, затем ':' или '-'
         int i = 0;
         while (i < s.length() && Character.isDigit(s.charAt(i))) i++;
         if (i > 0 && i < s.length() && (s.charAt(i) == ':' || s.charAt(i) == '-')) return i;

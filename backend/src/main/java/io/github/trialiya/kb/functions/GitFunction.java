@@ -377,7 +377,7 @@ public class GitFunction {
                             required = false)
                     Integer maxResults) {
         boolean useRegex = regex != null && regex;
-        int ctx = contextLines != null ? contextLines : 0;
+        int ctx = contextLines != null ? contextLines : 1;
         int limit = maxResults != null ? maxResults : 50;
         log.info(
                 "grepContent called: pattern='{}', pathGlob='{}', regex={}, contextLines={}, maxResults={}",

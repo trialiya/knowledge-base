@@ -57,10 +57,11 @@
 ### grepContent: примеры запросов
 | Что хочет пользователь | pattern | pathGlob | regex |
 |---|---|---|---|
-| Все вызовы метода | `processPayment(` | `*.java` | false |
+| Все вызовы метода | `processPayment(` | `*/*.java` | false |
 | Несколько слов сразу | `start\|end\|reset` | — | true |
-| Аннотации Spring | `@(Bean\|Service\|Component)` | `*.java` | true |
+| Аннотации Spring | `@(Bean\|Service\|Component)` | `*/*.java` | true |
 | Ключ в конфигах | `datasource.url` | `*.yml` | false |
+| Значение переменной/константы в заданном файле | `CONSTANT_NAME.*=` | `utils/src/main/java/metadata/Constants.java` | true |
 | TODO и FIXME | `TODO\|FIXME` | — | true |
 | Таблица в SQL | `FROM orders` | `*.sql` | false |
 | Проверить переименование и изменение клюевых значений (не забыли ли поменять значение везде) | `OldName` | — | false |

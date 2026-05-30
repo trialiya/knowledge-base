@@ -18,6 +18,7 @@ import io.github.trialiya.kb.service.JiraChatService;
 import io.github.trialiya.kb.service.SummarizeService;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import jakarta.annotation.Nonnull;
+import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -146,7 +147,7 @@ public class ChatController {
             @RequestParam("conversationId") final String conversationId) {
         checkChat(conversationId, true);
 
-        final SseEmitter emitter = new SseEmitter(300_000L);
+        final SseEmitter emitter = new SseEmitter(Duration.ofMinutes(30).toMillis());
         final AtomicReference<Disposable> disposableRef = new AtomicReference<>();
         final Consumer<Object> liveSink = sendSseEmitterData(emitter);
         final ToolInvocationCollector toolCollector = new ToolInvocationCollector(liveSink);

@@ -6,22 +6,6 @@ import ChatDocLink from './ChatDocLink';
 import './Message.css';
 import CodeBlock from '../common/CodeBlock';
 
-// Добавляем пустую строку перед списками, если она отсутствует
-const preprocessText = (text) => {
-  if (!text) return text;
-  const lines = text.split('\n');
-  const result = [];
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const prevLine = result.length > 0 ? result[result.length - 1] : null;
-    if (/^(\d+\.|-|\*)\s/.test(line.trim()) && prevLine !== null && prevLine.trim() !== '') {
-      result.push('');
-    }
-    result.push(line);
-  }
-  return result.join('\n');
-};
-
 /** SVG status indicators — not clickable, purely visual */
 const IconStarted = () => (
   <svg className="tool-call-status-svg tool-call-status-svg--started" width="14" height="14" viewBox="0 0 16 16">
@@ -333,7 +317,7 @@ const Message = ({ text, sender, toolCalls, onNavigateToDoc }) => {
           ) : (
             <div className="md-preview md-preview--chat">
               <ReactMarkdown remarkPlugins={[remarkGfm]} components={getMarkdownComponents(onNavigateToDoc)}>
-                {preprocessText(text)}
+                {text}
               </ReactMarkdown>
             </div>
           )}

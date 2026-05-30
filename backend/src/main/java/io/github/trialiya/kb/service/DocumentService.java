@@ -39,6 +39,13 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class DocumentService {
 
+    /**
+     * Stub node for tree/children listing. Description is truncated to {@value #SNIPPET_LENGTH}
+     * characters so ContentsTable can show a preview without transferring the full content. Use
+     * {@link #getById(Long)} for the complete document.
+     */
+    private static final int SNIPPET_LENGTH = 150;
+
     private final DocumentRepository repo;
     private final DocumentHistoryRepository historyRepo;
     private final DocumentSummaryService documentSummaryService;
@@ -193,13 +200,6 @@ public class DocumentService {
                 e.isSummaryStale(),
                 e.getSummarySourceVersion());
     }
-
-    /**
-     * Stub node for tree/children listing. Description is truncated to {@value #SNIPPET_LENGTH}
-     * characters so ContentsTable can show a preview without transferring the full content. Use
-     * {@link #getById(Long)} for the complete document.
-     */
-    private static final int SNIPPET_LENGTH = 150;
 
     private DocumentNode toStubNode(DocumentEntity e) {
         boolean hc = repo.hasChildren(e.getId());
