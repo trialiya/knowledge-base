@@ -4,7 +4,7 @@ import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import ChatList from './ChatList';
 import AttachmentPanel from '../common/AttachmentPanel';
-import { IconPaperclip } from '../knowledgeBasePanel/icons'
+import { IconPaperclip } from '../knowledgeBasePanel/icons';
 import './chatWindow.css';
 import '../common/attachmentPanel.css';
 import CreateJiraChatModal from './CreateJiraChatModal';

@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import ChatDocLink from './ChatDocLink';
-import './Message.css';
+import './message.css';
 import CodeBlock from '../common/CodeBlock';
 
 /** SVG status indicators — not clickable, purely visual */

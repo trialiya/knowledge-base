@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import './GitPhrases.css';
+import './gitPhrases.css';
 
 // ─── Список готовых фраз ───────────────────────────────────────────────────
 export const GIT_PHRASES = [
