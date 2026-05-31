@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import './KnowledgeBase.css';
 
 import TreeNode from './TreeNode';
@@ -9,7 +9,7 @@ import MoveConfirmModal from './MoveConfirmModal';
 import ConfirmModal from '../common/ConfirmModal';
 import SearchResults from './SearchResults';
 import ErrorModal from '../common/ErrorModal';
-import { IconPlus, IconRefresh } from './icons';
+import { IconPlus } from './icons';
 import useKnowledgeBase from './useKnowledgeBase';
 
 const KnowledgeBase = ({
@@ -19,6 +19,8 @@ const KnowledgeBase = ({
   docTab,
   search,
   mode,
+  refreshSignal,
+  onRefreshingChange,
   onOpenDoc,
   onTabChange,
   onSearch,
@@ -28,7 +30,6 @@ const KnowledgeBase = ({
     selectedNode,
     activeTab,
     searchQuery,
-    searchMode,
     searchResults,
     showAddModal,
     notFoundDocId,
@@ -39,14 +40,11 @@ const KnowledgeBase = ({
     refreshing,
     path,
     setActiveTab,
-    setSearchQuery,
-    setSearchMode,
     setShowAddModal,
     setNotFoundDocId,
     setDocLoadError,
     setSaveError,
     handleLoadChildren,
-    handleSearch,
     selectNode,
     handleCreate,
     handleUpdate,
@@ -60,6 +58,23 @@ const KnowledgeBase = ({
     handleDiscardConfirm,
     handleDiscardCancel,
   } = useKnowledgeBase({ docId, docTab, search, mode, onOpenDoc, onTabChange, onSearch });
+
+  // ── Refresh, инициированный кнопкой в шапке вкладок (App.js) ────────────────
+  // App инкрементит refreshSignal; первый «холостой» рендер пропускаем.
+  const firstRefreshSignal = useRef(true);
+  useEffect(() => {
+    if (firstRefreshSignal.current) {
+      firstRefreshSignal.current = false;
+      return;
+    }
+    handleRefresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshSignal]);
+
+  // Сообщаем статус refreshing наверх — для спиннера/блокировки кнопки.
+  useEffect(() => {
+    if (onRefreshingChange) onRefreshingChange(refreshing);
+  }, [refreshing, onRefreshingChange]);
 
   const detailProps = {
     node: selectedNode,
@@ -77,41 +92,15 @@ const KnowledgeBase = ({
 
   return (
     <div className="knowledge-base-container">
-      {/* ── Header ── */}
-      <div className="kb-header">
-        <span className="kb-header__title">Knowledge Base</span>
-        <div className="kb-search-row">
-          <input
-            type="text"
-            placeholder="Поиск... (Enter)"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-          />
-          <select value={searchMode} onChange={(e) => setSearchMode(e.target.value)}>
-            <option value="hybrid">Гибридный</option>
-            <option value="semantic">Семантический</option>
-            <option value="keyword">По словам</option>
-          </select>
-        </div>
-        <div className="kb-header__actions">
-          <button className="add-doc-btn" onClick={() => setShowAddModal(true)} title="Добавить">
-            <IconPlus />
-          </button>
-          <button
-            className={`add-doc-btn${refreshing ? ' kb-refresh-btn--spinning' : ''}`}
-            onClick={handleRefresh}
-            disabled={refreshing}
-            title="Обновить"
-          >
-            <IconRefresh />
-          </button>
-        </div>
-      </div>
-
       <div className="kb-main">
         {/* ── Tree ── */}
         <div className="kb-tree">
+          {/* Кнопка создания — в стиле «+ Новый чат» из списка чатов */}
+          <button className="kb-new-doc-button" onClick={() => setShowAddModal(true)}>
+            <IconPlus />
+            Создать
+          </button>
+
           <div className="tree-container">
             {tree.map((node) => (
               <TreeNode

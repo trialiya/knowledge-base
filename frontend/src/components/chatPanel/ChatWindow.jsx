@@ -4,7 +4,7 @@ import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import ChatList from './ChatList';
 import AttachmentPanel from '../common/AttachmentPanel';
-import { IconPaperclip } from '../knowledgeBasePanel/icons';
+import { IconPaperclip, IconTrash } from '../knowledgeBasePanel/icons';
 import './chatWindow.css';
 import '../common/attachmentPanel.css';
 import CreateJiraChatModal from './CreateJiraChatModal';
@@ -686,7 +686,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
               {attachCount > 0 && <span className="attach-badge">{attachCount}</span>}
             </button>
             <button className="chat-header-delete" onClick={() => handleDeleteChat(activeChat.id)}>
-              Удалить
+              <IconTrash />
             </button>
           </div>
         )}

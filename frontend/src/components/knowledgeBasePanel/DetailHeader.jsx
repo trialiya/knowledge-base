@@ -76,6 +76,10 @@ const DetailHeader = ({ node, path, onNavigate, onRename, onDelete }) => {
   const isSystem = !!node.system;
   const parent = path && path.length > 0 ? path[path.length - 1] : null;
 
+  // Дата создания (как в чате). createdAt при наличии, иначе updatedAt.
+  const createdRaw = node.createdAt || node.updatedAt;
+  const createdLabel = createdRaw ? `Создан: ${new Date(createdRaw).toLocaleString('ru-RU')}` : null;
+
   return (
     <div className="detail-header">
       <div className="detail-header__top">
@@ -89,7 +93,7 @@ const DetailHeader = ({ node, path, onNavigate, onRename, onDelete }) => {
           <span
             className={`detail-header__icon ${isFolder ? 'detail-header__icon--folder' : 'detail-header__icon--doc'}`}
           >
-            {isFolder ? <IconFolder size={16} /> : <IconDoc size={14} />}
+            {isFolder ? <IconFolder size={15} /> : <IconDoc size={13} />}
           </span>
 
           {renaming ? (
@@ -125,10 +129,6 @@ const DetailHeader = ({ node, path, onNavigate, onRename, onDelete }) => {
         </div>
 
         <div className="detail-header__actions">
-          <span className={`detail-badge ${isFolder ? 'detail-badge--folder' : 'detail-badge--doc'}`}>
-            {isFolder ? 'Folder' : 'Document'}
-          </span>
-          <span className="detail-date">{new Date(node.updatedAt).toLocaleDateString('ru-RU')}</span>
           {!isSystem && (
             <button className="detail-icon-btn" title="Удалить" onClick={() => onDelete(node.id)}>
               <IconTrash />
@@ -138,6 +138,9 @@ const DetailHeader = ({ node, path, onNavigate, onRename, onDelete }) => {
       </div>
 
       <Breadcrumb path={path} onNavigate={onNavigate} />
+
+      {/* Дата — под именем и хлебными крошками (как chat-meta под названием чата) */}
+      {createdLabel && <div className="detail-date">{createdLabel}</div>}
     </div>
   );
 };

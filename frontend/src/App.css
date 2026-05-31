@@ -39,7 +39,6 @@ body {
   position: absolute;
   inset: 0;
   display: flex;
-  /* Smooth transition optional — remove if you prefer instant switch */
 }
 
 .app-tab-panel--active {
@@ -56,10 +55,11 @@ body {
   pointer-events: none;
 }
 
-/* ── Tab bar ── */
+/* ── Tab bar (3 зоны: вкладки | поиск | действия) ── */
 
 .app-tabs {
   display: flex;
+  align-items: center;
   gap: 1rem;
   background: white;
   padding: 0.75rem 2rem;
@@ -67,7 +67,23 @@ body {
   flex-shrink: 0;
 }
 
-.app-tabs button {
+/* Левая и правая зоны имеют равный flex:1, поэтому центр всегда по середине */
+.app-tabs__left {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+}
+.app-tabs__right {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.app-tabs__left button {
   background: none;
   border: none;
   font-size: 1rem;
@@ -75,9 +91,92 @@ body {
   cursor: pointer;
   border-radius: 20px;
   transition: all 0.2s;
+  white-space: nowrap;
 }
-
-.app-tabs button.active {
+.app-tabs__left button.active {
   background: #007bff;
   color: white;
+}
+
+/* ── Глобальный поиск по базе знаний (по центру) ── */
+
+.app-search-row {
+  flex: 0 1 480px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.app-search-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 14px 7px 34px;
+  font-size: 0.84rem;
+  border: 1.5px solid var(--kb-border);
+  border-radius: 20px;
+  outline: none;
+  color: var(--kb-text);
+  background: var(--kb-bg)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238886aa' stroke-width='2.5'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E")
+    no-repeat 10px center;
+  transition: border-color 0.15s;
+}
+.app-search-row input:focus {
+  border-color: var(--kb-accent);
+}
+
+.app-search-row select {
+  flex: 0 0 auto;
+  width: 116px;
+  padding: 7px 8px;
+  font-size: 0.78rem;
+  border-radius: 20px;
+  border: 1.5px solid var(--kb-border);
+  background-color: var(--kb-white);
+  color: var(--kb-text);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.app-search-row select:focus {
+  border-color: var(--kb-accent);
+}
+
+/* ── Refresh button (в шапке, справа) ── */
+
+.app-refresh-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1.5px solid var(--kb-border);
+  background: var(--kb-white);
+  color: var(--kb-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.app-refresh-btn:hover:not(:disabled) {
+  border-color: var(--kb-accent);
+  color: var(--kb-accent);
+  background: var(--kb-accent-light);
+}
+.app-refresh-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.app-refresh-btn--spinning svg {
+  animation: app-spin 0.8s linear infinite;
+}
+
+@keyframes app-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
