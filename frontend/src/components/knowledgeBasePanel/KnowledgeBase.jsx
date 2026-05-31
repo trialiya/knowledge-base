@@ -6,6 +6,7 @@ import FolderDetail from './FolderDetail';
 import DocumentDetail from './DocumentDetail';
 import AddModal from './AddModal';
 import MoveConfirmModal from './MoveConfirmModal';
+import ConfirmModal from '../common/ConfirmModal';
 import SearchResults from './SearchResults';
 import ErrorModal from '../common/ErrorModal';
 import { IconPlus, IconRefresh } from './icons';
@@ -34,6 +35,7 @@ const KnowledgeBase = ({
     docLoadError,
     saveError,
     moveConfirm,
+    discardConfirm,
     refreshing,
     path,
     setActiveTab,
@@ -55,6 +57,8 @@ const KnowledgeBase = ({
     handleMoveConfirm,
     handleMoveCancel,
     handleRefresh,
+    handleDiscardConfirm,
+    handleDiscardCancel,
   } = useKnowledgeBase({ docId, docTab, search, mode, onOpenDoc, onTabChange, onSearch });
 
   const detailProps = {
@@ -161,6 +165,18 @@ const KnowledgeBase = ({
           onCancel={handleMoveCancel}
         />
       )}
+
+      {/* ── Unsaved-changes warning ── */}
+      <ConfirmModal
+        open={discardConfirm}
+        icon="✏️"
+        title="Несохранённые изменения"
+        message="В редакторе есть несохранённые изменения. Если продолжить, они будут потеряны."
+        confirmLabel="Продолжить без сохранения"
+        cancelLabel="Остаться"
+        onConfirm={handleDiscardConfirm}
+        onCancel={handleDiscardCancel}
+      />
 
       {/* ── Document load error modal ── */}
       <ErrorModal

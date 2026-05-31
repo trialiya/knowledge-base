@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import api from './api';
 import { getSiblings, applyReorder, parentTitle, isParentChange, updateNodeInTree, spliceChildren } from './treeOps';
 import { findNodeById, findPath } from '../common/utils';
+import { isEditorDirty, clearEditorDirty } from './editorDirtyStore';
 
 const PAGE_SIZE = 10;
 // Used when we must guarantee the WHOLE child list is present (e.g. restoring
@@ -49,6 +50,36 @@ export default function useKnowledgeBase({
 
   // Pending drop info awaiting user confirmation: { dropInfo, fromTitle, toTitle }
   const [moveConfirm, setMoveConfirm] = useState(null);
+
+  // ── Unsaved-changes guard ──────────────────────────────────────────────────
+  // When the MarkdownEditor has unsaved edits, navigation actions (selecting
+  // another doc, switching the detail tab, running a search) are deferred until
+  // the user confirms discarding. The deferred action is stashed in a ref; a
+  // boolean state drives the confirm modal.
+  const [discardConfirm, setDiscardConfirm] = useState(false);
+  const pendingActionRef = useRef(null);
+
+  const guard = useCallback((action) => {
+    if (isEditorDirty()) {
+      pendingActionRef.current = action;
+      setDiscardConfirm(true);
+    } else {
+      action();
+    }
+  }, []);
+
+  const handleDiscardConfirm = useCallback(() => {
+    clearEditorDirty();
+    setDiscardConfirm(false);
+    const action = pendingActionRef.current;
+    pendingActionRef.current = null;
+    if (action) action();
+  }, []);
+
+  const handleDiscardCancel = useCallback(() => {
+    pendingActionRef.current = null;
+    setDiscardConfirm(false);
+  }, []);
 
   // Guards the one-time init effect against React 18 StrictMode's intentional
   // double-invocation of effects in development, which would otherwise fire the
@@ -322,6 +353,18 @@ export default function useKnowledgeBase({
     [tree, fetchFullAndSelect, navigateToDocById],
   );
 
+  // ── Предупреждение при закрытии вкладки с несохранёнными правками ─────────
+  useEffect(() => {
+    const onBeforeUnload = (e) => {
+      if (!isEditorDirty()) return undefined;
+      e.preventDefault();
+      e.returnValue = ''; // required for the native prompt in most browsers
+      return '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, []);
+
   // ── Однократная загрузка корня дерева ────────────────────────────────────
   useEffect(() => {
     if (didInitRef.current) return;
@@ -360,6 +403,13 @@ export default function useKnowledgeBase({
       setSearchMode(navMode || 'hybrid');
       performSearch(navSearch, navMode || 'hybrid');
     } else {
+      // Уход в chat-view приходит сюда как docId=null/search='' (App обнуляет
+      // их, пока активна вкладка чата). Если в редакторе есть несохранённые
+      // изменения — НЕ сбрасываем выбор: и selectedNode, и lastNavDocRef
+      // остаются, поэтому DocumentDetail с редактором не размонтируется (он лишь
+      // скрыт через CSS), а возврат в KB пройдёт по ветке «уже показан» и не
+      // перезагрузит документ по API, сохранив правки.
+      if (isEditorDirty()) return;
       // Навигация без doc/search → очистить выбор (напр. ушли в чистый KB).
       lastNavDocRef.current = undefined;
       lastNavSearchRef.current = undefined;
@@ -616,6 +666,16 @@ export default function useKnowledgeBase({
     [onTabChange],
   );
 
+  // ── Guarded navigation ─────────────────────────────────────────────────────
+  // Public navigation entry points are wrapped so that, with unsaved editor
+  // changes, the action is deferred behind the discard-confirm modal.
+  const guardedSelectNode = useCallback((nodeOrId) => guard(() => selectNode(nodeOrId)), [guard, selectNode]);
+  const guardedChangeTab = useCallback((tab) => guard(() => changeTab(tab)), [guard, changeTab]);
+  const guardedSearch = useCallback(() => guard(() => handleSearch()), [guard, handleSearch]);
+  // Refresh re-fetches the selected document from the API and remounts the
+  // editor, so unsaved edits ARE discarded — hence the same discard-confirm.
+  const guardedRefresh = useCallback(() => guard(() => handleRefresh()), [guard, handleRefresh]);
+
   return {
     // state
     tree,
@@ -630,9 +690,10 @@ export default function useKnowledgeBase({
     saveError,
     refreshing,
     moveConfirm,
+    discardConfirm,
     path,
     // setters used directly by the view
-    setActiveTab: changeTab,
+    setActiveTab: guardedChangeTab,
     setSearchQuery,
     setSearchMode,
     setShowAddModal,
@@ -641,8 +702,8 @@ export default function useKnowledgeBase({
     setSaveError,
     // handlers
     handleLoadChildren,
-    handleSearch,
-    selectNode,
+    handleSearch: guardedSearch,
+    selectNode: guardedSelectNode,
     handleCreate,
     handleUpdate,
     handleRename,
@@ -651,6 +712,8 @@ export default function useKnowledgeBase({
     handleReorder,
     handleMoveConfirm,
     handleMoveCancel,
-    handleRefresh,
+    handleRefresh: guardedRefresh,
+    handleDiscardConfirm,
+    handleDiscardCancel,
   };
 }

@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import ChatWindow from './components/chatPanel/ChatWindow';
 import KnowledgeBase from './components/knowledgeBasePanel/KnowledgeBase';
+import ConfirmModal from './components/common/ConfirmModal';
+import { isEditorDirty } from './components/knowledgeBasePanel/editorDirtyStore';
 import useAppNavigation from './useAppNavigation';
 import './App.css';
 
@@ -8,13 +10,27 @@ function App() {
   const { nav, switchView, openDoc, setDocTab, setSearch, openChat } = useAppNavigation();
   const activeTab = nav.view;
 
+  // When leaving the Knowledge Base for the Chat tab while the markdown editor
+  // has unsaved changes, ask for confirmation first. Both panels stay mounted
+  // (hidden via CSS), so the edits are NOT lost on switch — we therefore keep
+  // the dirty flag and don't discard anything; the prompt is just a heads-up.
+  const [pendingChatSwitch, setPendingChatSwitch] = useState(false);
+
+  const handleSwitchView = (view) => {
+    if (view === 'chat' && nav.view === 'knowledge' && isEditorDirty()) {
+      setPendingChatSwitch(true);
+      return;
+    }
+    switchView(view);
+  };
+
   return (
     <div className="App">
       <div className="app-tabs">
-        <button className={activeTab === 'chat' ? 'active' : ''} onClick={() => switchView('chat')}>
+        <button className={activeTab === 'chat' ? 'active' : ''} onClick={() => handleSwitchView('chat')}>
           💬 Чаты
         </button>
-        <button className={activeTab === 'knowledge' ? 'active' : ''} onClick={() => switchView('knowledge')}>
+        <button className={activeTab === 'knowledge' ? 'active' : ''} onClick={() => handleSwitchView('knowledge')}>
           📚 База знаний
         </button>
       </div>
@@ -49,6 +65,21 @@ function App() {
           />
         </div>
       </main>
+
+      {/* ── Unsaved-changes warning when leaving KB for Chat ── */}
+      <ConfirmModal
+        open={pendingChatSwitch}
+        icon="✏️"
+        title="Несохранённые изменения"
+        message="В редакторе базы знаний есть несохранённые изменения. Перейти в чат? Они останутся в редакторе, но не будут сохранены."
+        confirmLabel="Перейти в чат"
+        cancelLabel="Остаться"
+        onConfirm={() => {
+          setPendingChatSwitch(false);
+          switchView('chat');
+        }}
+        onCancel={() => setPendingChatSwitch(false)}
+      />
     </div>
   );
 }

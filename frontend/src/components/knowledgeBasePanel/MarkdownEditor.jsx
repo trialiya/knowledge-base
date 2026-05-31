@@ -17,6 +17,7 @@ import DocLinkTooltip from './DocLinkTooltip';
 import AtMentionDropdown from './AtMentionDropdown';
 import useAtMention from './useAtMention';
 import CodeBlock from '../common/CodeBlock';
+import { setEditorDirty } from './editorDirtyStore';
 
 // ─── Markdown components factory ──────────────────────────────────────────────
 // Returns a ReactMarkdown `components` map that intercepts /?doc=N links.
@@ -114,11 +115,29 @@ const MarkdownEditor = ({
   const [preview, setPreview] = useState(true);
   const [saving, setSaving] = useState(false);
   const textareaRef = useRef(null);
+  // Stable per-instance id for the shared dirty registry.
+  const dirtyIdRef = useRef(`md-${Math.random().toString(36).slice(2)}`);
 
   useEffect(() => {
     setVal(value);
     setDirty(false);
   }, [value]);
+
+  // Publish the dirty flag to the shared store so the navigation guard in
+  // useKnowledgeBase can warn before this editor is unmounted on doc switch.
+  // previewOnly instances never edit, so they must never mark the store dirty.
+  useEffect(() => {
+    if (previewOnly) return;
+    setEditorDirty(dirtyIdRef.current, dirty);
+  }, [dirty, previewOnly]);
+
+  // Always clear this instance's mark when the editable editor goes away (doc
+  // switch, tab change, fullscreen close) so a stale `true` can't block later nav.
+  useEffect(() => {
+    if (previewOnly) return undefined;
+    const id = dirtyIdRef.current;
+    return () => setEditorDirty(id, false);
+  }, [previewOnly]);
 
   // ── @mention ──────────────────────────────────────────────────────────────
 
