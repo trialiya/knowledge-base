@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import MarkdownEditor from './MarkdownEditor';
-import { IconEdit, IconChevronRight, IconExpand } from './icons';
+import { IconEdit, IconChevronRight, IconExpand, IconCopy, IconCheck } from './icons';
 
-const MAX_LINES = 8;
+const MAX_LINES = 12;
 
 /**
  * props:
@@ -15,6 +15,7 @@ const MAX_LINES = 8;
  *   children     — optional slot rendered inside the section card (e.g. ContentsTable)
  *   tree         — KB tree array (forwarded to MarkdownEditor for DocLinkTooltip)
  *   onNavigate   — (node) => void (forwarded to MarkdownEditor for DocLinkTooltip)
+ *   copyable     — show a "copy all" button in the header (copies `description`)
  */
 const SummarySection = ({
   label,
@@ -26,10 +27,13 @@ const SummarySection = ({
   children,
   tree = [],
   onNavigate,
+  copyable = false,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isTruncated, setIsTruncated] = useState(false);
+  const [copied, setCopied] = useState(false);
   const contentRef = useRef(null);
+  const copyTimerRef = useRef(null);
 
   useEffect(() => {
     if (contentRef.current && description) {
@@ -40,11 +44,35 @@ const SummarySection = ({
     }
   }, [description]);
 
+  useEffect(() => () => clearTimeout(copyTimerRef.current), []);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(description || '');
+      setCopied(true);
+      clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard API недоступен в insecure context */
+    }
+  };
+
+  const showCopy = copyable && !!description;
+
   return (
     <section className="summary-section">
       <div className="summary-section__head">
         <span className="summary-section__label">{label}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          {showCopy && (
+            <button
+              className={`detail-icon-btn${copied ? ' detail-icon-btn--done' : ''}`}
+              title={copied ? 'Скопировано' : 'Копировать всё'}
+              onClick={handleCopy}
+            >
+              {copied ? <IconCheck /> : <IconCopy />}
+            </button>
+          )}
           {onEdit && (
             <button className="detail-icon-btn" title="Редактировать" onClick={onEdit}>
               <IconEdit />

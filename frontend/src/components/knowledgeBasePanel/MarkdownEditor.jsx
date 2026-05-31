@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeSlug from 'rehype-slug';
 import {
   IconBold,
   IconItalic,
@@ -12,12 +13,30 @@ import {
   IconEye,
   IconEyeOff,
   IconExpand,
+  // ── new ──
+  IconCopy,
+  IconCheck,
+  IconStrike,
+  IconCodeBlock,
+  IconOrderedList,
+  IconChecklist,
+  IconHr,
+  IconImage,
+  IconTable,
 } from './icons';
 import DocLinkTooltip from './DocLinkTooltip';
 import AtMentionDropdown from './AtMentionDropdown';
 import useAtMention from './useAtMention';
 import CodeBlock from '../common/CodeBlock';
 import { setEditorDirty } from './editorDirtyStore';
+
+// remark / rehype plugin arrays — stable references so ReactMarkdown doesn't
+// rebuild its processor on every render. rehypeSlug adds GitHub-style `id`s to
+// headings (same slugger that produced the `#обзор` anchors in tables of
+// contents), so in-document anchor links resolve. DocLinkTooltip handles the
+// click → scroll-into-view (see its hash-link branch).
+const REMARK_PLUGINS = [remarkGfm];
+const REHYPE_PLUGINS = [rehypeSlug];
 
 // ─── Markdown components factory ──────────────────────────────────────────────
 // Returns a ReactMarkdown `components` map that intercepts /?doc=N links.
@@ -52,9 +71,9 @@ function getMarkdownComponents(tree, onNavigate) {
 
 // ─── Toolbar button ───────────────────────────────────────────────────────────
 
-const ToolbarBtn = ({ icon, title, onClick, disabled }) => (
+const ToolbarBtn = ({ icon, title, onClick, disabled, active }) => (
   <button
-    className="md-toolbar__btn"
+    className={`md-toolbar__btn${active ? ' md-toolbar__btn--active' : ''}`}
     title={title}
     disabled={disabled}
     onMouseDown={(e) => {
@@ -89,6 +108,41 @@ function prependLine(textarea, prefix) {
   };
 }
 
+/**
+ * Inserts a multi-line `block` at the cursor, guaranteeing it sits on its own
+ * line(s) (adds surrounding newlines only when needed). If `placeholder` is a
+ * substring of the block, the caret selects it so the user can type over it;
+ * otherwise the caret lands right after the inserted block.
+ */
+function insertBlock(textarea, block, placeholder) {
+  const { selectionStart: s, selectionEnd: e, value } = textarea;
+  const before = value.slice(0, s);
+  const after = value.slice(e);
+  const lead = before && !before.endsWith('\n') ? '\n' : '';
+  const trail = after && !after.startsWith('\n') ? '\n' : '';
+  const insert = lead + block + trail;
+  const newVal = before + insert + after;
+
+  if (placeholder && block.includes(placeholder)) {
+    const from = before.length + lead.length + block.indexOf(placeholder);
+    return { newVal, from, to: from + placeholder.length };
+  }
+  const caret = before.length + insert.length;
+  return { newVal, from: caret, to: caret };
+}
+
+function insertCodeBlock(textarea) {
+  const { selectionStart: s, selectionEnd: e, value } = textarea;
+  const selected = value.slice(s, e);
+  const body = selected || 'код';
+  return insertBlock(textarea, '```\n' + body + '\n```', selected ? null : 'код');
+}
+
+function insertTable(textarea) {
+  const table = ['| Колонка 1 | Колонка 2 |', '| --- | --- |', '| Ячейка | Ячейка |'].join('\n');
+  return insertBlock(textarea, table, 'Колонка 1');
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 /**
@@ -112,9 +166,11 @@ const MarkdownEditor = ({
 }) => {
   const [val, setVal] = useState(value);
   const [dirty, setDirty] = useState(false);
-  const [preview, setPreview] = useState(true);
+  const [preview, setPreview] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [copied, setCopied] = useState(false);
   const textareaRef = useRef(null);
+  const copyTimerRef = useRef(null);
   // Stable per-instance id for the shared dirty registry.
   const dirtyIdRef = useRef(`md-${Math.random().toString(36).slice(2)}`);
 
@@ -138,6 +194,9 @@ const MarkdownEditor = ({
     const id = dirtyIdRef.current;
     return () => setEditorDirty(id, false);
   }, [previewOnly]);
+
+  // Cleanup the "copied" reset timer on unmount.
+  useEffect(() => () => clearTimeout(copyTimerRef.current), []);
 
   // ── @mention ──────────────────────────────────────────────────────────────
 
@@ -163,18 +222,75 @@ const MarkdownEditor = ({
     });
   }, []);
 
-  const toolbar = [
-    { icon: <IconH1 />, title: 'Heading', action: () => applyTransform(prependLine(textareaRef.current, '## ')) },
-    { icon: <IconBold />, title: 'Bold', action: () => applyTransform(wrapSelection(textareaRef.current, '**')) },
-    { icon: <IconItalic />, title: 'Italic', action: () => applyTransform(wrapSelection(textareaRef.current, '_')) },
-    { icon: <IconCode />, title: 'Code', action: () => applyTransform(wrapSelection(textareaRef.current, '`')) },
-    { icon: <IconQuote />, title: 'Quote', action: () => applyTransform(prependLine(textareaRef.current, '> ')) },
-    { icon: <IconList />, title: 'List item', action: () => applyTransform(prependLine(textareaRef.current, '- ')) },
-    {
-      icon: <IconLink />,
-      title: 'Link',
-      action: () => applyTransform(wrapSelection(textareaRef.current, '[', '](url)')),
-    },
+  // Copy the full markdown source to the clipboard.
+  const handleCopyAll = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(val);
+      setCopied(true);
+      clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard API недоступен в insecure context */
+    }
+  }, [val]);
+
+  // Grouped so the toolbar can render separators between logical clusters.
+  const toolbarGroups = [
+    // Inline text formatting
+    [
+      { icon: <IconH1 />, title: 'Заголовок', action: () => applyTransform(prependLine(textareaRef.current, '## ')) },
+      { icon: <IconBold />, title: 'Жирный', action: () => applyTransform(wrapSelection(textareaRef.current, '**')) },
+      { icon: <IconItalic />, title: 'Курсив', action: () => applyTransform(wrapSelection(textareaRef.current, '_')) },
+      {
+        icon: <IconStrike />,
+        title: 'Зачёркнутый',
+        action: () => applyTransform(wrapSelection(textareaRef.current, '~~')),
+      },
+      {
+        icon: <IconCode />,
+        title: 'Код (строчный)',
+        action: () => applyTransform(wrapSelection(textareaRef.current, '`')),
+      },
+    ],
+    // Block-level
+    [
+      {
+        icon: <IconCodeBlock />,
+        title: 'Блок кода',
+        action: () => applyTransform(insertCodeBlock(textareaRef.current)),
+      },
+      { icon: <IconQuote />, title: 'Цитата', action: () => applyTransform(prependLine(textareaRef.current, '> ')) },
+      {
+        icon: <IconList />,
+        title: 'Маркированный список',
+        action: () => applyTransform(prependLine(textareaRef.current, '- ')),
+      },
+      {
+        icon: <IconOrderedList />,
+        title: 'Нумерованный список',
+        action: () => applyTransform(prependLine(textareaRef.current, '1. ')),
+      },
+      {
+        icon: <IconChecklist />,
+        title: 'Чек-лист',
+        action: () => applyTransform(prependLine(textareaRef.current, '- [ ] ')),
+      },
+      { icon: <IconHr />, title: 'Разделитель', action: () => applyTransform(insertBlock(textareaRef.current, '---')) },
+    ],
+    // Insert
+    [
+      {
+        icon: <IconLink />,
+        title: 'Ссылка',
+        action: () => applyTransform(wrapSelection(textareaRef.current, '[', '](url)')),
+      },
+      {
+        icon: <IconImage />,
+        title: 'Изображение',
+        action: () => applyTransform(wrapSelection(textareaRef.current, '![', '](url)')),
+      },
+      { icon: <IconTable />, title: 'Таблица', action: () => applyTransform(insertTable(textareaRef.current)) },
+    ],
   ];
 
   // Tab key → indent with 2 spaces; also route to mention keyboard handler
@@ -196,12 +312,18 @@ const MarkdownEditor = ({
     }
   };
 
-  // ── Preview-only mode (used in SummarySection) ────────────────────────────
+  // ── Preview-only mode (used in SummarySection About + fullscreen About) ────
+  // No toolbar here. The "copy all" affordance for About lives in
+  // SummarySection's header (left of the pencil), so this stays a clean render.
   if (previewOnly) {
     return (
       <div className="md-preview md-preview--embedded">
         {val ? (
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={getMarkdownComponents(tree, onNavigate)}>
+          <ReactMarkdown
+            remarkPlugins={REMARK_PLUGINS}
+            rehypePlugins={REHYPE_PLUGINS}
+            components={getMarkdownComponents(tree, onNavigate)}
+          >
             {val}
           </ReactMarkdown>
         ) : (
@@ -217,11 +339,22 @@ const MarkdownEditor = ({
       {/* Toolbar */}
       <div className="md-toolbar">
         <div className="md-toolbar__group">
-          {toolbar.map(({ icon, title, action }) => (
-            <ToolbarBtn key={title} icon={icon} title={title} onClick={action} disabled={preview} />
+          {toolbarGroups.map((group, gi) => (
+            <React.Fragment key={gi}>
+              {gi > 0 && <span className="md-toolbar__sep" />}
+              {group.map(({ icon, title, action }) => (
+                <ToolbarBtn key={title} icon={icon} title={title} onClick={action} disabled={preview} />
+              ))}
+            </React.Fragment>
           ))}
         </div>
         <div className="md-toolbar__group md-toolbar__group--right">
+          <ToolbarBtn
+            icon={copied ? <IconCheck /> : <IconCopy />}
+            title={copied ? 'Скопировано' : 'Копировать всё'}
+            onClick={handleCopyAll}
+            active={copied}
+          />
           <ToolbarBtn
             icon={preview ? <IconEyeOff /> : <IconEye />}
             title={preview ? 'Редактор' : 'Предпросмотр'}
@@ -266,7 +399,11 @@ const MarkdownEditor = ({
         {preview && (
           <div className="md-preview">
             {val ? (
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={getMarkdownComponents(tree, onNavigate)}>
+              <ReactMarkdown
+                remarkPlugins={REMARK_PLUGINS}
+                rehypePlugins={REHYPE_PLUGINS}
+                components={getMarkdownComponents(tree, onNavigate)}
+              >
                 {val}
               </ReactMarkdown>
             ) : (

@@ -668,3 +668,9 @@
   flex: 1;
   overflow-y: auto;
 }
+
+.detail-icon-btn--done,
+.detail-icon-btn--done:hover {
+  color: var(--kb-accent);
+  background: var(--kb-accent-bg);
+}

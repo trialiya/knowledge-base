@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -75,6 +75,36 @@ const IconCopied = () => (
     <path d="M3 8.5l3 3 7-7.5" />
   </svg>
 );
+
+/** Кнопка «копировать всё сообщение» — копирует исходный текст сообщения. */
+const MessageCopyButton = ({ text }) => {
+  const [copied, setCopied] = useState(false);
+  const timerRef = useRef(null);
+
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text ?? '');
+      setCopied(true);
+      clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard API may fail in insecure contexts */
+    }
+  };
+
+  return (
+    <button
+      className={`message-copy-btn ${copied ? 'message-copy-btn--done' : ''}`}
+      onClick={handleCopy}
+      title={copied ? 'Скопировано' : 'Копировать сообщение'}
+      type="button"
+    >
+      {copied ? <IconCopied /> : <IconCopy />}
+    </button>
+  );
+};
 
 const formatArgs = (args) => {
   if (!args || Object.keys(args).length === 0) return null;
@@ -304,6 +334,7 @@ const Message = ({ text, sender, toolCalls, onNavigateToDoc }) => {
       {sender === 'ai' ? (
         <>
           <div className="message-source-toggle">
+            <MessageCopyButton text={text} />
             <button
               className={`message-source-btn ${showSource ? 'message-source-btn--active' : ''}`}
               onClick={() => setShowSource((v) => !v)}
@@ -323,7 +354,12 @@ const Message = ({ text, sender, toolCalls, onNavigateToDoc }) => {
           )}
         </>
       ) : (
-        <div className="user-message-text">{text}</div>
+        <>
+          <div className="message-toolbar message-toolbar--user">
+            <MessageCopyButton text={text} />
+          </div>
+          <div className="user-message-text">{text}</div>
+        </>
       )}
     </div>
   );

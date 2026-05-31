@@ -170,8 +170,53 @@
 /* ── Source toggle ── */
 .message-source-toggle {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: 8px;
   margin-bottom: 4px;
+}
+
+/* Тулбар сверху сообщения пользователя (кнопка копирования справа) */
+.message-toolbar {
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.message-toolbar--user {
+  justify-content: flex-end;
+}
+
+/* ── Кнопка «копировать всё сообщение» ── */
+.message-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+  color: #888;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+.message-copy-btn:hover {
+  color: #555;
+  background: rgba(0, 0, 0, 0.05);
+  border-color: #d0d0d0;
+}
+.message-copy-btn--done {
+  color: #34a853;
+}
+/* На синем пузыре пользователя — светлые тона */
+.message.user .message-copy-btn {
+  color: rgba(255, 255, 255, 0.8);
+}
+.message.user .message-copy-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.35);
 }
 
 .message-source-btn {

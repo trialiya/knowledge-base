@@ -137,6 +137,7 @@ const DocumentDetail = ({
               onExpand={() => setFullscreen('about')}
               tree={tree}
               onNavigate={onNavigate}
+              copyable
             />
 
             <SummarySection label="Attachments" showMoreBtn onMore={() => onTabChange('attachments')}>

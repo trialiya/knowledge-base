@@ -59,6 +59,7 @@ const FolderDetail = ({
               onExpand={() => setFullscreen('about')}
               tree={tree}
               onNavigate={onNavigate}
+              copyable
             />
             {children.length > 0 && (
               <SummarySection label="Contents" showMoreBtn onMore={() => onTabChange('contents')}>

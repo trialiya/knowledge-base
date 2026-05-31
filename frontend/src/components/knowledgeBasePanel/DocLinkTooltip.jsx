@@ -6,11 +6,17 @@ import { IconFolder, IconDoc, IconSparkle } from './icons';
 /**
  * Wraps a `/?doc=N` link with a hover-activated preview tooltip.
  *
- * Navigation: fires `window.dispatchEvent(new CustomEvent('app:navigate-doc', { detail: { docId } }))`
- * which is already handled by useKnowledgeBase — it loads the full ancestor
- * chain, marks nodes with _openOnLoad, and selects the document.
- * This is the same path used by direct URL links, so the tree always
- * expands to reveal the target node.
+ * Three link kinds are handled:
+ *   1. In-document anchors (`#обзор`) — scroll to the heading WITHIN the same
+ *      rendered-markdown container, no navigation, no URL change. Heading ids
+ *      are produced by rehype-slug in MarkdownEditor (GitHub slugger), matching
+ *      the slugs in `[Обзор](#обзор)` tables of contents.
+ *   2. Internal KB doc links (`/?doc=N`) — hover preview + click navigation.
+ *   3. Everything else — plain external `<a target="_blank">`.
+ *
+ * Navigation for (2) goes through the `onNavigate` prop (in KB this is
+ * selectNode, which accepts an id). A custom-event fallback is kept for
+ * backward compatibility if onNavigate isn't passed.
  */
 const DocLinkTooltip = ({ href, children, tree, onNavigate, ...rest }) => {
   const [visible, setVisible] = useState(false);
@@ -22,6 +28,7 @@ const DocLinkTooltip = ({ href, children, tree, onNavigate, ...rest }) => {
 
   const docId = parseDocId(href);
   const isDocLink = docId !== null;
+  const isHashLink = typeof href === 'string' && href.trim().startsWith('#');
 
   const { node, loading, error } = useDocPreview(docId, tree, visible && isDocLink);
 
@@ -95,6 +102,47 @@ const DocLinkTooltip = ({ href, children, tree, onNavigate, ...rest }) => {
     },
     [docId, navigateToDoc],
   );
+
+  // ── In-document anchor (#heading) ──────────────────────────────────────────
+  // Scroll to the slugged heading within THIS rendered-markdown container.
+  // STRICT matching: the anchor must equal the generated heading id verbatim
+  // (rehype-slug / github-slugger). A mismatch (e.g. `#обзор` pointing at a
+  // numbered `## 1. Обзор` whose id is `1-обзор`) intentionally does nothing —
+  // it signals a bad anchor to fix in the source markdown, rather than being
+  // silently "rescued". Container scoping avoids id clashes when an inline and
+  // a fullscreen editor are mounted at once.
+  const scrollToAnchor = useCallback(
+    (e) => {
+      e.preventDefault();
+      const raw = (href || '').slice(1);
+      if (!raw) return;
+      let decoded = raw;
+      try {
+        decoded = decodeURIComponent(raw);
+      } catch {
+        /* keep raw */
+      }
+      const container = e.currentTarget.closest('.md-preview, .md-preview--embedded') || document;
+      // Anchor targets are always headings; querying h1–h6[id] (instead of all
+      // [id]) is both semantically correct and avoids matching any non-heading
+      // element that might carry the same id.
+      const target = Array.from(container.querySelectorAll('h1[id], h2[id], h3[id], h4[id], h5[id], h6[id]')).find(
+        (el) => el.id === decoded || el.id === raw,
+      );
+      if (target) scrollToHeading(target);
+    },
+    [href],
+  );
+
+  // ── In-document anchor link ────────────────────────────────────────────────
+
+  if (isHashLink) {
+    return (
+      <a href={href} className="doc-link doc-link--anchor" onClick={scrollToAnchor} {...rest}>
+        {children}
+      </a>
+    );
+  }
 
   // ── Non-doc link ────────────────────────────────────────────────────────
 
@@ -216,6 +264,38 @@ const DocPreviewTooltip = React.forwardRef(
 DocPreviewTooltip.displayName = 'DocPreviewTooltip';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Nearest scrollable ancestor (the element whose scroll we must move). */
+function getScrollParent(el) {
+  let node = el.parentElement;
+  while (node) {
+    const { overflowY } = window.getComputedStyle(node);
+    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight + 1) {
+      return node;
+    }
+    node = node.parentElement;
+  }
+  return null;
+}
+
+/**
+ * Scrolls the heading into view by moving its actual scroll container's
+ * scrollTop, instead of relying on scrollIntoView() — which, in this layout
+ * (body/#root locked with overflow:hidden), may try to scroll a non-scrollable
+ * ancestor and visibly do nothing. Falls back to scrollIntoView if no
+ * scrollable ancestor is found.
+ */
+function scrollToHeading(target) {
+  const scroller = getScrollParent(target);
+  if (scroller) {
+    const tRect = target.getBoundingClientRect();
+    const sRect = scroller.getBoundingClientRect();
+    const top = scroller.scrollTop + (tRect.top - sRect.top) - 8;
+    scroller.scrollTo({ top, behavior: 'smooth' });
+  } else {
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
 
 /**
  * Returns the doc id ONLY for internal KB links, i.e.:
