@@ -36,4 +36,20 @@ public interface DocumentHistoryRepository extends CrudRepository<DocumentHistor
         """)
     java.util.Optional<DocumentHistoryEntity> findByDocumentIdAndVersion(
             @Param("documentId") Long documentId, @Param("version") int version);
+
+    /**
+     * История изменений описания: по одной строке на каждое distinct description_version (берём
+     * самую раннюю — момент, когда контент стал таким), newest-first.
+     */
+    @Query(
+            """
+    SELECT * FROM (
+        SELECT DISTINCT ON (description_version) *
+        FROM document_history
+        WHERE document_id = :documentId
+        ORDER BY description_version, version
+    ) t
+    ORDER BY description_version DESC
+    """)
+    List<DocumentHistoryEntity> findDescriptionHistory(@Param("documentId") long documentId);
 }

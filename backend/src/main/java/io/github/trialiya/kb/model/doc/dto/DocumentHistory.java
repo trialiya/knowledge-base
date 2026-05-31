@@ -12,9 +12,10 @@ import java.time.LocalDateTime;
  * @param description description at the time of the snapshot
  * @param updatedAt timestamp when the document had this content
  */
-public record DocumentHistoryEntry(
+public record DocumentHistory(
         String documentId,
         int version,
+        int descriptionVersion,
         String title,
         String type,
         String description,

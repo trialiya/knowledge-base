@@ -6,6 +6,7 @@ import MarkdownEditor from './MarkdownEditor';
 import AttachmentPanel from '../common/AttachmentPanel';
 import FullscreenEditorModal from './FullscreenEditorModal';
 import useFolderChildren from './useFolderChildren';
+import HistoryModal from './HistoryModal';
 
 const TABS = [
   { key: 'summary', label: 'Summary' },
@@ -28,6 +29,7 @@ const FolderDetail = ({
 }) => {
   const [attachmentCount, setAttachmentCount] = useState(0);
   const [fullscreen, setFullscreen] = useState(null); // 'about' | 'content' | null
+  const [showHistory, setShowHistory] = useState(false);
   const { children, loading: childrenLoading } = useFolderChildren(node, onLoadChildren);
 
   return (
@@ -80,6 +82,7 @@ const FolderDetail = ({
             onExpand={() => setFullscreen('content')}
             tree={tree}
             onNavigate={onNavigate}
+            onHistory={() => setShowHistory(true)}
           />
         )}
 
@@ -109,6 +112,16 @@ const FolderDetail = ({
           onClose={() => setFullscreen(null)}
           tree={tree}
           onNavigate={onNavigate}
+        />
+      )}
+      {showHistory && (
+        <HistoryModal
+          documentId={node.id}
+          documentTitle={node.title}
+          tree={tree}
+          onNavigate={onNavigate}
+          onRestore={(val) => onUpdate(node.id, { description: val })}
+          onClose={() => setShowHistory(false)}
         />
       )}
     </div>

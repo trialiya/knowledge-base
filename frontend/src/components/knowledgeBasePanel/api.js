@@ -49,6 +49,16 @@ const api = {
     return r.json();
   },
 
+  fetchHistory: async (id) => {
+    const r = await fetch(`/api/documents/${id}/history`);
+    if (!r.ok) {
+      const err = new Error(`History failed: ${r.status}`);
+      err.status = r.status;
+      throw err;
+    }
+    return r.json();
+  },
+
   update: (id, patch) =>
     fetch(`/api/documents/${id}`, {
       method: 'PUT',

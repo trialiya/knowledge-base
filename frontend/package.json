@@ -5,6 +5,7 @@
   "license": "UNLICENSED",
   "proxy": "http://localhost:8080",
   "dependencies": {
+    "diff": "^9.0.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-markdown": "^10.1.0",

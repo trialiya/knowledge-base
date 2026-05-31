@@ -13,7 +13,6 @@ import {
   IconEye,
   IconEyeOff,
   IconExpand,
-  // ── new ──
   IconCopy,
   IconCheck,
   IconStrike,
@@ -23,6 +22,7 @@ import {
   IconHr,
   IconImage,
   IconTable,
+  IconHistory,
 } from './icons';
 import DocLinkTooltip from './DocLinkTooltip';
 import AtMentionDropdown from './AtMentionDropdown';
@@ -163,6 +163,7 @@ const MarkdownEditor = ({
   tree = [],
   onNavigate,
   onExpand,
+  onHistory,
 }) => {
   const [val, setVal] = useState(value);
   const [dirty, setDirty] = useState(false);
@@ -361,6 +362,7 @@ const MarkdownEditor = ({
             onClick={() => setPreview((p) => !p)}
           />
           {onExpand && <ToolbarBtn icon={<IconExpand />} title="Развернуть" onClick={onExpand} />}
+          {onHistory && <ToolbarBtn icon={<IconHistory />} title="История изменений" onClick={onHistory} />}
         </div>
       </div>
 

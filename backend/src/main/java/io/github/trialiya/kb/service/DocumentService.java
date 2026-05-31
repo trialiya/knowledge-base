@@ -3,7 +3,7 @@ package io.github.trialiya.kb.service;
 import io.github.trialiya.kb.config.model.SearchConfiguration;
 import io.github.trialiya.kb.model.doc.dto.CreateDocumentRequest;
 import io.github.trialiya.kb.model.doc.dto.Document;
-import io.github.trialiya.kb.model.doc.dto.DocumentHistoryEntry;
+import io.github.trialiya.kb.model.doc.dto.DocumentHistory;
 import io.github.trialiya.kb.model.doc.dto.DocumentNode;
 import io.github.trialiya.kb.model.doc.dto.PagedChildren;
 import io.github.trialiya.kb.model.doc.dto.ReorderRequest;
@@ -101,6 +101,15 @@ public class DocumentService {
 
     public DocumentNode getById(Long id) {
         return repo.findById(id).map(this::toShallowNode).orElse(null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<DocumentHistory> getDescriptionHistory(String id) {
+        long docId = Long.parseLong(id);
+        if (!repo.existsById(docId)) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        return historyRepo.findDescriptionHistory(docId).stream()
+                .map(this::toHistoryDto)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -535,7 +544,7 @@ public class DocumentService {
      * @return list of history entries, possibly empty for documents that have never been edited
      */
     @Transactional(readOnly = true)
-    public List<DocumentHistoryEntry> getHistory(String id) {
+    public List<DocumentHistory> getHistory(String id) {
         long docId = Long.parseLong(id);
         // Ensure the document actually exists before returning history
         if (!repo.existsById(docId)) {
@@ -554,7 +563,7 @@ public class DocumentService {
      * @throws ResponseStatusException 404 if the document or the requested version do not exist
      */
     @Transactional(readOnly = true)
-    public DocumentHistoryEntry getHistoryVersion(String id, int version) {
+    public DocumentHistory getHistoryVersion(String id, int version) {
         long docId = Long.parseLong(id);
         return historyRepo
                 .findByDocumentIdAndVersion(docId, version)
@@ -738,7 +747,7 @@ public class DocumentService {
         return new DocumentHistoryEntity(
                 null,
                 entity.getId(),
-                entity.getVersion() + 1,
+                entity.getVersion(),
                 entity.getTitle(),
                 entity.getType(),
                 entity.getDescription(),
@@ -762,10 +771,11 @@ public class DocumentService {
                 e.getSummarySourceVersion());
     }
 
-    private DocumentHistoryEntry toHistoryDto(DocumentHistoryEntity e) {
-        return new DocumentHistoryEntry(
+    private DocumentHistory toHistoryDto(DocumentHistoryEntity e) {
+        return new DocumentHistory(
                 String.valueOf(e.getDocumentId()),
                 e.getVersion(),
+                e.getDescriptionVersion(),
                 e.getTitle(),
                 e.getType(),
                 e.getDescription(),

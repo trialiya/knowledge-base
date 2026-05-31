@@ -254,3 +254,179 @@
 
 /* Якорная ссылка внутри документа (оглавление) — наследует .doc-link,
    маркер оставляем тем же пунктиром, отдельных стилей не требуется. */
+
+/* ═══════════════════════════════════════════════
+   HISTORY (история изменений)
+═══════════════════════════════════════════════ */
+.history-layout {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.history-list {
+  width: 280px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  border-right: 1px solid var(--kb-border);
+  padding: 8px;
+}
+.history-list__head {
+  display: grid;
+  grid-template-columns: 1fr 36px 36px;
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 0.68rem;
+  color: var(--kb-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.history-item {
+  display: grid;
+  grid-template-columns: 1fr 36px 36px;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 8px;
+}
+.history-item:hover {
+  background: var(--kb-bg);
+}
+.history-item__meta {
+  min-width: 0;
+}
+.history-item__date {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--kb-text);
+}
+.history-item__sub {
+  font-size: 0.72rem;
+  color: var(--kb-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.history-item input[type='radio'] {
+  cursor: pointer;
+  accent-color: var(--kb-accent);
+  justify-self: center;
+}
+
+.history-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.history-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--kb-border);
+  flex-shrink: 0;
+}
+.history-seg {
+  display: flex;
+  border: 1px solid var(--kb-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.history-seg button {
+  background: none;
+  border: none;
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: var(--kb-muted);
+}
+.history-seg button.is-active {
+  background: var(--kb-accent);
+  color: #fff;
+}
+.history-seg button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.history-body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+.history-note {
+  padding: 10px 16px 0;
+  margin: 0;
+  color: var(--kb-muted);
+  font-style: italic;
+  font-size: 0.82rem;
+}
+.history-empty {
+  padding: 24px;
+  color: var(--kb-muted);
+  font-style: italic;
+}
+
+.history-diff {
+  margin: 0;
+  padding: 8px 0;
+  font-family: 'Fira Mono', 'Consolas', monospace;
+  font-size: 0.84rem;
+  line-height: 1.6;
+  color: var(--kb-text);
+}
+.history-diff__line {
+  display: flex;
+  padding: 0 16px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.history-diff__sign {
+  width: 1.4em;
+  flex-shrink: 0;
+  text-align: center;
+  color: var(--kb-muted);
+  user-select: none;
+}
+.history-diff__text {
+  flex: 1;
+}
+.history-diff__line--add {
+  background: rgba(46, 160, 67, 0.16);
+}
+.history-diff__line--del {
+  background: rgba(248, 81, 73, 0.16);
+}
+.history-diff__line--add .history-diff__sign {
+  color: #1a7f37;
+}
+.history-diff__line--del .history-diff__sign {
+  color: #cf222e;
+}
+
+.history-restore-group {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+.history-restore {
+  background: none;
+  border: 1.5px solid var(--kb-border);
+  border-radius: 20px;
+  color: var(--kb-muted);
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 5px 14px;
+  transition: border-color 0.15s, color 0.15s;
+}
+.history-restore:hover:not(:disabled) {
+  border-color: var(--kb-accent);
+  color: var(--kb-accent);
+}
+.history-restore:disabled {
+  opacity: 0.4;
+  cursor: default;
+  border-color: var(--kb-border);
+  color: var(--kb-muted);
+}

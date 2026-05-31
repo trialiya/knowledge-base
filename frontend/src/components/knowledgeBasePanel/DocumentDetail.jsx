@@ -5,6 +5,7 @@ import MarkdownEditor from './MarkdownEditor';
 import AttachmentPanel from '../common/AttachmentPanel';
 import FullscreenEditorModal from './FullscreenEditorModal';
 import { IconSparkle, IconSparkleLoading } from './icons';
+import HistoryModal from './HistoryModal';
 
 const TABS = [
   { key: 'summary', label: 'Summary' },
@@ -100,6 +101,7 @@ const DocumentDetail = ({
 }) => {
   const [attachmentCount, setAttachmentCount] = useState(0);
   const [fullscreen, setFullscreen] = useState(null); // 'about' | 'content' | null
+  const [showHistory, setShowHistory] = useState(false);
 
   const handleRename = (id, name) => {
     if (onRename) onRename(id, name);
@@ -154,6 +156,7 @@ const DocumentDetail = ({
             onExpand={() => setFullscreen('content')}
             tree={tree}
             onNavigate={onNavigate}
+            onHistory={() => setShowHistory(true)}
           />
         )}
 
@@ -171,6 +174,16 @@ const DocumentDetail = ({
           onClose={() => setFullscreen(null)}
           tree={tree}
           onNavigate={onNavigate}
+        />
+      )}
+      {showHistory && (
+        <HistoryModal
+          documentId={node.id}
+          documentTitle={node.title}
+          tree={tree}
+          onNavigate={onNavigate}
+          onRestore={(val) => onUpdate(node.id, { description: val })}
+          onClose={() => setShowHistory(false)}
         />
       )}
     </div>

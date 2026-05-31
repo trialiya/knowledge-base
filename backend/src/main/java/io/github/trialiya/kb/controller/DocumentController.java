@@ -2,6 +2,7 @@ package io.github.trialiya.kb.controller;
 
 import io.github.trialiya.kb.model.doc.dto.CreateDocumentRequest;
 import io.github.trialiya.kb.model.doc.dto.Document;
+import io.github.trialiya.kb.model.doc.dto.DocumentHistory;
 import io.github.trialiya.kb.model.doc.dto.DocumentNode;
 import io.github.trialiya.kb.model.doc.dto.MoveToParentRequest;
 import io.github.trialiya.kb.model.doc.dto.PagedChildren;
@@ -86,6 +87,12 @@ public class DocumentController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
         return node;
+    }
+
+    /** История изменений описания документа (newest-first). */
+    @GetMapping("/{id}/history")
+    public List<DocumentHistory> getHistory(@PathVariable String id) {
+        return service.getDescriptionHistory(id);
     }
 
     @PutMapping("/{id}")
