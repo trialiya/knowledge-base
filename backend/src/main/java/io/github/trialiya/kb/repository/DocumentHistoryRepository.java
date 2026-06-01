@@ -1,7 +1,9 @@
 package io.github.trialiya.kb.repository;
 
 import io.github.trialiya.kb.model.doc.entity.DocumentHistoryEntity;
+import io.github.trialiya.kb.model.doc.entity.DocumentHistoryShortResult;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.query.Param;
@@ -34,7 +36,7 @@ public interface DocumentHistoryRepository extends CrudRepository<DocumentHistor
           AND version     = :version
         LIMIT 1
         """)
-    java.util.Optional<DocumentHistoryEntity> findByDocumentIdAndVersion(
+    Optional<DocumentHistoryEntity> findByDocumentIdAndVersion(
             @Param("documentId") Long documentId, @Param("version") int version);
 
     /**
@@ -43,13 +45,16 @@ public interface DocumentHistoryRepository extends CrudRepository<DocumentHistor
      */
     @Query(
             """
-    SELECT * FROM (
-        SELECT DISTINCT ON (description_version) *
-        FROM document_history
-        WHERE document_id = :documentId
-        ORDER BY description_version, version
-    ) t
+    SELECT id, document_id, version, title, type,
+           updated_at, summary_source_version, description_version
+    FROM (
+             SELECT dh.*,
+                    ROW_NUMBER() OVER (PARTITION BY description_version ORDER BY version) AS rn
+             FROM document_history dh
+             WHERE document_id = :documentId
+         ) t
+    WHERE rn = 1
     ORDER BY description_version DESC
     """)
-    List<DocumentHistoryEntity> findDescriptionHistory(@Param("documentId") long documentId);
+    List<DocumentHistoryShortResult> findDescriptionHistory(@Param("documentId") long documentId);
 }

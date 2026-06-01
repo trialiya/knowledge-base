@@ -49,10 +49,22 @@ const api = {
     return r.json();
   },
 
+  // Короткий список версий (без тяжёлого description) — newest-first.
   fetchHistory: async (id) => {
     const r = await fetch(`/api/documents/${id}/history`);
     if (!r.ok) {
       const err = new Error(`History failed: ${r.status}`);
+      err.status = r.status;
+      throw err;
+    }
+    return r.json();
+  },
+
+  // Полная запись одной версии (с description) — подтягивается по требованию.
+  fetchHistoryVersion: async (id, version) => {
+    const r = await fetch(`/api/documents/${id}/history/${version}`);
+    if (!r.ok) {
+      const err = new Error(`History version failed: ${r.status}`);
       err.status = r.status;
       throw err;
     }

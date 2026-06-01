@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { diffLines } from 'diff';
 import MarkdownEditor from './MarkdownEditor';
@@ -15,9 +15,15 @@ import { IconX } from './icons';
  *   onRestore     — optional (markdown) => void; «Восстановить изменённую версию»
  *   onClose       — () => void
  *
- * Бэкенд: GET /api/documents/{id}/history → DocumentHistory[], newest-first,
- * по одной записи на каждую версию описания (descriptionVersion), с полным
- * текстом description. Diff и предпросмотр считаются на фронте из этого списка.
+ * Бэкенд:
+ *   GET /api/documents/{id}/history           → DocumentHistoryShort[], newest-first,
+ *                                               по одной записи на каждую версию описания,
+ *                                               БЕЗ тела description (только метаданные).
+ *   GET /api/documents/{id}/history/{version} → DocumentHistory с полным description.
+ *
+ * Текст версии (description) подтягивается лениво — только когда версия выбрана
+ * (база/изменённая) — и кэшируется по номеру версии. Diff и предпросмотр считаются
+ * на фронте из подгруженных описаний.
  *
  * Список идёт newest-first: index 0 = новейшая версия, больший индекс = старее.
  * Инвариант выбора: база СТАРЕЕ изменённой ⇒ baseIdx > compareIdx.
@@ -71,6 +77,55 @@ const HistoryModal = ({ documentId, documentTitle, tree = [], onNavigate, onRest
   const [compareIdx, setCompareIdx] = useState(0); // «изменённая» (новее) — по умолчанию последняя
   const [mode, setMode] = useState('diff'); // 'diff' | 'base' | 'compare'
 
+  // ── Ленивая подгрузка описаний по номеру версии ───────────────────────────
+  // descCache: { [version]: string }  — текст версии (undefined = ещё не загружен)
+  // descErr:   { [version]: true }    — ошибка загрузки конкретной версии
+  const [descCache, setDescCache] = useState({});
+  const [descErr, setDescErr] = useState({});
+  const cacheRef = useRef({}); // синхронное зеркало descCache для проверок без гонок
+  const inFlight = useRef(new Set()); // версии, для которых запрос уже летит
+  const aliveRef = useRef(true); // компонент ещё смонтирован?
+  const docRef = useRef(documentId); // актуальный documentId (версии нумеруются по документу)
+  docRef.current = documentId;
+
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+    };
+  }, []);
+
+  // Подгрузить описание версии (если ещё не загружено и не грузится сейчас).
+  const ensureLoaded = useCallback(
+    (version) => {
+      if (version == null) return;
+      if (cacheRef.current[version] !== undefined) return; // уже есть
+      if (inFlight.current.has(version)) return; // уже грузится
+      const reqDoc = documentId;
+      inFlight.current.add(version);
+      api
+        .fetchHistoryVersion(reqDoc, version)
+        .then((data) => {
+          if (!aliveRef.current || docRef.current !== reqDoc) return; // документ сменился — игнор
+          const text = data?.description ?? '';
+          cacheRef.current[version] = text;
+          setDescCache((p) => ({ ...p, [version]: text }));
+          setDescErr((p) => {
+            if (!p[version]) return p;
+            const n = { ...p };
+            delete n[version];
+            return n;
+          });
+        })
+        .catch(() => {
+          if (!aliveRef.current || docRef.current !== reqDoc) return;
+          setDescErr((p) => ({ ...p, [version]: true }));
+        })
+        .finally(() => inFlight.current.delete(version));
+    },
+    [documentId],
+  );
+
   // Esc закрывает
   useEffect(() => {
     const onKey = (e) => {
@@ -80,11 +135,16 @@ const HistoryModal = ({ documentId, documentTitle, tree = [], onNavigate, onRest
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  // Загрузка истории
+  // Загрузка списка версий (только метаданные)
   useEffect(() => {
     let alive = true;
     setEntries(null);
     setError(false);
+    // сбрасываем кэш описаний — версии нумеруются внутри документа
+    cacheRef.current = {};
+    inFlight.current = new Set();
+    setDescCache({});
+    setDescErr({});
     api
       .fetchHistory(documentId)
       .then((data) => {
@@ -112,6 +172,13 @@ const HistoryModal = ({ documentId, documentTitle, tree = [], onNavigate, onRest
   const base = entries && entries[baseIdx];
   const compare = entries && entries[compareIdx];
 
+  // Подтягиваем описания только для выбранных версий (база + изменённая).
+  useEffect(() => {
+    if (!entries || entries.length === 0) return;
+    if (base?.version != null) ensureLoaded(base.version);
+    if (compare?.version != null) ensureLoaded(compare.version);
+  }, [entries, baseIdx, compareIdx, base, compare, ensureLoaded]);
+
   // ── Выбор версий с сохранением инварианта baseIdx > compareIdx ────────────
   const selectBase = (i) => {
     setBaseIdx(i);
@@ -130,18 +197,53 @@ const HistoryModal = ({ documentId, documentTitle, tree = [], onNavigate, onRest
   const canRestoreBase = !single && !!base;
   const canRestoreCompare = compareIdx !== 0 && !!compare;
 
+  // Описания выбранных версий из кэша (undefined = ещё грузится).
+  const baseVersion = base?.version;
+  const compareVersion = compare?.version;
+  const baseDesc = baseVersion != null ? descCache[baseVersion] : undefined;
+  const compareDesc = compareVersion != null ? descCache[compareVersion] : undefined;
+  const baseDescErr = baseVersion != null && !!descErr[baseVersion];
+  const compareDescErr = compareVersion != null && !!descErr[compareVersion];
+
+  // Восстановление: гарантированно берём текст (из кэша или догружаем на лету).
+  const handleRestore = async (entry) => {
+    if (!entry || !onRestore) return;
+    let text = cacheRef.current[entry.version];
+    if (text === undefined) {
+      try {
+        const data = await api.fetchHistoryVersion(documentId, entry.version);
+        text = data?.description ?? '';
+        cacheRef.current[entry.version] = text;
+        if (aliveRef.current) setDescCache((p) => ({ ...p, [entry.version]: text }));
+      } catch {
+        if (aliveRef.current) setDescErr((p) => ({ ...p, [entry.version]: true }));
+        return;
+      }
+    }
+    onRestore(text || '');
+    onClose();
+  };
+
   const renderBody = () => {
     if (error) return <p className="history-empty">Не удалось загрузить историю. Попробуйте позже.</p>;
     if (entries === null) return <p className="history-empty">Загрузка…</p>;
     if (entries.length === 0) return <p className="history-empty">История пуста — документ ещё не сохранялся.</p>;
 
     if (mode === 'base') {
-      return <MarkdownEditor value={base?.description || ''} previewOnly tree={tree} onNavigate={onNavigate} />;
+      if (baseDescErr) return <p className="history-empty">Не удалось загрузить версию. Попробуйте позже.</p>;
+      if (baseDesc === undefined) return <p className="history-empty">Загрузка версии…</p>;
+      return <MarkdownEditor value={baseDesc || ''} previewOnly tree={tree} onNavigate={onNavigate} />;
     }
     if (mode === 'compare') {
-      return <MarkdownEditor value={compare?.description || ''} previewOnly tree={tree} onNavigate={onNavigate} />;
+      if (compareDescErr) return <p className="history-empty">Не удалось загрузить версию. Попробуйте позже.</p>;
+      if (compareDesc === undefined) return <p className="history-empty">Загрузка версии…</p>;
+      return <MarkdownEditor value={compareDesc || ''} previewOnly tree={tree} onNavigate={onNavigate} />;
     }
-    return <DiffView base={base?.description} compare={compare?.description} />;
+    // mode === 'diff' — нужны оба описания
+    if (baseDescErr || compareDescErr)
+      return <p className="history-empty">Не удалось загрузить версию. Попробуйте позже.</p>;
+    if (baseDesc === undefined || compareDesc === undefined) return <p className="history-empty">Загрузка версий…</p>;
+    return <DiffView base={baseDesc} compare={compareDesc} />;
   };
 
   return createPortal(
@@ -222,11 +324,7 @@ const HistoryModal = ({ documentId, documentTitle, tree = [], onNavigate, onRest
                       className="history-restore"
                       disabled={!canRestoreBase}
                       title="Сохранить версию «База» как новую правку (откат к более ранней версии)"
-                      onClick={() => {
-                        if (!canRestoreBase) return;
-                        onRestore(base.description || '');
-                        onClose();
-                      }}
+                      onClick={() => handleRestore(base)}
                     >
                       Восстановить базу
                     </button>
@@ -238,11 +336,7 @@ const HistoryModal = ({ documentId, documentTitle, tree = [], onNavigate, onRest
                           ? 'Сохранить версию «Изменённая» как новую правку'
                           : 'Это текущая версия — восстанавливать нечего'
                       }
-                      onClick={() => {
-                        if (!canRestoreCompare) return;
-                        onRestore(compare.description || '');
-                        onClose();
-                      }}
+                      onClick={() => handleRestore(compare)}
                     >
                       Восстановить изменённую
                     </button>

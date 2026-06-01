@@ -3,6 +3,7 @@ package io.github.trialiya.kb.controller;
 import io.github.trialiya.kb.model.doc.dto.CreateDocumentRequest;
 import io.github.trialiya.kb.model.doc.dto.Document;
 import io.github.trialiya.kb.model.doc.dto.DocumentHistory;
+import io.github.trialiya.kb.model.doc.dto.DocumentHistoryShort;
 import io.github.trialiya.kb.model.doc.dto.DocumentNode;
 import io.github.trialiya.kb.model.doc.dto.MoveToParentRequest;
 import io.github.trialiya.kb.model.doc.dto.PagedChildren;
@@ -53,12 +54,11 @@ public class DocumentController {
      */
     @GetMapping("/children")
     public PagedChildren getChildren(
-            @RequestParam(required = false) String parentId,
+            @RequestParam(required = false) Long parentId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        Long pid = parentId != null ? Long.parseLong(parentId) : null;
         Pageable pageable = PageRequest.of(page, size, Sort.by("position"));
-        return service.getChildrenPaged(pid, pageable);
+        return service.getChildrenPaged(parentId, pageable);
     }
 
     /**
@@ -68,8 +68,8 @@ public class DocumentController {
      * <pre>GET /api/documents/{id}/ancestors → ["1", "7", "42"]</pre>
      */
     @GetMapping("/{id}/ancestors")
-    public List<String> getAncestors(@PathVariable String id) {
-        return service.getAncestorIds(Long.parseLong(id));
+    public List<String> getAncestors(@PathVariable long id) {
+        return service.getAncestorIds(id);
     }
 
     // ── CRUD ──────────────────────────────────────────────────────────────────
@@ -81,8 +81,8 @@ public class DocumentController {
     }
 
     @GetMapping("/{id}")
-    public DocumentNode getDocument(@PathVariable String id) {
-        DocumentNode node = service.getById(Long.parseLong(id));
+    public DocumentNode getDocument(@PathVariable long id) {
+        DocumentNode node = service.getById(id);
         if (node == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
@@ -90,20 +90,25 @@ public class DocumentController {
     }
 
     /** История изменений описания документа (newest-first). */
-    @GetMapping("/{id}/history")
-    public List<DocumentHistory> getHistory(@PathVariable String id) {
-        return service.getDescriptionHistory(id);
+    @GetMapping("/{docId}/history")
+    public List<DocumentHistoryShort> getHistory(@PathVariable long docId) {
+        return service.getDescriptionHistory(docId);
+    }
+
+    @GetMapping("/{docId}/history/{version}")
+    public DocumentHistory getHistoryVersion(@PathVariable long docId, @PathVariable int version) {
+        return service.getHistoryVersion(docId, version);
     }
 
     @PutMapping("/{id}")
     public Document updateDocument(
-            @PathVariable String id, @RequestBody UpdateDocumentRequest request) {
+            @PathVariable long id, @RequestBody UpdateDocumentRequest request) {
         return service.update(id, request);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteDocument(@PathVariable String id) {
+    public void deleteDocument(@PathVariable long id) {
         service.delete(id);
     }
 
@@ -123,7 +128,7 @@ public class DocumentController {
      * @throws ResponseStatusException 409 concurrent modification detected
      */
     @PostMapping("/{id}/summarize")
-    public DocumentNode summarizeDocument(@PathVariable String id) {
+    public DocumentNode summarizeDocument(@PathVariable long id) {
         return service.summarize(id);
     }
 
@@ -159,8 +164,7 @@ public class DocumentController {
      * nodes, 404 if either node is missing, 422 if the target is not a folder.
      */
     @PatchMapping("/{id}/parent")
-    public Document moveToParent(
-            @PathVariable String id, @RequestBody MoveToParentRequest request) {
+    public Document moveToParent(@PathVariable long id, @RequestBody MoveToParentRequest request) {
         return service.moveToParent(id, request.getParentId());
     }
 

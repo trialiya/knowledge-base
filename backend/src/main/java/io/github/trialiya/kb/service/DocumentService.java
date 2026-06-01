@@ -4,6 +4,7 @@ import io.github.trialiya.kb.config.model.SearchConfiguration;
 import io.github.trialiya.kb.model.doc.dto.CreateDocumentRequest;
 import io.github.trialiya.kb.model.doc.dto.Document;
 import io.github.trialiya.kb.model.doc.dto.DocumentHistory;
+import io.github.trialiya.kb.model.doc.dto.DocumentHistoryShort;
 import io.github.trialiya.kb.model.doc.dto.DocumentNode;
 import io.github.trialiya.kb.model.doc.dto.PagedChildren;
 import io.github.trialiya.kb.model.doc.dto.ReorderRequest;
@@ -11,6 +12,7 @@ import io.github.trialiya.kb.model.doc.dto.SearchResult;
 import io.github.trialiya.kb.model.doc.dto.UpdateDocumentRequest;
 import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
 import io.github.trialiya.kb.model.doc.entity.DocumentHistoryEntity;
+import io.github.trialiya.kb.model.doc.entity.DocumentHistoryShortResult;
 import io.github.trialiya.kb.model.search.SemanticSearchResult;
 import io.github.trialiya.kb.repository.DocumentHistoryRepository;
 import io.github.trialiya.kb.repository.DocumentRepository;
@@ -101,15 +103,6 @@ public class DocumentService {
 
     public DocumentNode getById(Long id) {
         return repo.findById(id).map(this::toShallowNode).orElse(null);
-    }
-
-    @Transactional(readOnly = true)
-    public List<DocumentHistory> getDescriptionHistory(String id) {
-        long docId = Long.parseLong(id);
-        if (!repo.existsById(docId)) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
-        return historyRepo.findDescriptionHistory(docId).stream()
-                .map(this::toHistoryDto)
-                .collect(Collectors.toList());
     }
 
     /**
@@ -311,7 +304,7 @@ public class DocumentService {
      * @throws ResponseStatusException 409 if a concurrent modification was detected
      */
     @Transactional
-    public Document update(String id, UpdateDocumentRequest req) {
+    public Document update(long id, UpdateDocumentRequest req) {
         DocumentEntity existing = findOrThrow(id);
 
         // ── 1. Apply title change ─────────────────────────────────────────────
@@ -372,7 +365,7 @@ public class DocumentService {
      * @throws ResponseStatusException 409 on optimistic lock conflict
      */
     @Transactional
-    public DocumentNode summarize(String id) {
+    public DocumentNode summarize(long id) {
         DocumentEntity entity = findOrThrow(id);
 
         if (entity.getDescription() == null || entity.getDescription().isBlank()) {
@@ -395,13 +388,13 @@ public class DocumentService {
     }
 
     @Transactional
-    public void delete(String id) {
+    public void delete(long id) {
         DocumentEntity entity = findOrThrow(id);
         if (entity.isSystem()) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN, "Cannot delete a system document");
         }
-        List<Long> ids = repo.findDescendantIds(Long.parseLong(id));
+        List<Long> ids = repo.findDescendantIds(id);
         // document_history rows are removed automatically via ON DELETE CASCADE
         repo.deleteAllById(ids);
         ids.forEach(
@@ -461,22 +454,20 @@ public class DocumentService {
      * After the move the node is appended at the end of the new sibling list.
      *
      * @param id the document/folder to move
-     * @param newParentId target folder id, or {@code null} to move to root
+     * @param targetParentId target folder id, or {@code null} to move to root
      * @throws ResponseStatusException 400 if the move would create a cycle
      * @throws ResponseStatusException 403 if the node is system-protected
      * @throws ResponseStatusException 404 if either node does not exist
      * @throws ResponseStatusException 422 if the target is not a folder
      */
     @Transactional
-    public Document moveToParent(String id, String newParentId) {
+    public Document moveToParent(long id, Long targetParentId) {
         DocumentEntity node = findOrThrow(id);
 
         if (node.isSystem()) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN, "Cannot move a system document");
         }
-
-        Long targetParentId = newParentId == null ? null : Long.parseLong(newParentId);
 
         // No-op: already in the requested parent
         if (java.util.Objects.equals(node.getParentId(), targetParentId)) {
@@ -498,11 +489,11 @@ public class DocumentService {
             }
 
             // Cycle check: targetParentId must not be the node itself or any of its descendants
-            if (targetParentId.equals(Long.parseLong(id))) {
+            if (targetParentId.equals(id)) {
                 throw new ResponseStatusException(
                         HttpStatus.BAD_REQUEST, "Cannot move a folder into itself");
             }
-            List<Long> descendants = repo.findDescendantIds(Long.parseLong(id));
+            List<Long> descendants = repo.findDescendantIds(id);
             if (descendants.contains(targetParentId)) {
                 throw new ResponseStatusException(
                         HttpStatus.BAD_REQUEST,
@@ -534,37 +525,23 @@ public class DocumentService {
 
     // ── History ───────────────────────────────────────────────────────────────
 
-    /**
-     * Returns the change history for a document, newest first.
-     *
-     * <p>Each entry represents a past state — the current state is <em>not</em> included. To see
-     * the full picture, combine this list with the response from {@code GET /api/documents/{id}}.
-     *
-     * @param id the document id
-     * @return list of history entries, possibly empty for documents that have never been edited
-     */
     @Transactional(readOnly = true)
-    public List<DocumentHistory> getHistory(String id) {
-        long docId = Long.parseLong(id);
-        // Ensure the document actually exists before returning history
-        if (!repo.existsById(docId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
-        }
-        return historyRepo.findByDocumentId(docId).stream()
-                .map(this::toHistoryDto)
+    public List<DocumentHistoryShort> getDescriptionHistory(long docId) {
+        if (!repo.existsById(docId)) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        return historyRepo.findDescriptionHistory(docId).stream()
+                .map(this::toHistoryShortDto)
                 .collect(Collectors.toList());
     }
 
     /**
      * Returns one specific history snapshot.
      *
-     * @param id the document id
+     * @param docId the document id
      * @param version the exact version to retrieve
      * @throws ResponseStatusException 404 if the document or the requested version do not exist
      */
     @Transactional(readOnly = true)
-    public DocumentHistory getHistoryVersion(String id, int version) {
-        long docId = Long.parseLong(id);
+    public DocumentHistory getHistoryVersion(long docId, int version) {
         return historyRepo
                 .findByDocumentIdAndVersion(docId, version)
                 .map(this::toHistoryDto)
@@ -732,8 +709,8 @@ public class DocumentService {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private DocumentEntity findOrThrow(String id) {
-        return repo.findById(Long.parseLong(id))
+    private DocumentEntity findOrThrow(long id) {
+        return repo.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     }
 
@@ -781,6 +758,16 @@ public class DocumentService {
                 e.getDescription(),
                 e.getUpdatedAt(),
                 e.getSummary());
+    }
+
+    private DocumentHistoryShort toHistoryShortDto(DocumentHistoryShortResult e) {
+        return new DocumentHistoryShort(
+                String.valueOf(e.documentId()),
+                e.version(),
+                e.descriptionVersion(),
+                e.title(),
+                e.type(),
+                e.updatedAt());
     }
 
     private String generateSnippet(String content, String query) {

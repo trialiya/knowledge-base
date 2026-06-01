@@ -8,5 +8,5 @@ import lombok.Data;
  */
 @Data
 public class MoveToParentRequest {
-    private String parentId; // nullable → root
+    private Long parentId; // nullable → root
 }

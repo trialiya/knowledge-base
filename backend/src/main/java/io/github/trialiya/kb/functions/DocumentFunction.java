@@ -205,7 +205,7 @@ public class DocumentFunction {
                     "Обновить существующий документ: изменить название и/или содержимое. "
                             + "Передай только те поля, которые нужно изменить.")
     public Document updateDocument(
-            @ToolParam(description = "ID документа для обновления") String documentId,
+            @ToolParam(description = "ID документа для обновления") long documentId,
             @ToolParam(
                             description = "Новое название (null чтобы оставить текущее)",
                             required = false)
