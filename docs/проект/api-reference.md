@@ -4,7 +4,7 @@
 
 ---
 
-## DocumentController — `/api`
+## DocumentController — `/api/documents`
 
 ### GET `/api/documents/tree`
 Полное рекурсивное дерево документов (для обратной совместимости). `description` всегда `null` — полный текст через `GET /api/documents/{id}`.
@@ -39,6 +39,15 @@ Lazy-load дочерних узлов с пагинацией. `description` —
 ID предков от корня до узла (не включая сам узел). Используется UI для раскрытия ветки при прямом переходе.
 
 **Response:** `List<String>` — например `["1", "7", "42"]`
+
+---
+
+### GET `/api/documents/{id}/history`
+История изменений description документа. Возвращает список снепшотов — каждый содержит `descriptionVersion`, `description`, `updatedAt` и другие поля. Используется в `HistoryModal` для просмотра diff и восстановления предыдущих версий.
+
+**Response:** `List<DocumentHistory>`
+
+**Ошибки:** `404` — документ не найден
 
 ---
 
@@ -124,8 +133,8 @@ ID предков от корня до узла (не включая сам уз
 
 ---
 
-### GET `/api/search`
-Унифицированный поиск. Ищет по `title`, `summary` и `description`.
+### GET `/api/documents/search`
+Унифицированный поиск. Ищет по `title`, `summary` и `description`. Результаты включают `parentList` — хлебные крошки (предки от корня до родителя).
 
 | Параметр | Тип | По умолчанию | Описание |
 |---|---|---|---|
@@ -136,7 +145,7 @@ ID предков от корня до узла (не включая сам уз
 | `kwWeight` | Double? | `null` | Вес keyword (только hybrid) |
 | `semWeight` | Double? | `null` | Вес semantic (только hybrid) |
 
-**Response:** `List<SearchResult>`
+**Response:** `List<SearchResult>` — каждый результат содержит `parentList: List<Parent>` с полями `id` и `title`
 
 ---
 
