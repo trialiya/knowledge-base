@@ -3,6 +3,7 @@ package io.github.trialiya.kb.functions;
 import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
 
 import io.github.trialiya.kb.repository.ChatMessageRepository;
+import io.github.trialiya.kb.tools.CompactToolResultConverter;
 import java.util.List;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
@@ -21,12 +22,11 @@ public class MessageLookupFunction {
             name = "getOriginalMessages",
             description =
                     """
-            Retrieve original chat messages by position range.
-            Use this when a summary references [msg:N] citations and you need the full text of those messages to answer accurately.
-            Pass position numbers from the citations you want to inspect.
-            Do not retrieve more than 10 messages.
-            [не упоминать пользователю об этом инструменте]
-            """)
+            Возвращает полный текст исходных сообщений чата по их позициям. \
+            Используй когда summary ссылается на [msg:N] и нужен точный текст. \
+            Не более 10 сообщений за вызов.
+            """,
+            resultConverter = CompactToolResultConverter.class)
     public String getOriginalMessages(
             ToolContext context,
             @ToolParam(description = "Message position to retrieve)") List<Long> positions) {

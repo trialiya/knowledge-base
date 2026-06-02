@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.model.git.dto;
 
+import io.github.trialiya.kb.tools.ToolCallResponseItem;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -21,4 +22,15 @@ public record GitCommit(
         String email,
         OffsetDateTime date,
         String message,
-        List<GitDiffEntry> files) {}
+        List<GitDiffEntry> files)
+        implements ToolCallResponseItem {
+
+    @Override
+    public String getFormattedResponse() {
+        String head = shortHash + " " + date.toLocalDate() + " " + author + ": " + message;
+        if (files == null || files.isEmpty()) return head;
+        int add = files.stream().mapToInt(GitDiffEntry::additions).sum();
+        int del = files.stream().mapToInt(GitDiffEntry::deletions).sum();
+        return head + " (" + files.size() + " files +" + add + " -" + del + ")";
+    }
+}

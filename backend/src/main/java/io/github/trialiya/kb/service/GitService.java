@@ -6,6 +6,7 @@ import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
+import io.github.trialiya.kb.model.git.dto.OutlineResult;
 import io.github.trialiya.kb.service.outline.LanguageDetector;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -590,7 +591,7 @@ public class GitService {
 
         String source = new String(fb.bytes(), StandardCharsets.UTF_8);
         int total = source.split("\n", -1).length;
-        OutlineService.Result result = outlineService.outline(language, source);
+        OutlineResult result = outlineService.outline(language, source);
         return new GitFileOutline(fb.path(), language, total, result.parser(), result.symbols());
     }
 

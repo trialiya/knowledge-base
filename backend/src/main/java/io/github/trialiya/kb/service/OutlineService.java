@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.service;
 
 import io.github.trialiya.kb.model.git.dto.GitSymbol;
+import io.github.trialiya.kb.model.git.dto.OutlineResult;
 import io.github.trialiya.kb.service.outline.CodeOutlineParser;
 import io.github.trialiya.kb.service.outline.RegexOutlineParser;
 import io.github.trialiya.kb.service.outline.TreeSitterOutlineParser;
@@ -38,9 +39,6 @@ public class OutlineService {
         this.regex = regex;
     }
 
-    /** Result of an outline attempt: the symbols plus which parser produced them. */
-    public record Result(String parser, List<GitSymbol> symbols) {}
-
     /**
      * @return whether the language is in the outline-supported set. {@code false} means the caller
      *     should surface an "unsupported language" error rather than an empty outline.
@@ -57,17 +55,17 @@ public class OutlineService {
      * @param language canonical language id, expected to be supported
      * @param source full file content
      */
-    public Result outline(String language, String source) {
+    public OutlineResult outline(String language, String source) {
         if (treeSitter.supports(language)) {
             List<GitSymbol> symbols = treeSitter.parse(language, source);
             // If tree-sitter yielded nothing (e.g. parse hiccup), try regex before giving up.
             if (!symbols.isEmpty()) {
-                return new Result(treeSitter.name(), symbols);
+                return new OutlineResult(treeSitter.name(), symbols);
             }
         }
         if (regex.supports(language)) {
-            return new Result(regex.name(), regex.parse(language, source));
+            return new OutlineResult(regex.name(), regex.parse(language, source));
         }
-        return new Result("none", List.of());
+        return new OutlineResult("none", List.of());
     }
 }

@@ -1,5 +1,7 @@
 package io.github.trialiya.kb.model.git.dto;
 
+import io.github.trialiya.kb.tools.ToolCallResponseItem;
+
 /**
  * Одно совпадение при поиске по содержимому tracked файлов (аналог блока вывода {@code git grep
  * -C}).
@@ -23,4 +25,11 @@ package io.github.trialiya.kb.model.git.dto;
  *     номер первого
  * @param text текст блока: одна строка (без контекста) или многострочный фрагмент (с контекстом)
  */
-public record GitGrepMatch(String path, int matchLine, String text) {}
+public record GitGrepMatch(String path, int matchLine, String text)
+        implements ToolCallResponseItem {
+
+    @Override
+    public String getFormattedResponse() {
+        return path + ":" + matchLine;
+    }
+}

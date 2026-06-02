@@ -1,8 +1,9 @@
 package io.github.trialiya.kb.model.doc.dto;
 
+import io.github.trialiya.kb.tools.Compact;
+import io.github.trialiya.kb.tools.ToolCallResponseItem;
 import java.time.LocalDateTime;
 import java.util.List;
-import lombok.Data;
 
 /**
  * Lightweight document DTO returned by create / update / move operations.
@@ -13,30 +14,34 @@ import lombok.Data;
  *
  * <p>Summary fields are always populated so the UI can reflect stale state after a save without
  * requiring a separate GET.
+ *
+ * @param summary AI-generated summary, or {@code null} if never summarised.
+ * @param summaryStale {@code true} when the description has changed since the last summarisation,
+ *     i.e. the summary may no longer reflect the current content. Always {@code false} when {@link
+ *     #summary} is {@code null} (nothing to be stale yet).
+ * @param summarySourceVersion The {@code descriptionVersion} at which the summary was generated.
+ *     {@code null} while {@link #summary} is {@code null}.
  */
-@Data
-public class Document {
-    private final String id;
-    private final String title;
-    private final String type;
-    private final String parentId;
-    private final String description;
-    private final LocalDateTime updatedAt;
-    private final List<Document> children;
-
-    /** AI-generated summary, or {@code null} if never summarised. */
-    private final String summary;
-
-    /**
-     * {@code true} when the description has changed since the last summarisation, i.e. the summary
-     * may no longer reflect the current content. Always {@code false} when {@link #summary} is
-     * {@code null} (nothing to be stale yet).
-     */
-    private final boolean summaryStale;
-
-    /**
-     * The {@code descriptionVersion} at which the summary was generated. {@code null} while {@link
-     * #summary} is {@code null}.
-     */
-    private final Integer summarySourceVersion;
+public record Document(
+        String id,
+        String title,
+        String type,
+        String parentId,
+        String description,
+        LocalDateTime updatedAt,
+        List<Document> children,
+        String summary,
+        boolean summaryStale,
+        Integer summarySourceVersion)
+        implements ToolCallResponseItem {
+    @Override
+    public String getFormattedResponse() {
+        return Compact.tag("doc:" + id)
+                .add("title", title)
+                .add("type", type)
+                .add("parent", parentId)
+                .add("updated", updatedAt)
+                .body(Compact.truncate(description, 50))
+                .done();
+    }
 }

@@ -705,3 +705,29 @@
   font-size: 0.7rem;
   padding: 3px 7px;
 }
+
+/* Превью gist в плашке (одна строка, троеточие) */
+.tool-call-gist {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--kb-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+/* Полный gist в тултипе — под статусом, обрезаем по высоте без скролла */
+.tool-call-tooltip-gist {
+  font-size: 0.75rem;
+  color: var(--kb-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

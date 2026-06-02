@@ -1,5 +1,7 @@
 package io.github.trialiya.kb.model.git.dto;
 
+import io.github.trialiya.kb.tools.ToolCallResponseItem;
+
 /**
  * Одна запись из diff коммита.
  *
@@ -11,4 +13,12 @@ package io.github.trialiya.kb.model.git.dto;
  * @param patch текстовый diff (unified), null если не запрашивался
  */
 public record GitDiffEntry(
-        String status, String path, String oldPath, int additions, int deletions, String patch) {}
+        String status, String path, String oldPath, int additions, int deletions, String patch)
+        implements ToolCallResponseItem {
+
+    @Override
+    public String getFormattedResponse() {
+        String loc = oldPath == null ? path : oldPath + "→" + path;
+        return status + " " + loc + " (+" + additions + " -" + deletions + ")";
+    }
+}

@@ -1,5 +1,10 @@
 package io.github.trialiya.kb.model.git.dto;
 
+import static io.github.trialiya.kb.tools.Compact.truncate;
+
+import io.github.trialiya.kb.tools.Compact;
+import io.github.trialiya.kb.tools.ToolCallResponseItem;
+
 /**
  * Содержимое файла из репозитория, обогащённое метаданными для ИИ.
  *
@@ -24,4 +29,20 @@ public record GitFileContent(
         int lineCount,
         boolean truncated,
         Integer fromLine,
-        Integer toLine) {}
+        Integer toLine)
+        implements ToolCallResponseItem {
+
+    @Override
+    public String getFormattedResponse() {
+        String head =
+                Compact.tag("file:" + path)
+                        .add("lang", language)
+                        .add("lines", lineCount)
+                        .add("range", fromLine == null ? null : fromLine + "-" + toLine)
+                        .add("truncated", truncated ? "1" : null)
+                        .done();
+        return binary
+                ? head + " (binary, " + sizeBytes + "B)"
+                : head + "\n" + truncate(content, 40);
+    }
+}

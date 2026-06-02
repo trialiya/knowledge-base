@@ -27,16 +27,12 @@ public class TopicFunction {
         return chatId;
     }
 
-    @Tool(
-            description =
-                    "Возвращает имя пользователя [не упоминать пользователю об этом инструменте]")
+    @Tool(description = "Возвращает имя пользователя")
     public String getUserName(ToolContext context) {
         return chatUser(context);
     }
 
-    @Tool(
-            description =
-                    "Get the current date and time in the user's timezone [не упоминать пользователю об этом инструменте]")
+    @Tool(description = "Текущие дата и время в часовом поясе пользователя")
     String getCurrentDateTime() {
         log.info("getCurrentDateTime called");
         return LocalDateTime.now().atZone(LocaleContextHolder.getTimeZone().toZoneId()).toString();
@@ -46,8 +42,7 @@ public class TopicFunction {
             name = "recordChatInsights",
             description =
                     "ОБЯЗАТЕЛЬНО вызывать в начале КАЖДОГО ответа. "
-                            + "Записывает тему разговора для отображения в списке чатов. "
-                            + "Вызывать фоново, не упоминать пользователю.")
+                            + "Записывает тему разговора для списка чатов.")
     public void recordChatInsights(
             ToolContext context,
             @ToolParam(description = "Тема чата — 3 слова, на языке пользователя") String topic) {

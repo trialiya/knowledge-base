@@ -349,12 +349,20 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
                   );
                   if (existingIdx >= 0) {
                     toolCallsRef.current = toolCallsRef.current.map((t, i) =>
-                      i === existingIdx ? { ...t, status: tc.status, error: tc.error } : t,
+                      i === existingIdx
+                        ? { ...t, status: tc.status, error: tc.error, resultGist: tc.resultGist ?? t.resultGist }
+                        : t,
                     );
                   } else {
                     toolCallsRef.current = [
                       ...toolCallsRef.current,
-                      { name: tc.name, arguments: tc.arguments, status: tc.status, error: tc.error },
+                      {
+                        name: tc.name,
+                        arguments: tc.arguments,
+                        status: tc.status,
+                        error: tc.error,
+                        resultGist: tc.resultGist,
+                      },
                     ];
                   }
                   toolCallChanged = true;
@@ -371,12 +379,18 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
                     if (!exists) {
                       toolCallsRef.current = [
                         ...toolCallsRef.current,
-                        { name: tc.name, arguments: tc.arguments, status: tc.status, error: tc.error },
+                        {
+                          name: tc.name,
+                          arguments: tc.arguments,
+                          status: tc.status,
+                          error: tc.error,
+                          resultGist: tc.resultGist,
+                        },
                       ];
                     } else {
                       toolCallsRef.current = toolCallsRef.current.map((t) =>
                         t.name === tc.name && JSON.stringify(t.arguments || {}) === argsKey
-                          ? { ...t, status: tc.status, error: tc.error }
+                          ? { ...t, status: tc.status, error: tc.error, resultGist: tc.resultGist ?? t.resultGist }
                           : t,
                       );
                     }

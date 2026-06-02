@@ -7,6 +7,7 @@ import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.service.GitService;
+import io.github.trialiya.kb.tools.CompactToolResultConverter;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -53,12 +54,11 @@ public class GitFunction {
     @Tool(
             description =
                     """
-                    Возвращает один уровень файлового дерева git-репозитория: только tracked файлы \
-                    (.gitignore и untracked исключены). Каждый узел содержит: path (полный путь от \
-                    корня репо), name (имя файла/каталога), type ("file" | "directory"), size (байты, \
-                    только для файлов). Каталоги не раскрываются — вызови повторно с нужным path для \
-                    следующего уровня. Используй для навигации по структуре проекта перед чтением файлов.\
-                    """)
+                    Один уровень файлового дерева репозитория. Узел: path, name, \
+                    type ("file"|"directory"), size (байты, только для файлов). \
+                    Каталоги не раскрываются — вызови повторно с нужным path для следующего уровня.\
+                    """,
+            resultConverter = CompactToolResultConverter.class)
     public List<GitFileNode> getFileTree(
             @ToolParam(
                             description =
@@ -84,12 +84,11 @@ public class GitFunction {
     @Tool(
             description =
                     """
-                    Возвращает историю коммитов репозитория в обратном хронологическом порядке. \
-                    Каждый коммит содержит: hash (полный SHA), shortHash (первые 8 символов), \
-                    author, email, date (ISO-8601), message. Поле files всегда null — для просмотра \
-                    изменений используй getCommitDiff. Используй shortHash как аргумент для \
-                    getCommitDiff.\
-                    """)
+                    История коммитов в обратном хронологическом порядке. Коммит: hash (полный SHA), \
+                    shortHash (8 символов), author, email, date (ISO-8601), message. \
+                    Поле files всегда null (изменения — через getCommitDiff по shortHash).
+                    """,
+            resultConverter = CompactToolResultConverter.class)
     public List<GitCommit> getCommitLog(
             @ToolParam(
                             description =
@@ -123,12 +122,11 @@ public class GitFunction {
     @Tool(
             description =
                     """
-                    Возвращает изменённые файлы для одного или нескольких коммитов. Каждый элемент \
-                    содержит: status (A/M/D/R), path (новый путь), oldPath (при переименовании), \
-                    additions и deletions (количество строк). При includePatch=true добавляется \
-                    unified diff (усечённый до 500 строк на файл). Для получения хешей сначала \
-                    вызови getCommitLog.\
-                    """)
+                    Изменённые файлы для одного/нескольких коммитов. Элемент: status (A/M/D/R), \
+                    path, oldPath (при переименовании), additions, deletions. \
+                    При includePatch=true добавляется unified diff. Хеши бери из getCommitLog.
+                    """,
+            resultConverter = CompactToolResultConverter.class)
     public List<GitCommit> getCommitDiff(
             @ToolParam(
                             description =
@@ -161,10 +159,11 @@ public class GitFunction {
     @Tool(
             description =
                     """
-                    Ищет tracked файлы по подстроке пути (регистронезависимо). Файлы из .gitignore \
-                    и untracked исключены. Возвращает узлы с path, name, type="file", size (байты). \
-                    Используй перед getFileContent, если не знаешь точный путь файла.\
-                    """)
+                    Ищет tracked файлы по подстроке пути (регистронезависимо). \
+                    Узлы: path, name, type="file", size. Ищет ТОЛЬКО по имени/пути файла \
+                    (поиск по содержимому — grepContent).
+                    """,
+            resultConverter = CompactToolResultConverter.class)
     public List<GitFileNode> searchFiles(
             @ToolParam(
                             description =
@@ -196,14 +195,12 @@ public class GitFunction {
     @Tool(
             description =
                     """
-                    Возвращает структурный обзор файла кода БЕЗ полного текста: список символов \
-                    (класс, интерфейс, метод, функция, поле, таблица и т.д.) с именем и диапазоном \
-                    строк (startLine, endLine). Поддерживаемые языки: Java, JavaScript/TypeScript, \
-                    Python. Поле parser показывает движок ("tree-sitter" или "regex"). \
-                    Рекомендуемый порядок для больших файлов: сначала getFileOutline → затем \
-                    getFileContent с нужным диапазоном строк. Для бинарных файлов и неподдерживаемых \
-                    языков возвращается ошибка — используй getFileContent для таких файлов.\
-                    """)
+                    Структурный обзор файла кода БЕЗ полного текста: символы (класс, интерфейс, \
+                    метод, функция, поле и т.д.) с именем и диапазоном строк (startLine, endLine). \
+                    Поле parser — движок ("tree-sitter"|"regex"). Языки: Java, JS/TS, Python; \
+                    для остальных и бинарных — ошибка, читай через getFileContent.
+                    """,
+            resultConverter = CompactToolResultConverter.class)
     public GitFileOutline getFileOutline(
             @ToolParam(
                             description =
@@ -231,16 +228,12 @@ public class GitFunction {
     @Tool(
             description =
                     """
-                    Возвращает содержимое tracked файла. Ответ содержит: path, content (текст), \
-                    binary, sizeBytes, language (определяется по расширению), lineCount (всего строк \
-                    в файле), truncated (вернулась ли только часть), fromLine/toLine (фактически \
-                    возвращённый диапазон, null если весь файл). \
-                    Если binary=true — content=null. Для больших файлов (>512 КБ) без указания \
-                    диапазона возвращается фрагмент: начало + конец, truncated=true. \
-                    Чтобы прочитать только часть большого файла, укажи fromLine/toLine (например, \
-                    диапазон метода из getFileOutline) — это экономит токены. \
-                    Untracked и .gitignore файлы недоступны.\
-                    """)
+                    Содержимое tracked файла. Ответ: path, content, binary, sizeBytes, \
+                    language (по расширению), lineCount, truncated, fromLine/toLine \
+                    (фактический диапазон, null если весь файл). При binary=true content=null. \
+                    Для экономии токенов укажи fromLine/toLine (например, диапазон из getFileOutline).
+                    """,
+            resultConverter = CompactToolResultConverter.class)
     public GitFileContent getFileContent(
             @ToolParam(
                             description =
@@ -282,13 +275,12 @@ public class GitFunction {
             name = "getUncommittedChanges",
             description =
                     """
-                    Возвращает незакоммиченные изменения рабочего дерева: staged и unstaged. \
-                    Каждая запись содержит: status (A/M/D/R), path, oldPath (при переименовании), \
-                    additions и deletions. Новые untracked файлы (ещё не добавленные через git add) \
-                    включаются со статусом A, patch=null. .gitignore и бинарные артефакты \
-                    (.class, .jar и др.) исключены. При includePatch=true добавляется unified diff \
-                    для изменённых файлов (усечённый до 500 строк).\
-                    """)
+                    Незакоммиченные изменения рабочего дерева (staged и unstaged). Запись: \
+                    status (A/M/D/R), path, oldPath (при переименовании), additions, deletions. \
+                    Untracked файлы (ещё не в git add) — статус A, patch=null. \
+                    При includePatch=true добавляется unified diff для изменённых файлов.
+                    """,
+            resultConverter = CompactToolResultConverter.class)
     public List<GitDiffEntry> getUncommittedChanges(
             @ToolParam(
                             description =
@@ -317,63 +309,39 @@ public class GitFunction {
     @Tool(
             description =
                     """
-            Ищет текст внутри содержимого tracked файлов репозитория (git grep). \
-            Возвращает: path (файл), line (номер строки, 1-based), text (текст строки). \
-            \
-            ОТЛИЧИЕ от searchFiles: searchFiles ищет по имени/пути файла; \
-            grepContent ищет внутри содержимого файлов. \
-            \
-            КОГДА ИСПОЛЬЗОВАТЬ: \
-            - найти все вызовы метода/функции: pattern="myMethod(", pathGlob="*.java" \
-            - найти константу, аннотацию, SQL-таблицу, конфигурационный ключ \
-            - найти все реализации паттерна: pattern="implements Runnable", regex=false \
-            - альтернации (несколько слов сразу): pattern="start|end|reset", regex=true \
-            - найти строку в конкретном типе файлов: pathGlob="*.yml" \
-            \
-            ПАРАМЕТРЫ: \
-            regex=false (по умолчанию) — буквальная подстрока, безопаснее и быстрее. \
-            regex=true — POSIX ERE: | . * + ? ^ $ [] () — используй если pattern содержит \
-            метасимволы (|, .*, ^, $). \
-            Поиск всегда регистронезависимый. \
-            contextLines — строки контекста вокруг совпадения (0–10); \
-            используй 2–5 чтобы видеть окружение без лишнего вызова getFileContent. \
-            \
-            ОГРАНИЧЕНИЯ: бинарные файлы пропускаются; .gitignore и untracked исключены.\
-            """)
+                    Ищет текст ВНУТРИ содержимого tracked файлов (git grep), всегда \
+                    регистронезависимо. Возвращает: path, line (1-based), text. \
+                    Для поиска по имени/пути файла используй searchFiles. \
+                    regex=false (по умолчанию) — буквальная подстрока; regex=true — POSIX ERE \
+                    (нужно при | . * ^ $). contextLines (0–10) — строки вокруг совпадения.
+                    """,
+            resultConverter = CompactToolResultConverter.class)
     public List<GitGrepMatch> grepContent(
             @ToolParam(
                             description =
-                                    "Что искать. Примеры: "
-                                            + "\"getLineageEndTimeMillis\" — буквальный метод; "
-                                            + "\"@(Bean|Service|Component)\" с regex=true — несколько аннотаций; "
-                                            + "\"TODO|FIXME\" с regex=true — технический долг. "
-                                            + "Если содержит | или другие regex-символы — установи regex=true.")
+                                    "Что искать. Если содержит `|`, `.*` или другие regex-символы — "
+                                            + "установи regex=true.")
                     String pattern,
             @ToolParam(
                             description =
-                                    "Glob для ограничения поиска по путям файлов. "
-                                            + "Примеры: \"*.java\", \"*.yml\", \"src/main/**\", \"**/*Service*.java\". "
-                                            + "null — искать во всех tracked файлах.",
+                                    "Glob для ограничения по путям: \"*.java\", \"src/main/**\", "
+                                            + "\"**/*Service*.java\". null — все tracked файлы.",
                             required = false)
                     String pathGlob,
             @ToolParam(
                             description =
-                                    "true — pattern это POSIX ERE (используй при | .* ^ $ в pattern). "
-                                            + "false (по умолчанию) — буквальная подстрока.",
+                                    "true — POSIX ERE (при | .* ^ $); false (по умолчанию) — "
+                                            + "буквальная подстрока.",
                             required = false)
                     Boolean regex,
             @ToolParam(
                             description =
-                                    "Строк контекста до и после совпадения (аналог grep -C). "
-                                            + "0 — только строка совпадения (по умолчанию). "
-                                            + "Рекомендуется 2–5 чтобы понять контекст без отдельного вызова getFileContent. "
-                                            + "Диапазон: 0–10.",
+                                    "Строк контекста до/после совпадения (как grep -C). "
+                                            + "1 по умолчанию, рекомендуется 2–5. Диапазон: 0–10.",
                             required = false)
                     Integer contextLines,
             @ToolParam(
-                            description =
-                                    "Максимум совпадений. По умолчанию 50. Диапазон: 1–200. "
-                                            + "Уменьши при широком pattern (например regex с |) чтобы не перегружать контекст.",
+                            description = "Максимум совпадений. По умолчанию 50, диапазон 1–200.",
                             required = false)
                     Integer maxResults) {
         boolean useRegex = regex != null && regex;

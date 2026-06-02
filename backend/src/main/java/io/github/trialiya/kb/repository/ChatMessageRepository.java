@@ -40,6 +40,5 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
             @Param("conversationId") String conversationId,
             @Param("positions") List<Long> positions);
 
-    Optional<ChatMessageEntity> findFirstByConversationIdOrderByCreatedAtDesc(
-            String conversationId);
+    Optional<ChatMessageEntity> findFirstByConversationIdOrderByPositionDesc(String conversationId);
 }

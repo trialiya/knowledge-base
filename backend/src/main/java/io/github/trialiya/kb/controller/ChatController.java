@@ -16,6 +16,7 @@ import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.service.JiraChatService;
 import io.github.trialiya.kb.service.SummarizeService;
+import io.github.trialiya.kb.tools.ToolInvocation;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import jakarta.annotation.Nonnull;
 import java.time.Duration;
@@ -35,6 +36,7 @@ import org.jspecify.annotations.NonNull;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AbstractMessage;
+import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.metadata.ChatGenerationMetadata;
 import org.springframework.ai.chat.metadata.ChatResponseMetadata;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -122,10 +124,11 @@ public class ChatController {
             Consumer<Object> liveSink, String name, Map<Object, Object> arguments) {
         liveSink.accept(
                 new ToolCallMessage(
-                        new ToolInvocationCollector.ToolInvocation(
+                        new ToolInvocation(
                                 name,
                                 arguments,
                                 ToolInvocationCollector.ToolInvocationStatus.STARTED,
+                                null,
                                 null)));
         try {
             TimeUnit.MILLISECONDS.sleep(400);
@@ -134,11 +137,12 @@ public class ChatController {
         }
         liveSink.accept(
                 new ToolCallMessage(
-                        new ToolInvocationCollector.ToolInvocation(
+                        new ToolInvocation(
                                 name,
                                 arguments,
                                 ToolInvocationCollector.ToolInvocationStatus.OK,
-                                null)));
+                                null,
+                                "ok")));
     }
 
     @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -183,6 +187,8 @@ public class ChatController {
                                         liveSink.accept(
                                                 new ToolCallsMessage(
                                                         toolCollector.completedSnapshot()));
+                                        chatMemoryService.saveToolCalls(
+                                                conversationId, toolCollector.completedSnapshot());
                                         liveSink.accept(new StreamMessage("", "DONE"));
                                         summarizeService.trySummarize(conversationId);
                                         emitter.complete();
@@ -272,6 +278,7 @@ public class ChatController {
                                 chatMemoryService.findChatMessageByConversationId(conversationId))
                         .stream()
                         .flatMap(Collection::stream)
+                        .filter(msg -> msg.getMessageType() != MessageType.SYSTEM)
                         .filter(a -> a.getText() != null && !a.getText().isBlank())
                         .map(
                                 msg ->

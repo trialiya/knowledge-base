@@ -9,6 +9,7 @@ import io.github.trialiya.kb.model.doc.dto.SearchResult;
 import io.github.trialiya.kb.model.doc.dto.UpdateDocumentRequest;
 import io.github.trialiya.kb.service.AttachmentService;
 import io.github.trialiya.kb.service.DocumentService;
+import io.github.trialiya.kb.tools.CompactToolResultConverter;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -54,7 +55,8 @@ public class DocumentFunction {
      */
     @Tool(
             description =
-                    "Поиск документов и папок в базе знаний (гибридный поиск: keyword + semantic)")
+                    "Поиск документов и папок в базе знаний (гибридный поиск: keyword + semantic)",
+            resultConverter = CompactToolResultConverter.class)
     public List<SearchResult> searchDocuments(
             @ToolParam(description = "Поисковый запрос на любом языке") String query,
             @ToolParam(
@@ -101,7 +103,8 @@ public class DocumentFunction {
      */
     @Tool(
             description =
-                    "Получить структуру базы знаний: id, title, type, parentId всех узлов (без содержимого)")
+                    "Получить структуру базы знаний: id, title, type, parentId всех узлов (без содержимого)",
+            resultConverter = CompactToolResultConverter.class)
     public List<DocumentNode> getTreeSkeleton() {
         log.info("getTreeSkeleton called");
         return documentService.getTreeSkeleton();
@@ -124,9 +127,9 @@ public class DocumentFunction {
      */
     @Tool(
             description =
-                    "Найти документы или папки по названию (точное или частичное совпадение). "
-                            + "Возвращает список: сначала точные совпадения, затем частичные. "
-                            + "Используй когда знаешь имя документа и хочешь получить его id или содержимое.")
+                    "Найти документы или папки по названию (точное или частичное совпадение, "
+                            + "сначала точные). Матчит ТОЛЬКО title, не содержимое.",
+            resultConverter = CompactToolResultConverter.class)
     public List<DocumentNode> findDocumentsByName(
             @ToolParam(description = "Полное или частичное название документа/папки") String name) {
         log.info("findDocumentsByName called: name='{}'", name);
@@ -145,7 +148,8 @@ public class DocumentFunction {
     @Tool(
             description =
                     "Получить конкретный документ или папку по id, включая полное содержимое "
-                            + "(description) и список прямых дочерних узлов")
+                            + "(description) и список прямых дочерних узлов",
+            resultConverter = CompactToolResultConverter.class)
     public DocumentNode getDocument(
             @ToolParam(description = "ID документа или папки") String documentId) {
         log.info("getDocument called: documentId={}", documentId);
@@ -165,7 +169,8 @@ public class DocumentFunction {
             description =
                     "Создать новый документ или папку в базе знаний. "
                             + "Укажи title, type (document или folder), parentId (или null для корня) "
-                            + "и description (содержимое).")
+                            + "и description (содержимое).",
+            resultConverter = CompactToolResultConverter.class)
     public Document createDocument(
             @ToolParam(description = "Название документа или папки") String title,
             @ToolParam(description = "Тип: 'document' или 'folder'", required = false) String type,
@@ -203,7 +208,8 @@ public class DocumentFunction {
     @Tool(
             description =
                     "Обновить существующий документ: изменить название и/или содержимое. "
-                            + "Передай только те поля, которые нужно изменить.")
+                            + "Передай только те поля, которые нужно изменить.",
+            resultConverter = CompactToolResultConverter.class)
     public Document updateDocument(
             @ToolParam(description = "ID документа для обновления") long documentId,
             @ToolParam(
@@ -256,7 +262,8 @@ public class DocumentFunction {
     @Tool(
             description =
                     "Скопировать вложение из текущего чата в документ базы знаний. "
-                            + "Используй когда пользователь хочет сохранить файл из чата в документ.")
+                            + "Используй когда пользователь хочет сохранить файл из чата в документ.",
+            resultConverter = CompactToolResultConverter.class)
     public String copyAttachmentToDocument(
             ToolContext context,
             @ToolParam(description = "ID вложения из чата") String attachmentId,

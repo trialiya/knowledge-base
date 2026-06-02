@@ -1,5 +1,7 @@
 package io.github.trialiya.kb.model.attachment.dto;
 
+import io.github.trialiya.kb.tools.Compact;
+import io.github.trialiya.kb.tools.ToolCallResponseItem;
 import java.time.OffsetDateTime;
 
 /**
@@ -28,4 +30,18 @@ public record Attachment(
         String summary,
         String sourceUrl,
         OffsetDateTime createdAt,
-        OffsetDateTime updatedAt) {}
+        OffsetDateTime updatedAt)
+        implements ToolCallResponseItem {
+
+    @Override
+    public String getFormattedResponse() {
+        return Compact.tag("att:" + id)
+                .add("file", fileName)
+                .add("type", contentType)
+                .add("size", fileSize)
+                .add("owner", ownerType)
+                .add("doc", documentId)
+                .add("sum", Compact.truncate(summary, 50))
+                .done();
+    }
+}

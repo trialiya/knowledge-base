@@ -5,7 +5,6 @@ import static io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocation
 import io.github.trialiya.kb.model.chat.dto.ToolCallMessage;
 import jakarta.annotation.Nullable;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
@@ -13,13 +12,8 @@ public final class ToolInvocationCollector {
 
     public static final String KEY = "toolInvocationCollector";
 
-    public record ToolInvocation(
-            String name,
-            Map<Object, Object> arguments,
-            ToolInvocationStatus status,
-            String error) {}
-
     private final List<ToolInvocation> invocations = new CopyOnWriteArrayList<>();
+
     @Nullable private final Consumer<ToolInvocation> liveSink;
 
     public ToolInvocationCollector() {

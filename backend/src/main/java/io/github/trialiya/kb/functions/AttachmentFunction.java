@@ -3,7 +3,9 @@ package io.github.trialiya.kb.functions;
 import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
 
 import io.github.trialiya.kb.model.attachment.dto.Attachment;
+import io.github.trialiya.kb.model.attachment.dto.AttachmentContext;
 import io.github.trialiya.kb.service.AttachmentService;
+import io.github.trialiya.kb.tools.CompactToolResultConverter;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,7 +37,8 @@ public class AttachmentFunction {
     @Tool(
             description =
                     "Получить список вложений (файлов) для документа по его id. "
-                            + "Возвращает метаданные: имя файла, тип, размер, краткое описание (если есть).")
+                            + "Возвращает метаданные: имя файла, тип, размер, краткое описание (если есть).",
+            resultConverter = CompactToolResultConverter.class)
     public List<Attachment> getDocumentAttachments(
             @ToolParam(description = "ID документа") String documentId) {
         log.info("getDocumentAttachments called: documentId={}", documentId);
@@ -45,7 +48,8 @@ public class AttachmentFunction {
     @Tool(
             description =
                     "Получить список вложений (файлов) для чат-беседы. "
-                            + "Возвращает метаданные: имя файла, тип, размер, краткое описание (если есть).")
+                            + "Возвращает метаданные: имя файла, тип, размер, краткое описание (если есть).",
+            resultConverter = CompactToolResultConverter.class)
     public List<Attachment> getChatAttachments(ToolContext context) {
         final String conversationId = conversationId(context);
         log.info("getChatAttachments called: conversationId={}", conversationId);
@@ -57,7 +61,8 @@ public class AttachmentFunction {
     @Tool(
             description =
                     "Получить полное текстовое содержимое вложения по его id. "
-                            + "Используй когда нужно проанализировать или процитировать содержимое файла.")
+                            + "Используй когда нужно проанализировать или процитировать содержимое файла.",
+            resultConverter = CompactToolResultConverter.class)
     public String getAttachmentContent(
             ToolContext context, @ToolParam(description = "ID вложения") String attachmentId) {
         log.info(
@@ -79,7 +84,9 @@ public class AttachmentFunction {
      * @param content the raw text content to store
      * @return id of the newly created attachment
      */
-    @Tool(description = "Создать новое вложение в текущем чате.")
+    @Tool(
+            description = "Создать новое вложение в текущем чате.",
+            resultConverter = CompactToolResultConverter.class)
     public long createAttachment(
             ToolContext context,
             @ToolParam(description = "Название вложения - файла") String fileName,
@@ -94,9 +101,8 @@ public class AttachmentFunction {
     }
 
     @Tool(
-            description =
-                    "Получить полное текстовое содержимое вложения по имени файла. "
-                            + "Используй когда нужно проанализировать или процитировать содержимое файла.")
+            description = "Получить полное текстовое содержимое вложений по имени файла.",
+            resultConverter = CompactToolResultConverter.class)
     public List<AttachmentContext> getAttachmentContentByFileName(
             ToolContext context, @ToolParam(description = "Имя файла") String fileName) {
         final String conversationId = conversationId(context);
@@ -115,14 +121,13 @@ public class AttachmentFunction {
                 .toList();
     }
 
-    public record AttachmentContext(long id, String fileName, String content) {}
-
     // ── Search ────────────────────────────────────────────────────────────────
 
     @Tool(
             description =
                     "Поиск по вложениям (файлам) в базе знаний: по имени файла, содержимому и описанию. "
-                            + "Используй когда пользователь ищет информацию, которая может быть в прикреплённых файлах.")
+                            + "Используй когда пользователь ищет информацию, которая может быть в прикреплённых файлах.",
+            resultConverter = CompactToolResultConverter.class)
     public List<Attachment> searchAttachments(
             ToolContext context, @ToolParam(description = "Поисковый запрос") String query) {
         final String conversationId = conversationId(context);
