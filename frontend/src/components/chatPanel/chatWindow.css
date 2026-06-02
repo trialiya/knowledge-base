@@ -408,3 +408,40 @@
   font-style: italic;
   text-align: center;
 }
+
+/* Обёртка нужна для позиционирования кнопки «вниз» */
+.message-list-container {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Плавающая кнопка прокрутки вниз — видна, когда вы не у нижней кромки */
+.scroll-to-bottom-btn {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--kb-border);
+  background: var(--kb-white);
+  color: var(--kb-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(91, 79, 207, 0.25);
+  transition: transform 0.12s, background 0.15s;
+  z-index: 5;
+}
+.scroll-to-bottom-btn:hover {
+  background: var(--kb-accent-light);
+  transform: translateX(-50%) scale(1.08);
+}
+.scroll-to-bottom-btn:active {
+  transform: translateX(-50%) scale(0.96);
+}
