@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -36,6 +37,7 @@ import org.jspecify.annotations.NonNull;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AbstractMessage;
+import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.metadata.ChatGenerationMetadata;
 import org.springframework.ai.chat.metadata.ChatResponseMetadata;
@@ -53,6 +55,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import reactor.core.Disposable;
+import reactor.core.publisher.SignalType;
 
 @RestController
 @RequestMapping("/api/chat")
@@ -155,6 +158,10 @@ public class ChatController {
         final AtomicReference<Disposable> disposableRef = new AtomicReference<>();
         final Consumer<Object> liveSink = sendSseEmitterData(emitter);
         final ToolInvocationCollector toolCollector = new ToolInvocationCollector(liveSink);
+
+        final StringBuilder buffer = new StringBuilder(); // копим ответ ассистента
+        final AtomicBoolean persisted = new AtomicBoolean(false); // защита от двойного сохранения
+
         try {
             Disposable disposable =
                     chatClient
@@ -164,16 +171,32 @@ public class ChatController {
                             .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
                             .stream()
                             .chatResponse()
+                            .doFinally(
+                                    signal -> {
+                                        // onComplete сохранит advisor — пропускаем.
+                                        // прерывание/ошибка — спасаем накопленное сами
+                                        if (signal == SignalType.CANCEL
+                                                || signal == SignalType.ON_ERROR) {
+                                            persistPartial(
+                                                    conversationId,
+                                                    buffer,
+                                                    toolCollector,
+                                                    persisted);
+                                        }
+                                    })
                             .subscribe(
                                     response -> {
                                         printUsageStatistics(conversationId, response);
+                                        final String chunk =
+                                                Optional.ofNullable(response)
+                                                        .map(ChatResponse::getResult)
+                                                        .map(Generation::getOutput)
+                                                        .map(AbstractMessage::getText)
+                                                        .orElse("");
+                                        buffer.append(chunk);
                                         liveSink.accept(
                                                 new StreamMessage(
-                                                        Optional.ofNullable(response)
-                                                                .map(ChatResponse::getResult)
-                                                                .map(Generation::getOutput)
-                                                                .map(AbstractMessage::getText)
-                                                                .orElse(""),
+                                                        chunk,
                                                         Optional.ofNullable(response)
                                                                 .map(ChatResponse::getResult)
                                                                 .map(Generation::getMetadata)
@@ -184,6 +207,7 @@ public class ChatController {
                                     },
                                     emitter::completeWithError,
                                     () -> {
+                                        persisted.set(true); // ответ сохранит advisor
                                         liveSink.accept(
                                                 new ToolCallsMessage(
                                                         toolCollector.completedSnapshot()));
@@ -197,25 +221,52 @@ public class ChatController {
             disposableRef.set(disposable);
             emitter.onTimeout(
                     () -> {
-                        log.warn("SSE timeout for conversation {}", conversationId);
-                        Disposable d = disposableRef.get();
-                        if (d != null && !d.isDisposed()) {
-                            d.dispose();
-                        }
+                        dispose(disposableRef);
                         emitter.complete();
                     });
             emitter.onError(
-                    (ex) -> {
-                        log.error("SSE error for conversation {}", conversationId, ex);
-                        Disposable d = disposableRef.get();
-                        if (d != null && !d.isDisposed()) {
-                            d.dispose();
-                        }
+                    ex -> {
+                        log.error("SSE error {}", conversationId, ex);
+                        dispose(disposableRef);
                     });
+            emitter.onCompletion(
+                    // важно: разрыв клиентом → CANCEL → частичное сохранение
+                    () -> dispose(disposableRef));
         } catch (Exception e) {
             emitter.completeWithError(e);
         }
         return emitter;
+    }
+
+    private static void dispose(AtomicReference<Disposable> ref) {
+        Disposable d = ref.get();
+        if (d != null && !d.isDisposed()) {
+            d.dispose();
+        }
+    }
+
+    private void persistPartial(
+            String conversationId,
+            StringBuilder buffer,
+            ToolInvocationCollector toolCollector,
+            AtomicBoolean persisted) {
+        if (!persisted.compareAndSet(false, true)) {
+            return; // уже сохранили (onError + doFinally могут прийти оба)
+        }
+        final String text = buffer.toString();
+        if (text.isBlank()) {
+            return;
+        }
+        try {
+            chatMemory.add(conversationId, new AssistantMessage(text));
+            chatMemoryService.saveToolCalls(conversationId, toolCollector.completedSnapshot());
+            log.info(
+                    "Saved partial assistant reply for {} ({} chars)",
+                    conversationId,
+                    text.length());
+        } catch (Exception e) {
+            log.warn("Failed to persist partial reply for {}", conversationId, e);
+        }
     }
 
     @PostMapping

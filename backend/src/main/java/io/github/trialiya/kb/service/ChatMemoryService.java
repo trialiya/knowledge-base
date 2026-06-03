@@ -42,8 +42,8 @@ public class ChatMemoryService implements ChatMemoryRepository {
 
     private static final String PREAMBLE =
             """
-        Инструменты, уже вызванные ранее в этом чате (с кратким результатом).
-        Служебная справка, пользователю не упоминать.
+        Инструменты, уже вызванные ранее в этом чате (с урезанным результатом).
+        Служебные данные только для справки, пользователю не упоминать.
         """;
 
     private final ChatTopicRepository chatTopicRepository;

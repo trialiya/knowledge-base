@@ -19,6 +19,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -158,16 +159,31 @@ public class GitService {
      * @param includePatch whether to include unified diff text
      */
     public List<GitCommit> getCommitDiff(@NonNull String commitHashes, boolean includePatch) {
+        return getCommitDiff(commitHashes, includePatch, null);
+    }
+
+    /**
+     * Returns changed files with optional unified diff for one or more commits, optionally
+     * restricted to a single file.
+     *
+     * @param commitHashes comma-separated commit hashes
+     * @param includePatch whether to include unified diff text
+     * @param filePath optional path (relative to repo root) to restrict the diff to a single file;
+     *     null or blank means the whole commit
+     */
+    public List<GitCommit> getCommitDiff(
+            @NonNull String commitHashes, boolean includePatch, String filePath) {
+        String spec = (filePath == null || filePath.isBlank()) ? null : filePath.strip();
         List<GitCommit> result = new ArrayList<>();
         for (String hash : commitHashes.split(",")) {
             String h = hash.strip();
             if (h.isEmpty()) continue;
-            result.add(diffForSingleCommit(h, includePatch));
+            result.add(diffForSingleCommit(h, includePatch, spec));
         }
         return result;
     }
 
-    private GitCommit diffForSingleCommit(String hash, boolean includePatch) {
+    private GitCommit diffForSingleCommit(String hash, boolean includePatch, String filePath) {
         // Commit metadata
         String format = String.join(US, "%H", "%h", "%an", "%ae", "%aI", "%s");
         List<String> metaLines = exec(List.of("git", "log", "-1", "--format=" + format, hash));
@@ -178,8 +194,8 @@ public class GitService {
         }
 
         // Changed files with stats
-        List<String> statLines =
-                exec(
+        List<String> statCmd =
+                new ArrayList<>(
                         List.of(
                                 "git",
                                 "diff-tree",
@@ -188,24 +204,33 @@ public class GitService {
                                 "--numstat",
                                 "--find-renames",
                                 hash));
+        if (filePath != null) {
+            statCmd.add("--");
+            statCmd.add(filePath);
+        }
+        List<String> statLines = exec(statCmd);
 
         // Optionally get patches
-        List<String> patchLines =
-                includePatch
-                        ? exec(
-                                List.of(
-                                        "git",
-                                        "diff-tree",
-                                        "--no-commit-id",
-                                        "-r",
-                                        "-p",
-                                        "--find-renames",
-                                        hash))
-                        : Collections.emptyList();
-        var patches =
-                includePatch
-                        ? parsePatchBlocks(patchLines)
-                        : Collections.<String, String>emptyMap();
+        Map<String, String> patches;
+        if (includePatch) {
+            List<String> patchCmd =
+                    new ArrayList<>(
+                            List.of(
+                                    "git",
+                                    "diff-tree",
+                                    "--no-commit-id",
+                                    "-r",
+                                    "-p",
+                                    "--find-renames",
+                                    hash));
+            if (filePath != null) {
+                patchCmd.add("--");
+                patchCmd.add(filePath);
+            }
+            patches = parsePatchBlocks(exec(patchCmd));
+        } else {
+            patches = Collections.emptyMap();
+        }
 
         List<GitDiffEntry> entries = new ArrayList<>();
         for (String line : statLines) {
@@ -217,26 +242,26 @@ public class GitService {
             int del = parseStat(parts[1]);
             String pathPart = parts[2];
             String oldPath = null;
-            String filePath;
+            String entryPath;
             // Rename: "old => new" or "{old => new}/rest"
             if (pathPart.contains(" => ")) {
                 String[] rp = parseRenamePath(pathPart);
                 oldPath = rp[0];
-                filePath = rp[1];
+                entryPath = rp[1];
             } else {
-                filePath = pathPart;
+                entryPath = pathPart;
             }
             String status =
                     oldPath != null
                             ? "R"
                             : (add > 0 && del == 0 ? "A" : (add == 0 && del > 0 ? "D" : "M"));
-            String patch = patches.getOrDefault(filePath, patches.get(oldPath));
+            String patch = patches.getOrDefault(entryPath, patches.get(oldPath));
             if (patch != null && patch.lines().count() > MAX_DIFF_LINES) {
                 patch =
                         patch.lines().limit(MAX_DIFF_LINES).collect(Collectors.joining("\n"))
                                 + "\n... (truncated)";
             }
-            entries.add(new GitDiffEntry(status, filePath, oldPath, add, del, patch));
+            entries.add(new GitDiffEntry(status, entryPath, oldPath, add, del, patch));
         }
 
         return new GitCommit(f[0], f[1], f[2], f[3], parseDate(f[4]), f[5], entries);

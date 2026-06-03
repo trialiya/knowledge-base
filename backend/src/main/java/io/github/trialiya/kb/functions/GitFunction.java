@@ -139,10 +139,20 @@ public class GitFunction {
                                             + "false (по умолчанию) — только список файлов и статистика строк; "
                                             + "true — добавляет текст изменений, увеличивает объём ответа.",
                             required = false)
-                    Boolean includePatch) {
+                    Boolean includePatch,
+            @ToolParam(
+                            description =
+                                    "Путь к файлу (относительно корня репо) — вернуть diff только по этому файлу. "
+                                            + "Null — все изменённые файлы коммита.",
+                            required = false)
+                    String filePath) {
         boolean patch = includePatch != null && includePatch;
-        log.info("getCommitDiff called: hashes='{}', includePatch={}", commitHashes, patch);
-        List<GitCommit> commitDiff = gitService.getCommitDiff(commitHashes, patch);
+        log.info(
+                "getCommitDiff called: hashes='{}', includePatch={}, filePath='{}'",
+                commitHashes,
+                patch,
+                filePath);
+        List<GitCommit> commitDiff = gitService.getCommitDiff(commitHashes, patch, filePath);
         log.info("getCommitDiff called: commitDiff={}", commitDiff);
         return commitDiff;
     }
@@ -330,7 +340,7 @@ public class GitFunction {
                     String pathGlob,
             @ToolParam(
                             description =
-                                    "true — POSIX ERE (при | .* ^ $); false (по умолчанию) — "
+                                    "true (по умолчанию) — POSIX ERE (при | .* ^ $); false — "
                                             + "буквальная подстрока.",
                             required = false)
                     Boolean regex,
@@ -344,7 +354,7 @@ public class GitFunction {
                             description = "Максимум совпадений. По умолчанию 50, диапазон 1–200.",
                             required = false)
                     Integer maxResults) {
-        boolean useRegex = regex != null && regex;
+        boolean useRegex = regex == null || regex;
         int ctx = contextLines != null ? contextLines : 1;
         int limit = maxResults != null ? maxResults : 50;
         log.info(
