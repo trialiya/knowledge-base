@@ -534,7 +534,15 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
             const messages = [...updated.messages];
             const idx = aiMessageIndexRef.current;
             if (messages[idx]?.sender === 'ai') {
-              messages[idx] = { text: 'Произошла ошибка. Попробуйте еще раз.', sender: 'ai' };
+              const partial = (aiMessageTextRef.current || '').trimEnd();
+              const note = '\n\n_**[⚠ Ответ прерван из-за ошибки на сервере]**_';
+              messages[idx] = {
+                ...messages[idx],
+                // если что-то успело прийти — оставляем и дописываем пометку,
+                // иначе показываем обычный текст ошибки
+                text: partial ? partial + note : 'Произошла ошибка. Попробуйте ещё раз.',
+                toolCalls: [...toolCallsRef.current],
+              };
               updated.messages = messages;
             }
             const others = prev.filter((c) => c.id !== activeChatId);

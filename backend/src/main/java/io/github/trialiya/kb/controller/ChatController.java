@@ -114,6 +114,10 @@ public class ChatController {
                                                     "readingreadingreadingreading reading file id = "
                                                             + index));
                                 }
+                                if (Math.random() < 0.2) {
+                                    emitter.completeWithError(new RuntimeException());
+                                    return;
+                                }
                                 if (j % 2 == 0) {
                                     liveSink.accept(new StreamMessage("\n\n", null));
                                 }
@@ -159,7 +163,7 @@ public class ChatController {
         final Consumer<Object> liveSink = sendSseEmitterData(emitter);
         final ToolInvocationCollector toolCollector = new ToolInvocationCollector(liveSink);
 
-        final StringBuilder buffer = new StringBuilder(); // копим ответ ассистента
+        final StringBuffer buffer = new StringBuffer();
         final AtomicBoolean persisted = new AtomicBoolean(false); // защита от двойного сохранения
 
         try {
@@ -186,28 +190,27 @@ public class ChatController {
                                     })
                             .subscribe(
                                     response -> {
-                                        printUsageStatistics(conversationId, response);
-                                        final String chunk =
-                                                Optional.ofNullable(response)
-                                                        .map(ChatResponse::getResult)
-                                                        .map(Generation::getOutput)
-                                                        .map(AbstractMessage::getText)
-                                                        .orElse("");
-                                        buffer.append(chunk);
-                                        liveSink.accept(
-                                                new StreamMessage(
-                                                        chunk,
-                                                        Optional.ofNullable(response)
-                                                                .map(ChatResponse::getResult)
-                                                                .map(Generation::getMetadata)
-                                                                .map(
-                                                                        ChatGenerationMetadata
-                                                                                ::getFinishReason)
-                                                                .orElse(null)));
+                                        final String chunk = Optional.ofNullable(response)
+                                            .map(ChatResponse::getResult)
+                                            .map(Generation::getOutput)
+                                            .map(AbstractMessage::getText)
+                                            .orElse("");
+                                        final String finishReason = Optional.ofNullable(response)
+                                            .map(ChatResponse::getResult)
+                                            .map(Generation::getMetadata)
+                                            .map(ChatGenerationMetadata::getFinishReason)
+                                            .orElse(null);
+                                        if (finishReason != null) {
+                                            buffer.setLength(0);
+                                        } else {
+                                            buffer.append(chunk);
+                                        }
+                                        liveSink.accept(new StreamMessage(chunk, finishReason));
+                                        printUsageStatistics(conversationId, response, finishReason);
                                     },
                                     emitter::completeWithError,
                                     () -> {
-                                        persisted.set(true); // ответ сохранит advisor
+                                        persisted.set(true);
                                         liveSink.accept(
                                                 new ToolCallsMessage(
                                                         toolCollector.completedSnapshot()));
@@ -247,11 +250,12 @@ public class ChatController {
 
     private void persistPartial(
             String conversationId,
-            StringBuilder buffer,
+            StringBuffer buffer,
             ToolInvocationCollector toolCollector,
             AtomicBoolean persisted) {
         if (!persisted.compareAndSet(false, true)) {
-            return; // уже сохранили (onError + doFinally могут прийти оба)
+            // уже сохранили (onError + doFinally могут прийти оба)
+            return;
         }
         final String text = buffer.toString();
         if (text.isBlank()) {
@@ -468,26 +472,22 @@ public class ChatController {
         };
     }
 
-    private void printUsageStatistics(String conversationId, ChatResponse response) {
+    private void printUsageStatistics(String conversationId, ChatResponse response, String finishReason) {
+        if (finishReason == null || finishReason.isEmpty()) {
+            return;
+        }
         Optional.ofNullable(response)
-                .map(ChatResponse::getResult)
-                .map(Generation::getMetadata)
-                .map(ChatGenerationMetadata::getFinishReason)
-                .filter(Predicate.not(String::isBlank))
-                // reset to response.getMetadata()
-                .map(
-                        reason -> {
-                            log.info("[{}] FinishReason: {}", conversationId, reason);
-                            return response.getMetadata();
-                        })
+                .map(ChatResponse::getMetadata)
                 .map(ChatResponseMetadata::getUsage)
                 .ifPresent(
-                        usage ->
-                                log.info(
-                                        "[{}] Usage:\n PromptToken: {}\n CompletionTokens: {}\n TotalTokens: {}",
-                                        conversationId,
-                                        usage.getPromptTokens(),
-                                        usage.getCompletionTokens(),
-                                        usage.getTotalTokens()));
+                        usage -> {
+                            log.info("[{}] FinishReason: {}", conversationId, finishReason);
+                            log.info(
+                                "[{}] Usage:\n PromptToken: {}\n CompletionTokens: {}\n TotalTokens: {}",
+                                conversationId,
+                                usage.getPromptTokens(),
+                                usage.getCompletionTokens(),
+                                usage.getTotalTokens());
+                        });
     }
 }
