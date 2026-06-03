@@ -2,9 +2,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useTranslation } from 'react-i18next';
 import ChatDocLink from './ChatDocLink';
 import './message.css';
 import CodeBlock from '../common/CodeBlock';
+import { getToolIcon, toolLabelKey, humanizeTool } from './toolMeta';
 
 /** SVG status indicators — not clickable, purely visual */
 const IconStarted = () => (
@@ -78,6 +80,7 @@ const IconCopied = () => (
 
 /** Кнопка «копировать всё сообщение» — копирует исходный текст сообщения. */
 const MessageCopyButton = ({ text }) => {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const timerRef = useRef(null);
 
@@ -98,7 +101,7 @@ const MessageCopyButton = ({ text }) => {
     <button
       className={`message-copy-btn ${copied ? 'message-copy-btn--done' : ''}`}
       onClick={handleCopy}
-      title={copied ? 'Скопировано' : 'Копировать сообщение'}
+      title={copied ? t('common.copied') : t('message.copyMessage')}
       type="button"
     >
       {copied ? <IconCopied /> : <IconCopy />}
@@ -122,19 +125,26 @@ const gistPreview = (gist) => {
   return oneLine.length > GIST_PREVIEW_LEN ? oneLine.slice(0, GIST_PREVIEW_LEN) + '…' : oneLine;
 };
 
-/** Build a copyable text summary of a tool call */
-const buildCopyText = (tc) => {
-  const parts = [tc.name];
+/**
+ * Build a copyable text summary of a tool call.
+ * `t` передаётся параметром, т.к. функция вне области React-хука.
+ */
+const buildCopyText = (tc, t) => {
+  const label = t(toolLabelKey(tc.name), { defaultValue: humanizeTool(tc.name) });
+  const parts = [label];
   const argsStr = formatArgs(tc.arguments);
   if (argsStr) parts.push(argsStr);
-  if (tc.resultGist) parts.push(`Результат: ${tc.resultGist}`);
-  parts.push(`Статус: ${tc.status || '—'}`);
-  if (tc.status === 'ERROR' && tc.error) parts.push(`Ошибка: ${tc.error}`);
+  if (tc.resultGist) parts.push(`${t('toolCall.result')}: ${tc.resultGist}`);
+  parts.push(`${t('toolCall.status')}: ${tc.status || '—'}`);
+  if (tc.status === 'ERROR' && tc.error) parts.push(`${t('toolCall.error')}: ${tc.error}`);
   return parts.join('\n');
 };
 
 /** Одиночная плашка вызова — hover-тултип + кнопка копирования */
 const ToolCallItem = ({ tc }) => {
+  const { t } = useTranslation();
+  const label = t(toolLabelKey(tc.name), { defaultValue: humanizeTool(tc.name) });
+  const icon = getToolIcon(tc.name);
   const argsStr = formatArgs(tc.arguments);
   const gist = gistPreview(tc.resultGist);
   const itemRef = useRef(null);
@@ -188,7 +198,7 @@ const ToolCallItem = ({ tc }) => {
   const handleCopy = async (e) => {
     e.stopPropagation();
     try {
-      await navigator.clipboard.writeText(buildCopyText(tc));
+      await navigator.clipboard.writeText(buildCopyText(tc, t));
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -207,12 +217,17 @@ const ToolCallItem = ({ tc }) => {
         <StatusIcon status={tc.status} />
       </span>
       <div className="tool-call-body">
-        <span className="tool-call-name">{tc.name}</span>
+        <span className="tool-call-name">
+          <span className="tool-call-icon" aria-hidden="true">
+            {icon}
+          </span>
+          {label}
+        </span>
         {argsStr && <span className="tool-call-args">{argsStr}</span>}
         {gist && <span className="tool-call-gist">{gist}</span>}
         {tc.status === 'ERROR' && tc.error && <span className="tool-call-error">{tc.error}</span>}
       </div>
-      <button className="tool-call-copy-btn" onClick={handleCopy} title="Скопировать">
+      <button className="tool-call-copy-btn" onClick={handleCopy} title={t('toolCall.copy')}>
         {copied ? <IconCopied /> : <IconCopy />}
       </button>
       {hover &&
@@ -221,9 +236,11 @@ const ToolCallItem = ({ tc }) => {
             className={`tool-call-tooltip tool-call-tooltip--${tooltipPos.placement}`}
             style={{ top: tooltipPos.top, left: tooltipPos.left }}
           >
-            <div className="tool-call-tooltip-name">{tc.name}</div>
+            <div className="tool-call-tooltip-name">{label}</div>
             {argsStr && <div className="tool-call-tooltip-args">{argsStr}</div>}
-            <div className="tool-call-tooltip-status">Статус: {tc.status || '—'}</div>
+            <div className="tool-call-tooltip-status">
+              {t('toolCall.status')}: {tc.status || '—'}
+            </div>
             {tc.resultGist && <div className="tool-call-tooltip-gist">{tc.resultGist}</div>}
             {tc.status === 'ERROR' && tc.error && <div className="tool-call-tooltip-error">{tc.error}</div>}
           </div>,
@@ -235,6 +252,7 @@ const ToolCallItem = ({ tc }) => {
 
 /** Группа одноимённых последовательных вызовов — сворачиваемая */
 const ToolCallGroup = ({ name, items }) => {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
 
   // Одиночный вызов — рендерим как обычную плашку, без шеврона/бейджа
@@ -245,10 +263,12 @@ const ToolCallGroup = ({ name, items }) => {
   // Группа ≥2: заголовок показывает аргументы первого вызова (чтобы высота
   // не прыгала при переходе 1→2), плюс бейдж ×N и шеврон.
   const first = items[0];
+  const label = t(toolLabelKey(name), { defaultValue: humanizeTool(name) });
+  const icon = getToolIcon(name);
   const firstArgsStr = formatArgs(first.arguments);
-  const groupStatus = items.some((t) => t.status === 'ERROR')
+  const groupStatus = items.some((t2) => t2.status === 'ERROR')
     ? 'ERROR'
-    : items.some((t) => t.status === 'STARTED')
+    : items.some((t2) => t2.status === 'STARTED')
     ? 'STARTED'
     : 'OK';
 
@@ -263,7 +283,10 @@ const ToolCallGroup = ({ name, items }) => {
         </span>
         <div className="tool-call-body">
           <span className="tool-call-name">
-            {name}
+            <span className="tool-call-icon" aria-hidden="true">
+              {icon}
+            </span>
+            {label}
             <span className="tool-call-count">×{items.length}</span>
           </span>
           {firstArgsStr && <span className="tool-call-args">{firstArgsStr}</span>}
@@ -337,6 +360,7 @@ function getMarkdownComponents(onNavigateToDoc) {
 }
 
 const Message = ({ text, sender, toolCalls, onNavigateToDoc }) => {
+  const { t } = useTranslation();
   const [showSource, setShowSource] = useState(false);
   const messageClass = `message ${sender}`;
   const hasToolCalls = toolCalls && toolCalls.length > 0;
@@ -350,9 +374,9 @@ const Message = ({ text, sender, toolCalls, onNavigateToDoc }) => {
             <button
               className={`message-source-btn ${showSource ? 'message-source-btn--active' : ''}`}
               onClick={() => setShowSource((v) => !v)}
-              title={showSource ? 'Показать с форматированием' : 'Показать исходник'}
+              title={showSource ? t('message.viewFormatted') : t('message.viewSource')}
             >
-              {showSource ? '◈ Markdown' : '{ } Исходник'}
+              {showSource ? `◈ ${t('message.btnMarkdown')}` : `{ } ${t('message.btnSource')}`}
             </button>
           </div>
           {showSource ? (

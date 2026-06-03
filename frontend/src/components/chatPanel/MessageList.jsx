@@ -1,5 +1,6 @@
 // MessageList.jsx
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import Message from './Message';
 
 // Насколько близко к низу считаем, что мы «прилипли» (px).
@@ -24,6 +25,7 @@ const IconArrowDown = () => (
 );
 
 const MessageList = ({ messages, onNavigateToDoc }) => {
+  const { t } = useTranslation();
   const containerRef = useRef(null);
   // Источник правды для синхронной логики в эффектах: держимся ли у низа.
   const stickRef = useRef(true);
@@ -105,8 +107,8 @@ const MessageList = ({ messages, onNavigateToDoc }) => {
           type="button"
           className="scroll-to-bottom-btn"
           onClick={() => scrollToBottom(true)}
-          title="Вниз к последнему сообщению"
-          aria-label="Прокрутить вниз"
+          title={t('scroll.toLatest')}
+          aria-label={t('scroll.scrollDown')}
         >
           <IconArrowDown />
         </button>
