@@ -51,7 +51,7 @@ const api = {
 
   // Короткий список версий (без тяжёлого description) — newest-first.
   fetchHistory: async (id) => {
-    const r = await fetch(`/api/documents/${id}/history`);
+    const r = await fetch(`/api/documents/${id}/history`, { cache: 'no-store' });
     if (!r.ok) {
       const err = new Error(`History failed: ${r.status}`);
       err.status = r.status;
