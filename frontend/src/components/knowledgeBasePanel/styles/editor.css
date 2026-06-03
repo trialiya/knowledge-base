@@ -350,10 +350,15 @@
   cursor: default;
 }
 
+/* Тело истории: сам контейнер НЕ скроллит — скроллят его дети
+   (в режиме diff — .history-diff-scroll, в режимах база/изменённая —
+   встроенный .md-preview). Так исчезает «лишняя» внешняя полоса. */
 .history-body {
   flex: 1;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
+  overflow: hidden;
 }
 .history-note {
   padding: 10px 16px 0;
@@ -366,6 +371,27 @@
   padding: 24px;
   color: var(--kb-muted);
   font-style: italic;
+}
+
+/* ── Diff + overview-ruler ─────────────────────────────────────────────────
+   Один скролл-контейнер (.history-diff-scroll) и полоса-карта справа
+   (.history-ruler) с метками изменений и собственным ползунком. */
+.history-diff-area {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+.history-diff-scroll {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+/* Нативную полосу прячем только когда справа есть ruler (есть изменения). */
+.history-diff-scroll--ruled {
+  scrollbar-width: none; /* Firefox */
+}
+.history-diff-scroll--ruled::-webkit-scrollbar {
+  display: none; /* WebKit / Chrome / Safari */
 }
 
 .history-diff {
@@ -403,6 +429,61 @@
 }
 .history-diff__line--del .history-diff__sign {
   color: #cf222e;
+}
+
+/* Overview-ruler: дорожка справа от диффа */
+.history-ruler {
+  position: relative;
+  width: 16px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--kb-border);
+  background: var(--kb-bg);
+  cursor: pointer;
+  user-select: none;
+}
+/* Метки изменений (пропорционально позиции в документе), во всю ширину */
+.history-ruler__mark {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  min-height: 3px;
+  padding: 0;
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity 0.15s;
+}
+.history-ruler__mark:hover {
+  opacity: 1;
+}
+.history-ruler__mark--add {
+  background: #2ea043;
+}
+.history-ruler__mark--del {
+  background: #f85149;
+}
+/* Кастомный ползунок-«линза»: полупрозрачная заливка + рамка. Метки
+   просвечивают сквозь него, а сам он всегда заметен — и над белым, и над
+   зелёными участками. Заменяет нативную полосу. */
+.history-ruler__thumb {
+  position: absolute;
+  left: 0;
+  right: 0;
+  min-height: 20px;
+  border-radius: 7px;
+  background: rgba(91, 79, 207, 0.16);
+  border: 1.5px solid rgba(91, 79, 207, 0.6);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+  cursor: grab;
+  transition: background 0.15s, border-color 0.15s;
+}
+.history-ruler__thumb:hover {
+  background: rgba(91, 79, 207, 0.26);
+  border-color: rgba(91, 79, 207, 0.85);
+}
+.history-ruler__thumb:active {
+  cursor: grabbing;
 }
 
 .history-restore-group {
