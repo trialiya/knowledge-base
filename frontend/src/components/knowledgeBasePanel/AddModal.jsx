@@ -50,20 +50,39 @@ const AddModal = ({ tree, defaultParentId, onClose, onCreate }) => {
   const [name, setName] = useState('');
   const [type, setType] = useState('document');
   const [parentId, setParentId] = useState(defaultParentId ?? null);
+  // Блокировка на время запроса к бэку, чтобы повторный клик/Enter не создал
+  // несколько документов. Снимается в finally (на ошибке модалка остаётся
+  // открытой и кнопка снова активна; на успехе модалка размонтируется).
+  const [submitting, setSubmitting] = useState(false);
   const inputRef = useRef(null);
+  // Защита от setState после размонтирования (на успехе onCreate закрывает модалку).
+  const mountedRef = useRef(true);
 
   useEffect(() => {
     inputRef.current?.focus();
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
-  const handleCreate = () => {
-    if (!name.trim()) return;
-    onCreate({
-      title: name.trim(),
-      type,
-      parentId,
-      description: type === 'document' ? `# ${name.trim()}\n\n` : null,
-    });
+  const handleCreate = async () => {
+    if (submitting || !name.trim()) return;
+    setSubmitting(true);
+    try {
+      await onCreate({
+        title: name.trim(),
+        type,
+        parentId,
+        description: type === 'document' ? `# ${name.trim()}\n\n` : null,
+      });
+    } finally {
+      if (mountedRef.current) setSubmitting(false);
+    }
+  };
+
+  // Не даём закрыть модалку (фон/Отмена), пока запрос в полёте.
+  const handleClose = () => {
+    if (!submitting) onClose();
   };
 
   // Label for the selected folder
@@ -71,7 +90,7 @@ const AddModal = ({ tree, defaultParentId, onClose, onCreate }) => {
   const locationLabel = selectedFolder ? selectedFolder.title : 'Корневой уровень';
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={handleClose}>
       <div className="modal modal--wide" onClick={(e) => e.stopPropagation()}>
         <h3>Новый элемент</h3>
 
@@ -81,6 +100,7 @@ const AddModal = ({ tree, defaultParentId, onClose, onCreate }) => {
           type="text"
           placeholder="Название"
           value={name}
+          disabled={submitting}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
         />
@@ -91,6 +111,7 @@ const AddModal = ({ tree, defaultParentId, onClose, onCreate }) => {
             <button
               key={t}
               className={`modal-type-btn ${type === t ? 'modal-type-btn--active' : ''}`}
+              disabled={submitting}
               onClick={() => setType(t)}
             >
               {t === 'document' ? '📄 Документ' : '📁 Папка'}
@@ -124,8 +145,12 @@ const AddModal = ({ tree, defaultParentId, onClose, onCreate }) => {
         </div>
 
         <div className="modal-buttons">
-          <button onClick={handleCreate}>Создать</button>
-          <button onClick={onClose}>Отмена</button>
+          <button onClick={handleCreate} disabled={submitting || !name.trim()}>
+            {submitting ? 'Создание…' : 'Создать'}
+          </button>
+          <button onClick={handleClose} disabled={submitting}>
+            Отмена
+          </button>
         </div>
       </div>
     </div>

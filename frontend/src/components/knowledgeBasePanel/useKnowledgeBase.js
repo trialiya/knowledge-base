@@ -51,6 +51,9 @@ export default function useKnowledgeBase({
   // Pending drop info awaiting user confirmation: { dropInfo, fromTitle, toTitle }
   const [moveConfirm, setMoveConfirm] = useState(null);
 
+  // Pending delete awaiting user confirmation: { id, title, type }
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+
   // ── Unsaved-changes guard ──────────────────────────────────────────────────
   // When the MarkdownEditor has unsaved edits, navigation actions (selecting
   // another doc, switching the detail tab, running a search) are deferred until
@@ -507,19 +510,31 @@ export default function useKnowledgeBase({
     [updateNodeInTree],
   );
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Удалить?')) return;
+  // Открывает модалку подтверждения удаления (вместо window.confirm).
+  // Вызывается из TreeNode и DetailHeader через проп onDelete.
+  const handleDelete = (id) => {
+    const node = findNodeById(tree, id);
+    setDeleteConfirm({ id, title: node?.title ?? '', type: node?.type ?? 'document' });
+  };
+
+  // Реальное удаление — после подтверждения в модалке.
+  const handleDeleteConfirm = async () => {
+    const target = deleteConfirm;
+    setDeleteConfirm(null);
+    if (!target) return;
     try {
-      const res = await api.delete(id);
+      const res = await api.delete(target.id);
       if (res.ok) {
-        if (selectedNode?.id === id) setSelectedNode(null);
-        const node = findNodeById(tree, id);
+        if (selectedNode?.id === target.id) setSelectedNode(null);
+        const node = findNodeById(tree, target.id);
         await refreshScope(node?.parentId ?? null);
       }
     } catch {
       /* noop */
     }
   };
+
+  const handleDeleteCancel = () => setDeleteConfirm(null);
 
   // ── Reorder ───────────────────────────────────────────────────────────────────
 
@@ -690,6 +705,7 @@ export default function useKnowledgeBase({
     saveError,
     refreshing,
     moveConfirm,
+    deleteConfirm,
     discardConfirm,
     path,
     // setters used directly by the view
@@ -709,6 +725,8 @@ export default function useKnowledgeBase({
     handleRename,
     handleSummarize,
     handleDelete,
+    handleDeleteConfirm,
+    handleDeleteCancel,
     handleReorder,
     handleMoveConfirm,
     handleMoveCancel,

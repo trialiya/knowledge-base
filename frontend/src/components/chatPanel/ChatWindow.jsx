@@ -12,6 +12,7 @@ import './createJiraChatModal.css';
 import JiraAttachmentPanel from './JiraAttachmentPanel';
 import './jiraAttachmentPanel.css';
 import ErrorModal from '../common/ErrorModal';
+import ConfirmModal from '../common/ConfirmModal';
 
 const generateUUID = () => {
   if (crypto?.randomUUID) {
@@ -55,6 +56,8 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   const [jiraModalOpen, setJiraModalOpen] = useState(false);
   // Модалка ошибки загрузки чата: null | { notFound: bool, status }
   const [chatErrorModal, setChatErrorModal] = useState(null);
+  // Модалка подтверждения удаления чата: null | { id, title }
+  const [chatDeleteConfirm, setChatDeleteConfirm] = useState(null);
   const aiMessageTextRef = useRef('');
   const aiMessageIndexRef = useRef(-1);
   const abortControllerRef = useRef(null);
@@ -599,22 +602,32 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   );
 
   const handleDeleteChat = useCallback(
-    async (id) => {
+    (id) => {
       if (chats.length <= 1) return;
-      try {
-        await fetch(`/api/chat/chat?conversationId=${encodeURIComponent(id)}`, { method: 'DELETE' });
-      } catch (err) {
-        console.error('Ошибка удаления чата:', err);
-      }
-      setChats((prev) => prev.filter((chat) => chat.id !== id));
-      if (activeChatId === id) {
-        const remaining = chats.filter((chat) => chat.id !== id);
-        const newActiveId = remaining[0]?.id || null;
-        selectChat(newActiveId);
-      }
+      const chat = chats.find((c) => c.id === id);
+      setChatDeleteConfirm({ id, title: chat?.title ?? '' });
     },
-    [chats, activeChatId, selectChat],
+    [chats],
   );
+
+  // Реальное удаление — после подтверждения в модалке.
+  const confirmDeleteChat = useCallback(async () => {
+    const target = chatDeleteConfirm;
+    setChatDeleteConfirm(null);
+    if (!target) return;
+    const { id } = target;
+    try {
+      await fetch(`/api/chat/chat?conversationId=${encodeURIComponent(id)}`, { method: 'DELETE' });
+    } catch (err) {
+      console.error('Ошибка удаления чата:', err);
+    }
+    setChats((prev) => prev.filter((chat) => chat.id !== id));
+    if (activeChatId === id) {
+      const remaining = chatsRef.current.filter((chat) => chat.id !== id);
+      const newActiveId = remaining[0]?.id || null;
+      selectChat(newActiveId);
+    }
+  }, [chatDeleteConfirm, activeChatId, selectChat]);
 
   const handleSelectChat = useCallback(
     (id) => {
@@ -811,6 +824,20 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
               }. Попробуйте позже.`
         }
         onClose={() => setChatErrorModal(null)}
+      />
+      <ConfirmModal
+        open={!!chatDeleteConfirm}
+        icon="🗑️"
+        title="Удалить чат?"
+        message={
+          chatDeleteConfirm?.title
+            ? `Чат «${chatDeleteConfirm.title}» будет удалён без возможности восстановления.`
+            : 'Чат будет удалён без возможности восстановления.'
+        }
+        confirmLabel="Удалить"
+        cancelLabel="Отмена"
+        onConfirm={confirmDeleteChat}
+        onCancel={() => setChatDeleteConfirm(null)}
       />
     </div>
   );

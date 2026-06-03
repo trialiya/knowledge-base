@@ -36,6 +36,7 @@ const KnowledgeBase = ({
     docLoadError,
     saveError,
     moveConfirm,
+    deleteConfirm,
     discardConfirm,
     refreshing,
     path,
@@ -51,6 +52,8 @@ const KnowledgeBase = ({
     handleRename,
     handleSummarize,
     handleDelete,
+    handleDeleteConfirm,
+    handleDeleteCancel,
     handleReorder,
     handleMoveConfirm,
     handleMoveCancel,
@@ -165,6 +168,22 @@ const KnowledgeBase = ({
         cancelLabel="Остаться"
         onConfirm={handleDiscardConfirm}
         onCancel={handleDiscardCancel}
+      />
+
+      {/* ── Delete confirmation modal ── */}
+      <ConfirmModal
+        open={!!deleteConfirm}
+        icon="🗑️"
+        title={deleteConfirm?.type === 'folder' ? 'Удалить папку?' : 'Удалить документ?'}
+        message={
+          deleteConfirm?.title
+            ? `«${deleteConfirm.title}» будет удалён без возможности восстановления.`
+            : 'Элемент будет удалён без возможности восстановления.'
+        }
+        confirmLabel="Удалить"
+        cancelLabel="Отмена"
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
       />
 
       {/* ── Document load error modal ── */}

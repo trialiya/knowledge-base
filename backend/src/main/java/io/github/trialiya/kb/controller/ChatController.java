@@ -31,7 +31,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.ai.chat.client.ChatClient;
@@ -190,23 +189,28 @@ public class ChatController {
                                     })
                             .subscribe(
                                     response -> {
-                                        final String chunk = Optional.ofNullable(response)
-                                            .map(ChatResponse::getResult)
-                                            .map(Generation::getOutput)
-                                            .map(AbstractMessage::getText)
-                                            .orElse("");
-                                        final String finishReason = Optional.ofNullable(response)
-                                            .map(ChatResponse::getResult)
-                                            .map(Generation::getMetadata)
-                                            .map(ChatGenerationMetadata::getFinishReason)
-                                            .orElse(null);
+                                        final String chunk =
+                                                Optional.ofNullable(response)
+                                                        .map(ChatResponse::getResult)
+                                                        .map(Generation::getOutput)
+                                                        .map(AbstractMessage::getText)
+                                                        .orElse("");
+                                        final String finishReason =
+                                                Optional.ofNullable(response)
+                                                        .map(ChatResponse::getResult)
+                                                        .map(Generation::getMetadata)
+                                                        .map(
+                                                                ChatGenerationMetadata
+                                                                        ::getFinishReason)
+                                                        .orElse(null);
                                         if (finishReason != null) {
                                             buffer.setLength(0);
                                         } else {
                                             buffer.append(chunk);
                                         }
                                         liveSink.accept(new StreamMessage(chunk, finishReason));
-                                        printUsageStatistics(conversationId, response, finishReason);
+                                        printUsageStatistics(
+                                                conversationId, response, finishReason);
                                     },
                                     emitter::completeWithError,
                                     () -> {
@@ -472,7 +476,8 @@ public class ChatController {
         };
     }
 
-    private void printUsageStatistics(String conversationId, ChatResponse response, String finishReason) {
+    private void printUsageStatistics(
+            String conversationId, ChatResponse response, String finishReason) {
         if (finishReason == null || finishReason.isEmpty()) {
             return;
         }
@@ -483,11 +488,11 @@ public class ChatController {
                         usage -> {
                             log.info("[{}] FinishReason: {}", conversationId, finishReason);
                             log.info(
-                                "[{}] Usage:\n PromptToken: {}\n CompletionTokens: {}\n TotalTokens: {}",
-                                conversationId,
-                                usage.getPromptTokens(),
-                                usage.getCompletionTokens(),
-                                usage.getTotalTokens());
+                                    "[{}] Usage:\n PromptToken: {}\n CompletionTokens: {}\n TotalTokens: {}",
+                                    conversationId,
+                                    usage.getPromptTokens(),
+                                    usage.getCompletionTokens(),
+                                    usage.getTotalTokens());
                         });
     }
 }
