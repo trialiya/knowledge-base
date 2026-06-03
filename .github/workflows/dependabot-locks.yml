@@ -1,0 +1,38 @@
+name: Regenerate Gradle Lockfiles for Dependabot
+
+on:
+  push:
+    branches:
+      - "dependabot/gradle/**"
+
+permissions:
+  contents: write
+
+jobs:
+  relock:
+    runs-on: ubuntu-latest
+    # Only act on Dependabot's own commits
+    if: github.actor == 'dependabot[bot]'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Regenerate Gradle Lockfiles
+        # This forces Gradle to rewrite the lockfiles with updated dependencies
+        run: ./gradlew resolveAndLockAll --write-locks
+
+      - name: Commit updated lockfiles
+        run: |
+          git config user.name  "dependabot[bot]"
+          git config user.email "49699333+dependabot[bot]@users.noreply.github.com"
+          if ! git diff --quiet; then
+            git add '**/gradle.lockfile' 'gradle.lockfile' 2>/dev/null || git add -A
+            git commit -m "chore: regenerate gradle lockfiles"
+            git push
+          fi
