@@ -25,7 +25,6 @@ const generateUUID = () => {
   });
 };
 
-const DEFAULT_MESSAGE = {};
 const STORAGE_KEY_ACTIVE_ID = 'chat_activeId';
 
 const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActiveChatId = null, onSelectChat }) => {
@@ -201,7 +200,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
           text: msg.content,
           sender: msg.type?.toLowerCase?.() === 'user' ? 'user' : 'ai',
         })) || [];
-      const finalMessages = msgs.length > 0 ? msgs : [{ ...DEFAULT_MESSAGE }];
+      const finalMessages = msgs.length > 0 ? msgs : [];
       failedChatIdsRef.current.delete(chatId);
       setChats((prev) =>
         prev.map((chat) =>
@@ -590,7 +589,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
 
   const handleNewChat = useCallback(async () => {
     const newId = generateUUID();
-    const newChat = { id: newId, title: tRef.current('window.defaultTitle'), messages: [{ ...DEFAULT_MESSAGE }] };
+    const newChat = { id: newId, title: tRef.current('window.defaultTitle'), messages: [] };
     setChats((prev) => [newChat, ...prev]);
     selectChat(newId);
     // (attachment panel stays as-is on new chat)

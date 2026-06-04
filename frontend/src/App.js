@@ -5,6 +5,7 @@ import ConfirmModal from './components/common/ConfirmModal';
 import { isEditorDirty } from './components/knowledgeBasePanel/editorDirtyStore';
 import { IconRefresh } from './components/knowledgeBasePanel/icons';
 import useAppNavigation from './useAppNavigation';
+import LanguageSwitcher from './components/common/LanguageSwitcher';
 import './App.css';
 
 function App() {
@@ -94,6 +95,7 @@ function App() {
               <IconRefresh size={15} />
             </button>
           )}
+          <LanguageSwitcher />
         </div>
       </div>
 
