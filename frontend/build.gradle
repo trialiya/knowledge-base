@@ -69,6 +69,7 @@ tasks.register('yarnBuild', YarnTask) {
 }
 
 tasks.register('copyFrontend', Copy) {
+    dependsOn('spotlessReact')
     dependsOn('yarnBuild')
     from('build')
     into("${project(':backend').projectDir}/build/resources/main/static")
