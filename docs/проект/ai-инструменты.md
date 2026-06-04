@@ -4,6 +4,8 @@
 
 Система предоставляет AI-ассистенту набор инструментов для работы с базой знаний, Git-репозиторием и системной информацией. Инструменты вызываются через `ToolController` (`POST /api/tools`).
 
+Все инструменты используют **`CompactToolResultConverter`** — конвертер, который сжимает результаты в компактное превью (`resultGist`). Каждый DTO-результат реализует интерфейс `ToolCallResponseItem` с методом `toGist()`, возвращающим краткую сводку.
+
 ---
 
 ## 1. Поиск и чтение документов
@@ -83,7 +85,7 @@
 ### `getFileTree`
 Получение дерева файлов репозитория (один уровень).
 - **Параметры:** `path` (String|null — корень)
-- **Возвращает:** список файлов и папок
+- **Возвращает:** список `GitFileNode`
 
 ### `getFileContent`
 Получение содержимого файла из репозитория.
@@ -94,7 +96,7 @@
 ### `getFileOutline`
 Структурный анализ файла кода (классы, методы, поля и т.д.).
 - **Параметры:** `filePath` (String)
-- **Возвращает:** `GitFileOutline` со списком `GitSymbol` (имя, `startLine`, `endLine`)
+- **Возвращает:** `OutlineResult` — обёртка над `GitFileOutline` со списком `GitSymbol` (имя, `startLine`, `endLine`)
 - **Движок:** tree-sitter (Java, TypeScript, Python, SQL) → фолбэк на regex при недоступности tree-sitter. Поле `parser` показывает, какой движок использован (`tree-sitter` или `regex`).
 
 ### `searchFiles`
@@ -105,19 +107,18 @@
 ### `grepContent`
 Поиск текста внутри файлов репозитория (git grep).
 - **Параметры:** `pattern` (String), `pathGlob` (String|null), `regex` (boolean, default false), `contextLines` (int, default 1), `maxResults` (int, default 50)
-- **Возвращает:** список `GitGrepMatch` с полями: `path`, `matchLine` (номер строки первого совпадения в блоке), `text` (многострочный блок)
-- **Группировка:** соседние строки одного файла схлопываются в один блок. Формат: `:N:` для строк совпадения, `-N-` для контекста
+- **Возвращает:** список `GitGrepMatch` с полями: `path`, `matchLine` (int — номер строки совпадения), `text` (строка с совпадением)
 - **Предупреждение:** если pattern содержит regex-символы (`|`, `.*`, `^`, `$` и др.) но `regex=false` — возвращается предупреждение
 
 ### `getCommitLog`
 История коммитов.
 - **Параметры:** `maxCount` (int, default 20, max 100), `filePath` (String|null)
-- **Возвращает:** список коммитов
+- **Возвращает:** список `GitCommit`
 
 ### `getCommitDiff`
 Изменения для указанного коммита.
 - **Параметры:** `commitHashes` (String — один или через запятую), `includePatch` (boolean)
-- **Возвращает:** список файлов + diff (опционально)
+- **Возвращает:** список `GitDiffEntry` + diff (опционально)
 
 ### `getUncommittedChanges`
 Незакоммиченные изменения в рабочей директории.
@@ -152,3 +153,25 @@ ID текущего чата.
 Запись темы разговора (вызывается автоматически при каждом ответе).
 - **Параметры:** `topic` (String — 3 слова)
 - **Возвращает:** void
+
+---
+
+## 6. Компактные результаты (CompactToolResultConverter)
+
+Все инструменты используют `CompactToolResultConverter`, который преобразует полные DTO в сжатое превью:
+
+- **`resultGist`** — краткая текстовая сводка результата (например, `"size=1\n4512b4a 2026-06-03 Trialiya: feature: show compact tool result previews..."`)
+- **`ToolCallResponseItem`** — интерфейс с методом `toGist()`, реализуемый всеми DTO: `GitFileContent`, `GitFileOutline`, `GitCommit`, `GitGrepMatch`, `GitFileNode`, `GitDiffEntry`, `DocumentDto`, `AttachmentDto`
+- **`OutlineResult`** — новый DTO-обёртка для `getFileOutline`, содержит `path`, `language`, `lineCount`, `parser`, `symbols` и реализует `ToolCallResponseItem`
+
+### ToolInvocation
+
+`ToolInvocation` — отдельный record (не вложен в `ToolInvocationCollector`):
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `name` | String | Имя инструмента |
+| `arguments` | Map | Параметры вызова |
+| `status` | String | `STARTED`, `OK`, `ERROR` |
+| `error` | String | Сообщение об ошибке (при ERROR) |
+| `resultGist` | String | Краткая сводка результата (из `CompactToolResultConverter`) |

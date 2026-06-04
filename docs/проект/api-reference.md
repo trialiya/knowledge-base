@@ -43,11 +43,20 @@ ID предков от корня до узла (не включая сам уз
 ---
 
 ### GET `/api/documents/{id}/history`
-История изменений description документа. Возвращает список снепшотов — каждый содержит `descriptionVersion`, `description`, `updatedAt` и другие поля. Используется в `HistoryModal` для просмотра diff и восстановления предыдущих версий.
+История изменений description документа. Возвращает список снепшотов **без поля `description`** — только метаданные (version, title, type, descriptionVersion, updatedAt). Полный текст конкретной версии загружается отдельно через `GET /api/documents/{docId}/history/{version}`.
 
-**Response:** `List<DocumentHistory>`
+**Response:** `List<DocumentHistoryShort>`
 
 **Ошибки:** `404` — документ не найден
+
+---
+
+### GET `/api/documents/{docId}/history/{version}`
+Получить **полную** версию истории (с `description`) по номеру версии. Используется в `HistoryModal` для ленивой подгрузки описания выбранной версии.
+
+**Response:** `DocumentHistory`
+
+**Ошибки:** `404` — документ или версия не найдены
 
 ---
 
