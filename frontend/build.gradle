@@ -30,6 +30,12 @@ spotless {
     }
 }
 
+// Фронтовые тесты можно отключить:
+//   ./gradlew build -PskipFrontendTests
+// либо точечно исключить задачу:
+//   ./gradlew build -x yarnTest
+boolean runFrontendTests = !project.hasProperty('skipFrontendTests')
+
 tasks.register('yarnServe', YarnTask) {
     args = ['run', 'start']
 }
@@ -40,8 +46,25 @@ tasks.register('yarnInstall', YarnTask) {
     outputs.dir('node_modules')
 }
 
+tasks.register('yarnTest', YarnTask) {
+    dependsOn('yarnInstall')
+    // CI=true → react-scripts прогоняет тесты один раз и выходит (без watch-режима).
+    environment.put('CI', 'true')
+    // --watchAll=false дублирует CI=true как страховку; --passWithNoTests не валит
+    // сборку, если тестов ещё нет в каком-то модуле.
+    args = ['run', 'test', '--watchAll=false', '--passWithNoTests']
+    inputs.dir('src')
+    inputs.files('package.json', 'yarn.lock')
+    // У тестов нет файлового артефакта → не помечаем как up-to-date, гоняем при вызове.
+    outputs.upToDateWhen { false }
+}
+
 tasks.register('yarnBuild', YarnTask) {
     dependsOn('yarnInstall')
+    // Тесты гейтят сборкой артефакта (если не отключены флагом).
+    if (runFrontendTests) {
+        dependsOn('yarnTest')
+    }
     args = ['run', 'build']
 }
 
@@ -53,6 +76,14 @@ tasks.register('copyFrontend', Copy) {
 
 tasks.named('build') {
     dependsOn('copyFrontend')
+}
+
+// Тесты — часть верификации. `./gradlew check` прогонит и spotlessCheck, и jest.
+// configureEach + matching: безопасно, даже если задачи `check` нет в этом модуле.
+tasks.matching { it.name == 'check' }.configureEach {
+    if (runFrontendTests) {
+        dependsOn('yarnTest')
+    }
 }
 
 tasks.named('clean') {

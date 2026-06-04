@@ -1,0 +1,46 @@
+name: Frontend PR
+
+# Тесты фронта на каждый PR, который трогает фронтовые файлы.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-pr.yml'
+
+permissions:
+  contents: read
+
+# Новый пуш в ту же PR-ветку отменяет предыдущий прогон.
+concurrency:
+  group: frontend-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  FRONTEND_DIR: frontend
+  # Держим в синхроне с build.gradle → node { version = '22.22.3' }
+  NODE_VERSION: '22.22.3'
+
+jobs:
+  test:
+    name: Frontend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+          cache-dependency-path: ${{ env.FRONTEND_DIR }}/yarn.lock
+
+      - name: Install deps
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: yarn install --frozen-lockfile
+
+      - name: Run tests
+        working-directory: ${{ env.FRONTEND_DIR }}
+        env:
+          CI: 'true' # react-scripts: один прогон без watch
+        run: yarn test --watchAll=false --passWithNoTests

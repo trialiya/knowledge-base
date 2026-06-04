@@ -1,0 +1,148 @@
+{
+  "message": {
+    "copyMessage": "Копировать сообщение",
+    "viewSource": "Показать исходник",
+    "viewFormatted": "Показать с форматированием",
+    "btnSource": "Исходник",
+    "btnMarkdown": "Markdown",
+    "interrupted": "[⚠ Ответ прерван из-за ошибки на сервере]"
+  },
+  "window": {
+    "defaultTitle": "Новый чат",
+    "jiraTitle": "JIRA чат",
+    "renameHint": "Нажмите чтобы переименовать",
+    "createdAt": "Создан: {{date}}",
+    "attachments": "Вложения",
+    "selectChat": "Выберите чат",
+    "loadingMessages": "Загрузка сообщений...",
+    "notFoundTitle": "Чат не найден",
+    "loadErrorTitle": "Не удалось загрузить чат",
+    "notFoundDesc": "Возможно, он был удалён или ссылка устарела",
+    "loadErrorDesc": "Ошибка сервера ({{status}}). Попробуйте позже.",
+    "notFoundInputNote": "Этот чат недоступен — выберите другой или создайте новый.",
+    "loadErrorInputNote": "Чат не загружен. Выберите другой чат или попробуйте позже.",
+    "stopped": "[остановлено]",
+    "genericError": "Произошла ошибка. Попробуйте ещё раз.",
+    "uploadError": "Ошибка загрузки файла",
+    "jiraCreateError": "Ошибка создания JIRA чата"
+  },
+  "errorModal": {
+    "notFoundTitle": "Чат не найден",
+    "loadErrorTitle": "Не удалось загрузить чат",
+    "notFoundMessage": "Возможно, он был удалён или ссылка устарела. Выберите другой чат или создайте новый.",
+    "loadErrorMessage": "Ошибка при загрузке чата{{suffix}}. Попробуйте позже."
+  },
+  "deleteModal": {
+    "title": "Удалить чат?",
+    "messageNamed": "Чат «{{title}}» будет удалён без возможности восстановления.",
+    "message": "Чат будет удалён без возможности восстановления.",
+    "confirm": "Удалить",
+    "cancel": "Отмена"
+  },
+  "toolCall": {
+    "copy": "Скопировать",
+    "status": "Статус",
+    "result": "Результат",
+    "error": "Ошибка"
+  },
+  "scroll": {
+    "toLatest": "Вниз к последнему сообщению",
+    "scrollDown": "Прокрутить вниз"
+  },
+  "input": {
+    "placeholder": "Сообщение... (Shift+Enter — новая строка)",
+    "attach": "Прикрепить файл",
+    "send": "Отправить",
+    "stop": "Остановить"
+  },
+  "list": {
+    "newChat": "Новый чат",
+    "newJiraChat": "JIRA чат",
+    "rename": "Переименовать",
+    "delete": "Удалить"
+  },
+  "jira": {
+    "attachments": "Вложения",
+    "attachmentCount_one": "{{count}} вложение",
+    "attachmentCount_few": "{{count}} вложения",
+    "attachmentCount_many": "{{count}} вложений",
+    "empty": "Нет вложений",
+    "viewContent": "Просмотреть содержимое",
+    "openSource": "Открыть источник",
+    "refresh": "Обновить",
+    "refreshing": "Обновление…",
+    "refreshTitle": "Перезагрузить данные из JIRA",
+    "refreshError": "Ошибка обновления"
+  },
+  "jiraModal": {
+    "title": "Создать JIRA чат",
+    "jiraLabel": "JIRA задача",
+    "confluenceLabel": "Confluence страница",
+    "titleLabel": "Название чата",
+    "titlePlaceholder": "Авто (ключ задачи)",
+    "urlRequired": "Укажите ссылку на JIRA задачу",
+    "create": "Создать",
+    "creating": "Создание…",
+    "createError": "Ошибка создания чата"
+  },
+  "gitPhrases": {
+    "title": "Готовые фразы для работы с Git",
+    "hint": "Нажмите, чтобы вставить в поле ввода",
+    "categoryAll": "Все",
+    "categories": {
+      "analysis": "Анализ",
+      "commits": "Коммиты"
+    },
+    "phrases": {
+      "commitHistory": {
+        "label": "История коммитов",
+        "text": "Покажи историю коммитов и объясни ключевые изменения для файла {файл}"
+      },
+      "findCommitByText": {
+        "label": "Поиск коммита по тексту",
+        "text": "Найди коммит, в котором была добавлена или удалена строка содержащая «{текст}»."
+      },
+      "commitNameFromUncommitted": {
+        "label": "Имя коммита по незакоммиченным",
+        "text": "Посмотри что в незакоммиченных изменениях. Опиши изменения и подготовь имя коммита по аналогии на английском — концентрируйся на ценности, а не на технических изменениях в коде."
+      }
+    }
+  },
+  "docLink": {
+    "notFound": "Документ не найден",
+    "folder": "Folder",
+    "document": "Document",
+    "aiSummary": "AI Summary",
+    "stale": "устарел",
+    "noDescription": "Нет описания",
+    "open": "Открыть →"
+  },
+  "tools": {
+    "searchDocuments": "Поиск документов",
+    "findDocumentsByName": "Поиск по названию",
+    "getTreeSkeleton": "Структура базы",
+    "getDocument": "Чтение документа",
+    "createDocument": "Создание документа",
+    "updateDocument": "Правка документа",
+    "copyAttachmentToDocument": "Копирование вложения",
+    "getDocumentAttachments": "Вложения документа",
+    "getChatAttachments": "Вложения чата",
+    "getAttachmentContent": "Чтение вложения",
+    "getAttachmentContentByFileName": "Вложение по имени",
+    "createAttachment": "Создание вложения",
+    "searchAttachments": "Поиск по вложениям",
+    "getOriginalMessages": "Исходные сообщения",
+    "getChatId": "ID чата",
+    "getUserName": "Имя пользователя",
+    "getCurrentDateTime": "Текущее время",
+    "recordChatInsights": "Тема чата",
+    "getFileTree": "Дерево файлов",
+    "getCommitLog": "История коммитов",
+    "getCommitDiff": "Diff коммита",
+    "searchFiles": "Поиск файлов",
+    "getFileOutline": "Структура файла",
+    "getFileContent": "Чтение файла",
+    "getUncommittedChanges": "Незакоммиченные изменения",
+    "grepContent": "Поиск по коду"
+  }
+}

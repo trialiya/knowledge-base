@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import useDocPreview from '../knowledgeBasePanel/useDocPreview';
 import { IconFolder, IconDoc, IconSparkle } from '../knowledgeBasePanel/icons';
 
@@ -121,7 +122,9 @@ const ChatDocLink = ({ href, children, onNavigateToDoc, ...rest }) => {
 
 const DocPreviewTooltip = React.forwardRef(
   ({ node, loading, error, pos, onMouseEnter, onMouseLeave, onNavigate }, ref) => {
+    const { t, i18n } = useTranslation('chat');
     const isFolder = node?.type === 'folder';
+    const dateLocale = i18n.language === 'en' ? 'en-US' : 'ru-RU';
     return (
       <div
         ref={ref}
@@ -133,11 +136,11 @@ const DocPreviewTooltip = React.forwardRef(
         {loading && (
           <div className="doc-preview-tooltip__loading">
             <span className="doc-preview-tooltip__spinner" />
-            <span>Загрузка…</span>
+            <span>{t('common:loading')}</span>
           </div>
         )}
 
-        {error && !loading && <div className="doc-preview-tooltip__error">Документ не найден</div>}
+        {error && !loading && <div className="doc-preview-tooltip__error">{t('docLink.notFound')}</div>}
 
         {node && !loading && (
           <>
@@ -147,7 +150,7 @@ const DocPreviewTooltip = React.forwardRef(
               </span>
               <span className="doc-preview-tooltip__title">{node.title}</span>
               <span className={`doc-preview-tooltip__badge${isFolder ? ' doc-preview-tooltip__badge--folder' : ''}`}>
-                {isFolder ? 'Folder' : 'Document'}
+                {isFolder ? t('docLink.folder') : t('docLink.document')}
               </span>
             </div>
 
@@ -155,8 +158,8 @@ const DocPreviewTooltip = React.forwardRef(
               <div className="doc-preview-tooltip__summary">
                 <span className="doc-preview-tooltip__summary-label">
                   <IconSparkle size={10} />
-                  AI Summary
-                  {node.summaryStale && <span className="doc-preview-tooltip__stale">устарел</span>}
+                  {t('docLink.aiSummary')}
+                  {node.summaryStale && <span className="doc-preview-tooltip__stale">{t('docLink.stale')}</span>}
                 </span>
                 <p className="doc-preview-tooltip__summary-text">{node.summary}</p>
               </div>
@@ -168,11 +171,13 @@ const DocPreviewTooltip = React.forwardRef(
               </div>
             )}
 
-            {!node.summary && !node.description && <p className="doc-preview-tooltip__empty">Нет описания</p>}
+            {!node.summary && !node.description && (
+              <p className="doc-preview-tooltip__empty">{t('docLink.noDescription')}</p>
+            )}
 
             <div className="doc-preview-tooltip__footer">
               <span className="doc-preview-tooltip__date">
-                {node.updatedAt ? new Date(node.updatedAt).toLocaleDateString('ru-RU') : ''}
+                {node.updatedAt ? new Date(node.updatedAt).toLocaleDateString(dateLocale) : ''}
               </span>
               <button
                 className="doc-preview-tooltip__open"
@@ -181,7 +186,7 @@ const DocPreviewTooltip = React.forwardRef(
                   onNavigate(node.id);
                 }}
               >
-                Открыть →
+                {t('docLink.open')}
               </button>
             </div>
           </>

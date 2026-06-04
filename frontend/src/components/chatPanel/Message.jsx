@@ -80,7 +80,7 @@ const IconCopied = () => (
 
 /** Кнопка «копировать всё сообщение» — копирует исходный текст сообщения. */
 const MessageCopyButton = ({ text }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('chat');
   const [copied, setCopied] = useState(false);
   const timerRef = useRef(null);
 
@@ -101,7 +101,7 @@ const MessageCopyButton = ({ text }) => {
     <button
       className={`message-copy-btn ${copied ? 'message-copy-btn--done' : ''}`}
       onClick={handleCopy}
-      title={copied ? t('common.copied') : t('message.copyMessage')}
+      title={copied ? t('common:copied') : t('message.copyMessage')}
       type="button"
     >
       {copied ? <IconCopied /> : <IconCopy />}
@@ -142,7 +142,7 @@ const buildCopyText = (tc, t) => {
 
 /** Одиночная плашка вызова — hover-тултип + кнопка копирования */
 const ToolCallItem = ({ tc }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('chat');
   const label = t(toolLabelKey(tc.name), { defaultValue: humanizeTool(tc.name) });
   const icon = getToolIcon(tc.name);
   const argsStr = formatArgs(tc.arguments);
@@ -252,7 +252,7 @@ const ToolCallItem = ({ tc }) => {
 
 /** Группа одноимённых последовательных вызовов — сворачиваемая */
 const ToolCallGroup = ({ name, items }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('chat');
   const [open, setOpen] = useState(false);
 
   // Одиночный вызов — рендерим как обычную плашку, без шеврона/бейджа
@@ -360,7 +360,7 @@ function getMarkdownComponents(onNavigateToDoc) {
 }
 
 const Message = ({ text, sender, toolCalls, onNavigateToDoc }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('chat');
   const [showSource, setShowSource] = useState(false);
   const messageClass = `message ${sender}`;
   const hasToolCalls = toolCalls && toolCalls.length > 0;

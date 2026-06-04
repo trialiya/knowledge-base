@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import GitPhrases from './GitPhrases';
 
 const IconSend = () => (
@@ -40,6 +41,7 @@ const IconPaperclip = () => (
 
 // isEmpty — true когда в чате ещё нет сообщений; тогда показываем git-подсказки
 const MessageInput = ({ onSend, onStop, disabled, onAttach, isEmpty = false }) => {
+  const { t } = useTranslation('chat');
   const [text, setText] = useState('');
   const textareaRef = useRef(null);
 
@@ -97,7 +99,7 @@ const MessageInput = ({ onSend, onStop, disabled, onAttach, isEmpty = false }) =
             type="button"
             className="message-input-attach-btn"
             onClick={onAttach}
-            title="Прикрепить файл"
+            title={t('input.attach')}
             tabIndex={-1}
           >
             <IconPaperclip />
@@ -108,7 +110,7 @@ const MessageInput = ({ onSend, onStop, disabled, onAttach, isEmpty = false }) =
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Сообщение... (Shift+Enter — новая строка)"
+          placeholder={t('input.placeholder')}
           disabled={disabled}
           className="message-input"
           rows={1}
@@ -120,7 +122,7 @@ const MessageInput = ({ onSend, onStop, disabled, onAttach, isEmpty = false }) =
           }
           onClick={disabled ? onStop : handleSubmit}
           disabled={!disabled && !text.trim()}
-          title={disabled ? 'Остановить' : 'Отправить'}
+          title={disabled ? t('input.stop') : t('input.send')}
         >
           {disabled ? <IconStop /> : <IconSend />}
         </button>
