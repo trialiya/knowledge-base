@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Modal dialog for creating a JIRA-linked chat.
@@ -9,6 +10,7 @@ import React, { useState } from 'react';
  *   onCreate — called with { jiraUrl, confluenceUrl, title } when user submits
  */
 const CreateJiraChatModal = ({ open, onClose, onCreate }) => {
+  const { t } = useTranslation('chat');
   const [jiraUrl, setJiraUrl] = useState('');
   const [confluenceUrl, setConfluenceUrl] = useState('');
   const [title, setTitle] = useState('');
@@ -19,7 +21,7 @@ const CreateJiraChatModal = ({ open, onClose, onCreate }) => {
 
   const handleSubmit = async () => {
     if (!jiraUrl.trim()) {
-      setError('Укажите ссылку на JIRA задачу');
+      setError(t('jiraModal.urlRequired'));
       return;
     }
     setError('');
@@ -36,7 +38,7 @@ const CreateJiraChatModal = ({ open, onClose, onCreate }) => {
       setTitle('');
       onClose();
     } catch (err) {
-      setError(err.message || 'Ошибка создания чата');
+      setError(err.message || t('jiraModal.createError'));
     } finally {
       setLoading(false);
     }
@@ -50,8 +52,8 @@ const CreateJiraChatModal = ({ open, onClose, onCreate }) => {
     <div className="jira-modal-backdrop" onClick={handleBackdrop}>
       <div className="jira-modal">
         <div className="jira-modal__header">
-          <span className="jira-modal__title">Создать JIRA чат</span>
-          <button className="jira-modal__close" onClick={onClose} title="Закрыть">
+          <span className="jira-modal__title">{t('jiraModal.title')}</span>
+          <button className="jira-modal__close" onClick={onClose} title={t('common:close')}>
             ✕
           </button>
         </div>
@@ -59,7 +61,7 @@ const CreateJiraChatModal = ({ open, onClose, onCreate }) => {
         <div className="jira-modal__body">
           <label className="jira-modal__label">
             <span>
-              JIRA задача <span className="jira-modal__required">*</span>
+              {t('jiraModal.jiraLabel')} <span className="jira-modal__required">*</span>
             </span>
             <input
               type="url"
@@ -73,7 +75,7 @@ const CreateJiraChatModal = ({ open, onClose, onCreate }) => {
           </label>
 
           <label className="jira-modal__label">
-            <span>Confluence страница</span>
+            <span>{t('jiraModal.confluenceLabel')}</span>
             <input
               type="url"
               className="jira-modal__input"
@@ -85,11 +87,11 @@ const CreateJiraChatModal = ({ open, onClose, onCreate }) => {
           </label>
 
           <label className="jira-modal__label">
-            <span>Название чата</span>
+            <span>{t('jiraModal.titleLabel')}</span>
             <input
               type="text"
               className="jira-modal__input"
-              placeholder="Авто (ключ задачи)"
+              placeholder={t('jiraModal.titlePlaceholder')}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               disabled={loading}
@@ -101,10 +103,10 @@ const CreateJiraChatModal = ({ open, onClose, onCreate }) => {
 
         <div className="jira-modal__footer">
           <button className="jira-modal__btn jira-modal__btn--cancel" onClick={onClose} disabled={loading}>
-            Отмена
+            {t('common:cancel')}
           </button>
           <button className="jira-modal__btn jira-modal__btn--create" onClick={handleSubmit} disabled={loading}>
-            {loading ? 'Создание…' : 'Создать'}
+            {loading ? t('jiraModal.creating') : t('jiraModal.create')}
           </button>
         </div>
       </div>

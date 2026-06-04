@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import './jiraAttachmentPanel.css';
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -125,6 +126,7 @@ function detectAttachmentType(attachment) {
 // ─── Content viewer ───────────────────────────────────────────────────────────
 
 const ContentDrawer = ({ attachment, onClose }) => {
+  const { t } = useTranslation('chat');
   const [content, setContent] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -140,14 +142,14 @@ const ContentDrawer = ({ attachment, onClose }) => {
       })
       .catch(() => {
         if (!cancelled) {
-          setContent('Ошибка загрузки');
+          setContent(t('common:loadError'));
           setLoading(false);
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [attachment.id]);
+  }, [attachment.id, t]);
 
   return (
     <div className="jira-drawer-overlay" onClick={onClose}>
@@ -160,7 +162,7 @@ const ContentDrawer = ({ attachment, onClose }) => {
         </div>
         <div className="jira-drawer__body">
           {loading ? (
-            <p className="jira-drawer__loading">Загрузка…</p>
+            <p className="jira-drawer__loading">{t('common:loading')}</p>
           ) : (
             <pre className="jira-drawer__content">{content}</pre>
           )}
@@ -173,6 +175,7 @@ const ContentDrawer = ({ attachment, onClose }) => {
 // ─── Single attachment card ───────────────────────────────────────────────────
 
 const AttachmentCard = ({ attachment, onView }) => {
+  const { t } = useTranslation('chat');
   const type = detectAttachmentType(attachment);
 
   return (
@@ -185,7 +188,7 @@ const AttachmentCard = ({ attachment, onView }) => {
           {attachment.fileName}
         </span>
         <span className="jira-att-card__size">{formatSize(attachment.fileSize)}</span>
-        <button className="jira-att-card__view-btn" onClick={() => onView(attachment)} title="Просмотреть содержимое">
+        <button className="jira-att-card__view-btn" onClick={() => onView(attachment)} title={t('jira.viewContent')}>
           <IconEye />
         </button>
       </div>
@@ -200,7 +203,7 @@ const AttachmentCard = ({ attachment, onView }) => {
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
         >
-          <IconLink /> Открыть источник
+          <IconLink /> {t('jira.openSource')}
         </a>
       )}
     </div>
@@ -218,6 +221,7 @@ const AttachmentCard = ({ attachment, onView }) => {
  *   onCountChange   — optional (count: number) => void
  */
 const JiraAttachmentPanel = ({ conversationId, jiraUrl, onCountChange }) => {
+  const { t } = useTranslation('chat');
   const [attachments, setAttachments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -258,7 +262,7 @@ const JiraAttachmentPanel = ({ conversationId, jiraUrl, onCountChange }) => {
       if (!res.ok) throw new Error(await res.text());
       await load();
     } catch (e) {
-      setRefreshError(e.message || 'Ошибка обновления');
+      setRefreshError(e.message || t('jira.refreshError'));
     } finally {
       setRefreshing(false);
     }
@@ -272,17 +276,17 @@ const JiraAttachmentPanel = ({ conversationId, jiraUrl, onCountChange }) => {
       {/* Header row with refresh */}
       <div className="jira-att-panel__toolbar">
         <span className="jira-att-panel__label">
-          {attachments.length > 0 ? `${attachments.length} вложени${attachments.length === 1 ? 'е' : 'я'}` : 'Вложения'}
+          {attachments.length > 0 ? t('jira.attachmentCount', { count: attachments.length }) : t('jira.attachments')}
         </span>
         {jiraUrl && (
           <button
             className="jira-att-panel__refresh-btn"
             onClick={handleRefresh}
             disabled={refreshing || loading}
-            title="Перезагрузить данные из JIRA"
+            title={t('jira.refreshTitle')}
           >
             <IconRefresh spinning={refreshing} />
-            {refreshing ? 'Обновление…' : 'Обновить'}
+            {refreshing ? t('jira.refreshing') : t('jira.refresh')}
           </button>
         )}
       </div>
@@ -292,10 +296,10 @@ const JiraAttachmentPanel = ({ conversationId, jiraUrl, onCountChange }) => {
       {loading ? (
         <div className="jira-att-panel__loading">
           <span className="jira-att-panel__spinner" />
-          Загрузка…
+          {t('common:loading')}
         </div>
       ) : attachments.length === 0 ? (
-        <p className="jira-att-panel__empty">Нет вложений</p>
+        <p className="jira-att-panel__empty">{t('jira.empty')}</p>
       ) : (
         <div className="jira-att-panel__list">
           {jiraAttachment && <AttachmentCard key={jiraAttachment.id} attachment={jiraAttachment} onView={setViewing} />}

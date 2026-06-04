@@ -1,0 +1,124 @@
+name: Frontend main daily build
+
+# Раз в сутки собираем фронт с тестами на main — но ТОЛЬКО если с момента
+# прошлой успешной сборки что-то менялось во фронте. Не на каждый коммит:
+# триггер — расписание (и ручной запуск), пуши сюда ничего не запускают.
+on:
+  schedule:
+    - cron: '0 18 * * *' # каждый день в 18:00 UTC (подберите удобное время)
+  workflow_dispatch: {} # ручной запуск — собирает всегда, без проверки изменений
+
+permissions:
+  contents: read
+  actions: read # нужно для `gh run list` (ищем прошлую успешную сборку)
+
+concurrency:
+  group: frontend-main-daily
+  cancel-in-progress: false
+
+env:
+  FRONTEND_DIR: frontend
+  # Gradle-путь фронт-модуля. Если фронт — КОРНЕВОЙ проект, поставьте пустую строку
+  # (тогда задачи станут ':build' / ':yarnTest').
+  FRONTEND_MODULE: ':frontend'
+  NODE_VERSION: '22.22.3'
+
+jobs:
+  # ── 1. Проверяем, менялся ли фронт с прошлой успешной сборки ────────────────
+  detect:
+    name: Detect frontend changes
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.check.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # полная история — нужна для git diff с прошлым SHA
+
+      - name: Did the frontend change since the last successful build?
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # Ручной запуск — собираем безусловно.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual run — building regardless of changes."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # SHA коммита из последней УСПЕШНОЙ сборки этого воркфлоу на main.
+          last_sha=$(gh run list \
+            --workflow frontend-main-daily.yml \
+            --branch main \
+            --status success \
+            --limit 1 \
+            --json headSha \
+            --jq '.[0].headSha // ""' 2>/dev/null || echo "")
+
+          if [ -z "$last_sha" ]; then
+            echo "No previous successful build found — building."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # На случай rewrite/force-push: если коммита нет в истории — собираем.
+          if ! git cat-file -e "${last_sha}^{commit}" 2>/dev/null; then
+            echo "Last built commit $last_sha is not in history — building."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Есть ли изменения во фронте между прошлой сборкой и HEAD?
+          if git diff --quiet "$last_sha" HEAD -- "$FRONTEND_DIR"; then
+            echo "No frontend changes since $last_sha — skipping build."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Frontend changes since $last_sha — building."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ── 2. Полная сборка с тестами (только если что-то менялось) ────────────────
+  build:
+    name: Build with tests
+    needs: detect
+    if: needs.detect.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Cache node toolchain & modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.FRONTEND_DIR }}/node_modules
+            ${{ env.FRONTEND_DIR }}/.gradle/nodejs
+            ${{ env.FRONTEND_DIR }}/.gradle/yarn
+          key: ${{ runner.os }}-frontend-node-${{ env.NODE_VERSION }}-${{ hashFiles(format('{0}/yarn.lock', env.FRONTEND_DIR)) }}
+          restore-keys: |
+            ${{ runner.os }}-frontend-node-${{ env.NODE_VERSION }}-
+
+      # Прогоняет фронт-модуль: yarnInstall → yarnTest → yarnBuild → copyFrontend,
+      # плюс spotlessCheck (через check). Тесты гейтят артефакт.
+      - name: Build (with tests)
+        run: ./gradlew "${FRONTEND_MODULE}:build" --no-daemon --stacktrace
+
+      - name: Upload CRA build output
+        if: success()
+        uses: actions/upload-artifact@v6
+        with:
+          name: frontend-build
+          path: ${{ env.FRONTEND_DIR }}/build
+          retention-days: 7
+          if-no-files-found: warn

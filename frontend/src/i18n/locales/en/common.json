@@ -1,0 +1,12 @@
+{
+  "copy": "Copy",
+  "copied": "Copied",
+  "cancel": "Cancel",
+  "close": "Close",
+  "delete": "Delete",
+  "save": "Save",
+  "open": "Open",
+  "refresh": "Refresh",
+  "loading": "Loading…",
+  "loadError": "Failed to load"
+}

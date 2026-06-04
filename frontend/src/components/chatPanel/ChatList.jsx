@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 const ChatList = ({ chats, activeChatId, onSelectChat, onNewChat, onDeleteChat, onRenameChat, onNewJiraChat }) => {
+  const { t } = useTranslation('chat');
   const [editingId, setEditingId] = useState(null);
   const [editValue, setEditValue] = useState('');
 
@@ -32,11 +34,11 @@ const ChatList = ({ chats, activeChatId, onSelectChat, onNewChat, onDeleteChat, 
   return (
     <div className="chat-list">
       <button onClick={onNewChat} className="new-chat-button">
-        + Новый чат
+        + {t('list.newChat')}
       </button>
       {onNewJiraChat && (
         <button onClick={onNewJiraChat} className="new-jira-chat-button">
-          🔗 JIRA чат
+          🔗 {t('list.newJiraChat')}
         </button>
       )}
       <ul>
@@ -67,7 +69,7 @@ const ChatList = ({ chats, activeChatId, onSelectChat, onNewChat, onDeleteChat, 
                       e.stopPropagation();
                       startEdit(chat.id, chat.title);
                     }}
-                    title="Переименовать"
+                    title={t('list.rename')}
                   >
                     ✎
                   </button>
@@ -78,7 +80,7 @@ const ChatList = ({ chats, activeChatId, onSelectChat, onNewChat, onDeleteChat, 
                         e.stopPropagation();
                         onDeleteChat(chat.id);
                       }}
-                      title="Удалить"
+                      title={t('list.delete')}
                     >
                       ✕
                     </button>

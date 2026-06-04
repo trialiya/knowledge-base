@@ -2,28 +2,34 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 
-import ru from './locales/ru.json';
-import en from './locales/en.json';
+import ruCommon from './locales/ru/common.json';
+import ruChat from './locales/ru/chat.json';
+import ruKnowledgeBase from './locales/ru/knowledgeBase.json';
+import enCommon from './locales/en/common.json';
+import enChat from './locales/en/chat.json';
+import enKnowledgeBase from './locales/en/knowledgeBase.json';
+
+const resources = {
+  ru: { common: ruCommon, chat: ruChat, knowledgeBase: ruKnowledgeBase },
+  en: { common: enCommon, chat: enChat, knowledgeBase: enKnowledgeBase },
+};
 
 i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
-    resources: {
-      ru: { translation: ru },
-      en: { translation: en },
-    },
+    resources,
     fallbackLng: 'ru',
     supportedLngs: ['ru', 'en'],
-    // Реакт сам экранирует — выключаем двойное экранирование i18next.
+    ns: ['common', 'chat', 'knowledgeBase'],
+    defaultNS: 'common',
+    fallbackNS: 'common',
     interpolation: { escapeValue: false },
     detection: {
-      // Сначала ранее выбранный язык, потом язык браузера.
       order: ['localStorage', 'navigator'],
       lookupLocalStorage: 'kb-lang',
       caches: ['localStorage'],
     },
-    // Ресурсы забандлены — асинхронной загрузки нет, Suspense не нужен.
     react: { useSuspense: false },
   });
 

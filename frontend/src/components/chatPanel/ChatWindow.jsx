@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
@@ -28,6 +29,7 @@ const DEFAULT_MESSAGE = {};
 const STORAGE_KEY_ACTIVE_ID = 'chat_activeId';
 
 const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActiveChatId = null, onSelectChat }) => {
+  const { t } = useTranslation('chat');
   const [chats, setChats] = useState([]);
   // Внутреннее зеркало активного чата. Источник правды — проп propActiveChatId
   // (его держит useAppNavigation в App). Локальные выборы поднимаются наверх
@@ -73,6 +75,12 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   const chatsRef = useRef(chats);
   // Guards the one-time chat-list fetch against StrictMode's double-invoke.
   const didFetchChatsRef = useRef(false);
+  // Зеркало t() для использования внутри стрим-колбэков без добавления t в deps
+  // (иначе колбэк пересоздавался бы при смене языка во время стриминга).
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
   useEffect(() => {
     chatsRef.current = chats;
   }, [chats]);
@@ -97,7 +105,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         const data = await res.json();
         const chatList = data.map((chat) => ({
           id: chat.conversationId,
-          title: chat.topic || 'Новый чат',
+          title: chat.topic || tRef.current('window.defaultTitle'),
           messages: null,
           createdAt: chat.createdAt || null,
         }));
@@ -522,7 +530,10 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
             const messages = [...updated.messages];
             const idx = aiMessageIndexRef.current;
             if (messages[idx]?.sender === 'ai') {
-              messages[idx] = { ...messages[idx], text: (aiMessageTextRef.current || '').trimEnd() + ' [остановлено]' };
+              messages[idx] = {
+                ...messages[idx],
+                text: (aiMessageTextRef.current || '').trimEnd() + ' ' + tRef.current('window.stopped'),
+              };
               updated.messages = messages;
             }
             const others = prev.filter((c) => c.id !== activeChatId);
@@ -538,12 +549,13 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
             const idx = aiMessageIndexRef.current;
             if (messages[idx]?.sender === 'ai') {
               const partial = (aiMessageTextRef.current || '').trimEnd();
-              const note = '\n\n_**[⚠ Ответ прерван из-за ошибки на сервере]**_';
+              // Пометку оборачиваем в markdown тут, а переводим только текст.
+              const note = `\n\n_**${tRef.current('message.interrupted')}**_`;
               messages[idx] = {
                 ...messages[idx],
                 // если что-то успело прийти — оставляем и дописываем пометку,
                 // иначе показываем обычный текст ошибки
-                text: partial ? partial + note : 'Произошла ошибка. Попробуйте ещё раз.',
+                text: partial ? partial + note : tRef.current('window.genericError'),
                 toolCalls: [...toolCallsRef.current],
               };
               updated.messages = messages;
@@ -569,7 +581,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
 
   const handleNewChat = useCallback(async () => {
     const newId = generateUUID();
-    const newChat = { id: newId, title: 'Новый чат', messages: [{ ...DEFAULT_MESSAGE }] };
+    const newChat = { id: newId, title: tRef.current('window.defaultTitle'), messages: [{ ...DEFAULT_MESSAGE }] };
     setChats((prev) => [newChat, ...prev]);
     selectChat(newId);
     // (attachment panel stays as-is on new chat)
@@ -584,12 +596,12 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       });
       if (!res.ok) {
         const text = await res.text();
-        throw new Error(text || 'Ошибка создания JIRA чата');
+        throw new Error(text || tRef.current('window.jiraCreateError'));
       }
       const chat = await res.json();
       const newChat = {
         id: chat.conversationId,
-        title: chat.topic || 'JIRA чат',
+        title: chat.topic || tRef.current('window.jiraTitle'),
         messages: null,
         createdAt: chat.createdAt || null,
         jiraUrl: request.jiraUrl,
@@ -654,11 +666,14 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         setAttachPanelOpen(true);
       } catch (err) {
         console.error('Upload error:', err);
-        alert('Ошибка загрузки файла');
+        alert(t('window.uploadError'));
       }
     },
-    [activeChatId],
+    [activeChatId, t],
   );
+
+  // Суффикс с кодом ошибки для сообщения модалки (если это не сетевой сбой).
+  const errorModalSuffix = chatErrorModal && chatErrorModal.status !== 'network' ? ` (${chatErrorModal.status})` : '';
 
   return (
     <div className="chat-app-container">
@@ -698,7 +713,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
                 />
               ) : (
                 <h3
-                  title="Нажмите чтобы переименовать"
+                  title={t('window.renameHint')}
                   onClick={() => {
                     setTitleDraft(activeChat.title);
                     setEditingTitle(true);
@@ -708,14 +723,16 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
                 </h3>
               )}
               <div className="chat-meta">
-                {activeChat.createdAt ? `Создан: ${new Date(activeChat.createdAt).toLocaleString()}` : 'Новый чат'}
+                {activeChat.createdAt
+                  ? t('window.createdAt', { date: new Date(activeChat.createdAt).toLocaleString() })
+                  : t('window.defaultTitle')}
               </div>
             </div>
             {/* Attachment toggle button in header */}
             <button
               className={`chat-header-attachments-btn ${attachPanelOpen ? 'chat-header-attachments-btn--active' : ''}`}
               onClick={() => setAttachPanelOpen((v) => !v)}
-              title="Вложения"
+              title={t('window.attachments')}
             >
               <IconPaperclip size={15} />
               {attachCount > 0 && <span className="attach-badge">{attachCount}</span>}
@@ -727,15 +744,15 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         )}
 
         {loadingMessages ? (
-          <div className="loading-messages">Загрузка сообщений...</div>
+          <div className="loading-messages">{t('window.loadingMessages')}</div>
         ) : activeChat?.notFound || activeChat?.loadError ? (
           <div className="loading-messages" style={{ flexDirection: 'column', gap: '0.5rem' }}>
             <span style={{ fontSize: '2rem' }}>{activeChat?.notFound ? '🔍' : '⚠️'}</span>
-            <span>{activeChat?.notFound ? 'Чат не найден' : 'Не удалось загрузить чат'}</span>
+            <span>{activeChat?.notFound ? t('window.notFoundTitle') : t('window.loadErrorTitle')}</span>
             <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>
               {activeChat?.notFound
-                ? 'Возможно, он был удалён или ссылка устарела'
-                : `Ошибка сервера (${activeChat?.loadError}). Попробуйте позже.`}
+                ? t('window.notFoundDesc')
+                : t('window.loadErrorDesc', { status: activeChat?.loadError })}
             </span>
           </div>
         ) : (
@@ -757,9 +774,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         {activeChat?.notFound || activeChat?.loadError ? (
           <div className="message-input-wrapper message-input-wrapper--disabled">
             <span className="message-input-disabled-note">
-              {activeChat?.notFound
-                ? 'Этот чат недоступен — выберите другой или создайте новый.'
-                : 'Чат не загружен. Выберите другой чат или попробуйте позже.'}
+              {activeChat?.notFound ? t('window.notFoundInputNote') : t('window.loadErrorInputNote')}
             </span>
           </div>
         ) : (
@@ -777,8 +792,12 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       {attachPanelOpen && (
         <div className="chat-attachment-panel">
           <div className="chat-attachment-panel__header">
-            <span>📎 Вложения</span>
-            <button className="chat-attachment-panel__close" onClick={() => setAttachPanelOpen(false)} title="Закрыть">
+            <span>📎 {t('window.attachments')}</span>
+            <button
+              className="chat-attachment-panel__close"
+              onClick={() => setAttachPanelOpen(false)}
+              title={t('common:close')}
+            >
               ✕
             </button>
           </div>
@@ -802,7 +821,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
                 />
               )
             ) : (
-              <p className="chat-attachment-panel__empty">Выберите чат</p>
+              <p className="chat-attachment-panel__empty">{t('window.selectChat')}</p>
             )}
           </div>
         </div>
@@ -815,27 +834,25 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       <ErrorModal
         open={!!chatErrorModal}
         icon={chatErrorModal?.notFound ? '🔍' : '⚠️'}
-        title={chatErrorModal?.notFound ? 'Чат не найден' : 'Не удалось загрузить чат'}
+        title={chatErrorModal?.notFound ? t('errorModal.notFoundTitle') : t('errorModal.loadErrorTitle')}
         message={
           chatErrorModal?.notFound
-            ? 'Возможно, он был удалён или ссылка устарела. Выберите другой чат или создайте новый.'
-            : `Ошибка при загрузке чата${
-                chatErrorModal && chatErrorModal.status !== 'network' ? ` (${chatErrorModal.status})` : ''
-              }. Попробуйте позже.`
+            ? t('errorModal.notFoundMessage')
+            : t('errorModal.loadErrorMessage', { suffix: errorModalSuffix })
         }
         onClose={() => setChatErrorModal(null)}
       />
       <ConfirmModal
         open={!!chatDeleteConfirm}
         icon="🗑️"
-        title="Удалить чат?"
+        title={t('deleteModal.title')}
         message={
           chatDeleteConfirm?.title
-            ? `Чат «${chatDeleteConfirm.title}» будет удалён без возможности восстановления.`
-            : 'Чат будет удалён без возможности восстановления.'
+            ? t('deleteModal.messageNamed', { title: chatDeleteConfirm.title })
+            : t('deleteModal.message')
         }
-        confirmLabel="Удалить"
-        cancelLabel="Отмена"
+        confirmLabel={t('deleteModal.confirm')}
+        cancelLabel={t('deleteModal.cancel')}
         onConfirm={confirmDeleteChat}
         onCancel={() => setChatDeleteConfirm(null)}
       />

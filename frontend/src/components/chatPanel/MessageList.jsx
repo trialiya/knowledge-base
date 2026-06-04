@@ -25,7 +25,7 @@ const IconArrowDown = () => (
 );
 
 const MessageList = ({ messages, onNavigateToDoc }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('chat');
   const containerRef = useRef(null);
   // Источник правды для синхронной логики в эффектах: держимся ли у низа.
   const stickRef = useRef(true);

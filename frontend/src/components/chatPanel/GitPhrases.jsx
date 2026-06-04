@@ -1,50 +1,20 @@
 import React, { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import './gitPhrases.css';
 
-// ─── Список готовых фраз ───────────────────────────────────────────────────
+// ─── Список фраз ───────────────────────────────────────────────────────────
+// Тексты/лейблы/категории живут в i18n под chat.gitPhrases.*:
+//   • category → ключ chat.gitPhrases.categories.<category>
+//   • id       → ключи chat.gitPhrases.phrases.<id>.{label,text}
+//
+// ВАЖНО: в текстах фраз плейсхолдеры пишутся одинарными скобками — {файл}, {текст}.
+// Двойные {{ }} зарезервированы под интерполяцию i18next и были бы вырезаны.
 export const GIT_PHRASES = [
-  // ── Анализ ─────────────────────────────────────────────────────────────
-  {
-    category: 'Анализ',
-    label: 'История коммитов',
-    text: 'Покажи историю коммитов и объясни ключевые изменения для файла {{файл}}',
-  },
-  // {
-  //   category: 'Анализ',
-  //   label: 'Разница между ветками',
-  //   text: 'Покажи diff между ветками {{ветка_1}} и {{ветка_2}} и объясни суть изменений.',
-  // },
-  {
-    category: 'Анализ',
-    label: 'Поиск коммита по тексту',
-    text: 'Найди коммит, в котором была добавлена или удалена строка содержащая «{{текст}}».',
-  },
-  {
-    category: 'Анализ',
-    label: 'Просмотри изменений',
-    text: 'Найди коммит, в котором была добавлена или удалена строка содержащая «{{текст}}».',
-  },
-
+  // ── Анализ ───────────────────────────────────────────────────────────────
+  { id: 'commitHistory', category: 'analysis' },
+  { id: 'findCommitByText', category: 'analysis' },
   // ── Коммиты ──────────────────────────────────────────────────────────────
-  {
-    category: 'Коммиты',
-    label: 'Имя коммита по незакоммиченным',
-    text: 'Посмотри что в незакоммиченных изменениях. Опиши изменения и подготовь имя коммита по аналогии на английском — концентрируйся на ценности, а не на технических изменениях в коде.',
-  },
-
-  // ── Теги / Релизы ─────────────────────────────────────────────────────────
-  // {
-  //   category: 'Теги / Релизы',
-  //   label: 'Changelog между тегами',
-  //   text: 'Сгенерируй changelog между тегами {{тег_1}} и {{тег_2}} в формате Markdown.',
-  // },
-
-  // ── Remote / GitHub ──────────────────────────────────────────────────────
-  // {
-  //   category: 'Remote / GitHub',
-  //   label: 'Описание Pull Request',
-  //   text: 'Напиши описание Pull Request для ветки {{ветка}}. Изменения: {{описание_изменений}}',
-  // },
+  { id: 'commitNameFromUncommitted', category: 'commits' },
 ];
 
 // Git branch icon
@@ -66,55 +36,62 @@ const IconGitBranch = () => (
   </svg>
 );
 
-const ALL_CATEGORIES = ['Все', ...Array.from(new Set(GIT_PHRASES.map((p) => p.category)))];
-
 /**
  * Блок готовых git-фраз, показывается над полем ввода (обычно при пустом чате).
  * При клике вызывает onSelect(text) — родитель вставляет текст в поле ввода.
  */
 const GitPhrases = ({ onSelect }) => {
-  const [activeCategory, setActiveCategory] = useState('Все');
+  const { t } = useTranslation('chat');
+  const [activeCategory, setActiveCategory] = useState('all');
+
+  const categories = useMemo(() => ['all', ...Array.from(new Set(GIT_PHRASES.map((p) => p.category)))], []);
 
   const filtered = useMemo(() => {
-    if (activeCategory === 'Все') return GIT_PHRASES;
+    if (activeCategory === 'all') return GIT_PHRASES;
     return GIT_PHRASES.filter((p) => p.category === activeCategory);
   }, [activeCategory]);
+
+  const catLabel = (cat) => (cat === 'all' ? t('gitPhrases.categoryAll') : t(`gitPhrases.categories.${cat}`));
 
   return (
     <div className="git-phrases-block">
       <div className="git-phrases-block-header">
         <span className="git-phrases-block-title">
-          <IconGitBranch /> Готовые фразы для работы с Git
+          <IconGitBranch /> {t('gitPhrases.title')}
         </span>
-        <span className="git-phrases-block-hint">Нажмите, чтобы вставить в поле ввода</span>
+        <span className="git-phrases-block-hint">{t('gitPhrases.hint')}</span>
       </div>
 
       <div className="git-phrases-categories">
-        {ALL_CATEGORIES.map((cat) => (
+        {categories.map((cat) => (
           <button
             key={cat}
             type="button"
             className={`git-phrases-cat-btn ${activeCategory === cat ? 'git-phrases-cat-btn--active' : ''}`}
             onClick={() => setActiveCategory(cat)}
           >
-            {cat}
+            {catLabel(cat)}
           </button>
         ))}
       </div>
 
       <div className="git-phrases-grid">
-        {filtered.map((phrase, i) => (
-          <button
-            key={i}
-            type="button"
-            className="git-phrases-chip"
-            onClick={() => onSelect(phrase.text)}
-            title={phrase.text}
-          >
-            <span className="git-phrases-chip-label">{phrase.label}</span>
-            <span className="git-phrases-chip-category">{phrase.category}</span>
-          </button>
-        ))}
+        {filtered.map((phrase) => {
+          const text = t(`gitPhrases.phrases.${phrase.id}.text`);
+          const label = t(`gitPhrases.phrases.${phrase.id}.label`);
+          return (
+            <button
+              key={phrase.id}
+              type="button"
+              className="git-phrases-chip"
+              onClick={() => onSelect(text)}
+              title={text}
+            >
+              <span className="git-phrases-chip-label">{label}</span>
+              <span className="git-phrases-chip-category">{catLabel(phrase.category)}</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

@@ -1,0 +1,255 @@
+/**
+ * Проверки целостности i18n-словарей.
+ *
+ * Запуск (как и любой CRA-тест):
+ *   CI=true yarn test i18n
+ *
+ * Что проверяем:
+ *   1. RU и EN описывают один и тот же набор «логических» ключей
+ *      (с поправкой на плюрализацию — суффиксы _one/_few/_many/_other).
+ *   2. Плюральные ключи укомплектованы по правилам языка
+ *      (ru: one/few/many, en: one/other).
+ *   3. Нет пустых строковых значений.
+ *   4. Каждый литеральный t('...') в исходниках указывает на существующий ключ.
+ *   5. Каждый инструмент из TOOL_META имеет лейбл в tools.* (ru и en).
+ *   6. Все id/категории из GIT_PHRASES переведены.
+ *
+ * Динамические ключи (шаблонные строки `tools.${name}`, `gitPhrases.phrases.${id}...`)
+ * статически не резолвятся — они покрыты отдельными проверками (5) и (6).
+ */
+
+import fs from 'fs';
+import path from 'path';
+
+import ruCommon from './locales/ru/common.json';
+import ruChat from './locales/ru/chat.json';
+import enCommon from './locales/en/common.json';
+import enChat from './locales/en/chat.json';
+
+import { TOOL_META } from '../components/chatPanel/toolMeta';
+import { GIT_PHRASES } from '../components/chatPanel/GitPhrases';
+
+// ── Ресурсы по неймспейсам ──────────────────────────────────────────────────
+const RESOURCES = {
+  ru: { common: ruCommon, chat: ruChat },
+  en: { common: enCommon, chat: enChat },
+};
+
+// Неймспейс по умолчанию для ключей без префикса `ns:` —
+// все чат-компоненты используют useTranslation('chat').
+const DEFAULT_NS = 'chat';
+
+const PLURAL_SUFFIXES = ['_zero', '_one', '_two', '_few', '_many', '_other'];
+
+// ── Утилиты ───────────────────────────────────────────────────────────────────
+
+/** Плоский список путей-ключей листьев: { a: { b: 'x' } } → ['a.b']. */
+function flatten(obj, prefix = '') {
+  const out = [];
+  for (const [k, v] of Object.entries(obj)) {
+    const full = prefix ? `${prefix}.${k}` : k;
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      out.push(...flatten(v, full));
+    } else {
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+/** Значение по dot-пути или undefined. */
+function getByPath(obj, dotPath) {
+  return dotPath.split('.').reduce((acc, part) => (acc == null ? undefined : acc[part]), obj);
+}
+
+/** Убрать плюральный суффикс с последнего сегмента ключа. */
+function stripPlural(key) {
+  for (const suf of PLURAL_SUFFIXES) {
+    if (key.endsWith(suf)) return key.slice(0, -suf.length);
+  }
+  return key;
+}
+
+/** Множество «логических» ключей неймспейса (плюрали схлопнуты в базу). */
+function logicalKeys(nsObj) {
+  return new Set(flatten(nsObj).map(stripPlural));
+}
+
+/**
+ * Существует ли ключ в ресурсах языка с учётом неймспейса и плюрализации.
+ * `key` может быть с префиксом `ns:`; иначе берём DEFAULT_NS.
+ */
+function keyExists(lang, key) {
+  const [ns, rest] = key.includes(':') ? key.split(':') : [DEFAULT_NS, key];
+  const nsObj = RESOURCES[lang]?.[ns];
+  if (!nsObj) return false;
+  if (getByPath(nsObj, rest) !== undefined) return true;
+  // плюраль: ключ-база без суффикса, но есть key_one/_few/_many/_other
+  return PLURAL_SUFFIXES.some((suf) => getByPath(nsObj, rest + suf) !== undefined);
+}
+
+/** Рекурсивный обход src по .js/.jsx (без node_modules и тестов). */
+function walkSource(dir, acc = []) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === 'node_modules') continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      walkSource(full, acc);
+    } else if (/\.(jsx?|tsx?)$/.test(entry.name) && !/\.test\.[jt]sx?$/.test(entry.name)) {
+      acc.push(full);
+    }
+  }
+  return acc;
+}
+
+/** Достать литеральные ключи из t('...') / tRef.current('...'). */
+function extractKeys(code) {
+  const keys = new Set();
+  // t('x') / t("x"), исключая случаи, когда перед t стоит буква/цифра/точка
+  // (чтобы не ловить getReader(, Set(, parseInt( и т.п.)
+  const reT = /(?<![\w.])t\(\s*(['"])([^'"]+)\1/g;
+  // tRef.current('x') — отдельная форма, используемая в стрим-колбэках
+  const reRef = /tRef\.current\(\s*(['"])([^'"]+)\1/g;
+  let m;
+  while ((m = reT.exec(code)) !== null) keys.add(m[2]);
+  while ((m = reRef.exec(code)) !== null) keys.add(m[2]);
+  return keys;
+}
+
+const SRC_ROOT = path.resolve(__dirname, '..');
+
+// ── Тесты ───────────────────────────────────────────────────────────────────
+
+describe('i18n: паритет языков', () => {
+  for (const ns of Object.keys(RESOURCES.ru)) {
+    test(`неймспейс "${ns}" совпадает между ru и en (с учётом плюрали)`, () => {
+      const ru = logicalKeys(RESOURCES.ru[ns]);
+      const en = logicalKeys(RESOURCES.en[ns]);
+
+      const onlyRu = [...ru].filter((k) => !en.has(k)).sort();
+      const onlyEn = [...en].filter((k) => !ru.has(k)).sort();
+
+      expect({ onlyRu, onlyEn }).toEqual({ onlyRu: [], onlyEn: [] });
+    });
+  }
+});
+
+describe('i18n: плюрали укомплектованы', () => {
+  const required = { ru: ['_one', '_few', '_many'], en: ['_one', '_other'] };
+
+  for (const lang of ['ru', 'en']) {
+    test(`${lang}: у каждого плюрального ключа есть нужные формы`, () => {
+      const missing = [];
+      for (const ns of Object.keys(RESOURCES[lang])) {
+        const nsObj = RESOURCES[lang][ns];
+        const bases = new Set(
+          flatten(nsObj)
+            .filter((k) => PLURAL_SUFFIXES.some((s) => k.endsWith(s)))
+            .map(stripPlural),
+        );
+        for (const base of bases) {
+          for (const suf of required[lang]) {
+            if (getByPath(nsObj, base + suf) === undefined) {
+              missing.push(`${ns}:${base}${suf}`);
+            }
+          }
+        }
+      }
+      expect(missing).toEqual([]);
+    });
+  }
+});
+
+describe('i18n: нет пустых значений', () => {
+  for (const lang of ['ru', 'en']) {
+    for (const ns of Object.keys(RESOURCES[lang])) {
+      test(`${lang}/${ns}`, () => {
+        const empties = flatten(RESOURCES[lang][ns]).filter((k) => {
+          const v = getByPath(RESOURCES[lang][ns], k);
+          return typeof v === 'string' && v.trim() === '';
+        });
+        expect(empties).toEqual([]);
+      });
+    }
+  }
+});
+
+describe('i18n: используемые в коде ключи существуют', () => {
+  const files = walkSource(SRC_ROOT);
+
+  test('найдены исходные файлы для сканирования', () => {
+    expect(files.length).toBeGreaterThan(0);
+  });
+
+  test('каждый литеральный t() резолвится в ru и en', () => {
+    const problems = [];
+    for (const file of files) {
+      const code = fs.readFileSync(file, 'utf8');
+      for (const key of extractKeys(code)) {
+        const okRu = keyExists('ru', key);
+        const okEn = keyExists('en', key);
+        if (!okRu || !okEn) {
+          const where = path.relative(SRC_ROOT, file);
+          const langs = [!okRu && 'ru', !okEn && 'en'].filter(Boolean).join(', ');
+          problems.push(`${where}: "${key}" (нет в: ${langs})`);
+        }
+      }
+    }
+    expect(problems).toEqual([]);
+  });
+});
+
+describe('i18n: инструменты (TOOL_META) переведены', () => {
+  for (const lang of ['ru', 'en']) {
+    test(`${lang}: у каждого инструмента есть tools.<name>`, () => {
+      const missing = Object.keys(TOOL_META).filter(
+        (name) => getByPath(RESOURCES[lang].chat, `tools.${name}`) === undefined,
+      );
+      expect(missing).toEqual([]);
+    });
+  }
+
+  // Обратная проверка — нет «осиротевших» переводов без инструмента в реестре.
+  for (const lang of ['ru', 'en']) {
+    test(`${lang}: нет лишних ключей в tools.* без записи в TOOL_META`, () => {
+      const declared = new Set(Object.keys(TOOL_META));
+      const translated = Object.keys(RESOURCES[lang].chat.tools || {});
+      const orphans = translated.filter((name) => !declared.has(name));
+      expect(orphans).toEqual([]);
+    });
+  }
+});
+
+describe('i18n: git-фразы переведены', () => {
+  for (const lang of ['ru', 'en']) {
+    test(`${lang}: у каждой фразы есть label и text, у категории — перевод`, () => {
+      const missing = [];
+      const chat = RESOURCES[lang].chat;
+      for (const phrase of GIT_PHRASES) {
+        if (getByPath(chat, `gitPhrases.phrases.${phrase.id}.label`) === undefined) {
+          missing.push(`gitPhrases.phrases.${phrase.id}.label`);
+        }
+        if (getByPath(chat, `gitPhrases.phrases.${phrase.id}.text`) === undefined) {
+          missing.push(`gitPhrases.phrases.${phrase.id}.text`);
+        }
+        if (getByPath(chat, `gitPhrases.categories.${phrase.category}`) === undefined) {
+          missing.push(`gitPhrases.categories.${phrase.category}`);
+        }
+      }
+      expect([...new Set(missing)]).toEqual([]);
+    });
+  }
+
+  test('плейсхолдеры в текстах фраз используют одинарные {скобки}, а не {{двойные}}', () => {
+    const offenders = [];
+    for (const lang of ['ru', 'en']) {
+      const chat = RESOURCES[lang].chat;
+      for (const phrase of GIT_PHRASES) {
+        const text = getByPath(chat, `gitPhrases.phrases.${phrase.id}.text`) || '';
+        // {{...}} зарезервированы под интерполяцию i18next и были бы вырезаны
+        if (/\{\{[^}]+\}\}/.test(text)) offenders.push(`${lang}:${phrase.id}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});
