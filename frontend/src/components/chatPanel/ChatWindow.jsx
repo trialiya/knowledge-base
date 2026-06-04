@@ -158,9 +158,18 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       if (!res.ok) return;
       const data = await res.json();
       const newTitle = data.topic;
-      if (newTitle) {
-        setChats((prev) => prev.map((chat) => (chat.id === chatId ? { ...chat, title: newTitle } : chat)));
-      }
+      setChats((prev) =>
+        prev.map((chat) =>
+          chat.id === chatId
+            ? {
+                ...chat,
+                ...(newTitle ? { title: newTitle } : {}),
+                // не затираем уже имеющийся createdAt, иначе берём из ответа
+                createdAt: chat.createdAt ?? data.createdAt ?? null,
+              }
+            : chat,
+        ),
+      );
     } catch (err) {
       console.error('Ошибка обновления темы чата:', err);
     }
