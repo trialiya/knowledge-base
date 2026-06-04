@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import DetailHeader from './DetailHeader';
 import SummarySection from './SummarySection';
 import MarkdownEditor from './MarkdownEditor';
@@ -8,14 +9,15 @@ import { IconSparkle, IconSparkleLoading } from './icons';
 import HistoryModal from './HistoryModal';
 
 const TABS = [
-  { key: 'summary', label: 'Summary' },
-  { key: 'content', label: 'Content' },
-  { key: 'attachments', label: 'Attachments' },
+  { key: 'summary', labelKey: 'tabs.summary' },
+  { key: 'content', labelKey: 'tabs.content' },
+  { key: 'attachments', labelKey: 'tabs.attachments' },
 ];
 
 // ─── AI Summary block ─────────────────────────────────────────────────────────
 
 const AISummarySection = ({ node, onSummarize }) => {
+  const { t } = useTranslation('knowledgeBase');
   const [summarizing, setSummarizing] = useState(false);
 
   const handleSummarize = async () => {
@@ -31,10 +33,10 @@ const AISummarySection = ({ node, onSummarize }) => {
   const label = (
     <span className="summary-section__label-ai">
       {summarizing ? <IconSparkleLoading size={12} /> : <IconSparkle size={12} />}
-      AI Summary
+      {t('summary.aiSummary')}
       {node.summaryStale && !summarizing && (
-        <span className="summary-stale-badge" title="Описание изменилось — summary может быть устаревшим">
-          устарел
+        <span className="summary-stale-badge" title={t('summary.staleHint')}>
+          {t('summary.stale')}
         </span>
       )}
     </span>
@@ -51,10 +53,10 @@ const AISummarySection = ({ node, onSummarize }) => {
             }`}
             onClick={handleSummarize}
             disabled={summarizing}
-            title={node.summaryStale ? 'Обновить устаревший summary' : 'Перегенерировать summary'}
+            title={node.summaryStale ? t('summary.updateTitle') : t('summary.regenerateTitle')}
           >
             {summarizing ? <IconSparkleLoading size={11} /> : <IconSparkle size={11} />}
-            {summarizing ? 'Генерация…' : node.summaryStale ? 'Обновить' : 'Перегенерировать'}
+            {summarizing ? t('summary.generating') : node.summaryStale ? t('summary.update') : t('summary.regenerate')}
           </button>
         </div>
         <div className="summary-about">
@@ -74,12 +76,12 @@ const AISummarySection = ({ node, onSummarize }) => {
           className={`ai-summary-generate-btn${summarizing ? ' ai-summary-generate-btn--loading' : ''}`}
           onClick={handleSummarize}
           disabled={summarizing || !node.description}
-          title={!node.description ? 'Добавьте описание документа, чтобы сгенерировать summary' : undefined}
+          title={!node.description ? t('summary.generateDisabledHint') : undefined}
         >
           {summarizing ? <IconSparkleLoading size={13} /> : <IconSparkle size={13} />}
-          {summarizing ? 'Генерация…' : 'Сгенерировать summary'}
+          {summarizing ? t('summary.generating') : t('summary.generate')}
         </button>
-        {!node.description && <p className="ai-summary-empty__hint">Сначала добавьте описание во вкладке Content</p>}
+        {!node.description && <p className="ai-summary-empty__hint">{t('summary.needDescription')}</p>}
       </div>
     </section>
   );
@@ -99,6 +101,7 @@ const DocumentDetail = ({
   onSummarize,
   tree = [],
 }) => {
+  const { t } = useTranslation('knowledgeBase');
   const [attachmentCount, setAttachmentCount] = useState(0);
   const [fullscreen, setFullscreen] = useState(null); // 'about' | 'content' | null
   const [showHistory, setShowHistory] = useState(false);
@@ -113,13 +116,13 @@ const DocumentDetail = ({
       <DetailHeader node={node} path={path} onNavigate={onNavigate} onRename={handleRename} onDelete={onDelete} />
 
       <div className="detail-tabs">
-        {TABS.map(({ key, label }) => (
+        {TABS.map(({ key, labelKey }) => (
           <button
             key={key}
             className={`detail-tab ${tab === key ? 'detail-tab--active' : ''}`}
             onClick={() => onTabChange(key)}
           >
-            {label}
+            {t(labelKey)}
             {key === 'attachments' && attachmentCount > 0 && (
               <span className="detail-tab__count">{attachmentCount}</span>
             )}
@@ -133,7 +136,7 @@ const DocumentDetail = ({
             <AISummarySection node={node} onSummarize={onSummarize} />
 
             <SummarySection
-              label="About"
+              label={t('detail.about')}
               description={node.description}
               onEdit={() => onTabChange('content')}
               onExpand={() => setFullscreen('about')}
@@ -142,7 +145,7 @@ const DocumentDetail = ({
               copyable
             />
 
-            <SummarySection label="Attachments" showMoreBtn onMore={() => onTabChange('attachments')}>
+            <SummarySection label={t('detail.attachments')} showMoreBtn onMore={() => onTabChange('attachments')}>
               <AttachmentPanel ownerType="document" ownerId={node.id} compact onCountChange={setAttachmentCount} />
             </SummarySection>
           </div>
@@ -151,7 +154,7 @@ const DocumentDetail = ({
         {tab === 'content' && (
           <MarkdownEditor
             value={node.description || ''}
-            placeholder="# Markdown контент..."
+            placeholder={t('detail.docPlaceholder')}
             onSave={(val) => onUpdate(node.id, { description: val })}
             onExpand={() => setFullscreen('content')}
             tree={tree}
@@ -167,7 +170,11 @@ const DocumentDetail = ({
 
       {fullscreen && (
         <FullscreenEditorModal
-          title={fullscreen === 'about' ? `${node.title} — About` : `${node.title} — Content`}
+          title={
+            fullscreen === 'about'
+              ? t('detail.fullscreenAbout', { title: node.title })
+              : t('detail.fullscreenContent', { title: node.title })
+          }
           value={node.description || ''}
           previewOnly={fullscreen === 'about'}
           onSave={(val) => onUpdate(node.id, { description: val })}

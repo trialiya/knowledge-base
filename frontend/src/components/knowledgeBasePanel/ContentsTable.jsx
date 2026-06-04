@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { IconFolder, IconDoc } from './icons';
@@ -7,6 +8,7 @@ import { makeSnippet } from '../common/utils';
 const PAGE_SIZE = 10;
 
 const ContentsTable = ({ children, onNavigate }) => {
+  const { t, i18n } = useTranslation('knowledgeBase');
   const [page, setPage] = useState(0);
 
   // Reset to page 0 when the data changes (e.g. navigating to another folder)
@@ -21,9 +23,9 @@ const ContentsTable = ({ children, onNavigate }) => {
     <div className="contents-table">
       <div className="contents-table__header">
         <span />
-        <span>Название</span>
-        <span>Тип</span>
-        <span>Обновлено</span>
+        <span>{t('contentsTable.name')}</span>
+        <span>{t('contentsTable.type')}</span>
+        <span>{t('contentsTable.updated')}</span>
       </div>
 
       <div className="contents-table__body">
@@ -66,8 +68,10 @@ const ContentsTable = ({ children, onNavigate }) => {
                   </span>
                 )}
               </span>
-              <span className="contents-row__type">{child.type === 'folder' ? 'Folder' : 'Document'}</span>
-              <span className="contents-row__date">{new Date(child.updatedAt).toLocaleDateString('ru-RU')}</span>
+              <span className="contents-row__type">
+                {child.type === 'folder' ? t('contentsTable.folder') : t('contentsTable.document')}
+              </span>
+              <span className="contents-row__date">{new Date(child.updatedAt).toLocaleDateString(i18n.language)}</span>
             </div>
           );
         })}

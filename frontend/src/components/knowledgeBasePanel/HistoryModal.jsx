@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { diffLines } from 'diff';
 import MarkdownEditor from './MarkdownEditor';
 import api from './api';
@@ -29,10 +30,10 @@ import { IconX } from './icons';
  * Инвариант выбора: база СТАРЕЕ изменённой ⇒ baseIdx > compareIdx.
  */
 
-const fmtDate = (iso) => {
+const fmtDate = (iso, locale) => {
   if (!iso) return '';
   try {
-    return new Date(iso).toLocaleString('ru-RU');
+    return new Date(iso).toLocaleString(locale);
   } catch {
     return String(iso);
   }
@@ -40,6 +41,7 @@ const fmtDate = (iso) => {
 
 // ─── Построчный diff + overview ruler ───────────────────────────────────────
 const DiffView = ({ base, compare }) => {
+  const { t } = useTranslation('knowledgeBase');
   const parts = useMemo(() => diffLines(base || '', compare || ''), [base, compare]);
   const scrollRef = useRef(null);
   const rulerRef = useRef(null);
@@ -91,7 +93,7 @@ const DiffView = ({ base, compare }) => {
     return () => ro.disconnect();
   }, [syncMetrics, rows]);
 
-  if (!parts.length) return <p className="history-empty">Нет данных для сравнения.</p>;
+  if (!parts.length) return <p className="history-empty">{t('history.noDiff')}</p>;
 
   const scrollToFrac = (frac) => {
     const el = scrollRef.current;
@@ -140,17 +142,12 @@ const DiffView = ({ base, compare }) => {
         ref={scrollRef}
         onScroll={syncMetrics}
       >
-        {unchanged && <p className="history-note">Описание идентично в обеих версиях.</p>}
+        {unchanged && <p className="history-note">{t('history.identical')}</p>}
         <div className="history-diff">{rows}</div>
       </div>
 
       {!unchanged && (
-        <div
-          className="history-ruler"
-          ref={rulerRef}
-          onClick={onTrackClick}
-          title="Карта изменений — клик переходит к участку"
-        >
+        <div className="history-ruler" ref={rulerRef} onClick={onTrackClick} title={t('history.rulerHint')}>
           {markers.map((m, i) => (
             <button
               key={i}
@@ -180,6 +177,7 @@ const DiffView = ({ base, compare }) => {
 };
 
 const HistoryModal = ({ documentId, documentTitle, tree = [], onNavigate, onRestore, onClose }) => {
+  const { t, i18n } = useTranslation('knowledgeBase');
   const [entries, setEntries] = useState(null); // null = loading | [] = empty | [...]
   const [error, setError] = useState(false);
   const [baseIdx, setBaseIdx] = useState(1); // «база» (старее) — по умолчанию предпоследняя
@@ -334,24 +332,24 @@ const HistoryModal = ({ documentId, documentTitle, tree = [], onNavigate, onRest
   };
 
   const renderBody = () => {
-    if (error) return <p className="history-empty">Не удалось загрузить историю. Попробуйте позже.</p>;
-    if (entries === null) return <p className="history-empty">Загрузка…</p>;
-    if (entries.length === 0) return <p className="history-empty">История пуста — документ ещё не сохранялся.</p>;
+    if (error) return <p className="history-empty">{t('history.loadHistoryError')}</p>;
+    if (entries === null) return <p className="history-empty">{t('history.loading')}</p>;
+    if (entries.length === 0) return <p className="history-empty">{t('history.emptyHistory')}</p>;
 
     if (mode === 'base') {
-      if (baseDescErr) return <p className="history-empty">Не удалось загрузить версию. Попробуйте позже.</p>;
-      if (baseDesc === undefined) return <p className="history-empty">Загрузка версии…</p>;
+      if (baseDescErr) return <p className="history-empty">{t('history.loadVersionError')}</p>;
+      if (baseDesc === undefined) return <p className="history-empty">{t('history.loadingVersion')}</p>;
       return <MarkdownEditor value={baseDesc || ''} previewOnly tree={tree} onNavigate={onNavigate} />;
     }
     if (mode === 'compare') {
-      if (compareDescErr) return <p className="history-empty">Не удалось загрузить версию. Попробуйте позже.</p>;
-      if (compareDesc === undefined) return <p className="history-empty">Загрузка версии…</p>;
+      if (compareDescErr) return <p className="history-empty">{t('history.loadVersionError')}</p>;
+      if (compareDesc === undefined) return <p className="history-empty">{t('history.loadingVersion')}</p>;
       return <MarkdownEditor value={compareDesc || ''} previewOnly tree={tree} onNavigate={onNavigate} />;
     }
     // mode === 'diff' — нужны оба описания
-    if (baseDescErr || compareDescErr)
-      return <p className="history-empty">Не удалось загрузить версию. Попробуйте позже.</p>;
-    if (baseDesc === undefined || compareDesc === undefined) return <p className="history-empty">Загрузка версий…</p>;
+    if (baseDescErr || compareDescErr) return <p className="history-empty">{t('history.loadVersionError')}</p>;
+    if (baseDesc === undefined || compareDesc === undefined)
+      return <p className="history-empty">{t('history.loadingVersions')}</p>;
     return <DiffView base={baseDesc} compare={compareDesc} />;
   };
 
@@ -359,8 +357,8 @@ const HistoryModal = ({ documentId, documentTitle, tree = [], onNavigate, onRest
     <div className="fs-editor-overlay" onMouseDown={onClose}>
       <div className="fs-editor" onMouseDown={(e) => e.stopPropagation()}>
         <div className="fs-editor__head">
-          <span className="fs-editor__title">{documentTitle} — История изменений</span>
-          <button className="fs-editor__close" title="Закрыть (Esc)" onClick={onClose}>
+          <span className="fs-editor__title">{t('history.title', { title: documentTitle })}</span>
+          <button className="fs-editor__close" title={t('history.close')} onClick={onClose}>
             <IconX />
           </button>
         </div>
@@ -370,20 +368,20 @@ const HistoryModal = ({ documentId, documentTitle, tree = [], onNavigate, onRest
             {/* ── Список версий ── */}
             <div className="history-list">
               <div className="history-list__head">
-                <span>Версия</span>
-                <span title="База — что сравниваем (старее)">База</span>
-                <span title="Изменённая — с чем сравниваем (новее)">Изм.</span>
+                <span>{t('history.colVersion')}</span>
+                <span title={t('history.colBaseHint')}>{t('history.colBase')}</span>
+                <span title={t('history.colCompareHint')}>{t('history.colCompare')}</span>
               </div>
 
-              {entries === null && <p className="history-empty">Загрузка…</p>}
+              {entries === null && <p className="history-empty">{t('history.loading')}</p>}
               {entries &&
                 entries.map((e, i) => (
                   <div key={`${e.version}-${i}`} className="history-item">
                     <div className="history-item__meta">
-                      <div className="history-item__date">{fmtDate(e.updatedAt)}</div>
+                      <div className="history-item__date">{fmtDate(e.updatedAt, i18n.language)}</div>
                       <div className="history-item__sub">
-                        ред. {e.descriptionVersion}
-                        {i === 0 ? ' · текущая' : ''}
+                        {t('history.edit', { n: e.descriptionVersion })}
+                        {i === 0 ? ` · ${t('history.current')}` : ''}
                       </div>
                     </div>
                     <input
@@ -413,17 +411,17 @@ const HistoryModal = ({ documentId, documentTitle, tree = [], onNavigate, onRest
                     disabled={single}
                     onClick={() => setMode('diff')}
                   >
-                    Сравнение
+                    {t('history.modeDiff')}
                   </button>
                   <button
                     className={mode === 'base' ? 'is-active' : ''}
                     disabled={single}
                     onClick={() => setMode('base')}
                   >
-                    База
+                    {t('history.modeBase')}
                   </button>
                   <button className={mode === 'compare' ? 'is-active' : ''} onClick={() => setMode('compare')}>
-                    Изменённая
+                    {t('history.modeCompare')}
                   </button>
                 </div>
 
@@ -432,22 +430,18 @@ const HistoryModal = ({ documentId, documentTitle, tree = [], onNavigate, onRest
                     <button
                       className="history-restore"
                       disabled={!canRestoreBase}
-                      title="Сохранить версию «База» как новую правку (откат к более ранней версии)"
+                      title={t('history.restoreBaseTitle')}
                       onClick={() => handleRestore(base)}
                     >
-                      Восстановить базу
+                      {t('history.restoreBase')}
                     </button>
                     <button
                       className="history-restore"
                       disabled={!canRestoreCompare}
-                      title={
-                        canRestoreCompare
-                          ? 'Сохранить версию «Изменённая» как новую правку'
-                          : 'Это текущая версия — восстанавливать нечего'
-                      }
+                      title={canRestoreCompare ? t('history.restoreCompareTitle') : t('history.restoreCurrentTitle')}
                       onClick={() => handleRestore(compare)}
                     >
-                      Восстановить изменённую
+                      {t('history.restoreCompare')}
                     </button>
                   </div>
                 )}

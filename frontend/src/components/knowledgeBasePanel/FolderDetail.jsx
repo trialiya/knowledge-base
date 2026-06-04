@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import DetailHeader from './DetailHeader';
 import ContentsTable from './ContentsTable';
 import SummarySection from './SummarySection';
@@ -9,10 +10,10 @@ import useFolderChildren from './useFolderChildren';
 import HistoryModal from './HistoryModal';
 
 const TABS = [
-  { key: 'summary', label: 'Summary' },
-  { key: 'content', label: 'Content' },
-  { key: 'contents', label: 'Contents' },
-  { key: 'attachments', label: 'Attachments' },
+  { key: 'summary', labelKey: 'tabs.summary' },
+  { key: 'content', labelKey: 'tabs.content' },
+  { key: 'contents', labelKey: 'tabs.contents' },
+  { key: 'attachments', labelKey: 'tabs.attachments' },
 ];
 
 const FolderDetail = ({
@@ -27,6 +28,7 @@ const FolderDetail = ({
   onLoadChildren,
   tree = [],
 }) => {
+  const { t } = useTranslation('knowledgeBase');
   const [attachmentCount, setAttachmentCount] = useState(0);
   const [fullscreen, setFullscreen] = useState(null); // 'about' | 'content' | null
   const [showHistory, setShowHistory] = useState(false);
@@ -37,13 +39,13 @@ const FolderDetail = ({
       <DetailHeader node={node} path={path} onNavigate={onNavigate} onRename={onRename} onDelete={onDelete} />
 
       <div className="detail-tabs">
-        {TABS.map(({ key, label }) => (
+        {TABS.map(({ key, labelKey }) => (
           <button
             key={key}
             className={`detail-tab ${tab === key ? 'detail-tab--active' : ''}`}
             onClick={() => onTabChange(key)}
           >
-            {label}
+            {t(labelKey)}
             {key === 'attachments' && attachmentCount > 0 && (
               <span className="detail-tab__count">{attachmentCount}</span>
             )}
@@ -55,7 +57,7 @@ const FolderDetail = ({
         {tab === 'summary' && (
           <div className="summary-tab">
             <SummarySection
-              label="About"
+              label={t('detail.about')}
               description={node.description}
               onEdit={() => onTabChange('content')}
               onExpand={() => setFullscreen('about')}
@@ -64,11 +66,11 @@ const FolderDetail = ({
               copyable
             />
             {children.length > 0 && (
-              <SummarySection label="Contents" showMoreBtn onMore={() => onTabChange('contents')}>
+              <SummarySection label={t('detail.contents')} showMoreBtn onMore={() => onTabChange('contents')}>
                 <ContentsTable children={children} onNavigate={onNavigate} />
               </SummarySection>
             )}
-            <SummarySection label="Attachments" showMoreBtn onMore={() => onTabChange('attachments')}>
+            <SummarySection label={t('detail.attachments')} showMoreBtn onMore={() => onTabChange('attachments')}>
               <AttachmentPanel ownerType="document" ownerId={node.id} compact onCountChange={setAttachmentCount} />
             </SummarySection>
           </div>
@@ -77,7 +79,7 @@ const FolderDetail = ({
         {tab === 'content' && (
           <MarkdownEditor
             value={node.description || ''}
-            placeholder="Описание папки..."
+            placeholder={t('detail.folderPlaceholder')}
             onSave={(val) => onUpdate(node.id, { description: val })}
             onExpand={() => setFullscreen('content')}
             tree={tree}
@@ -89,9 +91,9 @@ const FolderDetail = ({
         {tab === 'contents' && (
           <div className="contents-tab">
             {childrenLoading && children.length === 0 ? (
-              <p className="empty-tab">Загрузка…</p>
+              <p className="empty-tab">{t('detail.loading')}</p>
             ) : children.length === 0 ? (
-              <p className="empty-tab">Папка пуста</p>
+              <p className="empty-tab">{t('detail.folderEmpty')}</p>
             ) : (
               <ContentsTable children={children} onNavigate={onNavigate} />
             )}
@@ -105,7 +107,11 @@ const FolderDetail = ({
 
       {fullscreen && (
         <FullscreenEditorModal
-          title={fullscreen === 'about' ? `${node.title} — About` : `${node.title} — Content`}
+          title={
+            fullscreen === 'about'
+              ? t('detail.fullscreenAbout', { title: node.title })
+              : t('detail.fullscreenContent', { title: node.title })
+          }
           value={node.description || ''}
           previewOnly={fullscreen === 'about'}
           onSave={(val) => onUpdate(node.id, { description: val })}

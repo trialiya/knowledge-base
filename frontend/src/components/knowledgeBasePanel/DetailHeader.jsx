@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   IconFolder,
   IconDoc,
@@ -71,6 +72,7 @@ const Breadcrumb = ({ path, onNavigate }) => {
 // ─── DetailHeader ─────────────────────────────────────────────────────────────
 
 const DetailHeader = ({ node, path, onNavigate, onRename, onDelete }) => {
+  const { t, i18n } = useTranslation('knowledgeBase');
   const [renaming, setRenaming] = useState(false);
   const isFolder = node.type === 'folder';
   const isSystem = !!node.system;
@@ -78,13 +80,15 @@ const DetailHeader = ({ node, path, onNavigate, onRename, onDelete }) => {
 
   // Дата создания (как в чате). createdAt при наличии, иначе updatedAt.
   const createdRaw = node.createdAt || node.updatedAt;
-  const createdLabel = createdRaw ? `Создан: ${new Date(createdRaw).toLocaleString('ru-RU')}` : null;
+  const createdLabel = createdRaw
+    ? t('detail.createdAt', { date: new Date(createdRaw).toLocaleString(i18n.language) })
+    : null;
 
   return (
     <div className="detail-header">
       <div className="detail-header__top">
         {parent && (
-          <button className="detail-back-btn" title="На уровень выше" onClick={() => onNavigate(parent)}>
+          <button className="detail-back-btn" title={t('detail.levelUp')} onClick={() => onNavigate(parent)}>
             <IconArrowLeft />
           </button>
         )}
@@ -109,16 +113,13 @@ const DetailHeader = ({ node, path, onNavigate, onRename, onDelete }) => {
             <h2 className="detail-header__title">
               {node.title}
               {isSystem ? (
-                <span
-                  className="detail-header__system-badge"
-                  title="Системный документ: переименование и удаление недоступны"
-                >
+                <span className="detail-header__system-badge" title={t('detail.systemBadge')}>
                   <IconLock size={13} />
                 </span>
               ) : (
                 <button
                   className="detail-icon-btn detail-header__rename-btn"
-                  title="Переименовать"
+                  title={t('detail.rename')}
                   onClick={() => setRenaming(true)}
                 >
                   <IconEdit />
@@ -130,7 +131,7 @@ const DetailHeader = ({ node, path, onNavigate, onRename, onDelete }) => {
 
         <div className="detail-header__actions">
           {!isSystem && (
-            <button className="detail-icon-btn" title="Удалить" onClick={() => onDelete(node.id)}>
+            <button className="detail-icon-btn" title={t('detail.delete')} onClick={() => onDelete(node.id)}>
               <IconTrash />
             </button>
           )}

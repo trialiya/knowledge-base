@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSlug from 'rehype-slug';
@@ -86,10 +87,12 @@ const ToolbarBtn = ({ icon, title, onClick, disabled, active }) => (
 );
 
 // ─── Insert helpers ───────────────────────────────────────────────────────────
+// Локализуемые «текстовые заглушки» (вставляемый текст, который пользователь
+// перепечатывает) передаются параметрами из компонента, где доступен t().
 
-function wrapSelection(textarea, before, after = before) {
+function wrapSelection(textarea, before, after = before, fallback = 'текст') {
   const { selectionStart: s, selectionEnd: e, value } = textarea;
-  const selected = value.slice(s, e) || 'текст';
+  const selected = value.slice(s, e) || fallback;
   const newVal = value.slice(0, s) + before + selected + after + value.slice(e);
   return { newVal, from: s + before.length, to: s + before.length + selected.length };
 }
@@ -131,16 +134,17 @@ function insertBlock(textarea, block, placeholder) {
   return { newVal, from: caret, to: caret };
 }
 
-function insertCodeBlock(textarea) {
+function insertCodeBlock(textarea, codeWord = 'код') {
   const { selectionStart: s, selectionEnd: e, value } = textarea;
   const selected = value.slice(s, e);
-  const body = selected || 'код';
-  return insertBlock(textarea, '```\n' + body + '\n```', selected ? null : 'код');
+  const body = selected || codeWord;
+  return insertBlock(textarea, '```\n' + body + '\n```', selected ? null : codeWord);
 }
 
-function insertTable(textarea) {
-  const table = ['| Колонка 1 | Колонка 2 |', '| --- | --- |', '| Ячейка | Ячейка |'].join('\n');
-  return insertBlock(textarea, table, 'Колонка 1');
+function insertTable(textarea, labels = { col1: 'Колонка 1', col2: 'Колонка 2', cell: 'Ячейка' }) {
+  const { col1, col2, cell } = labels;
+  const table = [`| ${col1} | ${col2} |`, '| --- | --- |', `| ${cell} | ${cell} |`].join('\n');
+  return insertBlock(textarea, table, col1);
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -148,16 +152,17 @@ function insertTable(textarea) {
 /**
  * props:
  *   value       — markdown string
- *   placeholder — placeholder text for textarea
+ *   placeholder — placeholder text for textarea (по умолчанию t('editor.placeholder'))
  *   onSave      — async (val: string) => void
  *   previewOnly — if true, renders only the preview pane without toolbar or editor controls
  *   tree        — KB tree array (for DocLinkTooltip instant lookup)
  *   onNavigate  — (node) => void (for DocLinkTooltip "Открыть" button)
  *   onExpand    — optional () => void; if set, shows an "expand" button in the toolbar right group
+ *   onHistory   — optional () => void; if set, shows a "history" button
  */
 const MarkdownEditor = ({
   value,
-  placeholder = '# Markdown...',
+  placeholder,
   onSave,
   previewOnly = false,
   tree = [],
@@ -165,6 +170,7 @@ const MarkdownEditor = ({
   onExpand,
   onHistory,
 }) => {
+  const { t } = useTranslation('knowledgeBase');
   const [val, setVal] = useState(value);
   const [dirty, setDirty] = useState(false);
   const [preview, setPreview] = useState(false);
@@ -235,62 +241,91 @@ const MarkdownEditor = ({
     }
   }, [val]);
 
+  // Локализуемые заглушки вставляемого текста.
+  const txt = t('editor.insertText');
+  const codeWord = t('editor.insertCode');
+  const tableLabels = { col1: t('editor.tableCol1'), col2: t('editor.tableCol2'), cell: t('editor.tableCell') };
+
   // Grouped so the toolbar can render separators between logical clusters.
   const toolbarGroups = [
     // Inline text formatting
     [
-      { icon: <IconH1 />, title: 'Заголовок', action: () => applyTransform(prependLine(textareaRef.current, '## ')) },
-      { icon: <IconBold />, title: 'Жирный', action: () => applyTransform(wrapSelection(textareaRef.current, '**')) },
-      { icon: <IconItalic />, title: 'Курсив', action: () => applyTransform(wrapSelection(textareaRef.current, '_')) },
+      {
+        icon: <IconH1 />,
+        title: t('editor.heading'),
+        action: () => applyTransform(prependLine(textareaRef.current, '## ')),
+      },
+      {
+        icon: <IconBold />,
+        title: t('editor.bold'),
+        action: () => applyTransform(wrapSelection(textareaRef.current, '**', '**', txt)),
+      },
+      {
+        icon: <IconItalic />,
+        title: t('editor.italic'),
+        action: () => applyTransform(wrapSelection(textareaRef.current, '_', '_', txt)),
+      },
       {
         icon: <IconStrike />,
-        title: 'Зачёркнутый',
-        action: () => applyTransform(wrapSelection(textareaRef.current, '~~')),
+        title: t('editor.strike'),
+        action: () => applyTransform(wrapSelection(textareaRef.current, '~~', '~~', txt)),
       },
       {
         icon: <IconCode />,
-        title: 'Код (строчный)',
-        action: () => applyTransform(wrapSelection(textareaRef.current, '`')),
+        title: t('editor.inlineCode'),
+        action: () => applyTransform(wrapSelection(textareaRef.current, '`', '`', txt)),
       },
     ],
     // Block-level
     [
       {
         icon: <IconCodeBlock />,
-        title: 'Блок кода',
-        action: () => applyTransform(insertCodeBlock(textareaRef.current)),
+        title: t('editor.codeBlock'),
+        action: () => applyTransform(insertCodeBlock(textareaRef.current, codeWord)),
       },
-      { icon: <IconQuote />, title: 'Цитата', action: () => applyTransform(prependLine(textareaRef.current, '> ')) },
+      {
+        icon: <IconQuote />,
+        title: t('editor.quote'),
+        action: () => applyTransform(prependLine(textareaRef.current, '> ')),
+      },
       {
         icon: <IconList />,
-        title: 'Маркированный список',
+        title: t('editor.bulletList'),
         action: () => applyTransform(prependLine(textareaRef.current, '- ')),
       },
       {
         icon: <IconOrderedList />,
-        title: 'Нумерованный список',
+        title: t('editor.orderedList'),
         action: () => applyTransform(prependLine(textareaRef.current, '1. ')),
       },
       {
         icon: <IconChecklist />,
-        title: 'Чек-лист',
+        title: t('editor.checklist'),
         action: () => applyTransform(prependLine(textareaRef.current, '- [ ] ')),
       },
-      { icon: <IconHr />, title: 'Разделитель', action: () => applyTransform(insertBlock(textareaRef.current, '---')) },
+      {
+        icon: <IconHr />,
+        title: t('editor.divider'),
+        action: () => applyTransform(insertBlock(textareaRef.current, '---')),
+      },
     ],
     // Insert
     [
       {
         icon: <IconLink />,
-        title: 'Ссылка',
-        action: () => applyTransform(wrapSelection(textareaRef.current, '[', '](url)')),
+        title: t('editor.link'),
+        action: () => applyTransform(wrapSelection(textareaRef.current, '[', '](url)', txt)),
       },
       {
         icon: <IconImage />,
-        title: 'Изображение',
-        action: () => applyTransform(wrapSelection(textareaRef.current, '![', '](url)')),
+        title: t('editor.image'),
+        action: () => applyTransform(wrapSelection(textareaRef.current, '![', '](url)', txt)),
       },
-      { icon: <IconTable />, title: 'Таблица', action: () => applyTransform(insertTable(textareaRef.current)) },
+      {
+        icon: <IconTable />,
+        title: t('editor.table'),
+        action: () => applyTransform(insertTable(textareaRef.current, tableLabels)),
+      },
     ],
   ];
 
@@ -328,7 +363,7 @@ const MarkdownEditor = ({
             {val}
           </ReactMarkdown>
         ) : (
-          <p className="md-preview__empty">Нечего показывать</p>
+          <p className="md-preview__empty">{t('editor.emptyPreview')}</p>
         )}
       </div>
     );
@@ -352,17 +387,17 @@ const MarkdownEditor = ({
         <div className="md-toolbar__group md-toolbar__group--right">
           <ToolbarBtn
             icon={copied ? <IconCheck /> : <IconCopy />}
-            title={copied ? 'Скопировано' : 'Копировать всё'}
+            title={copied ? t('editor.copied') : t('editor.copyAll')}
             onClick={handleCopyAll}
             active={copied}
           />
           <ToolbarBtn
             icon={preview ? <IconEyeOff /> : <IconEye />}
-            title={preview ? 'Редактор' : 'Предпросмотр'}
+            title={preview ? t('editor.editorView') : t('editor.preview')}
             onClick={() => setPreview((p) => !p)}
           />
-          {onExpand && <ToolbarBtn icon={<IconExpand />} title="Развернуть" onClick={onExpand} />}
-          {onHistory && <ToolbarBtn icon={<IconHistory />} title="История изменений" onClick={onHistory} />}
+          {onExpand && <ToolbarBtn icon={<IconExpand />} title={t('editor.expand')} onClick={onExpand} />}
+          {onHistory && <ToolbarBtn icon={<IconHistory />} title={t('editor.history')} onClick={onHistory} />}
         </div>
       </div>
 
@@ -373,7 +408,7 @@ const MarkdownEditor = ({
             <textarea
               ref={textareaRef}
               className="md-textarea"
-              placeholder={placeholder}
+              placeholder={placeholder ?? t('editor.placeholder')}
               value={val}
               onChange={(e) => {
                 setVal(e.target.value);
@@ -409,7 +444,7 @@ const MarkdownEditor = ({
                 {val}
               </ReactMarkdown>
             ) : (
-              <p className="md-preview__empty">Нечего показывать</p>
+              <p className="md-preview__empty">{t('editor.emptyPreview')}</p>
             )}
           </div>
         )}
@@ -433,7 +468,7 @@ const MarkdownEditor = ({
               }
             }}
           >
-            {saving ? 'Сохранение...' : 'Сохранить'}
+            {saving ? t('editor.saving') : t('editor.save')}
           </button>
           <button
             className="save-bar__cancel"
@@ -443,7 +478,7 @@ const MarkdownEditor = ({
               setDirty(false);
             }}
           >
-            Отмена
+            {t('editor.cancel')}
           </button>
         </div>
       )}

@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import MarkdownEditor from './MarkdownEditor';
 import { IconX } from './icons';
 
@@ -14,6 +15,8 @@ import { IconX } from './icons';
  *   tree, onNavigate — пробрасываются в MarkdownEditor для DocLinkTooltip
  */
 const FullscreenEditorModal = ({ title, value, previewOnly = false, onSave, onClose, tree = [], onNavigate }) => {
+  const { t } = useTranslation('knowledgeBase');
+
   // Esc закрывает модалку
   useEffect(() => {
     const onKey = (e) => {
@@ -28,7 +31,7 @@ const FullscreenEditorModal = ({ title, value, previewOnly = false, onSave, onCl
       <div className="fs-editor" onMouseDown={(e) => e.stopPropagation()}>
         <div className="fs-editor__head">
           <span className="fs-editor__title">{title}</span>
-          <button className="fs-editor__close" title="Закрыть (Esc)" onClick={onClose}>
+          <button className="fs-editor__close" title={t('fullscreen.close')} onClick={onClose}>
             <IconX />
           </button>
         </div>

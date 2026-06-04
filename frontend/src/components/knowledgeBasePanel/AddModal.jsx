@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { IconFolder, IconChevron } from './icons';
 import { findNodeById } from '../common/utils';
 
@@ -47,6 +48,7 @@ const FolderTreeItem = ({ node, level, selectedId, onSelect }) => {
 // ─── Modal ────────────────────────────────────────────────────────────────────
 
 const AddModal = ({ tree, defaultParentId, onClose, onCreate }) => {
+  const { t } = useTranslation('knowledgeBase');
   const [name, setName] = useState('');
   const [type, setType] = useState('document');
   const [parentId, setParentId] = useState(defaultParentId ?? null);
@@ -87,18 +89,18 @@ const AddModal = ({ tree, defaultParentId, onClose, onCreate }) => {
 
   // Label for the selected folder
   const selectedFolder = parentId ? findNodeById(tree, parentId) : null;
-  const locationLabel = selectedFolder ? selectedFolder.title : 'Корневой уровень';
+  const locationLabel = selectedFolder ? selectedFolder.title : t('add.root');
 
   return (
     <div className="modal-overlay" onClick={handleClose}>
       <div className="modal modal--wide" onClick={(e) => e.stopPropagation()}>
-        <h3>Новый элемент</h3>
+        <h3>{t('add.title')}</h3>
 
         {/* Name */}
         <input
           ref={inputRef}
           type="text"
-          placeholder="Название"
+          placeholder={t('add.namePlaceholder')}
           value={name}
           disabled={submitting}
           onChange={(e) => setName(e.target.value)}
@@ -107,14 +109,14 @@ const AddModal = ({ tree, defaultParentId, onClose, onCreate }) => {
 
         {/* Type toggle */}
         <div className="modal-type-row">
-          {['document', 'folder'].map((t) => (
+          {['document', 'folder'].map((tp) => (
             <button
-              key={t}
-              className={`modal-type-btn ${type === t ? 'modal-type-btn--active' : ''}`}
+              key={tp}
+              className={`modal-type-btn ${type === tp ? 'modal-type-btn--active' : ''}`}
               disabled={submitting}
-              onClick={() => setType(t)}
+              onClick={() => setType(tp)}
             >
-              {t === 'document' ? '📄 Документ' : '📁 Папка'}
+              {tp === 'document' ? t('add.typeDocument') : t('add.typeFolder')}
             </button>
           ))}
         </div>
@@ -122,7 +124,7 @@ const AddModal = ({ tree, defaultParentId, onClose, onCreate }) => {
         {/* Folder tree picker */}
         <div className="fp-wrap">
           <div className="fp-header">
-            <span className="fp-header__label">Расположение</span>
+            <span className="fp-header__label">{t('add.location')}</span>
             <span className="fp-header__selected">{locationLabel}</span>
           </div>
           <div className="fp-tree">
@@ -134,7 +136,7 @@ const AddModal = ({ tree, defaultParentId, onClose, onCreate }) => {
             >
               <span style={{ display: 'inline-block', width: 12 }} />
               <span className="fp-row__icon fp-row__icon--root">⊘</span>
-              <span className="fp-row__label">Корневой уровень</span>
+              <span className="fp-row__label">{t('add.root')}</span>
             </div>
             {tree
               .filter((n) => n.type === 'folder')
@@ -146,10 +148,10 @@ const AddModal = ({ tree, defaultParentId, onClose, onCreate }) => {
 
         <div className="modal-buttons">
           <button onClick={handleCreate} disabled={submitting || !name.trim()}>
-            {submitting ? 'Создание…' : 'Создать'}
+            {submitting ? t('add.creating') : t('add.create')}
           </button>
           <button onClick={handleClose} disabled={submitting}>
-            Отмена
+            {t('add.cancel')}
           </button>
         </div>
       </div>

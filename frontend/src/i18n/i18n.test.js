@@ -11,6 +11,10 @@
  *      (ru: one/few/many, en: one/other).
  *   3. Нет пустых строковых значений.
  *   4. Каждый литеральный t('...') в исходниках указывает на существующий ключ.
+ *      Неймспейс определяется ПО ФАЙЛУ из его useTranslation('ns') (с фолбэком
+ *      на common, как fallbackNS в рантайме) — потому что чат-компоненты
+ *      используют useTranslation('chat'), а компоненты базы знаний —
+ *      useTranslation('knowledgeBase').
  *   5. Каждый инструмент из TOOL_META имеет лейбл в tools.* (ru и en).
  *   6. Все id/категории из GIT_PHRASES переведены.
  *
@@ -23,21 +27,23 @@ import path from 'path';
 
 import ruCommon from './locales/ru/common.json';
 import ruChat from './locales/ru/chat.json';
+import ruKnowledgeBase from './locales/ru/knowledgeBase.json';
 import enCommon from './locales/en/common.json';
 import enChat from './locales/en/chat.json';
+import enKnowledgeBase from './locales/en/knowledgeBase.json';
 
 import { TOOL_META } from '../components/chatPanel/toolMeta';
 import { GIT_PHRASES } from '../components/chatPanel/GitPhrases';
 
 // ── Ресурсы по неймспейсам ──────────────────────────────────────────────────
 const RESOURCES = {
-  ru: { common: ruCommon, chat: ruChat },
-  en: { common: enCommon, chat: enChat },
+  ru: { common: ruCommon, chat: ruChat, knowledgeBase: ruKnowledgeBase },
+  en: { common: enCommon, chat: enChat, knowledgeBase: enKnowledgeBase },
 };
 
-// Неймспейс по умолчанию для ключей без префикса `ns:` —
-// все чат-компоненты используют useTranslation('chat').
-const DEFAULT_NS = 'chat';
+// fallbackNS из i18n/index.js — ключ, не найденный в дефолтном неймспейсе
+// файла, ищется здесь (так же ведёт себя рантайм).
+const FALLBACK_NS = 'common';
 
 const PLURAL_SUFFIXES = ['_zero', '_one', '_two', '_few', '_many', '_other'];
 
@@ -75,17 +81,31 @@ function logicalKeys(nsObj) {
   return new Set(flatten(nsObj).map(stripPlural));
 }
 
-/**
- * Существует ли ключ в ресурсах языка с учётом неймспейса и плюрализации.
- * `key` может быть с префиксом `ns:`; иначе берём DEFAULT_NS.
- */
-function keyExists(lang, key) {
-  const [ns, rest] = key.includes(':') ? key.split(':') : [DEFAULT_NS, key];
+/** Существует ли `rest` в конкретном неймспейсе `ns` (с учётом плюрализации). */
+function keyExistsInNs(lang, ns, rest) {
   const nsObj = RESOURCES[lang]?.[ns];
   if (!nsObj) return false;
   if (getByPath(nsObj, rest) !== undefined) return true;
   // плюраль: ключ-база без суффикса, но есть key_one/_few/_many/_other
   return PLURAL_SUFFIXES.some((suf) => getByPath(nsObj, rest + suf) !== undefined);
+}
+
+/**
+ * Резолвится ли ключ в ресурсах языка с учётом неймспейса и плюрализации.
+ * `key` может быть с явным префиксом `ns:` — тогда ищем строго в нём.
+ * Иначе перебираем неймспейсы-кандидаты файла + FALLBACK_NS; если у файла нет
+ * объявленных неймспейсов (нет useTranslation), допускаем любой неймспейс.
+ */
+function keyResolves(lang, key, candidateNamespaces) {
+  if (key.includes(':')) {
+    const [ns, rest] = key.split(':');
+    return keyExistsInNs(lang, ns, rest);
+  }
+  const namespaces =
+    candidateNamespaces && candidateNamespaces.size
+      ? [...candidateNamespaces, FALLBACK_NS]
+      : Object.keys(RESOURCES[lang]);
+  return namespaces.some((ns) => keyExistsInNs(lang, ns, key));
 }
 
 /** Рекурсивный обход src по .js/.jsx (без node_modules и тестов). */
@@ -114,6 +134,24 @@ function extractKeys(code) {
   while ((m = reT.exec(code)) !== null) keys.add(m[2]);
   while ((m = reRef.exec(code)) !== null) keys.add(m[2]);
   return keys;
+}
+
+/**
+ * Неймспейсы, объявленные в файле через useTranslation('ns').
+ * Возвращает Set имён, либо null, если useTranslation в файле нет вовсе
+ * (тогда ключи допускаются в любом неймспейсе). Голый useTranslation()
+ * означает defaultNS — это common.
+ */
+function fileNamespaces(code) {
+  const re = /useTranslation\(\s*(?:(['"])([^'"]+)\1)?\s*\)/g;
+  const ns = new Set();
+  let found = false;
+  let m;
+  while ((m = re.exec(code)) !== null) {
+    found = true;
+    ns.add(m[2] || FALLBACK_NS); // голый useTranslation() → defaultNS (common)
+  }
+  return found ? ns : null;
 }
 
 const SRC_ROOT = path.resolve(__dirname, '..');
@@ -185,9 +223,10 @@ describe('i18n: используемые в коде ключи существу
     const problems = [];
     for (const file of files) {
       const code = fs.readFileSync(file, 'utf8');
+      const namespaces = fileNamespaces(code); // Set | null
       for (const key of extractKeys(code)) {
-        const okRu = keyExists('ru', key);
-        const okEn = keyExists('en', key);
+        const okRu = keyResolves('ru', key, namespaces);
+        const okEn = keyResolves('en', key, namespaces);
         if (!okRu || !okEn) {
           const where = path.relative(SRC_ROOT, file);
           const langs = [!okRu && 'ru', !okEn && 'en'].filter(Boolean).join(', ');

@@ -1,1 +1,181 @@
-{}
+{
+  "tree": {
+    "create": "Create"
+  },
+  "empty": {
+    "selectDocument": "Select a document to view"
+  },
+  "tabs": {
+    "summary": "Summary",
+    "content": "Content",
+    "contents": "Contents",
+    "attachments": "Attachments"
+  },
+  "detail": {
+    "about": "About",
+    "contents": "Contents",
+    "attachments": "Attachments",
+    "createdAt": "Created: {{date}}",
+    "levelUp": "Up one level",
+    "systemBadge": "System document: renaming and deletion are disabled",
+    "rename": "Rename",
+    "delete": "Delete",
+    "folderPlaceholder": "Folder description...",
+    "docPlaceholder": "# Markdown content...",
+    "folderEmpty": "Folder is empty",
+    "loading": "Loading…",
+    "fullscreenAbout": "{{title}} — About",
+    "fullscreenContent": "{{title}} — Content"
+  },
+  "contentsTable": {
+    "name": "Name",
+    "type": "Type",
+    "updated": "Updated",
+    "folder": "Folder",
+    "document": "Document"
+  },
+  "summary": {
+    "aiSummary": "AI Summary",
+    "stale": "stale",
+    "staleHint": "The description changed — the summary may be out of date",
+    "regenerate": "Regenerate",
+    "regenerateTitle": "Regenerate summary",
+    "update": "Update",
+    "updateTitle": "Update stale summary",
+    "generate": "Generate summary",
+    "generating": "Generating…",
+    "generateDisabledHint": "Add a document description to generate a summary",
+    "needDescription": "Add a description on the Content tab first"
+  },
+  "editor": {
+    "placeholder": "# Markdown...",
+    "heading": "Heading",
+    "bold": "Bold",
+    "italic": "Italic",
+    "strike": "Strikethrough",
+    "inlineCode": "Inline code",
+    "codeBlock": "Code block",
+    "quote": "Quote",
+    "bulletList": "Bulleted list",
+    "orderedList": "Numbered list",
+    "checklist": "Checklist",
+    "divider": "Divider",
+    "link": "Link",
+    "image": "Image",
+    "table": "Table",
+    "copyAll": "Copy all",
+    "copied": "Copied",
+    "preview": "Preview",
+    "editorView": "Editor",
+    "expand": "Expand",
+    "history": "Change history",
+    "emptyPreview": "Nothing to show",
+    "save": "Save",
+    "saving": "Saving...",
+    "cancel": "Cancel",
+    "insertText": "text",
+    "insertCode": "code",
+    "tableCol1": "Column 1",
+    "tableCol2": "Column 2",
+    "tableCell": "Cell"
+  },
+  "mention": {
+    "hintStart": "Start typing a name…",
+    "hintQuery": "Search: \u201c{{query}}\u201d",
+    "searching": "Searching…",
+    "empty": "Nothing found",
+    "folder": "Folder",
+    "doc": "Doc",
+    "navigate": "navigate",
+    "insert": "insert",
+    "dismiss": "close"
+  },
+  "docLink": {
+    "loading": "Loading…",
+    "notFound": "Document not found",
+    "folder": "Folder",
+    "document": "Document",
+    "aiSummary": "AI Summary",
+    "stale": "stale",
+    "noDescription": "No description",
+    "open": "Open →"
+  },
+  "search": {
+    "title": "Search results",
+    "empty": "Nothing found",
+    "aiSummary": "AI Summary"
+  },
+  "add": {
+    "title": "New item",
+    "namePlaceholder": "Name",
+    "typeDocument": "📄 Document",
+    "typeFolder": "📁 Folder",
+    "location": "Location",
+    "root": "Root level",
+    "create": "Create",
+    "creating": "Creating…",
+    "cancel": "Cancel"
+  },
+  "move": {
+    "title": "Move to another folder?",
+    "body": "You are moving \u201c{{title}}\u201d to another folder. This will change its location in the tree.",
+    "from": "From:",
+    "to": "To:",
+    "confirm": "Move",
+    "cancel": "Cancel"
+  },
+  "discard": {
+    "title": "Unsaved changes",
+    "message": "The editor has unsaved changes. If you continue, they will be lost.",
+    "confirm": "Continue without saving",
+    "cancel": "Stay"
+  },
+  "delete": {
+    "folderTitle": "Delete folder?",
+    "documentTitle": "Delete document?",
+    "messageNamed": "\u201c{{title}}\u201d will be permanently deleted.",
+    "message": "The item will be permanently deleted.",
+    "confirm": "Delete",
+    "cancel": "Cancel"
+  },
+  "loadError": {
+    "notFoundTitle": "Document not found",
+    "notFoundMessage": "It may have been deleted or the link is out of date.",
+    "errorTitle": "Failed to load document",
+    "errorMessage": "Error loading document. Please try again later.",
+    "errorMessageWithCode": "Error loading document ({{code}}). Please try again later.",
+    "saveErrorTitle": "Save error",
+    "saveErrorMessage": "Failed to save changes. Please try again later."
+  },
+  "fullscreen": {
+    "close": "Close (Esc)"
+  },
+  "history": {
+    "title": "{{title}} — Change history",
+    "close": "Close (Esc)",
+    "colVersion": "Version",
+    "colBase": "Base",
+    "colBaseHint": "Base — what we compare against (older)",
+    "colCompare": "Chg.",
+    "colCompareHint": "Changed — what we compare with (newer)",
+    "loading": "Loading…",
+    "edit": "rev. {{n}}",
+    "current": "current",
+    "modeDiff": "Compare",
+    "modeBase": "Base",
+    "modeCompare": "Changed",
+    "restoreBase": "Restore base",
+    "restoreBaseTitle": "Save the \u201cBase\u201d version as a new edit (roll back to an earlier version)",
+    "restoreCompare": "Restore changed",
+    "restoreCompareTitle": "Save the \u201cChanged\u201d version as a new edit",
+    "restoreCurrentTitle": "This is the current version — nothing to restore",
+    "loadHistoryError": "Failed to load history. Please try again later.",
+    "emptyHistory": "History is empty — the document hasn't been saved yet.",
+    "loadVersionError": "Failed to load version. Please try again later.",
+    "loadingVersion": "Loading version…",
+    "loadingVersions": "Loading versions…",
+    "noDiff": "Nothing to compare.",
+    "identical": "The description is identical in both versions.",
+    "rulerHint": "Change map — click to jump to a section"
+  }
+}

@@ -1,1 +1,181 @@
-{}
+{
+  "tree": {
+    "create": "Создать"
+  },
+  "empty": {
+    "selectDocument": "Выберите документ для просмотра"
+  },
+  "tabs": {
+    "summary": "Summary",
+    "content": "Content",
+    "contents": "Contents",
+    "attachments": "Attachments"
+  },
+  "detail": {
+    "about": "About",
+    "contents": "Contents",
+    "attachments": "Attachments",
+    "createdAt": "Создан: {{date}}",
+    "levelUp": "На уровень выше",
+    "systemBadge": "Системный документ: переименование и удаление недоступны",
+    "rename": "Переименовать",
+    "delete": "Удалить",
+    "folderPlaceholder": "Описание папки...",
+    "docPlaceholder": "# Markdown контент...",
+    "folderEmpty": "Папка пуста",
+    "loading": "Загрузка…",
+    "fullscreenAbout": "{{title}} — About",
+    "fullscreenContent": "{{title}} — Content"
+  },
+  "contentsTable": {
+    "name": "Название",
+    "type": "Тип",
+    "updated": "Обновлено",
+    "folder": "Folder",
+    "document": "Document"
+  },
+  "summary": {
+    "aiSummary": "AI Summary",
+    "stale": "устарел",
+    "staleHint": "Описание изменилось — summary может быть устаревшим",
+    "regenerate": "Перегенерировать",
+    "regenerateTitle": "Перегенерировать summary",
+    "update": "Обновить",
+    "updateTitle": "Обновить устаревший summary",
+    "generate": "Сгенерировать summary",
+    "generating": "Генерация…",
+    "generateDisabledHint": "Добавьте описание документа, чтобы сгенерировать summary",
+    "needDescription": "Сначала добавьте описание во вкладке Content"
+  },
+  "editor": {
+    "placeholder": "# Markdown...",
+    "heading": "Заголовок",
+    "bold": "Жирный",
+    "italic": "Курсив",
+    "strike": "Зачёркнутый",
+    "inlineCode": "Код (строчный)",
+    "codeBlock": "Блок кода",
+    "quote": "Цитата",
+    "bulletList": "Маркированный список",
+    "orderedList": "Нумерованный список",
+    "checklist": "Чек-лист",
+    "divider": "Разделитель",
+    "link": "Ссылка",
+    "image": "Изображение",
+    "table": "Таблица",
+    "copyAll": "Копировать всё",
+    "copied": "Скопировано",
+    "preview": "Предпросмотр",
+    "editorView": "Редактор",
+    "expand": "Развернуть",
+    "history": "История изменений",
+    "emptyPreview": "Нечего показывать",
+    "save": "Сохранить",
+    "saving": "Сохранение...",
+    "cancel": "Отмена",
+    "insertText": "текст",
+    "insertCode": "код",
+    "tableCol1": "Колонка 1",
+    "tableCol2": "Колонка 2",
+    "tableCell": "Ячейка"
+  },
+  "mention": {
+    "hintStart": "Начните вводить название…",
+    "hintQuery": "Поиск: «{{query}}»",
+    "searching": "Поиск…",
+    "empty": "Ничего не найдено",
+    "folder": "Folder",
+    "doc": "Doc",
+    "navigate": "навигация",
+    "insert": "вставить",
+    "dismiss": "закрыть"
+  },
+  "docLink": {
+    "loading": "Загрузка…",
+    "notFound": "Документ не найден",
+    "folder": "Folder",
+    "document": "Document",
+    "aiSummary": "AI Summary",
+    "stale": "устарел",
+    "noDescription": "Нет описания",
+    "open": "Открыть →"
+  },
+  "search": {
+    "title": "Результаты поиска",
+    "empty": "Ничего не найдено",
+    "aiSummary": "AI Summary"
+  },
+  "add": {
+    "title": "Новый элемент",
+    "namePlaceholder": "Название",
+    "typeDocument": "📄 Документ",
+    "typeFolder": "📁 Папка",
+    "location": "Расположение",
+    "root": "Корневой уровень",
+    "create": "Создать",
+    "creating": "Создание…",
+    "cancel": "Отмена"
+  },
+  "move": {
+    "title": "Переместить в другую папку?",
+    "body": "Вы перемещаете «{{title}}» в другую папку. Это изменит его расположение в дереве.",
+    "from": "Откуда:",
+    "to": "Куда:",
+    "confirm": "Переместить",
+    "cancel": "Отмена"
+  },
+  "discard": {
+    "title": "Несохранённые изменения",
+    "message": "В редакторе есть несохранённые изменения. Если продолжить, они будут потеряны.",
+    "confirm": "Продолжить без сохранения",
+    "cancel": "Остаться"
+  },
+  "delete": {
+    "folderTitle": "Удалить папку?",
+    "documentTitle": "Удалить документ?",
+    "messageNamed": "«{{title}}» будет удалён без возможности восстановления.",
+    "message": "Элемент будет удалён без возможности восстановления.",
+    "confirm": "Удалить",
+    "cancel": "Отмена"
+  },
+  "loadError": {
+    "notFoundTitle": "Документ не найден",
+    "notFoundMessage": "Возможно, он был удалён или ссылка устарела.",
+    "errorTitle": "Не удалось загрузить документ",
+    "errorMessage": "Ошибка при загрузке документа. Попробуйте позже.",
+    "errorMessageWithCode": "Ошибка при загрузке документа ({{code}}). Попробуйте позже.",
+    "saveErrorTitle": "Ошибка сохранения",
+    "saveErrorMessage": "Не удалось сохранить изменения. Попробуйте позже."
+  },
+  "fullscreen": {
+    "close": "Закрыть (Esc)"
+  },
+  "history": {
+    "title": "{{title}} — История изменений",
+    "close": "Закрыть (Esc)",
+    "colVersion": "Версия",
+    "colBase": "База",
+    "colBaseHint": "База — что сравниваем (старее)",
+    "colCompare": "Изм.",
+    "colCompareHint": "Изменённая — с чем сравниваем (новее)",
+    "loading": "Загрузка…",
+    "edit": "ред. {{n}}",
+    "current": "текущая",
+    "modeDiff": "Сравнение",
+    "modeBase": "База",
+    "modeCompare": "Изменённая",
+    "restoreBase": "Восстановить базу",
+    "restoreBaseTitle": "Сохранить версию «База» как новую правку (откат к более ранней версии)",
+    "restoreCompare": "Восстановить изменённую",
+    "restoreCompareTitle": "Сохранить версию «Изменённая» как новую правку",
+    "restoreCurrentTitle": "Это текущая версия — восстанавливать нечего",
+    "loadHistoryError": "Не удалось загрузить историю. Попробуйте позже.",
+    "emptyHistory": "История пуста — документ ещё не сохранялся.",
+    "loadVersionError": "Не удалось загрузить версию. Попробуйте позже.",
+    "loadingVersion": "Загрузка версии…",
+    "loadingVersions": "Загрузка версий…",
+    "noDiff": "Нет данных для сравнения.",
+    "identical": "Описание идентично в обеих версиях.",
+    "rulerHint": "Карта изменений — клик переходит к участку"
+  }
+}

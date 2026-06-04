@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { IconDoc, IconFolder, IconChevronRight, IconSparkle } from './icons';
 
 // URL вида ?view=knowledge&doc=N — её же строит useAppNavigation.buildSearch.
@@ -30,63 +31,67 @@ const ResultBreadcrumb = ({ parents }) => {
   );
 };
 
-const SearchResults = ({ query, results, onSelect }) => (
-  <div className="sr-panel">
-    <div className="sr-header">
-      <h3 className="sr-header__title">
-        Результаты поиска
-        <span className="sr-header__query">«{query}»</span>
-        <span className="sr-header__count">{results.length}</span>
-      </h3>
-    </div>
+const SearchResults = ({ query, results, onSelect }) => {
+  const { t, i18n } = useTranslation('knowledgeBase');
 
-    <div className="sr-list">
-      {results.length === 0 ? (
-        <p className="sr-empty">Ничего не найдено</p>
-      ) : (
-        results.map((res) => (
-          <div key={res.id} className="sr-card">
-            <div className="sr-card__head">
-              <span className="sr-card__icon">
-                <IconDoc size={14} />
-              </span>
-              {/*
-                Переход — только по имени. Это настоящий <a href>, поэтому:
-                  • средняя кнопка мыши и Ctrl/Cmd-клик → новая вкладка (браузер сам);
-                  • обычный левый клик → SPA-навигация без перезагрузки.
-              */}
-              <a
-                className="sr-card__title"
-                href={docHref(res.id)}
-                onClick={(e) => {
-                  // Клик с модификатором или не левой кнопкой — отдаём браузеру
-                  // (открыть в новой вкладке/окне). Средняя кнопка сюда не
-                  // приходит вовсе (это auxclick), её обрабатывает сам <a>.
-                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-                  e.preventDefault();
-                  onSelect(res.id);
-                }}
-              >
-                {res.title}
-              </a>
-              <span className="sr-card__date">{new Date(res.updatedAt).toLocaleDateString('ru-RU')}</span>
-            </div>
-            <ResultBreadcrumb parents={res.parentList} />
-            {res.summary && (
-              <div className="sr-card__summary">
-                <span className="doc-preview-tooltip__summary-label">
-                  <IconSparkle size={11} />
-                  AI Summary
+  return (
+    <div className="sr-panel">
+      <div className="sr-header">
+        <h3 className="sr-header__title">
+          {t('search.title')}
+          <span className="sr-header__query">«{query}»</span>
+          <span className="sr-header__count">{results.length}</span>
+        </h3>
+      </div>
+
+      <div className="sr-list">
+        {results.length === 0 ? (
+          <p className="sr-empty">{t('search.empty')}</p>
+        ) : (
+          results.map((res) => (
+            <div key={res.id} className="sr-card">
+              <div className="sr-card__head">
+                <span className="sr-card__icon">
+                  <IconDoc size={14} />
                 </span>
-                <p className="doc-preview-tooltip__summary-text">{res.summary}</p>
+                {/*
+                  Переход — только по имени. Это настоящий <a href>, поэтому:
+                    • средняя кнопка мыши и Ctrl/Cmd-клик → новая вкладка (браузер сам);
+                    • обычный левый клик → SPA-навигация без перезагрузки.
+                */}
+                <a
+                  className="sr-card__title"
+                  href={docHref(res.id)}
+                  onClick={(e) => {
+                    // Клик с модификатором или не левой кнопкой — отдаём браузеру
+                    // (открыть в новой вкладке/окне). Средняя кнопка сюда не
+                    // приходит вовсе (это auxclick), её обрабатывает сам <a>.
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                    e.preventDefault();
+                    onSelect(res.id);
+                  }}
+                >
+                  {res.title}
+                </a>
+                <span className="sr-card__date">{new Date(res.updatedAt).toLocaleDateString(i18n.language)}</span>
               </div>
-            )}
-            {res.snippet && <p className="sr-card__snippet">{res.snippet}</p>}
-          </div>
-        ))
-      )}
+              <ResultBreadcrumb parents={res.parentList} />
+              {res.summary && (
+                <div className="sr-card__summary">
+                  <span className="doc-preview-tooltip__summary-label">
+                    <IconSparkle size={11} />
+                    {t('search.aiSummary')}
+                  </span>
+                  <p className="doc-preview-tooltip__summary-text">{res.summary}</p>
+                </div>
+              )}
+              {res.snippet && <p className="sr-card__snippet">{res.snippet}</p>}
+            </div>
+          ))
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 export default SearchResults;

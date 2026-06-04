@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import './KnowledgeBase.css';
 
 import TreeNode from './TreeNode';
@@ -25,6 +26,8 @@ const KnowledgeBase = ({
   onTabChange,
   onSearch,
 }) => {
+  const { t } = useTranslation('knowledgeBase');
+
   const {
     tree,
     selectedNode,
@@ -101,7 +104,7 @@ const KnowledgeBase = ({
           {/* Кнопка создания — в стиле «+ Новый чат» из списка чатов */}
           <button className="kb-new-doc-button" onClick={() => setShowAddModal(true)}>
             <IconPlus />
-            Создать
+            {t('tree.create')}
           </button>
 
           <div className="tree-container">
@@ -131,7 +134,7 @@ const KnowledgeBase = ({
               <DocumentDetail key={selectedNode.id} {...detailProps} />
             )
           ) : (
-            <div className="empty-preview">Выберите документ для просмотра</div>
+            <div className="empty-preview">{t('empty.selectDocument')}</div>
           )}
         </div>
       </div>
@@ -162,10 +165,10 @@ const KnowledgeBase = ({
       <ConfirmModal
         open={discardConfirm}
         icon="✏️"
-        title="Несохранённые изменения"
-        message="В редакторе есть несохранённые изменения. Если продолжить, они будут потеряны."
-        confirmLabel="Продолжить без сохранения"
-        cancelLabel="Остаться"
+        title={t('discard.title')}
+        message={t('discard.message')}
+        confirmLabel={t('discard.confirm')}
+        cancelLabel={t('discard.cancel')}
         onConfirm={handleDiscardConfirm}
         onCancel={handleDiscardCancel}
       />
@@ -174,14 +177,10 @@ const KnowledgeBase = ({
       <ConfirmModal
         open={!!deleteConfirm}
         icon="🗑️"
-        title={deleteConfirm?.type === 'folder' ? 'Удалить папку?' : 'Удалить документ?'}
-        message={
-          deleteConfirm?.title
-            ? `«${deleteConfirm.title}» будет удалён без возможности восстановления.`
-            : 'Элемент будет удалён без возможности восстановления.'
-        }
-        confirmLabel="Удалить"
-        cancelLabel="Отмена"
+        title={deleteConfirm?.type === 'folder' ? t('delete.folderTitle') : t('delete.documentTitle')}
+        message={deleteConfirm?.title ? t('delete.messageNamed', { title: deleteConfirm.title }) : t('delete.message')}
+        confirmLabel={t('delete.confirm')}
+        cancelLabel={t('delete.cancel')}
         onConfirm={handleDeleteConfirm}
         onCancel={handleDeleteCancel}
       />
@@ -190,13 +189,13 @@ const KnowledgeBase = ({
       <ErrorModal
         open={!!notFoundDocId || !!docLoadError}
         icon={notFoundDocId ? '🔍' : '⚠️'}
-        title={notFoundDocId ? 'Документ не найден' : 'Не удалось загрузить документ'}
+        title={notFoundDocId ? t('loadError.notFoundTitle') : t('loadError.errorTitle')}
         message={
           notFoundDocId
-            ? 'Возможно, он был удалён или ссылка устарела.'
-            : `Ошибка при загрузке документа${
-                docLoadError && docLoadError.status !== 'network' ? ` (${docLoadError.status})` : ''
-              }. Попробуйте позже.`
+            ? t('loadError.notFoundMessage')
+            : docLoadError && docLoadError.status !== 'network'
+            ? t('loadError.errorMessageWithCode', { code: docLoadError.status })
+            : t('loadError.errorMessage')
         }
         onClose={() => {
           setNotFoundDocId(null);
@@ -208,8 +207,8 @@ const KnowledgeBase = ({
       <ErrorModal
         open={!!saveError}
         icon="⚠️"
-        title="Ошибка сохранения"
-        message={saveError?.message || 'Не удалось сохранить изменения. Попробуйте позже.'}
+        title={t('loadError.saveErrorTitle')}
+        message={saveError?.message || t('loadError.saveErrorMessage')}
         onClose={() => setSaveError(null)}
       />
     </div>

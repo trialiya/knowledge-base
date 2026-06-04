@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { IconFolder, IconDoc } from './icons';
 
 /**
@@ -14,6 +15,7 @@ import { IconFolder, IconDoc } from './icons';
  *   onDismiss()    — called to close
  */
 const AtMentionDropdown = ({ results, loading, query, anchorRect, selectedIdx, onSelect, onDismiss }) => {
+  const { t } = useTranslation('knowledgeBase');
   const listRef = useRef(null);
 
   // Scroll selected item into view
@@ -45,18 +47,20 @@ const AtMentionDropdown = ({ results, loading, query, anchorRect, selectedIdx, o
   return (
     <div className="at-mention-dropdown" style={style}>
       <div className="at-mention-dropdown__header">
-        <span className="at-mention-dropdown__hint">{query ? `Поиск: «${query}»` : 'Начните вводить название…'}</span>
+        <span className="at-mention-dropdown__hint">
+          {query ? t('mention.hintQuery', { query }) : t('mention.hintStart')}
+        </span>
       </div>
 
       {loading && (
         <div className="at-mention-dropdown__loading">
           <span className="at-mention-dropdown__spinner" />
-          Поиск…
+          {t('mention.searching')}
         </div>
       )}
 
       {!loading && results.length === 0 && query.length >= 1 && (
-        <div className="at-mention-dropdown__empty">Ничего не найдено</div>
+        <div className="at-mention-dropdown__empty">{t('mention.empty')}</div>
       )}
 
       <div className="at-mention-dropdown__list" ref={listRef}>
@@ -83,14 +87,15 @@ const AtMentionDropdown = ({ results, loading, query, anchorRect, selectedIdx, o
                 <span className="at-mention-item__title">{node.title}</span>
                 {snippet && <span className="at-mention-item__snippet">{snippet}</span>}
               </span>
-              <span className="at-mention-item__type">{isFolder ? 'Folder' : 'Doc'}</span>
+              <span className="at-mention-item__type">{isFolder ? t('mention.folder') : t('mention.doc')}</span>
             </div>
           );
         })}
       </div>
 
       <div className="at-mention-dropdown__footer">
-        <kbd>↑↓</kbd> навигация · <kbd>Enter</kbd> вставить · <kbd>Esc</kbd> закрыть
+        <kbd>↑↓</kbd> {t('mention.navigate')} · <kbd>Enter</kbd> {t('mention.insert')} · <kbd>Esc</kbd>{' '}
+        {t('mention.dismiss')}
       </div>
     </div>
   );
