@@ -507,7 +507,7 @@ export default function useKnowledgeBase({
         setSaveError({ message: err.message || 'Не удалось сгенерировать summary.' });
       }
     },
-    [updateNodeInTree],
+    [], // updateNodeInTree — модульный импорт, стабилен; зависимостей нет
   );
 
   // Открывает модалку подтверждения удаления (вместо window.confirm).

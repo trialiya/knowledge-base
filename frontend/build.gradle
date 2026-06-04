@@ -69,9 +69,12 @@ tasks.register('yarnBuild', YarnTask) {
 }
 
 tasks.register('copyFrontend', Copy) {
-    dependsOn('spotlessReact')
     dependsOn('yarnBuild')
-    from('build')
+    from('build') {
+        include 'index.html'
+        include 'static/**'
+        include 'manifest.json', 'favicon.ico', 'robots.txt', 'asset-manifest.json'
+    }
     into("${project(':backend').projectDir}/build/resources/main/static")
 }
 

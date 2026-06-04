@@ -33,6 +33,8 @@ export default function useDocPreview(id, tree, enabled) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const prevIdRef = useRef(null);
+  const treeRef = useRef(tree);
+  treeRef.current = tree; // всегда последний tree, но НЕ триггер эффекта
 
   useEffect(() => {
     if (!id || !enabled) {
@@ -50,7 +52,7 @@ export default function useDocPreview(id, tree, enabled) {
     }
 
     // 1. Instant path: find in tree (only if node has description loaded)
-    const fromTree = findInTree(tree, id);
+    const fromTree = findInTree(treeRef.current, id);
     if (fromTree && fromTree.description !== undefined) {
       setNode(fromTree);
       setLoading(false);
@@ -103,7 +105,7 @@ export default function useDocPreview(id, tree, enabled) {
         setError(true);
         setLoading(false);
       });
-  }, [id, enabled]); // tree intentionally omitted — snapshot on first render is enough
+  }, [id, enabled]); // tree читается через treeRef — намеренно не триггерит эффект
 
   return { node, loading, error };
 }

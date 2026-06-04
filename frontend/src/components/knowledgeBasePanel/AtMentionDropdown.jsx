@@ -68,7 +68,7 @@ const AtMentionDropdown = ({ results, loading, query, anchorRect, selectedIdx, o
           const isFolder = node.type === 'folder';
           const isSelected = i === selectedIdx;
           const snippet = node.description
-            ? node.description.replace(/[#*_`>\[\]]/g, '').slice(0, 70) + (node.description.length > 70 ? '…' : '')
+            ? node.description.replace(/[#*_`>[\]]/g, '').slice(0, 70) + (node.description.length > 70 ? '…' : '')
             : null;
 
           return (

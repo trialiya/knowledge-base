@@ -27,7 +27,8 @@ export function setEditorDirty(id, value) {
   const before = dirtySources.size > 0;
   if (value) dirtySources.add(id);
   else dirtySources.delete(id);
-  if (before !== dirtySources.size > 0) emit();
+  const after = dirtySources.size > 0;
+  if (before !== after) emit();
 }
 
 /** Drop all dirty marks (e.g. after the user confirms discarding). */
