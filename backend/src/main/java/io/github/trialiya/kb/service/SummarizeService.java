@@ -123,7 +123,7 @@ public class SummarizeService implements DisposableBean {
                         .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAt(
                                 conversationId)
                         .stream()
-                        .filter(m -> m.getMessageType() != MessageType.SYSTEM)
+                        .filter(m -> !m.isSummary())
                         .filter(m -> Strings.isNotBlank(m.getText()))
                         .toList();
 
