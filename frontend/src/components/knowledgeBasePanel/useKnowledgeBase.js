@@ -213,16 +213,20 @@ export default function useKnowledgeBase({
    * (which carries only a ≤150-char snippet).
    */
   const applySelectNode = useCallback(
-    (node, { notify = true } = {}) => {
+    (node, { notify = true, tab = 'summary' } = {}) => {
       setSelectedNode({ ...node, _full: true });
-      setActiveTab('summary');
+      // Вкладку берём из opts: при выборе из дерева/поиска это 'summary' (по
+      // умолчанию), а при навигации по URL/«Назад» — вкладка из адреса. Раньше
+      // здесь был жёсткий 'summary', который асинхронно затирал выставленную
+      // эффектом вкладку (→ всегда Summary при back/прямой ссылке).
+      setActiveTab(tab);
       setSearchResults([]);
       setSearchQuery('');
       setNotFoundDocId(null);
       setDocLoadError(null);
       // Сообщаем навигации (она пишет URL). notify=false, когда выбор пришёл
       // ИЗ навигации (prop docId) — иначе была бы петля.
-      if (notify && onOpenDoc) onOpenDoc(node.id, 'summary');
+      if (notify && onOpenDoc) onOpenDoc(node.id, tab);
 
       // NOTE: folder children are loaded by FolderDetail's useFolderChildren
       // through the shared (deduplicated) loader. We intentionally do NOT fetch
@@ -371,11 +375,17 @@ export default function useKnowledgeBase({
 
   useEffect(() => {
     if (navDocId) {
-      if (lastNavDocRef.current === navDocId) return; // уже показан
+      const tab = navDocTab || 'summary';
+      if (lastNavDocRef.current === navDocId) {
+        // Тот же документ, но вкладка могла измениться — например, «Назад» на
+        // запись истории doc=5&tab=content при уже открытом doc=5. Документ
+        // повторно не грузим, лишь синхронизируем вкладку из URL.
+        setActiveTab(tab);
+        return;
+      }
       lastNavDocRef.current = navDocId;
       lastNavSearchRef.current = undefined;
-      setActiveTab(navDocTab || 'summary');
-      navigateToDocById(navDocId, { notify: false });
+      navigateToDocById(navDocId, { notify: false, tab });
     } else if (navSearch) {
       lastNavDocRef.current = undefined;
       if (lastNavSearchRef.current === navSearch) return;

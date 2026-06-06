@@ -19,17 +19,20 @@ import { useState, useEffect, useRef, useCallback } from 'react';
  *   {
  *     view:    'chat' | 'knowledge'
  *     chatId:  string | null      — последний открытый чат (живёт даже в KB-view)
- *     docId:   string | null      — последний открытый документ (живёт даже в chat-view!)
+ *     docId:   string | null      — документ, активный для ТЕКУЩЕЙ записи истории
  *     docTab:  'summary' | 'content' | ...
  *     search:  string             — поисковый запрос KB
  *     mode:    'hybrid' | ...      — режим поиска KB
  *   }
  *
- * Почему docId хранится даже когда view==='chat':
- *   Требование — клик по вкладке «База знаний» открывает последний читанный
- *   документ. Мы держим docId в памяти всегда; в URL он попадает только когда
- *   view==='knowledge'. Так chat-URL остаётся чистым, а возврат в KB
- *   восстанавливает документ из состояния (без событий-петель).
+ * Почему docId в состоянии берётся строго из URL (а «последний документ» хранится
+ * отдельно в lastKbRef):
+ *   docId в nav обязан соответствовать адресу — иначе экран рассинхронизируется
+ *   с URL при «Назад»/«Вперёд». Но chat-URL по схеме НЕ содержит doc, поэтому
+ *   любой «Назад» между чатами обнулил бы docId. Чтобы клик по вкладке «База
+ *   знаний» всё равно открывал последний читанный документ, мы держим его в
+ *   lastKbRef (вне URL) и подставляем в switchView, когда для текущей записи
+ *   документ/поиск не активны.
  */
 
 // ── URL <-> state ───────────────────────────────────────────────────────────
@@ -98,6 +101,20 @@ export default function useAppNavigation() {
     navRef.current = nav;
   }, [nav]);
 
+  // ── Память «последнего документа KB» (вне URL) ──────────────────────────────
+  // Нужна, потому что docId в nav обнуляется при «Назад» на chat-запись (в
+  // chat-URL doc не пишется). Здесь же мы помним последний реально открытый
+  // документ и его вкладку, чтобы switchView('knowledge') мог его восстановить.
+  const lastKbRef = useRef({
+    docId: nav.docId || null,
+    docTab: nav.docTab || 'summary',
+  });
+  useEffect(() => {
+    if (nav.docId) {
+      lastKbRef.current = { docId: nav.docId, docTab: nav.docTab || 'summary' };
+    }
+  }, [nav.docId, nav.docTab]);
+
   // Флаг: изменение пришло из popstate — значит URL уже актуален, писать НЕ нужно.
   const fromPopRef = useRef(false);
 
@@ -142,7 +159,8 @@ export default function useAppNavigation() {
         // этой записи истории документ не активен (идёт поиск, либо view=chat).
         // Подмешивать prev.docId здесь нельзя: при возврате на запись поиска это
         // вернуло бы устаревший документ, и экран рассинхронизировался бы с URL.
-        // Память «последнего документа для вкладки Чат» живёт в switchView, а не тут.
+        // Память «последнего документа для вкладки Чат» живёт в lastKbRef и
+        // восстанавливается в switchView, а не здесь.
         docId: u.docId,
         docTab: u.docTab,
         search: u.search,
@@ -155,14 +173,28 @@ export default function useAppNavigation() {
 
   // ── Публичные методы навигации ─────────────────────────────────────────────
 
-  /** Переключить верхнюю вкладку. Для KB восстанавливает последний документ. */
+  /**
+   * Переключить верхнюю вкладку. Для KB восстанавливает последний документ,
+   * если для текущей записи истории документ/поиск не активны (например, после
+   * «Назад» между чатами docId в состоянии обнулён, но lastKbRef его помнит).
+   */
   const switchView = useCallback((view) => {
-    setNav((prev) => (prev.view === view ? prev : { ...prev, view }));
+    setNav((prev) => {
+      if (prev.view === view) return prev;
+      if (view === 'knowledge' && !prev.docId && !prev.search) {
+        const last = lastKbRef.current;
+        if (last?.docId) {
+          return { ...prev, view, docId: last.docId, docTab: last.docTab || 'summary' };
+        }
+      }
+      return { ...prev, view };
+    });
   }, []);
 
   /** Открыть документ в KB (из чата, doc-ссылки, дерева). */
   const openDoc = useCallback((docId, docTab = 'summary') => {
     const id = docId == null ? null : String(docId);
+    if (id) lastKbRef.current = { docId: id, docTab };
     setNav((prev) => ({ ...prev, view: 'knowledge', docId: id, docTab, search: '', mode: prev.mode }));
   }, []);
 
