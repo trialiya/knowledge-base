@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import MarkdownEditor from './MarkdownEditor';
 import { IconEdit, IconChevronRight, IconExpand, IconCopy, IconCheck } from './icons';
 
@@ -29,6 +30,7 @@ const SummarySection = ({
   onNavigate,
   copyable = false,
 }) => {
+  const { t } = useTranslation('knowledgeBase');
   const [isExpanded, setIsExpanded] = useState(false);
   const [isTruncated, setIsTruncated] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -67,24 +69,24 @@ const SummarySection = ({
           {showCopy && (
             <button
               className={`detail-icon-btn${copied ? ' detail-icon-btn--done' : ''}`}
-              title={copied ? 'Скопировано' : 'Копировать всё'}
+              title={copied ? t('editor.copied') : t('editor.copyAll')}
               onClick={handleCopy}
             >
               {copied ? <IconCheck /> : <IconCopy />}
             </button>
           )}
           {onEdit && (
-            <button className="detail-icon-btn" title="Редактировать" onClick={onEdit}>
+            <button className="detail-icon-btn" title={t('section.edit')} onClick={onEdit}>
               <IconEdit />
             </button>
           )}
           {showMoreBtn && (
-            <button className="detail-icon-btn" title="Открыть вкладку" onClick={onMore}>
+            <button className="detail-icon-btn" title={t('section.openTab')} onClick={onMore}>
               <IconChevronRight size={13} />
             </button>
           )}
           {onExpand && (
-            <button className="detail-icon-btn" title="Развернуть" onClick={onExpand}>
+            <button className="detail-icon-btn" title={t('section.expand')} onClick={onExpand}>
               <IconExpand />
             </button>
           )}
@@ -112,13 +114,13 @@ const SummarySection = ({
               {isTruncated && (
                 <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
                   <button className="summary-read-more" onClick={() => setIsExpanded(!isExpanded)}>
-                    {isExpanded ? 'Свернуть' : 'Развернуть'}
+                    {isExpanded ? t('section.collapse') : t('section.readMore')}
                   </button>
                 </div>
               )}
             </>
           ) : (
-            <p style={{ margin: 0 }}>Нет содержимого — нажмите ✏️ чтобы добавить</p>
+            <p style={{ margin: 0 }}>{t('section.empty')}</p>
           )}
         </div>
       )}

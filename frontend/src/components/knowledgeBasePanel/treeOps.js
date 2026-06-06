@@ -47,10 +47,16 @@ export function applyReorder(tree, { draggedId, draggedParent, targetId, targetP
   return clone;
 }
 
-/** Display name for a parent node (null = root). */
-export function parentTitle(tree, parentId) {
-  if (parentId === null) return 'Корневой уровень';
-  return findNodeById(tree, parentId)?.title ?? 'Неизвестно';
+/**
+ * Display name for a parent node (null = root).
+ *
+ * Pass the i18next `t` (scoped to the `knowledgeBase` namespace) to localize the
+ * root/unknown labels. `t` is optional: when omitted the function falls back to
+ * the original Russian wording, so unit tests can call it without an i18n setup.
+ */
+export function parentTitle(tree, parentId, t) {
+  if (parentId === null) return t ? t('add.root') : 'Корневой уровень';
+  return findNodeById(tree, parentId)?.title ?? (t ? t('tree.unknown') : 'Неизвестно');
 }
 
 /** True when a drop changes the node's parent. */

@@ -1,6 +1,10 @@
 {
   "tree": {
-    "create": "Создать"
+    "create": "Создать",
+    "dragToReorder": "Перетащите, чтобы изменить порядок",
+    "delete": "Удалить",
+    "loadMore": "··· ещё {{count}}",
+    "unknown": "Неизвестно"
   },
   "empty": {
     "selectDocument": "Выберите документ для просмотра"
@@ -34,6 +38,14 @@
     "folder": "Folder",
     "document": "Document"
   },
+  "section": {
+    "edit": "Редактировать",
+    "openTab": "Открыть вкладку",
+    "expand": "Развернуть",
+    "readMore": "Развернуть",
+    "collapse": "Свернуть",
+    "empty": "Нет содержимого — нажмите ✏️ чтобы добавить"
+  },
   "summary": {
     "aiSummary": "AI Summary",
     "stale": "устарел",
@@ -45,7 +57,8 @@
     "generate": "Сгенерировать summary",
     "generating": "Генерация…",
     "generateDisabledHint": "Добавьте описание документа, чтобы сгенерировать summary",
-    "needDescription": "Сначала добавьте описание во вкладке Content"
+    "needDescription": "Сначала добавьте описание во вкладке Content",
+    "generateError": "Не удалось сгенерировать summary."
   },
   "editor": {
     "placeholder": "# Markdown...",
@@ -145,7 +158,8 @@
     "errorMessage": "Ошибка при загрузке документа. Попробуйте позже.",
     "errorMessageWithCode": "Ошибка при загрузке документа ({{code}}). Попробуйте позже.",
     "saveErrorTitle": "Ошибка сохранения",
-    "saveErrorMessage": "Не удалось сохранить изменения. Попробуйте позже."
+    "saveErrorMessage": "Не удалось сохранить изменения. Попробуйте позже.",
+    "moveErrorMessage": "Не удалось переместить документ. Попробуйте позже."
   },
   "fullscreen": {
     "close": "Закрыть (Esc)"

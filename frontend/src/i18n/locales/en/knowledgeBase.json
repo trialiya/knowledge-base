@@ -1,6 +1,10 @@
 {
   "tree": {
-    "create": "Create"
+    "create": "Create",
+    "dragToReorder": "Drag to reorder",
+    "delete": "Delete",
+    "loadMore": "··· {{count}} more",
+    "unknown": "Unknown"
   },
   "empty": {
     "selectDocument": "Select a document to view"
@@ -34,6 +38,14 @@
     "folder": "Folder",
     "document": "Document"
   },
+  "section": {
+    "edit": "Edit",
+    "openTab": "Open tab",
+    "expand": "Expand",
+    "readMore": "Expand",
+    "collapse": "Collapse",
+    "empty": "No content — click ✏️ to add"
+  },
   "summary": {
     "aiSummary": "AI Summary",
     "stale": "stale",
@@ -45,7 +57,8 @@
     "generate": "Generate summary",
     "generating": "Generating…",
     "generateDisabledHint": "Add a document description to generate a summary",
-    "needDescription": "Add a description on the Content tab first"
+    "needDescription": "Add a description on the Content tab first",
+    "generateError": "Failed to generate the summary."
   },
   "editor": {
     "placeholder": "# Markdown...",
@@ -81,7 +94,7 @@
   },
   "mention": {
     "hintStart": "Start typing a name…",
-    "hintQuery": "Search: \u201c{{query}}\u201d",
+    "hintQuery": "Search: “{{query}}”",
     "searching": "Searching…",
     "empty": "Nothing found",
     "folder": "Folder",
@@ -118,7 +131,7 @@
   },
   "move": {
     "title": "Move to another folder?",
-    "body": "You are moving \u201c{{title}}\u201d to another folder. This will change its location in the tree.",
+    "body": "You are moving “{{title}}” to another folder. This will change its location in the tree.",
     "from": "From:",
     "to": "To:",
     "confirm": "Move",
@@ -133,7 +146,7 @@
   "delete": {
     "folderTitle": "Delete folder?",
     "documentTitle": "Delete document?",
-    "messageNamed": "\u201c{{title}}\u201d will be permanently deleted.",
+    "messageNamed": "“{{title}}” will be permanently deleted.",
     "message": "The item will be permanently deleted.",
     "confirm": "Delete",
     "cancel": "Cancel"
@@ -145,7 +158,8 @@
     "errorMessage": "Error loading document. Please try again later.",
     "errorMessageWithCode": "Error loading document ({{code}}). Please try again later.",
     "saveErrorTitle": "Save error",
-    "saveErrorMessage": "Failed to save changes. Please try again later."
+    "saveErrorMessage": "Failed to save changes. Please try again later.",
+    "moveErrorMessage": "Failed to move the document. Please try again later."
   },
   "fullscreen": {
     "close": "Close (Esc)"
@@ -165,9 +179,9 @@
     "modeBase": "Base",
     "modeCompare": "Changed",
     "restoreBase": "Restore base",
-    "restoreBaseTitle": "Save the \u201cBase\u201d version as a new edit (roll back to an earlier version)",
+    "restoreBaseTitle": "Save the “Base” version as a new edit (roll back to an earlier version)",
     "restoreCompare": "Restore changed",
-    "restoreCompareTitle": "Save the \u201cChanged\u201d version as a new edit",
+    "restoreCompareTitle": "Save the “Changed” version as a new edit",
     "restoreCurrentTitle": "This is the current version — nothing to restore",
     "loadHistoryError": "Failed to load history. Please try again later.",
     "emptyHistory": "History is empty — the document hasn't been saved yet.",

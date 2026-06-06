@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { IconFolder, IconDoc, IconChevron, IconLock } from './icons';
 import { findNodeById } from '../common/utils';
 
@@ -11,11 +12,12 @@ const PAGE_SIZE = 10;
  */
 const dragState = { current: null };
 
-const DragHandle = ({ disabled }) =>
-  disabled ? (
+const DragHandle = ({ disabled }) => {
+  const { t } = useTranslation('knowledgeBase');
+  return disabled ? (
     <span className="tree-row__drag-handle tree-row__drag-handle--disabled" aria-hidden="true" />
   ) : (
-    <span className="tree-row__drag-handle" title="Drag to reorder">
+    <span className="tree-row__drag-handle" title={t('tree.dragToReorder')}>
       <svg width="10" height="14" viewBox="0 0 10 14" fill="none" xmlns="http://www.w3.org/2000/svg">
         <circle cx="3" cy="2" r="1.2" fill="currentColor" />
         <circle cx="7" cy="2" r="1.2" fill="currentColor" />
@@ -26,8 +28,10 @@ const DragHandle = ({ disabled }) =>
       </svg>
     </span>
   );
+};
 
 const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLoadChildren }) => {
+  const { t } = useTranslation('knowledgeBase');
   const [open, setOpen] = useState(false);
   const [dropPos, setDropPos] = useState(null); // 'before' | 'after' | 'inside'
   const [nextPage, setNextPage] = useState(1); // next page number to load
@@ -254,13 +258,13 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
         <span className="tree-row__label">{node.title}</span>
 
         {isSystem ? (
-          <span className="tree-row__system-badge" title="Системный документ: удаление и переименование недоступны">
+          <span className="tree-row__system-badge" title={t('detail.systemBadge')}>
             <IconLock />
           </span>
         ) : (
           <button
             className="tree-row__del"
-            title="Удалить"
+            title={t('tree.delete')}
             onClick={(e) => {
               e.stopPropagation();
               onDelete(node.id);
@@ -294,7 +298,7 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
               onClick={handleLoadMore}
               disabled={loadingMore}
             >
-              {loadingMore ? '…' : `··· ещё ${remaining}`}
+              {loadingMore ? '…' : t('tree.loadMore', { count: remaining })}
             </button>
           )}
         </div>

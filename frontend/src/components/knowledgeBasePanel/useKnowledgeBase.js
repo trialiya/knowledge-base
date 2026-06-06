@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import api from './api';
 import { getSiblings, applyReorder, parentTitle, isParentChange, updateNodeInTree, spliceChildren } from './treeOps';
@@ -36,6 +37,7 @@ export default function useKnowledgeBase({
   onSearch,
   onTabChange,
 } = {}) {
+  const { t } = useTranslation('knowledgeBase');
   const [tree, setTree] = useState([]);
   const [selectedNode, setSelectedNode] = useState(null);
   const [activeTab, setActiveTab] = useState(navDocTab || 'summary');
@@ -483,7 +485,7 @@ export default function useKnowledgeBase({
     } catch (err) {
       console.error('Update error:', err);
       // Do NOT roll back — keep the user's edits in the UI, surface an error
-      setSaveError({ message: 'Не удалось сохранить изменения. Попробуйте позже.', id });
+      setSaveError({ message: t('loadError.saveErrorMessage'), id });
     }
   };
 
@@ -504,10 +506,10 @@ export default function useKnowledgeBase({
         setSelectedNode((prev) => (prev && prev.id === id ? { ...prev, ...patch } : prev));
         setTree((prev) => updateNodeInTree(prev, id, patch));
       } catch (err) {
-        setSaveError({ message: err.message || 'Не удалось сгенерировать summary.' });
+        setSaveError({ message: err.message || t('summary.generateError') });
       }
     },
-    [], // updateNodeInTree — модульный импорт, стабилен; зависимостей нет
+    [t], // updateNodeInTree — модульный импорт, стабилен
   );
 
   // Открывает модалку подтверждения удаления (вместо window.confirm).
@@ -566,11 +568,11 @@ export default function useKnowledgeBase({
         if (!reorderRes.ok) throw new Error('reorder failed');
       } catch (err) {
         console.error('Reorder error, rolling back:', err);
-        setSaveError({ message: err.message || 'Не удалось переместить документ. Попробуйте позже.' });
+        setSaveError({ message: err.message || t('loadError.moveErrorMessage') });
         loadTree();
       }
     },
-    [tree, loadTree],
+    [tree, loadTree, t],
   );
 
   /** Called by TreeNode on drop — confirms first if the parent changes. */
@@ -580,14 +582,14 @@ export default function useKnowledgeBase({
         const newParentId = dropInfo.position === 'inside' ? dropInfo.targetId : dropInfo.targetParent;
         setMoveConfirm({
           dropInfo,
-          fromTitle: parentTitle(tree, dropInfo.draggedParent),
-          toTitle: parentTitle(tree, newParentId),
+          fromTitle: parentTitle(tree, dropInfo.draggedParent, t),
+          toTitle: parentTitle(tree, newParentId, t),
         });
       } else {
         executeReorder(dropInfo);
       }
     },
-    [tree, executeReorder],
+    [tree, executeReorder, t],
   );
 
   const handleMoveConfirm = () => {
