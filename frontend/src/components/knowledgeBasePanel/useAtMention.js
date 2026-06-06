@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import api from './api';
 
 const DEBOUNCE_MS = 200;
 const MIN_QUERY_LEN = 1;
@@ -8,7 +9,7 @@ const MAX_RESULTS = 10;
  * Detects `@query` patterns in a textarea and fetches matching documents.
  *
  * Usage:
- *   const mention = useAtMention(textareaRef, val, (docNode) => {
+ *   const mention = useAtMention(textareaRef, val, (newVal, newCursor) => {
  *     // insert link into editor
  *   });
  *
@@ -21,6 +22,7 @@ const MAX_RESULTS = 10;
  *     anchorRect — DOMRect of the @ character position (for positioning dropdown)
  *     select(node) — call to insert the link and close
  *     dismiss()    — call to close without selecting
+ *     handleKeyDown(e) — wire into the textarea onKeyDown
  *   }
  */
 export default function useAtMention(textareaRef, value, onSelect) {
@@ -36,7 +38,68 @@ export default function useAtMention(textareaRef, value, onSelect) {
   const debounceRef = useRef(null);
   const abortRef = useRef(null);
 
-  // ── Detect @mention in textarea ──────────────────────────────────────────
+  // ── Dismiss / select ───────────────────────────────────────────────────────
+  // Defined BEFORE the keyboard handler so it can list them as dependencies
+  // (referencing a `const` in a deps array before its declaration is a TDZ
+  // error). Keeping them in the deps array also fixes the stale-closure bug
+  // where Enter inserted using a `value`/`onSelect` captured on an older render.
+
+  const dismiss = useCallback(() => {
+    setActive(false);
+    setResults([]);
+    setQuery('');
+    atPosRef.current = -1;
+    clearTimeout(debounceRef.current);
+    abortRef.current?.abort();
+  }, []);
+
+  const select = useCallback(
+    (node) => {
+      const ta = textareaRef.current;
+      if (!ta || atPosRef.current === -1) return;
+
+      const before = value.slice(0, atPosRef.current);
+      const afterCursor = ta.selectionStart;
+      const after = value.slice(afterCursor);
+
+      // Markdown link: [Title](/?doc=ID)
+      const link = `[${node.title}](/?doc=${node.id})`;
+      const newVal = before + link + after;
+      const newCursor = before.length + link.length;
+
+      onSelect(newVal, newCursor);
+      dismiss();
+    },
+    [textareaRef, value, onSelect, dismiss],
+  );
+
+  // ── Debounced fetch ─────────────────────────────────────────────────────────
+
+  const doSearch = useCallback(async (q) => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    setLoading(true);
+    try {
+      const data = await api.searchByName(q, MAX_RESULTS, controller.signal);
+      setResults(Array.isArray(data) ? data.slice(0, MAX_RESULTS) : []);
+    } catch (err) {
+      if (err.name !== 'AbortError') setResults([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const scheduleSearch = useCallback(
+    (q) => {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => doSearch(q), DEBOUNCE_MS);
+    },
+    [doSearch],
+  );
+
+  // ── Detect @mention in textarea ──────────────────────────────────────────────
 
   useEffect(() => {
     const ta = textareaRef.current;
@@ -73,7 +136,7 @@ export default function useAtMention(textareaRef, value, onSelect) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
-  // ── Keyboard navigation (to be wired into textarea onKeyDown) ────────────
+  // ── Keyboard navigation (wired into textarea onKeyDown) ──────────────────────
 
   const handleKeyDown = useCallback(
     (e) => {
@@ -93,69 +156,8 @@ export default function useAtMention(textareaRef, value, onSelect) {
         dismiss();
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [active, results, selectedIdx],
+    [active, results, selectedIdx, select, dismiss],
   );
-
-  // ── Select a result → insert markdown link ────────────────────────────────
-
-  const select = useCallback(
-    (node) => {
-      const ta = textareaRef.current;
-      if (!ta || atPosRef.current === -1) return;
-
-      const before = value.slice(0, atPosRef.current);
-      const afterCursor = ta.selectionStart;
-      const after = value.slice(afterCursor);
-
-      // Markdown link: [Title](/?doc=ID)
-      const link = `[${node.title}](/?doc=${node.id})`;
-      const newVal = before + link + after;
-      const newCursor = before.length + link.length;
-
-      onSelect(newVal, newCursor);
-      dismiss();
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [value, onSelect],
-  );
-
-  const dismiss = useCallback(() => {
-    setActive(false);
-    setResults([]);
-    setQuery('');
-    atPosRef.current = -1;
-    clearTimeout(debounceRef.current);
-    abortRef.current?.abort();
-  }, []);
-
-  // ── Debounced fetch ───────────────────────────────────────────────────────
-
-  function scheduleSearch(q) {
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => doSearch(q), DEBOUNCE_MS);
-  }
-
-  async function doSearch(q) {
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({ name: q, limit: MAX_RESULTS });
-      const r = await fetch(`/api/documents/search-by-name?${params}`, {
-        signal: controller.signal,
-      });
-      if (!r.ok) throw new Error(r.status);
-      const data = await r.json();
-      setResults(Array.isArray(data) ? data.slice(0, MAX_RESULTS) : []);
-    } catch (err) {
-      if (err.name !== 'AbortError') setResults([]);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   return {
     active,

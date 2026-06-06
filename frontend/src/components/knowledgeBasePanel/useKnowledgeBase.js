@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import api from './api';
-import { getSiblings, applyReorder, parentTitle, isParentChange, updateNodeInTree, spliceChildren } from './treeOps';
+import { getSiblings, applyReorder, parentTitle, isParentChange, updateNodeInTree, applyChildren } from './treeOps';
 import { findNodeById, findPath } from '../common/utils';
 import { isEditorDirty, clearEditorDirty } from './editorDirtyStore';
 
@@ -12,11 +12,12 @@ const PAGE_SIZE = 10;
 // node sitting on page 2+ of its parent isn't missing from the tree.
 const FULL_PAGE = 1000;
 
+const rootItems = (paged) => (Array.isArray(paged?.items) ? paged.items : []);
+
 /**
  * Encapsulates every piece of Knowledge Base state, side effect and handler.
  * The component consuming this hook is purely presentational.
- */
-/**
+ *
  * props (из useAppNavigation через KnowledgeBase.jsx):
  *   docId      — какой документ показать (null = ничего/поиск)
  *   docTab     — вкладка детали (summary/content/…)
@@ -101,18 +102,19 @@ export default function useKnowledgeBase({
   const loadTree = useCallback(async () => {
     try {
       const paged = await api.fetchChildren(null, 0, PAGE_SIZE);
-      setTree(Array.isArray(paged.items) ? paged.items : []);
-      return paged;
+      const items = rootItems(paged);
+      setTree(items);
+      return items;
     } catch {
       setTree([]);
-      return null;
+      return [];
     }
   }, []);
 
   /**
    * Lazy-loads one page of children for a node and splices them into the tree.
    * Called by TreeNode when a folder is expanded or "load more" is clicked,
-   * and by the folder detail (via the full-list loader below).
+   * and by the folder detail (via the full-list loader).
    *
    * Concurrent calls for the same parentId+page+size share a single in-flight
    * request, so a row click that both selects and expands a folder can't fire
@@ -126,11 +128,7 @@ export default function useKnowledgeBase({
     const promise = (async () => {
       try {
         const paged = await api.fetchChildren(parentId, page, size);
-        setTree((prev) => {
-          const clone = JSON.parse(JSON.stringify(prev));
-          spliceChildren(clone, parentId, paged, { replace: page === 0 });
-          return clone;
-        });
+        setTree((prev) => applyChildren(prev, parentId, paged, { replace: page === 0 }));
         return paged;
       } catch {
         return null;
@@ -151,14 +149,43 @@ export default function useKnowledgeBase({
         return;
       }
       const paged = await api.fetchChildren(parentId, 0, PAGE_SIZE);
-      setTree((prev) => {
-        const clone = JSON.parse(JSON.stringify(prev));
-        spliceChildren(clone, parentId, paged, { replace: true });
-        return clone;
-      });
+      setTree((prev) => applyChildren(prev, parentId, paged, { replace: true }));
     },
     [loadTree],
   );
+
+  /**
+   * Ensures `targetId` is present in the tree by loading the FULL child list of
+   * every ancestor (and the root, for a first-pageless root node), marking each
+   * ancestor `_openOnLoad` so the tree auto-expands the path. Threads the
+   * growing tree through a local variable AND pushes each step to state so the
+   * UI expands progressively. Returns the final tree.
+   *
+   * Shared by direct-link navigation and manual refresh — previously these were
+   * two near-identical copies, one using a resolve-inside-setState hack.
+   *
+   * Throws if api.fetchAncestors fails (caller decides how to recover).
+   */
+  const materializePathTo = useCallback(async (targetId, baseTree) => {
+    let cur = baseTree;
+    const ancestorIds = (await api.fetchAncestors(targetId)) || [];
+
+    for (const ancestorId of ancestorIds) {
+      const paged = await api.fetchChildren(ancestorId, 0, FULL_PAGE);
+      cur = applyChildren(cur, ancestorId, paged, { replace: true, open: true });
+      setTree(cur);
+    }
+
+    // A root-level target beyond the first page has no ancestors, so reload the
+    // full root list to bring it into the tree.
+    if (ancestorIds.length === 0 && !findNodeById(cur, targetId)) {
+      const fullRoot = await api.fetchChildren(null, 0, FULL_PAGE);
+      cur = rootItems(fullRoot).length ? rootItems(fullRoot) : cur;
+      setTree(cur);
+    }
+
+    return cur;
+  }, []);
 
   // ── Search ─────────────────────────────────────────────────────────────────
 
@@ -175,17 +202,18 @@ export default function useKnowledgeBase({
     }
   }, []);
 
-  // ── Navigation & URL sync ────────────────────────────────────────────────
+  // ── Selection ──────────────────────────────────────────────────────────────
 
   /**
    * Core selection logic — expects a full DocumentNode with `type` populated.
-   * Separated from selectNode so it can be called after async fetch enrichment.
+   * Separated from the fetch wrapper so it can be called after async enrichment.
+   *
+   * `_full` marks this as a complete document (from GET /documents/{id}), so the
+   * tree-sync effect won't later overwrite its description with a tree stub
+   * (which carries only a ≤150-char snippet).
    */
   const applySelectNode = useCallback(
     (node, { notify = true } = {}) => {
-      // `_full` marks this as a complete document (from GET /documents/{id}),
-      // so the tree-sync effect won't later overwrite its description with a
-      // tree stub (which carries only a ≤150-char snippet).
       setSelectedNode({ ...node, _full: true });
       setActiveTab('summary');
       setSearchResults([]);
@@ -205,15 +233,6 @@ export default function useKnowledgeBase({
   );
 
   /**
-   * Select a node for display in the detail panel.
-   *
-   * Tree nodes from /api/documents/children carry only a short snippet of description
-   * (≤150 chars) to keep list payloads lean. Search result DTOs also lack full content.
-   * In all cases we fetch the complete document via GET /api/documents/{id} before
-   * rendering, then patch it back into the tree cache so the tree-sync effect never
-   * overwrites the full content with a stale stub.
-   */
-  /**
    * Fetches the COMPLETE document via GET /api/documents/{id} and selects it.
    * Used by every selection path (tree click, cross-component navigation, direct
    * link, refresh) because tree/search nodes carry only a ≤150-char snippet of
@@ -229,16 +248,13 @@ export default function useKnowledgeBase({
         .fetchById(id)
         .then((full) => {
           applySelectNode(full, opts);
-          setTree((prev) => {
-            const clone = JSON.parse(JSON.stringify(prev));
-            const existing = findNodeById(clone, full.id);
-            if (existing) {
-              existing.description = full.description;
-              existing.updatedAt = full.updatedAt;
-              existing.system = full.system;
-            }
-            return clone;
-          });
+          setTree((prev) =>
+            updateNodeInTree(prev, full.id, {
+              description: full.description,
+              updatedAt: full.updatedAt,
+              system: full.system,
+            }),
+          );
           return full;
         })
         .catch((err) => {
@@ -247,11 +263,8 @@ export default function useKnowledgeBase({
           return null;
         });
     },
-    [applySelectNode], // eslint-disable-line react-hooks/exhaustive-deps
+    [applySelectNode],
   );
-
-  // selectNode объявлен ниже — после navigateToDocById (нужен для doc-ссылок
-  // на документы вне текущего дерева).
 
   const handleSearch = useCallback(async () => {
     if (!searchQuery.trim()) {
@@ -264,7 +277,7 @@ export default function useKnowledgeBase({
     await performSearch(searchQuery, searchMode);
   }, [searchQuery, searchMode, performSearch, onSearch]);
 
-  // ── Navigate to a specific doc by ID (used by cross-component navigation) ──
+  // ── Navigate to a specific doc by ID (cross-component navigation / links) ──
 
   const navigateToDocById = useCallback(
     async (docId, opts = {}) => {
@@ -278,40 +291,15 @@ export default function useKnowledgeBase({
         return;
       }
 
-      // Otherwise load the ancestor chain and then select
       try {
-        let currentTree = tree.length > 0 ? tree : [];
-        if (currentTree.length === 0) {
-          const paged = await api.fetchChildren(null, 0, PAGE_SIZE);
-          currentTree = Array.isArray(paged.items) ? paged.items : [];
-          setTree(currentTree);
+        // Seed the root if the tree is empty, then materialize the path.
+        let baseTree = tree;
+        if (baseTree.length === 0) {
+          baseTree = await loadTree();
         }
+        const cur = await materializePathTo(docId, baseTree);
 
-        const ancestorIds = await api.fetchAncestors(docId);
-        for (const ancestorId of ancestorIds) {
-          // FULL_PAGE, not PAGE_SIZE: the target may sit on page 2+ of this
-          // ancestor's children — a first-page fetch would omit it and the
-          // findNodeById below would wrongly report it as not found.
-          const paged = await api.fetchChildren(ancestorId, 0, FULL_PAGE);
-          currentTree = await new Promise((resolve) => {
-            setTree((prev) => {
-              const clone = JSON.parse(JSON.stringify(prev));
-              const parent = spliceChildren(clone, ancestorId, paged, { replace: true });
-              if (parent) parent._openOnLoad = true;
-              resolve(clone);
-              return clone;
-            });
-          });
-        }
-
-        // A root-level target beyond the first page: reload the full root list.
-        if (ancestorIds.length === 0 && !findNodeById(currentTree, docId)) {
-          const fullRoot = await api.fetchChildren(null, 0, FULL_PAGE);
-          currentTree = Array.isArray(fullRoot.items) ? fullRoot.items : currentTree;
-          setTree(currentTree);
-        }
-
-        const target = findNodeById(currentTree, docId);
+        const target = findNodeById(cur, docId);
         if (target) {
           // Fetch the full document (the tree stub has only a snippet).
           // FolderDetail's useFolderChildren loads folder children separately
@@ -321,14 +309,11 @@ export default function useKnowledgeBase({
           setNotFoundDocId(docId);
         }
       } catch (err) {
-        if (err.status === 404) {
-          setNotFoundDocId(docId);
-        } else {
-          setDocLoadError({ status: err.status || 'network', docId });
-        }
+        if (err.status === 404) setNotFoundDocId(docId);
+        else setDocLoadError({ status: err.status || 'network', docId });
       }
     },
-    [tree, fetchFullAndSelect],
+    [tree, fetchFullAndSelect, loadTree, materializePathTo],
   );
 
   /**
@@ -351,7 +336,6 @@ export default function useKnowledgeBase({
       if (existing) {
         fetchFullAndSelect(existing, { notify: true });
       } else {
-        // Документа нет в текущем дереве — грузим предков и раскрываем дерево.
         navigateToDocById(id, { notify: true });
       }
     },
@@ -374,15 +358,8 @@ export default function useKnowledgeBase({
   useEffect(() => {
     if (didInitRef.current) return;
     didInitRef.current = true;
-    (async () => {
-      try {
-        const paged = await api.fetchChildren(null, 0, PAGE_SIZE);
-        setTree(Array.isArray(paged.items) ? paged.items : []);
-      } catch {
-        setTree([]);
-      }
-    })();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    loadTree();
+  }, [loadTree]);
 
   // ── Реакция на навигацию (props из useAppNavigation) ─────────────────────
   // Единственный вход для «показать документ N» / «показать поиск Q».
@@ -415,7 +392,6 @@ export default function useKnowledgeBase({
       // скрыт через CSS), а возврат в KB пройдёт по ветке «уже показан» и не
       // перезагрузит документ по API, сохранив правки.
       if (isEditorDirty()) return;
-      // Навигация без doc/search → очистить выбор (напр. ушли в чистый KB).
       lastNavDocRef.current = undefined;
       lastNavSearchRef.current = undefined;
       setSelectedNode(null);
@@ -437,26 +413,8 @@ export default function useKnowledgeBase({
     if (!selectedNode) return;
     const fromTree = findNodeById(tree, selectedNode.id);
     if (!fromTree) return;
-
-    setSelectedNode((prev) => {
-      if (!prev || prev.id !== selectedNode.id) return prev;
-      const keepFullDescription = prev._full;
-      const merged = {
-        ...prev,
-        ...fromTree,
-        // Preserve full content for a fully-loaded document; otherwise take the
-        // tree's (possibly fresher) snippet.
-        description: keepFullDescription ? prev.description : fromTree.description,
-        // Don't let a childless stub wipe children we've already loaded.
-        children: fromTree.children ?? prev.children,
-        _full: prev._full,
-      };
-      return merged;
-    });
+    setSelectedNode((prev) => (prev && prev.id === selectedNode.id ? mergeStubIntoSelection(prev, fromTree) : prev));
   }, [tree]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // (popstate вынесен в useAppNavigation — KB историю не слушает. Навигация
-  // приходит через props navDocId/navSearch, см. эффект выше.)
 
   // ── CRUD ─────────────────────────────────────────────────────────────────────
 
@@ -497,7 +455,6 @@ export default function useKnowledgeBase({
     async (id) => {
       try {
         const updated = await api.summarize(id);
-        // Patch summary fields into selected node and tree cache
         const patch = {
           summary: updated.summary,
           summaryStale: updated.summaryStale,
@@ -509,11 +466,10 @@ export default function useKnowledgeBase({
         setSaveError({ message: err.message || t('summary.generateError') });
       }
     },
-    [t], // updateNodeInTree — модульный импорт, стабилен
+    [t],
   );
 
   // Открывает модалку подтверждения удаления (вместо window.confirm).
-  // Вызывается из TreeNode и DetailHeader через проп onDelete.
   const handleDelete = (id) => {
     const node = findNodeById(tree, id);
     setDeleteConfirm({ id, title: node?.title ?? '', type: node?.type ?? 'document' });
@@ -599,77 +555,48 @@ export default function useKnowledgeBase({
 
   const handleMoveCancel = () => setMoveConfirm(null);
 
+  // ── Refresh ─────────────────────────────────────────────────────────────────
+  // Re-fetches the root, restores the path to the selected node, then re-selects
+  // the FULL document. Shares materializePathTo with direct-link navigation.
   const handleRefresh = useCallback(async () => {
     if (refreshing) return;
     setRefreshing(true);
     try {
-      // 1. Reload root-level tree (first page — keeps lazy pagination for the
-      //    common case where the selected node lives near the top).
-      const paged = await api.fetchChildren(null, 0, PAGE_SIZE);
-      let currentTree = Array.isArray(paged.items) ? paged.items : [];
-      setTree(currentTree);
-
+      let cur = await loadTree();
       if (!selectedNode) return;
 
-      // Splice a freshly-fetched page into a cloned tree and return the clone.
-      // (Tracking the clone in a plain variable avoids the awkward
-      // setTree-inside-a-Promise dance and keeps `currentTree` authoritative.)
-      const splice = (treeArr, parentId, pagedChildren, { open = false } = {}) => {
-        const clone = JSON.parse(JSON.stringify(treeArr));
-        const parent = spliceChildren(clone, parentId, pagedChildren, { replace: true });
-        if (parent && open) parent._openOnLoad = true;
-        return clone;
-      };
-
       try {
-        const ancestorIds = (await api.fetchAncestors(selectedNode.id)) || [];
+        cur = await materializePathTo(selectedNode.id, cur);
 
-        // 2. Restore the path to the selected node. The node may sit on page 2+
-        //    of its parent's children, which a PAGE_SIZE fetch would NOT include
-        //    — it would then be missing from the tree, findNodeById below would
-        //    fail, and the selection would be lost ("Выберите документ для
-        //    просмотра"). So load the FULL child list for each ancestor.
-        for (const ancestorId of ancestorIds) {
-          const ancestorPaged = await api.fetchChildren(ancestorId, 0, FULL_PAGE);
-          currentTree = splice(currentTree, ancestorId, ancestorPaged, { open: true });
-          setTree(currentTree);
-        }
-
-        // 3. A root-level node beyond the first page needs the full root list too
-        //    (it has no ancestors, so the loop above never runs for it).
-        if (ancestorIds.length === 0 && !findNodeById(currentTree, selectedNode.id)) {
-          const fullRoot = await api.fetchChildren(null, 0, FULL_PAGE);
-          currentTree = Array.isArray(fullRoot.items) ? fullRoot.items : currentTree;
-          setTree(currentTree);
-        }
-
-        const target = findNodeById(currentTree, selectedNode.id);
-        if (target) {
-          // For folders, also reload children (full list, so the tree shows them
-          // all without a stray "load more").
-          if (target.type === 'folder') {
-            const folderPaged = await api.fetchChildren(selectedNode.id, 0, FULL_PAGE);
-            currentTree = splice(currentTree, selectedNode.id, folderPaged);
-            setTree(currentTree);
-          }
-          // Re-fetch the FULL document and re-select it. The tree reload above
-          // replaced the node with a snippet-only stub; without this the
-          // tree-sync effect would push that stub into the detail and the
-          // description would appear truncated after a manual refresh.
-          await fetchFullAndSelect(target);
-        } else {
+        const target = findNodeById(cur, selectedNode.id);
+        if (!target) {
           setSelectedNode(null);
+          return;
         }
+
+        // For folders, also reload children (full list, so the tree shows them
+        // all without a stray "load more").
+        if (target.type === 'folder') {
+          const folderPaged = await api.fetchChildren(selectedNode.id, 0, FULL_PAGE);
+          cur = applyChildren(cur, selectedNode.id, folderPaged, { replace: true });
+          setTree(cur);
+        }
+
+        // Re-fetch the FULL document and re-select it. The tree reload replaced
+        // the node with a snippet-only stub; without this the tree-sync effect
+        // would push that stub into the detail and the description would appear
+        // truncated after a manual refresh.
+        await fetchFullAndSelect(target);
       } catch {
-        // If ancestors fail (deleted node?), just clear selection
+        // If ancestors fail (deleted node?), just clear selection.
         setSelectedNode(null);
       }
     } catch {
-      // Tree reload failed — leave current state
+      // Tree reload failed — leave current state.
     } finally {
       setRefreshing(false);
     }
-  }, [refreshing, selectedNode, fetchFullAndSelect]);
+  }, [refreshing, selectedNode, loadTree, materializePathTo, fetchFullAndSelect]);
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const path = selectedNode ? findPath(tree, selectedNode.id) || [] : [];
@@ -735,5 +662,26 @@ export default function useKnowledgeBase({
     handleRefresh: guardedRefresh,
     handleDiscardConfirm,
     handleDiscardCancel,
+  };
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Merges a tree stub into the current selection. Centralizes the "don't let a
+ * ≤150-char snippet clobber a fully-loaded document" rule that used to live
+ * inline in the tree-sync effect.
+ */
+function mergeStubIntoSelection(prev, fromTree) {
+  const keepFullDescription = prev._full;
+  return {
+    ...prev,
+    ...fromTree,
+    // Preserve full content for a fully-loaded document; otherwise take the
+    // tree's (possibly fresher) snippet.
+    description: keepFullDescription ? prev.description : fromTree.description,
+    // Don't let a childless stub wipe children we've already loaded.
+    children: fromTree.children ?? prev.children,
+    _full: prev._full,
   };
 }

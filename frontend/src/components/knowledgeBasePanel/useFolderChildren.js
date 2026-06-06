@@ -20,34 +20,32 @@ function treeCacheIsComplete(node) {
 }
 
 /**
- * Loads and owns the full child list for a folder node.
+ * Loads the full child list for a folder node and reports loading state.
  *
- * Single source of truth for the children DATA, but NOT a second network path:
- * when a loader is provided (`loadChildren`, wired to the KB's deduplicated
- * handleLoadChildren), the full list is fetched THROUGH that loader so the
- * result is spliced into the shared tree and any concurrent tree-expand for the
- * same folder collapses into one request. The local `children` state then just
- * mirrors `node.children`.
+ * Children DATA is owned by the shared tree, not by this hook: when a loader is
+ * provided (`loadChildren`, wired to the KB's deduplicated handleLoadChildren),
+ * the full list is fetched THROUGH that loader, which splices the result into
+ * the tree. The detail panel re-renders because `node.children` (synced onto the
+ * selected node) updates — so we simply DERIVE `children` from `node.children`
+ * rather than keeping a second copy in state and syncing it with effects.
  *
- * Falls back to a direct api.fetchChildren only when no loader is supplied.
+ * A tiny local `direct` state is kept ONLY for the loaderless fallback (the hook
+ * used outside the KB tree), where nothing splices into a shared tree.
  *
  * Returns { children, loading } where `loading` is true only until the first
  * server response for the current folder arrives.
  */
 export default function useFolderChildren(node, loadChildren) {
-  const seed = node?.children ?? [];
-  const [children, setChildren] = useState(seed);
   const [loading, setLoading] = useState(false);
+  const [direct, setDirect] = useState(null); // loaderless fallback only
 
   useEffect(() => {
+    setDirect(null);
+
     if (!node?.id || node.type !== 'folder') {
-      setChildren([]);
       setLoading(false);
       return undefined;
     }
-
-    // Instant paint from the tree's cached children, if any.
-    setChildren(node.children ?? []);
 
     // Fast path: tree already holds the complete list — no request needed.
     if (treeCacheIsComplete(node)) {
@@ -61,15 +59,15 @@ export default function useFolderChildren(node, loadChildren) {
     // Prefer the shared, deduplicated loader so the request is shared with the
     // tree (and lands in the tree cache). Fall back to a direct fetch only if
     // no loader was provided.
-    const request = loadChildren ? loadChildren(node.id, 0, FULL_PAGE) : api.fetchChildren(node.id, 0, FULL_PAGE);
-
-    Promise.resolve(request)
+    Promise.resolve(loadChildren ? loadChildren(node.id, 0, FULL_PAGE) : api.fetchChildren(node.id, 0, FULL_PAGE))
       .then((paged) => {
-        if (cancelled) return;
-        setChildren(Array.isArray(paged?.items) ? paged.items : []);
+        // With a shared loader the tree updates itself; only the fallback needs
+        // to stash the items locally.
+        if (cancelled || loadChildren) return;
+        setDirect(Array.isArray(paged?.items) ? paged.items : []);
       })
       .catch(() => {
-        // Network/server error: keep the seeded children rather than blanking.
+        // Network/server error: keep whatever the tree/fallback already holds.
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -81,15 +79,7 @@ export default function useFolderChildren(node, loadChildren) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node?.id]);
 
-  // Keep in sync when the tree pushes a child set (e.g. after the shared loader
-  // splices results, or after create).
-  useEffect(() => {
-    const fromTree = node?.children;
-    if (fromTree && fromTree.length !== children.length) {
-      setChildren(fromTree);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [node?.children?.length]);
+  const children = loadChildren ? node?.children ?? [] : direct ?? node?.children ?? [];
 
   return { children, loading };
 }

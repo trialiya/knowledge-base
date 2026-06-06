@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import MarkdownEditor from './MarkdownEditor';
+import useEscape from '../common/useEscape';
 import { IconX } from './icons';
 
 /**
@@ -16,15 +17,7 @@ import { IconX } from './icons';
  */
 const FullscreenEditorModal = ({ title, value, previewOnly = false, onSave, onClose, tree = [], onNavigate }) => {
   const { t } = useTranslation('knowledgeBase');
-
-  // Esc закрывает модалку
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  useEscape(onClose);
 
   return createPortal(
     <div className="fs-editor-overlay" onMouseDown={onClose}>

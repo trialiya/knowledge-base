@@ -4,6 +4,11 @@
 
 import { findNodeById } from '../common/utils';
 
+/** Structural deep clone of a tree (single source of the clone idiom). */
+export function cloneTree(tree) {
+  return JSON.parse(JSON.stringify(tree));
+}
+
 /** Children of a given parent (null = root level). */
 export function getSiblings(tree, parentId) {
   if (parentId === null) return tree;
@@ -16,7 +21,7 @@ export function getSiblings(tree, parentId) {
  * Returns the original `tree` reference unchanged when the move is invalid.
  */
 export function applyReorder(tree, { draggedId, draggedParent, targetId, targetParent, position }) {
-  const clone = JSON.parse(JSON.stringify(tree));
+  const clone = cloneTree(tree);
 
   const getChildren = (parentId) => {
     if (parentId === null) return clone;
@@ -76,14 +81,15 @@ export function updateNodeInTree(tree, id, updates) {
 
 /**
  * Splices a freshly-fetched page of children into the matching parent of a
- * cloned tree. Mutates `clone` in place (caller owns the clone) and returns it.
+ * cloned tree. Mutates `clone` in place (caller owns the clone) and returns the
+ * matched parent node (or null when the parent isn't in the tree).
  *
  * @param replace  when true (page 0) the children array is replaced; otherwise
  *                 new items are appended, deduplicated by id.
  */
 export function spliceChildren(clone, parentId, paged, { replace = true } = {}) {
   const parent = findNodeById(clone, parentId);
-  if (!parent) return clone;
+  if (!parent) return null;
 
   const items = Array.isArray(paged.items) ? paged.items : [];
   if (replace) {
@@ -98,4 +104,28 @@ export function spliceChildren(clone, parentId, paged, { replace = true } = {}) 
   parent.hasChildren = (paged.totalElements ?? 0) > 0;
   parent._totalChildren = paged.totalElements ?? null;
   return parent;
+}
+
+/**
+ * Pure, immutable "splice a page of children into the tree" used by every
+ * loader / navigation path. Replaces the three competing idioms that used to
+ * live in useKnowledgeBase (setTree+clone+splice, the threaded-currentTree
+ * closure, and the resolve-inside-updater hack):
+ *
+ *   const next = applyChildren(tree, parentId, paged, { replace, open });
+ *   setTree(next);                       // or thread `next` through async code
+ *
+ * @param replace  replace (page 0) vs append (subsequent pages)
+ * @param open     mark the parent `_openOnLoad` so TreeNode auto-expands it
+ *                 (used when restoring the path to a deep/selected node)
+ * @returns a NEW tree array (the input is never mutated)
+ */
+export function applyChildren(tree, parentId, paged, { replace = true, open = false } = {}) {
+  const clone = cloneTree(tree);
+  spliceChildren(clone, parentId, paged, { replace });
+  if (open && parentId !== null) {
+    const parent = findNodeById(clone, parentId);
+    if (parent) parent._openOnLoad = true;
+  }
+  return clone;
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -41,7 +41,8 @@ const REHYPE_PLUGINS = [rehypeSlug];
 
 // ─── Markdown components factory ──────────────────────────────────────────────
 // Returns a ReactMarkdown `components` map that intercepts /?doc=N links.
-// Called outside the component so the object reference is stable per (tree, onNavigate) pair.
+// Memoized per (tree, onNavigate) pair by the component below so ReactMarkdown
+// keeps a stable reference between renders.
 
 function getMarkdownComponents(tree, onNavigate) {
   return {
@@ -181,6 +182,9 @@ const MarkdownEditor = ({
   // Stable per-instance id for the shared dirty registry.
   const dirtyIdRef = useRef(`md-${Math.random().toString(36).slice(2)}`);
 
+  // Stable ReactMarkdown components map (was rebuilt every render before).
+  const mdComponents = useMemo(() => getMarkdownComponents(tree, onNavigate), [tree, onNavigate]);
+
   useEffect(() => {
     setVal(value);
     setDirty(false);
@@ -216,7 +220,7 @@ const MarkdownEditor = ({
     });
   });
 
-  // ── Toolbar ───────────────────────────────────────────────────────────────
+  // ── Toolbar transforms ──────────────────────────────────────────────────────
 
   const applyTransform = useCallback(({ newVal, from, to }) => {
     setVal(newVal);
@@ -241,93 +245,112 @@ const MarkdownEditor = ({
     }
   }, [val]);
 
-  // Локализуемые заглушки вставляемого текста.
-  const txt = t('editor.insertText');
-  const codeWord = t('editor.insertCode');
-  const tableLabels = { col1: t('editor.tableCol1'), col2: t('editor.tableCol2'), cell: t('editor.tableCell') };
+  const handleSave = useCallback(async () => {
+    setSaving(true);
+    try {
+      await onSave(val);
+      setDirty(false);
+    } catch (err) {
+      console.error('Save error in MarkdownEditor:', err);
+    } finally {
+      setSaving(false);
+    }
+  }, [onSave, val]);
 
-  // Grouped so the toolbar can render separators between logical clusters.
-  const toolbarGroups = [
-    // Inline text formatting
-    [
-      {
-        icon: <IconH1 />,
-        title: t('editor.heading'),
-        action: () => applyTransform(prependLine(textareaRef.current, '## ')),
-      },
-      {
-        icon: <IconBold />,
-        title: t('editor.bold'),
-        action: () => applyTransform(wrapSelection(textareaRef.current, '**', '**', txt)),
-      },
-      {
-        icon: <IconItalic />,
-        title: t('editor.italic'),
-        action: () => applyTransform(wrapSelection(textareaRef.current, '_', '_', txt)),
-      },
-      {
-        icon: <IconStrike />,
-        title: t('editor.strike'),
-        action: () => applyTransform(wrapSelection(textareaRef.current, '~~', '~~', txt)),
-      },
-      {
-        icon: <IconCode />,
-        title: t('editor.inlineCode'),
-        action: () => applyTransform(wrapSelection(textareaRef.current, '`', '`', txt)),
-      },
-    ],
-    // Block-level
-    [
-      {
-        icon: <IconCodeBlock />,
-        title: t('editor.codeBlock'),
-        action: () => applyTransform(insertCodeBlock(textareaRef.current, codeWord)),
-      },
-      {
-        icon: <IconQuote />,
-        title: t('editor.quote'),
-        action: () => applyTransform(prependLine(textareaRef.current, '> ')),
-      },
-      {
-        icon: <IconList />,
-        title: t('editor.bulletList'),
-        action: () => applyTransform(prependLine(textareaRef.current, '- ')),
-      },
-      {
-        icon: <IconOrderedList />,
-        title: t('editor.orderedList'),
-        action: () => applyTransform(prependLine(textareaRef.current, '1. ')),
-      },
-      {
-        icon: <IconChecklist />,
-        title: t('editor.checklist'),
-        action: () => applyTransform(prependLine(textareaRef.current, '- [ ] ')),
-      },
-      {
-        icon: <IconHr />,
-        title: t('editor.divider'),
-        action: () => applyTransform(insertBlock(textareaRef.current, '---')),
-      },
-    ],
-    // Insert
-    [
-      {
-        icon: <IconLink />,
-        title: t('editor.link'),
-        action: () => applyTransform(wrapSelection(textareaRef.current, '[', '](url)', txt)),
-      },
-      {
-        icon: <IconImage />,
-        title: t('editor.image'),
-        action: () => applyTransform(wrapSelection(textareaRef.current, '![', '](url)', txt)),
-      },
-      {
-        icon: <IconTable />,
-        title: t('editor.table'),
-        action: () => applyTransform(insertTable(textareaRef.current, tableLabels)),
-      },
-    ],
-  ];
+  const handleCancelEdit = useCallback(() => {
+    setVal(value);
+    setDirty(false);
+  }, [value]);
+
+  // Toolbar is rebuilt only when the transform fn or the localized labels change
+  // (i.e. on language switch), not on every keystroke.
+  const toolbarGroups = useMemo(() => {
+    const txt = t('editor.insertText');
+    const codeWord = t('editor.insertCode');
+    const tableLabels = { col1: t('editor.tableCol1'), col2: t('editor.tableCol2'), cell: t('editor.tableCell') };
+
+    return [
+      // Inline text formatting
+      [
+        {
+          icon: <IconH1 />,
+          title: t('editor.heading'),
+          action: () => applyTransform(prependLine(textareaRef.current, '## ')),
+        },
+        {
+          icon: <IconBold />,
+          title: t('editor.bold'),
+          action: () => applyTransform(wrapSelection(textareaRef.current, '**', '**', txt)),
+        },
+        {
+          icon: <IconItalic />,
+          title: t('editor.italic'),
+          action: () => applyTransform(wrapSelection(textareaRef.current, '_', '_', txt)),
+        },
+        {
+          icon: <IconStrike />,
+          title: t('editor.strike'),
+          action: () => applyTransform(wrapSelection(textareaRef.current, '~~', '~~', txt)),
+        },
+        {
+          icon: <IconCode />,
+          title: t('editor.inlineCode'),
+          action: () => applyTransform(wrapSelection(textareaRef.current, '`', '`', txt)),
+        },
+      ],
+      // Block-level
+      [
+        {
+          icon: <IconCodeBlock />,
+          title: t('editor.codeBlock'),
+          action: () => applyTransform(insertCodeBlock(textareaRef.current, codeWord)),
+        },
+        {
+          icon: <IconQuote />,
+          title: t('editor.quote'),
+          action: () => applyTransform(prependLine(textareaRef.current, '> ')),
+        },
+        {
+          icon: <IconList />,
+          title: t('editor.bulletList'),
+          action: () => applyTransform(prependLine(textareaRef.current, '- ')),
+        },
+        {
+          icon: <IconOrderedList />,
+          title: t('editor.orderedList'),
+          action: () => applyTransform(prependLine(textareaRef.current, '1. ')),
+        },
+        {
+          icon: <IconChecklist />,
+          title: t('editor.checklist'),
+          action: () => applyTransform(prependLine(textareaRef.current, '- [ ] ')),
+        },
+        {
+          icon: <IconHr />,
+          title: t('editor.divider'),
+          action: () => applyTransform(insertBlock(textareaRef.current, '---')),
+        },
+      ],
+      // Insert
+      [
+        {
+          icon: <IconLink />,
+          title: t('editor.link'),
+          action: () => applyTransform(wrapSelection(textareaRef.current, '[', '](url)', txt)),
+        },
+        {
+          icon: <IconImage />,
+          title: t('editor.image'),
+          action: () => applyTransform(wrapSelection(textareaRef.current, '![', '](url)', txt)),
+        },
+        {
+          icon: <IconTable />,
+          title: t('editor.table'),
+          action: () => applyTransform(insertTable(textareaRef.current, tableLabels)),
+        },
+      ],
+    ];
+  }, [t, applyTransform]);
 
   // Tab key → indent with 2 spaces; also route to mention keyboard handler
   const handleKeyDown = (e) => {
@@ -349,17 +372,11 @@ const MarkdownEditor = ({
   };
 
   // ── Preview-only mode (used in SummarySection About + fullscreen About) ────
-  // No toolbar here. The "copy all" affordance for About lives in
-  // SummarySection's header (left of the pencil), so this stays a clean render.
   if (previewOnly) {
     return (
       <div className="md-preview md-preview--embedded">
         {val ? (
-          <ReactMarkdown
-            remarkPlugins={REMARK_PLUGINS}
-            rehypePlugins={REHYPE_PLUGINS}
-            components={getMarkdownComponents(tree, onNavigate)}
-          >
+          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} components={mdComponents}>
             {val}
           </ReactMarkdown>
         ) : (
@@ -418,7 +435,7 @@ const MarkdownEditor = ({
               spellCheck={false}
             />
 
-            {/* @mention dropdown — rendered in a portal-like fixed div via CSS position:fixed */}
+            {/* @mention dropdown — rendered via CSS position:fixed */}
             {mention.active && (
               <AtMentionDropdown
                 results={mention.results}
@@ -436,11 +453,7 @@ const MarkdownEditor = ({
         {preview && (
           <div className="md-preview">
             {val ? (
-              <ReactMarkdown
-                remarkPlugins={REMARK_PLUGINS}
-                rehypePlugins={REHYPE_PLUGINS}
-                components={getMarkdownComponents(tree, onNavigate)}
-              >
+              <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} components={mdComponents}>
                 {val}
               </ReactMarkdown>
             ) : (
@@ -453,31 +466,10 @@ const MarkdownEditor = ({
       {/* Save bar */}
       {dirty && (
         <div className="save-bar">
-          <button
-            className="save-bar__save"
-            disabled={saving}
-            onClick={async () => {
-              setSaving(true);
-              try {
-                await onSave(val);
-                setDirty(false);
-              } catch (err) {
-                console.error('Save error in MarkdownEditor:', err);
-              } finally {
-                setSaving(false);
-              }
-            }}
-          >
+          <button className="save-bar__save" disabled={saving} onClick={handleSave}>
             {saving ? t('editor.saving') : t('editor.save')}
           </button>
-          <button
-            className="save-bar__cancel"
-            disabled={saving}
-            onClick={() => {
-              setVal(value);
-              setDirty(false);
-            }}
-          >
+          <button className="save-bar__cancel" disabled={saving} onClick={handleCancelEdit}>
             {t('editor.cancel')}
           </button>
         </div>

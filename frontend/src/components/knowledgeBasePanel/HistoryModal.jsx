@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { diffLines } from 'diff';
 import MarkdownEditor from './MarkdownEditor';
 import api from './api';
+import useEscape from '../common/useEscape';
 import { IconX } from './icons';
 
 /**
@@ -190,7 +191,7 @@ const HistoryModal = ({ documentId, documentTitle, tree = [], onNavigate, onRest
   const [descCache, setDescCache] = useState({});
   const [descErr, setDescErr] = useState({});
   const cacheRef = useRef({}); // синхронное зеркало descCache для проверок без гонок
-  const inFlight = useRef(new Set()); // версии, для которых запрос уже летит
+  const inFlight = useRef(new Map()); // version → Promise<string> (дедуп + переиспользование)
   const aliveRef = useRef(true); // компонент ещё смонтирован?
   const docRef = useRef(documentId); // актуальный documentId (версии нумеруются по документу)
   docRef.current = documentId;
@@ -202,45 +203,46 @@ const HistoryModal = ({ documentId, documentTitle, tree = [], onNavigate, onRest
     };
   }, []);
 
-  // Подгрузить описание версии (если ещё не загружено и не грузится сейчас).
+  // Подгрузить описание версии. Возвращает Promise<string> с текстом версии,
+  // чтобы и предпросмотр/diff (fire-and-forget), и «Восстановить» (нужен текст)
+  // использовали один и тот же путь. Запросы дедуплицируются по версии.
   const ensureLoaded = useCallback(
     (version) => {
-      if (version == null) return;
-      if (cacheRef.current[version] !== undefined) return; // уже есть
-      if (inFlight.current.has(version)) return; // уже грузится
+      if (version == null) return Promise.resolve('');
+      if (cacheRef.current[version] !== undefined) return Promise.resolve(cacheRef.current[version]);
+      if (inFlight.current.has(version)) return inFlight.current.get(version);
+
       const reqDoc = documentId;
-      inFlight.current.add(version);
-      api
+      const promise = api
         .fetchHistoryVersion(reqDoc, version)
         .then((data) => {
-          if (!aliveRef.current || docRef.current !== reqDoc) return; // документ сменился — игнор
           const text = data?.description ?? '';
           cacheRef.current[version] = text;
-          setDescCache((p) => ({ ...p, [version]: text }));
-          setDescErr((p) => {
-            if (!p[version]) return p;
-            const n = { ...p };
-            delete n[version];
-            return n;
-          });
+          if (aliveRef.current && docRef.current === reqDoc) {
+            setDescCache((p) => ({ ...p, [version]: text }));
+            setDescErr((p) => {
+              if (!p[version]) return p;
+              const n = { ...p };
+              delete n[version];
+              return n;
+            });
+          }
+          return text;
         })
-        .catch(() => {
-          if (!aliveRef.current || docRef.current !== reqDoc) return;
-          setDescErr((p) => ({ ...p, [version]: true }));
+        .catch((err) => {
+          if (aliveRef.current && docRef.current === reqDoc) setDescErr((p) => ({ ...p, [version]: true }));
+          throw err;
         })
         .finally(() => inFlight.current.delete(version));
+
+      inFlight.current.set(version, promise);
+      return promise;
     },
     [documentId],
   );
 
   // Esc закрывает
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  useEscape(onClose);
 
   // Загрузка списка версий (только метаданные)
   useEffect(() => {
@@ -249,7 +251,7 @@ const HistoryModal = ({ documentId, documentTitle, tree = [], onNavigate, onRest
     setError(false);
     // сбрасываем кэш описаний — версии нумеруются внутри документа
     cacheRef.current = {};
-    inFlight.current = new Set();
+    inFlight.current = new Map();
     setDescCache({});
     setDescErr({});
     api
@@ -282,8 +284,8 @@ const HistoryModal = ({ documentId, documentTitle, tree = [], onNavigate, onRest
   // Подтягиваем описания только для выбранных версий (база + изменённая).
   useEffect(() => {
     if (!entries || entries.length === 0) return;
-    if (base?.version != null) ensureLoaded(base.version);
-    if (compare?.version != null) ensureLoaded(compare.version);
+    if (base?.version != null) ensureLoaded(base.version).catch(() => {});
+    if (compare?.version != null) ensureLoaded(compare.version).catch(() => {});
   }, [entries, baseIdx, compareIdx, base, compare, ensureLoaded]);
 
   // ── Выбор версий с сохранением инварианта baseIdx > compareIdx ────────────
@@ -312,23 +314,16 @@ const HistoryModal = ({ documentId, documentTitle, tree = [], onNavigate, onRest
   const baseDescErr = baseVersion != null && !!descErr[baseVersion];
   const compareDescErr = compareVersion != null && !!descErr[compareVersion];
 
-  // Восстановление: гарантированно берём текст (из кэша или догружаем на лету).
+  // Восстановление переиспользует ensureLoaded (кэш или догрузка на лету).
   const handleRestore = async (entry) => {
     if (!entry || !onRestore) return;
-    let text = cacheRef.current[entry.version];
-    if (text === undefined) {
-      try {
-        const data = await api.fetchHistoryVersion(documentId, entry.version);
-        text = data?.description ?? '';
-        cacheRef.current[entry.version] = text;
-        if (aliveRef.current) setDescCache((p) => ({ ...p, [entry.version]: text }));
-      } catch {
-        if (aliveRef.current) setDescErr((p) => ({ ...p, [entry.version]: true }));
-        return;
-      }
+    try {
+      const text = await ensureLoaded(entry.version);
+      onRestore(text || '');
+      onClose();
+    } catch {
+      /* descErr уже выставлен ensureLoaded — модалка остаётся открытой */
     }
-    onRestore(text || '');
-    onClose();
   };
 
   const renderBody = () => {

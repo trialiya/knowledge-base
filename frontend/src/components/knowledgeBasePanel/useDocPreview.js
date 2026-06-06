@@ -22,7 +22,13 @@ function notify(id, value) {
  * Strategy:
  *   1. If the tree already has the node with a full description → use it instantly.
  *   2. If already in module cache → return immediately.
- *   3. Otherwise fetch via api.fetchById, store in cache, notify any concurrent waiters.
+ *   3. If already in-flight → subscribe to the result.
+ *   4. Otherwise fetch via api.fetchById, store in cache, notify any waiters.
+ *
+ * The fresh-fetch path is cancellation-aware: if `id`/`enabled` change while a
+ * request is in flight, the cleanup flips `cancelled` so the late resolution
+ * still populates the shared cache (via notify) but never calls this instance's
+ * setters for a now-stale id.
  *
  * @param {string|null} id       – document id to preview (null = disabled)
  * @param {Array}       tree     – KB tree for instant-lookup before fetch
@@ -41,7 +47,7 @@ export default function useDocPreview(id, tree, enabled) {
       setNode(null);
       setLoading(false);
       setError(false);
-      return;
+      return undefined;
     }
 
     // Reset on id change
@@ -56,7 +62,7 @@ export default function useDocPreview(id, tree, enabled) {
     if (fromTree && fromTree.description !== undefined) {
       setNode(fromTree);
       setLoading(false);
-      return;
+      return undefined;
     }
 
     // 2. Module cache hit
@@ -69,7 +75,7 @@ export default function useDocPreview(id, tree, enabled) {
         setNode(cached);
         setLoading(false);
       }
-      return;
+      return undefined;
     }
 
     // 3. Already in-flight — subscribe to result
@@ -89,22 +95,29 @@ export default function useDocPreview(id, tree, enabled) {
       return () => listeners.get(id)?.delete(cb);
     }
 
-    // 4. Fresh fetch
+    // 4. Fresh fetch (cancellation-aware)
+    let cancelled = false;
     cache.set(id, 'loading');
     setLoading(true);
 
     api
       .fetchById(id)
       .then((result) => {
-        notify(id, result);
+        notify(id, result); // populate cache + wake other waiters regardless
+        if (cancelled) return;
         setNode(result);
         setLoading(false);
       })
       .catch(() => {
         notify(id, 'error');
+        if (cancelled) return;
         setError(true);
         setLoading(false);
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, [id, enabled]); // tree читается через treeRef — намеренно не триггерит эффект
 
   return { node, loading, error };

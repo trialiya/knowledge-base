@@ -4,9 +4,10 @@ import DetailHeader from './DetailHeader';
 import SummarySection from './SummarySection';
 import MarkdownEditor from './MarkdownEditor';
 import AttachmentPanel from '../common/AttachmentPanel';
-import FullscreenEditorModal from './FullscreenEditorModal';
+import DetailTabs from './DetailTabs';
+import DetailModals from './DetailModals';
+import useDetailPanel from './useDetailPanel';
 import { IconSparkle, IconSparkleLoading } from './icons';
-import HistoryModal from './HistoryModal';
 
 const TABS = [
   { key: 'summary', labelKey: 'tabs.summary' },
@@ -102,9 +103,8 @@ const DocumentDetail = ({
   tree = [],
 }) => {
   const { t } = useTranslation('knowledgeBase');
-  const [attachmentCount, setAttachmentCount] = useState(0);
-  const [fullscreen, setFullscreen] = useState(null); // 'about' | 'content' | null
-  const [showHistory, setShowHistory] = useState(false);
+  const { attachmentCount, setAttachmentCount, fullscreen, setFullscreen, showHistory, setShowHistory } =
+    useDetailPanel();
 
   const handleRename = (id, name) => {
     if (onRename) onRename(id, name);
@@ -115,20 +115,7 @@ const DocumentDetail = ({
     <div className="detail-panel">
       <DetailHeader node={node} path={path} onNavigate={onNavigate} onRename={handleRename} onDelete={onDelete} />
 
-      <div className="detail-tabs">
-        {TABS.map(({ key, labelKey }) => (
-          <button
-            key={key}
-            className={`detail-tab ${tab === key ? 'detail-tab--active' : ''}`}
-            onClick={() => onTabChange(key)}
-          >
-            {t(labelKey)}
-            {key === 'attachments' && attachmentCount > 0 && (
-              <span className="detail-tab__count">{attachmentCount}</span>
-            )}
-          </button>
-        ))}
-      </div>
+      <DetailTabs tabs={TABS} tab={tab} onTabChange={onTabChange} attachmentCount={attachmentCount} />
 
       <div className="detail-body">
         {tab === 'summary' && (
@@ -168,31 +155,16 @@ const DocumentDetail = ({
         )}
       </div>
 
-      {fullscreen && (
-        <FullscreenEditorModal
-          title={
-            fullscreen === 'about'
-              ? t('detail.fullscreenAbout', { title: node.title })
-              : t('detail.fullscreenContent', { title: node.title })
-          }
-          value={node.description || ''}
-          previewOnly={fullscreen === 'about'}
-          onSave={(val) => onUpdate(node.id, { description: val })}
-          onClose={() => setFullscreen(null)}
-          tree={tree}
-          onNavigate={onNavigate}
-        />
-      )}
-      {showHistory && (
-        <HistoryModal
-          documentId={node.id}
-          documentTitle={node.title}
-          tree={tree}
-          onNavigate={onNavigate}
-          onRestore={(val) => onUpdate(node.id, { description: val })}
-          onClose={() => setShowHistory(false)}
-        />
-      )}
+      <DetailModals
+        node={node}
+        fullscreen={fullscreen}
+        onCloseFullscreen={() => setFullscreen(null)}
+        showHistory={showHistory}
+        onCloseHistory={() => setShowHistory(false)}
+        onUpdate={onUpdate}
+        tree={tree}
+        onNavigate={onNavigate}
+      />
     </div>
   );
 };
