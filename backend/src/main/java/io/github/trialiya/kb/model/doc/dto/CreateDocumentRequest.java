@@ -6,6 +6,6 @@ import lombok.Data;
 public class CreateDocumentRequest {
     private String title;
     private String type; // "document" | "folder"; если не передан — "document"
-    private String parentId;
+    private Long parentId;
     private String description;
 }

@@ -178,7 +178,7 @@ public class DocumentFunction {
                             description =
                                     "ID родительской папки (null или пусто для корневого уровня)",
                             required = false)
-                    String parentId,
+                    Long parentId,
             @ToolParam(
                             description =
                                     "Содержимое документа (текст, markdown). "
@@ -191,7 +191,7 @@ public class DocumentFunction {
         CreateDocumentRequest req = new CreateDocumentRequest();
         req.setTitle(title);
         req.setType(type != null && !type.isBlank() ? type : "document");
-        req.setParentId(parentId != null && !parentId.isBlank() ? parentId : null);
+        req.setParentId(parentId);
         req.setDescription(description);
 
         return documentService.create(req);

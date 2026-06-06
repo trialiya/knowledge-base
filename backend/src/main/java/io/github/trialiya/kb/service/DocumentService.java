@@ -253,16 +253,14 @@ public class DocumentService {
     @Transactional
     public Document create(CreateDocumentRequest req) {
         String type = "folder".equals(req.getType()) ? "folder" : "document";
-        int nextPos =
-                nextSiblingPosition(
-                        req.getParentId() == null ? null : Long.parseLong(req.getParentId()));
+        int nextPos = nextSiblingPosition(req.getParentId());
 
         DocumentEntity entity =
                 new DocumentEntity(
                         null,
                         req.getTitle(),
                         type,
-                        req.getParentId() == null ? null : Long.parseLong(req.getParentId()),
+                        req.getParentId(),
                         req.getDescription(),
                         LocalDateTime.now(),
                         nextPos,
