@@ -26,7 +26,7 @@ import org.springframework.context.annotation.ClassPathScanningCandidateComponen
  *
  * <p>Источник правды — аннотации {@link Tool} в пакете {@code functions}. Имена инструментов (явное
  * {@code name} или имя метода) сверяются с ключами {@code tools.*} в каждом {@code
- * frontend/src/i18n/locales/*.json}. Чистый unit-тест без Spring-контекста.
+ * frontend/src/i18n/locales/<locale>/chat.json}. Чистый unit-тест без Spring-контекста.
  */
 class ToolTranslationsTest {
 
@@ -42,7 +42,7 @@ class ToolTranslationsTest {
                 .isNotEmpty();
 
         Map<String, Set<String>> localeKeys = loadLocaleToolKeys();
-        assertThat(localeKeys).as("Не найдено ни одного *.json в locales/").isNotEmpty();
+        assertThat(localeKeys).as("Не найдено ни одного chat.json в locales/").isNotEmpty();
 
         List<String> problems = new ArrayList<>();
         localeKeys.forEach(
@@ -143,24 +143,29 @@ class ToolTranslationsTest {
         return names;
     }
 
-    /** Читает {@code tools.*} из каждого locales/*.json. Ключ карты — код локали (имя файла). */
+    /**
+     * Читает {@code tools.*} из каждого locales/<locale>/chat.json. Ключ карты — код локали (имя
+     * каталога локали).
+     */
     private static Map<String, Set<String>> loadLocaleToolKeys() throws IOException {
         Path localesDir = locateLocalesDir();
 
-        List<Path> jsonFiles;
-        try (Stream<Path> files = Files.list(localesDir)) {
-            jsonFiles =
-                    files.filter(p -> p.getFileName().toString().endsWith(".json"))
+        List<Path> chatFiles;
+        try (Stream<Path> dirs = Files.list(localesDir)) {
+            chatFiles =
+                    dirs.filter(Files::isDirectory)
+                            .map(dir -> dir.resolve("chat.json"))
+                            .filter(Files::isRegularFile)
                             .sorted()
                             .toList();
         }
 
         Map<String, Set<String>> result = new TreeMap<>();
-        for (Path file : jsonFiles) {
+        for (Path file : chatFiles) {
             JsonNode tools = MAPPER.readTree(file.toFile()).path("tools");
             Set<String> keys = new TreeSet<>();
             tools.fieldNames().forEachRemaining(keys::add);
-            String locale = file.getFileName().toString().replaceFirst("\\.json$", "");
+            String locale = file.getParent().getFileName().toString();
             result.put(locale, keys);
         }
         return result;
