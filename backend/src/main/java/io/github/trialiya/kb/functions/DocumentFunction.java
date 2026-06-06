@@ -3,8 +3,8 @@ package io.github.trialiya.kb.functions;
 import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
 
 import io.github.trialiya.kb.model.doc.dto.CreateDocumentRequest;
-import io.github.trialiya.kb.model.doc.dto.Document;
 import io.github.trialiya.kb.model.doc.dto.DocumentNode;
+import io.github.trialiya.kb.model.doc.dto.DocumentShort;
 import io.github.trialiya.kb.model.doc.dto.SearchResult;
 import io.github.trialiya.kb.model.doc.dto.UpdateDocumentRequest;
 import io.github.trialiya.kb.service.AttachmentService;
@@ -171,7 +171,7 @@ public class DocumentFunction {
                             + "Укажи title, type (document или folder), parentId (или null для корня) "
                             + "и description (содержимое).",
             resultConverter = CompactToolResultConverter.class)
-    public Document createDocument(
+    public DocumentShort createDocument(
             @ToolParam(description = "Название документа или папки") String title,
             @ToolParam(description = "Тип: 'document' или 'folder'", required = false) String type,
             @ToolParam(
@@ -194,7 +194,7 @@ public class DocumentFunction {
         req.setParentId(parentId);
         req.setDescription(description);
 
-        return documentService.create(req);
+        return documentService.create(req).toDocumentShort();
     }
 
     /**
@@ -210,7 +210,7 @@ public class DocumentFunction {
                     "Обновить существующий документ: изменить название и/или содержимое. "
                             + "Передай только те поля, которые нужно изменить.",
             resultConverter = CompactToolResultConverter.class)
-    public Document updateDocument(
+    public DocumentShort updateDocument(
             @ToolParam(description = "ID документа для обновления") long documentId,
             @ToolParam(
                             description = "Новое название (null чтобы оставить текущее)",
@@ -229,7 +229,7 @@ public class DocumentFunction {
         req.setTitle(title);
         req.setDescription(description);
 
-        return documentService.update(documentId, req);
+        return documentService.update(documentId, req).toDocumentShort();
     }
 
     //    /**

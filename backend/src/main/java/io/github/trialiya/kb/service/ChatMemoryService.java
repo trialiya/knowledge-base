@@ -116,7 +116,7 @@ public class ChatMemoryService implements ChatMemoryRepository {
 
         final String json;
         try {
-            json = OBJECT_MAPPER.writeValueAsString(Map.of("toolCalls", filtered));
+            json = OBJECT_MAPPER.writeValueAsString(new ToolCalls(filtered));
         } catch (JsonProcessingException e) {
             // крошки некритичны — логируем и не ломаем ход
             log.warn("Failed to serialize tool calls for {}", conversationId, e);
@@ -133,6 +133,20 @@ public class ChatMemoryService implements ChatMemoryRepository {
                         false,
                         false,
                         LocalDateTime.now()));
+    }
+
+    public Map<String, ?> parseToolCalls(String json) {
+        try {
+            return OBJECT_MAPPER.readValue(json, ToolCalls.class).toMap();
+        } catch (JsonProcessingException e) {
+            return Map.of();
+        }
+    }
+
+    private record ToolCalls(List<ToolInvocation> toolCalls) {
+        private Map<String, List<ToolInvocation>> toMap() {
+            return Map.of("toolCalls", toolCalls);
+        }
     }
 
     private long nextPosition(String conversationId) {

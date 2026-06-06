@@ -734,10 +734,11 @@ public class DocumentService {
 
     private Document toDto(DocumentEntity e) {
         return new Document(
-                String.valueOf(e.getId()),
+                e.getId(),
                 e.getTitle(),
                 e.getType(),
                 e.getParentId() == null ? null : String.valueOf(e.getParentId()),
+                e.getVersion(),
                 null, // description omitted — fetch via GET /api/documents/{id}
                 e.getUpdatedAt(),
                 null, // children
@@ -748,7 +749,7 @@ public class DocumentService {
 
     private DocumentHistory toHistoryDto(DocumentHistoryEntity e) {
         return new DocumentHistory(
-                String.valueOf(e.getDocumentId()),
+                e.getDocumentId(),
                 e.getVersion(),
                 e.getDescriptionVersion(),
                 e.getTitle(),

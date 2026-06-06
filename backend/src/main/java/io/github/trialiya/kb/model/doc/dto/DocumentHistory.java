@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
  * @param updatedAt timestamp when the document had this content
  */
 public record DocumentHistory(
-        String documentId,
+        long documentId,
         int version,
         int descriptionVersion,
         String title,
