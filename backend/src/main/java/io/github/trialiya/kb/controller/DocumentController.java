@@ -12,7 +12,6 @@ import io.github.trialiya.kb.model.doc.dto.SearchResult;
 import io.github.trialiya.kb.model.doc.dto.UpdateDocumentRequest;
 import io.github.trialiya.kb.service.DocumentExportService;
 import io.github.trialiya.kb.service.DocumentService;
-import io.github.trialiya.kb.service.DocumentSummaryService;
 import io.github.trialiya.kb.service.SemanticSearchService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -31,15 +30,8 @@ public class DocumentController {
     private final DocumentService service;
     private final DocumentExportService documentExportService;
     private final SemanticSearchService semanticSearchService;
-    private final DocumentSummaryService documentSummaryService;
 
     // ── Tree ──────────────────────────────────────────────────────────────────
-
-    /** Full recursive tree (legacy, kept for backward compat). */
-    @GetMapping("/tree")
-    public List<DocumentNode> getTree() {
-        return service.getTree();
-    }
 
     /**
      * Lazy-load one page of children with Spring Pageable.
@@ -90,14 +82,14 @@ public class DocumentController {
     }
 
     /** История изменений описания документа (newest-first). */
-    @GetMapping("/{docId}/history")
-    public List<DocumentHistoryShort> getHistory(@PathVariable long docId) {
-        return service.getDescriptionHistory(docId);
+    @GetMapping("/{id}/history")
+    public List<DocumentHistoryShort> getHistory(@PathVariable long id) {
+        return service.getDescriptionHistory(id);
     }
 
-    @GetMapping("/{docId}/history/{version}")
-    public DocumentHistory getHistoryVersion(@PathVariable long docId, @PathVariable int version) {
-        return service.getHistoryVersion(docId, version);
+    @GetMapping("/{id}/history/{version}")
+    public DocumentHistory getHistoryVersion(@PathVariable long id, @PathVariable int version) {
+        return service.getHistoryVersion(id, version);
     }
 
     @PutMapping("/{id}")
@@ -174,16 +166,16 @@ public class DocumentController {
      * Unified search endpoint.
      *
      * <pre>
-     * GET /api/search?q=...                   → keyword (default)
-     * GET /api/search?q=...&mode=semantic     → vector search
-     * GET /api/search?q=...&mode=hybrid       → keyword + semantic combined
-     * GET /api/search?q=...&mode=hybrid&threshold=0.2&limit=10&kwWeight=0.4&semWeight=0.6
+     * GET /api/documents/search?q=...                   → keyword (default)
+     * GET /api/documents/search?q=...&mode=semantic     → vector search
+     * GET /api/documents/search?q=...&mode=hybrid       → keyword + semantic combined
+     * GET /api/documents/search?q=...&mode=hybrid&threshold=0.2&limit=10&kwWeight=0.4&semWeight=0.6
      * </pre>
      *
      * <p>{@code kwWeight} and {@code semWeight} are only used in hybrid mode.
      */
     @GetMapping("/search")
-    public List<SearchResult> search(
+    public List<SearchResult> searchDocuments(
             @RequestParam String q,
             @RequestParam(defaultValue = "keyword") String mode,
             @RequestParam(required = false) Double threshold,
@@ -215,9 +207,7 @@ public class DocumentController {
     public List<DocumentNode> searchByName(
             @RequestParam String name, @RequestParam(defaultValue = "10") int limit) {
         if (name == null || name.isBlank()) return List.of();
-        return service.findByName(name).stream()
-                .limit(Math.min(limit, 20))
-                .collect(java.util.stream.Collectors.toList());
+        return service.findByName(name).stream().limit(Math.min(limit, 20)).toList();
     }
 
     // ── Admin ─────────────────────────────────────────────────────────────────
@@ -225,7 +215,7 @@ public class DocumentController {
     /**
      * Triggers a full reindex of all documents.
      *
-     * <pre>POST /api/documents/reindex</pre>
+     * <pre>POST /api/documents/admin/reindex</pre>
      */
     @PostMapping("/admin/reindex")
     public ReindexResponse reindex() {

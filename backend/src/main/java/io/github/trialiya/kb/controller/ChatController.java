@@ -48,6 +48,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -58,7 +59,7 @@ import reactor.core.Disposable;
 import reactor.core.publisher.SignalType;
 
 @RestController
-@RequestMapping("/api/chat")
+@RequestMapping("/api/chats")
 @Slf4j
 public class ChatController {
 
@@ -84,80 +85,128 @@ public class ChatController {
         this.jiraChatService = jiraChatService;
     }
 
-    @PostMapping(value = "/streamTest", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter chatTestStream(
-            @RequestBody final String userMessage,
-            @RequestParam("conversationId") final String conversationId) {
-        checkChat(conversationId, true);
+    // ---------------------------------------------------------------------
+    //  Collection: /api/chats
+    // ---------------------------------------------------------------------
 
-        final SseEmitter emitter = new SseEmitter(300_000L);
+    /** Lists the current user's chats (metadata only, no messages). */
+    @GetMapping
+    public List<Chat> getChats() {
+        return chatTopicRepository.findAllByUserOrderByUpdatedAtDesc(getUser()).stream()
+                .map(entity -> toChat(entity, null))
+                .toList();
+    }
 
-        Executors.newVirtualThreadPerTaskExecutor()
-                .submit(
-                        () -> {
-                            final Consumer<Object> liveSink = sendSseEmitterData(emitter);
-                            liveSink.accept(new StreamMessage("Ok", null));
-                            testToolCalls(liveSink, "test", Map.of());
-                            testToolCalls(liveSink, "files", Map.of("id", 1));
-                            for (int j = 1; j < 7; j++) {
-                                for (int index = 0; index < j; index++) {
-                                    liveSink.accept(
-                                            new StreamMessage(
-                                                    "reading file " + index + "\n", null));
-                                    testToolCalls(
-                                            liveSink,
-                                            "file" + j % 2,
-                                            Map.of(
-                                                    "id",
-                                                    index + j * 10,
-                                                    "action",
-                                                    "readingreadingreadingreading reading file id = "
-                                                            + index));
-                                }
-                                if (Math.random() < 0.2) {
-                                    emitter.completeWithError(new RuntimeException());
-                                    return;
-                                }
-                                if (j % 2 == 0) {
-                                    liveSink.accept(new StreamMessage("\n\n", null));
-                                }
+    // ---------------------------------------------------------------------
+    //  Single chat: /api/chats/{conversationId}
+    // ---------------------------------------------------------------------
+
+    /**
+     * Returns a single chat. Messages are included by default; pass {@code includeMessages=false}
+     * for the lightweight metadata-only projection (the former {@code /chat/short}).
+     */
+    @GetMapping("/{conversationId}")
+    public Chat getChat(
+            @PathVariable final String conversationId,
+            @RequestParam(name = "includeMessages", defaultValue = "true")
+                    final boolean includeMessages) {
+        final ChatTopicEntity chatTopicEntity = getChatTopic(conversationId);
+        final List<ChatMessage> messages =
+                includeMessages
+                        ? Optional.ofNullable(
+                                        chatMemoryService.findChatMessageByConversationId(
+                                                conversationId))
+                                .stream()
+                                .flatMap(Collection::stream)
+                                .filter(a -> a.getText() != null && !a.getText().isBlank())
+                                .map(this::toChatMessage)
+                                .toList()
+                        : null;
+        return toChat(chatTopicEntity, messages);
+    }
+
+    @DeleteMapping("/{conversationId}")
+    public void deleteChat(@PathVariable final String conversationId) {
+        final ChatTopicEntity chatTopicEntity = getChatTopic(conversationId);
+        chatTopicRepository.deleteById(chatTopicEntity.getConversationId());
+        chatMemory.clear(conversationId);
+    }
+
+    /** Sets (or creates) the chat's topic. Idempotent, hence PUT. */
+    @PutMapping("/{conversationId}/topic")
+    public void updateChatTopic(
+            @PathVariable final String conversationId, @RequestBody final String topic) {
+        chatTopicRepository
+                .findById(conversationId)
+                .ifPresentOrElse(
+                        chatTopicEntity -> {
+                            if (!chatTopicEntity.getUser().equals(getUser())) {
+                                throw new ResponseStatusException(FORBIDDEN, "Forbidden");
                             }
-                            emitter.complete();
-                        });
-        return emitter;
+                            chatTopicRepository.save(
+                                    new ChatTopicEntity(
+                                            chatTopicEntity.getConversationId(),
+                                            chatTopicEntity.getUser(),
+                                            true,
+                                            topic,
+                                            chatTopicEntity.getCreatedAt(),
+                                            chatTopicEntity.getUpdatedAt(),
+                                            false));
+                        },
+                        () ->
+                                chatTopicRepository.save(
+                                        new ChatTopicEntity(
+                                                conversationId,
+                                                getUser(),
+                                                true,
+                                                topic,
+                                                null,
+                                                null,
+                                                true)));
     }
 
-    private static void testToolCalls(
-            Consumer<Object> liveSink, String name, Map<Object, Object> arguments) {
-        liveSink.accept(
-                new ToolCallMessage(
-                        new ToolInvocation(
-                                name,
-                                arguments,
-                                ToolInvocationCollector.ToolInvocationStatus.STARTED,
-                                null,
-                                null,
-                                null)));
-        try {
-            TimeUnit.MILLISECONDS.sleep(400);
-        } catch (InterruptedException e) {
-            // nothing - testing
-        }
-        liveSink.accept(
-                new ToolCallMessage(
-                        new ToolInvocation(
-                                name,
-                                arguments,
-                                ToolInvocationCollector.ToolInvocationStatus.OK,
-                                null,
-                                null,
-                                "ok")));
+    // ---------------------------------------------------------------------
+    //  Messages: /api/chats/{conversationId}/messages
+    // ---------------------------------------------------------------------
+
+    /**
+     * Sends a user message and returns the assistant reply as a single JSON response.
+     *
+     * <p>Shares its URI with {@link #streamMessage}; the two are selected by content negotiation
+     * (this one is chosen for {@code Accept: application/json}).
+     */
+    @PostMapping(value = "/{conversationId}/messages", produces = MediaType.APPLICATION_JSON_VALUE)
+    public List<String> createMessage(
+            @PathVariable final String conversationId, @RequestBody final String userMessage) {
+        checkChat(conversationId, true);
+        final ToolInvocationCollector toolCollector = new ToolInvocationCollector();
+
+        ChatResponse chatResponse =
+                chatClient
+                        .prompt()
+                        .user(userMessage)
+                        .toolContext(buildContext(conversationId, toolCollector))
+                        .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
+                        .call()
+                        .chatResponse();
+
+        return Optional.ofNullable(chatResponse).map(ChatResponse::getResults).stream()
+                .flatMap(Collection::stream)
+                .map(generation -> generation.getOutput().getText())
+                .toList();
     }
 
-    @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter chatStream(
-            @RequestBody final String userMessage,
-            @RequestParam("conversationId") final String conversationId) {
+    /**
+     * Sends a user message and streams the assistant reply as Server-Sent Events.
+     *
+     * <p>Shares its URI with {@link #createMessage}; this one is chosen for {@code Accept:
+     * text/event-stream}.
+     */
+    @PostMapping(
+            value = "/{conversationId}/messages/stream",
+            produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamMessage(
+            @PathVariable String conversationId, @RequestBody String userMessage) {
         checkChat(conversationId, true);
 
         final SseEmitter emitter = new SseEmitter(Duration.ofMinutes(30).toMillis());
@@ -250,6 +299,125 @@ public class ChatController {
         return emitter;
     }
 
+    /**
+     * Debug-only endpoint that streams a canned sequence of messages and tool calls. Not part of
+     * the public API contract — consider guarding it behind a Spring profile or removing it before
+     * release.
+     */
+    @PostMapping(
+            value = "/{conversationId}/messages/test",
+            produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamTestMessage(
+            @PathVariable final String conversationId, @RequestBody final String userMessage) {
+        checkChat(conversationId, true);
+
+        final SseEmitter emitter = new SseEmitter(300_000L);
+
+        Executors.newVirtualThreadPerTaskExecutor()
+                .submit(
+                        () -> {
+                            final Consumer<Object> liveSink = sendSseEmitterData(emitter);
+                            liveSink.accept(new StreamMessage("Ok", null));
+                            testToolCalls(liveSink, "test", Map.of());
+                            testToolCalls(liveSink, "files", Map.of("id", 1));
+                            for (int j = 1; j < 7; j++) {
+                                for (int index = 0; index < j; index++) {
+                                    liveSink.accept(
+                                            new StreamMessage(
+                                                    "reading file " + index + "\n", null));
+                                    testToolCalls(
+                                            liveSink,
+                                            "file" + j % 2,
+                                            Map.of(
+                                                    "id",
+                                                    index + j * 10,
+                                                    "action",
+                                                    "readingreadingreadingreading reading file id = "
+                                                            + index));
+                                }
+                                if (Math.random() < 0.2) {
+                                    emitter.completeWithError(new RuntimeException());
+                                    return;
+                                }
+                                if (j % 2 == 0) {
+                                    liveSink.accept(new StreamMessage("\n\n", null));
+                                }
+                            }
+                            emitter.complete();
+                        });
+        return emitter;
+    }
+
+    // ---------------------------------------------------------------------
+    //  JIRA-backed chats
+    // ---------------------------------------------------------------------
+
+    /**
+     * Creates a new "JIRA chat" — a conversation pre-loaded with context from a JIRA issue and
+     * optionally a Confluence page.
+     *
+     * <pre>
+     * POST /api/chats/jira
+     * {
+     *   "jiraUrl": "https://instance.atlassian.net/browse/PROJ-123",
+     *   "confluenceUrl": "https://instance.atlassian.net/wiki/spaces/.../pages/12345",
+     *   "title": "Optional custom title"
+     * }
+     * </pre>
+     *
+     * @return the created Chat (with empty messages list)
+     */
+    @PostMapping("/jira")
+    public Chat createJiraChat(@RequestBody CreateJiraChatRequest request) {
+        return jiraChatService.createJiraChat(request);
+    }
+
+    /**
+     * Refreshes a JIRA chat by re-fetching issue data and replacing attachments.
+     *
+     * <pre>
+     * POST /api/chats/{conversationId}/refresh
+     * Body: "https://instance.atlassian.net/browse/PROJ-123"   (raw JIRA URL string)
+     * </pre>
+     *
+     * @return updated Chat metadata
+     */
+    @PostMapping("/{conversationId}/refresh")
+    public Chat refreshJiraChat(@PathVariable String conversationId, @RequestBody String jiraUrl) {
+        return jiraChatService.refreshJiraChat(conversationId, jiraUrl.trim());
+    }
+
+    // ---------------------------------------------------------------------
+    //  Helpers
+    // ---------------------------------------------------------------------
+
+    private static void testToolCalls(
+            Consumer<Object> liveSink, String name, Map<Object, Object> arguments) {
+        liveSink.accept(
+                new ToolCallMessage(
+                        new ToolInvocation(
+                                name,
+                                arguments,
+                                ToolInvocationCollector.ToolInvocationStatus.STARTED,
+                                null,
+                                null,
+                                null)));
+        try {
+            TimeUnit.MILLISECONDS.sleep(400);
+        } catch (InterruptedException e) {
+            // nothing - testing
+        }
+        liveSink.accept(
+                new ToolCallMessage(
+                        new ToolInvocation(
+                                name,
+                                arguments,
+                                ToolInvocationCollector.ToolInvocationStatus.OK,
+                                null,
+                                null,
+                                "ok")));
+    }
+
     private static void dispose(AtomicReference<Disposable> ref) {
         Disposable d = ref.get();
         if (d != null && !d.isDisposed()) {
@@ -282,78 +450,6 @@ public class ChatController {
         }
     }
 
-    @PostMapping
-    public List<String> chat(
-            @RequestBody String userMessage,
-            @RequestParam("conversationId") final String conversationId) {
-        checkChat(conversationId, true);
-        final ToolInvocationCollector toolCollector = new ToolInvocationCollector();
-
-        ChatResponse chatResponse =
-                chatClient
-                        .prompt()
-                        .user(userMessage)
-                        .toolContext(buildContext(conversationId, toolCollector))
-                        .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
-                        .call()
-                        .chatResponse();
-
-        return Optional.ofNullable(chatResponse).map(ChatResponse::getResults).stream()
-                .flatMap(Collection::stream)
-                .map(generation -> generation.getOutput().getText())
-                .toList();
-    }
-
-    @GetMapping
-    public List<Chat> chats() {
-        return chatTopicRepository.findAllByUserOrderByUpdatedAtDesc(getUser()).stream()
-                .map(
-                        chatTopicEntity ->
-                                new Chat(
-                                        chatTopicEntity.getConversationId(),
-                                        chatTopicEntity.getUser(),
-                                        chatTopicEntity.getTopic(),
-                                        chatTopicEntity.getCreatedAt(),
-                                        chatTopicEntity.getUpdatedAt(),
-                                        null))
-                .toList();
-    }
-
-    @GetMapping("chat")
-    public Chat chatTopic(@RequestParam("conversationId") final String conversationId) {
-        final ChatTopicEntity chatTopicEntity =
-                chatTopicRepository
-                        .findById(conversationId)
-                        .orElseThrow(
-                                () ->
-                                        new ResponseStatusException(
-                                                NOT_FOUND,
-                                                "Not found conversation id " + conversationId));
-        if (!chatTopicEntity.getUser().equals(getUser())) {
-            throw new ResponseStatusException(FORBIDDEN, "Forbidden");
-        }
-        return new Chat(
-                conversationId,
-                chatTopicEntity.getUser(),
-                chatTopicEntity.getTopic(),
-                chatTopicEntity.getCreatedAt(),
-                chatTopicEntity.getUpdatedAt(),
-                Optional.ofNullable(
-                                chatMemoryService.findChatMessageByConversationId(conversationId))
-                        .stream()
-                        .flatMap(Collection::stream)
-                        .filter(a -> a.getText() != null && !a.getText().isBlank())
-                        .map(this::toChatMessage)
-                        .toList());
-    }
-
-    @DeleteMapping("chat")
-    public void deleteChat(@RequestParam("conversationId") final String conversationId) {
-        final ChatTopicEntity chatTopicEntity = getChatTopic(conversationId);
-        chatTopicRepository.deleteById(chatTopicEntity.getConversationId());
-        chatMemory.clear(conversationId);
-    }
-
     private @NonNull ChatTopicEntity getChatTopic(String conversationId) {
         final ChatTopicEntity chatTopicEntity =
                 chatTopicRepository
@@ -367,74 +463,6 @@ public class ChatController {
             throw new ResponseStatusException(FORBIDDEN, "Forbidden");
         }
         return chatTopicEntity;
-    }
-
-    @PostMapping("topic")
-    public void chatTopic(
-            @RequestBody String topic,
-            @RequestParam("conversationId") final String conversationId) {
-        chatTopicRepository
-                .findById(conversationId)
-                .ifPresentOrElse(
-                        chatTopicEntity -> {
-                            if (!chatTopicEntity.getUser().equals(getUser())) {
-                                throw new ResponseStatusException(FORBIDDEN, "Forbidden");
-                            }
-                            chatTopicRepository.save(
-                                    new ChatTopicEntity(
-                                            chatTopicEntity.getConversationId(),
-                                            chatTopicEntity.getUser(),
-                                            true,
-                                            topic,
-                                            chatTopicEntity.getCreatedAt(),
-                                            chatTopicEntity.getUpdatedAt(),
-                                            false));
-                        },
-                        () ->
-                                chatTopicRepository.save(
-                                        new ChatTopicEntity(
-                                                conversationId,
-                                                getUser(),
-                                                true,
-                                                topic,
-                                                null,
-                                                null,
-                                                true)));
-    }
-
-    /**
-     * Creates a new "JIRA chat" — a conversation pre-loaded with context from a JIRA issue and
-     * optionally a Confluence page.
-     *
-     * <pre>
-     * POST /api/chat/jira
-     * {
-     *   "jiraUrl": "https://instance.atlassian.net/browse/PROJ-123",
-     *   "confluenceUrl": "https://instance.atlassian.net/wiki/spaces/.../pages/12345",
-     *   "title": "Optional custom title"
-     * }
-     * </pre>
-     *
-     * @return the created Chat (with empty messages list)
-     */
-    @PostMapping("jira")
-    public Chat createJiraChat(@RequestBody CreateJiraChatRequest request) {
-        return jiraChatService.createJiraChat(request);
-    }
-
-    /**
-     * Refreshes a JIRA chat by re-fetching issue data and replacing attachments.
-     *
-     * <pre>
-     * POST /api/chat/jira/{conversationId}/refresh
-     * Body: "https://instance.atlassian.net/browse/PROJ-123"   (raw JIRA URL string)
-     * </pre>
-     *
-     * @return updated Chat metadata
-     */
-    @PostMapping("jira/{conversationId}/refresh")
-    public Chat refreshJiraChat(@PathVariable String conversationId, @RequestBody String jiraUrl) {
-        return jiraChatService.refreshJiraChat(conversationId, jiraUrl.trim());
     }
 
     private void checkChat(@Nonnull final String conversationId, boolean update) {
@@ -493,6 +521,16 @@ public class ChatController {
                                     usage.getCompletionTokens(),
                                     usage.getTotalTokens());
                         });
+    }
+
+    private Chat toChat(ChatTopicEntity entity, List<ChatMessage> messages) {
+        return new Chat(
+                entity.getConversationId(),
+                entity.getUser(),
+                entity.getTopic(),
+                entity.getCreatedAt(),
+                entity.getUpdatedAt(),
+                messages);
     }
 
     private ChatMessage toChatMessage(ChatMessageEntity chatMessageEntity) {

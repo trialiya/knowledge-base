@@ -99,7 +99,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     didFetchChatsRef.current = true;
     const fetchChats = async () => {
       try {
-        const res = await fetch('/api/chat');
+        const res = await fetch('/api/chats');
         if (!res.ok) throw new Error('Failed to fetch chats');
         const data = await res.json();
         const chatList = data.map((chat) => ({
@@ -138,8 +138,8 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   // Переименование чата
   const renameChat = useCallback(async (chatId, newTitle) => {
     try {
-      const res = await fetch(`/api/chat/topic?conversationId=${encodeURIComponent(chatId)}`, {
-        method: 'POST',
+      const res = await fetch(`/api/chats/${encodeURIComponent(chatId)}/topic`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: newTitle,
       });
@@ -153,7 +153,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   // Фоновое обновление темы чата с бэкенда после ответа
   const fetchAndUpdateTitle = useCallback(async (chatId) => {
     try {
-      const res = await fetch(`/api/chat/chat?conversationId=${encodeURIComponent(chatId)}`);
+      const res = await fetch(`/api/chats/${encodeURIComponent(chatId)}?includeMessages=false`);
       if (!res.ok) return;
       const data = await res.json();
       const newTitle = data.topic;
@@ -181,7 +181,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   const loadMessages = useCallback(async (chatId) => {
     setLoadingMessages(true);
     try {
-      const res = await fetch(`/api/chat/chat?conversationId=${encodeURIComponent(chatId)}`);
+      const res = await fetch(`/api/chats/${encodeURIComponent(chatId)}`);
       if (!res.ok) {
         // Любая ошибка (404, 500, …) — помечаем чат флагом, чтобы остановить повторные запросы
         const isNotFound = res.status === 404;
@@ -267,7 +267,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   useEffect(() => {
     if (!activeChatId) return;
     setAttachCount(0);
-    fetch(`/api/chat/${encodeURIComponent(activeChatId)}/attachments/count`)
+    fetch(`/api/chats/${encodeURIComponent(activeChatId)}/attachments/count`)
       .then((r) => (r.ok ? r.json() : 0))
       .then((count) => setAttachCount(typeof count === 'number' ? count : 0))
       .catch(() => setAttachCount(0));
@@ -327,10 +327,10 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       abortControllerRef.current = abortController;
 
       try {
-        const url = `/api/chat/stream?conversationId=${encodeURIComponent(activeChatId)}`;
+        const url = `/api/chats/${encodeURIComponent(activeChatId)}/messages/stream`;
         const response = await fetch(url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'text/event-stream' },
           body: text,
           signal: abortController.signal,
         });
@@ -635,7 +635,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
 
   const handleCreateJiraChat = useCallback(
     async (request) => {
-      const res = await fetch('/api/chat/jira', {
+      const res = await fetch('/api/chats/jira', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request),
@@ -675,7 +675,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     if (!target) return;
     const { id } = target;
     try {
-      await fetch(`/api/chat/chat?conversationId=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      await fetch(`/api/chats/${encodeURIComponent(id)}`, { method: 'DELETE' });
     } catch (err) {
       console.error('Ошибка удаления чата:', err);
     }
@@ -703,7 +703,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       const formData = new FormData();
       formData.append('file', file);
       try {
-        await fetch(`/api/chat/${activeChatId}/attachments`, {
+        await fetch(`/api/chats/${activeChatId}/attachments`, {
           method: 'POST',
           body: formData,
         });

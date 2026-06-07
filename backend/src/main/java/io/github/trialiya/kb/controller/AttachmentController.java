@@ -15,15 +15,16 @@ import org.springframework.web.multipart.MultipartFile;
  * <h3>Upload</h3>
  *
  * <pre>
- * POST /api/documents/{documentId}/attachments   (multipart/form-data, field "file")
- * POST /api/chat/{conversationId}/attachments     (multipart/form-data, field "file")
+ * POST /api/documents/{documentId}/attachments    (multipart/form-data, field "file")
+ * POST /api/chats/{conversationId}/attachments     (multipart/form-data, field "file")
  * </pre>
  *
  * <h3>List</h3>
  *
  * <pre>
  * GET /api/documents/{documentId}/attachments
- * GET /api/chat/{conversationId}/attachments
+ * GET /api/chats/{conversationId}/attachments
+ * GET /api/chats/{conversationId}/attachments/count
  * </pre>
  *
  * <h3>Single attachment</h3>
@@ -59,7 +60,7 @@ public class AttachmentController {
     }
 
     @PostMapping(
-            value = "/chat/{conversationId}/attachments",
+            value = "/chats/{conversationId}/attachments",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public Attachment uploadForChat(
@@ -74,12 +75,12 @@ public class AttachmentController {
         return service.findByDocument(documentId);
     }
 
-    @GetMapping("/chat/{conversationId}/attachments")
+    @GetMapping("/chats/{conversationId}/attachments")
     public List<Attachment> listForChat(@PathVariable String conversationId) {
         return service.findByConversation(conversationId);
     }
 
-    @GetMapping("/chat/{conversationId}/attachments/count")
+    @GetMapping("/chats/{conversationId}/attachments/count")
     public long countForChat(@PathVariable String conversationId) {
         return service.countByConversation(conversationId);
     }
@@ -87,32 +88,32 @@ public class AttachmentController {
     // ── Single ────────────────────────────────────────────────────────────────
 
     @GetMapping("/attachments/{id}")
-    public Attachment get(@PathVariable Long id) {
+    public Attachment getAttachment(@PathVariable Long id) {
         return service.getById(id);
     }
 
     @GetMapping(value = "/attachments/{id}/content", produces = MediaType.TEXT_PLAIN_VALUE)
-    public String getContent(@PathVariable Long id) {
+    public String getAttachmentContent(@PathVariable Long id) {
         return service.getContent(id);
     }
 
     @DeleteMapping("/attachments/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long id) {
+    public void deleteAttachment(@PathVariable Long id) {
         service.delete(id);
     }
 
     // ── AI summarize ──────────────────────────────────────────────────────────
 
     @PostMapping("/attachments/{id}/summarize")
-    public Attachment summarize(@PathVariable Long id) {
+    public Attachment summarizeAttachment(@PathVariable Long id) {
         return service.summarize(id);
     }
 
     // ── Search ────────────────────────────────────────────────────────────────
 
     @GetMapping("/attachments/search")
-    public List<Attachment> search(@RequestParam String q) {
+    public List<Attachment> searchAttachments(@RequestParam String q) {
         return service.search(q);
     }
 }

@@ -254,7 +254,7 @@ const JiraAttachmentPanel = ({ conversationId, jiraUrl, onCountChange }) => {
     setRefreshing(true);
     setRefreshError('');
     try {
-      const res = await fetch(`/api/chat/jira/${encodeURIComponent(conversationId)}/refresh`, {
+      const res = await fetch(`/api/chats/${encodeURIComponent(conversationId)}/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: jiraUrl,

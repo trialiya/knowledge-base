@@ -23,8 +23,6 @@ async function ensureOk(r, label) {
 const json = (r, label) => ensureOk(r, label).then((res) => res.json());
 
 const api = {
-  fetchTree: () => fetch('/api/documents/tree').then((r) => json(r, 'Tree')),
-
   fetchChildren: (parentId, page = 0, size = 10) => {
     const params = new URLSearchParams({ page: String(page), size: String(size) });
     if (parentId != null) params.set('parentId', parentId);

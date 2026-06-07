@@ -1,8 +1,8 @@
 // ─── Attachment API helpers ────────────────────────────────────────────────────
 // Wrappers around the attachment endpoints. Documents and chats share the same
-// shape, differing only in the URL segment (documents | chat).
+// shape, differing only in the URL segment (documents | chats).
 
-const ownerSegment = (ownerType) => (ownerType === 'document' ? 'documents' : 'chat');
+const ownerSegment = (ownerType) => (ownerType === 'document' ? 'documents' : 'chats');
 
 const attachmentApi = {
   list: (ownerType, ownerId) => fetch(`/api/${ownerSegment(ownerType)}/${ownerId}/attachments`).then((r) => r.json()),
