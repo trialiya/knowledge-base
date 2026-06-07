@@ -9,18 +9,23 @@ import static java.util.stream.Collectors.toMap;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
+import io.github.trialiya.kb.model.tool.ToolCallResultMetaProvider;
+import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.micrometer.common.util.StringUtils;
 import jakarta.annotation.Nullable;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.definition.ToolDefinition;
 import org.springframework.ai.tool.metadata.ToolMetadata;
 
 /** Wraps a ToolCallback to record name, arguments and status into the request-scoped collector. */
+@Slf4j
 public class RecordingToolCallback implements ToolCallback {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -109,7 +114,7 @@ public class RecordingToolCallback implements ToolCallback {
                                     Map.Entry::getKey,
                                     entity -> truncateObject(entity.getValue(), 100)));
         } catch (NullPointerException | JsonProcessingException e) {
-            logger.error("Error parsing tool input {}", toolInput, e);
+            log.error("Error parsing tool input {}", toolInput, e);
             return Map.of();
         }
     }

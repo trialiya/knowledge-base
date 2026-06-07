@@ -11,28 +11,28 @@ import { getToolIcon, toolLabelKey, humanizeTool, getDocChangeRef } from './tool
 
 /** SVG status indicators — not clickable, purely visual */
 const IconStarted = () => (
-    <svg className="tool-call-status-svg tool-call-status-svg--started" width="14" height="14" viewBox="0 0 16 16">
-      <circle cx="8" cy="8" r="6" fill="none" stroke="#d99a00" strokeWidth="2" strokeDasharray="9 5" />
-    </svg>
+  <svg className="tool-call-status-svg tool-call-status-svg--started" width="14" height="14" viewBox="0 0 16 16">
+    <circle cx="8" cy="8" r="6" fill="none" stroke="#d99a00" strokeWidth="2" strokeDasharray="9 5" />
+  </svg>
 );
 const IconOk = () => (
-    <svg className="tool-call-status-svg tool-call-status-svg--ok" width="14" height="14" viewBox="0 0 16 16">
-      <circle cx="8" cy="8" r="7" fill="#34a853" />
-      <path
-          d="M5 8.2l2 2 4-4.4"
-          fill="none"
-          stroke="#fff"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-      />
-    </svg>
+  <svg className="tool-call-status-svg tool-call-status-svg--ok" width="14" height="14" viewBox="0 0 16 16">
+    <circle cx="8" cy="8" r="7" fill="#34a853" />
+    <path
+      d="M5 8.2l2 2 4-4.4"
+      fill="none"
+      stroke="#fff"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
 );
 const IconError = () => (
-    <svg className="tool-call-status-svg tool-call-status-svg--error" width="14" height="14" viewBox="0 0 16 16">
-      <circle cx="8" cy="8" r="7" fill="#ea4335" />
-      <path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
+  <svg className="tool-call-status-svg tool-call-status-svg--error" width="14" height="14" viewBox="0 0 16 16">
+    <circle cx="8" cy="8" r="7" fill="#ea4335" />
+    <path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
 );
 
 const StatusIcon = ({ status }) => {
@@ -50,33 +50,33 @@ const StatusIcon = ({ status }) => {
 
 /** Small copy button SVG */
 const IconCopy = () => (
-    <svg
-        width="12"
-        height="12"
-        viewBox="0 0 16 16"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-    >
-      <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
-      <path d="M10.5 5.5V3.5a1.5 1.5 0 0 0-1.5-1.5H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5h2" />
-    </svg>
+  <svg
+    width="12"
+    height="12"
+    viewBox="0 0 16 16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.6"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+    <path d="M10.5 5.5V3.5a1.5 1.5 0 0 0-1.5-1.5H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5h2" />
+  </svg>
 );
 const IconCopied = () => (
-    <svg
-        width="12"
-        height="12"
-        viewBox="0 0 16 16"
-        fill="none"
-        stroke="#34a853"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-    >
-      <path d="M3 8.5l3 3 7-7.5" />
-    </svg>
+  <svg
+    width="12"
+    height="12"
+    viewBox="0 0 16 16"
+    fill="none"
+    stroke="#34a853"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M3 8.5l3 3 7-7.5" />
+  </svg>
 );
 
 /** Кнопка «копировать всё сообщение» — копирует исходный текст сообщения. */
@@ -99,22 +99,22 @@ const MessageCopyButton = ({ text }) => {
   };
 
   return (
-      <button
-          className={`message-copy-btn ${copied ? 'message-copy-btn--done' : ''}`}
-          onClick={handleCopy}
-          title={copied ? t('common:copied') : t('message.copyMessage')}
-          type="button"
-      >
-        {copied ? <IconCopied /> : <IconCopy />}
-      </button>
+    <button
+      className={`message-copy-btn ${copied ? 'message-copy-btn--done' : ''}`}
+      onClick={handleCopy}
+      title={copied ? t('common:copied') : t('message.copyMessage')}
+      type="button"
+    >
+      {copied ? <IconCopied /> : <IconCopy />}
+    </button>
   );
 };
 
 const formatArgs = (args) => {
   if (!args || Object.keys(args).length === 0) return null;
   return Object.entries(args)
-      .map(([key, val]) => `${key}: ${typeof val === 'string' ? val : JSON.stringify(val)}`)
-      .join(', ');
+    .map(([key, val]) => `${key}: ${typeof val === 'string' ? val : JSON.stringify(val)}`)
+    .join(', ');
 };
 
 const GIST_PREVIEW_LEN = 80;
@@ -186,7 +186,7 @@ const ToolCallItem = ({ tc }) => {
 
     // Микро-движения избегаем — обновляем только при заметном сдвиге.
     setPos((prev) =>
-               prev && Math.abs(prev.left - left) < 0.5 && Math.abs(prev.top - top) < 0.5 ? prev : { top, left },
+      prev && Math.abs(prev.left - left) < 0.5 && Math.abs(prev.top - top) < 0.5 ? prev : { top, left },
     );
   }, [hover, argsStr, gist, tc.status, tc.error]);
 
@@ -202,54 +202,54 @@ const ToolCallItem = ({ tc }) => {
   };
 
   return (
-      <div
-          ref={itemRef}
-          className={`tool-call-item tool-call-item--${(tc.status || 'STARTED').toLowerCase()}`}
-          onMouseEnter={() => setHover(true)}
-          onMouseLeave={() => {
-            setHover(false);
-            setPos(null);
-          }}
-      >
+    <div
+      ref={itemRef}
+      className={`tool-call-item tool-call-item--${(tc.status || 'STARTED').toLowerCase()}`}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => {
+        setHover(false);
+        setPos(null);
+      }}
+    >
       <span className="tool-call-status-icon">
         <StatusIcon status={tc.status} />
       </span>
-        <div className="tool-call-body">
+      <div className="tool-call-body">
         <span className="tool-call-name">
           <span className="tool-call-icon" aria-hidden="true">
             {icon}
           </span>
           {label}
         </span>
-          {argsStr && <span className="tool-call-args">{argsStr}</span>}
-          {gist && <span className="tool-call-gist">{gist}</span>}
-          {tc.status === 'ERROR' && tc.error && <span className="tool-call-error">{tc.error}</span>}
-        </div>
-        <button className="tool-call-copy-btn" onClick={handleCopy} title={t('toolCall.copy')}>
-          {copied ? <IconCopied /> : <IconCopy />}
-        </button>
-        {hover &&
-         ReactDOM.createPortal(
-             <div
-                 ref={tooltipRef}
-                 className="tool-call-tooltip"
-                 style={{
-                   top: pos ? pos.top : 0,
-                   left: pos ? pos.left : 0,
-                   visibility: pos ? 'visible' : 'hidden',
-                 }}
-             >
-               <div className="tool-call-tooltip-name">{label}</div>
-               {argsStr && <div className="tool-call-tooltip-args">{argsStr}</div>}
-               <div className="tool-call-tooltip-status">
-                 {t('toolCall.status')}: {tc.status || '—'}
-               </div>
-               {tc.resultGist && <div className="tool-call-tooltip-gist">{tc.resultGist}</div>}
-               {tc.status === 'ERROR' && tc.error && <div className="tool-call-tooltip-error">{tc.error}</div>}
-             </div>,
-             document.body,
-         )}
+        {argsStr && <span className="tool-call-args">{argsStr}</span>}
+        {gist && <span className="tool-call-gist">{gist}</span>}
+        {tc.status === 'ERROR' && tc.error && <span className="tool-call-error">{tc.error}</span>}
       </div>
+      <button className="tool-call-copy-btn" onClick={handleCopy} title={t('toolCall.copy')}>
+        {copied ? <IconCopied /> : <IconCopy />}
+      </button>
+      {hover &&
+        ReactDOM.createPortal(
+          <div
+            ref={tooltipRef}
+            className="tool-call-tooltip"
+            style={{
+              top: pos ? pos.top : 0,
+              left: pos ? pos.left : 0,
+              visibility: pos ? 'visible' : 'hidden',
+            }}
+          >
+            <div className="tool-call-tooltip-name">{label}</div>
+            {argsStr && <div className="tool-call-tooltip-args">{argsStr}</div>}
+            <div className="tool-call-tooltip-status">
+              {t('toolCall.status')}: {tc.status || '—'}
+            </div>
+            {tc.resultGist && <div className="tool-call-tooltip-gist">{tc.resultGist}</div>}
+            {tc.status === 'ERROR' && tc.error && <div className="tool-call-tooltip-error">{tc.error}</div>}
+          </div>,
+          document.body,
+        )}
+    </div>
   );
 };
 
@@ -270,21 +270,21 @@ const ToolCallGroup = ({ name, items }) => {
   const icon = getToolIcon(name);
   const firstArgsStr = formatArgs(first.arguments);
   const groupStatus = items.some((t2) => t2.status === 'ERROR')
-                      ? 'ERROR'
-                      : items.some((t2) => t2.status === 'STARTED')
-                        ? 'STARTED'
-                        : 'OK';
+    ? 'ERROR'
+    : items.some((t2) => t2.status === 'STARTED')
+    ? 'STARTED'
+    : 'OK';
 
   return (
-      <div className="tool-call-group">
-        <div
-            className={`tool-call-item tool-call-item--${groupStatus.toLowerCase()} tool-call-item--group-header`}
-            onClick={() => setOpen((v) => !v)}
-        >
+    <div className="tool-call-group">
+      <div
+        className={`tool-call-item tool-call-item--${groupStatus.toLowerCase()} tool-call-item--group-header`}
+        onClick={() => setOpen((v) => !v)}
+      >
         <span className="tool-call-status-icon">
           <StatusIcon status={groupStatus} />
         </span>
-          <div className="tool-call-body">
+        <div className="tool-call-body">
           <span className="tool-call-name">
             <span className="tool-call-icon" aria-hidden="true">
               {icon}
@@ -292,18 +292,18 @@ const ToolCallGroup = ({ name, items }) => {
             {label}
             <span className="tool-call-count">×{items.length}</span>
           </span>
-            {firstArgsStr && <span className="tool-call-args">{firstArgsStr}</span>}
-          </div>
-          <span className={`tool-call-chevron ${open ? 'tool-call-chevron--open' : ''}`}>›</span>
+          {firstArgsStr && <span className="tool-call-args">{firstArgsStr}</span>}
         </div>
-        {open && (
-            <div className="tool-call-group-children">
-              {items.map((tc, i) => (
-                  <ToolCallItem key={i} tc={tc} />
-              ))}
-            </div>
-        )}
+        <span className={`tool-call-chevron ${open ? 'tool-call-chevron--open' : ''}`}>›</span>
       </div>
+      {open && (
+        <div className="tool-call-group-children">
+          {items.map((tc, i) => (
+            <ToolCallItem key={i} tc={tc} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -322,13 +322,13 @@ const ToolCallNotifications = ({ toolCalls }) => {
   }
 
   return (
-      <div className="tool-call-notifications">
-        <div className="tool-call-scroll">
-          {groups.map((g, i) => (
-              <ToolCallGroup key={`${g.name}-${i}`} name={g.name} items={g.items} />
-          ))}
-        </div>
+    <div className="tool-call-notifications">
+      <div className="tool-call-scroll">
+        {groups.map((g, i) => (
+          <ToolCallGroup key={`${g.name}-${i}`} name={g.name} items={g.items} />
+        ))}
       </div>
+    </div>
   );
 };
 
@@ -355,8 +355,8 @@ const DocChangeBlock = ({ toolCalls, onNavigateToDoc }) => {
       if (!cur) {
         byId.set(ref.id, { ...ref, title });
       } else {
-        if ((ref.version ?? 0) > (cur.version ?? 0)) {
-          cur.version = ref.version;
+        if ((ref.descriptionVersion ?? 0) > (cur.descriptionVersion ?? 0)) {
+          cur.descriptionVersion = ref.descriptionVersion;
           cur.action = ref.action;
         }
         if (!cur.title && title) cur.title = title;
@@ -368,40 +368,40 @@ const DocChangeBlock = ({ toolCalls, onNavigateToDoc }) => {
   if (changes.length === 0) return null;
 
   return (
-      <div className="doc-change-block">
-        {changes.map((c) => (
-            <button
-                key={c.id}
-                type="button"
-                className="doc-change-item"
-                onClick={() => setTarget(c)}
-                title={t('docChange.viewChanges')}
-            >
+    <div className="doc-change-block">
+      {changes.map((c) => (
+        <button
+          key={c.id}
+          type="button"
+          className="doc-change-item"
+          onClick={() => setTarget(c)}
+          title={t('docChange.viewChanges')}
+        >
           <span className="doc-change-icon" aria-hidden="true">
             📄
           </span>
-              <span className="doc-change-text">
+          <span className="doc-change-text">
             <span className="doc-change-title">{c.title || t('docChange.untitled', { id: c.id })}</span>
             <span className="doc-change-sub">
               {c.action === 'createDocument' ? t('docChange.created') : t('docChange.updated')}
-              {c.version != null ? ` · v${c.version}` : ''}
+              {c.descriptionVersion != null ? ` · v${c.descriptionVersion}` : ''}
             </span>
           </span>
-              <span className="doc-change-cta">{t('docChange.viewChanges')} ›</span>
-            </button>
-        ))}
+          <span className="doc-change-cta">{t('docChange.viewChanges')} ›</span>
+        </button>
+      ))}
 
-        {target && (
-            <HistoryModal
-                documentId={target.id}
-                documentTitle={target.title || `#${target.id}`}
-                initialVersion={target.version}
-                tree={[]}
-                onNavigate={onNavigateToDoc ? (id) => onNavigateToDoc(String(id)) : undefined}
-                onClose={() => setTarget(null)}
-            />
-        )}
-      </div>
+      {target && (
+        <HistoryModal
+          documentId={target.id}
+          documentTitle={target.title || `#${target.id}`}
+          initialVersion={target.descriptionVersion}
+          tree={[]}
+          onNavigate={onNavigateToDoc ? (id) => onNavigateToDoc(String(id)) : undefined}
+          onClose={() => setTarget(null)}
+        />
+      )}
+    </div>
   );
 };
 
@@ -411,9 +411,9 @@ const DocChangeBlock = ({ toolCalls, onNavigateToDoc }) => {
 function getMarkdownComponents(onNavigateToDoc) {
   return {
     a: ({ href, children, ...props }) => (
-        <ChatDocLink href={href} onNavigateToDoc={onNavigateToDoc} {...props}>
-          {children}
-        </ChatDocLink>
+      <ChatDocLink href={href} onNavigateToDoc={onNavigateToDoc} {...props}>
+        {children}
+      </ChatDocLink>
     ),
     code({ inline, className, children, ...props }) {
       const raw = String(children).replace(/\n$/, '');
@@ -421,15 +421,15 @@ function getMarkdownComponents(onNavigateToDoc) {
 
       if (!isBlock) {
         return (
-            <code className={className} {...props}>
-              {children}
-            </code>
+          <code className={className} {...props}>
+            {children}
+          </code>
         );
       }
       return (
-          <CodeBlock code={raw} className={className} {...props}>
-            {raw}
-          </CodeBlock>
+        <CodeBlock code={raw} className={className} {...props}>
+          {raw}
+        </CodeBlock>
       );
     },
   };
@@ -442,49 +442,49 @@ const Message = ({ text, sender, toolCalls, onNavigateToDoc }) => {
   const hasToolCalls = toolCalls && toolCalls.length > 0;
 
   const messageContent = (
-      <div className={messageClass}>
-        {sender === 'ai' ? (
-            <>
-              <div className="message-source-toggle">
-                <MessageCopyButton text={text} />
-                <button
-                    className={`message-source-btn ${showSource ? 'message-source-btn--active' : ''}`}
-                    onClick={() => setShowSource((v) => !v)}
-                    title={showSource ? t('message.viewFormatted') : t('message.viewSource')}
-                >
-                  {showSource ? `◈ ${t('message.btnMarkdown')}` : `{ } ${t('message.btnSource')}`}
-                </button>
-              </div>
-              {showSource ? (
-                  <pre className="message-raw-source">{text}</pre>
-              ) : (
-                   <div className="md-preview md-preview--chat">
-                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={getMarkdownComponents(onNavigateToDoc)}>
-                       {text}
-                     </ReactMarkdown>
-                   </div>
-               )}
-            </>
-        ) : (
-             <>
-               <div className="message-toolbar message-toolbar--user">
-                 <MessageCopyButton text={text} />
-               </div>
-               <div className="user-message-text">{text}</div>
-             </>
-         )}
-      </div>
+    <div className={messageClass}>
+      {sender === 'ai' ? (
+        <>
+          <div className="message-source-toggle">
+            <MessageCopyButton text={text} />
+            <button
+              className={`message-source-btn ${showSource ? 'message-source-btn--active' : ''}`}
+              onClick={() => setShowSource((v) => !v)}
+              title={showSource ? t('message.viewFormatted') : t('message.viewSource')}
+            >
+              {showSource ? `◈ ${t('message.btnMarkdown')}` : `{ } ${t('message.btnSource')}`}
+            </button>
+          </div>
+          {showSource ? (
+            <pre className="message-raw-source">{text}</pre>
+          ) : (
+            <div className="md-preview md-preview--chat">
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={getMarkdownComponents(onNavigateToDoc)}>
+                {text}
+              </ReactMarkdown>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <div className="message-toolbar message-toolbar--user">
+            <MessageCopyButton text={text} />
+          </div>
+          <div className="user-message-text">{text}</div>
+        </>
+      )}
+    </div>
   );
 
   if (hasToolCalls && sender === 'ai') {
     return (
-        <div className="message-row-with-tools">
-          <div className="message-main-col">
-            {messageContent}
-            <DocChangeBlock toolCalls={toolCalls} onNavigateToDoc={onNavigateToDoc} />
-          </div>
-          <ToolCallNotifications toolCalls={toolCalls} />
+      <div className="message-row-with-tools">
+        <div className="message-main-col">
+          {messageContent}
+          <DocChangeBlock toolCalls={toolCalls} onNavigateToDoc={onNavigateToDoc} />
         </div>
+        <ToolCallNotifications toolCalls={toolCalls} />
+      </div>
     );
   }
 

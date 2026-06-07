@@ -5,7 +5,6 @@ import static io.github.trialiya.kb.utils.ChatUtils.getUser;
 import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.trialiya.kb.model.chat.dto.Chat;
 import io.github.trialiya.kb.model.chat.dto.ChatMessage;
 import io.github.trialiya.kb.model.chat.dto.CreateJiraChatRequest;
@@ -14,11 +13,11 @@ import io.github.trialiya.kb.model.chat.dto.ToolCallMessage;
 import io.github.trialiya.kb.model.chat.dto.ToolCallsMessage;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
+import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.service.JiraChatService;
 import io.github.trialiya.kb.service.SummarizeService;
-import io.github.trialiya.kb.tools.ToolInvocation;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import jakarta.annotation.Nonnull;
 import java.time.Duration;
@@ -62,8 +61,6 @@ import reactor.core.publisher.SignalType;
 @RequestMapping("/api/chat")
 @Slf4j
 public class ChatController {
-
-    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     private final ChatClient chatClient;
     private final ChatMemory chatMemory;
@@ -514,6 +511,6 @@ public class ChatController {
                 message,
                 chatMessageEntity.getMessageType().getValue(),
                 chatMessageEntity.getCreatedAt(),
-                chatMessageEntity.getMeta());
+                chatMessageEntity.getInvocations());
     }
 }

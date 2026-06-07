@@ -2,9 +2,9 @@ package io.github.trialiya.kb.model.doc.dto;
 
 import static java.util.stream.Collectors.joining;
 
+import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
+import io.github.trialiya.kb.model.tool.ToolCallResultMetaProvider;
 import io.github.trialiya.kb.tools.Compact;
-import io.github.trialiya.kb.tools.ToolCallResponseItem;
-import io.github.trialiya.kb.tools.ToolCallResultMetaProvider;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -32,6 +32,7 @@ public record DocumentNode(
         Long parentId,
         int version,
         String description,
+        int descriptionVersion,
         LocalDateTime updatedAt,
         List<DocumentNode> children,
         boolean hasChildren,
@@ -69,6 +70,7 @@ public record DocumentNode(
         meta.put("title", title);
         meta.put("parent", parentId);
         meta.put("version", version);
+        meta.put("descriptionVersion", descriptionVersion);
         meta.put("updated", updatedAt);
         return meta;
     }

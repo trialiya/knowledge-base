@@ -64,10 +64,10 @@ const DiffView = ({ base, compare }) => {
 
       lines.forEach((line, li) => {
         rows.push(
-            <div key={`${pi}-${li}`} className={`history-diff__line history-diff__line--${kind}`}>
-              <span className="history-diff__sign">{sign}</span>
-              <span className="history-diff__text">{line || '\u00A0'}</span>
-            </div>,
+          <div key={`${pi}-${li}`} className={`history-diff__line history-diff__line--${kind}`}>
+            <span className="history-diff__sign">{sign}</span>
+            <span className="history-diff__text">{line || '\u00A0'}</span>
+          </div>,
         );
         lineNo += 1;
       });
@@ -137,43 +137,43 @@ const DiffView = ({ base, compare }) => {
   const showThumb = metrics.height < metrics.total - 1; // есть что скроллить
 
   return (
-      <div className="history-diff-area">
-        <div
-            className={`history-diff-scroll${unchanged ? '' : ' history-diff-scroll--ruled'}`}
-            ref={scrollRef}
-            onScroll={syncMetrics}
-        >
-          {unchanged && <p className="history-note">{t('history.identical')}</p>}
-          <div className="history-diff">{rows}</div>
-        </div>
-
-        {!unchanged && (
-            <div className="history-ruler" ref={rulerRef} onClick={onTrackClick} title={t('history.rulerHint')}>
-              {markers.map((m, i) => (
-                  <button
-                      key={i}
-                      type="button"
-                      className={`history-ruler__mark history-ruler__mark--${m.kind}`}
-                      style={{
-                        top: `${(m.start / totalLines) * 100}%`,
-                        height: `${Math.max((m.len / totalLines) * 100, 0.8)}%`,
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        scrollToFrac(m.start / totalLines);
-                      }}
-                  />
-              ))}
-              {showThumb && (
-                  <div
-                      className="history-ruler__thumb"
-                      style={{ top: `${thumbTop}%`, height: `${thumbHeight}%` }}
-                      onPointerDown={onThumbDown}
-                  />
-              )}
-            </div>
-        )}
+    <div className="history-diff-area">
+      <div
+        className={`history-diff-scroll${unchanged ? '' : ' history-diff-scroll--ruled'}`}
+        ref={scrollRef}
+        onScroll={syncMetrics}
+      >
+        {unchanged && <p className="history-note">{t('history.identical')}</p>}
+        <div className="history-diff">{rows}</div>
       </div>
+
+      {!unchanged && (
+        <div className="history-ruler" ref={rulerRef} onClick={onTrackClick} title={t('history.rulerHint')}>
+          {markers.map((m, i) => (
+            <button
+              key={i}
+              type="button"
+              className={`history-ruler__mark history-ruler__mark--${m.kind}`}
+              style={{
+                top: `${(m.start / totalLines) * 100}%`,
+                height: `${Math.max((m.len / totalLines) * 100, 0.8)}%`,
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                scrollToFrac(m.start / totalLines);
+              }}
+            />
+          ))}
+          {showThumb && (
+            <div
+              className="history-ruler__thumb"
+              style={{ top: `${thumbTop}%`, height: `${thumbHeight}%` }}
+              onPointerDown={onThumbDown}
+            />
+          )}
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -207,38 +207,38 @@ const HistoryModal = ({ documentId, documentTitle, initialVersion, tree = [], on
   // чтобы и предпросмотр/diff (fire-and-forget), и «Восстановить» (нужен текст)
   // использовали один и тот же путь. Запросы дедуплицируются по версии.
   const ensureLoaded = useCallback(
-      (version) => {
-        if (version == null) return Promise.resolve('');
-        if (cacheRef.current[version] !== undefined) return Promise.resolve(cacheRef.current[version]);
-        if (inFlight.current.has(version)) return inFlight.current.get(version);
+    (version) => {
+      if (version == null) return Promise.resolve('');
+      if (cacheRef.current[version] !== undefined) return Promise.resolve(cacheRef.current[version]);
+      if (inFlight.current.has(version)) return inFlight.current.get(version);
 
-        const reqDoc = documentId;
-        const promise = api
-            .fetchHistoryVersion(reqDoc, version)
-            .then((data) => {
-              const text = data?.description ?? '';
-              cacheRef.current[version] = text;
-              if (aliveRef.current && docRef.current === reqDoc) {
-                setDescCache((p) => ({ ...p, [version]: text }));
-                setDescErr((p) => {
-                  if (!p[version]) return p;
-                  const n = { ...p };
-                  delete n[version];
-                  return n;
-                });
-              }
-              return text;
-            })
-            .catch((err) => {
-              if (aliveRef.current && docRef.current === reqDoc) setDescErr((p) => ({ ...p, [version]: true }));
-              throw err;
-            })
-            .finally(() => inFlight.current.delete(version));
+      const reqDoc = documentId;
+      const promise = api
+        .fetchHistoryVersion(reqDoc, version)
+        .then((data) => {
+          const text = data?.description ?? '';
+          cacheRef.current[version] = text;
+          if (aliveRef.current && docRef.current === reqDoc) {
+            setDescCache((p) => ({ ...p, [version]: text }));
+            setDescErr((p) => {
+              if (!p[version]) return p;
+              const n = { ...p };
+              delete n[version];
+              return n;
+            });
+          }
+          return text;
+        })
+        .catch((err) => {
+          if (aliveRef.current && docRef.current === reqDoc) setDescErr((p) => ({ ...p, [version]: true }));
+          throw err;
+        })
+        .finally(() => inFlight.current.delete(version));
 
-        inFlight.current.set(version, promise);
-        return promise;
-      },
-      [documentId],
+      inFlight.current.set(version, promise);
+      return promise;
+    },
+    [documentId],
   );
 
   // Esc закрывает
@@ -255,41 +255,40 @@ const HistoryModal = ({ documentId, documentTitle, initialVersion, tree = [], on
     setDescCache({});
     setDescErr({});
     api
-        .fetchHistory(documentId)
-        .then((data) => {
-          if (!alive) return;
-          const list = Array.isArray(data) ? data : [];
-          setEntries(list);
+      .fetchHistory(documentId)
+      .then((data) => {
+        if (!alive) return;
+        const list = Array.isArray(data) ? data : [];
+        setEntries(list);
 
-          // initialVersion (например, версия из createDocument/updateDocument в чате):
-          // наводимся на запись с этой descriptionVersion. Список newest-first,
-          // инвариант baseIdx > compareIdx (база старее изменённой).
-          const targetIdx =
-              initialVersion != null ? list.findIndex((e) => e.descriptionVersion === initialVersion) : -1;
+        // initialVersion (например, версия из createDocument/updateDocument в чате):
+        // наводимся на запись с этой descriptionVersion. Список newest-first,
+        // инвариант baseIdx > compareIdx (база старее изменённой).
+        const targetIdx = initialVersion != null ? list.findIndex((e) => e.descriptionVersion === initialVersion) : -1;
 
-          if (targetIdx >= 0 && list.length >= 2) {
-            if (targetIdx === list.length - 1) {
-              // Старейшая запись — предшественника нет, показываем её саму.
-              setBaseIdx(targetIdx);
-              setCompareIdx(targetIdx);
-              setMode('compare');
-            } else {
-              // diff: выбранная версия (новее) ↔ предыдущая (старее).
-              setCompareIdx(targetIdx);
-              setBaseIdx(targetIdx + 1);
-              setMode('diff');
-            }
-          } else if (list.length >= 2) {
-            setBaseIdx(1);
-            setCompareIdx(0);
+        if (targetIdx >= 0 && list.length >= 2) {
+          if (targetIdx === list.length - 1) {
+            // Старейшая запись — предшественника нет, показываем её саму.
+            setBaseIdx(targetIdx);
+            setCompareIdx(targetIdx);
+            setMode('compare');
+          } else {
+            // diff: выбранная версия (новее) ↔ предыдущая (старее).
+            setCompareIdx(targetIdx);
+            setBaseIdx(targetIdx + 1);
             setMode('diff');
-          } else if (list.length === 1) {
-            setBaseIdx(0);
-            setCompareIdx(0);
-            setMode('compare'); // сравнивать не с чем — показываем единственную версию
           }
-        })
-        .catch(() => alive && setError(true));
+        } else if (list.length >= 2) {
+          setBaseIdx(1);
+          setCompareIdx(0);
+          setMode('diff');
+        } else if (list.length === 1) {
+          setBaseIdx(0);
+          setCompareIdx(0);
+          setMode('compare'); // сравнивать не с чем — показываем единственную версию
+        }
+      })
+      .catch(() => alive && setError(true));
     return () => {
       alive = false;
     };
@@ -368,106 +367,106 @@ const HistoryModal = ({ documentId, documentTitle, initialVersion, tree = [], on
   };
 
   return createPortal(
-      <div className="fs-editor-overlay" onMouseDown={onClose}>
-        <div className="fs-editor" onMouseDown={(e) => e.stopPropagation()}>
-          <div className="fs-editor__head">
-            <span className="fs-editor__title">{t('history.title', { title: documentTitle })}</span>
-            <button className="fs-editor__close" title={t('history.close')} onClick={onClose}>
-              <IconX />
-            </button>
-          </div>
+    <div className="fs-editor-overlay" onMouseDown={onClose}>
+      <div className="fs-editor" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="fs-editor__head">
+          <span className="fs-editor__title">{t('history.title', { title: documentTitle })}</span>
+          <button className="fs-editor__close" title={t('history.close')} onClick={onClose}>
+            <IconX />
+          </button>
+        </div>
 
-          <div className="fs-editor__body">
-            <div className="history-layout">
-              {/* ── Список версий ── */}
-              <div className="history-list">
-                <div className="history-list__head">
-                  <span>{t('history.colVersion')}</span>
-                  <span title={t('history.colBaseHint')}>{t('history.colBase')}</span>
-                  <span title={t('history.colCompareHint')}>{t('history.colCompare')}</span>
-                </div>
-
-                {entries === null && <p className="history-empty">{t('history.loading')}</p>}
-                {entries &&
-                 entries.map((e, i) => (
-                     <div key={`${e.version}-${i}`} className="history-item">
-                       <div className="history-item__meta">
-                         <div className="history-item__date">{fmtDate(e.updatedAt, i18n.language)}</div>
-                         <div className="history-item__sub">
-                           {t('history.edit', { n: e.descriptionVersion })}
-                           {i === 0 ? ` · ${t('history.current')}` : ''}
-                         </div>
-                       </div>
-                       <input
-                           type="radio"
-                           name="history-base"
-                           checked={baseIdx === i}
-                           disabled={single || i === 0 /* новейшая не может быть базой */}
-                           onChange={() => selectBase(i)}
-                       />
-                       <input
-                           type="radio"
-                           name="history-compare"
-                           checked={compareIdx === i}
-                           disabled={single || i === lastIdx /* старейшая не может быть изменённой */}
-                           onChange={() => selectCompare(i)}
-                       />
-                     </div>
-                 ))}
+        <div className="fs-editor__body">
+          <div className="history-layout">
+            {/* ── Список версий ── */}
+            <div className="history-list">
+              <div className="history-list__head">
+                <span>{t('history.colVersion')}</span>
+                <span title={t('history.colBaseHint')}>{t('history.colBase')}</span>
+                <span title={t('history.colCompareHint')}>{t('history.colCompare')}</span>
               </div>
 
-              {/* ── Основная область ── */}
-              <div className="history-main">
-                <div className="history-toolbar">
-                  <div className="history-seg">
+              {entries === null && <p className="history-empty">{t('history.loading')}</p>}
+              {entries &&
+                entries.map((e, i) => (
+                  <div key={`${e.version}-${i}`} className="history-item">
+                    <div className="history-item__meta">
+                      <div className="history-item__date">{fmtDate(e.updatedAt, i18n.language)}</div>
+                      <div className="history-item__sub">
+                        {t('history.edit', { n: e.descriptionVersion })}
+                        {i === 0 ? ` · ${t('history.current')}` : ''}
+                      </div>
+                    </div>
+                    <input
+                      type="radio"
+                      name="history-base"
+                      checked={baseIdx === i}
+                      disabled={single || i === 0 /* новейшая не может быть базой */}
+                      onChange={() => selectBase(i)}
+                    />
+                    <input
+                      type="radio"
+                      name="history-compare"
+                      checked={compareIdx === i}
+                      disabled={single || i === lastIdx /* старейшая не может быть изменённой */}
+                      onChange={() => selectCompare(i)}
+                    />
+                  </div>
+                ))}
+            </div>
+
+            {/* ── Основная область ── */}
+            <div className="history-main">
+              <div className="history-toolbar">
+                <div className="history-seg">
+                  <button
+                    className={mode === 'diff' ? 'is-active' : ''}
+                    disabled={single}
+                    onClick={() => setMode('diff')}
+                  >
+                    {t('history.modeDiff')}
+                  </button>
+                  <button
+                    className={mode === 'base' ? 'is-active' : ''}
+                    disabled={single}
+                    onClick={() => setMode('base')}
+                  >
+                    {t('history.modeBase')}
+                  </button>
+                  <button className={mode === 'compare' ? 'is-active' : ''} onClick={() => setMode('compare')}>
+                    {t('history.modeCompare')}
+                  </button>
+                </div>
+
+                {onRestore && (
+                  <div className="history-restore-group">
                     <button
-                        className={mode === 'diff' ? 'is-active' : ''}
-                        disabled={single}
-                        onClick={() => setMode('diff')}
+                      className="history-restore"
+                      disabled={!canRestoreBase}
+                      title={t('history.restoreBaseTitle')}
+                      onClick={() => handleRestore(base)}
                     >
-                      {t('history.modeDiff')}
+                      {t('history.restoreBase')}
                     </button>
                     <button
-                        className={mode === 'base' ? 'is-active' : ''}
-                        disabled={single}
-                        onClick={() => setMode('base')}
+                      className="history-restore"
+                      disabled={!canRestoreCompare}
+                      title={canRestoreCompare ? t('history.restoreCompareTitle') : t('history.restoreCurrentTitle')}
+                      onClick={() => handleRestore(compare)}
                     >
-                      {t('history.modeBase')}
-                    </button>
-                    <button className={mode === 'compare' ? 'is-active' : ''} onClick={() => setMode('compare')}>
-                      {t('history.modeCompare')}
+                      {t('history.restoreCompare')}
                     </button>
                   </div>
-
-                  {onRestore && (
-                      <div className="history-restore-group">
-                        <button
-                            className="history-restore"
-                            disabled={!canRestoreBase}
-                            title={t('history.restoreBaseTitle')}
-                            onClick={() => handleRestore(base)}
-                        >
-                          {t('history.restoreBase')}
-                        </button>
-                        <button
-                            className="history-restore"
-                            disabled={!canRestoreCompare}
-                            title={canRestoreCompare ? t('history.restoreCompareTitle') : t('history.restoreCurrentTitle')}
-                            onClick={() => handleRestore(compare)}
-                        >
-                          {t('history.restoreCompare')}
-                        </button>
-                      </div>
-                  )}
-                </div>
-
-                <div className="history-body">{renderBody()}</div>
+                )}
               </div>
+
+              <div className="history-body">{renderBody()}</div>
             </div>
           </div>
         </div>
-      </div>,
-      document.body,
+      </div>
+    </div>,
+    document.body,
   );
 };
 

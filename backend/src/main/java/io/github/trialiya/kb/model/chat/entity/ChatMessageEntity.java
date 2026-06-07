@@ -5,7 +5,7 @@ import io.github.trialiya.kb.model.chat.spring.IMessage;
 import io.github.trialiya.kb.model.chat.spring.SystemChatMessage;
 import io.github.trialiya.kb.model.chat.spring.ToolChatMessage;
 import io.github.trialiya.kb.model.chat.spring.UserChatMessage;
-import io.github.trialiya.kb.tools.ToolInvocationMeta;
+import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 import java.time.LocalDateTime;
@@ -112,7 +112,12 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
     }
 
     @Nullable
-    public List<ToolInvocationMeta> getMeta() {
+    public ChatMessageMeta getMeta() {
+        return meta;
+    }
+
+    @Nullable
+    public List<ToolInvocationMeta> getInvocations() {
         return meta != null ? meta.invocations() : null;
     }
 

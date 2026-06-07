@@ -1,6 +1,6 @@
 package io.github.trialiya.kb.model.git.dto;
 
-import io.github.trialiya.kb.tools.ToolCallResponseItem;
+import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 
 /**
  * Одна запись из diff коммита.

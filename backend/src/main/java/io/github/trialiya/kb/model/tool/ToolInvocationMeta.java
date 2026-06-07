@@ -1,5 +1,6 @@
-package io.github.trialiya.kb.tools;
+package io.github.trialiya.kb.model.tool;
 
+import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import java.util.Map;
 
 public record ToolInvocationMeta(

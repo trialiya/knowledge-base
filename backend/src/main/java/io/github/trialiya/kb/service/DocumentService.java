@@ -153,6 +153,7 @@ public class DocumentService {
                                         e.getParentId(),
                                         e.getVersion(),
                                         null,
+                                        e.getDescriptionVersion(),
                                         null,
                                         Collections.emptyList(),
                                         parentIds.contains(e.getId()),
@@ -178,6 +179,7 @@ public class DocumentService {
                                                 c.getParentId(),
                                                 c.getVersion(),
                                                 null,
+                                                c.getDescriptionVersion(),
                                                 null,
                                                 Collections.emptyList(),
                                                 repo.hasChildren(c.getId()),
@@ -195,6 +197,7 @@ public class DocumentService {
                 e.getParentId(),
                 e.getVersion(),
                 e.getDescription(),
+                e.getDescriptionVersion(),
                 e.getUpdatedAt(),
                 children,
                 !children.isEmpty(),
@@ -213,6 +216,7 @@ public class DocumentService {
                 e.getParentId(),
                 e.getVersion(),
                 snippetOf(e.getDescription()),
+                e.getDescriptionVersion(),
                 e.getUpdatedAt(),
                 Collections.emptyList(),
                 hc,
@@ -241,6 +245,7 @@ public class DocumentService {
                 e.getParentId(),
                 e.getVersion(),
                 null, // description omitted — fetch via GET /api/documents/{id}
+                e.getDescriptionVersion(),
                 e.getUpdatedAt(),
                 children,
                 hc,
@@ -742,6 +747,7 @@ public class DocumentService {
                 e.getType(),
                 e.getParentId() == null ? null : String.valueOf(e.getParentId()),
                 e.getVersion(),
+                e.getDescriptionVersion(),
                 null, // description omitted — fetch via GET /api/documents/{id}
                 e.getUpdatedAt(),
                 null, // children

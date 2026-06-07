@@ -1,6 +1,7 @@
-package io.github.trialiya.kb.tools;
+package io.github.trialiya.kb.model.tool;
 
-import java.beans.Transient;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import java.util.Map;
 
 public record ToolInvocation(
@@ -8,10 +9,10 @@ public record ToolInvocation(
         Map<Object, Object> arguments,
         ToolInvocationCollector.ToolInvocationStatus status,
         String error,
-        @Transient Map<String, ?> resultMeta,
+        @JsonIgnore Map<String, ?> resultMeta,
         String resultGist) {
 
-    @Transient
+    @JsonIgnore
     public ToolInvocationMeta toMeta() {
         return new ToolInvocationMeta(name, arguments, status, error, resultMeta);
     }

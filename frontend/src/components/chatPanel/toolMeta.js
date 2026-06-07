@@ -53,10 +53,10 @@ export const toolLabelKey = (name) => `tools.${name}`;
  * пользователь увидел хотя бы читабельное имя.
  */
 export const humanizeTool = (name) =>
-    String(name || '')
-        .replace(/[_-]+/g, ' ')
-        .replace(/([a-z\d])([A-Z])/g, '$1 $2')
-        .replace(/^\w/, (c) => c.toUpperCase());
+  String(name || '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/([a-z\d])([A-Z])/g, '$1 $2')
+    .replace(/^\w/, (c) => c.toUpperCase());
 
 // ── Документные мутации ───────────────────────────────────────────────────────
 // Инструменты, которые меняют документ и возвращают resultMeta { id, version }.
@@ -78,7 +78,8 @@ export const getDocChangeRef = (tc) => {
   if (!meta || meta.id == null) return null;
   return {
     id: String(meta.id), // в стриме приходит числом (55), в истории строкой ("55")
-    version: typeof meta.version === 'number' ? meta.version : Number(meta.version) || null,
+    descriptionVersion:
+      typeof meta.descriptionVersion === 'number' ? meta.descriptionVersion : Number(meta.descriptionVersion) || null,
     title: meta.title ?? null,
     action: tc.name,
     status: tc.status,

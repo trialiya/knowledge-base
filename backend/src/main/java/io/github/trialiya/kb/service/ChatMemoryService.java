@@ -5,10 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.spring.IMessage;
+import io.github.trialiya.kb.model.tool.ToolInvocation;
+import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
-import io.github.trialiya.kb.tools.ToolInvocation;
-import io.github.trialiya.kb.tools.ToolInvocationMeta;
 import io.github.trialiya.kb.utils.ChatUtils;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -43,7 +43,7 @@ public class ChatMemoryService implements ChatMemoryRepository {
     private static final String PREAMBLE =
             """
         Инструменты, уже вызванные ранее в этом чате (с урезанным результатом).
-        Служебные данные только для справки, пользователю не упоминать.
+        Служебные данные только для справки.
         """;
 
     private final ChatTopicRepository chatTopicRepository;
@@ -125,8 +125,8 @@ public class ChatMemoryService implements ChatMemoryRepository {
             return;
         }
 
-        final List<ToolInvocationMeta> meta = new ArrayList<>();
-        for (ToolInvocation toolCall : toolCalls) {
+        final List<ToolInvocationMeta> meta = new ArrayList<>(filtered.size());
+        for (ToolInvocation toolCall : filtered) {
             meta.add(toolCall.toMeta());
         }
         chatMessageRepository.save(

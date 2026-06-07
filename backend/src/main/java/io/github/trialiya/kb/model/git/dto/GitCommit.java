@@ -1,7 +1,7 @@
 package io.github.trialiya.kb.model.git.dto;
 
-import io.github.trialiya.kb.tools.ToolCallResponseItem;
-import io.github.trialiya.kb.tools.ToolCallResultMetaProvider;
+import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
+import io.github.trialiya.kb.model.tool.ToolCallResultMetaProvider;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;

@@ -1,7 +1,7 @@
 package io.github.trialiya.kb.model.attachment.dto;
 
+import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.tools.Compact;
-import io.github.trialiya.kb.tools.ToolCallResponseItem;
 import java.time.OffsetDateTime;
 
 /**
