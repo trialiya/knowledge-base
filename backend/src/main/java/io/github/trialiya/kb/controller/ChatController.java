@@ -5,12 +5,14 @@ import static io.github.trialiya.kb.utils.ChatUtils.getUser;
 import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.trialiya.kb.model.chat.dto.Chat;
 import io.github.trialiya.kb.model.chat.dto.ChatMessage;
 import io.github.trialiya.kb.model.chat.dto.CreateJiraChatRequest;
 import io.github.trialiya.kb.model.chat.dto.StreamMessage;
 import io.github.trialiya.kb.model.chat.dto.ToolCallMessage;
 import io.github.trialiya.kb.model.chat.dto.ToolCallsMessage;
+import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.ChatMemoryService;
@@ -60,6 +62,8 @@ import reactor.core.publisher.SignalType;
 @RequestMapping("/api/chat")
 @Slf4j
 public class ChatController {
+
+    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     private final ChatClient chatClient;
     private final ChatMemory chatMemory;
@@ -135,6 +139,7 @@ public class ChatController {
                                 arguments,
                                 ToolInvocationCollector.ToolInvocationStatus.STARTED,
                                 null,
+                                null,
                                 null)));
         try {
             TimeUnit.MILLISECONDS.sleep(400);
@@ -147,6 +152,7 @@ public class ChatController {
                                 name,
                                 arguments,
                                 ToolInvocationCollector.ToolInvocationStatus.OK,
+                                null,
                                 null,
                                 "ok")));
     }
@@ -217,7 +223,9 @@ public class ChatController {
                                         persisted.set(true);
                                         liveSink.accept(
                                                 new ToolCallsMessage(
-                                                        toolCollector.completedSnapshot()));
+                                                        toolCollector.completedSnapshot().stream()
+                                                                .map(ToolInvocation::toMeta)
+                                                                .toList()));
                                         chatMemoryService.saveToolCalls(
                                                 conversationId, toolCollector.completedSnapshot());
                                         liveSink.accept(new StreamMessage("", "DONE"));
@@ -337,14 +345,8 @@ public class ChatController {
                                 chatMemoryService.findChatMessageByConversationId(conversationId))
                         .stream()
                         .flatMap(Collection::stream)
-                        .filter(msg -> msg.getMessageType() != MessageType.SYSTEM)
                         .filter(a -> a.getText() != null && !a.getText().isBlank())
-                        .map(
-                                msg ->
-                                        new ChatMessage(
-                                                msg.getText(),
-                                                msg.getMessageType().getValue(),
-                                                msg.getCreatedAt()))
+                        .map(this::toChatMessage)
                         .toList());
     }
 
@@ -494,5 +496,24 @@ public class ChatController {
                                     usage.getCompletionTokens(),
                                     usage.getTotalTokens());
                         });
+    }
+
+    private ChatMessage toChatMessage(ChatMessageEntity chatMessageEntity) {
+        final String message;
+        if (chatMessageEntity.getMessageType() == MessageType.SYSTEM
+                && chatMessageEntity.getText() != null) {
+            final int i = chatMessageEntity.getText().indexOf("\n{");
+            message =
+                    i > 0
+                            ? chatMessageEntity.getText().substring(0, i)
+                            : chatMessageEntity.getText();
+        } else {
+            message = chatMessageEntity.getText();
+        }
+        return new ChatMessage(
+                message,
+                chatMessageEntity.getMessageType().getValue(),
+                chatMessageEntity.getCreatedAt(),
+                chatMessageEntity.getMeta());
     }
 }

@@ -5,8 +5,11 @@ import io.github.trialiya.kb.model.chat.spring.IMessage;
 import io.github.trialiya.kb.model.chat.spring.SystemChatMessage;
 import io.github.trialiya.kb.model.chat.spring.ToolChatMessage;
 import io.github.trialiya.kb.model.chat.spring.UserChatMessage;
+import io.github.trialiya.kb.tools.ToolInvocationMeta;
 import jakarta.annotation.Nonnull;
+import jakarta.annotation.Nullable;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
@@ -19,13 +22,14 @@ import org.springframework.data.relational.core.mapping.Table;
 public class ChatMessageEntity implements Message, Persistable<Long> {
 
     @Id private long id;
-    @Nonnull private String conversationId;
-    @Nonnull private String content;
-    @Nonnull private MessageType type;
-    private long position;
-    private boolean summarized;
-    private boolean summary;
-    @Nonnull private LocalDateTime createdAt;
+    @Nonnull private final String conversationId;
+    @Nonnull private final String content;
+    @Nonnull private final MessageType type;
+    private final long position;
+    private final boolean summarized;
+    private final boolean summary;
+    @Nonnull private final LocalDateTime createdAt;
+    @Nullable private final ChatMessageMeta meta;
 
     @PersistenceCreator
     public ChatMessageEntity(
@@ -36,7 +40,8 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
             long position,
             boolean summarized,
             boolean summary,
-            @Nonnull LocalDateTime createdAt) {
+            @Nonnull LocalDateTime createdAt,
+            @Nullable ChatMessageMeta meta) {
         this.id = id;
         this.conversationId = conversationId;
         this.content = content;
@@ -45,6 +50,7 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
         this.summarized = summarized;
         this.summary = summary;
         this.createdAt = createdAt;
+        this.meta = meta;
     }
 
     @Override
@@ -103,6 +109,11 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
     @Nonnull
     public LocalDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    @Nullable
+    public List<ToolInvocationMeta> getMeta() {
+        return meta != null ? meta.invocations() : null;
     }
 
     public IMessage getMessage() {

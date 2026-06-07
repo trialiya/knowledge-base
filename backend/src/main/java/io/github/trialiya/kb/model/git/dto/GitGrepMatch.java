@@ -1,6 +1,8 @@
 package io.github.trialiya.kb.model.git.dto;
 
 import io.github.trialiya.kb.tools.ToolCallResponseItem;
+import io.github.trialiya.kb.tools.ToolCallResultMetaProvider;
+import java.util.Map;
 
 /**
  * Одно совпадение при поиске по содержимому tracked файлов (аналог блока вывода {@code git grep
@@ -26,10 +28,17 @@ import io.github.trialiya.kb.tools.ToolCallResponseItem;
  * @param text текст блока: одна строка (без контекста) или многострочный фрагмент (с контекстом)
  */
 public record GitGrepMatch(String path, int matchLine, String text)
-        implements ToolCallResponseItem {
+        implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
     @Override
     public String getFormattedResponse() {
         return path + ":" + matchLine;
+    }
+
+    @Override
+    public Map<String, Object> getResultMeta() {
+        return Map.of(
+                "path", path,
+                "matchLine", matchLine);
     }
 }

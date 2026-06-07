@@ -1,6 +1,9 @@
 package io.github.trialiya.kb.model.git.dto;
 
 import io.github.trialiya.kb.tools.ToolCallResponseItem;
+import io.github.trialiya.kb.tools.ToolCallResultMetaProvider;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Один узел файлового дерева репозитория.
@@ -11,10 +14,20 @@ import io.github.trialiya.kb.tools.ToolCallResponseItem;
  * @param size размер в байтах (только для файлов, у каталогов — null)
  */
 public record GitFileNode(String path, String name, String type, Long size)
-        implements ToolCallResponseItem {
+        implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
     @Override
     public String getFormattedResponse() {
         return "directory".equals(type) ? path + "/" : path + " (" + size + "B)";
+    }
+
+    @Override
+    public Map<String, Object> getResultMeta() {
+        Map<String, Object> meta = new HashMap<>();
+        meta.put("path", path);
+        meta.put("name", name);
+        meta.put("sizeBytes", size);
+        meta.put("type", type);
+        return meta;
     }
 }

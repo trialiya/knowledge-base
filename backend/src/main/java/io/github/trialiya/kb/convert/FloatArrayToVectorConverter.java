@@ -1,7 +1,8 @@
-package io.github.trialiya.kb.config;
+package io.github.trialiya.kb.convert;
 
 import static io.github.trialiya.kb.repository.DocumentEmbeddingRepository.toVectorLiteral;
 
+import io.github.trialiya.kb.config.PgVectorJdbcConfig;
 import java.sql.SQLException;
 import org.postgresql.util.PGobject;
 import org.springframework.core.convert.converter.Converter;

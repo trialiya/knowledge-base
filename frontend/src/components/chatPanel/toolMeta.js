@@ -53,7 +53,34 @@ export const toolLabelKey = (name) => `tools.${name}`;
  * пользователь увидел хотя бы читабельное имя.
  */
 export const humanizeTool = (name) =>
-  String(name || '')
-    .replace(/[_-]+/g, ' ')
-    .replace(/([a-z\d])([A-Z])/g, '$1 $2')
-    .replace(/^\w/, (c) => c.toUpperCase());
+    String(name || '')
+        .replace(/[_-]+/g, ' ')
+        .replace(/([a-z\d])([A-Z])/g, '$1 $2')
+        .replace(/^\w/, (c) => c.toUpperCase());
+
+// ── Документные мутации ───────────────────────────────────────────────────────
+// Инструменты, которые меняют документ и возвращают resultMeta { id, version }.
+// Для них под ответом ИИ показываем блок «посмотреть изменения» (см. Message.jsx),
+// открывающий HistoryModal на нужной версии.
+export const DOC_MUTATION_TOOLS = new Set(['createDocument', 'updateDocument']);
+
+/**
+ * Если tc — документная мутация с валидным resultMeta — вернуть
+ * { id, version, action, status } для блока «посмотреть изменения», иначе null.
+ *
+ * `version` берётся из resultMeta.version и трактуется как descriptionVersion
+ * (история изменений описания нумеруется так же) — по нему HistoryModal наводится
+ * на конкретную правку. `title` бэкенд кладёт в resultMeta для обоих инструментов.
+ */
+export const getDocChangeRef = (tc) => {
+  if (!tc || !DOC_MUTATION_TOOLS.has(tc.name)) return null;
+  const meta = tc.resultMeta;
+  if (!meta || meta.id == null) return null;
+  return {
+    id: String(meta.id), // в стриме приходит числом (55), в истории строкой ("55")
+    version: typeof meta.version === 'number' ? meta.version : Number(meta.version) || null,
+    title: meta.title ?? null,
+    action: tc.name,
+    status: tc.status,
+  };
+};

@@ -14,7 +14,11 @@ node {
 
     nodeProjectDir = file("${project.projectDir}")
 
-    download = true
+    if (project.hasProperty('useSystemNode')) {
+        download = ! project.getProperty('useSystemNode').toBoolean()
+    } else {
+        download = true
+    }
 }
 
 spotless {

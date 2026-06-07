@@ -3,14 +3,16 @@ package io.github.trialiya.kb.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
+import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.spring.IMessage;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.tools.ToolInvocation;
+import io.github.trialiya.kb.tools.ToolInvocationMeta;
 import io.github.trialiya.kb.utils.ChatUtils;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.AllArgsConstructor;
@@ -26,8 +28,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 @Service
 public class ChatMemoryService implements ChatMemoryRepository {
-
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     /**
      * Инструменты, отметки о вызове которых не сохраняем: служебные либо те, что полезно звать
@@ -48,6 +48,7 @@ public class ChatMemoryService implements ChatMemoryRepository {
 
     private final ChatTopicRepository chatTopicRepository;
     private final ChatMessageRepository chatMessageRepository;
+    private final ObjectMapper objectMapper;
 
     @Override
     public void deleteByConversationId(String conversationId) {
@@ -78,7 +79,8 @@ public class ChatMemoryService implements ChatMemoryRepository {
                                                 lastPosition.incrementAndGet(),
                                                 false,
                                                 false,
-                                                LocalDateTime.now()))
+                                                LocalDateTime.now(),
+                                                null))
                         .toList();
         chatMessageRepository.saveAll(newMessagesToSave);
     }
@@ -116,13 +118,17 @@ public class ChatMemoryService implements ChatMemoryRepository {
 
         final String json;
         try {
-            json = OBJECT_MAPPER.writeValueAsString(new ToolCalls(filtered));
+            json = objectMapper.writeValueAsString(filtered);
         } catch (JsonProcessingException e) {
             // крошки некритичны — логируем и не ломаем ход
             log.warn("Failed to serialize tool calls for {}", conversationId, e);
             return;
         }
 
+        final List<ToolInvocationMeta> meta = new ArrayList<>();
+        for (ToolInvocation toolCall : toolCalls) {
+            meta.add(toolCall.toMeta());
+        }
         chatMessageRepository.save(
                 new ChatMessageEntity(
                         0L,
@@ -132,21 +138,8 @@ public class ChatMemoryService implements ChatMemoryRepository {
                         nextPosition(conversationId),
                         false,
                         false,
-                        LocalDateTime.now()));
-    }
-
-    public Map<String, ?> parseToolCalls(String json) {
-        try {
-            return OBJECT_MAPPER.readValue(json, ToolCalls.class).toMap();
-        } catch (JsonProcessingException e) {
-            return Map.of();
-        }
-    }
-
-    private record ToolCalls(List<ToolInvocation> toolCalls) {
-        private Map<String, List<ToolInvocation>> toMap() {
-            return Map.of("toolCalls", toolCalls);
-        }
+                        LocalDateTime.now(),
+                        new ChatMessageMeta(meta)));
     }
 
     private long nextPosition(String conversationId) {

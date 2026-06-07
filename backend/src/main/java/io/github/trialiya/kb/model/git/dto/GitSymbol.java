@@ -1,6 +1,8 @@
 package io.github.trialiya.kb.model.git.dto;
 
 import io.github.trialiya.kb.tools.ToolCallResponseItem;
+import io.github.trialiya.kb.tools.ToolCallResultMetaProvider;
+import java.util.Map;
 
 /**
  * Один символ в структурном обзоре файла (класс, метод, функция, поле и т.д.).
@@ -14,7 +16,7 @@ import io.github.trialiya.kb.tools.ToolCallResponseItem;
  * @param endLine последняя строка символа (1-based, включительно)
  */
 public record GitSymbol(String kind, String name, String signature, int startLine, int endLine)
-        implements ToolCallResponseItem {
+        implements ToolCallResponseItem, ToolCallResultMetaProvider {
     @Override
     public String getFormattedResponse() {
         return kind
@@ -25,5 +27,14 @@ public record GitSymbol(String kind, String name, String signature, int startLin
                 + "-"
                 + endLine
                 + (signature == null ? "" : "  " + signature);
+    }
+
+    @Override
+    public Map<String, Object> getResultMeta() {
+        return Map.of(
+                "kind", kind,
+                "name", name,
+                "startLine", startLine,
+                "endLine", endLine);
     }
 }

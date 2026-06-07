@@ -23,7 +23,7 @@ RUN --mount=type=cache,target=/root/.gradle \
     --mount=type=cache,target=/workspace/frontend/.gradle/nodejs \
     --mount=type=cache,target=/workspace/frontend/.gradle/yarn \
     --mount=type=cache,target=/workspace/frontend/node_modules \
-    ./gradlew :backend:bootJar --no-daemon -x test
+    ./gradlew -PuseSystemNode=true :backend:bootJar --no-daemon -x test
 
 # ── Stage 2: Extract layers ──────────────────────────────────────
 # Распаковываем слоистый JAR на отдельные директории по слоям.

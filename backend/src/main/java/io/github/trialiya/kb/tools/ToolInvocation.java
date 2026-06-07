@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.tools;
 
+import java.beans.Transient;
 import java.util.Map;
 
 public record ToolInvocation(
@@ -7,4 +8,11 @@ public record ToolInvocation(
         Map<Object, Object> arguments,
         ToolInvocationCollector.ToolInvocationStatus status,
         String error,
-        String resultGist) {}
+        @Transient Map<String, ?> resultMeta,
+        String resultGist) {
+
+    @Transient
+    public ToolInvocationMeta toMeta() {
+        return new ToolInvocationMeta(name, arguments, status, error, resultMeta);
+    }
+}

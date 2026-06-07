@@ -40,6 +40,7 @@ public record Attachment(
                 .add("type", contentType)
                 .add("size", fileSize)
                 .add("owner", ownerType)
+                .add("conversation", conversationId)
                 .add("doc", documentId)
                 .add("sum", Compact.truncate(summary, 50))
                 .done();

@@ -464,27 +464,43 @@
   }
 }
 
-/* ── Tool call notifications ── */
+/* ── Tool call notifications ──
+   Панель справа от сообщения (как раньше), прижата к его верхней кромке
+   (align-items: flex-start, небольшой gap) и чуть уже прежнего. */
 .message-row-with-tools {
   display: flex;
-  align-items: stretch;
-  gap: 10px;
-  max-width: 90%;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 92%;
 }
 
-.message-row-with-tools > .message {
+/* Левая колонка: пузырь + блок «изменения документа». */
+.message-row-with-tools > .message-main-col {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Пузырь заполняет колонку (как было с flex:1 на .message), без вложенного
+   повторного max-width:75% от уже суженной колонки. */
+.message-row-with-tools .message-main-col > .message {
+  align-self: stretch;
+  max-width: 100%;
 }
 
 .tool-call-notifications {
   flex-shrink: 0;
-  max-width: 250px;
-  min-width: 170px;
-  /* min-height ≈ 3 items (~110px), max follows message height via align-items:stretch */
-  min-height: 110px;
+  width: 210px;
+  max-width: 210px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* Список плашек: ограничиваем высоту, скролл при большом числе вызовов. */
+.tool-call-notifications .tool-call-scroll {
+  max-height: 360px;
 }
 
 .tool-call-scroll {
@@ -730,4 +746,72 @@
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* ═══════════════════════════════════════════════
+   Блок «изменения документа» под ответом ИИ
+   (createDocument / updateDocument → открыть HistoryModal)
+═══════════════════════════════════════════════ */
+
+.doc-change-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 2px;
+  align-self: flex-start;
+  max-width: 100%;
+}
+
+.doc-change-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--kb-border);
+  border-radius: 12px;
+  background: var(--kb-white);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+}
+.doc-change-item:hover {
+  border-color: var(--kb-accent);
+  background: var(--kb-accent-light);
+}
+.doc-change-item:active {
+  transform: scale(0.99);
+}
+
+.doc-change-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.doc-change-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.doc-change-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--kb-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.doc-change-sub {
+  font-size: 0.72rem;
+  color: var(--kb-muted);
+}
+
+.doc-change-cta {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--kb-accent);
+  flex-shrink: 0;
+  white-space: nowrap;
 }

@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.tools;
 
+import static io.github.trialiya.kb.tools.Compact.truncate;
 import static io.github.trialiya.kb.tools.Compact.truncateObject;
 import static io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus.ERROR;
 import static io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus.OK;
@@ -13,6 +14,7 @@ import jakarta.annotation.Nullable;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.definition.ToolDefinition;
@@ -23,7 +25,7 @@ public class RecordingToolCallback implements ToolCallback {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    static final ThreadLocal<String> GIST = new ThreadLocal<>();
+    static final ThreadLocal<Object> CURRENT_RESULT = new ThreadLocal<>();
 
     private final ToolCallback delegate;
 
@@ -47,7 +49,7 @@ public class RecordingToolCallback implements ToolCallback {
         try {
             return delegate.call(toolInput);
         } finally {
-            GIST.remove();
+            CURRENT_RESULT.remove();
         }
     }
 
@@ -57,23 +59,30 @@ public class RecordingToolCallback implements ToolCallback {
         final ToolInvocationCollector collector = collectorFrom(toolContext);
         final Map<Object, Object> toolInputMap = parseToolInput(toolInput);
         if (collector != null) {
-            collector.record(new ToolInvocation(name, toolInputMap, STARTED, null, null));
+            collector.record(new ToolInvocation(name, toolInputMap, STARTED, null, null, null));
         }
         try {
-            GIST.remove();
+            CURRENT_RESULT.remove();
             String result = delegate.call(toolInput, toolContext);
             if (collector != null) {
-                collector.record(new ToolInvocation(name, toolInputMap, OK, null, GIST.get()));
+                collector.record(
+                        new ToolInvocation(
+                                name,
+                                toolInputMap,
+                                OK,
+                                null,
+                                getMeta(CURRENT_RESULT.get()),
+                                getGist(CURRENT_RESULT.get())));
             }
             return result;
         } catch (Exception e) {
             if (collector != null) {
                 collector.record(
-                        new ToolInvocation(name, toolInputMap, ERROR, e.getMessage(), null));
+                        new ToolInvocation(name, toolInputMap, ERROR, e.getMessage(), null, null));
             }
             throw e;
         } finally {
-            GIST.remove();
+            CURRENT_RESULT.remove();
         }
     }
 
@@ -103,5 +112,62 @@ public class RecordingToolCallback implements ToolCallback {
             logger.error("Error parsing tool input {}", toolInput, e);
             return Map.of();
         }
+    }
+
+    private Map<String, ?> getMeta(Object result) {
+        if (result instanceof ToolCallResultMetaProvider item) {
+            return item.getResultMeta();
+        } else if (result instanceof Collection<?> col
+                && !col.isEmpty()
+                && col.stream().allMatch(ToolCallResultMetaProvider.class::isInstance)) {
+            return Map.of(
+                    "items",
+                    col.stream()
+                            .map(ToolCallResultMetaProvider.class::cast)
+                            .map(ToolCallResultMetaProvider::getResultMeta)
+                            .toList());
+        } else if (result instanceof Map<?, ?> map) {
+            return map.entrySet().stream()
+                    .filter(it -> it.getValue() instanceof ToolCallResultMetaProvider)
+                    .collect(
+                            toMap(
+                                    entry -> entry.getKey().toString(),
+                                    it ->
+                                            ((ToolCallResultMetaProvider) it.getValue())
+                                                    .getResultMeta()));
+        }
+        return Map.of();
+    }
+
+    private String getGist(Object result) {
+        if (result instanceof ToolCallResponseItem item) {
+            return item.getFormattedResponse();
+        } else if (result instanceof Collection<?> col
+                && !col.isEmpty()
+                && col.stream().allMatch(ToolCallResponseItem.class::isInstance)) {
+            String head = "size=" + col.size() + (col.size() > 5 ? " (first 5)" : "");
+            String body =
+                    col.stream()
+                            .limit(5)
+                            .map(e -> ((ToolCallResponseItem) e).getFormattedResponse())
+                            .collect(Collectors.joining("\n"));
+            return head + "\n" + body;
+        } else if (result instanceof Map<?, ?> map) {
+            return map.entrySet().stream()
+                    .filter(it -> it.getValue() != null)
+                    .collect(
+                            toMap(
+                                    Map.Entry::getKey,
+                                    it -> {
+                                        if (it.getValue() instanceof ToolCallResponseItem item) {
+                                            return item.getFormattedResponse();
+                                        }
+                                        return truncateObject(it.getValue(), 30);
+                                    }))
+                    .toString();
+        } else if (result instanceof String str) {
+            return truncate(str, 50);
+        }
+        return truncateObject(result, 50);
     }
 }

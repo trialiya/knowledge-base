@@ -112,7 +112,7 @@ jobs:
       # Прогоняет фронт-модуль: yarnInstall → yarnTest → yarnBuild → copyFrontend,
       # плюс spotlessCheck (через check). Тесты гейтят артефакт.
       - name: Build (with tests)
-        run: ./gradlew "${FRONTEND_MODULE}:build" --no-daemon --stacktrace
+        run: ./gradlew -PuseSystemNode=true "${FRONTEND_MODULE}:build" --no-daemon --stacktrace
 
       - name: Upload CRA build output
         if: success()

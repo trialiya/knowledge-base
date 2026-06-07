@@ -4,8 +4,10 @@ import static java.util.stream.Collectors.joining;
 
 import io.github.trialiya.kb.tools.Compact;
 import io.github.trialiya.kb.tools.ToolCallResponseItem;
+import io.github.trialiya.kb.tools.ToolCallResultMetaProvider;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 public record SearchResult(
         String id,
@@ -14,7 +16,7 @@ public record SearchResult(
         LocalDateTime updatedAt,
         String summary,
         List<Parent> parentList)
-        implements ToolCallResponseItem {
+        implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
     public record Parent(String id, String title) {}
 
@@ -30,5 +32,12 @@ public record SearchResult(
                 .add("upd", updatedAt.toLocalDate())
                 .body(Compact.truncate(snippet, 50))
                 .done();
+    }
+
+    @Override
+    public Map<String, Object> getResultMeta() {
+        return Map.of(
+                "id", id,
+                "title", title);
     }
 }

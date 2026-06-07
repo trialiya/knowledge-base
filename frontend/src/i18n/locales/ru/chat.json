@@ -144,5 +144,11 @@
     "getFileContent": "Чтение файла",
     "getUncommittedChanges": "Незакоммиченные изменения",
     "grepContent": "Поиск по коду"
+  },
+  "docChange": {
+    "viewChanges": "Посмотреть изменения",
+    "created": "Документ создан",
+    "updated": "Документ обновлён",
+    "untitled": "Документ #{{id}}"
   }
 }

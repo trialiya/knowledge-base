@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useLayoutEffect } from 'react';
 import ReactDOM from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -6,32 +6,33 @@ import { useTranslation } from 'react-i18next';
 import ChatDocLink from './ChatDocLink';
 import './message.css';
 import CodeBlock from '../common/CodeBlock';
-import { getToolIcon, toolLabelKey, humanizeTool } from './toolMeta';
+import HistoryModal from '../knowledgeBasePanel/HistoryModal';
+import { getToolIcon, toolLabelKey, humanizeTool, getDocChangeRef } from './toolMeta';
 
 /** SVG status indicators — not clickable, purely visual */
 const IconStarted = () => (
-  <svg className="tool-call-status-svg tool-call-status-svg--started" width="14" height="14" viewBox="0 0 16 16">
-    <circle cx="8" cy="8" r="6" fill="none" stroke="#d99a00" strokeWidth="2" strokeDasharray="9 5" />
-  </svg>
+    <svg className="tool-call-status-svg tool-call-status-svg--started" width="14" height="14" viewBox="0 0 16 16">
+      <circle cx="8" cy="8" r="6" fill="none" stroke="#d99a00" strokeWidth="2" strokeDasharray="9 5" />
+    </svg>
 );
 const IconOk = () => (
-  <svg className="tool-call-status-svg tool-call-status-svg--ok" width="14" height="14" viewBox="0 0 16 16">
-    <circle cx="8" cy="8" r="7" fill="#34a853" />
-    <path
-      d="M5 8.2l2 2 4-4.4"
-      fill="none"
-      stroke="#fff"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
+    <svg className="tool-call-status-svg tool-call-status-svg--ok" width="14" height="14" viewBox="0 0 16 16">
+      <circle cx="8" cy="8" r="7" fill="#34a853" />
+      <path
+          d="M5 8.2l2 2 4-4.4"
+          fill="none"
+          stroke="#fff"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+      />
+    </svg>
 );
 const IconError = () => (
-  <svg className="tool-call-status-svg tool-call-status-svg--error" width="14" height="14" viewBox="0 0 16 16">
-    <circle cx="8" cy="8" r="7" fill="#ea4335" />
-    <path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
-  </svg>
+    <svg className="tool-call-status-svg tool-call-status-svg--error" width="14" height="14" viewBox="0 0 16 16">
+      <circle cx="8" cy="8" r="7" fill="#ea4335" />
+      <path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
 );
 
 const StatusIcon = ({ status }) => {
@@ -49,33 +50,33 @@ const StatusIcon = ({ status }) => {
 
 /** Small copy button SVG */
 const IconCopy = () => (
-  <svg
-    width="12"
-    height="12"
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.6"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
-    <path d="M10.5 5.5V3.5a1.5 1.5 0 0 0-1.5-1.5H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5h2" />
-  </svg>
+    <svg
+        width="12"
+        height="12"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+    >
+      <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+      <path d="M10.5 5.5V3.5a1.5 1.5 0 0 0-1.5-1.5H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5h2" />
+    </svg>
 );
 const IconCopied = () => (
-  <svg
-    width="12"
-    height="12"
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke="#34a853"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M3 8.5l3 3 7-7.5" />
-  </svg>
+    <svg
+        width="12"
+        height="12"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="#34a853"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+    >
+      <path d="M3 8.5l3 3 7-7.5" />
+    </svg>
 );
 
 /** Кнопка «копировать всё сообщение» — копирует исходный текст сообщения. */
@@ -98,22 +99,22 @@ const MessageCopyButton = ({ text }) => {
   };
 
   return (
-    <button
-      className={`message-copy-btn ${copied ? 'message-copy-btn--done' : ''}`}
-      onClick={handleCopy}
-      title={copied ? t('common:copied') : t('message.copyMessage')}
-      type="button"
-    >
-      {copied ? <IconCopied /> : <IconCopy />}
-    </button>
+      <button
+          className={`message-copy-btn ${copied ? 'message-copy-btn--done' : ''}`}
+          onClick={handleCopy}
+          title={copied ? t('common:copied') : t('message.copyMessage')}
+          type="button"
+      >
+        {copied ? <IconCopied /> : <IconCopy />}
+      </button>
   );
 };
 
 const formatArgs = (args) => {
   if (!args || Object.keys(args).length === 0) return null;
   return Object.entries(args)
-    .map(([key, val]) => `${key}: ${typeof val === 'string' ? val : JSON.stringify(val)}`)
-    .join(', ');
+      .map(([key, val]) => `${key}: ${typeof val === 'string' ? val : JSON.stringify(val)}`)
+      .join(', ');
 };
 
 const GIST_PREVIEW_LEN = 80;
@@ -148,52 +149,46 @@ const ToolCallItem = ({ tc }) => {
   const argsStr = formatArgs(tc.arguments);
   const gist = gistPreview(tc.resultGist);
   const itemRef = useRef(null);
+  const tooltipRef = useRef(null);
   const [hover, setHover] = useState(false);
-  // placement: 'left' | 'right' — на какой стороне плашки рисуем тултип
-  const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0, placement: 'left' });
+  // pos: null пока не измерили реальный размер тултипа (рендерим скрытым).
+  const [pos, setPos] = useState(null);
   const [copied, setCopied] = useState(false);
 
-  const TOOLTIP_WIDTH = 320; // должен совпадать с max-width в CSS
   const GAP = 8;
 
-  const handleMouseEnter = () => {
-    if (itemRef.current) {
-      const rect = itemRef.current.getBoundingClientRect();
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
+  // Позиционируем ПОСЛЕ рендера, по фактическим размерам тултипа — иначе при
+  // неверной оценке высоты/ширины он «улетал». Якорим рядом с плашкой и зажимаем
+  // в видимую область, чтобы тултип всегда оставался у своего блока.
+  useLayoutEffect(() => {
+    if (!hover || !itemRef.current || !tooltipRef.current) return;
+    const item = itemRef.current.getBoundingClientRect();
+    const tip = tooltipRef.current.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const w = tip.width;
+    const h = tip.height;
 
-      // Сколько места справа и слева от плашки
-      const spaceRight = vw - rect.right;
-      const spaceLeft = rect.left;
-
-      let placement;
-      let left;
-
-      if (spaceRight >= TOOLTIP_WIDTH + GAP) {
-        // помещается справа — как раньше
-        placement = 'right';
-        left = rect.right + GAP;
-      } else if (spaceLeft >= TOOLTIP_WIDTH + GAP) {
-        // не помещается справа, но помещается слева — рисуем слева
-        placement = 'left';
-        left = rect.left - GAP - TOOLTIP_WIDTH;
-      } else {
-        // тесно с обеих сторон — прижимаем к правому краю экрана с отступом
-        placement = 'right';
-        left = Math.max(GAP, vw - TOOLTIP_WIDTH - GAP);
-      }
-
-      // Вертикально: не даём уйти за нижнюю кромку экрана.
-      let top = rect.top;
-      const approxHeight = 160;
-      if (top + approxHeight > vh) {
-        top = Math.max(GAP, vh - approxHeight - GAP);
-      }
-
-      setTooltipPos({ top, left, placement });
+    // Горизонтально: панель тулзов справа, поэтому сначала пробуем слева от плашки
+    // (там сообщение, обычно есть место), затем справа, затем — ближайший зажатый край.
+    let left;
+    if (item.left - GAP - w >= GAP) {
+      left = item.left - GAP - w;
+    } else if (item.right + GAP + w <= vw - GAP) {
+      left = item.right + GAP;
+    } else {
+      left = item.left - GAP - w; // прижмём зажимом ниже
     }
-    setHover(true);
-  };
+    left = Math.min(Math.max(left, GAP), Math.max(GAP, vw - w - GAP));
+
+    // Вертикально: по верху плашки, зажатый в экран.
+    let top = Math.min(Math.max(item.top, GAP), Math.max(GAP, vh - h - GAP));
+
+    // Микро-движения избегаем — обновляем только при заметном сдвиге.
+    setPos((prev) =>
+               prev && Math.abs(prev.left - left) < 0.5 && Math.abs(prev.top - top) < 0.5 ? prev : { top, left },
+    );
+  }, [hover, argsStr, gist, tc.status, tc.error]);
 
   const handleCopy = async (e) => {
     e.stopPropagation();
@@ -207,46 +202,54 @@ const ToolCallItem = ({ tc }) => {
   };
 
   return (
-    <div
-      ref={itemRef}
-      className={`tool-call-item tool-call-item--${(tc.status || 'STARTED').toLowerCase()}`}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={() => setHover(false)}
-    >
+      <div
+          ref={itemRef}
+          className={`tool-call-item tool-call-item--${(tc.status || 'STARTED').toLowerCase()}`}
+          onMouseEnter={() => setHover(true)}
+          onMouseLeave={() => {
+            setHover(false);
+            setPos(null);
+          }}
+      >
       <span className="tool-call-status-icon">
         <StatusIcon status={tc.status} />
       </span>
-      <div className="tool-call-body">
+        <div className="tool-call-body">
         <span className="tool-call-name">
           <span className="tool-call-icon" aria-hidden="true">
             {icon}
           </span>
           {label}
         </span>
-        {argsStr && <span className="tool-call-args">{argsStr}</span>}
-        {gist && <span className="tool-call-gist">{gist}</span>}
-        {tc.status === 'ERROR' && tc.error && <span className="tool-call-error">{tc.error}</span>}
+          {argsStr && <span className="tool-call-args">{argsStr}</span>}
+          {gist && <span className="tool-call-gist">{gist}</span>}
+          {tc.status === 'ERROR' && tc.error && <span className="tool-call-error">{tc.error}</span>}
+        </div>
+        <button className="tool-call-copy-btn" onClick={handleCopy} title={t('toolCall.copy')}>
+          {copied ? <IconCopied /> : <IconCopy />}
+        </button>
+        {hover &&
+         ReactDOM.createPortal(
+             <div
+                 ref={tooltipRef}
+                 className="tool-call-tooltip"
+                 style={{
+                   top: pos ? pos.top : 0,
+                   left: pos ? pos.left : 0,
+                   visibility: pos ? 'visible' : 'hidden',
+                 }}
+             >
+               <div className="tool-call-tooltip-name">{label}</div>
+               {argsStr && <div className="tool-call-tooltip-args">{argsStr}</div>}
+               <div className="tool-call-tooltip-status">
+                 {t('toolCall.status')}: {tc.status || '—'}
+               </div>
+               {tc.resultGist && <div className="tool-call-tooltip-gist">{tc.resultGist}</div>}
+               {tc.status === 'ERROR' && tc.error && <div className="tool-call-tooltip-error">{tc.error}</div>}
+             </div>,
+             document.body,
+         )}
       </div>
-      <button className="tool-call-copy-btn" onClick={handleCopy} title={t('toolCall.copy')}>
-        {copied ? <IconCopied /> : <IconCopy />}
-      </button>
-      {hover &&
-        ReactDOM.createPortal(
-          <div
-            className={`tool-call-tooltip tool-call-tooltip--${tooltipPos.placement}`}
-            style={{ top: tooltipPos.top, left: tooltipPos.left }}
-          >
-            <div className="tool-call-tooltip-name">{label}</div>
-            {argsStr && <div className="tool-call-tooltip-args">{argsStr}</div>}
-            <div className="tool-call-tooltip-status">
-              {t('toolCall.status')}: {tc.status || '—'}
-            </div>
-            {tc.resultGist && <div className="tool-call-tooltip-gist">{tc.resultGist}</div>}
-            {tc.status === 'ERROR' && tc.error && <div className="tool-call-tooltip-error">{tc.error}</div>}
-          </div>,
-          document.body,
-        )}
-    </div>
   );
 };
 
@@ -267,21 +270,21 @@ const ToolCallGroup = ({ name, items }) => {
   const icon = getToolIcon(name);
   const firstArgsStr = formatArgs(first.arguments);
   const groupStatus = items.some((t2) => t2.status === 'ERROR')
-    ? 'ERROR'
-    : items.some((t2) => t2.status === 'STARTED')
-    ? 'STARTED'
-    : 'OK';
+                      ? 'ERROR'
+                      : items.some((t2) => t2.status === 'STARTED')
+                        ? 'STARTED'
+                        : 'OK';
 
   return (
-    <div className="tool-call-group">
-      <div
-        className={`tool-call-item tool-call-item--${groupStatus.toLowerCase()} tool-call-item--group-header`}
-        onClick={() => setOpen((v) => !v)}
-      >
+      <div className="tool-call-group">
+        <div
+            className={`tool-call-item tool-call-item--${groupStatus.toLowerCase()} tool-call-item--group-header`}
+            onClick={() => setOpen((v) => !v)}
+        >
         <span className="tool-call-status-icon">
           <StatusIcon status={groupStatus} />
         </span>
-        <div className="tool-call-body">
+          <div className="tool-call-body">
           <span className="tool-call-name">
             <span className="tool-call-icon" aria-hidden="true">
               {icon}
@@ -289,18 +292,18 @@ const ToolCallGroup = ({ name, items }) => {
             {label}
             <span className="tool-call-count">×{items.length}</span>
           </span>
-          {firstArgsStr && <span className="tool-call-args">{firstArgsStr}</span>}
+            {firstArgsStr && <span className="tool-call-args">{firstArgsStr}</span>}
+          </div>
+          <span className={`tool-call-chevron ${open ? 'tool-call-chevron--open' : ''}`}>›</span>
         </div>
-        <span className={`tool-call-chevron ${open ? 'tool-call-chevron--open' : ''}`}>›</span>
+        {open && (
+            <div className="tool-call-group-children">
+              {items.map((tc, i) => (
+                  <ToolCallItem key={i} tc={tc} />
+              ))}
+            </div>
+        )}
       </div>
-      {open && (
-        <div className="tool-call-group-children">
-          {items.map((tc, i) => (
-            <ToolCallItem key={i} tc={tc} />
-          ))}
-        </div>
-      )}
-    </div>
   );
 };
 
@@ -319,13 +322,86 @@ const ToolCallNotifications = ({ toolCalls }) => {
   }
 
   return (
-    <div className="tool-call-notifications">
-      <div className="tool-call-scroll">
-        {groups.map((g, i) => (
-          <ToolCallGroup key={`${g.name}-${i}`} name={g.name} items={g.items} />
-        ))}
+      <div className="tool-call-notifications">
+        <div className="tool-call-scroll">
+          {groups.map((g, i) => (
+              <ToolCallGroup key={`${g.name}-${i}`} name={g.name} items={g.items} />
+          ))}
+        </div>
       </div>
-    </div>
+  );
+};
+
+/**
+ * Блок под ответом ИИ: документные мутации (createDocument/updateDocument)
+ * из toolCalls. Клик открывает HistoryModal прямо в чате — модалка сама
+ * рендерится в портал и грузит историю через api. id/version берём из resultMeta.
+ *
+ * Работает и в live-стриме, и после перезагрузки чата (в обоих случаях resultMeta
+ * прокинут в toolCalls — см. ChatWindow.jsx).
+ */
+const DocChangeBlock = ({ toolCalls, onNavigateToDoc }) => {
+  const { t } = useTranslation('chat');
+  const [target, setTarget] = useState(null); // { id, version, title, action } | null
+
+  // Одна строка на документ: максимальная версия + первый непустой title.
+  const changes = useMemo(() => {
+    const byId = new Map();
+    for (const tc of toolCalls || []) {
+      const ref = getDocChangeRef(tc);
+      if (!ref || ref.status === 'ERROR') continue;
+      const title = ref.title || tc.arguments?.title || tc.arguments?.name || null;
+      const cur = byId.get(ref.id);
+      if (!cur) {
+        byId.set(ref.id, { ...ref, title });
+      } else {
+        if ((ref.version ?? 0) > (cur.version ?? 0)) {
+          cur.version = ref.version;
+          cur.action = ref.action;
+        }
+        if (!cur.title && title) cur.title = title;
+      }
+    }
+    return [...byId.values()];
+  }, [toolCalls]);
+
+  if (changes.length === 0) return null;
+
+  return (
+      <div className="doc-change-block">
+        {changes.map((c) => (
+            <button
+                key={c.id}
+                type="button"
+                className="doc-change-item"
+                onClick={() => setTarget(c)}
+                title={t('docChange.viewChanges')}
+            >
+          <span className="doc-change-icon" aria-hidden="true">
+            📄
+          </span>
+              <span className="doc-change-text">
+            <span className="doc-change-title">{c.title || t('docChange.untitled', { id: c.id })}</span>
+            <span className="doc-change-sub">
+              {c.action === 'createDocument' ? t('docChange.created') : t('docChange.updated')}
+              {c.version != null ? ` · v${c.version}` : ''}
+            </span>
+          </span>
+              <span className="doc-change-cta">{t('docChange.viewChanges')} ›</span>
+            </button>
+        ))}
+
+        {target && (
+            <HistoryModal
+                documentId={target.id}
+                documentTitle={target.title || `#${target.id}`}
+                initialVersion={target.version}
+                tree={[]}
+                onNavigate={onNavigateToDoc ? (id) => onNavigateToDoc(String(id)) : undefined}
+                onClose={() => setTarget(null)}
+            />
+        )}
+      </div>
   );
 };
 
@@ -335,9 +411,9 @@ const ToolCallNotifications = ({ toolCalls }) => {
 function getMarkdownComponents(onNavigateToDoc) {
   return {
     a: ({ href, children, ...props }) => (
-      <ChatDocLink href={href} onNavigateToDoc={onNavigateToDoc} {...props}>
-        {children}
-      </ChatDocLink>
+        <ChatDocLink href={href} onNavigateToDoc={onNavigateToDoc} {...props}>
+          {children}
+        </ChatDocLink>
     ),
     code({ inline, className, children, ...props }) {
       const raw = String(children).replace(/\n$/, '');
@@ -345,15 +421,15 @@ function getMarkdownComponents(onNavigateToDoc) {
 
       if (!isBlock) {
         return (
-          <code className={className} {...props}>
-            {children}
-          </code>
+            <code className={className} {...props}>
+              {children}
+            </code>
         );
       }
       return (
-        <CodeBlock code={raw} className={className} {...props}>
-          {raw}
-        </CodeBlock>
+          <CodeBlock code={raw} className={className} {...props}>
+            {raw}
+          </CodeBlock>
       );
     },
   };
@@ -366,46 +442,49 @@ const Message = ({ text, sender, toolCalls, onNavigateToDoc }) => {
   const hasToolCalls = toolCalls && toolCalls.length > 0;
 
   const messageContent = (
-    <div className={messageClass}>
-      {sender === 'ai' ? (
-        <>
-          <div className="message-source-toggle">
-            <MessageCopyButton text={text} />
-            <button
-              className={`message-source-btn ${showSource ? 'message-source-btn--active' : ''}`}
-              onClick={() => setShowSource((v) => !v)}
-              title={showSource ? t('message.viewFormatted') : t('message.viewSource')}
-            >
-              {showSource ? `◈ ${t('message.btnMarkdown')}` : `{ } ${t('message.btnSource')}`}
-            </button>
-          </div>
-          {showSource ? (
-            <pre className="message-raw-source">{text}</pre>
-          ) : (
-            <div className="md-preview md-preview--chat">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={getMarkdownComponents(onNavigateToDoc)}>
-                {text}
-              </ReactMarkdown>
-            </div>
-          )}
-        </>
-      ) : (
-        <>
-          <div className="message-toolbar message-toolbar--user">
-            <MessageCopyButton text={text} />
-          </div>
-          <div className="user-message-text">{text}</div>
-        </>
-      )}
-    </div>
+      <div className={messageClass}>
+        {sender === 'ai' ? (
+            <>
+              <div className="message-source-toggle">
+                <MessageCopyButton text={text} />
+                <button
+                    className={`message-source-btn ${showSource ? 'message-source-btn--active' : ''}`}
+                    onClick={() => setShowSource((v) => !v)}
+                    title={showSource ? t('message.viewFormatted') : t('message.viewSource')}
+                >
+                  {showSource ? `◈ ${t('message.btnMarkdown')}` : `{ } ${t('message.btnSource')}`}
+                </button>
+              </div>
+              {showSource ? (
+                  <pre className="message-raw-source">{text}</pre>
+              ) : (
+                   <div className="md-preview md-preview--chat">
+                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={getMarkdownComponents(onNavigateToDoc)}>
+                       {text}
+                     </ReactMarkdown>
+                   </div>
+               )}
+            </>
+        ) : (
+             <>
+               <div className="message-toolbar message-toolbar--user">
+                 <MessageCopyButton text={text} />
+               </div>
+               <div className="user-message-text">{text}</div>
+             </>
+         )}
+      </div>
   );
 
   if (hasToolCalls && sender === 'ai') {
     return (
-      <div className="message-row-with-tools">
-        {messageContent}
-        <ToolCallNotifications toolCalls={toolCalls} />
-      </div>
+        <div className="message-row-with-tools">
+          <div className="message-main-col">
+            {messageContent}
+            <DocChangeBlock toolCalls={toolCalls} onNavigateToDoc={onNavigateToDoc} />
+          </div>
+          <ToolCallNotifications toolCalls={toolCalls} />
+        </div>
     );
   }
 
