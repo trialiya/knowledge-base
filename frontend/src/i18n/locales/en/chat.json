@@ -143,5 +143,11 @@
     "getFileContent": "Read file",
     "getUncommittedChanges": "Uncommitted changes",
     "grepContent": "Search in code"
+  },
+  "docChange": {
+    "viewChanges": "View changes",
+    "created": "Document created",
+    "updated": "Document updated",
+    "untitled": "Document #{{id}}"
   }
 }

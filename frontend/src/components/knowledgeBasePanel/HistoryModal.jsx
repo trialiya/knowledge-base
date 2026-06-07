@@ -177,7 +177,7 @@ const DiffView = ({ base, compare }) => {
   );
 };
 
-const HistoryModal = ({ documentId, documentTitle, tree = [], onNavigate, onRestore, onClose }) => {
+const HistoryModal = ({ documentId, documentTitle, initialVersion, tree = [], onNavigate, onRestore, onClose }) => {
   const { t, i18n } = useTranslation('knowledgeBase');
   const [entries, setEntries] = useState(null); // null = loading | [] = empty | [...]
   const [error, setError] = useState(false);
@@ -260,7 +260,25 @@ const HistoryModal = ({ documentId, documentTitle, tree = [], onNavigate, onRest
         if (!alive) return;
         const list = Array.isArray(data) ? data : [];
         setEntries(list);
-        if (list.length >= 2) {
+
+        // initialVersion (например, версия из createDocument/updateDocument в чате):
+        // наводимся на запись с этой descriptionVersion. Список newest-first,
+        // инвариант baseIdx > compareIdx (база старее изменённой).
+        const targetIdx = initialVersion != null ? list.findIndex((e) => e.descriptionVersion === initialVersion) : -1;
+
+        if (targetIdx >= 0 && list.length >= 2) {
+          if (targetIdx === list.length - 1) {
+            // Старейшая запись — предшественника нет, показываем её саму.
+            setBaseIdx(targetIdx);
+            setCompareIdx(targetIdx);
+            setMode('compare');
+          } else {
+            // diff: выбранная версия (новее) ↔ предыдущая (старее).
+            setCompareIdx(targetIdx);
+            setBaseIdx(targetIdx + 1);
+            setMode('diff');
+          }
+        } else if (list.length >= 2) {
           setBaseIdx(1);
           setCompareIdx(0);
           setMode('diff');
@@ -274,7 +292,7 @@ const HistoryModal = ({ documentId, documentTitle, tree = [], onNavigate, onRest
     return () => {
       alive = false;
     };
-  }, [documentId]);
+  }, [documentId, initialVersion]);
 
   const single = entries && entries.length < 2;
   const lastIdx = entries ? entries.length - 1 : 0;

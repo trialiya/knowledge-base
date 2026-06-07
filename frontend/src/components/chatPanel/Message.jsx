@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useLayoutEffect } from 'react';
 import ReactDOM from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -6,7 +6,8 @@ import { useTranslation } from 'react-i18next';
 import ChatDocLink from './ChatDocLink';
 import './message.css';
 import CodeBlock from '../common/CodeBlock';
-import { getToolIcon, toolLabelKey, humanizeTool } from './toolMeta';
+import HistoryModal from '../knowledgeBasePanel/HistoryModal';
+import { getToolIcon, toolLabelKey, humanizeTool, getDocChangeRef } from './toolMeta';
 
 /** SVG status indicators — not clickable, purely visual */
 const IconStarted = () => (
@@ -148,52 +149,46 @@ const ToolCallItem = ({ tc }) => {
   const argsStr = formatArgs(tc.arguments);
   const gist = gistPreview(tc.resultGist);
   const itemRef = useRef(null);
+  const tooltipRef = useRef(null);
   const [hover, setHover] = useState(false);
-  // placement: 'left' | 'right' — на какой стороне плашки рисуем тултип
-  const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0, placement: 'left' });
+  // pos: null пока не измерили реальный размер тултипа (рендерим скрытым).
+  const [pos, setPos] = useState(null);
   const [copied, setCopied] = useState(false);
 
-  const TOOLTIP_WIDTH = 320; // должен совпадать с max-width в CSS
   const GAP = 8;
 
-  const handleMouseEnter = () => {
-    if (itemRef.current) {
-      const rect = itemRef.current.getBoundingClientRect();
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
+  // Позиционируем ПОСЛЕ рендера, по фактическим размерам тултипа — иначе при
+  // неверной оценке высоты/ширины он «улетал». Якорим рядом с плашкой и зажимаем
+  // в видимую область, чтобы тултип всегда оставался у своего блока.
+  useLayoutEffect(() => {
+    if (!hover || !itemRef.current || !tooltipRef.current) return;
+    const item = itemRef.current.getBoundingClientRect();
+    const tip = tooltipRef.current.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const w = tip.width;
+    const h = tip.height;
 
-      // Сколько места справа и слева от плашки
-      const spaceRight = vw - rect.right;
-      const spaceLeft = rect.left;
-
-      let placement;
-      let left;
-
-      if (spaceRight >= TOOLTIP_WIDTH + GAP) {
-        // помещается справа — как раньше
-        placement = 'right';
-        left = rect.right + GAP;
-      } else if (spaceLeft >= TOOLTIP_WIDTH + GAP) {
-        // не помещается справа, но помещается слева — рисуем слева
-        placement = 'left';
-        left = rect.left - GAP - TOOLTIP_WIDTH;
-      } else {
-        // тесно с обеих сторон — прижимаем к правому краю экрана с отступом
-        placement = 'right';
-        left = Math.max(GAP, vw - TOOLTIP_WIDTH - GAP);
-      }
-
-      // Вертикально: не даём уйти за нижнюю кромку экрана.
-      let top = rect.top;
-      const approxHeight = 160;
-      if (top + approxHeight > vh) {
-        top = Math.max(GAP, vh - approxHeight - GAP);
-      }
-
-      setTooltipPos({ top, left, placement });
+    // Горизонтально: панель тулзов справа, поэтому сначала пробуем слева от плашки
+    // (там сообщение, обычно есть место), затем справа, затем — ближайший зажатый край.
+    let left;
+    if (item.left - GAP - w >= GAP) {
+      left = item.left - GAP - w;
+    } else if (item.right + GAP + w <= vw - GAP) {
+      left = item.right + GAP;
+    } else {
+      left = item.left - GAP - w; // прижмём зажимом ниже
     }
-    setHover(true);
-  };
+    left = Math.min(Math.max(left, GAP), Math.max(GAP, vw - w - GAP));
+
+    // Вертикально: по верху плашки, зажатый в экран.
+    let top = Math.min(Math.max(item.top, GAP), Math.max(GAP, vh - h - GAP));
+
+    // Микро-движения избегаем — обновляем только при заметном сдвиге.
+    setPos((prev) =>
+      prev && Math.abs(prev.left - left) < 0.5 && Math.abs(prev.top - top) < 0.5 ? prev : { top, left },
+    );
+  }, [hover, argsStr, gist, tc.status, tc.error]);
 
   const handleCopy = async (e) => {
     e.stopPropagation();
@@ -210,8 +205,11 @@ const ToolCallItem = ({ tc }) => {
     <div
       ref={itemRef}
       className={`tool-call-item tool-call-item--${(tc.status || 'STARTED').toLowerCase()}`}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={() => setHover(false)}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => {
+        setHover(false);
+        setPos(null);
+      }}
     >
       <span className="tool-call-status-icon">
         <StatusIcon status={tc.status} />
@@ -233,8 +231,13 @@ const ToolCallItem = ({ tc }) => {
       {hover &&
         ReactDOM.createPortal(
           <div
-            className={`tool-call-tooltip tool-call-tooltip--${tooltipPos.placement}`}
-            style={{ top: tooltipPos.top, left: tooltipPos.left }}
+            ref={tooltipRef}
+            className="tool-call-tooltip"
+            style={{
+              top: pos ? pos.top : 0,
+              left: pos ? pos.left : 0,
+              visibility: pos ? 'visible' : 'hidden',
+            }}
           >
             <div className="tool-call-tooltip-name">{label}</div>
             {argsStr && <div className="tool-call-tooltip-args">{argsStr}</div>}
@@ -329,6 +332,79 @@ const ToolCallNotifications = ({ toolCalls }) => {
   );
 };
 
+/**
+ * Блок под ответом ИИ: документные мутации (createDocument/updateDocument)
+ * из toolCalls. Клик открывает HistoryModal прямо в чате — модалка сама
+ * рендерится в портал и грузит историю через api. id/version берём из resultMeta.
+ *
+ * Работает и в live-стриме, и после перезагрузки чата (в обоих случаях resultMeta
+ * прокинут в toolCalls — см. ChatWindow.jsx).
+ */
+const DocChangeBlock = ({ toolCalls, onNavigateToDoc }) => {
+  const { t } = useTranslation('chat');
+  const [target, setTarget] = useState(null); // { id, version, title, action } | null
+
+  // Одна строка на документ: максимальная версия + первый непустой title.
+  const changes = useMemo(() => {
+    const byId = new Map();
+    for (const tc of toolCalls || []) {
+      const ref = getDocChangeRef(tc);
+      if (!ref || ref.status === 'ERROR') continue;
+      const title = ref.title || tc.arguments?.title || tc.arguments?.name || null;
+      const cur = byId.get(ref.id);
+      if (!cur) {
+        byId.set(ref.id, { ...ref, title });
+      } else {
+        if ((ref.descriptionVersion ?? 0) > (cur.descriptionVersion ?? 0)) {
+          cur.descriptionVersion = ref.descriptionVersion;
+          cur.action = ref.action;
+        }
+        if (!cur.title && title) cur.title = title;
+      }
+    }
+    return [...byId.values()];
+  }, [toolCalls]);
+
+  if (changes.length === 0) return null;
+
+  return (
+    <div className="doc-change-block">
+      {changes.map((c) => (
+        <button
+          key={c.id}
+          type="button"
+          className="doc-change-item"
+          onClick={() => setTarget(c)}
+          title={t('docChange.viewChanges')}
+        >
+          <span className="doc-change-icon" aria-hidden="true">
+            📄
+          </span>
+          <span className="doc-change-text">
+            <span className="doc-change-title">{c.title || t('docChange.untitled', { id: c.id })}</span>
+            <span className="doc-change-sub">
+              {c.action === 'createDocument' ? t('docChange.created') : t('docChange.updated')}
+              {c.descriptionVersion != null ? ` · v${c.descriptionVersion}` : ''}
+            </span>
+          </span>
+          <span className="doc-change-cta">{t('docChange.viewChanges')} ›</span>
+        </button>
+      ))}
+
+      {target && (
+        <HistoryModal
+          documentId={target.id}
+          documentTitle={target.title || `#${target.id}`}
+          initialVersion={target.descriptionVersion}
+          tree={[]}
+          onNavigate={onNavigateToDoc ? (id) => onNavigateToDoc(String(id)) : undefined}
+          onClose={() => setTarget(null)}
+        />
+      )}
+    </div>
+  );
+};
+
 // ─── Markdown components (стиль KnowledgeBase .md-preview) ─────────────────────
 // Вынесено в фабрику, чтобы ссылки получали onNavigateToDoc через замыкание.
 
@@ -403,7 +479,10 @@ const Message = ({ text, sender, toolCalls, onNavigateToDoc }) => {
   if (hasToolCalls && sender === 'ai') {
     return (
       <div className="message-row-with-tools">
-        {messageContent}
+        <div className="message-main-col">
+          {messageContent}
+          <DocChangeBlock toolCalls={toolCalls} onNavigateToDoc={onNavigateToDoc} />
+        </div>
         <ToolCallNotifications toolCalls={toolCalls} />
       </div>
     );

@@ -1,7 +1,7 @@
 package io.github.trialiya.kb.model.doc.dto;
 
+import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.tools.Compact;
-import io.github.trialiya.kb.tools.ToolCallResponseItem;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -28,6 +28,7 @@ public record Document(
         String type,
         String parentId,
         int version,
+        int descriptionVersion,
         String description,
         LocalDateTime updatedAt,
         List<Document> children,
@@ -49,6 +50,14 @@ public record Document(
 
     public DocumentShort toDocumentShort() {
         return new DocumentShort(
-                id, title, type, parentId, version, updatedAt, summaryStale, summarySourceVersion);
+                id,
+                title,
+                type,
+                parentId,
+                version,
+                descriptionVersion,
+                updatedAt,
+                summaryStale,
+                summarySourceVersion);
     }
 }

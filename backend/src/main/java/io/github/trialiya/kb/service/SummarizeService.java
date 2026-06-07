@@ -297,7 +297,8 @@ public class SummarizeService implements DisposableBean {
                                     lastMsg.getPosition(),
                                     false,
                                     true,
-                                    lastMsg.getCreatedAt()));
+                                    lastMsg.getCreatedAt(),
+                                    null));
                 });
     }
 }

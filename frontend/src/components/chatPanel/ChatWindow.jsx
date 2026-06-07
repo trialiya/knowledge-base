@@ -195,12 +195,36 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         return;
       }
       const data = await res.json();
-      const msgs =
-        data.messages?.map((msg) => ({
-          text: msg.content,
-          sender: msg.type?.toLowerCase?.() === 'user' ? 'user' : 'ai',
-        })) || [];
-      const finalMessages = msgs.length > 0 ? msgs : [];
+      // Системные сообщения-«крошки» (преамбула из ChatMemoryService.saveToolCalls)
+      // несут toolInvocationMetas с resultMeta. Пузырём их не показываем, а
+      // прикрепляем вызовы к предыдущему ответу ассистента — это и даёт resultMeta
+      // для блока «изменения документа», и убирает лишний пузырь преамбулы.
+      const rawMsgs = data.messages || [];
+      const msgs = [];
+      for (const m of rawMsgs) {
+        const type = m.type?.toLowerCase?.();
+        if (type === 'system') {
+          const metas = m.toolInvocationMetas;
+          if (Array.isArray(metas) && metas.length) {
+            const prev = msgs[msgs.length - 1];
+            if (prev?.sender === 'ai') {
+              prev.toolCalls = [
+                ...(prev.toolCalls || []),
+                ...metas.map((x) => ({
+                  name: x.name,
+                  arguments: x.arguments,
+                  status: x.status,
+                  error: x.error,
+                  resultMeta: x.resultMeta,
+                })),
+              ];
+            }
+          }
+          continue; // преамбулу как сообщение не рендерим
+        }
+        msgs.push({ text: m.content, sender: type === 'user' ? 'user' : 'ai' });
+      }
+      const finalMessages = msgs;
       failedChatIdsRef.current.delete(chatId);
       setChats((prev) =>
         prev.map((chat) =>
@@ -369,7 +393,13 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
                   if (existingIdx >= 0) {
                     toolCallsRef.current = toolCallsRef.current.map((t, i) =>
                       i === existingIdx
-                        ? { ...t, status: tc.status, error: tc.error, resultGist: tc.resultGist ?? t.resultGist }
+                        ? {
+                            ...t,
+                            status: tc.status,
+                            error: tc.error,
+                            resultGist: tc.resultGist ?? t.resultGist,
+                            resultMeta: tc.resultMeta ?? t.resultMeta,
+                          }
                         : t,
                     );
                   } else {
@@ -381,6 +411,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
                         status: tc.status,
                         error: tc.error,
                         resultGist: tc.resultGist,
+                        resultMeta: tc.resultMeta,
                       },
                     ];
                   }
@@ -404,12 +435,19 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
                           status: tc.status,
                           error: tc.error,
                           resultGist: tc.resultGist,
+                          resultMeta: tc.resultMeta,
                         },
                       ];
                     } else {
                       toolCallsRef.current = toolCallsRef.current.map((t) =>
                         t.name === tc.name && JSON.stringify(t.arguments || {}) === argsKey
-                          ? { ...t, status: tc.status, error: tc.error, resultGist: tc.resultGist ?? t.resultGist }
+                          ? {
+                              ...t,
+                              status: tc.status,
+                              error: tc.error,
+                              resultGist: tc.resultGist ?? t.resultGist,
+                              resultMeta: tc.resultMeta ?? t.resultMeta,
+                            }
                           : t,
                       );
                     }

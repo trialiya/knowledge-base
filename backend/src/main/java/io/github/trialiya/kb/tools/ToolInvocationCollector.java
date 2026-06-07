@@ -3,6 +3,7 @@ package io.github.trialiya.kb.tools;
 import static io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus.STARTED;
 
 import io.github.trialiya.kb.model.chat.dto.ToolCallMessage;
+import io.github.trialiya.kb.model.tool.ToolInvocation;
 import jakarta.annotation.Nullable;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;

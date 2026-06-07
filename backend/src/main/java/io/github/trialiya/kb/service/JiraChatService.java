@@ -233,7 +233,8 @@ public class JiraChatService {
                         1L,
                         false,
                         false,
-                        LocalDateTime.now()));
+                        LocalDateTime.now(),
+                        null));
     }
 
     private AttachmentEntity createAttachment(

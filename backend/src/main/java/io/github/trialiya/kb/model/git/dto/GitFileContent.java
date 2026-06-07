@@ -2,8 +2,8 @@ package io.github.trialiya.kb.model.git.dto;
 
 import static io.github.trialiya.kb.tools.Compact.truncate;
 
+import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.tools.Compact;
-import io.github.trialiya.kb.tools.ToolCallResponseItem;
 
 /**
  * Содержимое файла из репозитория, обогащённое метаданными для ИИ.

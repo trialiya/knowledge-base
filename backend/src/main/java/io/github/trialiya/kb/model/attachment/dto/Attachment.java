@@ -1,7 +1,7 @@
 package io.github.trialiya.kb.model.attachment.dto;
 
+import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.tools.Compact;
-import io.github.trialiya.kb.tools.ToolCallResponseItem;
 import java.time.OffsetDateTime;
 
 /**
@@ -40,6 +40,7 @@ public record Attachment(
                 .add("type", contentType)
                 .add("size", fileSize)
                 .add("owner", ownerType)
+                .add("conversation", conversationId)
                 .add("doc", documentId)
                 .add("sum", Compact.truncate(summary, 50))
                 .done();

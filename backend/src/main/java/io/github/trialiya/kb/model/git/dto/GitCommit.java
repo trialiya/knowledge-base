@@ -1,8 +1,10 @@
 package io.github.trialiya.kb.model.git.dto;
 
-import io.github.trialiya.kb.tools.ToolCallResponseItem;
+import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
+import io.github.trialiya.kb.model.tool.ToolCallResultMetaProvider;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Запись из истории коммитов.
@@ -23,7 +25,7 @@ public record GitCommit(
         OffsetDateTime date,
         String message,
         List<GitDiffEntry> files)
-        implements ToolCallResponseItem {
+        implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
     @Override
     public String getFormattedResponse() {
@@ -32,5 +34,16 @@ public record GitCommit(
         int add = files.stream().mapToInt(GitDiffEntry::additions).sum();
         int del = files.stream().mapToInt(GitDiffEntry::deletions).sum();
         return head + " (" + files.size() + " files +" + add + " -" + del + ")";
+    }
+
+    @Override
+    public Map<String, Object> getResultMeta() {
+        return Map.of(
+                "shortHash", shortHash,
+                "author", author,
+                "email", email,
+                "date", date,
+                "message", message,
+                "changesFilesCount", files != null ? files.size() : 0);
     }
 }

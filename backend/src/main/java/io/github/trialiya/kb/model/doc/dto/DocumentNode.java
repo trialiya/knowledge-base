@@ -2,10 +2,13 @@ package io.github.trialiya.kb.model.doc.dto;
 
 import static java.util.stream.Collectors.joining;
 
+import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
+import io.github.trialiya.kb.model.tool.ToolCallResultMetaProvider;
 import io.github.trialiya.kb.tools.Compact;
-import io.github.trialiya.kb.tools.ToolCallResponseItem;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Full document node returned by {@code GET /api/documents/{id}} and tree/children endpoints.
@@ -26,8 +29,10 @@ public record DocumentNode(
         String id,
         String title,
         String type,
-        String parentId,
+        Long parentId,
+        int version,
         String description,
+        int descriptionVersion,
         LocalDateTime updatedAt,
         List<DocumentNode> children,
         boolean hasChildren,
@@ -35,7 +40,7 @@ public record DocumentNode(
         String summary,
         boolean summaryStale,
         Integer summarySourceVersion)
-        implements ToolCallResponseItem {
+        implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
     @Override
     public String getFormattedResponse() {
@@ -55,5 +60,18 @@ public record DocumentNode(
                 .add("children", kids)
                 .body(Compact.truncate(description, 50))
                 .done();
+    }
+
+    @Override
+    public Map<String, Object> getResultMeta() {
+        Map<String, Object> meta = new HashMap<>();
+        meta.put("id", id);
+        meta.put("type", type);
+        meta.put("title", title);
+        meta.put("parent", parentId);
+        meta.put("version", version);
+        meta.put("descriptionVersion", descriptionVersion);
+        meta.put("updated", updatedAt);
+        return meta;
     }
 }

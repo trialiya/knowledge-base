@@ -1,8 +1,11 @@
 package io.github.trialiya.kb.model.doc.dto;
 
+import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
+import io.github.trialiya.kb.model.tool.ToolCallResultMetaProvider;
 import io.github.trialiya.kb.tools.Compact;
-import io.github.trialiya.kb.tools.ToolCallResponseItem;
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Lightweight document DTO returned by create / update / move operations.
@@ -19,10 +22,11 @@ public record DocumentShort(
         String type,
         String parentId,
         int version,
+        int descriptionVersion,
         LocalDateTime updatedAt,
         boolean summaryStale,
         Integer summarySourceVersion)
-        implements ToolCallResponseItem {
+        implements ToolCallResponseItem, ToolCallResultMetaProvider {
     @Override
     public String getFormattedResponse() {
         return Compact.tag("doc:" + id)
@@ -32,5 +36,18 @@ public record DocumentShort(
                 .add("version", version)
                 .add("updated", updatedAt)
                 .done();
+    }
+
+    @Override
+    public Map<String, Object> getResultMeta() {
+        Map<String, Object> meta = new HashMap<>();
+        meta.put("id", id);
+        meta.put("type", type);
+        meta.put("title", title);
+        meta.put("parent", parentId);
+        meta.put("version", version);
+        meta.put("descriptionVersion", descriptionVersion);
+        meta.put("updated", updatedAt);
+        return meta;
     }
 }
