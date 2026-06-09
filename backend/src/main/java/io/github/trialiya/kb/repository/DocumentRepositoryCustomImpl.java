@@ -22,27 +22,6 @@ public class DocumentRepositoryCustomImpl implements DocumentRepositoryCustom {
     private final JdbcTemplate jdbcTemplate;
 
     @Override
-    public void batchUpdatePositions(Map<Long, Integer> positionMap) {
-        if (positionMap.isEmpty()) return;
-
-        StringBuilder sql = new StringBuilder("UPDATE documents SET position = CASE id ");
-        List<Object> params = new ArrayList<>(positionMap.size() * 3);
-
-        for (var entry : positionMap.entrySet()) {
-            sql.append("WHEN ? THEN ? ");
-            params.add(entry.getKey());
-            params.add(entry.getValue());
-        }
-
-        sql.append("END WHERE id IN (");
-        sql.append(positionMap.keySet().stream().map(id -> "?").collect(Collectors.joining(",")));
-        sql.append(')');
-        params.addAll(positionMap.keySet());
-
-        jdbcTemplate.update(sql.toString(), params.toArray());
-    }
-
-    @Override
     public Map<Long, List<SearchResult.Parent>> findAncestorsByIds(Collection<Long> ids) {
         if (ids == null || ids.isEmpty()) return Map.of();
 
@@ -53,10 +32,12 @@ public class DocumentRepositoryCustomImpl implements DocumentRepositoryCustom {
         // `depth` grows toward the root, so ORDER BY depth DESC yields root-first
         // (the same ordering as DocumentRepository.findAncestorIds, just batched
         // and carrying the title). The seed row itself is never emitted — only
-        // its ancestors.
+        // its ancestors. The explicit column list on `chain(...)` is required by
+        // H2 for recursive CTEs and is valid standard SQL, so the query runs on
+        // both PostgreSQL and H2.
         String sql =
                 """
-                WITH RECURSIVE chain AS (
+                WITH RECURSIVE chain(seed_id, ancestor_id, depth) AS (
                     SELECT d.id AS seed_id, d.parent_id AS ancestor_id, 1 AS depth
                     FROM documents d
                     WHERE d.id IN (%s) AND d.parent_id IS NOT NULL

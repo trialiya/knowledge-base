@@ -5,9 +5,8 @@ import io.github.trialiya.kb.model.doc.dto.Document;
 import io.github.trialiya.kb.model.doc.dto.DocumentHistory;
 import io.github.trialiya.kb.model.doc.dto.DocumentHistoryShort;
 import io.github.trialiya.kb.model.doc.dto.DocumentNode;
-import io.github.trialiya.kb.model.doc.dto.MoveToParentRequest;
+import io.github.trialiya.kb.model.doc.dto.MoveRequest;
 import io.github.trialiya.kb.model.doc.dto.PagedChildren;
-import io.github.trialiya.kb.model.doc.dto.ReorderRequest;
 import io.github.trialiya.kb.model.doc.dto.SearchResult;
 import io.github.trialiya.kb.model.doc.dto.UpdateDocumentRequest;
 import io.github.trialiya.kb.service.DocumentExportService;
@@ -127,37 +126,24 @@ public class DocumentController {
     // ── Reorder ───────────────────────────────────────────────────────────────
 
     /**
-     * Updates the display order of siblings in a folder (or at root level).
+     * Moves a document/folder to a target parent AND a specific slot in one call.
      *
      * <pre>
-     * PATCH /api/documents/reorder
-     * {
-     *   "parentId": "42",          // null → root
-     *   "orderedIds": ["7","3","1"]
-     * }
-     * </pre>
-     */
-    @PatchMapping("/reorder")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void reorder(@RequestBody ReorderRequest request) {
-        service.reorder(request);
-    }
-
-    /**
-     * Moves a document/folder to a new parent (or to the root level).
-     *
-     * <pre>
-     * PATCH /api/documents/{id}/parent
-     * { "parentId": "42" }   // move into folder 42
-     * { "parentId": null }   // move to root
+     * PATCH /api/documents/{id}/move
+     * { "parentId": 1, "afterId": 7 }     // into folder 1, right after node 7
+     * { "parentId": 1, "afterId": null }  // into folder 1, first
+     * { "parentId": null, "afterId": 42 } // to root level, right after 42
      * </pre>
      *
-     * Returns the updated document. Responds 400 if the move would create a cycle, 403 for system
-     * nodes, 404 if either node is missing, 422 if the target is not a folder.
+     * Replaces the moveToParent + reorder pair for drag-and-drop: the client names ONE neighbour
+     * instead of sending the whole sibling order, so a lazily-loaded tree can never produce a
+     * corrupt order. Responds 400 for cycles or {@code afterId == id}, 403 for system nodes, 404 if
+     * any referenced node is missing, 409 on concurrent modification, 422 if the target is not a
+     * folder or {@code afterId} belongs to another level.
      */
-    @PatchMapping("/{id}/parent")
-    public Document moveToParent(@PathVariable long id, @RequestBody MoveToParentRequest request) {
-        return service.moveToParent(id, request.getParentId());
+    @PatchMapping("/{id}/move")
+    public Document move(@PathVariable long id, @RequestBody MoveRequest request) {
+        return service.move(id, request.parentId(), request.afterId());
     }
 
     // ── Search ────────────────────────────────────────────────────────────────

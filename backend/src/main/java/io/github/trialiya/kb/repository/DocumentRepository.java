@@ -43,10 +43,15 @@ public interface DocumentRepository
         """)
     List<DocumentEntity> search(@Param("q") String q);
 
-    /** Recursively find all descendant IDs (used for cascade delete in Java). */
+    /**
+     * Recursively find all descendant IDs (used for cascade delete in Java).
+     *
+     * <p>The explicit CTE column list {@code descendants(id)} is required by H2 for recursive
+     * queries and is valid standard SQL, so the same query runs on both PostgreSQL and H2.
+     */
     @Query(
             """
-        WITH RECURSIVE descendants AS (
+        WITH RECURSIVE descendants(id) AS (
             SELECT id FROM documents WHERE id = :rootId
             UNION ALL
             SELECT d.id FROM documents d
@@ -92,12 +97,16 @@ public interface DocumentRepository
      * Returns ancestor IDs from root down to (but not including) the given node, using a single
      * recursive CTE query. The result is ordered from root to the immediate parent.
      *
+     * <p>The explicit CTE column list {@code ancestors(parent_id, depth)} is required by H2 for
+     * recursive queries and is valid standard SQL, so the same query runs on both PostgreSQL and
+     * H2.
+     *
      * @param id the document id to find ancestors for
      * @return list of ancestor IDs, root first; empty for root-level nodes
      */
     @Query(
             """
-    WITH RECURSIVE ancestors AS (
+    WITH RECURSIVE ancestors(parent_id, depth) AS (
         SELECT parent_id, 1 AS depth
         FROM documents
         WHERE id = :id AND parent_id IS NOT NULL
@@ -118,6 +127,73 @@ public interface DocumentRepository
     @Query("SELECT id FROM documents WHERE id IN (:ids) AND is_system = true")
     Set<Long> findSystemIdsByIdIn(@Param("ids") List<Long> ids);
 
-    //     ── batchUpdatePositions comes from DocumentRepositoryCustom ──────────
-    //    void batchUpdatePositions(Map<Long, Integer> positionMap);
+    /**
+     * Opens a slot at {@code fromPosition} in the given level by shifting every sibling at or after
+     * it one step down. Unbounded on the right on purpose: position gaps are tolerated (ordering
+     * relies only on relative position, never on contiguity), so there is no need to renumber the
+     * whole level or close the hole left at the moved node's previous slot.
+     *
+     * <p>The moved node itself is excluded so the shift can't bump it while it still sits in the
+     * same level. {@code IS NOT DISTINCT FROM} makes one query cover both a folder level and the
+     * root level (parent_id IS NULL).
+     */
+    @Modifying
+    @Query(
+            """
+        UPDATE documents
+        SET position = position + 1
+        WHERE parent_id IS NOT DISTINCT FROM :parentId
+          AND position >= :fromPosition
+          AND id <> :movedId
+        """)
+    void shiftPositionsFrom(
+            @Param("parentId") Long parentId,
+            @Param("fromPosition") int fromPosition,
+            @Param("movedId") long movedId);
+
+    /** Smallest position in a level (0 when the level is empty) — used to insert first. */
+    @Query(
+            "SELECT COALESCE(MIN(position), 0) FROM documents WHERE parent_id IS NOT DISTINCT FROM :parentId")
+    int findMinPosition(@Param("parentId") Long parentId);
+
+    /**
+     * Windowed shift for moving a node UP within its own level: every sibling in {@code [newPos,
+     * oldPos)} steps one down, and the {@code +1} window collapses exactly into the slot the moved
+     * node vacates at {@code oldPos}. The moved node sits at {@code oldPos} and is outside the
+     * half-open window by construction — no exclusion needed, no collisions, gaps tolerated (bounds
+     * are real neighbour positions, not ordinal indexes).
+     */
+    @Modifying
+    @Query(
+            """
+        UPDATE documents
+        SET position = position + 1
+        WHERE parent_id IS NOT DISTINCT FROM :parentId
+          AND position >= :newPos
+          AND position < :oldPos
+        """)
+    void shiftWindowUp(
+            @Param("parentId") Long parentId,
+            @Param("newPos") int newPos,
+            @Param("oldPos") int oldPos);
+
+    /**
+     * Windowed shift for moving a node DOWN within its own level: every sibling in {@code (oldPos,
+     * anchorPos]} steps one up — including the anchor itself, which ends at {@code anchorPos - 1},
+     * right BEFORE the moved node taking {@code anchorPos}. The {@code -1} window collapses into
+     * the vacated {@code oldPos} slot; the moved node is outside the window.
+     */
+    @Modifying
+    @Query(
+            """
+        UPDATE documents
+        SET position = position - 1
+        WHERE parent_id IS NOT DISTINCT FROM :parentId
+          AND position > :oldPos
+          AND position <= :anchorPos
+        """)
+    void shiftWindowDown(
+            @Param("parentId") Long parentId,
+            @Param("oldPos") int oldPos,
+            @Param("anchorPos") int anchorPos);
 }

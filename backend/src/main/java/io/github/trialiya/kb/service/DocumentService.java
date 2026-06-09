@@ -7,7 +7,6 @@ import io.github.trialiya.kb.model.doc.dto.DocumentHistory;
 import io.github.trialiya.kb.model.doc.dto.DocumentHistoryShort;
 import io.github.trialiya.kb.model.doc.dto.DocumentNode;
 import io.github.trialiya.kb.model.doc.dto.PagedChildren;
-import io.github.trialiya.kb.model.doc.dto.ReorderRequest;
 import io.github.trialiya.kb.model.doc.dto.SearchResult;
 import io.github.trialiya.kb.model.doc.dto.UpdateDocumentRequest;
 import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
@@ -416,116 +415,151 @@ public class DocumentService {
                 });
     }
 
-    // ── Reorder ───────────────────────────────────────────────────────────────
+    // ── Move  ────────────────────────────────────────────────────────
 
     /**
-     * Reassigns {@code position} for a group of siblings. System nodes are excluded from reordering
-     * silently — their position stays fixed.
-     */
-    @Transactional
-    public void reorder(ReorderRequest req) {
-        List<Long> ids = req.getOrderedIds();
-        if (ids == null || ids.isEmpty()) return;
-
-        Set<Long> systemIds = repo.findSystemIdsByIdIn(ids);
-
-        Map<Long, Integer> positionMap = new LinkedHashMap<>();
-        for (int i = 0; i < ids.size(); i++) {
-            Long nodeId = ids.get(i);
-            if (!systemIds.contains(nodeId)) {
-                positionMap.put(nodeId, i);
-            }
-        }
-
-        if (!positionMap.isEmpty()) {
-            repo.batchUpdatePositions(positionMap);
-        }
-    }
-
-    // ── Move to parent ────────────────────────────────────────────────────────
-
-    /**
-     * Moves a document/folder to a new parent (or to the root level).
+     * Moves a node to {@code targetParentId} (null = root) and places it right after {@code
+     * afterId} ({@code null} = first in the level). Single-call replacement for the moveToParent +
+     * reorder pair: the client names ONE neighbour instead of sending the whole sibling order, so a
+     * lazily-loaded (partially fetched) tree on the frontend can never produce a corrupt order —
+     * the slot is resolved here from the current database state.
      *
-     * <p>Validation:
+     * <p>Position strategy (gaps are tolerated everywhere — ordering relies only on relative
+     * position, never on contiguity):
      *
-     * <ol>
-     *   <li>The node must exist.
-     *   <li>System nodes cannot be moved.
-     *   <li>If {@code newParentId} is not null the target folder must exist and be a folder.
-     *   <li>Moving a folder into itself or any of its descendants is rejected (cycle check).
-     * </ol>
-     *
-     * After the move the node is appended at the end of the new sibling list.
+     * <ul>
+     *   <li><b>Reorder within the same level</b> — windowed shift touching only the rows between
+     *       the old and the new slot. Moving up: the window {@code [newPos, oldPos)} gets {@code
+     *       +1} and the node takes {@code anchorPos + 1}. Moving down: the window {@code (oldPos,
+     *       anchorPos]} gets {@code -1} and the node takes {@code anchorPos} (the anchor itself
+     *       shifts one step up, ending right before the node). The moved node is outside the window
+     *       by construction, and the slot it vacates is exactly where the window collapses — no
+     *       collisions, no need for density.
+     *   <li><b>Move to another level</b> — the slot in the target level is opened with one
+     *       unbounded {@code position + 1} shift from the insertion point ({@link
+     *       DocumentRepository#shiftPositionsFrom}); the hole left in the source level stays.
+     * </ul>
      *
      * @param id the document/folder to move
-     * @param targetParentId target folder id, or {@code null} to move to root
-     * @throws ResponseStatusException 400 if the move would create a cycle
-     * @throws ResponseStatusException 403 if the node is system-protected
-     * @throws ResponseStatusException 404 if either node does not exist
-     * @throws ResponseStatusException 422 if the target is not a folder
+     * @param targetParentId target folder id, or {@code null} for the root level
+     * @param afterId sibling to place the node right after, or {@code null} to insert first
+     * @throws ResponseStatusException 400 cycle, or {@code afterId == id}
+     * @throws ResponseStatusException 403 system node
+     * @throws ResponseStatusException 404 node, target parent or afterId not found
+     * @throws ResponseStatusException 409 concurrent modification
+     * @throws ResponseStatusException 422 target is not a folder, or afterId is in another level
      */
     @Transactional
-    public Document moveToParent(long id, Long targetParentId) {
+    public Document move(long id, Long targetParentId, Long afterId) {
         DocumentEntity node = findOrThrow(id);
 
         if (node.isSystem()) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN, "Cannot move a system document");
         }
-
-        // No-op: already in the requested parent
-        if (java.util.Objects.equals(node.getParentId(), targetParentId)) {
-            return toDto(node);
+        if (afterId != null && afterId == id) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "afterId must not be the node itself");
         }
 
-        // Validate target folder exists and is actually a folder
-        if (targetParentId != null) {
-            DocumentEntity targetFolder =
-                    repo.findById(targetParentId)
+        validateTargetParent(id, targetParentId);
+
+        // Resolve the anchor from CURRENT database state — the client only names a neighbour,
+        // so its (possibly partial) view of the level can't corrupt positions.
+        // anchorPos: position of `afterId`, or the level's MIN position for "insert first".
+        final int anchorPos;
+        if (afterId == null) {
+            anchorPos = repo.findMinPosition(targetParentId);
+        } else {
+            DocumentEntity after =
+                    repo.findById(afterId)
                             .orElseThrow(
                                     () ->
                                             new ResponseStatusException(
-                                                    HttpStatus.NOT_FOUND,
-                                                    "Target parent not found"));
-            if (!"folder".equals(targetFolder.getType())) {
+                                                    HttpStatus.NOT_FOUND, "afterId not found"));
+            if (!Objects.equals(after.getParentId(), targetParentId)) {
                 throw new ResponseStatusException(
-                        HttpStatus.UNPROCESSABLE_ENTITY, "Target must be a folder");
+                        HttpStatus.UNPROCESSABLE_ENTITY,
+                        "afterId is not a child of the target parent");
             }
-
-            // Cycle check: targetParentId must not be the node itself or any of its descendants
-            if (targetParentId.equals(id)) {
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST, "Cannot move a folder into itself");
-            }
-            List<Long> descendants = repo.findDescendantIds(id);
-            if (descendants.contains(targetParentId)) {
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "Cannot move a folder into one of its own descendants");
-            }
+            anchorPos = after.getPosition();
         }
 
-        // Append at the end of the new sibling list
-        int newPosition = nextSiblingPosition(targetParentId);
+        boolean sameParent = Objects.equals(node.getParentId(), targetParentId);
+        int oldPosition = node.getPosition();
+        int newPosition;
+
+        if (!sameParent) {
+            // ── Cross-level move: open the slot with an unbounded shift ──────────
+            // "after anchor" → slot anchorPos + 1; "insert first" → the level's MIN.
+            newPosition = afterId == null ? anchorPos : anchorPos + 1;
+            repo.shiftPositionsFrom(targetParentId, newPosition, id);
+        } else if (anchorPos < oldPosition) {
+            // ── Reorder up ───────────────────────────────────────────────────────
+            // Slot right after the anchor (or the MIN slot itself for "insert first").
+            newPosition = afterId == null ? anchorPos : anchorPos + 1;
+            if (newPosition == oldPosition) {
+                return toDto(node); // already exactly there — no-op
+            }
+            // [newPosition, oldPosition) steps down by one; the +1 window collapses
+            // into the slot the node vacates at oldPosition.
+            repo.shiftWindowUp(targetParentId, newPosition, oldPosition);
+        } else if (anchorPos > oldPosition) {
+            // ── Reorder down ─────────────────────────────────────────────────────
+            // (oldPosition, anchorPos] steps up by one — the anchor itself moves to
+            // anchorPos - 1, ending right BEFORE the node, which takes anchorPos.
+            newPosition = anchorPos;
+            repo.shiftWindowDown(targetParentId, oldPosition, anchorPos);
+        } else {
+            // anchorPos == oldPosition: "insert first" while already first.
+            return toDto(node); // no-op
+        }
 
         node.setParentId(targetParentId);
         node.setPosition(newPosition);
         node.setUpdatedAt(LocalDateTime.now());
 
-        // Note: descriptionVersion is NOT incremented here — a move does not affect
-        // the description, so an existing summary remains valid after the move.
+        // descriptionVersion is NOT incremented — a move does not affect the description,
+        // so an existing summary remains valid (same contract as moveToParent).
 
-        DocumentEntity saved;
         try {
-            saved = repo.save(node);
+            return toDto(repo.save(node));
         } catch (OptimisticLockingFailureException ex) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "Document was modified by another request. Please reload and try again.");
         }
+    }
 
-        return toDto(saved);
+    /**
+     * Target-parent validation shared by {@link #move}: the target must exist, be a folder, and
+     * must not be the node itself or any of its descendants (cycle check). {@code null} target
+     * (root level) is always valid.
+     */
+    private void validateTargetParent(long id, Long targetParentId) {
+        if (targetParentId == null) return;
+
+        DocumentEntity targetFolder =
+                repo.findById(targetParentId)
+                        .orElseThrow(
+                                () ->
+                                        new ResponseStatusException(
+                                                HttpStatus.NOT_FOUND, "Target parent not found"));
+        if (!"folder".equals(targetFolder.getType())) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNPROCESSABLE_ENTITY, "Target must be a folder");
+        }
+
+        // Cycle check: targetParentId must not be the node itself or any of its descendants
+        if (targetParentId.equals(id)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Cannot move a folder into itself");
+        }
+        List<Long> descendants = repo.findDescendantIds(id);
+        if (descendants.contains(targetParentId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "Cannot move a folder into one of its own descendants");
+        }
     }
 
     // ── History ───────────────────────────────────────────────────────────────

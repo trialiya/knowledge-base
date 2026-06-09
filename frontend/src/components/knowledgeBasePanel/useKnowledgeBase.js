@@ -510,34 +510,40 @@ export default function useKnowledgeBase({
 
   // ── Reorder ───────────────────────────────────────────────────────────────────
 
-  /** Optimistic UI update → PATCH → rollback on error. */
+  /**
+   * Optimistic UI update → single PATCH /{id}/move → rollback on error.
+   *
+   * The server resolves the exact slot itself: we only send the new parent and
+   * `afterId` — the sibling sitting right BEFORE the dragged node in its new
+   * level of the optimistically updated tree (null = first). One rule covers
+   * all drop positions ('before' → the node before the target, 'after' → the
+   * target itself, 'inside' → the last loaded child or null), and the partially
+   * loaded sibling list can no longer corrupt the order — unlike the old
+   * moveToParent + reorder(orderedIds) pair, which required the FULL level.
+   */
   const executeReorder = useCallback(
     async (dropInfo) => {
-      const { draggedId, draggedParent, targetId, targetParent, position } = dropInfo;
+      const { draggedId, targetId, targetParent, position } = dropInfo;
 
       const newTree = applyReorder(tree, dropInfo);
+      if (newTree === tree) return; // invalid drop (applyReorder bailed) — nothing to persist
       setTree(newTree);
 
-      const affectedParent = position === 'inside' ? targetId : targetParent;
-      const isMove = draggedParent !== affectedParent;
+      const newParentId = position === 'inside' ? targetId : targetParent;
+
+      // Neighbour right before the dragged node in its NEW sibling list.
+      const siblings = getSiblings(newTree, newParentId);
+      const idx = siblings.findIndex((n) => n.id === draggedId);
+      const afterId = idx > 0 ? siblings[idx - 1].id : null;
 
       try {
-        // 1. Parent change: call the dedicated move endpoint first.
-        //    It handles the cycle check and sets the new parentId in one transaction.
-        if (isMove) {
-          const moveRes = await api.moveToParent(draggedId, affectedParent ?? null);
-          if (!moveRes.ok) {
-            const body = await moveRes.json().catch(() => ({}));
-            throw new Error(body.message || `Move failed: ${moveRes.status}`);
-          }
+        const res = await api.move(draggedId, newParentId ?? null, afterId);
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.message || `Move failed: ${res.status}`);
         }
-
-        // 2. Persist the visual order of the new sibling list.
-        const orderedIds = getSiblings(newTree, affectedParent).map((n) => n.id);
-        const reorderRes = await api.reorder(affectedParent, orderedIds);
-        if (!reorderRes.ok) throw new Error('reorder failed');
       } catch (err) {
-        console.error('Reorder error, rolling back:', err);
+        console.error('Move error, rolling back:', err);
         setSaveError({ message: err.message || t('loadError.moveErrorMessage') });
         loadTree();
       }

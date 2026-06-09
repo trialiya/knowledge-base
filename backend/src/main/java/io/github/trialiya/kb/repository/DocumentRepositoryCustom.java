@@ -12,24 +12,6 @@ import java.util.Map;
 public interface DocumentRepositoryCustom {
 
     /**
-     * Updates the {@code position} column for multiple documents in a single SQL statement.
-     *
-     * <p>Generates:
-     *
-     * <pre>
-     * UPDATE documents SET position = CASE id
-     *   WHEN 5 THEN 0
-     *   WHEN 3 THEN 1
-     *   WHEN 8 THEN 2
-     * END
-     * WHERE id IN (5, 3, 8)
-     * </pre>
-     *
-     * @param positionMap map of document id → new position value; empty map is a no-op
-     */
-    void batchUpdatePositions(Map<Long, Integer> positionMap);
-
-    /**
      * Batch-resolves ancestor breadcrumbs for many documents in a single recursive query.
      *
      * <p>For each requested document id the result holds its ancestors ordered from the root down

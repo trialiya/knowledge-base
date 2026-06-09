@@ -7,7 +7,7 @@
 //     fetchAncestors, fetchHistory, fetchHistoryVersion, summarize) check
 //     response.ok, throw a typed Error (err.status set) on failure, and resolve
 //     to the parsed JSON body on success.
-//   • WRITE helpers (create, update, delete, moveToParent, reorder) resolve to
+//   • WRITE helpers (create, update, delete, move) resolve to
 //     the raw Response so callers can branch on res.ok and read an error body.
 
 /** Throws a typed Error for a non-OK response; otherwise returns it. */
@@ -71,18 +71,16 @@ const api = {
 
   delete: (id) => fetch(`/api/documents/${id}`, { method: 'DELETE' }),
 
-  moveToParent: (id, newParentId) =>
-    fetch(`/api/documents/${id}/parent`, {
+  /**
+   * Move a document/folder to a target parent AND a specific slot in one call.
+   * `afterId` — sibling to place the node right after (null = first in the level).
+   * Replaces the old moveToParent + reorder pair.
+   */
+  move: (id, parentId, afterId) =>
+    fetch(`/api/documents/${id}/move`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ parentId: newParentId ?? null }),
-    }),
-
-  reorder: (parentId, orderedIds) =>
-    fetch('/api/documents/reorder', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ parentId, orderedIds }),
+      body: JSON.stringify({ parentId: parentId ?? null, afterId: afterId ?? null }),
     }),
 
   summarize: (id) => fetch(`/api/documents/${id}/summarize`, { method: 'POST' }).then((r) => json(r, 'Summarize')),

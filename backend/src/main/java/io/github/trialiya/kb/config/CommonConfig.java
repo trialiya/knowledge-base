@@ -6,10 +6,8 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-// import reactor.netty.http.client.HttpClient;
-
 @Configuration
-public class WebClientConfig {
+public class CommonConfig {
 
     @Bean
     public ObjectMapper objectMapper() {
