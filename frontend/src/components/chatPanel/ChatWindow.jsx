@@ -93,6 +93,10 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   // Ref to hold activeChatId at mount time so the initial fetch effect
   // doesn't need it in its dependency array (we only want this to run once).
   const initialActiveChatIdRef = useRef(activeChatId);
+  // chatId, заданный явно в URL (?chat=...) на момент монтирования. null — когда
+  // в URL чата нет (например, просто ?view=chat). Позволяет отличить «осознанную
+  // ссылку на чат» от id, подставленного из localStorage (он может быть устаревшим).
+  const initialPropChatIdRef = useRef(propActiveChatId);
   // Mirror of `chats` so callbacks can read the latest value synchronously
   // without listing `chats` in their dependency arrays (which would recreate
   // them on every streaming chunk).
@@ -150,32 +154,35 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         }));
 
         const currentId = initialActiveChatIdRef.current;
-        const existsInList = chatList.find((c) => c.id === currentId);
+        // Был ли чат задан явно в URL. Если нет — currentId пришёл из localStorage
+        // (память последнего чата) и вполне может оказаться устаревшим/удалённым.
+        const fromUrl = !!initialPropChatIdRef.current;
+        const existsInList = chatList.some((c) => c.id === currentId);
 
         if (currentId === DRAFT_CHAT_ID) {
           // Перезагрузка на черновике: бэк о нём ничего не знает и знать не должен.
           // Показываем свежий пустой черновик, не пытаясь его грузить (никакой ошибки).
           setChats([makeDraft(), ...chatList]);
-        } else if (currentId && !existsInList) {
-          // ID из URL/localStorage не найден в списке — добавляем заглушку,
-          // loadMessages попробует загрузить и пометит как ошибку.
-          // Автоматически НЕ переключаемся — пусть пользователь видит ошибку.
+        } else if (currentId && existsInList) {
+          // Чат из URL/localStorage реально существует — открываем как есть.
+          setChats(chatList);
+        } else if (currentId && fromUrl) {
+          // Явный ?chat=<id> в URL, которого больше нет (устаревшая ссылка) —
+          // показываем «не найдено». Автоматически НЕ переключаемся: пользователь
+          // перешёл по конкретной ссылке и должен увидеть, что чат недоступен.
           const placeholder = { id: currentId, title: '...', messages: null, createdAt: null, model: null };
           setChats([placeholder, ...chatList]);
         } else {
-          if (!currentId) {
-            const firstId = chatList[0]?.id;
-            if (firstId) {
-              // URL был пустой — открываем первый чат
-              setChats(chatList);
-              selectChat(firstId);
-            } else {
-              // Чатов нет вообще — стартуем с черновика, а не с пустого экрана.
-              setChats([makeDraft()]);
-              selectChat(DRAFT_CHAT_ID);
-            }
-          } else {
+          // Чат в URL не задан (его нет вовсе, либо id из localStorage устарел) —
+          // ошибку НЕ показываем: открываем первый существующий чат, а если чатов
+          // нет — стартуем с пустого черновика «new» (поведение как у «Новый чат»).
+          const firstId = chatList[0]?.id;
+          if (firstId) {
             setChats(chatList);
+            selectChat(firstId);
+          } else {
+            setChats([makeDraft()]);
+            selectChat(DRAFT_CHAT_ID);
           }
         }
       } catch (err) {
@@ -328,6 +335,12 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
 
   const activeMessages = useMemo(() => chats.find((c) => c.id === activeChatId)?.messages || [], [chats, activeChatId]);
   const activeChat = useMemo(() => chats.find((c) => c.id === activeChatId) || null, [chats, activeChatId]);
+
+  // Список для сайдбара: черновик «new» не показываем, пока в нём нет сообщений.
+  // Он промоутится в реальный чат (с UUID и draft:false) при отправке первого
+  // сообщения — тогда и появляется пунктом в списке. В главном окне черновик при
+  // этом остаётся активным (берётся из полного chats), печатать в него можно.
+  const visibleChats = useMemo(() => chats.filter((c) => c.id !== DRAFT_CHAT_ID), [chats]);
 
   // Опции для селектора: модели из конфига + дефолтная (если её нет в списке — добавляем).
   const modelOptions = useMemo(() => {
@@ -861,7 +874,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     <div className="chat-app-container">
       {/* ── Left sidebar: chat list only ── */}
       <ChatList
-        chats={chats}
+        chats={visibleChats}
         activeChatId={activeChatId}
         onSelectChat={handleSelectChat}
         onNewChat={handleNewChat}
