@@ -116,7 +116,7 @@ jobs:
 
       - name: Upload CRA build output
         if: success()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-build
           path: ${{ env.FRONTEND_DIR }}/build
