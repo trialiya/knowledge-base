@@ -13,7 +13,6 @@ import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.utils.ChatUtils;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -122,12 +121,12 @@ public class ChatMemoryService implements ChatMemoryRepository {
     private Page toPage(List<ChatMessageEntity> rowsDesc, int limit) {
         boolean hasMore = rowsDesc.size() > limit;
         List<ChatMessageEntity> chrono =
-                new ArrayList<>(hasMore ? rowsDesc.subList(0, limit) : rowsDesc);
-        Collections.reverse(chrono); // newest-first -> хронологический
+                (hasMore ? rowsDesc.subList(0, limit) : rowsDesc).reversed();
         MessageCursor cursor =
                 chrono.isEmpty()
                         ? null
-                        : new MessageCursor(chrono.get(0).getCreatedAt(), chrono.get(0).getId());
+                        : new MessageCursor(
+                                chrono.getFirst().getCreatedAt(), chrono.getFirst().getId());
         return new Page(chrono, hasMore, cursor);
     }
 
