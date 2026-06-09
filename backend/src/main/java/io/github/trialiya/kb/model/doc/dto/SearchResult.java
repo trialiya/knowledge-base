@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 public record SearchResult(
-        String id,
+        Long id,
         String title,
         String snippet,
         LocalDateTime updatedAt,
@@ -18,7 +18,7 @@ public record SearchResult(
         List<Parent> parentList)
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
-    public record Parent(String id, String title) {}
+    public record Parent(long id, String title) {}
 
     @Override
     public String getFormattedResponse() {

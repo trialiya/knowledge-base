@@ -81,8 +81,7 @@ public class DocumentRepositoryCustomImpl implements DocumentRepositoryCustom {
                     result.computeIfAbsent(seedId, k -> new ArrayList<>())
                             .add(
                                     new SearchResult.Parent(
-                                            String.valueOf(rs.getLong("ancestor_id")),
-                                            rs.getString("title")));
+                                            rs.getLong("ancestor_id"), rs.getString("title")));
                 },
                 ids.toArray());
         return result;

@@ -20,7 +20,7 @@ public record DocumentShort(
         long id,
         String title,
         String type,
-        String parentId,
+        Long parentId,
         int version,
         int descriptionVersion,
         LocalDateTime updatedAt,

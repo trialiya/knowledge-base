@@ -26,7 +26,7 @@ import java.util.Map;
  *     {@code null} while {@link #summary} is {@code null}.
  */
 public record DocumentNode(
-        String id,
+        long id,
         String title,
         String type,
         Long parentId,

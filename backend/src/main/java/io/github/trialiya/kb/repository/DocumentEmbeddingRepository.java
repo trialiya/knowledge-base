@@ -78,7 +78,7 @@ public class DocumentEmbeddingRepository {
                 },
                 (rs, rowNum) ->
                         new SemanticSearchResult(
-                                rs.getString("document_id"),
+                                rs.getLong("document_id"),
                                 rs.getString("title"),
                                 rs.getString("description"),
                                 rs.getTimestamp("updated_at") != null

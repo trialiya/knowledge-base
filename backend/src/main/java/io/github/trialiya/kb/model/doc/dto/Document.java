@@ -26,7 +26,7 @@ public record Document(
         long id,
         String title,
         String type,
-        String parentId,
+        Long parentId,
         int version,
         int descriptionVersion,
         String description,

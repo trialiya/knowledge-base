@@ -19,8 +19,8 @@ import lombok.Data;
 @Data
 public class ReorderRequest {
     /** ID of the parent folder, or {@code null} for root-level items. */
-    private String parentId;
+    private Long parentId;
 
     /** Sibling IDs in the desired display order (all siblings must be included). */
-    private List<String> orderedIds;
+    private List<Long> orderedIds;
 }

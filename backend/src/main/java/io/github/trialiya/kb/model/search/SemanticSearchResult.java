@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
  * @param similarity cosine similarity in [0, 1] – higher is more relevant
  */
 public record SemanticSearchResult(
-        String id,
+        long id,
         String title,
         String description,
         LocalDateTime updatedAt,

@@ -109,8 +109,8 @@ public class DocumentService {
      * Returns ancestor IDs from root down to (but not including) the given node. e.g. node at depth
      * 3 → [rootId, folderId, parentFolderId]. Empty list for root-level nodes.
      */
-    public List<String> getAncestorIds(Long id) {
-        return repo.findAncestorIds(id).stream().map(String::valueOf).collect(Collectors.toList());
+    public List<Long> getAncestorIds(Long id) {
+        return repo.findAncestorIds(id);
     }
 
     /**
@@ -147,7 +147,7 @@ public class DocumentService {
                 .map(
                         e ->
                                 new DocumentNode(
-                                        String.valueOf(e.getId()),
+                                        e.getId(),
                                         e.getTitle(),
                                         e.getType(),
                                         e.getParentId(),
@@ -173,7 +173,7 @@ public class DocumentService {
                         .map(
                                 c ->
                                         new DocumentNode(
-                                                String.valueOf(c.getId()),
+                                                c.getId(),
                                                 c.getTitle(),
                                                 c.getType(),
                                                 c.getParentId(),
@@ -191,7 +191,7 @@ public class DocumentService {
                                                 c.getSummarySourceVersion()))
                         .collect(Collectors.toList());
         return new DocumentNode(
-                String.valueOf(e.getId()),
+                e.getId(),
                 e.getTitle(),
                 e.getType(),
                 e.getParentId(),
@@ -210,7 +210,7 @@ public class DocumentService {
     private DocumentNode toStubNode(DocumentEntity e) {
         boolean hc = repo.hasChildren(e.getId());
         return new DocumentNode(
-                String.valueOf(e.getId()),
+                e.getId(),
                 e.getTitle(),
                 e.getType(),
                 e.getParentId(),
@@ -239,7 +239,7 @@ public class DocumentService {
                         .collect(Collectors.toList());
         boolean hc = !children.isEmpty() || repo.hasChildren(e.getId());
         return new DocumentNode(
-                String.valueOf(e.getId()),
+                e.getId(),
                 e.getTitle(),
                 e.getType(),
                 e.getParentId(),
@@ -424,15 +424,14 @@ public class DocumentService {
      */
     @Transactional
     public void reorder(ReorderRequest req) {
-        List<String> ids = req.getOrderedIds();
+        List<Long> ids = req.getOrderedIds();
         if (ids == null || ids.isEmpty()) return;
 
-        List<Long> longIds = ids.stream().map(Long::parseLong).collect(Collectors.toList());
-        Set<Long> systemIds = repo.findSystemIdsByIdIn(longIds);
+        Set<Long> systemIds = repo.findSystemIdsByIdIn(ids);
 
         Map<Long, Integer> positionMap = new LinkedHashMap<>();
         for (int i = 0; i < ids.size(); i++) {
-            Long nodeId = Long.parseLong(ids.get(i));
+            Long nodeId = ids.get(i);
             if (!systemIds.contains(nodeId)) {
                 positionMap.put(nodeId, i);
             }
@@ -561,7 +560,7 @@ public class DocumentService {
     }
 
     private record RawSearchResult(
-            String id, String title, String snippet, LocalDateTime updatedAt, String summary) {}
+            long id, String title, String snippet, LocalDateTime updatedAt, String summary) {}
 
     /** Keyword hits without breadcrumbs — shared building block for {@link #hybridSearch}. */
     private List<RawSearchResult> keywordHits(String q) {
@@ -569,7 +568,7 @@ public class DocumentService {
                 .map(
                         e ->
                                 new RawSearchResult(
-                                        String.valueOf(e.getId()),
+                                        e.getId(),
                                         e.getTitle(),
                                         generateSnippet(e.getDescription(), q.toLowerCase()),
                                         e.getUpdatedAt(),
@@ -636,7 +635,7 @@ public class DocumentService {
 
         // ── 1. Keyword hits ───────────────────────────────────────────────────
         List<RawSearchResult> kwResults = keywordHits(q);
-        Map<String, Double> kwScores = new LinkedHashMap<>();
+        Map<Long, Double> kwScores = new LinkedHashMap<>();
         int kwSize = kwResults.size();
         for (int i = 0; i < kwSize; i++) {
             kwScores.put(kwResults.get(i).id(), (double) (kwSize - i) / kwSize);
@@ -645,13 +644,13 @@ public class DocumentService {
         // ── 2. Semantic hits ──────────────────────────────────────────────────
         List<SemanticSearchResult> semResults =
                 semanticSearchService.search(q, thr, searchConfig.semantic().limit());
-        Map<String, Double> semScores = new LinkedHashMap<>();
+        Map<Long, Double> semScores = new LinkedHashMap<>();
         for (SemanticSearchResult r : semResults) {
             semScores.put(r.id(), r.similarity());
         }
 
         // ── 3. Build unified candidate set ────────────────────────────────────
-        Map<String, RawSearchResult> snippets = new HashMap<>();
+        Map<Long, RawSearchResult> snippets = new HashMap<>();
         for (RawSearchResult sr : kwResults) {
             snippets.put(sr.id(), sr);
         }
@@ -696,8 +695,7 @@ public class DocumentService {
             return List.of();
         }
 
-        List<Long> ids =
-                results.stream().map(r -> Long.parseLong(r.id())).collect(Collectors.toList());
+        List<Long> ids = results.stream().map(RawSearchResult::id).collect(Collectors.toList());
         final Map<Long, List<SearchResult.Parent>> ancestors = repo.findAncestorsByIds(ids);
 
         return results.stream()
@@ -709,7 +707,7 @@ public class DocumentService {
                                         r.snippet(),
                                         r.updatedAt(),
                                         r.summary(),
-                                        ancestors.getOrDefault(Long.parseLong(r.id()), List.of())))
+                                        ancestors.getOrDefault(r.id(), List.of())))
                 .collect(Collectors.toList());
     }
 
@@ -745,7 +743,7 @@ public class DocumentService {
                 e.getId(),
                 e.getTitle(),
                 e.getType(),
-                e.getParentId() == null ? null : String.valueOf(e.getParentId()),
+                e.getParentId(),
                 e.getVersion(),
                 e.getDescriptionVersion(),
                 null, // description omitted — fetch via GET /api/documents/{id}
@@ -770,7 +768,7 @@ public class DocumentService {
 
     private DocumentHistoryShort toHistoryShortDto(DocumentHistoryShortResult e) {
         return new DocumentHistoryShort(
-                String.valueOf(e.documentId()),
+                e.documentId(),
                 e.version(),
                 e.descriptionVersion(),
                 e.title(),

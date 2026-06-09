@@ -67,7 +67,7 @@ const ChatDocLink = ({ href, children, onNavigateToDoc, ...rest }) => {
 
   const navigateToDoc = useCallback(
     (id) => {
-      if (onNavigateToDoc) onNavigateToDoc(String(id));
+      if (onNavigateToDoc) onNavigateToDoc(id);
     },
     [onNavigateToDoc],
   );
@@ -204,7 +204,7 @@ function parseDocId(href) {
     const url = new URL(href, window.location.origin);
     if (url.origin !== window.location.origin) return null;
     const doc = url.searchParams.get('doc');
-    return doc && /^\d+$/.test(doc) ? doc : null;
+    return doc && /^\d+$/.test(doc) ? Number(doc) : null;
   } catch {
     return null;
   }

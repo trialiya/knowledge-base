@@ -88,9 +88,9 @@ const DocLinkTooltip = ({ href, children, tree, onNavigate, ...rest }) => {
   const navigateToDoc = useCallback(
     (id) => {
       if (onNavigate) {
-        onNavigate(String(id));
+        onNavigate(id);
       } else {
-        window.dispatchEvent(new CustomEvent('app:navigate-doc', { detail: { docId: String(id) } }));
+        window.dispatchEvent(new CustomEvent('app:navigate-doc', { detail: { docId: id } }));
       }
     },
     [onNavigate],
@@ -322,7 +322,9 @@ function parseDocId(href) {
     if (url.origin !== window.location.origin) return null;
 
     const doc = url.searchParams.get('doc');
-    return doc && /^\d+$/.test(doc) ? doc : null;
+    // ids are numeric end-to-end now — parse the (always-string) URL param to a
+    // Number here so downstream comparisons against the tree are number↔number.
+    return doc && /^\d+$/.test(doc) ? Number(doc) : null;
   } catch {
     return null;
   }

@@ -60,7 +60,7 @@ public class DocumentController {
      * <pre>GET /api/documents/{id}/ancestors → ["1", "7", "42"]</pre>
      */
     @GetMapping("/{id}/ancestors")
-    public List<String> getAncestors(@PathVariable long id) {
+    public List<Long> getAncestors(@PathVariable long id) {
         return service.getAncestorIds(id);
     }
 

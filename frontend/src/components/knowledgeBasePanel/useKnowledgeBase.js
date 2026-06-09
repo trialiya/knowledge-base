@@ -286,10 +286,14 @@ export default function useKnowledgeBase({
   const navigateToDocById = useCallback(
     async (docId, opts = {}) => {
       if (!docId) return;
+      // docId can arrive as a string (URL ?doc=N, doc-link href) or a number
+      // (tree/selection). ids are numeric end-to-end now, so normalize once
+      // here — every tree lookup below is then number↔number.
+      const id = Number(docId);
 
       // If the doc is already in the tree, still fetch the full document — the
       // tree node holds only a snippet, not the full description.
-      const existing = findNodeById(tree, docId);
+      const existing = findNodeById(tree, id);
       if (existing) {
         fetchFullAndSelect(existing, opts);
         return;
@@ -301,20 +305,20 @@ export default function useKnowledgeBase({
         if (baseTree.length === 0) {
           baseTree = await loadTree();
         }
-        const cur = await materializePathTo(docId, baseTree);
+        const cur = await materializePathTo(id, baseTree);
 
-        const target = findNodeById(cur, docId);
+        const target = findNodeById(cur, id);
         if (target) {
           // Fetch the full document (the tree stub has only a snippet).
           // FolderDetail's useFolderChildren loads folder children separately
           // (deduplicated); no child fetch needed here.
           fetchFullAndSelect(target, opts);
         } else {
-          setNotFoundDocId(docId);
+          setNotFoundDocId(id);
         }
       } catch (err) {
-        if (err.status === 404) setNotFoundDocId(docId);
-        else setDocLoadError({ status: err.status || 'network', docId });
+        if (err.status === 404) setNotFoundDocId(id);
+        else setDocLoadError({ status: err.status || 'network', docId: id });
       }
     },
     [tree, fetchFullAndSelect, loadTree, materializePathTo],
@@ -335,7 +339,7 @@ export default function useKnowledgeBase({
         fetchFullAndSelect(nodeOrId, { notify: true });
         return;
       }
-      const id = String(nodeOrId);
+      const id = Number(nodeOrId);
       const existing = findNodeById(tree, id);
       if (existing) {
         fetchFullAndSelect(existing, { notify: true });

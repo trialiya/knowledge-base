@@ -97,33 +97,33 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   // (его держит useAppNavigation в App). Локальные выборы поднимаются наверх
   // через onSelectChat и возвращаются сюда уже как проп.
   const [activeChatId, setActiveChatId] = useState(
-      propActiveChatId || localStorage.getItem(STORAGE_KEY_ACTIVE_ID) || null,
+    propActiveChatId || localStorage.getItem(STORAGE_KEY_ACTIVE_ID) || null,
   );
 
   // Поднять выбор чата наверх (в навигацию). Локальный стейт обновится, когда
   // App вернёт новый propActiveChatId — но мы также обновляем его сразу, чтобы
   // не зависеть от round-trip и сохранить мгновенную реакцию UI.
   const selectChat = useCallback(
-      (id) => {
-        setActiveChatId(id);
-        if (id) localStorage.setItem(STORAGE_KEY_ACTIVE_ID, id);
-        if (onSelectChat) onSelectChat(id);
-      },
-      [onSelectChat],
+    (id) => {
+      setActiveChatId(id);
+      if (id) localStorage.setItem(STORAGE_KEY_ACTIVE_ID, id);
+      if (onSelectChat) onSelectChat(id);
+    },
+    [onSelectChat],
   );
   const [isLoading, setIsLoading] = useState(false);
 
   // Создаёт объект черновика. model берём из последней использованной (localStorage),
   // иначе сработает фолбэк на дефолтную модель в selectedModelId/отправке.
   const makeDraft = useCallback(
-      () => ({
-        id: DRAFT_CHAT_ID,
-        title: tRef.current('window.defaultTitle'),
-        messages: [],
-        model: lastModelRef.current || null,
-        draft: true,
-      }),
-      [],
+    () => ({
+      id: DRAFT_CHAT_ID,
+      title: tRef.current('window.defaultTitle'),
+      messages: [],
+      model: lastModelRef.current || null,
+      draft: true,
+    }),
+    [],
   );
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
@@ -174,11 +174,11 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   useEffect(() => {
     let cancelled = false;
     fetch('/api/chats/models')
-        .then((r) => (r.ok ? r.json() : null))
-        .then((cfg) => {
-          if (!cancelled) setModelConfig(cfg);
-        })
-        .catch((err) => console.error('Ошибка загрузки списка моделей:', err));
+      .then((r) => (r.ok ? r.json() : null))
+      .then((cfg) => {
+        if (!cancelled) setModelConfig(cfg);
+      })
+      .catch((err) => console.error('Ошибка загрузки списка моделей:', err));
     return () => {
       cancelled = true;
     };
@@ -272,17 +272,17 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       const data = await res.json();
       const newTitle = data.topic;
       setChats((prev) =>
-                   prev.map((chat) =>
-                                chat.id === chatId
-                                ? {
-                                      ...chat,
-                                      ...(newTitle ? { title: newTitle } : {}),
-                                      model: data.model ?? chat.model ?? null,
-                                      // не затираем уже имеющийся createdAt, иначе берём из ответа
-                                      createdAt: chat.createdAt ?? data.createdAt ?? null,
-                                    }
-                                : chat,
-                   ),
+        prev.map((chat) =>
+          chat.id === chatId
+            ? {
+                ...chat,
+                ...(newTitle ? { title: newTitle } : {}),
+                model: data.model ?? chat.model ?? null,
+                // не затираем уже имеющийся createdAt, иначе берём из ответа
+                createdAt: chat.createdAt ?? data.createdAt ?? null,
+              }
+            : chat,
+        ),
       );
     } catch (err) {
       console.error('Ошибка обновления темы чата:', err);
@@ -301,18 +301,18 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     setLoadingMessages(true);
     try {
       const [metaRes, pageRes] = await Promise.all([
-                                                     fetch(`/api/chats/${encodeURIComponent(chatId)}?includeMessages=false`),
-                                                     fetch(`/api/chats/${encodeURIComponent(chatId)}/messages?limit=${PAGE_SIZE}`),
-                                                   ]);
+        fetch(`/api/chats/${encodeURIComponent(chatId)}?includeMessages=false`),
+        fetch(`/api/chats/${encodeURIComponent(chatId)}/messages?limit=${PAGE_SIZE}`),
+      ]);
 
       if (!metaRes.ok || !pageRes.ok) {
         const status = !metaRes.ok ? metaRes.status : pageRes.status;
         const isNotFound = status === 404;
         failedChatIdsRef.current.add(chatId);
         setChats((prev) =>
-                     prev.map((chat) =>
-                                  chat.id === chatId ? { ...chat, messages: [], notFound: isNotFound, loadError: status } : chat,
-                     ),
+          prev.map((chat) =>
+            chat.id === chatId ? { ...chat, messages: [], notFound: isNotFound, loadError: status } : chat,
+          ),
         );
         setChatErrorModal({ notFound: isNotFound, status });
         return;
@@ -324,28 +324,28 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
 
       failedChatIdsRef.current.delete(chatId);
       setChats((prev) =>
-                   prev.map((chat) =>
-                                chat.id === chatId
-                                ? {
-                                      ...chat,
-                                      messages: bubbles,
-                                      hasMore: !!page.hasMore,
-                                      oldestCursor: page.oldestCursor || null,
-                                      // metas, чей ассистент в ещё не загруженной более старой странице
-                                      pendingLeadingMetas: leadingMetas,
-                                      notFound: false,
-                                      loadError: null,
-                                      model: meta.model ?? null,
-                                    }
-                                : chat,
-                   ),
+        prev.map((chat) =>
+          chat.id === chatId
+            ? {
+                ...chat,
+                messages: bubbles,
+                hasMore: !!page.hasMore,
+                oldestCursor: page.oldestCursor || null,
+                // metas, чей ассистент в ещё не загруженной более старой странице
+                pendingLeadingMetas: leadingMetas,
+                notFound: false,
+                loadError: null,
+                model: meta.model ?? null,
+              }
+            : chat,
+        ),
       );
     } catch (err) {
       // Сетевая ошибка или иное исключение
       console.error('Ошибка загрузки сообщений:', err);
       failedChatIdsRef.current.add(chatId);
       setChats((prev) =>
-                   prev.map((chat) => (chat.id === chatId ? { ...chat, messages: [], loadError: 'network' } : chat)),
+        prev.map((chat) => (chat.id === chatId ? { ...chat, messages: [], loadError: 'network' } : chat)),
       );
       setChatErrorModal({ notFound: false, status: 'network' });
     } finally {
@@ -363,8 +363,8 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     try {
       const { createdAt, id } = chat.oldestCursor;
       const url =
-          `/api/chats/${encodeURIComponent(chatId)}/messages` +
-          `?beforeCreatedAt=${encodeURIComponent(createdAt)}&beforeId=${encodeURIComponent(id)}&limit=${PAGE_SIZE}`;
+        `/api/chats/${encodeURIComponent(chatId)}/messages` +
+        `?beforeCreatedAt=${encodeURIComponent(createdAt)}&beforeId=${encodeURIComponent(id)}&limit=${PAGE_SIZE}`;
       const res = await fetch(url);
       if (!res.ok) return false;
       const page = await res.json(); // { messages, hasMore, oldestCursor }
@@ -376,20 +376,20 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       }
 
       setChats((prev) =>
-                   prev.map((c) => {
-                     if (c.id !== chatId) return c;
-                     const merged = olderBubbles.slice();
-                     // Крошки с прошлой (более новой) границы — их ассистент мог оказаться
-                     // в этой странице. Прицепляем; что не прицепилось — несём дальше вверх.
-                     const carry = attachLeadingMetas(merged, c.pendingLeadingMetas);
-                     return {
-                       ...c,
-                       messages: [...merged, ...(c.messages || [])],
-                       hasMore: !!page.hasMore,
-                       oldestCursor: page.oldestCursor || c.oldestCursor,
-                       pendingLeadingMetas: [...(leadingMetas || []), ...carry],
-                     };
-                   }),
+        prev.map((c) => {
+          if (c.id !== chatId) return c;
+          const merged = olderBubbles.slice();
+          // Крошки с прошлой (более новой) границы — их ассистент мог оказаться
+          // в этой странице. Прицепляем; что не прицепилось — несём дальше вверх.
+          const carry = attachLeadingMetas(merged, c.pendingLeadingMetas);
+          return {
+            ...c,
+            messages: [...merged, ...(c.messages || [])],
+            hasMore: !!page.hasMore,
+            oldestCursor: page.oldestCursor || c.oldestCursor,
+            pendingLeadingMetas: [...(leadingMetas || []), ...carry],
+          };
+        }),
       );
       return true;
     } catch (err) {
@@ -426,9 +426,9 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     if (!activeChatId || activeChatId === DRAFT_CHAT_ID) return;
     setAttachCount(0);
     fetch(`/api/chats/${encodeURIComponent(activeChatId)}/attachments/count`)
-        .then((r) => (r.ok ? r.json() : 0))
-        .then((count) => setAttachCount(typeof count === 'number' ? count : 0))
-        .catch(() => setAttachCount(0));
+      .then((r) => (r.ok ? r.json() : 0))
+      .then((count) => setAttachCount(typeof count === 'number' ? count : 0))
+      .catch(() => setAttachCount(0));
   }, [activeChatId]);
 
   const activeMessages = useMemo(() => chats.find((c) => c.id === activeChatId)?.messages || [], [chats, activeChatId]);
@@ -468,158 +468,182 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
 
   // Отправка сообщения
   const handleSendMessage = useCallback(
-      async (text) => {
-        if (!activeChatId) return;
+    async (text) => {
+      if (!activeChatId) return;
 
-        // Если активный чат недоступен (не найден / ошибка загрузки) —
-        // не отправляем запрос, а показываем модалку.
-        const chatForSend = chatsRef.current.find((c) => c.id === activeChatId);
-        if (chatForSend?.notFound || chatForSend?.loadError) {
-          setChatErrorModal({
-                              notFound: !!chatForSend.notFound,
-                              status: chatForSend.loadError,
-                            });
-          return;
+      // Если активный чат недоступен (не найден / ошибка загрузки) —
+      // не отправляем запрос, а показываем модалку.
+      const chatForSend = chatsRef.current.find((c) => c.id === activeChatId);
+      if (chatForSend?.notFound || chatForSend?.loadError) {
+        setChatErrorModal({
+          notFound: !!chatForSend.notFound,
+          status: chatForSend.loadError,
+        });
+        return;
+      }
+
+      // Вычисляем индекс нового AI-сообщения СИНХРОННО, до setChats.
+      // Updater в setChats выполняется асинхронно, поэтому нельзя
+      // полагаться на значение, присвоенное внутри него.
+      const currentChat = chatsRef.current.find((c) => c.id === activeChatId);
+      const baseMessages = currentChat?.messages || [];
+      // После добавления [user, ai] AI-сообщение будет последним.
+      const initialAiIndex = baseMessages.length + 1;
+
+      // Черновик: настоящий conversationId (UUID) рождается именно сейчас.
+      // Для обычного чата conversationId === activeChatId.
+      const isDraft = activeChatId === DRAFT_CHAT_ID;
+      const conversationId = isDraft ? generateUUID() : activeChatId;
+
+      // Модель, с которой шлём. Всегда явная: выбранная у чата → последняя → дефолтная.
+      const selected = chatForSend?.model;
+      const modelForSend =
+        selected && modelOptions.some((o) => o.id === selected)
+          ? selected
+          : lastModelRef.current && modelOptions.some((o) => o.id === lastModelRef.current)
+          ? lastModelRef.current
+          : modelConfig?.defaultModel?.id || null;
+      // Запоминаем как «последнюю» — новый чат стартует именно с неё.
+      if (modelForSend) {
+        lastModelRef.current = modelForSend;
+        try {
+          localStorage.setItem(STORAGE_KEY_LAST_MODEL, modelForSend);
+        } catch {
+          /* ignore quota errors */
         }
+      }
 
-        // Вычисляем индекс нового AI-сообщения СИНХРОННО, до setChats.
-        // Updater в setChats выполняется асинхронно, поэтому нельзя
-        // полагаться на значение, присвоенное внутри него.
-        const currentChat = chatsRef.current.find((c) => c.id === activeChatId);
-        const baseMessages = currentChat?.messages || [];
-        // После добавления [user, ai] AI-сообщение будет последним.
-        const initialAiIndex = baseMessages.length + 1;
+      setChats((prev) => {
+        const found = prev.find((c) => c.id === activeChatId);
+        if (!found) return prev;
+        const newMessages = [...(found.messages || []), { text, sender: 'user' }, { text: '', sender: 'ai' }];
+        // Промоушен черновика: присваиваем реальный id и проставляем явную модель.
+        const updatedChat = {
+          ...found,
+          id: conversationId,
+          draft: false,
+          model: modelForSend ?? found.model ?? null,
+          messages: newMessages,
+        };
+        const otherChats = prev.filter((c) => c.id !== activeChatId);
+        return [updatedChat, ...otherChats];
+      });
 
-        // Черновик: настоящий conversationId (UUID) рождается именно сейчас.
-        // Для обычного чата conversationId === activeChatId.
-        const isDraft = activeChatId === DRAFT_CHAT_ID;
-        const conversationId = isDraft ? generateUUID() : activeChatId;
+      // Поднимаем реальный id в URL/навигацию: '/new' → '/<uuid>'.
+      if (isDraft) {
+        selectChat(conversationId);
+      }
 
-        // Модель, с которой шлём. Всегда явная: выбранная у чата → последняя → дефолтная.
-        const selected = chatForSend?.model;
-        const modelForSend =
-            selected && modelOptions.some((o) => o.id === selected)
-            ? selected
-            : lastModelRef.current && modelOptions.some((o) => o.id === lastModelRef.current)
-              ? lastModelRef.current
-              : modelConfig?.defaultModel?.id || null;
-        // Запоминаем как «последнюю» — новый чат стартует именно с неё.
-        if (modelForSend) {
-          lastModelRef.current = modelForSend;
-          try {
-            localStorage.setItem(STORAGE_KEY_LAST_MODEL, modelForSend);
-          } catch {
-            /* ignore quota errors */
-          }
-        }
+      setIsLoading(true);
+      aiMessageTextRef.current = '';
+      aiMessageIndexRef.current = initialAiIndex;
+      toolCallsRef.current = [];
 
-        setChats((prev) => {
-          const found = prev.find((c) => c.id === activeChatId);
-          if (!found) return prev;
-          const newMessages = [...(found.messages || []), { text, sender: 'user' }, { text: '', sender: 'ai' }];
-          // Промоушен черновика: присваиваем реальный id и проставляем явную модель.
-          const updatedChat = {
-            ...found,
-            id: conversationId,
-            draft: false,
-            model: modelForSend ?? found.model ?? null,
-            messages: newMessages,
-          };
-          const otherChats = prev.filter((c) => c.id !== activeChatId);
-          return [updatedChat, ...otherChats];
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+
+      try {
+        const params = modelForSend ? `?model=${encodeURIComponent(modelForSend)}` : '';
+        const url = `/api/chats/${encodeURIComponent(conversationId)}/messages/stream${params}`;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/event-stream' },
+          body: text,
+          signal: abortController.signal,
         });
 
-        // Поднимаем реальный id в URL/навигацию: '/new' → '/<uuid>'.
-        if (isDraft) {
-          selectChat(conversationId);
-        }
+        if (!response.ok) throw new Error('Network response was not ok');
 
-        setIsLoading(true);
-        aiMessageTextRef.current = '';
-        aiMessageIndexRef.current = initialAiIndex;
-        toolCallsRef.current = [];
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
 
-        const abortController = new AbortController();
-        abortControllerRef.current = abortController;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-        try {
-          const params = modelForSend ? `?model=${encodeURIComponent(modelForSend)}` : '';
-          const url = `/api/chats/${encodeURIComponent(conversationId)}/messages/stream${params}`;
-          const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/event-stream' },
-            body: text,
-            signal: abortController.signal,
-          });
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
 
-          if (!response.ok) throw new Error('Network response was not ok');
+          for (const line of lines) {
+            const trimmedLine = line.trim();
+            if (trimmedLine.startsWith('data:')) {
+              const jsonString = trimmedLine.slice(5).trim();
+              if (jsonString === '[DONE]') {
+                aiMessageTextRef.current = aiMessageTextRef.current.trimEnd();
+                setChats((prev) => {
+                  const chatIndex = prev.findIndex((c) => c.id === conversationId);
+                  if (chatIndex === -1) return prev;
+                  const updated = { ...prev[chatIndex] };
+                  const messages = [...updated.messages];
+                  const idx = aiMessageIndexRef.current;
+                  if (messages[idx]?.sender === 'ai') {
+                    messages[idx] = { ...messages[idx], text: aiMessageTextRef.current };
+                    updated.messages = messages;
+                  }
+                  const others = prev.filter((c) => c.id !== conversationId);
+                  return [updated, ...others];
+                });
+                fetchAndUpdateTitle(conversationId);
+                setIsLoading(false);
+                return;
+              }
 
-          const reader = response.body.getReader();
-          const decoder = new TextDecoder('utf-8');
-          let buffer = '';
+              if (!jsonString) continue;
 
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
+              let textChanged = false;
+              let shouldFinishSegment = false;
+              let isDone = false;
+              let toolCallChanged = false;
+              try {
+                const parsed = JSON.parse(jsonString);
+                const reason = (parsed.finishReason || '').trim();
 
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-
-            for (const line of lines) {
-              const trimmedLine = line.trim();
-              if (trimmedLine.startsWith('data:')) {
-                const jsonString = trimmedLine.slice(5).trim();
-                if (jsonString === '[DONE]') {
-                  aiMessageTextRef.current = aiMessageTextRef.current.trimEnd();
-                  setChats((prev) => {
-                    const chatIndex = prev.findIndex((c) => c.id === conversationId);
-                    if (chatIndex === -1) return prev;
-                    const updated = { ...prev[chatIndex] };
-                    const messages = [...updated.messages];
-                    const idx = aiMessageIndexRef.current;
-                    if (messages[idx]?.sender === 'ai') {
-                      messages[idx] = { ...messages[idx], text: aiMessageTextRef.current };
-                      updated.messages = messages;
-                    }
-                    const others = prev.filter((c) => c.id !== conversationId);
-                    return [updated, ...others];
-                  });
-                  fetchAndUpdateTitle(conversationId);
-                  setIsLoading(false);
-                  return;
+                // ── Tool call events ──
+                if (parsed.toolCall) {
+                  const tc = parsed.toolCall;
+                  const argsKey = JSON.stringify(tc.arguments || {});
+                  const existingIdx = toolCallsRef.current.findIndex(
+                    (t) => t.name === tc.name && JSON.stringify(t.arguments || {}) === argsKey,
+                  );
+                  if (existingIdx >= 0) {
+                    toolCallsRef.current = toolCallsRef.current.map((t, i) =>
+                      i === existingIdx
+                        ? {
+                            ...t,
+                            status: tc.status,
+                            error: tc.error,
+                            resultGist: tc.resultGist ?? t.resultGist,
+                            resultMeta: tc.resultMeta ?? t.resultMeta,
+                          }
+                        : t,
+                    );
+                  } else {
+                    toolCallsRef.current = [
+                      ...toolCallsRef.current,
+                      {
+                        name: tc.name,
+                        arguments: tc.arguments,
+                        status: tc.status,
+                        error: tc.error,
+                        resultGist: tc.resultGist,
+                        resultMeta: tc.resultMeta,
+                      },
+                    ];
+                  }
+                  toolCallChanged = true;
                 }
 
-                if (!jsonString) continue;
-
-                let textChanged = false;
-                let shouldFinishSegment = false;
-                let isDone = false;
-                let toolCallChanged = false;
-                try {
-                  const parsed = JSON.parse(jsonString);
-                  const reason = (parsed.finishReason || '').trim();
-
-                  // ── Tool call events ──
-                  if (parsed.toolCall) {
-                    const tc = parsed.toolCall;
-                    const argsKey = JSON.stringify(tc.arguments || {});
-                    const existingIdx = toolCallsRef.current.findIndex(
-                        (t) => t.name === tc.name && JSON.stringify(t.arguments || {}) === argsKey,
+                // ── toolCalls summary (final, from onComplete) ──
+                if (parsed.toolCalls && Array.isArray(parsed.toolCalls)) {
+                  // Merge any missing tool calls from the summary
+                  for (const tc of parsed.toolCalls) {
+                    const argsKey = JSON.stringify(tc?.arguments || {});
+                    const exists = toolCallsRef.current.some(
+                      (t) => t.name === tc.name && JSON.stringify(t.arguments || {}) === argsKey,
                     );
-                    if (existingIdx >= 0) {
-                      toolCallsRef.current = toolCallsRef.current.map((t, i) =>
-                                                                          i === existingIdx
-                                                                          ? {
-                                                                                ...t,
-                                                                                status: tc.status,
-                                                                                error: tc.error,
-                                                                                resultGist: tc.resultGist ?? t.resultGist,
-                                                                                resultMeta: tc.resultMeta ?? t.resultMeta,
-                                                                              }
-                                                                          : t,
-                      );
-                    } else {
+                    if (!exists) {
                       toolCallsRef.current = [
                         ...toolCallsRef.current,
                         {
@@ -631,144 +655,137 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
                           resultMeta: tc.resultMeta,
                         },
                       ];
-                    }
-                    toolCallChanged = true;
-                  }
-
-                  // ── toolCalls summary (final, from onComplete) ──
-                  if (parsed.toolCalls && Array.isArray(parsed.toolCalls)) {
-                    // Merge any missing tool calls from the summary
-                    for (const tc of parsed.toolCalls) {
-                      const argsKey = JSON.stringify(tc?.arguments || {});
-                      const exists = toolCallsRef.current.some(
-                          (t) => t.name === tc.name && JSON.stringify(t.arguments || {}) === argsKey,
+                    } else {
+                      toolCallsRef.current = toolCallsRef.current.map((t) =>
+                        t.name === tc.name && JSON.stringify(t.arguments || {}) === argsKey
+                          ? {
+                              ...t,
+                              status: tc.status,
+                              error: tc.error,
+                              resultGist: tc.resultGist ?? t.resultGist,
+                              resultMeta: tc.resultMeta ?? t.resultMeta,
+                            }
+                          : t,
                       );
-                      if (!exists) {
-                        toolCallsRef.current = [
-                          ...toolCallsRef.current,
-                          {
-                            name: tc.name,
-                            arguments: tc.arguments,
-                            status: tc.status,
-                            error: tc.error,
-                            resultGist: tc.resultGist,
-                            resultMeta: tc.resultMeta,
-                          },
-                        ];
-                      } else {
-                        toolCallsRef.current = toolCallsRef.current.map((t) =>
-                                                                            t.name === tc.name && JSON.stringify(t.arguments || {}) === argsKey
-                                                                            ? {
-                                                                                  ...t,
-                                                                                  status: tc.status,
-                                                                                  error: tc.error,
-                                                                                  resultGist: tc.resultGist ?? t.resultGist,
-                                                                                  resultMeta: tc.resultMeta ?? t.resultMeta,
-                                                                                }
-                                                                            : t,
-                        );
-                      }
-                    }
-                    toolCallChanged = true;
-                  }
-
-                  // Текстовый контент — добавляем к накопленному.
-                  // Пропускаем пустые строки, а также ведущие переносы строк
-                  // в самом начале ответа (модель иногда шлёт "\n\n" первым чанком).
-                  if (parsed.message) {
-                    const isFirstChunk = aiMessageTextRef.current === '';
-                    const text = isFirstChunk ? parsed.message.replace(/^\n+/, '') : parsed.message;
-                    if (text) {
-                      aiMessageTextRef.current += text;
-                      textChanged = true;
                     }
                   }
-
-                  // DONE — бэкенд шлёт из onComplete(); финализируем весь ответ.
-                  if (reason === 'DONE') {
-                    isDone = true;
-                  }
-                      // TOOL_CALLS — модель вызвала инструмент, дальше будет новый
-                      // текстовый сегмент. Создаём новое AI-сообщение, но только если
-                  // в текущем уже накоплен непустой текст.
-                  else if (reason === 'TOOL_CALLS' && aiMessageTextRef.current.trim() !== '') {
-                    shouldFinishSegment = true;
-                  }
-                  // STOP — текстовый ответ закончен. НЕ создаём новый сегмент —
-                  // после STOP может прийти ещё DONE или пустые чанки.
-                  // Просто игнорируем.
-                } catch {
-                  /* ignore parse errors */
+                  toolCallChanged = true;
                 }
 
-                if (isDone) {
-                  aiMessageTextRef.current = aiMessageTextRef.current.trimEnd();
-                  const finalText = aiMessageTextRef.current;
-                  const finalToolCalls = [...toolCallsRef.current];
-                  const idx = aiMessageIndexRef.current;
-                  setChats((prev) => {
-                    const chatIndex = prev.findIndex((c) => c.id === conversationId);
-                    if (chatIndex === -1) return prev;
-                    const updated = { ...prev[chatIndex] };
-                    const messages = [...updated.messages];
-                    if (messages[idx]?.sender === 'ai') {
-                      messages[idx] = { ...messages[idx], text: finalText, toolCalls: finalToolCalls };
-                      updated.messages = messages;
-                    }
-                    const others = prev.filter((c) => c.id !== conversationId);
-                    return [updated, ...others];
-                  });
-                  fetchAndUpdateTitle(conversationId);
-                  setIsLoading(false);
-                  return;
+                // Текстовый контент — добавляем к накопленному.
+                // Пропускаем пустые строки, а также ведущие переносы строк
+                // в самом начале ответа (модель иногда шлёт "\n\n" первым чанком).
+                if (parsed.message) {
+                  const isFirstChunk = aiMessageTextRef.current === '';
+                  const text = isFirstChunk ? parsed.message.replace(/^\n+/, '') : parsed.message;
+                  if (text) {
+                    aiMessageTextRef.current += text;
+                    textChanged = true;
+                  }
                 }
 
-                if (shouldFinishSegment) {
-                  const finalText = aiMessageTextRef.current.trimEnd();
-                  const segmentToolCalls = [...toolCallsRef.current];
-                  aiMessageTextRef.current = '';
-                  toolCallsRef.current = [];
-                  const finishedIdx = aiMessageIndexRef.current;
-                  const newIdx = finishedIdx + 1;
-                  aiMessageIndexRef.current = newIdx;
-                  setChats((prev) => {
-                    const chatIndex = prev.findIndex((c) => c.id === conversationId);
-                    if (chatIndex === -1) return prev;
-                    const updated = { ...prev[chatIndex] };
-                    const messages = [...updated.messages];
-                    if (messages[finishedIdx]?.sender === 'ai') {
-                      messages[finishedIdx] = { ...messages[finishedIdx], text: finalText, toolCalls: segmentToolCalls };
-                    }
-                    if (messages.length <= newIdx) {
-                      messages.push({ text: '', sender: 'ai' });
-                    }
+                // DONE — бэкенд шлёт из onComplete(); финализируем весь ответ.
+                if (reason === 'DONE') {
+                  isDone = true;
+                }
+                // TOOL_CALLS — модель вызвала инструмент, дальше будет новый
+                // текстовый сегмент. Создаём новое AI-сообщение, но только если
+                // в текущем уже накоплен непустой текст.
+                else if (reason === 'TOOL_CALLS' && aiMessageTextRef.current.trim() !== '') {
+                  shouldFinishSegment = true;
+                }
+                // STOP — текстовый ответ закончен. НЕ создаём новый сегмент —
+                // после STOP может прийти ещё DONE или пустые чанки.
+                // Просто игнорируем.
+              } catch {
+                /* ignore parse errors */
+              }
+
+              if (isDone) {
+                aiMessageTextRef.current = aiMessageTextRef.current.trimEnd();
+                const finalText = aiMessageTextRef.current;
+                const finalToolCalls = [...toolCallsRef.current];
+                const idx = aiMessageIndexRef.current;
+                setChats((prev) => {
+                  const chatIndex = prev.findIndex((c) => c.id === conversationId);
+                  if (chatIndex === -1) return prev;
+                  const updated = { ...prev[chatIndex] };
+                  const messages = [...updated.messages];
+                  if (messages[idx]?.sender === 'ai') {
+                    messages[idx] = { ...messages[idx], text: finalText, toolCalls: finalToolCalls };
                     updated.messages = messages;
-                    const others = prev.filter((c) => c.id !== conversationId);
-                    return [updated, ...others];
-                  });
-                } else if (textChanged || toolCallChanged) {
-                  const idx = aiMessageIndexRef.current;
-                  const currentText = aiMessageTextRef.current;
-                  const currentToolCalls = [...toolCallsRef.current];
-                  setChats((prev) => {
-                    const chatIndex = prev.findIndex((c) => c.id === conversationId);
-                    if (chatIndex === -1) return prev;
-                    const updated = { ...prev[chatIndex] };
-                    const messages = [...updated.messages];
-                    if (messages[idx]?.sender === 'ai') {
-                      messages[idx] = { ...messages[idx], text: currentText, toolCalls: currentToolCalls };
-                      updated.messages = messages;
-                    }
-                    const others = prev.filter((c) => c.id !== conversationId);
-                    return [updated, ...others];
-                  });
-                }
+                  }
+                  const others = prev.filter((c) => c.id !== conversationId);
+                  return [updated, ...others];
+                });
+                fetchAndUpdateTitle(conversationId);
+                setIsLoading(false);
+                return;
+              }
+
+              if (shouldFinishSegment) {
+                const finalText = aiMessageTextRef.current.trimEnd();
+                const segmentToolCalls = [...toolCallsRef.current];
+                aiMessageTextRef.current = '';
+                toolCallsRef.current = [];
+                const finishedIdx = aiMessageIndexRef.current;
+                const newIdx = finishedIdx + 1;
+                aiMessageIndexRef.current = newIdx;
+                setChats((prev) => {
+                  const chatIndex = prev.findIndex((c) => c.id === conversationId);
+                  if (chatIndex === -1) return prev;
+                  const updated = { ...prev[chatIndex] };
+                  const messages = [...updated.messages];
+                  if (messages[finishedIdx]?.sender === 'ai') {
+                    messages[finishedIdx] = { ...messages[finishedIdx], text: finalText, toolCalls: segmentToolCalls };
+                  }
+                  if (messages.length <= newIdx) {
+                    messages.push({ text: '', sender: 'ai' });
+                  }
+                  updated.messages = messages;
+                  const others = prev.filter((c) => c.id !== conversationId);
+                  return [updated, ...others];
+                });
+              } else if (textChanged || toolCallChanged) {
+                const idx = aiMessageIndexRef.current;
+                const currentText = aiMessageTextRef.current;
+                const currentToolCalls = [...toolCallsRef.current];
+                setChats((prev) => {
+                  const chatIndex = prev.findIndex((c) => c.id === conversationId);
+                  if (chatIndex === -1) return prev;
+                  const updated = { ...prev[chatIndex] };
+                  const messages = [...updated.messages];
+                  if (messages[idx]?.sender === 'ai') {
+                    messages[idx] = { ...messages[idx], text: currentText, toolCalls: currentToolCalls };
+                    updated.messages = messages;
+                  }
+                  const others = prev.filter((c) => c.id !== conversationId);
+                  return [updated, ...others];
+                });
               }
             }
           }
+        }
 
-          // Поток завершился без [DONE]
-          aiMessageTextRef.current = aiMessageTextRef.current.trimEnd();
+        // Поток завершился без [DONE]
+        aiMessageTextRef.current = aiMessageTextRef.current.trimEnd();
+        setChats((prev) => {
+          const chatIndex = prev.findIndex((c) => c.id === conversationId);
+          if (chatIndex === -1) return prev;
+          const updated = { ...prev[chatIndex] };
+          const messages = [...updated.messages];
+          const idx = aiMessageIndexRef.current;
+          if (messages[idx]?.sender === 'ai') {
+            messages[idx] = { ...messages[idx], text: aiMessageTextRef.current };
+            updated.messages = messages;
+          }
+          const others = prev.filter((c) => c.id !== conversationId);
+          return [updated, ...others];
+        });
+        fetchAndUpdateTitle(conversationId);
+      } catch (error) {
+        if (error.name === 'AbortError') {
+          console.log('Stream aborted');
           setChats((prev) => {
             const chatIndex = prev.findIndex((c) => c.id === conversationId);
             if (chatIndex === -1) return prev;
@@ -776,63 +793,46 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
             const messages = [...updated.messages];
             const idx = aiMessageIndexRef.current;
             if (messages[idx]?.sender === 'ai') {
-              messages[idx] = { ...messages[idx], text: aiMessageTextRef.current };
+              messages[idx] = {
+                ...messages[idx],
+                text: (aiMessageTextRef.current || '').trimEnd() + ' ' + tRef.current('window.stopped'),
+              };
               updated.messages = messages;
             }
             const others = prev.filter((c) => c.id !== conversationId);
             return [updated, ...others];
           });
-          fetchAndUpdateTitle(conversationId);
-        } catch (error) {
-          if (error.name === 'AbortError') {
-            console.log('Stream aborted');
-            setChats((prev) => {
-              const chatIndex = prev.findIndex((c) => c.id === conversationId);
-              if (chatIndex === -1) return prev;
-              const updated = { ...prev[chatIndex] };
-              const messages = [...updated.messages];
-              const idx = aiMessageIndexRef.current;
-              if (messages[idx]?.sender === 'ai') {
-                messages[idx] = {
-                  ...messages[idx],
-                  text: (aiMessageTextRef.current || '').trimEnd() + ' ' + tRef.current('window.stopped'),
-                };
-                updated.messages = messages;
-              }
-              const others = prev.filter((c) => c.id !== conversationId);
-              return [updated, ...others];
-            });
-          } else {
-            console.error('Failed to send message:', error);
-            setChats((prev) => {
-              const chatIndex = prev.findIndex((c) => c.id === conversationId);
-              if (chatIndex === -1) return prev;
-              const updated = { ...prev[chatIndex] };
-              const messages = [...updated.messages];
-              const idx = aiMessageIndexRef.current;
-              if (messages[idx]?.sender === 'ai') {
-                const partial = (aiMessageTextRef.current || '').trimEnd();
-                // Пометку оборачиваем в markdown тут, а переводим только текст.
-                const note = `\n\n_**${tRef.current('message.interrupted')}**_`;
-                messages[idx] = {
-                  ...messages[idx],
-                  // если что-то успело прийти — оставляем и дописываем пометку,
-                  // иначе показываем обычный текст ошибки
-                  text: partial ? partial + note : tRef.current('window.genericError'),
-                  toolCalls: [...toolCallsRef.current],
-                };
-                updated.messages = messages;
-              }
-              const others = prev.filter((c) => c.id !== conversationId);
-              return [updated, ...others];
-            });
-          }
-        } finally {
-          setIsLoading(false);
-          abortControllerRef.current = null;
+        } else {
+          console.error('Failed to send message:', error);
+          setChats((prev) => {
+            const chatIndex = prev.findIndex((c) => c.id === conversationId);
+            if (chatIndex === -1) return prev;
+            const updated = { ...prev[chatIndex] };
+            const messages = [...updated.messages];
+            const idx = aiMessageIndexRef.current;
+            if (messages[idx]?.sender === 'ai') {
+              const partial = (aiMessageTextRef.current || '').trimEnd();
+              // Пометку оборачиваем в markdown тут, а переводим только текст.
+              const note = `\n\n_**${tRef.current('message.interrupted')}**_`;
+              messages[idx] = {
+                ...messages[idx],
+                // если что-то успело прийти — оставляем и дописываем пометку,
+                // иначе показываем обычный текст ошибки
+                text: partial ? partial + note : tRef.current('window.genericError'),
+                toolCalls: [...toolCallsRef.current],
+              };
+              updated.messages = messages;
+            }
+            const others = prev.filter((c) => c.id !== conversationId);
+            return [updated, ...others];
+          });
         }
-      },
-      [activeChatId, fetchAndUpdateTitle, selectChat, modelConfig, modelOptions],
+      } finally {
+        setIsLoading(false);
+        abortControllerRef.current = null;
+      }
+    },
+    [activeChatId, fetchAndUpdateTitle, selectChat, modelConfig, modelOptions],
   );
 
   const handleStopGeneration = useCallback(() => {
@@ -852,45 +852,45 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   }, [selectChat, makeDraft]);
 
   const handleCreateJiraChat = useCallback(
-      async (request) => {
-        const res = await fetch('/api/chats/jira', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(request),
-        });
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(text || tRef.current('window.jiraCreateError'));
-        }
-        const chat = await res.json();
-        const newChat = {
-          id: chat.conversationId,
-          title: chat.topic || tRef.current('window.jiraTitle'),
-          messages: null,
-          createdAt: chat.createdAt || null,
-          model: chat.model || null,
-          jiraUrl: request.jiraUrl,
-        };
-        setChats((prev) => [newChat, ...prev]);
-        selectChat(newChat.id);
-        setAttachPanelOpen(true); // Show attachments with fetched content
-      },
-      [selectChat],
+    async (request) => {
+      const res = await fetch('/api/chats/jira', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || tRef.current('window.jiraCreateError'));
+      }
+      const chat = await res.json();
+      const newChat = {
+        id: chat.conversationId,
+        title: chat.topic || tRef.current('window.jiraTitle'),
+        messages: null,
+        createdAt: chat.createdAt || null,
+        model: chat.model || null,
+        jiraUrl: request.jiraUrl,
+      };
+      setChats((prev) => [newChat, ...prev]);
+      selectChat(newChat.id);
+      setAttachPanelOpen(true); // Show attachments with fetched content
+    },
+    [selectChat],
   );
 
   const handleDeleteChat = useCallback(
-      (id) => {
-        if (id === DRAFT_CHAT_ID) {
-          // У черновика нет сущности на бэке — «удаление» лишь очищает поле ввода.
-          // Сам черновик и выбранная модель остаются.
-          setComposerResetSignal((n) => n + 1);
-          return;
-        }
-        if (chats.length <= 1) return;
-        const chat = chats.find((c) => c.id === id);
-        setChatDeleteConfirm({ id, title: chat?.title ?? '' });
-      },
-      [chats],
+    (id) => {
+      if (id === DRAFT_CHAT_ID) {
+        // У черновика нет сущности на бэке — «удаление» лишь очищает поле ввода.
+        // Сам черновик и выбранная модель остаются.
+        setComposerResetSignal((n) => n + 1);
+        return;
+      }
+      if (chats.length <= 1) return;
+      const chat = chats.find((c) => c.id === id);
+      setChatDeleteConfirm({ id, title: chat?.title ?? '' });
+    },
+    [chats],
   );
 
   // Реальное удаление — после подтверждения в модалке.
@@ -913,260 +913,260 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   }, [chatDeleteConfirm, activeChatId, selectChat]);
 
   const handleSelectChat = useCallback(
-      (id) => {
-        if (id === activeChatId) return;
-        selectChat(id);
-        setAttachCount(0); // reset until new panel loads count for new chat
-      },
-      [activeChatId, selectChat],
+    (id) => {
+      if (id === activeChatId) return;
+      selectChat(id);
+      setAttachCount(0); // reset until new panel loads count for new chat
+    },
+    [activeChatId, selectChat],
   );
 
   // Смена модели активного чата. Храним выбранный id как есть (модель всегда явная).
   // Для черновика на бэке чата ещё нет — PUT откладываем, модель уедет с первым сообщением.
   const handleModelChange = useCallback(
-      async (newId) => {
-        if (!activeChatId) return;
-        // Оптимистично обновляем локально — UI реагирует мгновенно.
-        setChats((prev) => prev.map((c) => (c.id === activeChatId ? { ...c, model: newId } : c)));
-        if (activeChatId === DRAFT_CHAT_ID) return;
-        try {
-          const res = await fetch(`/api/chats/${encodeURIComponent(activeChatId)}/model`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-            body: newId,
-          });
-          if (!res.ok) throw new Error('Failed to update chat model');
-        } catch (err) {
-          console.error('Ошибка смены модели чата:', err);
-        }
-      },
-      [activeChatId],
+    async (newId) => {
+      if (!activeChatId) return;
+      // Оптимистично обновляем локально — UI реагирует мгновенно.
+      setChats((prev) => prev.map((c) => (c.id === activeChatId ? { ...c, model: newId } : c)));
+      if (activeChatId === DRAFT_CHAT_ID) return;
+      try {
+        const res = await fetch(`/api/chats/${encodeURIComponent(activeChatId)}/model`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+          body: newId,
+        });
+        if (!res.ok) throw new Error('Failed to update chat model');
+      } catch (err) {
+        console.error('Ошибка смены модели чата:', err);
+      }
+    },
+    [activeChatId],
   );
 
   // Quick file upload from message input area
   const handleAttachFile = useCallback(
-      async (file) => {
-        if (!activeChatId || !file) return;
-        const formData = new FormData();
-        formData.append('file', file);
-        try {
-          await fetch(`/api/chats/${activeChatId}/attachments`, {
-            method: 'POST',
-            body: formData,
-          });
-          setAttachCount((n) => n + 1);
-          // Open attachment panel to show the uploaded file
-          setAttachPanelOpen(true);
-        } catch (err) {
-          console.error('Upload error:', err);
-          alert(t('window.uploadError'));
-        }
-      },
-      [activeChatId, t],
+    async (file) => {
+      if (!activeChatId || !file) return;
+      const formData = new FormData();
+      formData.append('file', file);
+      try {
+        await fetch(`/api/chats/${activeChatId}/attachments`, {
+          method: 'POST',
+          body: formData,
+        });
+        setAttachCount((n) => n + 1);
+        // Open attachment panel to show the uploaded file
+        setAttachPanelOpen(true);
+      } catch (err) {
+        console.error('Upload error:', err);
+        alert(t('window.uploadError'));
+      }
+    },
+    [activeChatId, t],
   );
 
   // Суффикс с кодом ошибки для сообщения модалки (если это не сетевой сбой).
   const errorModalSuffix = chatErrorModal && chatErrorModal.status !== 'network' ? ` (${chatErrorModal.status})` : '';
 
   return (
-      <div className="chat-app-container">
-        {/* ── Left sidebar: chat list only ── */}
-        <ChatList
-            chats={visibleChats}
-            activeChatId={activeChatId}
-            onSelectChat={handleSelectChat}
-            onNewChat={handleNewChat}
-            onDeleteChat={handleDeleteChat}
-            onRenameChat={renameChat}
-            onNewJiraChat={() => setJiraModalOpen(true)}
-        />
+    <div className="chat-app-container">
+      {/* ── Left sidebar: chat list only ── */}
+      <ChatList
+        chats={visibleChats}
+        activeChatId={activeChatId}
+        onSelectChat={handleSelectChat}
+        onNewChat={handleNewChat}
+        onDeleteChat={handleDeleteChat}
+        onRenameChat={renameChat}
+        onNewJiraChat={() => setJiraModalOpen(true)}
+      />
 
-        {/* ── Center: chat window ── */}
-        <div className="chat-window">
-          {/* Шапка активного чата */}
-          {activeChat && (
-              <div className="chat-header">
-                <div className="chat-header-title">
-                  {editingTitle ? (
-                      <input
-                          className="chat-header-edit"
-                          value={titleDraft}
-                          autoFocus
-                          onChange={(e) => setTitleDraft(e.target.value)}
-                          onBlur={() => {
-                            if (titleDraft.trim()) renameChat(activeChat.id, titleDraft.trim());
-                            setEditingTitle(false);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') e.target.blur();
-                            if (e.key === 'Escape') {
-                              setEditingTitle(false);
-                            }
-                          }}
-                      />
-                  ) : (
-                       <h3
-                           title={t('window.renameHint')}
-                           onClick={() => {
-                             setTitleDraft(activeChat.title);
-                             setEditingTitle(true);
-                           }}
-                       >
-                         ️{activeChat.title}
-                       </h3>
-                   )}
-                  {!activeChat.notFound && !activeChat.loadError && modelOptions.length > 0 && (
-                      <ModelSelector
-                          value={selectedModelId}
-                          defaultId={modelConfig.defaultModel.id}
-                          options={modelOptions}
-                          disabled={isLoading}
-                          onChange={handleModelChange}
-                      />
-                  )}
-                  {activeChat.createdAt && (
-                      <div className="chat-meta">
-                        {t('window.createdAt', { date: new Date(activeChat.createdAt).toLocaleString() })}
-                      </div>
-                  )}
-                </div>
-                {/* Attachment toggle button in header */}
-                <button
-                    className={`chat-header-attachments-btn ${attachPanelOpen ? 'chat-header-attachments-btn--active' : ''}`}
-                    onClick={() => setAttachPanelOpen((v) => !v)}
-                    title={t('window.attachments')}
+      {/* ── Center: chat window ── */}
+      <div className="chat-window">
+        {/* Шапка активного чата */}
+        {activeChat && (
+          <div className="chat-header">
+            <div className="chat-header-title">
+              {editingTitle ? (
+                <input
+                  className="chat-header-edit"
+                  value={titleDraft}
+                  autoFocus
+                  onChange={(e) => setTitleDraft(e.target.value)}
+                  onBlur={() => {
+                    if (titleDraft.trim()) renameChat(activeChat.id, titleDraft.trim());
+                    setEditingTitle(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') e.target.blur();
+                    if (e.key === 'Escape') {
+                      setEditingTitle(false);
+                    }
+                  }}
+                />
+              ) : (
+                <h3
+                  title={t('window.renameHint')}
+                  onClick={() => {
+                    setTitleDraft(activeChat.title);
+                    setEditingTitle(true);
+                  }}
                 >
-                  <IconPaperclip size={15} />
-                  {attachCount > 0 && <span className="attach-badge">{attachCount}</span>}
-                </button>
-                <button className="chat-header-delete" onClick={() => handleDeleteChat(activeChat.id)}>
-                  <IconTrash />
-                </button>
-              </div>
-          )}
-
-          {loadingMessages ? (
-              <div className="loading-messages">{t('window.loadingMessages')}</div>
-          ) : activeChat?.notFound || activeChat?.loadError ? (
-              <div className="loading-messages" style={{ flexDirection: 'column', gap: '0.5rem' }}>
-                <span style={{ fontSize: '2rem' }}>{activeChat?.notFound ? '🔍' : '⚠️'}</span>
-                <span>{activeChat?.notFound ? t('window.notFoundTitle') : t('window.loadErrorTitle')}</span>
-                <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>
-              {activeChat?.notFound
-               ? t('window.notFoundDesc')
-               : t('window.loadErrorDesc', { status: activeChat?.loadError })}
-            </span>
-              </div>
-          ) : (
-                  <MessageList
-                      key={activeChatId}
-                      messages={activeMessages}
-                      onNavigateToDoc={onNavigateToDoc}
-                      onLoadMore={handleLoadOlder}
-                      hasMore={!!activeChat?.hasMore}
-                      canLoadMore={!isLoading}
-                  />
+                  ️{activeChat.title}
+                </h3>
               )}
+              {!activeChat.notFound && !activeChat.loadError && modelOptions.length > 0 && (
+                <ModelSelector
+                  value={selectedModelId}
+                  defaultId={modelConfig.defaultModel.id}
+                  options={modelOptions}
+                  disabled={isLoading}
+                  onChange={handleModelChange}
+                />
+              )}
+              {activeChat.createdAt && (
+                <div className="chat-meta">
+                  {t('window.createdAt', { date: new Date(activeChat.createdAt).toLocaleString() })}
+                </div>
+              )}
+            </div>
+            {/* Attachment toggle button in header */}
+            <button
+              className={`chat-header-attachments-btn ${attachPanelOpen ? 'chat-header-attachments-btn--active' : ''}`}
+              onClick={() => setAttachPanelOpen((v) => !v)}
+              title={t('window.attachments')}
+            >
+              <IconPaperclip size={15} />
+              {attachCount > 0 && <span className="attach-badge">{attachCount}</span>}
+            </button>
+            <button className="chat-header-delete" onClick={() => handleDeleteChat(activeChat.id)}>
+              <IconTrash />
+            </button>
+          </div>
+        )}
 
-          {/* Message input with inline attach */}
-          <input
-              ref={attachFileRef}
-              type="file"
-              style={{ display: 'none' }}
-              accept="text/*,.md,.json,.yaml,.yml,.xml,.csv,.log,.sql,.java,.js,.jsx,.ts,.tsx,.py,.go,.rs,.html,.css"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleAttachFile(file);
-                e.target.value = '';
-              }}
+        {loadingMessages ? (
+          <div className="loading-messages">{t('window.loadingMessages')}</div>
+        ) : activeChat?.notFound || activeChat?.loadError ? (
+          <div className="loading-messages" style={{ flexDirection: 'column', gap: '0.5rem' }}>
+            <span style={{ fontSize: '2rem' }}>{activeChat?.notFound ? '🔍' : '⚠️'}</span>
+            <span>{activeChat?.notFound ? t('window.notFoundTitle') : t('window.loadErrorTitle')}</span>
+            <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>
+              {activeChat?.notFound
+                ? t('window.notFoundDesc')
+                : t('window.loadErrorDesc', { status: activeChat?.loadError })}
+            </span>
+          </div>
+        ) : (
+          <MessageList
+            key={activeChatId}
+            messages={activeMessages}
+            onNavigateToDoc={onNavigateToDoc}
+            onLoadMore={handleLoadOlder}
+            hasMore={!!activeChat?.hasMore}
+            canLoadMore={!isLoading}
           />
-          {activeChat?.notFound || activeChat?.loadError ? (
-              <div className="message-input-wrapper message-input-wrapper--disabled">
+        )}
+
+        {/* Message input with inline attach */}
+        <input
+          ref={attachFileRef}
+          type="file"
+          style={{ display: 'none' }}
+          accept="text/*,.md,.json,.yaml,.yml,.xml,.csv,.log,.sql,.java,.js,.jsx,.ts,.tsx,.py,.go,.rs,.html,.css"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleAttachFile(file);
+            e.target.value = '';
+          }}
+        />
+        {activeChat?.notFound || activeChat?.loadError ? (
+          <div className="message-input-wrapper message-input-wrapper--disabled">
             <span className="message-input-disabled-note">
               {activeChat?.notFound ? t('window.notFoundInputNote') : t('window.loadErrorInputNote')}
             </span>
-              </div>
-          ) : (
-               <MessageInput
-                   onSend={handleSendMessage}
-                   onStop={handleStopGeneration}
-                   disabled={isLoading}
-                   onAttach={() => attachFileRef.current?.click()}
-                   isEmpty={isChatEmpty && !loadingMessages}
-                   resetSignal={composerResetSignal}
-               />
-           )}
-        </div>
-
-        {/* ── Right panel: attachments ── */}
-        {attachPanelOpen && (
-            <div className="chat-attachment-panel">
-              <div className="chat-attachment-panel__header">
-                <span>📎 {t('window.attachments')}</span>
-                <button
-                    className="chat-attachment-panel__close"
-                    onClick={() => setAttachPanelOpen(false)}
-                    title={t('common:close')}
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="chat-attachment-panel__body">
-                {activeChatId ? (
-                    activeChat?.jiraUrl ? (
-                        // JIRA-чат: компактные карточки + кнопка обновления
-                        <JiraAttachmentPanel
-                            key={activeChatId}
-                            conversationId={activeChatId}
-                            jiraUrl={activeChat.jiraUrl}
-                            onCountChange={setAttachCount}
-                        />
-                    ) : (
-                        // Обычный чат: стандартная таблица с загрузкой файлов
-                        <AttachmentPanel
-                            key={activeChatId}
-                            ownerType="chat"
-                            ownerId={activeChatId}
-                            onCountChange={setAttachCount}
-                        />
-                    )
-                ) : (
-                     <p className="chat-attachment-panel__empty">{t('window.selectChat')}</p>
-                 )}
-              </div>
-            </div>
+          </div>
+        ) : (
+          <MessageInput
+            onSend={handleSendMessage}
+            onStop={handleStopGeneration}
+            disabled={isLoading}
+            onAttach={() => attachFileRef.current?.click()}
+            isEmpty={isChatEmpty && !loadingMessages}
+            resetSignal={composerResetSignal}
+          />
         )}
-        <CreateJiraChatModal
-            open={jiraModalOpen}
-            onClose={() => setJiraModalOpen(false)}
-            onCreate={handleCreateJiraChat}
-        />
-        <ErrorModal
-            open={!!chatErrorModal}
-            icon={chatErrorModal?.notFound ? '🔍' : '⚠️'}
-            title={chatErrorModal?.notFound ? t('errorModal.notFoundTitle') : t('errorModal.loadErrorTitle')}
-            message={
-              chatErrorModal?.notFound
-              ? t('errorModal.notFoundMessage')
-              : t('errorModal.loadErrorMessage', { suffix: errorModalSuffix })
-            }
-            onClose={() => setChatErrorModal(null)}
-        />
-        <ConfirmModal
-            open={!!chatDeleteConfirm}
-            icon="🗑️"
-            title={t('deleteModal.title')}
-            message={
-              chatDeleteConfirm?.title
-              ? t('deleteModal.messageNamed', { title: chatDeleteConfirm.title })
-              : t('deleteModal.message')
-            }
-            confirmLabel={t('deleteModal.confirm')}
-            cancelLabel={t('deleteModal.cancel')}
-            onConfirm={confirmDeleteChat}
-            onCancel={() => setChatDeleteConfirm(null)}
-        />
       </div>
+
+      {/* ── Right panel: attachments ── */}
+      {attachPanelOpen && (
+        <div className="chat-attachment-panel">
+          <div className="chat-attachment-panel__header">
+            <span>📎 {t('window.attachments')}</span>
+            <button
+              className="chat-attachment-panel__close"
+              onClick={() => setAttachPanelOpen(false)}
+              title={t('common:close')}
+            >
+              ✕
+            </button>
+          </div>
+          <div className="chat-attachment-panel__body">
+            {activeChatId ? (
+              activeChat?.jiraUrl ? (
+                // JIRA-чат: компактные карточки + кнопка обновления
+                <JiraAttachmentPanel
+                  key={activeChatId}
+                  conversationId={activeChatId}
+                  jiraUrl={activeChat.jiraUrl}
+                  onCountChange={setAttachCount}
+                />
+              ) : (
+                // Обычный чат: стандартная таблица с загрузкой файлов
+                <AttachmentPanel
+                  key={activeChatId}
+                  ownerType="chat"
+                  ownerId={activeChatId}
+                  onCountChange={setAttachCount}
+                />
+              )
+            ) : (
+              <p className="chat-attachment-panel__empty">{t('window.selectChat')}</p>
+            )}
+          </div>
+        </div>
+      )}
+      <CreateJiraChatModal
+        open={jiraModalOpen}
+        onClose={() => setJiraModalOpen(false)}
+        onCreate={handleCreateJiraChat}
+      />
+      <ErrorModal
+        open={!!chatErrorModal}
+        icon={chatErrorModal?.notFound ? '🔍' : '⚠️'}
+        title={chatErrorModal?.notFound ? t('errorModal.notFoundTitle') : t('errorModal.loadErrorTitle')}
+        message={
+          chatErrorModal?.notFound
+            ? t('errorModal.notFoundMessage')
+            : t('errorModal.loadErrorMessage', { suffix: errorModalSuffix })
+        }
+        onClose={() => setChatErrorModal(null)}
+      />
+      <ConfirmModal
+        open={!!chatDeleteConfirm}
+        icon="🗑️"
+        title={t('deleteModal.title')}
+        message={
+          chatDeleteConfirm?.title
+            ? t('deleteModal.messageNamed', { title: chatDeleteConfirm.title })
+            : t('deleteModal.message')
+        }
+        confirmLabel={t('deleteModal.confirm')}
+        cancelLabel={t('deleteModal.cancel')}
+        onConfirm={confirmDeleteChat}
+        onCancel={() => setChatDeleteConfirm(null)}
+      />
+    </div>
   );
 };
 

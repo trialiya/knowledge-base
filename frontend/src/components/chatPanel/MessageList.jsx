@@ -11,19 +11,19 @@ const STICK_THRESHOLD = 60;
 const LOAD_MORE_THRESHOLD = 120;
 
 const IconArrowDown = () => (
-    <svg
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-    >
-      <line x1="12" y1="5" x2="12" y2="19" />
-      <polyline points="19 12 12 19 5 12" />
-    </svg>
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.4"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <line x1="12" y1="5" x2="12" y2="19" />
+    <polyline points="19 12 12 19 5 12" />
+  </svg>
 );
 
 // onLoadMore: async () => boolean — true если что-то догрузилось (для UI-индикатора).
@@ -57,25 +57,25 @@ const MessageList = ({ messages, onNavigateToDoc, onLoadMore, hasMore = false, c
 
   // Догрузка старых сообщений при приближении к верху.
   const maybeLoadMore = useCallback(
-      async (el) => {
-        if (!onLoadMore || !hasMore || !canLoadMore) return;
-        if (loadingMoreRef.current) return;
-        if (el.scrollTop > LOAD_MORE_THRESHOLD) return;
+    async (el) => {
+      if (!onLoadMore || !hasMore || !canLoadMore) return;
+      if (loadingMoreRef.current) return;
+      if (el.scrollTop > LOAD_MORE_THRESHOLD) return;
 
-        loadingMoreRef.current = true;
-        setLoadingMore(true);
-        // Снимок метрик ДО вставки. Восстановление позиции — в useLayoutEffect.
-        prependRef.current = { prevScrollHeight: el.scrollHeight, prevScrollTop: el.scrollTop };
-        let inserted = false;
-        try {
-          inserted = await onLoadMore();
-        } finally {
-          if (!inserted) prependRef.current = null; // ничего не вставилось — не корректируем
-          loadingMoreRef.current = false;
-          setLoadingMore(false);
-        }
-      },
-      [onLoadMore, hasMore, canLoadMore],
+      loadingMoreRef.current = true;
+      setLoadingMore(true);
+      // Снимок метрик ДО вставки. Восстановление позиции — в useLayoutEffect.
+      prependRef.current = { prevScrollHeight: el.scrollHeight, prevScrollTop: el.scrollTop };
+      let inserted = false;
+      try {
+        inserted = await onLoadMore();
+      } finally {
+        if (!inserted) prependRef.current = null; // ничего не вставилось — не корректируем
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+      }
+    },
+    [onLoadMore, hasMore, canLoadMore],
   );
 
   // Реакция на скролл. Программный скролл вниз тоже вызывает это событие,
@@ -136,33 +136,33 @@ const MessageList = ({ messages, onNavigateToDoc, onLoadMore, hasMore = false, c
   }, []);
 
   return (
-      <div className="message-list-container">
-        {loadingMore && <div className="message-list-loading-older">{t('window.loadingMessages')}</div>}
+    <div className="message-list-container">
+      {loadingMore && <div className="message-list-loading-older">{t('window.loadingMessages')}</div>}
 
-        <div className="message-list" ref={containerRef} onScroll={handleScroll}>
-          {messages.map((msg, index) => (
-              <Message
-                  key={index}
-                  text={msg.text}
-                  sender={msg.sender}
-                  toolCalls={msg.toolCalls}
-                  onNavigateToDoc={onNavigateToDoc}
-              />
-          ))}
-        </div>
-
-        {showScrollButton && (
-            <button
-                type="button"
-                className="scroll-to-bottom-btn"
-                onClick={() => scrollToBottom(true)}
-                title={t('scroll.toLatest')}
-                aria-label={t('scroll.scrollDown')}
-            >
-              <IconArrowDown />
-            </button>
-        )}
+      <div className="message-list" ref={containerRef} onScroll={handleScroll}>
+        {messages.map((msg, index) => (
+          <Message
+            key={index}
+            text={msg.text}
+            sender={msg.sender}
+            toolCalls={msg.toolCalls}
+            onNavigateToDoc={onNavigateToDoc}
+          />
+        ))}
       </div>
+
+      {showScrollButton && (
+        <button
+          type="button"
+          className="scroll-to-bottom-btn"
+          onClick={() => scrollToBottom(true)}
+          title={t('scroll.toLatest')}
+          aria-label={t('scroll.scrollDown')}
+        >
+          <IconArrowDown />
+        </button>
+      )}
+    </div>
   );
 };
 

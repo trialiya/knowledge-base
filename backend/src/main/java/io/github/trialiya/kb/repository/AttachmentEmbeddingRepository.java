@@ -81,7 +81,7 @@ public class AttachmentEmbeddingRepository {
                 },
                 (rs, rowNum) ->
                         new SemanticSearchResult(
-                                rs.getString("attachment_id"),
+                                rs.getLong("attachment_id"),
                                 rs.getString("title"),
                                 rs.getString("description"),
                                 rs.getTimestamp("updated_at") != null
