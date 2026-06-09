@@ -10,6 +10,7 @@ import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.model.chat.dto.Chat;
 import io.github.trialiya.kb.model.chat.dto.ChatMessage;
 import io.github.trialiya.kb.model.chat.dto.CreateJiraChatRequest;
+import io.github.trialiya.kb.model.chat.dto.MessagePage;
 import io.github.trialiya.kb.model.chat.dto.StreamMessage;
 import io.github.trialiya.kb.model.chat.dto.ToolCallMessage;
 import io.github.trialiya.kb.model.chat.dto.ToolCallsMessage;
@@ -23,6 +24,7 @@ import io.github.trialiya.kb.service.SummarizeService;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import jakarta.annotation.Nonnull;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +48,7 @@ import org.springframework.ai.chat.metadata.ChatResponseMetadata;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.MediaType;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -145,6 +148,34 @@ public class ChatController {
                                 .toList()
                         : null;
         return toChat(chatTopicEntity, messages);
+    }
+
+    @GetMapping("/{conversationId}/messages")
+    public MessagePage getMessages(
+            @PathVariable String conversationId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+                    LocalDateTime beforeCreatedAt,
+            @RequestParam(required = false) Long beforeId,
+            @RequestParam(defaultValue = "20") int limit) {
+
+        int safe = Math.min(Math.max(limit, 1), 100);
+        ChatMemoryService.Page page =
+                (beforeCreatedAt != null && beforeId != null)
+                        ? chatMemoryService.findPageBefore(
+                                conversationId, beforeCreatedAt, beforeId, safe)
+                        : chatMemoryService.findLatestPage(conversationId, safe);
+
+        List<ChatMessage> dtos =
+                page.messages().stream()
+                        .map(
+                                e ->
+                                        new ChatMessage(
+                                                e.getContent(),
+                                                e.getType().name(),
+                                                e.getCreatedAt(),
+                                                e.getInvocations()))
+                        .toList();
+        return new MessagePage(dtos, page.hasMore(), page.oldestCursor());
     }
 
     @DeleteMapping("/{conversationId}")

@@ -2,6 +2,7 @@ package io.github.trialiya.kb.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.trialiya.kb.model.chat.dto.MessageCursor;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.spring.IMessage;
@@ -12,6 +13,7 @@ import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.utils.ChatUtils;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -104,6 +106,33 @@ public class ChatMemoryService implements ChatMemoryRepository {
         return chatMessageRepository.findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAt(
                 conversationId);
     }
+
+    public Page findLatestPage(String conversationId, int limit) {
+        return toPage(chatMessageRepository.findLatest(conversationId, limit + 1), limit);
+    }
+
+    public Page findPageBefore(
+            String conversationId, LocalDateTime beforeCreatedAt, long beforeId, int limit) {
+        return toPage(
+                chatMessageRepository.findBefore(
+                        conversationId, beforeCreatedAt, beforeId, limit + 1),
+                limit);
+    }
+
+    private Page toPage(List<ChatMessageEntity> rowsDesc, int limit) {
+        boolean hasMore = rowsDesc.size() > limit;
+        List<ChatMessageEntity> chrono =
+                new ArrayList<>(hasMore ? rowsDesc.subList(0, limit) : rowsDesc);
+        Collections.reverse(chrono); // newest-first -> хронологический
+        MessageCursor cursor =
+                chrono.isEmpty()
+                        ? null
+                        : new MessageCursor(chrono.get(0).getCreatedAt(), chrono.get(0).getId());
+        return new Page(chrono, hasMore, cursor);
+    }
+
+    public record Page(
+            List<ChatMessageEntity> messages, boolean hasMore, MessageCursor oldestCursor) {}
 
     @Transactional
     public void saveToolCalls(String conversationId, List<ToolInvocation> toolCalls) {
