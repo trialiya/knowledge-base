@@ -6,13 +6,6 @@
 
 ## DocumentController — `/api/documents`
 
-### GET `/api/documents/tree`
-Полное рекурсивное дерево документов (для обратной совместимости). `description` всегда `null` — полный текст через `GET /api/documents/{id}`.
-
-**Response:** `List<DocumentNode>`
-
----
-
 ### GET `/api/documents/children`
 Lazy-load дочерних узлов с пагинацией. `description` — сниппет ≤150 символов или `null`.
 
@@ -43,7 +36,7 @@ ID предков от корня до узла (не включая сам уз
 ---
 
 ### GET `/api/documents/{id}/history`
-История изменений description документа. Возвращает список снепшотов **без поля `description`** — только метаданные (version, title, type, descriptionVersion, updatedAt). Полный текст конкретной версии загружается отдельно через `GET /api/documents/{docId}/history/{version}`.
+История изменений description документа. Возвращает список снепшотов **без поля `description`** — только метаданные (version, title, type, descriptionVersion, updatedAt). Полный текст конкретной версии загружается отдельно через `GET /api/documents/{id}/history/{version}`.
 
 **Response:** `List<DocumentHistoryShort>`
 
@@ -51,7 +44,7 @@ ID предков от корня до узла (не включая сам уз
 
 ---
 
-### GET `/api/documents/{docId}/history/{version}`
+### GET `/api/documents/{id}/history/{version}`
 Получить **полную** версию истории (с `description`) по номеру версии. Используется в `HistoryModal` для ленивой подгрузки описания выбранной версии.
 
 **Response:** `DocumentHistory`
@@ -130,6 +123,25 @@ ID предков от корня до узла (не включая сам уз
 
 ---
 
+### PATCH `/api/documents/{id}/parent`
+Переместить документ/папку в другого родителя (или в корень).
+
+**Body:** `MoveToParentRequest`
+```json
+{
+  "parentId": "42 | null"
+}
+```
+**Response:** `Document`
+
+**Ошибки:**
+- `400` — перемещение создаст цикл
+- `403` — системный узел
+- `404` — документ или целевой родитель не найден
+- `422` — цель не является папкой
+
+---
+
 ### POST `/api/documents/{id}/summarize`
 Сгенерировать (или перегенерировать) AI-summary для документа. Description отправляется в LLM полностью, без усечения. `summarySourceVersion` устанавливается в текущий `descriptionVersion` — это сбрасывает флаг stale до следующего изменения description.
 
@@ -158,7 +170,7 @@ ID предков от корня до узла (не включая сам уз
 
 ---
 
-### POST `/api/documents/reindex`
+### POST `/api/documents/admin/reindex`
 Полный переиндекс всех документов (генерация эмбеддингов заново).
 
 **Response:** `ReindexResponse`
@@ -179,73 +191,68 @@ ID предков от корня до узла (не включая сам уз
 
 ---
 
-## ChatController — `/api/chat`
+## ChatController — `/api/chats`
 
-### POST `/api/chat/stream`
-Streaming-чат через Server-Sent Events.
+### GET `/api/chats`
+Список всех чатов текущего пользователя (только метаданные, без сообщений), отсортированный по `updatedAt` (сначала новые).
 
-| Параметр | Тип | Где | Описание |
-|---|---|---|---|
-| `conversationId` | String | Query | ID беседы |
-| userMessage | String | Body | Сообщение пользователя (raw text) |
-
-**Response:** `text/event-stream` (SSE)
-- `StreamMessage` — текст ответа и/или finishReason
-- `ToolCallMessage` — вызов инструмента (статус STARTED/OK)
-- `ToolCallsMessage` — снапшот всех завершённых вызовов
+**Response:** `List<Chat>` — каждый с полем `model` (выбранная модель или `null` для дефолтной)
 
 ---
 
-### POST `/api/chat/streamTest`
-Тестовый SSE-эндпоинт (имитация стриминга).
+### GET `/api/chats/models`
+Список доступных AI-моделей и модель по умолчанию.
 
-| Параметр | Тип | Где | Описание |
-|---|---|---|---|
-| `conversationId` | String | Query | ID беседы |
-| userMessage | String | Body | Сообщение (raw text) |
-
-**Response:** `text/event-stream`
-
----
-
-### POST `/api/chat`
-Обычный чат (без streaming).
-
-| Параметр | Тип | Где | Описание |
-|---|---|---|---|
-| `conversationId` | String | Query | ID беседы |
-| userMessage | String | Body | Сообщение пользователя (raw text) |
-
-**Response:** `List<String>` — тексты ответов
+**Response:** `ChatModelProperties`
+```json
+{
+  "defaultModel": { "id": "gpt-4o", "label": "GPT-4o" },
+  "models": [
+    { "id": "gpt-4o", "label": "GPT-4o" },
+    { "id": "gpt-4o-mini", "label": "GPT-4o Mini" }
+  ]
+}
+```
 
 ---
 
-### GET `/api/chat`
-Список всех чатов текущего пользователя, отсортированный по `updatedAt` (сначала новые).
-
-**Response:** `List<Chat>`
-
----
-
-### GET `/api/chat/chat`
+### GET `/api/chats/{conversationId}`
 Получить чат с сообщениями.
 
-| Параметр | Тип | Где | Описание |
+| Параметр | Тип | По умолчанию | Описание |
 |---|---|---|---|
-| `conversationId` | String | Query | ID беседы |
+| `includeMessages` | boolean | `true` | `false` — только метаданные без сообщений |
 
-**Response:** `Chat` (с полем `messages: List<ChatMessage>`)
+**Response:** `Chat` (с полем `messages: List<ChatMessage>` при `includeMessages=true`, `null` при `false`)
 
 **Ошибки:** `404` — не найден, `403` — чужой чат
 
 ---
 
-### DELETE `/api/chat/chat`
-Удалить чат и очистить память.
+### GET `/api/chats/{conversationId}/messages`
+Пагинированная загрузка сообщений чата (без SYSTEM-сообщений и суммаризаций).
 
-| Параметр | Тип | Где | Описание |
+| Параметр | Тип | По умолчанию | Описание |
 |---|---|---|---|
-| `conversationId` | String | Query | ID беседы |
+| `limit` | int | `20` | Размер страницы (1–100) |
+| `beforeCreatedAt` | ISO datetime | — | Курсор: createdAt последнего загруженного сообщения |
+| `beforeId` | long | — | Курсор: id последнего загруженного сообщения |
+
+Без курсора — возвращает последние `limit` сообщений. С курсором — сообщения до указанной позиции.
+
+**Response:** `MessagePage`
+```json
+{
+  "messages": [ ... ],
+  "hasMore": true,
+  "oldestCursor": { "createdAt": "2026-06-09T10:00:00", "id": 42 }
+}
+```
+
+---
+
+### DELETE `/api/chats/{conversationId}`
+Удалить чат и очистить память.
 
 **Response:** `200 OK`
 
@@ -253,13 +260,10 @@ Streaming-чат через Server-Sent Events.
 
 ---
 
-### POST `/api/chat/topic`
-Создать или обновить тему чата.
+### PUT `/api/chats/{conversationId}/topic`
+Создать или обновить тему чата (идемпотентный).
 
-| Параметр | Тип | Где | Описание |
-|---|---|---|---|
-| `conversationId` | String | Query | ID беседы |
-| topic | String | Body | Текст темы (raw text) |
+**Body:** `String` — текст темы (raw text)
 
 **Response:** `200 OK`
 
@@ -267,7 +271,56 @@ Streaming-чат через Server-Sent Events.
 
 ---
 
-### POST `/api/chat/jira`
+### PUT `/api/chats/{conversationId}/model`
+Выбрать AI-модель для чата. Пустое тело — сброс к дефолтной модели.
+
+**Body:** `String` — id модели (raw text) или пусто
+
+**Response:** `200 OK`
+
+**Ошибки:** `403` — чужой чат
+
+---
+
+### POST `/api/chats/{conversationId}/messages`
+Обычный чат (без streaming). Возвращает ответ ассистента как JSON.
+
+| Параметр | Тип | По умолчанию | Описание |
+|---|---|---|---|
+| `model` | String | — | ID модели (опционально, переопределяет модель чата) |
+
+**Body:** `String` — сообщение пользователя (raw text)
+
+**Response:** `List<String>` — тексты ответов
+
+---
+
+### POST `/api/chats/{conversationId}/messages/stream`
+Streaming-чат через Server-Sent Events.
+
+| Параметр | Тип | По умолчанию | Описание |
+|---|---|---|---|
+| `model` | String | — | ID модели (опционально, переопределяет модель чата) |
+
+**Body:** `String` — сообщение пользователя (raw text)
+
+**Response:** `text/event-stream` (SSE)
+- `StreamMessage` — текст ответа и/или finishReason
+- `ToolCallMessage` — вызов инструмента (статус STARTED/OK)
+- `ToolCallsMessage` — снапшот всех завершённых вызовов (список `ToolInvocationMeta`)
+
+---
+
+### POST `/api/chats/{conversationId}/messages/test`
+Тестовый SSE-эндпоинт (имитация стриминга). Только для отладки.
+
+**Body:** `String` — сообщение (raw text)
+
+**Response:** `text/event-stream`
+
+---
+
+### POST `/api/chats/jira`
 Создать JIRA-чат с предзагруженным контекстом.
 
 **Body:** `CreateJiraChatRequest`
@@ -282,7 +335,7 @@ Streaming-чат через Server-Sent Events.
 
 ---
 
-### POST `/api/chat/jira/{conversationId}/refresh`
+### POST `/api/chats/{conversationId}/refresh`
 Обновить JIRA-чат — перезагрузить данные issue и заменить вложения.
 
 **Body:** JIRA URL (raw text)
@@ -307,7 +360,7 @@ Streaming-чат через Server-Sent Events.
 
 ---
 
-### POST `/api/chat/{conversationId}/attachments`
+### POST `/api/chats/{conversationId}/attachments`
 Загрузить вложение в чат.
 
 **Content-Type:** `multipart/form-data`
@@ -328,14 +381,14 @@ Streaming-чат через Server-Sent Events.
 
 ---
 
-### GET `/api/chat/{conversationId}/attachments`
+### GET `/api/chats/{conversationId}/attachments`
 Список вложений чата.
 
 **Response:** `List<Attachment>`
 
 ---
 
-### GET `/api/chat/{conversationId}/attachments/count`
+### GET `/api/chats/{conversationId}/attachments/count`
 Количество вложений чата.
 
 **Response:** `long`
