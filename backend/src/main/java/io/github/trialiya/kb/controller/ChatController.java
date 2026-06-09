@@ -2,9 +2,11 @@ package io.github.trialiya.kb.controller;
 
 import static io.github.trialiya.kb.utils.ChatUtils.buildContext;
 import static io.github.trialiya.kb.utils.ChatUtils.getUser;
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
+import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.model.chat.dto.Chat;
 import io.github.trialiya.kb.model.chat.dto.ChatMessage;
 import io.github.trialiya.kb.model.chat.dto.CreateJiraChatRequest;
@@ -43,7 +45,9 @@ import org.springframework.ai.chat.metadata.ChatGenerationMetadata;
 import org.springframework.ai.chat.metadata.ChatResponseMetadata;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.http.MediaType;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -63,6 +67,7 @@ import reactor.core.publisher.SignalType;
 @Slf4j
 public class ChatController {
 
+    private final ChatModelProperties chatModelProperties;
     private final ChatClient chatClient;
     private final ChatMemory chatMemory;
     private final ChatTopicRepository chatTopicRepository;
@@ -71,12 +76,14 @@ public class ChatController {
     private final JiraChatService jiraChatService;
 
     public ChatController(
+            ChatModelProperties chatModelProperties,
             ChatClient chatClient,
             ChatMemory chatMemory,
             ChatTopicRepository chatTopicRepository,
             ChatMemoryService chatMemoryService,
             SummarizeService summarizeService,
             JiraChatService jiraChatService) {
+        this.chatModelProperties = chatModelProperties;
         this.chatClient = chatClient;
         this.chatMemory = chatMemory;
         this.chatTopicRepository = chatTopicRepository;
@@ -85,9 +92,24 @@ public class ChatController {
         this.jiraChatService = jiraChatService;
     }
 
-    // ---------------------------------------------------------------------
-    //  Collection: /api/chats
-    // ---------------------------------------------------------------------
+    /** Список выбираемых моделей и какая из них дефолтная. */
+    @GetMapping("/models")
+    public ChatModelProperties getModels() {
+        return chatModelProperties;
+    }
+
+    /** Задать (или сбросить) модель чата. Пустое тело → возврат к дефолтной. */
+    @PutMapping("/{conversationId}/model")
+    public void updateChatModel(
+            @PathVariable final String conversationId,
+            @RequestBody(required = false) final String model) {
+        getChatTopic(conversationId); // 404/403 + проверка владельца
+        final String trimmed = model == null ? "" : model.trim();
+        if (!trimmed.isEmpty() && !chatModelProperties.isAllowed(trimmed)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Unknown model: " + trimmed);
+        }
+        chatTopicRepository.updateModel(conversationId, trimmed.isEmpty() ? null : trimmed);
+    }
 
     /** Lists the current user's chats (metadata only, no messages). */
     @GetMapping
@@ -149,6 +171,7 @@ public class ChatController {
                                             chatTopicEntity.getUser(),
                                             true,
                                             topic,
+                                            chatTopicEntity.getModel(),
                                             chatTopicEntity.getCreatedAt(),
                                             chatTopicEntity.getUpdatedAt(),
                                             false));
@@ -160,6 +183,7 @@ public class ChatController {
                                                 getUser(),
                                                 true,
                                                 topic,
+                                                null,
                                                 null,
                                                 null,
                                                 true)));
@@ -177,18 +201,24 @@ public class ChatController {
      */
     @PostMapping(value = "/{conversationId}/messages", produces = MediaType.APPLICATION_JSON_VALUE)
     public List<String> createMessage(
-            @PathVariable final String conversationId, @RequestBody final String userMessage) {
+            @PathVariable final String conversationId,
+            @RequestParam(name = "model", required = false) final String model,
+            @RequestBody final String userMessage) {
         checkChat(conversationId, true);
+        final String resolvedModel = resolveModel(conversationId, model);
         final ToolInvocationCollector toolCollector = new ToolInvocationCollector();
 
-        ChatResponse chatResponse =
+        ChatClient.ChatClientRequestSpec spec =
                 chatClient
                         .prompt()
                         .user(userMessage)
                         .toolContext(buildContext(conversationId, toolCollector))
-                        .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
-                        .call()
-                        .chatResponse();
+                        .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId));
+        if (resolvedModel != null) {
+            spec = spec.options(OpenAiChatOptions.builder().model(resolvedModel).build());
+        }
+
+        final ChatResponse chatResponse = spec.call().chatResponse();
 
         return Optional.ofNullable(chatResponse).map(ChatResponse::getResults).stream()
                 .flatMap(Collection::stream)
@@ -206,25 +236,32 @@ public class ChatController {
             value = "/{conversationId}/messages/stream",
             produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamMessage(
-            @PathVariable String conversationId, @RequestBody String userMessage) {
+            @PathVariable String conversationId,
+            @RequestParam(name = "model", required = false) String model,
+            @RequestBody String userMessage) {
         checkChat(conversationId, true);
+        final String resolvedModel = resolveModel(conversationId, model);
 
         final SseEmitter emitter = new SseEmitter(Duration.ofMinutes(30).toMillis());
         final AtomicReference<Disposable> disposableRef = new AtomicReference<>();
         final Consumer<Object> liveSink = sendSseEmitterData(emitter);
         final ToolInvocationCollector toolCollector = new ToolInvocationCollector(liveSink);
-
         final StringBuffer buffer = new StringBuffer();
-        final AtomicBoolean persisted = new AtomicBoolean(false); // защита от двойного сохранения
+        final AtomicBoolean persisted = new AtomicBoolean(false);
 
         try {
-            Disposable disposable =
+            ChatClient.ChatClientRequestSpec spec =
                     chatClient
                             .prompt()
                             .user(userMessage)
                             .toolContext(buildContext(conversationId, toolCollector))
-                            .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
-                            .stream()
+                            .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId));
+            if (resolvedModel != null) {
+                spec = spec.options(OpenAiChatOptions.builder().model(resolvedModel).build());
+            }
+
+            Disposable disposable =
+                    spec.stream()
                             .chatResponse()
                             .doFinally(
                                     signal -> {
@@ -486,6 +523,7 @@ public class ChatController {
                                                 "",
                                                 null,
                                                 null,
+                                                null,
                                                 true)));
     }
 
@@ -528,6 +566,7 @@ public class ChatController {
                 entity.getConversationId(),
                 entity.getUser(),
                 entity.getTopic(),
+                entity.getModel(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt(),
                 messages);
@@ -550,5 +589,26 @@ public class ChatController {
                 chatMessageEntity.getMessageType().getValue(),
                 chatMessageEntity.getCreatedAt(),
                 chatMessageEntity.getInvocations());
+    }
+
+    /**
+     * Параметр запроса → сохранённая модель чата → null. {@code null} означает «не переопределять»,
+     * т.е. едем на модели из application.yaml.
+     */
+    private String resolveModel(final String conversationId, final String requested) {
+        if (StringUtils.hasText(requested)) {
+            if (!chatModelProperties.isAllowed(requested)) {
+                throw new ResponseStatusException(BAD_REQUEST, "Unknown model: " + requested);
+            }
+            chatTopicRepository.updateModel(
+                    conversationId, requested); // запоминаем как «последнюю»
+            return requested;
+        }
+        return chatTopicRepository
+                .findById(conversationId)
+                .map(ChatTopicEntity::getModel)
+                .filter(StringUtils::hasText)
+                .filter(chatModelProperties::isAllowed) // на случай, если модель убрали из конфига
+                .orElse(null);
     }
 }

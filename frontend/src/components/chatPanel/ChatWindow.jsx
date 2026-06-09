@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import ChatList from './ChatList';
+import ModelSelector from './ModelSelector';
 import AttachmentPanel from '../common/AttachmentPanel';
 import { IconPaperclip, IconTrash } from '../knowledgeBasePanel/icons';
 import './chatWindow.css';
@@ -26,6 +27,11 @@ const generateUUID = () => {
 };
 
 const STORAGE_KEY_ACTIVE_ID = 'chat_activeId';
+// Последняя модель, с которой реально отправляли сообщение. Новый чат стартует с неё.
+const STORAGE_KEY_LAST_MODEL = 'chat_lastModel';
+// Псевдо-id для черновика: реальный conversationId (UUID) появляется только после
+// отправки первого сообщения. До этого в URL висит 'new' и бэк ничего о нём не знает.
+const DRAFT_CHAT_ID = 'new';
 
 const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActiveChatId = null, onSelectChat }) => {
   const { t } = useTranslation('chat');
@@ -49,16 +55,35 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     [onSelectChat],
   );
   const [isLoading, setIsLoading] = useState(false);
+
+  // Создаёт объект черновика. model берём из последней использованной (localStorage),
+  // иначе сработает фолбэк на дефолтную модель в selectedModelId/отправке.
+  const makeDraft = useCallback(
+    () => ({
+      id: DRAFT_CHAT_ID,
+      title: tRef.current('window.defaultTitle'),
+      messages: [],
+      model: lastModelRef.current || null,
+      draft: true,
+    }),
+    [],
+  );
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [attachPanelOpen, setAttachPanelOpen] = useState(false);
   const [attachCount, setAttachCount] = useState(0);
   const [jiraModalOpen, setJiraModalOpen] = useState(false);
+  // Список выбираемых моделей и дефолтная: { defaultModel: {id,label}, models: [{id,label}] }
+  const [modelConfig, setModelConfig] = useState(null);
+  // Последняя модель, с которой отправляли сообщение (живёт между перезагрузками).
+  const lastModelRef = useRef(localStorage.getItem(STORAGE_KEY_LAST_MODEL) || null);
   // Модалка ошибки загрузки чата: null | { notFound: bool, status }
   const [chatErrorModal, setChatErrorModal] = useState(null);
   // Модалка подтверждения удаления чата: null | { id, title }
   const [chatDeleteConfirm, setChatDeleteConfirm] = useState(null);
+  // Bump → очистить текст в MessageInput («удаление» черновика).
+  const [composerResetSignal, setComposerResetSignal] = useState(0);
   const aiMessageTextRef = useRef('');
   const aiMessageIndexRef = useRef(-1);
   const abortControllerRef = useRef(null);
@@ -84,6 +109,20 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     chatsRef.current = chats;
   }, [chats]);
 
+  // Список выбираемых моделей (GET /api/chats/models). Грузим один раз.
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/chats/models')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((cfg) => {
+        if (!cancelled) setModelConfig(cfg);
+      })
+      .catch((err) => console.error('Ошибка загрузки списка моделей:', err));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Источник правды — проп из навигации. Когда он меняется (клик по вкладке,
   // popstate, восстановление из URL), подхватываем активный чат.
   useEffect(() => {
@@ -107,25 +146,36 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
           title: chat.topic || tRef.current('window.defaultTitle'),
           messages: null,
           createdAt: chat.createdAt || null,
+          model: chat.model || null,
         }));
 
         const currentId = initialActiveChatIdRef.current;
         const existsInList = chatList.find((c) => c.id === currentId);
 
-        if (currentId && !existsInList) {
+        if (currentId === DRAFT_CHAT_ID) {
+          // Перезагрузка на черновике: бэк о нём ничего не знает и знать не должен.
+          // Показываем свежий пустой черновик, не пытаясь его грузить (никакой ошибки).
+          setChats([makeDraft(), ...chatList]);
+        } else if (currentId && !existsInList) {
           // ID из URL/localStorage не найден в списке — добавляем заглушку,
           // loadMessages попробует загрузить и пометит как ошибку.
           // Автоматически НЕ переключаемся — пусть пользователь видит ошибку.
-          const placeholder = { id: currentId, title: '...', messages: null, createdAt: null };
+          const placeholder = { id: currentId, title: '...', messages: null, createdAt: null, model: null };
           setChats([placeholder, ...chatList]);
         } else {
-          setChats(chatList);
           if (!currentId) {
-            // URL был пустой — открываем первый чат
             const firstId = chatList[0]?.id;
             if (firstId) {
+              // URL был пустой — открываем первый чат
+              setChats(chatList);
               selectChat(firstId);
+            } else {
+              // Чатов нет вообще — стартуем с черновика, а не с пустого экрана.
+              setChats([makeDraft()]);
+              selectChat(DRAFT_CHAT_ID);
             }
+          } else {
+            setChats(chatList);
           }
         }
       } catch (err) {
@@ -163,6 +213,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
             ? {
                 ...chat,
                 ...(newTitle ? { title: newTitle } : {}),
+                model: data.model ?? chat.model ?? null,
                 // не затираем уже имеющийся createdAt, иначе берём из ответа
                 createdAt: chat.createdAt ?? data.createdAt ?? null,
               }
@@ -228,7 +279,9 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       failedChatIdsRef.current.delete(chatId);
       setChats((prev) =>
         prev.map((chat) =>
-          chat.id === chatId ? { ...chat, messages: finalMessages, notFound: false, loadError: null } : chat,
+          chat.id === chatId
+            ? { ...chat, messages: finalMessages, notFound: false, loadError: null, model: data.model ?? null }
+            : chat,
         ),
       );
     } catch (err) {
@@ -245,7 +298,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   }, []);
 
   useEffect(() => {
-    if (activeChatId) {
+    if (activeChatId && activeChatId !== DRAFT_CHAT_ID) {
       const chat = chats.find((c) => c.id === activeChatId);
       // Не загружаем если: сообщения уже есть, чат помечен как ошибочный,
       // или chatId уже в ref (защита когда чат ещё не появился в списке)
@@ -265,7 +318,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   // Fetch attachment count independently so the badge stays accurate
   // even when the attachment panel is closed.
   useEffect(() => {
-    if (!activeChatId) return;
+    if (!activeChatId || activeChatId === DRAFT_CHAT_ID) return;
     setAttachCount(0);
     fetch(`/api/chats/${encodeURIComponent(activeChatId)}/attachments/count`)
       .then((r) => (r.ok ? r.json() : 0))
@@ -275,6 +328,23 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
 
   const activeMessages = useMemo(() => chats.find((c) => c.id === activeChatId)?.messages || [], [chats, activeChatId]);
   const activeChat = useMemo(() => chats.find((c) => c.id === activeChatId) || null, [chats, activeChatId]);
+
+  // Опции для селектора: модели из конфига + дефолтная (если её нет в списке — добавляем).
+  const modelOptions = useMemo(() => {
+    const def = modelConfig?.defaultModel;
+    if (!def?.id) return [];
+    const list = Array.isArray(modelConfig.models) ? [...modelConfig.models] : [];
+    if (!list.some((m) => m.id === def.id)) list.unshift(def);
+    return list;
+  }, [modelConfig]);
+
+  // Выбранная в селекторе модель. Если у чата модель не задана или её больше нет
+  // в конфиге — показываем дефолтную (чтобы select оставался валидным).
+  const selectedModelId = useMemo(() => {
+    const def = modelConfig?.defaultModel?.id || '';
+    const m = activeChat?.model;
+    return m && modelOptions.some((o) => o.id === m) ? m : def;
+  }, [activeChat, modelOptions, modelConfig]);
 
   // Чат считается пустым ТОЛЬКО когда сообщения уже загружены (messages !== null)
   // и среди них нет ни одного реального (с полем sender). Пока messages === null
@@ -309,14 +379,49 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       // После добавления [user, ai] AI-сообщение будет последним.
       const initialAiIndex = baseMessages.length + 1;
 
+      // Черновик: настоящий conversationId (UUID) рождается именно сейчас.
+      // Для обычного чата conversationId === activeChatId.
+      const isDraft = activeChatId === DRAFT_CHAT_ID;
+      const conversationId = isDraft ? generateUUID() : activeChatId;
+
+      // Модель, с которой шлём. Всегда явная: выбранная у чата → последняя → дефолтная.
+      const selected = chatForSend?.model;
+      const modelForSend =
+        selected && modelOptions.some((o) => o.id === selected)
+          ? selected
+          : lastModelRef.current && modelOptions.some((o) => o.id === lastModelRef.current)
+          ? lastModelRef.current
+          : modelConfig?.defaultModel?.id || null;
+      // Запоминаем как «последнюю» — новый чат стартует именно с неё.
+      if (modelForSend) {
+        lastModelRef.current = modelForSend;
+        try {
+          localStorage.setItem(STORAGE_KEY_LAST_MODEL, modelForSend);
+        } catch {
+          /* ignore quota errors */
+        }
+      }
+
       setChats((prev) => {
-        const activeChat = prev.find((c) => c.id === activeChatId);
-        if (!activeChat) return prev;
-        const newMessages = [...(activeChat.messages || []), { text, sender: 'user' }, { text: '', sender: 'ai' }];
-        const updatedChat = { ...activeChat, messages: newMessages };
+        const found = prev.find((c) => c.id === activeChatId);
+        if (!found) return prev;
+        const newMessages = [...(found.messages || []), { text, sender: 'user' }, { text: '', sender: 'ai' }];
+        // Промоушен черновика: присваиваем реальный id и проставляем явную модель.
+        const updatedChat = {
+          ...found,
+          id: conversationId,
+          draft: false,
+          model: modelForSend ?? found.model ?? null,
+          messages: newMessages,
+        };
         const otherChats = prev.filter((c) => c.id !== activeChatId);
         return [updatedChat, ...otherChats];
       });
+
+      // Поднимаем реальный id в URL/навигацию: '/new' → '/<uuid>'.
+      if (isDraft) {
+        selectChat(conversationId);
+      }
 
       setIsLoading(true);
       aiMessageTextRef.current = '';
@@ -327,7 +432,8 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       abortControllerRef.current = abortController;
 
       try {
-        const url = `/api/chats/${encodeURIComponent(activeChatId)}/messages/stream`;
+        const params = modelForSend ? `?model=${encodeURIComponent(modelForSend)}` : '';
+        const url = `/api/chats/${encodeURIComponent(conversationId)}/messages/stream${params}`;
         const response = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'text/event-stream' },
@@ -356,7 +462,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
               if (jsonString === '[DONE]') {
                 aiMessageTextRef.current = aiMessageTextRef.current.trimEnd();
                 setChats((prev) => {
-                  const chatIndex = prev.findIndex((c) => c.id === activeChatId);
+                  const chatIndex = prev.findIndex((c) => c.id === conversationId);
                   if (chatIndex === -1) return prev;
                   const updated = { ...prev[chatIndex] };
                   const messages = [...updated.messages];
@@ -365,10 +471,10 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
                     messages[idx] = { ...messages[idx], text: aiMessageTextRef.current };
                     updated.messages = messages;
                   }
-                  const others = prev.filter((c) => c.id !== activeChatId);
+                  const others = prev.filter((c) => c.id !== conversationId);
                   return [updated, ...others];
                 });
-                fetchAndUpdateTitle(activeChatId);
+                fetchAndUpdateTitle(conversationId);
                 setIsLoading(false);
                 return;
               }
@@ -490,7 +596,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
                 const finalToolCalls = [...toolCallsRef.current];
                 const idx = aiMessageIndexRef.current;
                 setChats((prev) => {
-                  const chatIndex = prev.findIndex((c) => c.id === activeChatId);
+                  const chatIndex = prev.findIndex((c) => c.id === conversationId);
                   if (chatIndex === -1) return prev;
                   const updated = { ...prev[chatIndex] };
                   const messages = [...updated.messages];
@@ -498,10 +604,10 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
                     messages[idx] = { ...messages[idx], text: finalText, toolCalls: finalToolCalls };
                     updated.messages = messages;
                   }
-                  const others = prev.filter((c) => c.id !== activeChatId);
+                  const others = prev.filter((c) => c.id !== conversationId);
                   return [updated, ...others];
                 });
-                fetchAndUpdateTitle(activeChatId);
+                fetchAndUpdateTitle(conversationId);
                 setIsLoading(false);
                 return;
               }
@@ -515,7 +621,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
                 const newIdx = finishedIdx + 1;
                 aiMessageIndexRef.current = newIdx;
                 setChats((prev) => {
-                  const chatIndex = prev.findIndex((c) => c.id === activeChatId);
+                  const chatIndex = prev.findIndex((c) => c.id === conversationId);
                   if (chatIndex === -1) return prev;
                   const updated = { ...prev[chatIndex] };
                   const messages = [...updated.messages];
@@ -526,7 +632,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
                     messages.push({ text: '', sender: 'ai' });
                   }
                   updated.messages = messages;
-                  const others = prev.filter((c) => c.id !== activeChatId);
+                  const others = prev.filter((c) => c.id !== conversationId);
                   return [updated, ...others];
                 });
               } else if (textChanged || toolCallChanged) {
@@ -534,7 +640,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
                 const currentText = aiMessageTextRef.current;
                 const currentToolCalls = [...toolCallsRef.current];
                 setChats((prev) => {
-                  const chatIndex = prev.findIndex((c) => c.id === activeChatId);
+                  const chatIndex = prev.findIndex((c) => c.id === conversationId);
                   if (chatIndex === -1) return prev;
                   const updated = { ...prev[chatIndex] };
                   const messages = [...updated.messages];
@@ -542,7 +648,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
                     messages[idx] = { ...messages[idx], text: currentText, toolCalls: currentToolCalls };
                     updated.messages = messages;
                   }
-                  const others = prev.filter((c) => c.id !== activeChatId);
+                  const others = prev.filter((c) => c.id !== conversationId);
                   return [updated, ...others];
                 });
               }
@@ -553,7 +659,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         // Поток завершился без [DONE]
         aiMessageTextRef.current = aiMessageTextRef.current.trimEnd();
         setChats((prev) => {
-          const chatIndex = prev.findIndex((c) => c.id === activeChatId);
+          const chatIndex = prev.findIndex((c) => c.id === conversationId);
           if (chatIndex === -1) return prev;
           const updated = { ...prev[chatIndex] };
           const messages = [...updated.messages];
@@ -562,15 +668,15 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
             messages[idx] = { ...messages[idx], text: aiMessageTextRef.current };
             updated.messages = messages;
           }
-          const others = prev.filter((c) => c.id !== activeChatId);
+          const others = prev.filter((c) => c.id !== conversationId);
           return [updated, ...others];
         });
-        fetchAndUpdateTitle(activeChatId);
+        fetchAndUpdateTitle(conversationId);
       } catch (error) {
         if (error.name === 'AbortError') {
           console.log('Stream aborted');
           setChats((prev) => {
-            const chatIndex = prev.findIndex((c) => c.id === activeChatId);
+            const chatIndex = prev.findIndex((c) => c.id === conversationId);
             if (chatIndex === -1) return prev;
             const updated = { ...prev[chatIndex] };
             const messages = [...updated.messages];
@@ -582,13 +688,13 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
               };
               updated.messages = messages;
             }
-            const others = prev.filter((c) => c.id !== activeChatId);
+            const others = prev.filter((c) => c.id !== conversationId);
             return [updated, ...others];
           });
         } else {
           console.error('Failed to send message:', error);
           setChats((prev) => {
-            const chatIndex = prev.findIndex((c) => c.id === activeChatId);
+            const chatIndex = prev.findIndex((c) => c.id === conversationId);
             if (chatIndex === -1) return prev;
             const updated = { ...prev[chatIndex] };
             const messages = [...updated.messages];
@@ -606,7 +712,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
               };
               updated.messages = messages;
             }
-            const others = prev.filter((c) => c.id !== activeChatId);
+            const others = prev.filter((c) => c.id !== conversationId);
             return [updated, ...others];
           });
         }
@@ -615,7 +721,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         abortControllerRef.current = null;
       }
     },
-    [activeChatId, fetchAndUpdateTitle],
+    [activeChatId, fetchAndUpdateTitle, selectChat, modelConfig, modelOptions],
   );
 
   const handleStopGeneration = useCallback(() => {
@@ -625,13 +731,14 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     }
   }, []);
 
-  const handleNewChat = useCallback(async () => {
-    const newId = generateUUID();
-    const newChat = { id: newId, title: tRef.current('window.defaultTitle'), messages: [] };
-    setChats((prev) => [newChat, ...prev]);
-    selectChat(newId);
+  const handleNewChat = useCallback(() => {
+    // Создаём черновик: реального id ещё нет (в URL будет 'new'), на бэк ничего
+    // не пишем. UUID и запись в БД появятся при отправке первого сообщения.
+    // Держим максимум один черновик в списке.
+    setChats((prev) => [makeDraft(), ...prev.filter((c) => c.id !== DRAFT_CHAT_ID)]);
+    selectChat(DRAFT_CHAT_ID);
     // (attachment panel stays as-is on new chat)
-  }, [selectChat]);
+  }, [selectChat, makeDraft]);
 
   const handleCreateJiraChat = useCallback(
     async (request) => {
@@ -650,6 +757,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         title: chat.topic || tRef.current('window.jiraTitle'),
         messages: null,
         createdAt: chat.createdAt || null,
+        model: chat.model || null,
         jiraUrl: request.jiraUrl,
       };
       setChats((prev) => [newChat, ...prev]);
@@ -661,6 +769,12 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
 
   const handleDeleteChat = useCallback(
     (id) => {
+      if (id === DRAFT_CHAT_ID) {
+        // У черновика нет сущности на бэке — «удаление» лишь очищает поле ввода.
+        // Сам черновик и выбранная модель остаются.
+        setComposerResetSignal((n) => n + 1);
+        return;
+      }
       if (chats.length <= 1) return;
       const chat = chats.find((c) => c.id === id);
       setChatDeleteConfirm({ id, title: chat?.title ?? '' });
@@ -694,6 +808,28 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       setAttachCount(0); // reset until new panel loads count for new chat
     },
     [activeChatId, selectChat],
+  );
+
+  // Смена модели активного чата. Храним выбранный id как есть (модель всегда явная).
+  // Для черновика на бэке чата ещё нет — PUT откладываем, модель уедет с первым сообщением.
+  const handleModelChange = useCallback(
+    async (newId) => {
+      if (!activeChatId) return;
+      // Оптимистично обновляем локально — UI реагирует мгновенно.
+      setChats((prev) => prev.map((c) => (c.id === activeChatId ? { ...c, model: newId } : c)));
+      if (activeChatId === DRAFT_CHAT_ID) return;
+      try {
+        const res = await fetch(`/api/chats/${encodeURIComponent(activeChatId)}/model`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+          body: newId,
+        });
+        if (!res.ok) throw new Error('Failed to update chat model');
+      } catch (err) {
+        console.error('Ошибка смены модели чата:', err);
+      }
+    },
+    [activeChatId],
   );
 
   // Quick file upload from message input area
@@ -768,11 +904,20 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
                   ️{activeChat.title}
                 </h3>
               )}
-              <div className="chat-meta">
-                {activeChat.createdAt
-                  ? t('window.createdAt', { date: new Date(activeChat.createdAt).toLocaleString() })
-                  : t('window.defaultTitle')}
-              </div>
+              {!activeChat.notFound && !activeChat.loadError && modelOptions.length > 0 && (
+                <ModelSelector
+                  value={selectedModelId}
+                  defaultId={modelConfig.defaultModel.id}
+                  options={modelOptions}
+                  disabled={isLoading}
+                  onChange={handleModelChange}
+                />
+              )}
+              {activeChat.createdAt && (
+                <div className="chat-meta">
+                  {t('window.createdAt', { date: new Date(activeChat.createdAt).toLocaleString() })}
+                </div>
+              )}
             </div>
             {/* Attachment toggle button in header */}
             <button
@@ -830,6 +975,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
             disabled={isLoading}
             onAttach={() => attachFileRef.current?.click()}
             isEmpty={isChatEmpty && !loadingMessages}
+            resetSignal={composerResetSignal}
           />
         )}
       </div>

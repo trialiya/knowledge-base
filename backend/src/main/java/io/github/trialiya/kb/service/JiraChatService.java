@@ -68,7 +68,7 @@ public class JiraChatService {
                         : issueKey + ": " + truncate(issue.summary(), 60);
 
         ChatTopicEntity chatTopicEntity =
-                new ChatTopicEntity(conversationId, getUser(), true, title, true);
+                new ChatTopicEntity(conversationId, getUser(), true, title, null, true);
         chatTopicRepository.save(chatTopicEntity);
 
         // 3. Store JIRA content as attachment
@@ -141,6 +141,7 @@ public class JiraChatService {
                 saved.getConversationId(),
                 saved.getUser(),
                 saved.getTopic(),
+                saved.getModel(),
                 saved.getCreatedAt(),
                 saved.getUpdatedAt(),
                 List.of());
@@ -190,6 +191,7 @@ public class JiraChatService {
                 saved.getConversationId(),
                 saved.getUser(),
                 saved.getTopic(),
+                saved.getModel(),
                 saved.getCreatedAt(),
                 saved.getUpdatedAt(),
                 List.of());

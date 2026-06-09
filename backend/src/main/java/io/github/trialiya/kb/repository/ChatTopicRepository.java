@@ -17,4 +17,8 @@ public interface ChatTopicRepository extends CrudRepository<ChatTopicEntity, Str
     @Modifying
     @Query("UPDATE chat_topic SET updated_at = CURRENT_TIMESTAMP WHERE conversation_id = :convId")
     void updateUpdatedAt(@Param("convId") String convId);
+
+    @Modifying
+    @Query("UPDATE chat_topic SET model = :model WHERE conversation_id = :convId")
+    void updateModel(@Param("convId") String convId, @Param("model") String model);
 }

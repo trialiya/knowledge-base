@@ -40,10 +40,16 @@ const IconPaperclip = () => (
 );
 
 // isEmpty — true когда в чате ещё нет сообщений; тогда показываем git-подсказки
-const MessageInput = ({ onSend, onStop, disabled, onAttach, isEmpty = false }) => {
+const MessageInput = ({ onSend, onStop, disabled, onAttach, isEmpty = false, resetSignal = 0 }) => {
   const { t } = useTranslation('chat');
   const [text, setText] = useState('');
   const textareaRef = useRef(null);
+
+  // Внешний сброс поля ввода (например, «удаление» черновика чата).
+  // На первый рендер тоже сработает — там очистка пустого поля безвредна.
+  useEffect(() => {
+    setText('');
+  }, [resetSignal]);
 
   useEffect(() => {
     const el = textareaRef.current;

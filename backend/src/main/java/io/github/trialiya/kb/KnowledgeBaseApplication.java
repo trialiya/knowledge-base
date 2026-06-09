@@ -1,6 +1,7 @@
 package io.github.trialiya.kb;
 
 import io.github.trialiya.kb.config.model.AtlassianConfiguration;
+import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.DocumentsConfiguration;
 import io.github.trialiya.kb.config.model.EmbeddingConfiguration;
 import io.github.trialiya.kb.config.model.SearchConfiguration;
@@ -13,7 +14,8 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
     DocumentsConfiguration.class,
     EmbeddingConfiguration.class,
     SearchConfiguration.class,
-    AtlassianConfiguration.class
+    AtlassianConfiguration.class,
+    ChatModelProperties.class
 })
 public class KnowledgeBaseApplication {
 

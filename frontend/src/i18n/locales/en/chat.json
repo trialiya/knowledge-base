@@ -149,5 +149,9 @@
     "created": "Document created",
     "updated": "Document updated",
     "untitled": "Document #{{id}}"
+  },
+  "model": {
+    "aria": "Model",
+    "default": "default"
   }
 }

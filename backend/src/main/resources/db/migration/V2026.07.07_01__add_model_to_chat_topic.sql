@@ -1,0 +1,1 @@
+ALTER TABLE chat_topic ADD COLUMN model VARCHAR(128);
