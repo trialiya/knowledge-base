@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import './errorModal.css';
 
 /**
@@ -9,10 +10,11 @@ import './errorModal.css';
  *  - icon: string — эмодзи/иконка (по умолчанию ⚠️)
  *  - title: string — заголовок
  *  - message: string — текст под заголовком
- *  - confirmLabel: string — текст кнопки (по умолчанию "Понятно")
+ *  - confirmLabel: string — текст кнопки (по умолчанию → t('gotIt'))
  *  - onClose: () => void — закрытие модалки
  */
-const ErrorModal = ({ open, icon = '⚠️', title, message, confirmLabel = 'Понятно', onClose }) => {
+const ErrorModal = ({ open, icon = '⚠️', title, message, confirmLabel, onClose }) => {
+  const { t } = useTranslation();
   if (!open) return null;
 
   return (
@@ -22,7 +24,7 @@ const ErrorModal = ({ open, icon = '⚠️', title, message, confirmLabel = 'П�
         {title && <h3 className="error-modal__title">{title}</h3>}
         {message && <p className="error-modal__message">{message}</p>}
         <button className="error-modal__btn" onClick={onClose} autoFocus>
-          {confirmLabel}
+          {confirmLabel ?? t('gotIt')}
         </button>
       </div>
     </div>

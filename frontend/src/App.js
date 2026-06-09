@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import ChatWindow from './components/chatPanel/ChatWindow';
 import KnowledgeBase from './components/knowledgeBasePanel/KnowledgeBase';
 import ConfirmModal from './components/common/ConfirmModal';
@@ -9,6 +10,7 @@ import LanguageSwitcher from './components/common/LanguageSwitcher';
 import './App.css';
 
 function App() {
+  const { t } = useTranslation();
   const { nav, switchView, openDoc, setDocTab, setSearch, openChat } = useAppNavigation();
   const activeTab = nav.view;
 
@@ -58,10 +60,10 @@ function App() {
         {/* Левая зона — вкладки */}
         <div className="app-tabs__left">
           <button className={activeTab === 'chat' ? 'active' : ''} onClick={() => handleSwitchView('chat')}>
-            💬 Чаты
+            💬 {t('nav.chats')}
           </button>
           <button className={activeTab === 'knowledge' ? 'active' : ''} onClick={() => handleSwitchView('knowledge')}>
-            📚 База знаний
+            📚 {t('nav.knowledgeBase')}
           </button>
         </div>
 
@@ -69,7 +71,7 @@ function App() {
         <div className="app-search-row">
           <input
             type="text"
-            placeholder="Поиск по базе знаний... (Enter)"
+            placeholder={t('search.placeholder')}
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
             onKeyDown={(e) => {
@@ -77,9 +79,9 @@ function App() {
             }}
           />
           <select value={searchMode} onChange={handleSearchModeChange}>
-            <option value="hybrid">Гибридный</option>
-            <option value="semantic">Семантический</option>
-            <option value="keyword">По словам</option>
+            <option value="hybrid">{t('search.hybrid')}</option>
+            <option value="semantic">{t('search.semantic')}</option>
+            <option value="keyword">{t('search.keyword')}</option>
           </select>
         </div>
 
@@ -90,7 +92,7 @@ function App() {
               className={`app-refresh-btn${kbRefreshing ? ' app-refresh-btn--spinning' : ''}`}
               onClick={() => setRefreshTick((t) => t + 1)}
               disabled={kbRefreshing}
-              title="Обновить"
+              title={t('refresh')}
             >
               <IconRefresh size={15} />
             </button>
@@ -136,10 +138,10 @@ function App() {
       <ConfirmModal
         open={pendingChatSwitch}
         icon="✏️"
-        title="Несохранённые изменения"
-        message="В редакторе базы знаний есть несохранённые изменения. Перейти в чат? Они останутся в редакторе, но не будут сохранены."
-        confirmLabel="Перейти в чат"
-        cancelLabel="Остаться"
+        title={t('unsaved.title')}
+        message={t('unsaved.message')}
+        confirmLabel={t('unsaved.confirm')}
+        cancelLabel={t('unsaved.cancel')}
         onConfirm={() => {
           setPendingChatSwitch(false);
           switchView('chat');

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { IconTrash, IconDoc, IconEye, IconUpload, IconSummarize } from '../knowledgeBasePanel/icons';
 import attachmentApi, { formatFileSize } from './attachmentApi';
 import AttachmentModal from './AttachmentModal';
@@ -17,6 +18,7 @@ import ErrorModal from './ErrorModal';
  *   onCountChange — optional callback (count) when attachment count changes
  */
 const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange }) => {
+  const { t } = useTranslation();
   const [attachments, setAttachments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -77,7 +79,7 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
       });
     } catch (err) {
       console.error('Upload error:', err);
-      setError('Ошибка загрузки файла. Поддерживаются только текстовые файлы.');
+      setError(t('attachments.errorUpload'));
     } finally {
       setUploading(false);
     }
@@ -117,7 +119,7 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
         return next;
       });
     } catch {
-      setError('Ошибка удаления');
+      setError(t('attachments.errorDelete'));
     }
   };
 
@@ -129,7 +131,7 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
       const updated = await attachmentApi.summarize(id);
       setAttachments((prev) => prev.map((a) => (a.id === id ? updated : a)));
     } catch {
-      setError('Ошибка создания описания');
+      setError(t('attachments.errorSummarize'));
     } finally {
       setSummarizingId(null);
     }
@@ -145,21 +147,21 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
       <ConfirmModal
         open={pendingDelete != null}
         icon="🗑️"
-        title="Удалить вложение?"
-        message="Это действие нельзя отменить."
-        confirmLabel="Удалить"
+        title={t('attachments.deleteConfirmTitle')}
+        message={t('attachments.deleteConfirmMessage')}
+        confirmLabel={t('delete')}
         onConfirm={confirmDelete}
         onCancel={() => setPendingDelete(null)}
       />
-      <ErrorModal open={!!error} icon="⚠️" title="Ошибка" message={error || ''} onClose={() => setError(null)} />
+      <ErrorModal open={!!error} icon="⚠️" title={t('error')} message={error || ''} onClose={() => setError(null)} />
     </>
   );
 
   // ── Compact mode (for summary tab) ──────────────────────────────────────
 
   if (compact) {
-    if (loading) return <p className="attachment-compact__loading">Загрузка…</p>;
-    if (attachments.length === 0) return <p className="attachment-compact__empty">Нет вложений</p>;
+    if (loading) return <p className="attachment-compact__loading">{t('loading')}</p>;
+    if (attachments.length === 0) return <p className="attachment-compact__empty">{t('attachments.empty')}</p>;
 
     return (
       <div className="attachment-compact-list">
@@ -171,7 +173,7 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
             {a.summary && (
               <span
                 className="attachment-compact-item__summary attachment-summary--clickable"
-                title="Кликните для просмотра полного описания"
+                title={t('attachments.summaryHint')}
                 onClick={() => showSummary(a)}
               >
                 {a.summary.length > 60 ? a.summary.slice(0, 60) + '…' : a.summary}
@@ -199,7 +201,7 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
         onClick={() => fileInputRef.current?.click()}
       >
         <IconUpload size={20} />
-        <span>{uploading ? 'Загрузка…' : 'Перетащите файл или нажмите для выбора'}</span>
+        <span>{uploading ? t('attachments.uploading') : t('attachments.dropzone')}</span>
         <input
           ref={fileInputRef}
           type="file"
@@ -211,16 +213,16 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
 
       {/* List */}
       {loading ? (
-        <p className="attachment-panel__loading">Загрузка вложений…</p>
+        <p className="attachment-panel__loading">{t('attachments.loadingList')}</p>
       ) : attachments.length === 0 ? (
-        <p className="attachment-panel__empty">Нет вложений</p>
+        <p className="attachment-panel__empty">{t('attachments.empty')}</p>
       ) : (
         <div className="attachment-table">
           <div className="attachment-table__header">
             <span />
-            <span>Имя файла</span>
-            <span>Размер</span>
-            <span>Действия</span>
+            <span>{t('attachments.colName')}</span>
+            <span>{t('attachments.colSize')}</span>
+            <span>{t('attachments.colActions')}</span>
           </div>
           {attachments.map((a) => (
             <div key={a.id} className="attachment-row">
@@ -238,29 +240,29 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
                     onClick={(e) => e.stopPropagation()}
                     title={a.sourceUrl}
                   >
-                    🔗 Источник
+                    🔗 {t('attachments.source')}
                   </a>
                 )}
                 {a.summary ? (
                   <span
                     className="attachment-row__summary attachment-summary--clickable"
                     onClick={() => showSummary(a)}
-                    title="Кликните для просмотра полного описания"
+                    title={t('attachments.summaryHint')}
                   >
                     {a.summary}
                   </span>
                 ) : (
-                  <span className="attachment-row__no-summary">Нет описания</span>
+                  <span className="attachment-row__no-summary">{t('attachments.noDescription')}</span>
                 )}
               </span>
               <span className="attachment-row__size">{formatFileSize(a.fileSize)}</span>
               <span className="attachment-row__actions">
-                <button className="detail-icon-btn" title="Просмотреть" onClick={() => showContent(a)}>
+                <button className="detail-icon-btn" title={t('attachments.viewTitle')} onClick={() => showContent(a)}>
                   <IconEye />
                 </button>
                 <button
                   className="detail-icon-btn"
-                  title={a.summary ? 'Обновить описание' : 'Создать описание'}
+                  title={a.summary ? t('attachments.summarizeUpdate') : t('attachments.summarizeCreate')}
                   onClick={() => handleSummarize(a.id)}
                   disabled={summarizingId === a.id}
                 >
@@ -268,7 +270,7 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
                 </button>
                 <button
                   className="detail-icon-btn attachment-row__delete"
-                  title="Удалить"
+                  title={t('attachments.deleteTitle')}
                   onClick={() => setPendingDelete(a.id)}
                 >
                   <IconTrash />

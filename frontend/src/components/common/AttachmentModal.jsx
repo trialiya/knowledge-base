@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import attachmentApi from './attachmentApi';
 
 /**
@@ -10,6 +11,7 @@ import attachmentApi from './attachmentApi';
  *   onClose()  – close handler
  */
 const AttachmentModal = ({ attachment, mode, onClose }) => {
+  const { t } = useTranslation();
   const isContent = mode === 'content';
   const [content, setContent] = useState(null);
   const [loading, setLoading] = useState(isContent);
@@ -29,7 +31,7 @@ const AttachmentModal = ({ attachment, mode, onClose }) => {
       })
       .catch(() => {
         if (!cancelled) {
-          setContent('Ошибка загрузки содержимого');
+          setContent(t('attachments.errorLoadContent'));
           setLoading(false);
         }
       });
@@ -37,23 +39,23 @@ const AttachmentModal = ({ attachment, mode, onClose }) => {
     return () => {
       cancelled = true;
     };
-  }, [isContent, attachment.id]);
+  }, [isContent, attachment.id, t]);
 
-  const title = isContent ? attachment.fileName : `Описание: ${attachment.fileName}`;
-  const body = isContent ? content : attachment.summary || 'Нет описания';
+  const title = isContent ? attachment.fileName : t('attachments.descriptionTitle', { name: attachment.fileName });
+  const body = isContent ? content : attachment.summary || t('attachments.noDescription');
 
   return (
     <div className="attachment-viewer-overlay" onClick={onClose}>
       <div className="attachment-viewer" onClick={(e) => e.stopPropagation()}>
         <div className="attachment-viewer__header">
           <span className="attachment-viewer__name">{title}</span>
-          <button className="detail-icon-btn" onClick={onClose} title="Закрыть">
+          <button className="detail-icon-btn" onClick={onClose} title={t('close')}>
             ✕
           </button>
         </div>
         <div className="attachment-viewer__body">
           {loading ? (
-            <p className="attachment-viewer__loading">Загрузка…</p>
+            <p className="attachment-viewer__loading">{t('loading')}</p>
           ) : (
             <pre className="attachment-viewer__content">{body}</pre>
           )}

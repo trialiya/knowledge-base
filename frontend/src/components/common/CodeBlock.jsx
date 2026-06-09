@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import './codeBlock.css';
 
 const IconCopy = () => (
@@ -38,6 +39,7 @@ const extractLang = (className) => {
 };
 
 const CodeBlock = ({ code, className, children, ...props }) => {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const timerRef = useRef(null);
   const lang = extractLang(className);
@@ -60,7 +62,7 @@ const CodeBlock = ({ code, className, children, ...props }) => {
         <button
           className={`code-block__copy ${copied ? 'code-block__copy--done' : ''}`}
           onClick={handleCopy}
-          title={copied ? 'Скопировано' : 'Скопировать'}
+          title={copied ? t('copied') : t('copy')}
           type="button"
         >
           {copied ? <IconCheck /> : <IconCopy />}

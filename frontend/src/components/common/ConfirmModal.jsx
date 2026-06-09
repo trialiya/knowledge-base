@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Lightweight confirmation dialog, styled to match MoveConfirmModal.
@@ -8,21 +9,13 @@ import React from 'react';
  *   icon          – emoji/character shown in the header (default ⚠️)
  *   title         – heading text
  *   message       – body text (string or node)
- *   confirmLabel  – confirm button text (default "Подтвердить")
- *   cancelLabel   – cancel button text (default "Отмена")
+ *   confirmLabel  – confirm button text (default → t('confirm'))
+ *   cancelLabel   – cancel button text (default → t('cancel'))
  *   onConfirm()   – user confirmed
  *   onCancel()    – user cancelled / clicked backdrop
  */
-const ConfirmModal = ({
-  open,
-  icon = '⚠️',
-  title,
-  message,
-  confirmLabel = 'Подтвердить',
-  cancelLabel = 'Отмена',
-  onConfirm,
-  onCancel,
-}) => {
+const ConfirmModal = ({ open, icon = '⚠️', title, message, confirmLabel, cancelLabel, onConfirm, onCancel }) => {
+  const { t } = useTranslation();
   if (!open) return null;
 
   return (
@@ -38,8 +31,8 @@ const ConfirmModal = ({
         {message && <p className="confirm-modal__body">{message}</p>}
 
         <div className="modal-buttons">
-          <button onClick={onConfirm}>{confirmLabel}</button>
-          <button onClick={onCancel}>{cancelLabel}</button>
+          <button onClick={onConfirm}>{confirmLabel ?? t('confirm')}</button>
+          <button onClick={onCancel}>{cancelLabel ?? t('cancel')}</button>
         </div>
       </div>
     </div>

@@ -8,5 +8,47 @@
   "open": "Open",
   "refresh": "Refresh",
   "loading": "Loading…",
-  "loadError": "Failed to load"
+  "loadError": "Failed to load",
+  "confirm": "Confirm",
+  "gotIt": "Got it",
+  "error": "Error",
+  "nav": {
+    "chats": "Chats",
+    "knowledgeBase": "Knowledge Base"
+  },
+  "search": {
+    "placeholder": "Search the knowledge base... (Enter)",
+    "hybrid": "Hybrid",
+    "semantic": "Semantic",
+    "keyword": "Keywords"
+  },
+  "unsaved": {
+    "title": "Unsaved changes",
+    "message": "The knowledge base editor has unsaved changes. Switch to chat? They will stay in the editor but will not be saved.",
+    "confirm": "Switch to chat",
+    "cancel": "Stay"
+  },
+  "attachments": {
+    "dropzone": "Drag a file here or click to select",
+    "uploading": "Uploading…",
+    "loadingList": "Loading attachments…",
+    "empty": "No attachments",
+    "colName": "File name",
+    "colSize": "Size",
+    "colActions": "Actions",
+    "source": "Source",
+    "noDescription": "No description",
+    "descriptionTitle": "Description: {{name}}",
+    "summaryHint": "Click to view the full description",
+    "viewTitle": "View",
+    "summarizeCreate": "Create description",
+    "summarizeUpdate": "Update description",
+    "deleteTitle": "Delete",
+    "deleteConfirmTitle": "Delete attachment?",
+    "deleteConfirmMessage": "This action cannot be undone.",
+    "errorUpload": "Failed to upload file. Only text files are supported.",
+    "errorDelete": "Failed to delete",
+    "errorSummarize": "Failed to create description",
+    "errorLoadContent": "Failed to load content"
+  }
 }
