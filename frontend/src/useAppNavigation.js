@@ -12,13 +12,20 @@ import { useState, useEffect, useRef, useCallback } from 'react';
  *   • Каждый осознанный переход = ровно один pushState.
  *   • popstate просто читает URL обратно в состояние — UI перерисовывается.
  *
- * URL-схема:
- *   ?view=chat|knowledge & chat=<id> & doc=<id> & tab=<docTab> & search=<q> & mode=<m>
+ * URL-схема (view — это ПУТЬ, остальное — query):
+ *   /chat                                   → (+ ?chat=<id>)
+ *   /knowledge?doc=<id>&tab=<docTab>        → документ
+ *   /knowledge?search=<q>&mode=<m>          → поиск (взаимоисключающе с doc)
+ *   /admin                                  → (+ ?chat=<id>)
+ *   /settings                               → (+ ?chat=<id>)
+ *
+ *   • chat=<id> сохраняется во всех view, чтобы возврат в чат помнил активный.
+ *   • doc/tab/search/mode пишутся ТОЛЬКО для /knowledge.
  *
  * Состояние:
  *   {
- *     view:    'chat' | 'knowledge'
- *     chatId:  string | null      — последний открытый чат (живёт даже в KB-view)
+ *     view:    'chat' | 'knowledge' | 'admin' | 'settings'   ← путь
+ *     chatId:  string | null      — последний открытый чат (живёт во всех view)
  *     docId:   string | null      — документ, активный для ТЕКУЩЕЙ записи истории
  *     docTab:  'summary' | 'content' | ...
  *     search:  string             — поисковый запрос KB
@@ -28,20 +35,67 @@ import { useState, useEffect, useRef, useCallback } from 'react';
  * Почему docId в состоянии берётся строго из URL (а «последний документ» хранится
  * отдельно в lastKbRef):
  *   docId в nav обязан соответствовать адресу — иначе экран рассинхронизируется
- *   с URL при «Назад»/«Вперёд». Но chat-URL по схеме НЕ содержит doc, поэтому
- *   любой «Назад» между чатами обнулил бы docId. Чтобы клик по вкладке «База
- *   знаний» всё равно открывал последний читанный документ, мы держим его в
- *   lastKbRef (вне URL) и подставляем в switchView, когда для текущей записи
- *   документ/поиск не активны.
+ *   с URL при «Назад»/«Вперёд». Но chat/admin/settings-адреса по схеме НЕ содержат
+ *   doc, поэтому любой «Назад» на такую запись обнулил бы docId. Чтобы клик по
+ *   вкладке «База знаний» всё равно открывал последний читанный документ, мы
+ *   держим его в lastKbRef (вне URL) и подставляем в switchView, когда для
+ *   текущей записи документ/поиск не активны.
+ *
+ * admin / settings — полноценные верхнеуровневые view со своими путями
+ * (/admin, /settings), поэтому браузерные «Назад/Вперёд» работают штатно, а
+ * ссылку можно скопировать. doc/search в их адрес не попадают, но в состоянии
+ * могут «пережить» переход — это не утекает в URL и помогает вернуть документ KB.
+ *
+ * ⚠️ Деплой: путь-роутинг требует, чтобы сервер отдавал index.html на /chat,
+ * /knowledge, /admin, /settings (SPA-fallback). См. примечание в конце файла.
+ * Базовый путь приложения предполагается «/» (CRA по умолчанию). Если фронт
+ * раздаётся из подпапки — задайте homepage и учтите basename в *_PATH.
  */
+
+// Допустимые верхнеуровневые view.
+const TOP_VIEWS = ['chat', 'knowledge', 'admin', 'settings'];
+
+// view ⇄ путь (первый сегмент URL).
+const VIEW_TO_PATH = {
+  chat: '/chat',
+  knowledge: '/knowledge',
+  admin: '/admin',
+  settings: '/settings',
+};
+const PATH_TO_VIEW = {
+  '/chat': 'chat',
+  '/knowledge': 'knowledge',
+  '/admin': 'admin',
+  '/settings': 'settings',
+};
 
 // ── URL <-> state ───────────────────────────────────────────────────────────
 
+/** view из первого сегмента пути ('/knowledge/foo' → knowledge), иначе null. */
+function viewFromPathname(pathname) {
+  const seg = '/' + (pathname.split('/')[1] || '');
+  return PATH_TO_VIEW[seg] || null;
+}
+
+/** Текущий адрес целиком (путь + query) — для сравнения с целевым. */
+function currentUrl() {
+  return window.location.pathname + window.location.search;
+}
+
 function readUrl() {
   const p = new URLSearchParams(window.location.search);
-  const view = p.get('view');
+
+  // view берём из ПУТИ. Legacy-фолбэк на старый ?view= — чтобы ранее сохранённые
+  // ссылки (?view=settings&…) продолжали открываться; на старте они будут
+  // канонизированы в путь через replaceState.
+  let view = viewFromPathname(window.location.pathname);
+  if (!view) {
+    const legacy = p.get('view');
+    if (TOP_VIEWS.includes(legacy)) view = legacy;
+  }
+
   return {
-    view: view === 'chat' || view === 'knowledge' ? view : null,
+    view,
     chatId: p.get('chat') || null,
     docId: p.get('doc') || null,
     docTab: p.get('tab') || 'summary',
@@ -51,18 +105,19 @@ function readUrl() {
 }
 
 /**
- * Строит query-строку из состояния. В URL попадают ТОЛЬКО параметры,
+ * Строит адрес (путь + query) из состояния. В query попадают ТОЛЬКО параметры,
  * релевантные текущему view:
- *   • view=chat       → view, chat               (doc/tab/search/mode — НЕ пишутся)
- *   • view=knowledge  → view, chat, doc | search → (взаимоисключающие)
+ *   • /chat                  → ?chat
+ *   • /knowledge             → ?chat & (doc[&tab] | search[&mode])  (взаимоисключающе)
+ *   • /admin | /settings     → ?chat
  */
-function buildSearch(nav) {
+function buildUrl(nav) {
   const p = new URLSearchParams();
-  p.set('view', nav.view);
 
-  // chatId сохраняем в обоих view, чтобы возврат в чат помнил активный чат.
+  // chatId сохраняем во всех view, чтобы возврат в чат помнил активный чат.
   if (nav.chatId) p.set('chat', nav.chatId);
 
+  // Только база знаний кладёт в URL документ/поиск.
   if (nav.view === 'knowledge') {
     if (nav.docId) {
       p.set('doc', nav.docId);
@@ -72,12 +127,16 @@ function buildSearch(nav) {
       if (nav.mode) p.set('mode', nav.mode);
     }
   }
-  return `?${p.toString()}`;
+
+  const qs = p.toString();
+  return (VIEW_TO_PATH[nav.view] || '/chat') + (qs ? `?${qs}` : '');
 }
 
 /** Начальное состояние: из URL, с разумными дефолтами. */
 function initialNav() {
   const u = readUrl();
+  // view из пути приоритетен (включая admin/settings). Если его нет — инферим из
+  // наличия doc/search (это всегда про базу знаний), иначе чат.
   const view = u.view || (u.docId || u.search ? 'knowledge' : 'chat');
   return {
     view,
@@ -102,8 +161,8 @@ export default function useAppNavigation() {
   }, [nav]);
 
   // ── Память «последнего документа KB» (вне URL) ──────────────────────────────
-  // Нужна, потому что docId в nav обнуляется при «Назад» на chat-запись (в
-  // chat-URL doc не пишется). Здесь же мы помним последний реально открытый
+  // Нужна, потому что docId в nav обнуляется при «Назад» на запись без doc в URL
+  // (chat / admin / settings). Здесь же мы помним последний реально открытый
   // документ и его вкладку, чтобы switchView('knowledge') мог его восстановить.
   const lastKbRef = useRef({
     docId: nav.docId || null,
@@ -125,18 +184,17 @@ export default function useAppNavigation() {
       fromPopRef.current = false;
       return;
     }
-    const next = buildSearch(nav);
-    const current = window.location.search || '?';
-    if (next === current) return; // нет изменений — не плодим записи истории
+    const next = buildUrl(nav);
+    if (next === currentUrl()) return; // нет изменений — не плодим записи истории
     window.history.pushState({}, '', next);
   }, [nav]);
 
-  // На старте гарантируем, что в истории есть запись с явным view (иначе
-  // первый «Назад» вести некуда).
+  // На старте гарантируем, что адрес канонический (путь соответствует view, лишние
+  // параметры срезаны, legacy ?view= переписан в путь) — иначе первый «Назад»
+  // вести некуда.
   useEffect(() => {
-    const current = window.location.search || '?';
-    const canonical = buildSearch(navRef.current);
-    if (current !== canonical) {
+    const canonical = buildUrl(navRef.current);
+    if (canonical !== currentUrl()) {
       window.history.replaceState({}, '', canonical);
     }
   }, []);
@@ -150,17 +208,17 @@ export default function useAppNavigation() {
       fromPopRef.current = true;
       setNav({
         view,
-        // chatId: в URL присутствует в обоих view (buildSearch его всегда пишет),
-        // поэтому при возврате на chat-запись он там есть. Fallback на prev нужен
-        // лишь как страховка для записей, сделанных до появления chat в URL.
+        // chatId: в URL присутствует во всех view (buildUrl его всегда пишет),
+        // поэтому при возврате на запись он там есть. Fallback на prev нужен лишь
+        // как страховка для записей, сделанных до появления chat в URL.
         chatId: u.chatId ?? prev.chatId,
-        // docId: СТРОГО из URL. buildSearch пишет doc только когда он реально
-        // активен (view=knowledge и нет поиска). Если в URL его нет — значит для
-        // этой записи истории документ не активен (идёт поиск, либо view=chat).
-        // Подмешивать prev.docId здесь нельзя: при возврате на запись поиска это
+        // docId: СТРОГО из URL. buildUrl пишет doc только когда он реально активен
+        // (view=knowledge и нет поиска). Если в URL его нет — значит для этой
+        // записи истории документ не активен (поиск, чат, admin или settings).
+        // Подмешивать prev.docId здесь нельзя: при возврате на запись без doc это
         // вернуло бы устаревший документ, и экран рассинхронизировался бы с URL.
-        // Память «последнего документа для вкладки Чат» живёт в lastKbRef и
-        // восстанавливается в switchView, а не здесь.
+        // Память «последнего документа» живёт в lastKbRef и восстанавливается в
+        // switchView, а не здесь.
         docId: u.docId,
         docTab: u.docTab,
         search: u.search,
@@ -174,9 +232,11 @@ export default function useAppNavigation() {
   // ── Публичные методы навигации ─────────────────────────────────────────────
 
   /**
-   * Переключить верхнюю вкладку. Для KB восстанавливает последний документ,
-   * если для текущей записи истории документ/поиск не активны (например, после
-   * «Назад» между чатами docId в состоянии обнулён, но lastKbRef его помнит).
+   * Переключить верхнеуровневый view (вкладка / страница).
+   * Подходит для chat | knowledge | admin | settings.
+   * Для KB восстанавливает последний документ, если для текущей записи истории
+   * документ/поиск не активны (например, после «Назад» на chat/admin/settings
+   * docId в состоянии обнулён, но lastKbRef его помнит).
    */
   const switchView = useCallback((view) => {
     setNav((prev) => {
@@ -220,5 +280,36 @@ export default function useAppNavigation() {
     setNav((prev) => ({ ...prev, view: 'chat', chatId: id }));
   }, []);
 
-  return { nav, switchView, openDoc, setDocTab, setSearch, openChat };
+  /** Открыть админ-панель (свой адрес /admin). */
+  const openAdmin = useCallback(() => {
+    setNav((prev) => (prev.view === 'admin' ? prev : { ...prev, view: 'admin' }));
+  }, []);
+
+  /** Открыть настройки (свой адрес /settings). */
+  const openSettings = useCallback(() => {
+    setNav((prev) => (prev.view === 'settings' ? prev : { ...prev, view: 'settings' }));
+  }, []);
+
+  return { nav, switchView, openDoc, setDocTab, setSearch, openChat, openAdmin, openSettings };
 }
+
+/*
+ * ──────────────────────────────────────────────────────────────────────────
+ * SPA-fallback (обязательно для путь-роутинга)
+ * ──────────────────────────────────────────────────────────────────────────
+ * Dev (react-scripts): webpack-dev-server отдаёт index.html на html-запросы, а
+ *   `proxy` в package.json гонит на :8080 только нехтмл (API) — так что /admin,
+ *   /settings и пр. при прямом заходе/перезагрузке работают «из коробки».
+ *
+ * Prod: сервер статики должен отдавать index.html на неизвестные пути.
+ *   • Spring Boot (если он же раздаёт build): добавьте форвард на index.html
+ *     для известных маршрутов (REST под /api/** не затрагивается):
+ *
+ *       @Controller
+ *       class SpaForwardController {
+ *           @GetMapping({ "/chat", "/knowledge", "/admin", "/settings" })
+ *           String forward() { return "forward:/index.html"; }
+ *       }
+ *
+ *   • nginx:  location / { try_files $uri /index.html; }
+ */

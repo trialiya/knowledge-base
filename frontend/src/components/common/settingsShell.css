@@ -1,0 +1,363 @@
+/* ═══════════════════════════════════════════════
+   SETTINGS / ADMIN — общий master-detail каркас
+   (повторяет .knowledge-base-container + .kb-tree + .kb-preview)
+═══════════════════════════════════════════════ */
+
+.settings-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--kb-white);
+  border-radius: var(--kb-radius);
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(91, 79, 207, 0.1);
+  margin: 1rem;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  color: var(--kb-text);
+}
+
+.settings-main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── Левая колонка: список групп (как .kb-tree) ── */
+.settings-nav {
+  width: 260px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--kb-bg);
+  border-right: 1px solid var(--kb-border);
+  overflow-y: auto;
+}
+
+.settings-nav__title {
+  padding: 1.1rem 1.2rem 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--kb-muted);
+}
+
+.settings-nav__list {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-nav__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  font-size: 0.88rem;
+  color: var(--kb-accent);
+  font-weight: 500;
+  cursor: pointer;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--kb-border-light);
+  border-left: 3px solid transparent;
+  text-align: left;
+  transition: background 0.1s, border-color 0.1s;
+  min-height: 40px;
+}
+.settings-nav__item:hover {
+  background: var(--kb-accent-light);
+}
+.settings-nav__item--active {
+  background: var(--kb-accent-bg);
+  border-left-color: var(--kb-accent);
+  font-weight: 700;
+}
+
+.settings-nav__icon {
+  display: flex;
+  align-items: center;
+  color: var(--kb-muted);
+  flex-shrink: 0;
+}
+.settings-nav__item--active .settings-nav__icon {
+  color: var(--kb-accent);
+}
+
+.settings-nav__label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Правая колонка: контент (как .kb-preview) ── */
+.settings-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--kb-white);
+  min-width: 0;
+}
+
+.settings-content__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0.95rem 1.4rem;
+  border-bottom: 1px solid var(--kb-border);
+  flex-shrink: 0;
+}
+.settings-content__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--kb-text);
+  letter-spacing: -0.01em;
+}
+.settings-content__sub {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  color: var(--kb-muted);
+}
+.settings-content__head-actions {
+  flex-shrink: 0;
+}
+
+/* Прокручиваемое тело группы */
+.settings-content__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  min-height: 0;
+}
+
+/* ═══════════════════════════════════════════════
+   SECTION CARD (в стиле .summary-section)
+═══════════════════════════════════════════════ */
+
+.set-section {
+  border: 1px solid var(--kb-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.set-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 16px;
+  background: var(--kb-bg);
+  border-bottom: 1px solid var(--kb-border);
+}
+.set-section__label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--kb-text);
+}
+.set-section__body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+/* Вариант со строками-операциями: убираем зазор, строки сами держат разделители */
+.set-section__body--rows {
+  padding: 0;
+  gap: 0;
+}
+
+/* ── Строки-операции (export / import / clear) ── */
+.set-op {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--kb-border-light);
+}
+.set-op:first-child {
+  border-top: none;
+}
+.set-op__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--kb-accent-light);
+  color: var(--kb-accent);
+  flex-shrink: 0;
+}
+.set-op__text {
+  flex: 1;
+  min-width: 0;
+}
+.set-op__title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--kb-text);
+}
+.set-op__desc {
+  font-size: 0.8rem;
+  color: var(--kb-muted);
+  margin-top: 2px;
+}
+
+/* ── Строка «лейбл + контрол» ── */
+.set-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.set-row__label {
+  flex: 1;
+  font-size: 0.85rem;
+  color: var(--kb-text);
+}
+
+/* ── Группа кнопок ── */
+.set-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.set-hint {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--kb-muted);
+  line-height: 1.5;
+}
+
+/* ═══════════════════════════════════════════════
+   FORM CONTROLS
+═══════════════════════════════════════════════ */
+
+.set-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 120px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--kb-border);
+  border-radius: 10px;
+  font-family: 'Fira Mono', 'Consolas', monospace;
+  font-size: 0.83rem;
+  line-height: 1.6;
+  color: var(--kb-text);
+  background: var(--kb-white);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.set-textarea:focus {
+  border-color: var(--kb-accent);
+}
+
+.set-input {
+  padding: 8px 12px;
+  border: 1.5px solid var(--kb-border);
+  border-radius: 10px;
+  font-size: 0.85rem;
+  color: var(--kb-text);
+  background: var(--kb-white);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.set-input:focus {
+  border-color: var(--kb-accent);
+}
+
+.set-select {
+  padding: 7px 12px;
+  border: 1.5px solid var(--kb-border);
+  border-radius: 10px;
+  font-size: 0.84rem;
+  font-family: 'Fira Mono', 'Consolas', monospace;
+  color: var(--kb-text);
+  background: var(--kb-white);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.set-select:focus {
+  border-color: var(--kb-accent);
+}
+
+/* ═══════════════════════════════════════════════
+   BUTTONS
+═══════════════════════════════════════════════ */
+
+.set-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 20px;
+  padding: 7px 16px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s;
+}
+.set-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.set-btn--primary {
+  background: var(--kb-accent);
+  color: #fff;
+}
+.set-btn--primary:hover:not(:disabled) {
+  background: var(--kb-accent-hover);
+}
+
+.set-btn--ghost {
+  background: var(--kb-white);
+  border-color: var(--kb-border);
+  color: var(--kb-accent);
+}
+.set-btn--ghost:hover:not(:disabled) {
+  border-color: var(--kb-accent);
+  background: var(--kb-accent-light);
+}
+
+.set-btn--danger {
+  background: var(--kb-white);
+  border-color: var(--kb-border);
+  color: var(--kb-error);
+}
+.set-btn--danger:hover:not(:disabled) {
+  border-color: var(--kb-error);
+  background: var(--kb-error-bg);
+}
+
+/* Маленькая иконочная кнопка (edit / delete в списках) */
+.set-icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--kb-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+.set-icon-btn:hover {
+  background: var(--kb-accent-bg);
+  color: var(--kb-accent);
+}
+.set-icon-btn--danger:hover {
+  background: var(--kb-error-bg);
+  color: var(--kb-error);
+}

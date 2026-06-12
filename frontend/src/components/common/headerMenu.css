@@ -1,0 +1,159 @@
+/* ═══════════════════════════════════════════════
+   HEADER MENU (правый верхний угол шапки вкладок)
+═══════════════════════════════════════════════ */
+
+.header-menu {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* Триггер — в стиле прежней .app-refresh-btn (круглая 34×34) */
+.header-menu__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1.5px solid var(--kb-border);
+  background: var(--kb-white);
+  color: var(--kb-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.header-menu__trigger:hover,
+.header-menu[data-open='true'] .header-menu__trigger {
+  border-color: var(--kb-accent);
+  color: var(--kb-accent);
+  background: var(--kb-accent-light);
+}
+
+/* ── Выпадающее меню ── */
+.header-menu__dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 248px;
+  background: var(--kb-white);
+  border: 1.5px solid var(--kb-border);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(91, 79, 207, 0.16);
+  padding: 6px;
+  z-index: 1200;
+  animation: header-menu-in 0.12s ease;
+}
+
+@keyframes header-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.header-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: var(--kb-text);
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+}
+.header-menu__item:hover:not(:disabled) {
+  background: var(--kb-accent-light);
+  color: var(--kb-accent);
+}
+.header-menu__item:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.header-menu__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  color: var(--kb-muted);
+  flex-shrink: 0;
+}
+.header-menu__item:hover:not(:disabled) .header-menu__icon {
+  color: var(--kb-accent);
+}
+.header-menu__icon--spin svg {
+  animation: header-menu-spin 0.8s linear infinite;
+}
+@keyframes header-menu-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.header-menu__label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.header-menu__meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--kb-muted);
+  flex-shrink: 0;
+}
+
+.header-menu__divider {
+  height: 1px;
+  background: var(--kb-border-light);
+  margin: 6px 6px;
+}
+
+/* ── Подменю языка ── */
+.header-menu__sub {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 0 2px 24px;
+}
+.header-menu__subitem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--kb-text);
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+}
+.header-menu__subitem:hover {
+  background: var(--kb-accent-light);
+  color: var(--kb-accent);
+}
+.header-menu__subitem--active {
+  color: var(--kb-accent);
+  font-weight: 600;
+}
+.header-menu__check {
+  display: flex;
+  align-items: center;
+  color: var(--kb-accent);
+}

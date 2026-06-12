@@ -1,0 +1,91 @@
+/* ═══════════════════════════════════════════════
+   SETTINGS PANEL — специфика (фразы, модели)
+═══════════════════════════════════════════════ */
+
+/* Мелкая кнопка для шапки секции («Добавить») */
+.set-btn--sm {
+  padding: 5px 12px;
+  font-size: 0.78rem;
+}
+
+/* ── Строка фразы ── */
+.phrase-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--kb-border-light);
+}
+.phrase-row:first-child {
+  border-top: none;
+}
+
+.phrase-pill {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--kb-accent);
+  background: var(--kb-accent-bg);
+  border-radius: 10px;
+  padding: 3px 10px;
+}
+
+.phrase-row__text {
+  flex: 1;
+  min-width: 0;
+}
+.phrase-row__label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--kb-text);
+}
+.phrase-row__body {
+  font-size: 0.8rem;
+  color: var(--kb-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+/* ── Строка модели ── */
+.model-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 16px;
+  border-top: 1px solid var(--kb-border-light);
+  font-family: 'Fira Mono', 'Consolas', monospace;
+  font-size: 0.84rem;
+  color: var(--kb-text);
+}
+.model-row:first-child {
+  border-top: none;
+}
+.model-row__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.model-row__badge {
+  flex-shrink: 0;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--kb-accent);
+  background: var(--kb-accent-bg);
+  border-radius: 10px;
+  padding: 2px 9px;
+}
+
+/* Инлайновый код в подсказках */
+.set-hint code {
+  font-family: 'Fira Mono', 'Consolas', monospace;
+  font-size: 0.85em;
+  background: var(--kb-bg);
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--kb-accent);
+}

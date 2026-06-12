@@ -50,5 +50,12 @@
     "errorDelete": "Failed to delete",
     "errorSummarize": "Failed to create description",
     "errorLoadContent": "Failed to load content"
+  },
+  "menu": {
+    "title": "Menu",
+    "refreshDoc": "Refresh document",
+    "language": "Language",
+    "admin": "Admin panel",
+    "settings": "Chat settings"
   }
 }

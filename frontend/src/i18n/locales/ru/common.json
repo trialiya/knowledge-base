@@ -50,5 +50,12 @@
     "errorDelete": "Ошибка удаления",
     "errorSummarize": "Ошибка создания описания",
     "errorLoadContent": "Ошибка загрузки содержимого"
+  },
+  "menu": {
+    "title": "Меню",
+    "refreshDoc": "Обновить документ",
+    "language": "Язык",
+    "admin": "Админ-панель",
+    "settings": "Настройки чата"
   }
 }

@@ -4,15 +4,16 @@ import ChatWindow from './components/chatPanel/ChatWindow';
 import KnowledgeBase from './components/knowledgeBasePanel/KnowledgeBase';
 import ConfirmModal from './components/common/ConfirmModal';
 import { isEditorDirty } from './components/knowledgeBasePanel/editorDirtyStore';
-import { IconRefresh } from './components/knowledgeBasePanel/icons';
 import useAppNavigation from './useAppNavigation';
-import LanguageSwitcher from './components/common/LanguageSwitcher';
+import HeaderMenu from './components/common/HeaderMenu';
+import AdminPanel from './components/adminPanel/AdminPanel';
+import SettingsPanel from './components/settingsPanel/SettingsPanel';
 import './App.css';
 
 function App() {
   const { t } = useTranslation();
   const { nav, switchView, openDoc, setDocTab, setSearch, openChat } = useAppNavigation();
-  const activeTab = nav.view;
+  const view = nav.view; // 'chat' | 'knowledge' | 'admin' | 'settings'
 
   // ── Глобальная строка поиска (живёт в шапке вкладок, видна всегда) ──────────
   const [searchText, setSearchText] = useState(nav.search || '');
@@ -25,6 +26,8 @@ function App() {
     setSearchMode(nav.mode || 'hybrid');
   }, [nav.mode]);
 
+  // Поиск всегда уводит в базу знаний (setSearch выставляет view=knowledge),
+  // поэтому отдельно «закрывать» admin/settings не нужно.
   const submitSearch = () => {
     setSearch(searchText.trim(), searchMode);
   };
@@ -35,23 +38,22 @@ function App() {
     if (searchText.trim()) setSearch(searchText.trim(), m);
   };
 
-  // ── Кнопка «Обновить» в шапке вкладок ──────────────────────────────────────
-  // Действие refresh живёт в useKnowledgeBase. Триггерим его через тик-счётчик,
-  // а статус refreshing получаем обратно колбэком (для спиннера/блокировки).
-  // Кнопка видна только при открытом документе/папке (nav.docId на knowledge-view).
+  // ── Refresh документа (действие живёт в useKnowledgeBase) ────────────────────
   const [refreshTick, setRefreshTick] = useState(0);
   const [kbRefreshing, setKbRefreshing] = useState(false);
-  const showRefresh = activeTab === 'knowledge' && !!nav.docId;
+  const showRefresh = view === 'knowledge' && !!nav.docId;
 
-  // ── Unsaved-changes guard при уходе из KB в чат ────────────────────────────
-  const [pendingChatSwitch, setPendingChatSwitch] = useState(false);
+  // ── Unsaved-changes guard при уходе из KB в любой другой раздел ──────────────
+  // pendingView помнит, КУДА хотел уйти пользователь, чтобы после подтверждения
+  // перейти именно туда (chat / admin / settings), а не только в чат.
+  const [pendingView, setPendingView] = useState(null);
 
-  const handleSwitchView = (view) => {
-    if (view === 'chat' && nav.view === 'knowledge' && isEditorDirty()) {
-      setPendingChatSwitch(true);
+  const goView = (target) => {
+    if (view === 'knowledge' && target !== 'knowledge' && isEditorDirty()) {
+      setPendingView(target);
       return;
     }
-    switchView(view);
+    switchView(target);
   };
 
   return (
@@ -59,10 +61,10 @@ function App() {
       <div className="app-tabs">
         {/* Левая зона — вкладки */}
         <div className="app-tabs__left">
-          <button className={activeTab === 'chat' ? 'active' : ''} onClick={() => handleSwitchView('chat')}>
+          <button className={view === 'chat' ? 'active' : ''} onClick={() => goView('chat')}>
             💬 {t('nav.chats')}
           </button>
-          <button className={activeTab === 'knowledge' ? 'active' : ''} onClick={() => handleSwitchView('knowledge')}>
+          <button className={view === 'knowledge' ? 'active' : ''} onClick={() => goView('knowledge')}>
             📚 {t('nav.knowledgeBase')}
           </button>
         </div>
@@ -85,44 +87,35 @@ function App() {
           </select>
         </div>
 
-        {/* Правая зона — обновление (только при просмотре документа) */}
+        {/* Правая зона — единое меню (обновить · язык · админ · настройки) */}
         <div className="app-tabs__right">
-          {showRefresh && (
-            <button
-              className={`app-refresh-btn${kbRefreshing ? ' app-refresh-btn--spinning' : ''}`}
-              onClick={() => setRefreshTick((t) => t + 1)}
-              disabled={kbRefreshing}
-              title={t('refresh')}
-            >
-              <IconRefresh size={15} />
-            </button>
-          )}
-          <LanguageSwitcher />
+          <HeaderMenu
+            showRefresh={showRefresh}
+            refreshing={kbRefreshing}
+            onRefresh={() => setRefreshTick((n) => n + 1)}
+            onOpenAdmin={() => goView('admin')}
+            onOpenSettings={() => goView('settings')}
+          />
         </div>
       </div>
 
       <main>
-        {/*
-          Обе панели смонтированы всегда, скрыты через CSS — сохраняем скролл,
-          загруженные данные, состояние стриминга и т.д.
-        */}
-        <div className={`app-tab-panel ${activeTab === 'chat' ? 'app-tab-panel--active' : 'app-tab-panel--hidden'}`}>
+        {/* Чат и База знаний смонтированы всегда, скрыты через CSS */}
+        <div className={`app-tab-panel ${view === 'chat' ? 'app-tab-panel--active' : 'app-tab-panel--hidden'}`}>
           <ChatWindow
-            isActive={activeTab === 'chat'}
+            isActive={view === 'chat'}
             activeChatId={nav.chatId}
             onSelectChat={openChat}
             onNavigateToDoc={openDoc}
           />
         </div>
 
-        <div
-          className={`app-tab-panel ${activeTab === 'knowledge' ? 'app-tab-panel--active' : 'app-tab-panel--hidden'}`}
-        >
+        <div className={`app-tab-panel ${view === 'knowledge' ? 'app-tab-panel--active' : 'app-tab-panel--hidden'}`}>
           <KnowledgeBase
-            isActive={activeTab === 'knowledge'}
-            docId={nav.view === 'knowledge' ? nav.docId : null}
+            isActive={view === 'knowledge'}
+            docId={view === 'knowledge' ? nav.docId : null}
             docTab={nav.docTab}
-            search={nav.view === 'knowledge' ? nav.search : ''}
+            search={view === 'knowledge' ? nav.search : ''}
             mode={nav.mode}
             refreshSignal={refreshTick}
             onRefreshingChange={setKbRefreshing}
@@ -132,21 +125,34 @@ function App() {
             onNavigateToChat={openChat}
           />
         </div>
+
+        {/* Admin / Settings — полноценные view со своим URL, монтируются по адресу */}
+        {view === 'admin' && (
+          <div className="app-tab-panel app-tab-panel--active">
+            <AdminPanel />
+          </div>
+        )}
+        {view === 'settings' && (
+          <div className="app-tab-panel app-tab-panel--active">
+            <SettingsPanel />
+          </div>
+        )}
       </main>
 
-      {/* ── Unsaved-changes warning when leaving KB for Chat ── */}
+      {/* ── Unsaved-changes warning when leaving KB ── */}
       <ConfirmModal
-        open={pendingChatSwitch}
+        open={!!pendingView}
         icon="✏️"
         title={t('unsaved.title')}
         message={t('unsaved.message')}
         confirmLabel={t('unsaved.confirm')}
         cancelLabel={t('unsaved.cancel')}
         onConfirm={() => {
-          setPendingChatSwitch(false);
-          switchView('chat');
+          const target = pendingView;
+          setPendingView(null);
+          switchView(target);
         }}
-        onCancel={() => setPendingChatSwitch(false)}
+        onCancel={() => setPendingView(null)}
       />
     </div>
   );
