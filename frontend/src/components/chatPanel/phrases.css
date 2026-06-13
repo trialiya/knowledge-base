@@ -1,13 +1,13 @@
-/* ── Блок готовых git-фраз (над полем ввода) ─────────────────────────── */
+/* ── Блок готовых фраз (над полем ввода) ──────────────────────────────── */
 
-.git-phrases-block {
+.phrases-block {
   border-top: 1px solid var(--kb-border);
   background: var(--kb-bg);
   padding: 0.85rem 1rem 0.6rem;
   flex-shrink: 0;
 }
 
-.git-phrases-block-header {
+.phrases-block-header {
   display: flex;
   align-items: baseline;
   gap: 10px;
@@ -15,7 +15,7 @@
   flex-wrap: wrap;
 }
 
-.git-phrases-block-title {
+.phrases-block-title {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -24,24 +24,24 @@
   color: var(--kb-text);
 }
 
-.git-phrases-block-title svg {
+.phrases-block-title svg {
   color: var(--kb-accent);
 }
 
-.git-phrases-block-hint {
+.phrases-block-hint {
   font-size: 0.72rem;
   color: var(--kb-muted);
 }
 
 /* Категории-фильтры */
-.git-phrases-categories {
+.phrases-categories {
   display: flex;
   gap: 5px;
   flex-wrap: wrap;
   margin-bottom: 10px;
 }
 
-.git-phrases-cat-btn {
+.phrases-cat-btn {
   background: var(--kb-white);
   border: 1px solid var(--kb-border);
   border-radius: 20px;
@@ -54,20 +54,20 @@
   white-space: nowrap;
 }
 
-.git-phrases-cat-btn:hover {
+.phrases-cat-btn:hover {
   border-color: var(--kb-accent);
   color: var(--kb-accent);
   background: var(--kb-accent-light);
 }
 
-.git-phrases-cat-btn--active {
+.phrases-cat-btn--active {
   background: var(--kb-accent);
   border-color: var(--kb-accent);
   color: #fff;
 }
 
 /* Сетка чипов с фразами */
-.git-phrases-grid {
+.phrases-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -77,16 +77,22 @@
   scrollbar-width: thin;
   scrollbar-color: var(--kb-border) transparent;
 }
-.git-phrases-grid::-webkit-scrollbar {
+.phrases-grid::-webkit-scrollbar {
   width: 5px;
 }
-.git-phrases-grid::-webkit-scrollbar-thumb {
+.phrases-grid::-webkit-scrollbar-thumb {
   background: var(--kb-border);
   border-radius: 4px;
 }
 
-/* Чип одной фразы */
-.git-phrases-chip {
+/* Чип фразы + звезда «избранное» поверх правого верхнего угла */
+.phrases-chip-wrap {
+  position: relative;
+  display: inline-flex;
+  max-width: 100%;
+}
+
+.phrases-chip {
   display: inline-flex;
   flex-direction: column;
   align-items: flex-start;
@@ -94,36 +100,64 @@
   background: var(--kb-white);
   border: 1px solid var(--kb-border);
   border-radius: 12px;
-  padding: 6px 12px;
+  padding: 6px 30px 6px 12px; /* место под звезду справа */
   cursor: pointer;
   text-align: left;
   transition: all 0.12s;
   max-width: 100%;
 }
 
-.git-phrases-chip:hover {
+.phrases-chip:hover {
   border-color: var(--kb-accent);
   background: var(--kb-accent-light);
   transform: translateY(-1px);
   box-shadow: 0 2px 6px rgba(91, 79, 207, 0.12);
 }
 
-.git-phrases-chip-label {
+.phrases-chip-label {
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--kb-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 240px;
+  max-width: 220px;
 }
 
-.git-phrases-chip:hover .git-phrases-chip-label {
+.phrases-chip:hover .phrases-chip-label {
   color: var(--kb-accent);
 }
 
-.git-phrases-chip-category {
+.phrases-chip-category {
   font-size: 0.65rem;
   color: var(--kb-muted);
   font-weight: 500;
+}
+
+/* Звезда «избранное» */
+.phrases-star {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  padding: 0;
+  cursor: pointer;
+  color: var(--kb-border);
+  transition: color 0.12s, background 0.12s;
+}
+
+.phrases-star:hover {
+  color: var(--kb-accent);
+  background: var(--kb-accent-light);
+}
+
+.phrases-star--on {
+  color: #f5b301; /* gold */
 }

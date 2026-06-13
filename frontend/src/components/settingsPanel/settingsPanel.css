@@ -89,3 +89,94 @@
   border-radius: 4px;
   color: var(--kb-accent);
 }
+
+/* ═══════════════════════════════════════════════
+   Редактор библиотеки фраз (PhrasesSettings)
+═══════════════════════════════════════════════ */
+
+/* Текстовый инпут под стиль .set-textarea (категория/название/поиск) */
+.phrase-input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 0.86rem;
+  color: var(--kb-text);
+  background: var(--kb-white);
+  border: 1px solid var(--kb-border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  transition: border-color 0.15s;
+}
+.phrase-input:focus {
+  outline: none;
+  border-color: var(--kb-accent);
+}
+.phrase-input::placeholder {
+  color: var(--kb-muted);
+}
+
+/* Поиск по названию — отдельная строка над списком */
+.phrase-search {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--kb-border-light);
+}
+
+/* Инлайновая форма создания/правки */
+.phrase-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--kb-border-light);
+  background: var(--kb-bg);
+}
+.phrase-form__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+.phrase-form__check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.82rem;
+  color: var(--kb-text);
+  cursor: pointer;
+  user-select: none;
+}
+.phrase-form__check input {
+  accent-color: var(--kb-accent);
+}
+
+/* Выключенная фраза — приглушённая строка */
+.phrase-row--off {
+  opacity: 0.55;
+}
+
+/* Группа стрелок ↑/↓ */
+.phrase-row__order {
+  display: inline-flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.phrase-row__order .set-icon-btn {
+  padding: 1px 6px;
+  font-size: 0.85rem;
+}
+
+/* Активная звезда «избранное» */
+.set-icon-btn--star {
+  color: #f5b301;
+}
+
+/* Баннер ошибки запроса (сеть/HTTP) над списком фраз */
+.phrase-error {
+  margin: 0 0 14px;
+  padding: 9px 12px;
+  font-size: 0.82rem;
+  color: #b42318;
+  background: #fef3f2;
+  border: 1px solid #fda29b;
+  border-radius: 8px;
+}

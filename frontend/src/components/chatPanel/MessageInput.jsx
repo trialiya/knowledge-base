@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import GitPhrases from './GitPhrases';
+import Phrases from "./Phrases";
 
 const IconSend = () => (
   <svg
@@ -97,7 +97,7 @@ const MessageInput = ({ onSend, onStop, disabled, onAttach, isEmpty = false, res
   return (
     <div className="message-input-area">
       {/* Блок git-фраз — только когда чат пустой */}
-      {isEmpty && <GitPhrases onSelect={handleSelectPhrase} />}
+      {isEmpty && <Phrases onSelect={handleSelectPhrase} />}
 
       <div className="message-input-wrapper">
         {onAttach && (

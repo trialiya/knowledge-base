@@ -16,7 +16,6 @@
  *      используют useTranslation('chat'), а компоненты базы знаний —
  *      useTranslation('knowledgeBase').
  *   5. Каждый инструмент из TOOL_META имеет лейбл в tools.* (ru и en).
- *   6. Все id/категории из GIT_PHRASES переведены.
  *
  * Динамические ключи (шаблонные строки `tools.${name}`, `gitPhrases.phrases.${id}...`)
  * статически не резолвятся — они покрыты отдельными проверками (5) и (6).
@@ -33,7 +32,6 @@ import enChat from './locales/en/chat.json';
 import enKnowledgeBase from './locales/en/knowledgeBase.json';
 
 import { TOOL_META } from '../components/chatPanel/toolMeta';
-import { GIT_PHRASES } from '../components/chatPanel/GitPhrases';
 
 // ── Ресурсы по неймспейсам ──────────────────────────────────────────────────
 const RESOURCES = {
@@ -257,38 +255,4 @@ describe('i18n: инструменты (TOOL_META) переведены', () => 
       expect(orphans).toEqual([]);
     });
   }
-});
-
-describe('i18n: git-фразы переведены', () => {
-  for (const lang of ['ru', 'en']) {
-    test(`${lang}: у каждой фразы есть label и text, у категории — перевод`, () => {
-      const missing = [];
-      const chat = RESOURCES[lang].chat;
-      for (const phrase of GIT_PHRASES) {
-        if (getByPath(chat, `gitPhrases.phrases.${phrase.id}.label`) === undefined) {
-          missing.push(`gitPhrases.phrases.${phrase.id}.label`);
-        }
-        if (getByPath(chat, `gitPhrases.phrases.${phrase.id}.text`) === undefined) {
-          missing.push(`gitPhrases.phrases.${phrase.id}.text`);
-        }
-        if (getByPath(chat, `gitPhrases.categories.${phrase.category}`) === undefined) {
-          missing.push(`gitPhrases.categories.${phrase.category}`);
-        }
-      }
-      expect([...new Set(missing)]).toEqual([]);
-    });
-  }
-
-  test('плейсхолдеры в текстах фраз используют одинарные {скобки}, а не {{двойные}}', () => {
-    const offenders = [];
-    for (const lang of ['ru', 'en']) {
-      const chat = RESOURCES[lang].chat;
-      for (const phrase of GIT_PHRASES) {
-        const text = getByPath(chat, `gitPhrases.phrases.${phrase.id}.text`) || '';
-        // {{...}} зарезервированы под интерполяцию i18next и были бы вырезаны
-        if (/\{\{[^}]+\}\}/.test(text)) offenders.push(`${lang}:${phrase.id}`);
-      }
-    }
-    expect(offenders).toEqual([]);
-  });
 });

@@ -84,28 +84,12 @@
     "creating": "Creating…",
     "createError": "Failed to create chat"
   },
-  "gitPhrases": {
-    "title": "Ready-made Git phrases",
+  "phrases": {
+    "title": "Quick phrases",
     "hint": "Click to insert into the input",
     "categoryAll": "All",
-    "categories": {
-      "analysis": "Analysis",
-      "commits": "Commits"
-    },
-    "phrases": {
-      "commitHistory": {
-        "label": "Commit history",
-        "text": "Show the commit history and explain the key changes for the file {file}"
-      },
-      "findCommitByText": {
-        "label": "Find commit by text",
-        "text": "Find the commit that added or removed a line containing “{text}”."
-      },
-      "commitNameFromUncommitted": {
-        "label": "Commit name from uncommitted",
-        "text": "Look at the uncommitted changes. Describe them and prepare a commit name in English by analogy — focus on the value, not the technical code changes."
-      }
-    }
+    "categoryFavorites": "Favorites",
+    "favoriteToggle": "Toggle favorite"
   },
   "docLink": {
     "notFound": "Document not found",

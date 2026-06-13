@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import SettingsShell, { SettingsContentHead, SettingsSection } from '../common/SettingsShell';
-import { IconPlus, IconEdit, IconTrash } from '../knowledgeBasePanel/icons';
 import { IconFileText, IconMessage, IconSliders } from '../common/menuIcons';
+import PhrasesSettings from './PhrasesSettings';
 import './settingsPanel.css';
 
 const GROUPS = [
@@ -10,17 +10,11 @@ const GROUPS = [
   { key: 'models', label: 'Модели', icon: <IconSliders size={16} /> },
 ];
 
-// Заглушки — на бэке: phrase-таблица (CRUD /api/phrases), settings.role,
-// GET /api/chats/models.
+// Заглушки — на бэке: settings.role, GET /api/chats/models.
+// Библиотека фраз уже на БД (см. PhrasesSettings + /api/admin/phrases).
 const DEFAULT_PROMPT =
   'Ты — ассистент базы знаний проекта. Отвечай кратко, ссылайся на документы через /?doc=ID. ' +
   'Для вопросов по коду используй Git-инструменты.';
-
-const PHRASES = [
-  { id: 1, category: 'Анализ', label: 'История коммитов', text: 'Покажи историю коммитов файла и объясни изменения' },
-  { id: 2, category: 'Коммиты', label: 'Имя коммита', text: 'Опиши незакоммиченные изменения и предложи имя коммита' },
-  { id: 3, category: 'Документы', label: 'Черновик документа', text: 'Создай документ-черновик по теме с разделами' },
-];
 
 const MODELS = [
   { id: 'deepseek-v4-pro', isDefault: true },
@@ -53,46 +47,6 @@ const PromptGroup = () => {
     </>
   );
 };
-
-// ─── Группа: библиотека фраз ──────────────────────────────────────────────────
-
-const PhrasesGroup = () => (
-  <>
-    <SettingsContentHead title="Библиотека фраз" subtitle="Готовые подсказки над полем ввода в пустом чате" />
-    <div className="settings-content__body">
-      <SettingsSection
-        label="Фразы"
-        action={
-          <button className="set-btn set-btn--ghost set-btn--sm">
-            <IconPlus /> Добавить
-          </button>
-        }
-        rows
-      >
-        {PHRASES.map((p) => (
-          <div key={p.id} className="phrase-row">
-            <span className="phrase-pill">{p.category}</span>
-            <div className="phrase-row__text">
-              <div className="phrase-row__label">{p.label}</div>
-              <div className="phrase-row__body">{p.text}</div>
-            </div>
-            <button className="set-icon-btn" title="Редактировать">
-              <IconEdit />
-            </button>
-            <button className="set-icon-btn set-icon-btn--danger" title="Удалить">
-              <IconTrash />
-            </button>
-          </div>
-        ))}
-      </SettingsSection>
-
-      <p className="set-hint">
-        Раньше фразы жили в коде (<code>GIT_PHRASES</code>). Здесь — единый список из БД: правится в настройках,
-        показывается в пустом чате компонентом <code>GitPhrases</code>.
-      </p>
-    </div>
-  </>
-);
 
 // ─── Группа: модели ───────────────────────────────────────────────────────────
 
@@ -141,7 +95,7 @@ const SettingsPanel = () => {
   return (
     <SettingsShell title="Настройки" groups={GROUPS} activeKey={group} onSelect={setGroup}>
       {group === 'prompt' && <PromptGroup />}
-      {group === 'phrases' && <PhrasesGroup />}
+      {group === 'phrases' && <PhrasesSettings />}
       {group === 'models' && <ModelsGroup />}
     </SettingsShell>
   );

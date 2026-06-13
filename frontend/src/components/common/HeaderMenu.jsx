@@ -65,7 +65,7 @@ const HeaderMenu = ({ showRefresh, refreshing, onRefresh, onOpenAdmin, onOpenSet
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="menu"
         aria-expanded={open}
-        title={t('menu.title', 'Меню')}
+        title={t('menu.title')}
       >
         <IconDots size={18} />
       </button>
@@ -84,7 +84,7 @@ const HeaderMenu = ({ showRefresh, refreshing, onRefresh, onOpenAdmin, onOpenSet
               <span className={`header-menu__icon${refreshing ? ' header-menu__icon--spin' : ''}`}>
                 <IconRefresh size={15} />
               </span>
-              <span className="header-menu__label">{t('menu.refreshDoc', 'Обновить документ')}</span>
+              <span className="header-menu__label">{t('menu.refreshDoc')}</span>
             </button>
           )}
 
@@ -96,7 +96,7 @@ const HeaderMenu = ({ showRefresh, refreshing, onRefresh, onOpenAdmin, onOpenSet
             <span className="header-menu__icon">
               <IconWorld size={16} />
             </span>
-            <span className="header-menu__label">{t('menu.language', 'Язык')}</span>
+            <span className="header-menu__label">{t('menu.language')}</span>
             <span className="header-menu__meta">
               {lang.toUpperCase()}
               <IconChevron open={langOpen} />
@@ -134,7 +134,7 @@ const HeaderMenu = ({ showRefresh, refreshing, onRefresh, onOpenAdmin, onOpenSet
             <span className="header-menu__icon">
               <IconTool size={16} />
             </span>
-            <span className="header-menu__label">{t('menu.admin', 'Админ-панель')}</span>
+            <span className="header-menu__label">{t('menu.admin')}</span>
           </button>
 
           <button
@@ -147,7 +147,7 @@ const HeaderMenu = ({ showRefresh, refreshing, onRefresh, onOpenAdmin, onOpenSet
             <span className="header-menu__icon">
               <IconSettings size={16} />
             </span>
-            <span className="header-menu__label">{t('menu.settings', 'Настройки чата')}</span>
+            <span className="header-menu__label">{t('menu.settings')}</span>
           </button>
         </div>
       )}
