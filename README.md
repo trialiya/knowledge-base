@@ -46,7 +46,19 @@ docker compose -f docker-compose-h2.yaml up
 > Git-интеграция. Семантический поиск отключён — для полного стека замените
 > `docker-compose-h2.yaml` на `docker compose up`.
 >
-> Пошаговая инструкция — [Руководство по установке](docs/001.проект/008.руководство-по-установке.md)
+> Пошаговая инструкция — [Руководство по установке](docs/проект/руководство-по-установке.md)
+
+### Без Docker — запуск из JAR
+
+```bash
+./gradlew :backend:bootJar          # фронтенд встраивается автоматически
+SPRING_PROFILES_ACTIVE=h2 \
+AI_BASE_URL=https://api.openai.com/ AI_API_KEY=your-key AI_MODEL=gpt-4o \
+PROJECT_PATH=./ \
+java -jar backend/build/libs/backend-1.0-SNAPSHOT.jar
+```
+
+Требуется JDK 25. Подробнее — [Руководство по установке](docs/проект/руководство-по-установке.md), раздел 4.
 
 ## Документация
 
