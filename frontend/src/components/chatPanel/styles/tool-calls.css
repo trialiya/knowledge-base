@@ -1,0 +1,275 @@
+/* ── Tool call notifications ──
+   Панель справа от сообщения, прижата к его верхней кромке. */
+
+.message-row-with-tools {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 92%;
+}
+
+/* Левая колонка: пузырь + блок «изменения документа» */
+.message-row-with-tools > .message-main-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Пузырь заполняет колонку без вложенного max-width:75% */
+.message-row-with-tools .message-main-col > .message {
+  align-self: stretch;
+  max-width: 100%;
+}
+
+.tool-call-notifications {
+  flex-shrink: 0;
+  width: 210px;
+  max-width: 210px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Ограничиваем высоту при большом числе вызовов */
+.tool-call-notifications .tool-call-scroll {
+  max-height: 360px;
+}
+
+.tool-call-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 2px 4px 0;
+  scrollbar-width: thin;
+  scrollbar-color: #ccc transparent;
+}
+.tool-call-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.tool-call-scroll::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 4px;
+}
+
+/* ── Single item ── */
+.tool-call-item {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 0.73rem;
+  line-height: 1.4;
+  background: #f4f4f6;
+  border-left: 3px solid #ccc;
+  transition: border-color 0.2s, background 0.2s;
+  cursor: pointer;
+}
+
+.tool-call-item--started {
+  border-left-color: var(--kb-warning);
+  background: var(--kb-warning-bg);
+}
+.tool-call-item--ok {
+  border-left-color: var(--kb-success);
+  background: var(--kb-success-bg);
+}
+.tool-call-item--error {
+  border-left-color: #ea4335;
+  background: #fef0ef;
+}
+
+.tool-call-item:hover {
+  filter: brightness(0.97);
+}
+.tool-call-item:active {
+  filter: brightness(0.94);
+}
+
+.tool-call-status-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  height: 1.1em;
+  margin-top: 1px;
+}
+
+.tool-call-status-svg--started {
+  animation: kb-spin 1.2s linear infinite;
+}
+
+.tool-call-copy-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 2px;
+  margin-left: auto;
+  cursor: pointer;
+  color: #bbb;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+}
+.tool-call-item:hover .tool-call-copy-btn {
+  opacity: 1;
+}
+.tool-call-copy-btn:hover {
+  color: #666;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.tool-call-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.tool-call-name {
+  font-weight: 600;
+  color: #444;
+  font-size: 0.73rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tool-call-args {
+  color: #888;
+  font-size: 0.67rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tool-call-error {
+  color: #ea4335;
+  font-size: 0.67rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Hover tooltip (fixed position, escapes scroll container) ── */
+.tool-call-tooltip {
+  position: fixed;
+  z-index: 1000;
+  background: var(--kb-code-dark-bg);
+  color: var(--kb-code-dark-color);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  width: 320px;
+  box-sizing: border-box;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+.tool-call-tooltip-name {
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 4px;
+}
+.tool-call-tooltip-args {
+  color: #b0b0b0;
+  margin-bottom: 3px;
+}
+.tool-call-tooltip-status {
+  color: #8be9a0;
+  font-size: 0.68rem;
+}
+.tool-call-tooltip-error {
+  color: #ff8a80;
+  margin-top: 3px;
+}
+
+/* ── Group header ── */
+.tool-call-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.tool-call-item--group-header {
+  cursor: pointer;
+  user-select: none;
+}
+.tool-call-item--group-header:hover {
+  filter: brightness(0.97);
+}
+
+.tool-call-chevron {
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #999;
+  transition: transform 0.15s;
+  line-height: 1.3;
+  margin-left: auto;
+}
+.tool-call-chevron--open {
+  transform: rotate(90deg);
+}
+
+.tool-call-count {
+  display: inline-block;
+  background: rgba(0, 0, 0, 0.08);
+  color: #666;
+  font-size: 0.62rem;
+  font-weight: 700;
+  border-radius: 8px;
+  padding: 0 5px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+/* ── Group children (expanded) ── */
+.tool-call-group-children {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 10px;
+  margin-top: 2px;
+  border-left: 1px solid #ddd;
+  margin-left: 6px;
+}
+.tool-call-group-children .tool-call-item {
+  font-size: 0.7rem;
+  padding: 3px 7px;
+}
+
+/* Превью gist в плашке */
+.tool-call-gist {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--kb-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+/* Полный gist в тултипе */
+.tool-call-tooltip-gist {
+  font-size: 0.75rem;
+  color: var(--kb-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
