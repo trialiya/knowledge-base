@@ -84,6 +84,13 @@ const api = {
     }),
 
   summarize: (id) => fetch(`/api/documents/${id}/summarize`, { method: 'POST' }).then((r) => json(r, 'Summarize')),
+
+  /**
+   * Admin: экспортирует всё дерево документов в серверную папку
+   * (`kb.documents.export-path`). Возвращает сырой Response — вызывающий
+   * проверяет res.ok (бэкенд отвечает 204 без тела).
+   */
+  exportToFolder: (meta = true) => fetch(`/api/documents/admin/export?meta=${meta}`, { method: 'POST' }),
 };
 
 export default api;

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import SettingsShell, { SettingsContentHead, SettingsSection } from '../common/SettingsShell';
 import { IconRefresh } from '../knowledgeBasePanel/icons';
 import { IconDatabase, IconDownload, IconBolt, IconTool, IconEraser } from '../common/menuIcons';
+import api from '../knowledgeBasePanel/api';
 import './adminPanel.css';
 
 // Заглушечные данные — на бэке заменить вызовом GET /api/admin/index/stats и т.п.
@@ -63,47 +64,90 @@ const IndexGroup = () => (
 
 // ─── Группа: массовые операции ────────────────────────────────────────────────
 
-const BulkGroup = () => (
-  <>
-    <SettingsContentHead title="Массовые операции" subtitle="Экспорт, импорт и пакетная обработка документов" />
-    <div className="settings-content__body">
-      <SettingsSection label="Операции" rows>
-        <div className="set-op">
-          <span className="set-op__icon">
-            <IconDownload size={18} />
-          </span>
-          <div className="set-op__text">
-            <div className="set-op__title">Экспорт всех документов</div>
-            <div className="set-op__desc">ZIP: Markdown + вложения, структура папок сохраняется</div>
-          </div>
-          <button className="set-btn set-btn--ghost">Выгрузить</button>
-        </div>
+const BulkGroup = () => {
+  // idle | running | done | error
+  const [exportState, setExportState] = useState('idle');
+  const [exportMeta, setExportMeta] = useState(true);
 
-        <div className="set-op">
-          <span className="set-op__icon">
-            <IconBolt size={18} />
-          </span>
-          <div className="set-op__text">
-            <div className="set-op__title">Перегенерировать AI-summary</div>
-            <div className="set-op__desc">Для документов с устаревшим summary ({STATS.stale})</div>
-          </div>
-          <button className="set-btn set-btn--ghost">Запустить</button>
-        </div>
+  const runExport = async () => {
+    if (exportState === 'running') return;
+    setExportState('running');
+    try {
+      const res = await api.exportToFolder(exportMeta);
+      setExportState(res.ok ? 'done' : 'error');
+    } catch {
+      setExportState('error');
+    }
+  };
 
-        <div className="set-op">
-          <span className="set-op__icon">
-            <IconDownload size={18} />
-          </span>
-          <div className="set-op__text">
-            <div className="set-op__title">Импорт документов</div>
-            <div className="set-op__desc">ZIP с Markdown — в выбранную папку</div>
+  return (
+    <>
+      <SettingsContentHead title="Массовые операции" subtitle="Экспорт, импорт и пакетная обработка документов" />
+      <div className="settings-content__body">
+        <SettingsSection label="Операции" rows>
+          <div className="set-op">
+            <span className="set-op__icon">
+              <IconDownload size={18} />
+            </span>
+            <div className="set-op__text">
+              <div className="set-op__title">Экспорт всех документов</div>
+              <div className="set-op__desc">
+                Выгрузка дерева в серверную папку (DOCUMENTS_EXPORT_PATH): Markdown
+                {exportMeta ? ' + метаданные' : ''}, структура папок сохраняется
+              </div>
+              <label className="admin-check">
+                <input
+                  type="checkbox"
+                  checked={exportMeta}
+                  onChange={(e) => setExportMeta(e.target.checked)}
+                  disabled={exportState === 'running'}
+                />
+                С метаданными (.yaml)
+              </label>
+              {exportState === 'done' && (
+                <div className="admin-status admin-status--inline">
+                  <span className="admin-badge admin-badge--ok">готово</span>
+                  <span>Документы выгружены в серверную папку экспорта.</span>
+                </div>
+              )}
+              {exportState === 'error' && (
+                <div className="admin-status admin-status--inline">
+                  <span className="admin-badge admin-badge--error">ошибка</span>
+                  <span>Не удалось выгрузить. Проверьте, что задан DOCUMENTS_EXPORT_PATH.</span>
+                </div>
+              )}
+            </div>
+            <button className="set-btn set-btn--ghost" onClick={runExport} disabled={exportState === 'running'}>
+              {exportState === 'running' ? 'Выгрузка…' : 'Выгрузить'}
+            </button>
           </div>
-          <button className="set-btn set-btn--ghost">Загрузить</button>
-        </div>
-      </SettingsSection>
-    </div>
-  </>
-);
+
+          <div className="set-op">
+            <span className="set-op__icon">
+              <IconBolt size={18} />
+            </span>
+            <div className="set-op__text">
+              <div className="set-op__title">Перегенерировать AI-summary</div>
+              <div className="set-op__desc">Для документов с устаревшим summary ({STATS.stale})</div>
+            </div>
+            <button className="set-btn set-btn--ghost">Запустить</button>
+          </div>
+
+          <div className="set-op">
+            <span className="set-op__icon">
+              <IconDownload size={18} />
+            </span>
+            <div className="set-op__text">
+              <div className="set-op__title">Импорт документов</div>
+              <div className="set-op__desc">ZIP с Markdown — в выбранную папку</div>
+            </div>
+            <button className="set-btn set-btn--ghost">Загрузить</button>
+          </div>
+        </SettingsSection>
+      </div>
+    </>
+  );
+};
 
 // ─── Группа: обслуживание ─────────────────────────────────────────────────────
 
