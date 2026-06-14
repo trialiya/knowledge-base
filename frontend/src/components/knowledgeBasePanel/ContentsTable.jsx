@@ -4,8 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { IconFolder, IconDoc } from './icons';
 import { makeSnippet } from '../common/utils';
-
-const PAGE_SIZE = 10;
+import { KB_PAGE_SIZE as PAGE_SIZE } from '../../constants/pagination';
 
 const ContentsTable = ({ children, onNavigate }) => {
   const { t, i18n } = useTranslation('knowledgeBase');

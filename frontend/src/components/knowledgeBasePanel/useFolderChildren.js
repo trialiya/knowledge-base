@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from './api';
-
-const FULL_PAGE = 1000;
+import { KB_FULL_PAGE as FULL_PAGE } from '../../constants/pagination';
 
 /**
  * Decides whether the tree's cached children for this folder are already the

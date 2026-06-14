@@ -3,13 +3,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from
 import { useTranslation } from 'react-i18next';
 import Message from './Message';
 import { IconArrowDown } from '../../icons';
-
-// Насколько близко к низу считаем, что мы «прилипли» (px).
-// Порог обязателен: из-за субпиксельных значений scrollHeight/clientHeight
-// строгое сравнение с нулём иногда не детектит «у самого низа».
-const STICK_THRESHOLD = 60;
-// Насколько близко к верху докручиваем, чтобы начать догрузку старых сообщений.
-const LOAD_MORE_THRESHOLD = 120;
+import { SCROLL_STICK_THRESHOLD as STICK_THRESHOLD, SCROLL_LOAD_THRESHOLD as LOAD_MORE_THRESHOLD } from '../../constants/ui';
 
 // onLoadMore: async () => boolean — true если что-то догрузилось (для UI-индикатора).
 // hasMore: есть ли ещё более старые сообщения на бэке.

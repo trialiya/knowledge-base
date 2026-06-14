@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconCopySmall, IconCopied } from '../../icons';
+import { COPY_DONE_MS } from '../../constants/ui';
 import './codeBlock.css';
 
 const extractLang = (className) => {
@@ -19,7 +20,7 @@ const CodeBlock = ({ code, className, children, ...props }) => {
       await navigator.clipboard.writeText(code);
       setCopied(true);
       if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setCopied(false), 1500);
+      timerRef.current = setTimeout(() => setCopied(false), COPY_DONE_MS);
     } catch {
       /* clipboard API недоступен в insecure context */
     }

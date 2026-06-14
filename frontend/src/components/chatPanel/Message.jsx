@@ -9,6 +9,7 @@ import CodeBlock from '../common/CodeBlock';
 import HistoryModal from '../knowledgeBasePanel/HistoryModal';
 import { getToolIcon, toolLabelKey, humanizeTool, getDocChangeRef } from './toolMeta';
 import { IconCopySmall, IconCopied } from '../../icons';
+import { COPY_DONE_MS, GIST_PREVIEW_LEN } from '../../constants/ui';
 
 /** SVG status indicators — not clickable, purely visual */
 const IconStarted = () => (
@@ -63,7 +64,7 @@ const MessageCopyButton = ({ text }) => {
       await navigator.clipboard.writeText(text ?? '');
       setCopied(true);
       clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setCopied(false), 1500);
+      timerRef.current = setTimeout(() => setCopied(false), COPY_DONE_MS);
     } catch {
       /* clipboard API may fail in insecure contexts */
     }
@@ -87,8 +88,6 @@ const formatArgs = (args) => {
     .map(([key, val]) => `${key}: ${typeof val === 'string' ? val : JSON.stringify(val)}`)
     .join(', ');
 };
-
-const GIST_PREVIEW_LEN = 80;
 
 /** Однострочное усечённое превью resultGist для плашки. */
 const gistPreview = (gist) => {
@@ -166,7 +165,7 @@ const ToolCallItem = ({ tc }) => {
     try {
       await navigator.clipboard.writeText(buildCopyText(tc, t));
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      setTimeout(() => setCopied(false), COPY_DONE_MS);
     } catch {
       /* clipboard API may fail in insecure contexts */
     }
