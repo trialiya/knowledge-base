@@ -3,7 +3,10 @@ import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from
 import { useTranslation } from 'react-i18next';
 import Message from './Message';
 import { IconArrowDown } from '../../icons';
-import { SCROLL_STICK_THRESHOLD as STICK_THRESHOLD, SCROLL_LOAD_THRESHOLD as LOAD_MORE_THRESHOLD } from '../../constants/ui';
+import {
+  SCROLL_STICK_THRESHOLD as STICK_THRESHOLD,
+  SCROLL_LOAD_THRESHOLD as LOAD_MORE_THRESHOLD,
+} from '../../constants/ui';
 
 // onLoadMore: async () => boolean — true если что-то догрузилось (для UI-индикатора).
 // hasMore: есть ли ещё более старые сообщения на бэке.

@@ -45,7 +45,8 @@ class DocumentExportServiceTest {
         service = new DocumentExportService(repo, config);
     }
 
-    private static DocumentEntity doc(long id, String title, Long parentId, int position, String description) {
+    private static DocumentEntity doc(
+            long id, String title, Long parentId, int position, String description) {
         DocumentEntity e = new DocumentEntity();
         e.setId(id);
         e.setTitle(title);
@@ -57,7 +58,8 @@ class DocumentExportServiceTest {
         return e;
     }
 
-    private static DocumentEntity folder(long id, String title, Long parentId, int position, String description) {
+    private static DocumentEntity folder(
+            long id, String title, Long parentId, int position, String description) {
         DocumentEntity e = doc(id, title, parentId, position, description);
         e.setType("folder");
         return e;
@@ -152,7 +154,9 @@ class DocumentExportServiceTest {
             service.exportAll(true);
 
             // intro.md and api.md are siblings, so the rewritten link is just the file name.
-            assertThat(read("docs/intro.md")).contains("[API doc](api.md)").doesNotContain("/?doc=3");
+            assertThat(read("docs/intro.md"))
+                    .contains("[API doc](api.md)")
+                    .doesNotContain("/?doc=3");
         }
 
         @Test

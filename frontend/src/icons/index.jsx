@@ -58,14 +58,7 @@ export const IconChevronRight = ({ size = 10 }) => (
 
 /** Нижний шеврон (дропдауны, селекторы). Принимает className для CSS-вращения. */
 export const IconChevronDown = ({ size = 12, className }) => (
-  <svg
-    className={className}
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    {...s}
-    strokeWidth="2.4"
-  >
+  <svg className={className} width={size} height={size} viewBox="0 0 24 24" {...s} strokeWidth="2.4">
     <polyline points="6 9 12 15 18 9" />
   </svg>
 );

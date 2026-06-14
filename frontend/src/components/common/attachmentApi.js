@@ -8,8 +8,7 @@ export { formatFileSize } from '../../utils/formatting';
 const seg = (ownerType) => (ownerType === 'document' ? 'documents' : 'chats');
 
 const attachmentApi = {
-  list: (ownerType, ownerId) =>
-    request(`/api/${seg(ownerType)}/${ownerId}/attachments`),
+  list: (ownerType, ownerId) => request(`/api/${seg(ownerType)}/${ownerId}/attachments`),
 
   upload: (ownerType, ownerId, file) => {
     const formData = new FormData();
@@ -24,8 +23,7 @@ const attachmentApi = {
 
   summarize: (id) => request(`/api/attachments/${id}/summarize`, { method: 'POST' }),
 
-  getContent: (id) =>
-    fetch(`/api/attachments/${id}/content`).then((r) => r.text()),
+  getContent: (id) => fetch(`/api/attachments/${id}/content`).then((r) => r.text()),
 };
 
 export default attachmentApi;

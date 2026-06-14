@@ -10,23 +10,18 @@ import { request, json } from '../../api/client';
 export const fetchPhrases = () => request('/api/phrases');
 
 /** Переключить «избранное» прямо из блока фраз в чате. */
-export const toggleFavorite = (id, value) =>
-  request(`/api/phrases/${id}/favorite?value=${value}`, { method: 'PATCH' });
+export const toggleFavorite = (id, value) => request(`/api/phrases/${id}/favorite?value=${value}`, { method: 'PATCH' });
 
 // ── Админские (настройки) ────────────────────────────────────────────────────
 
 /** Все фразы, включая выключенные. q — быстрый поиск по label. */
-export const fetchAllPhrases = (q = '') =>
-  request(`/api/admin/phrases${q ? `?q=${encodeURIComponent(q)}` : ''}`);
+export const fetchAllPhrases = (q = '') => request(`/api/admin/phrases${q ? `?q=${encodeURIComponent(q)}` : ''}`);
 
-export const createPhrase = (body) =>
-  request('/api/admin/phrases', { method: 'POST', ...json(body) });
+export const createPhrase = (body) => request('/api/admin/phrases', { method: 'POST', ...json(body) });
 
-export const updatePhrase = (id, body) =>
-  request(`/api/admin/phrases/${id}`, { method: 'PUT', ...json(body) });
+export const updatePhrase = (id, body) => request(`/api/admin/phrases/${id}`, { method: 'PUT', ...json(body) });
 
-export const deletePhrase = (id) =>
-  request(`/api/admin/phrases/${id}`, { method: 'DELETE' });
+export const deletePhrase = (id) => request(`/api/admin/phrases/${id}`, { method: 'DELETE' });
 
 export const adminToggleFavorite = (id, value) =>
   request(`/api/admin/phrases/${id}/favorite?value=${value}`, { method: 'PATCH' });

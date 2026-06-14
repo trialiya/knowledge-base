@@ -167,7 +167,8 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   // Список выбираемых моделей (GET /api/chats/models). Грузим один раз.
   useEffect(() => {
     let cancelled = false;
-    chatApi.getModels()
+    chatApi
+      .getModels()
       .then((cfg) => {
         if (!cancelled) setModelConfig(cfg);
       })
@@ -290,10 +291,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     loadingMessagesRef.current.add(chatId);
     setLoadingMessages(true);
     try {
-      const [meta, page] = await Promise.all([
-        chatApi.getChatMeta(chatId),
-        chatApi.getMessages(chatId, PAGE_SIZE),
-      ]);
+      const [meta, page] = await Promise.all([chatApi.getChatMeta(chatId), chatApi.getMessages(chatId, PAGE_SIZE)]);
       const { bubbles, leadingMetas } = transformPage(page.messages);
 
       failedChatIdsRef.current.delete(chatId);
@@ -397,7 +395,8 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   useEffect(() => {
     if (!activeChatId || activeChatId === DRAFT_CHAT_ID) return;
     setAttachCount(0);
-    chatApi.getAttachmentCount(activeChatId)
+    chatApi
+      .getAttachmentCount(activeChatId)
       .then((count) => setAttachCount(typeof count === 'number' ? count : 0))
       .catch(() => setAttachCount(0));
   }, [activeChatId]);

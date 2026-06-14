@@ -50,7 +50,6 @@ const StatusIcon = ({ status }) => {
   }
 };
 
-
 /** Кнопка «копировать всё сообщение» — копирует исходный текст сообщения. */
 const MessageCopyButton = ({ text }) => {
   const { t } = useTranslation('chat');

@@ -21,8 +21,7 @@ const api = {
 
   fetchAncestors: (id) => request(`/api/documents/${id}/ancestors`),
 
-  search: (q, mode) =>
-    request(`/api/documents/search?q=${encodeURIComponent(q)}&mode=${mode}`),
+  search: (q, mode) => request(`/api/documents/search?q=${encodeURIComponent(q)}&mode=${mode}`),
 
   /**
    * Поиск по имени для @mention-автодополнения. limit — макс. результатов.
@@ -37,8 +36,7 @@ const api = {
 
   fetchHistory: (id) => request(`/api/documents/${id}/history`, { cache: 'no-store' }),
 
-  fetchHistoryVersion: (id, version) =>
-    request(`/api/documents/${id}/history/${version}`),
+  fetchHistoryVersion: (id, version) => request(`/api/documents/${id}/history/${version}`),
 
   summarize: (id) => request(`/api/documents/${id}/summarize`, { method: 'POST' }),
 
@@ -46,11 +44,9 @@ const api = {
 
   // ── Write (возвращают сырой Response) ────────────────────────────────────
 
-  create: (body) =>
-    requestRaw('/api/documents', { method: 'POST', ...json(body) }),
+  create: (body) => requestRaw('/api/documents', { method: 'POST', ...json(body) }),
 
-  update: (id, patch) =>
-    requestRaw(`/api/documents/${id}`, { method: 'PUT', ...json(patch) }),
+  update: (id, patch) => requestRaw(`/api/documents/${id}`, { method: 'PUT', ...json(patch) }),
 
   delete: (id) => requestRaw(`/api/documents/${id}`, { method: 'DELETE' }),
 
@@ -68,8 +64,7 @@ const api = {
    * Экспорт всего дерева в серверную папку. Возвращает сырой Response
    * (бэк отвечает 204 без тела).
    */
-  exportToFolder: (meta = true) =>
-    requestRaw(`/api/documents/admin/export?meta=${meta}`, { method: 'POST' }),
+  exportToFolder: (meta = true) => requestRaw(`/api/documents/admin/export?meta=${meta}`, { method: 'POST' }),
 };
 
 export default api;
