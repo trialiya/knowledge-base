@@ -95,14 +95,18 @@ class PostgresDocumentIT extends AbstractPostgresIntegrationTest {
 
     @Test
     void productionMigrationsApplyAndSeedSystemDocuments() {
-        // V1 сидирует системный корень «Проект KB» (id=1) и делает setval по sequence.
+        // После всех миграций системный корень (id=1) — папка «Проект» (V2026.05.22
+        // делает truncate + reinsert поверх сидов V1).
         DocumentEntity root = repo.findById(1L).orElseThrow();
-        assertThat(root.getTitle()).isEqualTo("Проект KB");
+        assertThat(root.getTitle()).isEqualTo("Проект");
+        assertThat(root.getType()).isEqualTo("folder");
         assertThat(root.isSystem()).isTrue();
 
-        // setval сработал: следующая вставка получает id > сидовых (а не конфликтует с id=2..4).
+        // identity-генерация работает: новая вставка получает сгенерированный id,
+        // не конфликтующий с сидовыми (1, 2).
         DocumentEntity fresh = doc("fresh", null, 999);
-        assertThat(fresh.getId()).isGreaterThan(4L);
+        assertThat(fresh.getId()).isNotNull().isNotIn(1L, 2L);
+        assertThat(repo.findById(fresh.getId())).isPresent();
     }
 
     // ── Рекурсивные CTE на реальном PostgreSQL ───────────────────────────────
