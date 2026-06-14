@@ -9,23 +9,23 @@
  * наверху (PhrasesSettings/Phrases) ловят его и показывают баннер/делают откат.
  */
 const request = async (url, options) => {
-    let res;
-    try {
-        res = await fetch(url, options);
-    } catch (e) {
-        // обрыв сети, DNS, CORS и т.п. — fetch реджектится без ответа
-        throw new Error(`Сеть недоступна: ${e.message}`);
-    }
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    // Пустое тело (204 или 200 от void-метода вроде DELETE) не парсим как JSON —
-    // res.json() на пустой строке бросает «Unexpected end of JSON input».
-    const text = await res.text();
-    return text ? JSON.parse(text) : null;
+  let res;
+  try {
+    res = await fetch(url, options);
+  } catch (e) {
+    // обрыв сети, DNS, CORS и т.п. — fetch реджектится без ответа
+    throw new Error(`Сеть недоступна: ${e.message}`);
+  }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  // Пустое тело (204 или 200 от void-метода вроде DELETE) не парсим как JSON —
+  // res.json() на пустой строке бросает «Unexpected end of JSON input».
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
 };
 
 const jsonBody = (body) => ({
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body),
 });
 
 // ── Публичные (чат) ──────────────────────────────────────────────────────────
@@ -34,31 +34,26 @@ const jsonBody = (body) => ({
 export const fetchPhrases = () => request('/api/phrases');
 
 /** Переключить «избранное» прямо из блока фраз в чате. */
-export const toggleFavorite = (id, value) =>
-    request(`/api/phrases/${id}/favorite?value=${value}`, { method: 'PATCH' });
+export const toggleFavorite = (id, value) => request(`/api/phrases/${id}/favorite?value=${value}`, { method: 'PATCH' });
 
 // ── Админские (настройки) ────────────────────────────────────────────────────
 
 /** Все фразы, включая выключенные. q — быстрый поиск по label. */
-export const fetchAllPhrases = (q = '') =>
-    request(`/api/admin/phrases${q ? `?q=${encodeURIComponent(q)}` : ''}`);
+export const fetchAllPhrases = (q = '') => request(`/api/admin/phrases${q ? `?q=${encodeURIComponent(q)}` : ''}`);
 
-export const createPhrase = (body) =>
-    request('/api/admin/phrases', { method: 'POST', ...jsonBody(body) });
+export const createPhrase = (body) => request('/api/admin/phrases', { method: 'POST', ...jsonBody(body) });
 
-export const updatePhrase = (id, body) =>
-    request(`/api/admin/phrases/${id}`, { method: 'PUT', ...jsonBody(body) });
+export const updatePhrase = (id, body) => request(`/api/admin/phrases/${id}`, { method: 'PUT', ...jsonBody(body) });
 
-export const deletePhrase = (id) =>
-    request(`/api/admin/phrases/${id}`, { method: 'DELETE' });
+export const deletePhrase = (id) => request(`/api/admin/phrases/${id}`, { method: 'DELETE' });
 
 export const adminToggleFavorite = (id, value) =>
-    request(`/api/admin/phrases/${id}/favorite?value=${value}`, { method: 'PATCH' });
+  request(`/api/admin/phrases/${id}/favorite?value=${value}`, { method: 'PATCH' });
 
 /** Переключить только флаг enabled — без полного PUT (текст не перетирается). */
 export const adminToggleEnabled = (id, value) =>
-    request(`/api/admin/phrases/${id}/enabled?value=${value}`, { method: 'PATCH' });
+  request(`/api/admin/phrases/${id}/enabled?value=${value}`, { method: 'PATCH' });
 
 /** Переместить фразу внутри её категории на позицию position (значение слота соседа). */
 export const movePhrase = (id, position) =>
-    request(`/api/admin/phrases/${id}/move`, { method: 'PATCH', ...jsonBody({ position }) });
+  request(`/api/admin/phrases/${id}/move`, { method: 'PATCH', ...jsonBody({ position }) });
