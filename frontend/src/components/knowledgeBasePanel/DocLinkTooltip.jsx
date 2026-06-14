@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import useDocPreview from './useDocPreview';
 import { IconFolder, IconDoc, IconSparkle } from './icons';
+import { TOOLTIP_WIDTH, TOOLTIP_GAP, TOOLTIP_HEIGHT_ESTIMATE } from '../../constants/ui';
 
 /**
  * Wraps a `/?doc=N` link with a hover-activated preview tooltip.
@@ -38,14 +39,14 @@ const DocLinkTooltip = ({ href, children, tree, onNavigate, ...rest }) => {
   const calcPos = useCallback(() => {
     if (!linkRef.current) return;
     const rect = linkRef.current.getBoundingClientRect();
-    const GAP = 8;
-    const W = 300;
+    const left = Math.min(Math.max(rect.left, TOOLTIP_GAP), window.innerWidth - TOOLTIP_WIDTH - TOOLTIP_GAP);
+    const tooltipH = tooltipRef.current ? tooltipRef.current.offsetHeight : TOOLTIP_HEIGHT_ESTIMATE;
+    const spaceBelow = window.innerHeight - rect.bottom - TOOLTIP_GAP;
 
-    const left = Math.min(Math.max(rect.left, 8), window.innerWidth - W - 8);
-    const tooltipH = tooltipRef.current ? tooltipRef.current.offsetHeight : 160;
-    const spaceBelow = window.innerHeight - rect.bottom - GAP;
-
-    const top = spaceBelow >= tooltipH || spaceBelow >= rect.top - GAP ? rect.bottom + GAP : rect.top - tooltipH - GAP;
+    const top =
+      spaceBelow >= tooltipH || spaceBelow >= rect.top - TOOLTIP_GAP
+        ? rect.bottom + TOOLTIP_GAP
+        : rect.top - tooltipH - TOOLTIP_GAP;
 
     setPos({ top, left });
   }, []);

@@ -1,36 +1,31 @@
-// ─── Attachment API helpers ────────────────────────────────────────────────────
-// Wrappers around the attachment endpoints. Documents and chats share the same
-// shape, differing only in the URL segment (documents | chats).
+// ─── Attachment API ──────────────────────────────────────────────────────────
+// Обёртки вокруг /api/attachments/* и /<type>/<id>/attachments эндпоинтов.
+// Documents и chats используют одну форму, различаясь только URL-сегментом.
 
-const ownerSegment = (ownerType) => (ownerType === 'document' ? 'documents' : 'chats');
+import { request, requestRaw } from '../../api/client';
+export { formatFileSize } from '../../utils/formatting';
+
+const seg = (ownerType) => (ownerType === 'document' ? 'documents' : 'chats');
 
 const attachmentApi = {
-  list: (ownerType, ownerId) => fetch(`/api/${ownerSegment(ownerType)}/${ownerId}/attachments`).then((r) => r.json()),
+  list: (ownerType, ownerId) =>
+    request(`/api/${seg(ownerType)}/${ownerId}/attachments`),
 
   upload: (ownerType, ownerId, file) => {
     const formData = new FormData();
     formData.append('file', file);
-    return fetch(`/api/${ownerSegment(ownerType)}/${ownerId}/attachments`, {
+    return request(`/api/${seg(ownerType)}/${ownerId}/attachments`, {
       method: 'POST',
       body: formData,
-    }).then((r) => {
-      if (!r.ok) throw new Error(`Upload failed: ${r.status}`);
-      return r.json();
     });
   },
 
-  delete: (id) => fetch(`/api/attachments/${id}`, { method: 'DELETE' }),
+  delete: (id) => requestRaw(`/api/attachments/${id}`, { method: 'DELETE' }),
 
-  summarize: (id) => fetch(`/api/attachments/${id}/summarize`, { method: 'POST' }).then((r) => r.json()),
+  summarize: (id) => request(`/api/attachments/${id}/summarize`, { method: 'POST' }),
 
-  getContent: (id) => fetch(`/api/attachments/${id}/content`).then((r) => r.text()),
+  getContent: (id) =>
+    fetch(`/api/attachments/${id}/content`).then((r) => r.text()),
 };
-
-/** Human-readable file size. */
-export function formatFileSize(bytes) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 export default attachmentApi;

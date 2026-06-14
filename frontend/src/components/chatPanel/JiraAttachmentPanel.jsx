@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import './jiraAttachmentPanel.css';
+import chatApi from '../../api/chatApi';
+import { formatFileSize } from '../common/attachmentApi';
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -107,12 +109,6 @@ const IconLink = () => (
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatSize(bytes) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 function detectAttachmentType(attachment) {
   if (attachment.sourceUrl?.includes('atlassian.net/browse') || attachment.fileName?.match(/^[A-Z]+-\d+\.md$/)) {
     return 'jira';
@@ -187,7 +183,7 @@ const AttachmentCard = ({ attachment, onView }) => {
         <span className="jira-att-card__name" title={attachment.fileName}>
           {attachment.fileName}
         </span>
-        <span className="jira-att-card__size">{formatSize(attachment.fileSize)}</span>
+        <span className="jira-att-card__size">{formatFileSize(attachment.fileSize)}</span>
         <button className="jira-att-card__view-btn" onClick={() => onView(attachment)} title={t('jira.viewContent')}>
           <IconEye />
         </button>
@@ -232,8 +228,7 @@ const JiraAttachmentPanel = ({ conversationId, jiraUrl, onCountChange }) => {
     if (!conversationId) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/chat/${conversationId}/attachments`);
-      const data = await res.json();
+      const data = await chatApi.listAttachments(conversationId);
       const list = Array.isArray(data) ? data : [];
       setAttachments(list);
       onCountChange?.(list.length);
@@ -254,11 +249,7 @@ const JiraAttachmentPanel = ({ conversationId, jiraUrl, onCountChange }) => {
     setRefreshing(true);
     setRefreshError('');
     try {
-      const res = await fetch(`/api/chats/${encodeURIComponent(conversationId)}/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: jiraUrl,
-      });
+      const res = await chatApi.refreshJira(conversationId, jiraUrl);
       if (!res.ok) throw new Error(await res.text());
       await load();
     } catch (e) {

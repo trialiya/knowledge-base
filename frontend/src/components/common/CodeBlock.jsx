@@ -1,37 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { IconCopySmall, IconCopied } from '../../icons';
+import { COPY_DONE_MS } from '../../constants/ui';
 import './codeBlock.css';
-
-const IconCopy = () => (
-  <svg
-    width="14"
-    height="14"
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.6"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
-    <path d="M10.5 5.5V3.5a1.5 1.5 0 0 0-1.5-1.5H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5h2" />
-  </svg>
-);
-
-const IconCheck = () => (
-  <svg
-    width="14"
-    height="14"
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke="#34a853"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M3 8.5l3 3 7-7.5" />
-  </svg>
-);
 
 const extractLang = (className) => {
   const m = /language-([\w-]+)/.exec(className || '');
@@ -49,7 +20,7 @@ const CodeBlock = ({ code, className, children, ...props }) => {
       await navigator.clipboard.writeText(code);
       setCopied(true);
       if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setCopied(false), 1500);
+      timerRef.current = setTimeout(() => setCopied(false), COPY_DONE_MS);
     } catch {
       /* clipboard API недоступен в insecure context */
     }
@@ -65,7 +36,7 @@ const CodeBlock = ({ code, className, children, ...props }) => {
           title={copied ? t('copied') : t('copy')}
           type="button"
         >
-          {copied ? <IconCheck /> : <IconCopy />}
+          {copied ? <IconCopied size={14} /> : <IconCopySmall size={14} />}
         </button>
       </div>
       <pre>

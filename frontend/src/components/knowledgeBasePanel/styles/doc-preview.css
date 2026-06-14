@@ -31,18 +31,7 @@
   box-shadow: 0 8px 32px rgba(91, 79, 207, 0.18);
   overflow: hidden;
   pointer-events: auto;
-  animation: doc-tooltip-in 0.12s ease;
-}
-
-@keyframes doc-tooltip-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  animation: kb-fade-in-down 0.12s ease;
 }
 
 /* ── Loading / error states ── */
@@ -223,15 +212,10 @@
   border: 2px solid var(--kb-border);
   border-top-color: var(--kb-accent);
   border-radius: 50%;
-  animation: doc-spin 0.65s linear infinite;
+  animation: kb-spin 0.65s linear infinite;
   flex-shrink: 0;
 }
 
-@keyframes doc-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
 
 /* ═══════════════════════════════════════════════
    @MENTION DROPDOWN
@@ -247,7 +231,7 @@
   border-radius: var(--kb-radius);
   box-shadow: 0 8px 32px rgba(91, 79, 207, 0.18);
   overflow: hidden;
-  animation: doc-tooltip-in 0.1s ease;
+  animation: kb-fade-in-down 0.1s ease;
 }
 
 /* Header: "Search: «query»" */
@@ -280,7 +264,7 @@
   border: 2px solid var(--kb-border);
   border-top-color: var(--kb-accent);
   border-radius: 50%;
-  animation: doc-spin 0.65s linear infinite;
+  animation: kb-spin 0.65s linear infinite;
   flex-shrink: 0;
 }
 

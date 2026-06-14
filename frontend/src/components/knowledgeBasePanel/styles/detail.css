@@ -333,11 +333,6 @@
 .spin {
   animation: kb-spin 0.9s linear infinite;
 }
-@keyframes kb-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
 
 /* ── AI summary label ── */
 .summary-section__label-ai {

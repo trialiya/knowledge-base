@@ -42,18 +42,7 @@
   box-shadow: 0 12px 32px rgba(91, 79, 207, 0.16);
   padding: 6px;
   z-index: 1200;
-  animation: header-menu-in 0.12s ease;
-}
-
-@keyframes header-menu-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  animation: kb-fade-in-down 0.12s ease;
 }
 
 .header-menu__item {
@@ -92,12 +81,7 @@
   color: var(--kb-accent);
 }
 .header-menu__icon--spin svg {
-  animation: header-menu-spin 0.8s linear infinite;
-}
-@keyframes header-menu-spin {
-  to {
-    transform: rotate(360deg);
-  }
+  animation: kb-spin 0.8s linear infinite;
 }
 
 .header-menu__label {

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import MarkdownEditor from './MarkdownEditor';
 import { IconEdit, IconChevronRight, IconExpand, IconCopy, IconCheck } from './icons';
+import { COPY_DONE_MS } from '../../constants/ui';
 
 const MAX_LINES = 12;
 
@@ -53,7 +54,7 @@ const SummarySection = ({
       await navigator.clipboard.writeText(description || '');
       setCopied(true);
       clearTimeout(copyTimerRef.current);
-      copyTimerRef.current = setTimeout(() => setCopied(false), 1500);
+      copyTimerRef.current = setTimeout(() => setCopied(false), COPY_DONE_MS);
     } catch {
       /* clipboard API недоступен в insecure context */
     }

@@ -1,101 +1,75 @@
-// ─── Knowledge Base API helpers ────────────────────────────────────────────────
-// Thin wrappers around the /api/documents endpoints. Kept free of React so they
-// can be unit-tested and reused outside the component tree.
+// ─── Knowledge Base API ──────────────────────────────────────────────────────
+// Тонкие обёртки над /api/documents эндпоинтами.
 //
-// Contract (made consistent during the refactor):
-//   • READ helpers (fetchTree, fetchChildren, search, searchByName, fetchById,
-//     fetchAncestors, fetchHistory, fetchHistoryVersion, summarize) check
-//     response.ok, throw a typed Error (err.status set) on failure, and resolve
-//     to the parsed JSON body on success.
-//   • WRITE helpers (create, update, delete, move) resolve to
-//     the raw Response so callers can branch on res.ok and read an error body.
+// Контракт:
+//   • READ-хелперы (fetch*, search*, summarize, reindex) — бросают типизированный
+//     Error (err.status) при !ok и возвращают распарсенный JSON при успехе.
+//   • WRITE-хелперы (create, update, delete, move, exportToFolder) — возвращают
+//     сырой Response, чтобы вызывающий код мог проверить res.ok и прочитать тело
+//     ошибки для показа пользователю.
 
-/** Throws a typed Error for a non-OK response; otherwise returns it. */
-async function ensureOk(r, label) {
-  if (!r.ok) {
-    const err = new Error(r.status === 404 ? 'Not found' : `${label} failed: ${r.status}`);
-    err.status = r.status;
-    throw err;
-  }
-  return r;
-}
-
-const json = (r, label) => ensureOk(r, label).then((res) => res.json());
+import { request, requestRaw, json } from '../../api/client';
 
 const api = {
+  // ── Read ──────────────────────────────────────────────────────────────────
+
   fetchChildren: (parentId, page = 0, size = 10) => {
     const params = new URLSearchParams({ page: String(page), size: String(size) });
     if (parentId != null) params.set('parentId', parentId);
-    return fetch(`/api/documents/children?${params}`).then((r) => json(r, 'Children'));
+    return request(`/api/documents/children?${params}`);
   },
 
-  fetchAncestors: (id) => fetch(`/api/documents/${id}/ancestors`).then((r) => json(r, 'Ancestors')),
+  fetchAncestors: (id) => request(`/api/documents/${id}/ancestors`),
 
   search: (q, mode) =>
-    fetch(`/api/documents/search?q=${encodeURIComponent(q)}&mode=${mode}`).then((r) => json(r, 'Search')),
+    request(`/api/documents/search?q=${encodeURIComponent(q)}&mode=${mode}`),
 
   /**
-   * Find documents by name fragment — used by @mention autocomplete.
-   * Returns up to `limit` DocumentNode objects, exact matches first.
-   * Pass an AbortSignal to cancel an in-flight request (keystroke debounce).
+   * Поиск по имени для @mention-автодополнения. limit — макс. результатов.
+   * signal — AbortSignal для отмены при следующем нажатии клавиши.
    */
   searchByName: (name, limit = 10, signal) => {
     const params = new URLSearchParams({ name, limit: String(limit) });
-    return fetch(`/api/documents/search-by-name?${params}`, signal ? { signal } : undefined).then((r) =>
-      json(r, 'SearchByName'),
-    );
+    return request(`/api/documents/search-by-name?${params}`, signal ? { signal } : undefined);
   },
 
-  fetchById: (id) => fetch(`/api/documents/${id}`).then((r) => json(r, 'Document')),
+  fetchById: (id) => request(`/api/documents/${id}`),
 
-  // Короткий список версий (без тяжёлого description) — newest-first.
-  fetchHistory: (id) => fetch(`/api/documents/${id}/history`, { cache: 'no-store' }).then((r) => json(r, 'History')),
+  fetchHistory: (id) => request(`/api/documents/${id}/history`, { cache: 'no-store' }),
 
-  // Полная запись одной версии (с description) — подтягивается по требованию.
   fetchHistoryVersion: (id, version) =>
-    fetch(`/api/documents/${id}/history/${version}`).then((r) => json(r, 'History version')),
+    request(`/api/documents/${id}/history/${version}`),
+
+  summarize: (id) => request(`/api/documents/${id}/summarize`, { method: 'POST' }),
+
+  reindex: () => request('/api/documents/admin/reindex', { method: 'POST' }),
+
+  // ── Write (возвращают сырой Response) ────────────────────────────────────
 
   create: (body) =>
-    fetch('/api/documents', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    }),
+    requestRaw('/api/documents', { method: 'POST', ...json(body) }),
 
   update: (id, patch) =>
-    fetch(`/api/documents/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patch),
-    }),
+    requestRaw(`/api/documents/${id}`, { method: 'PUT', ...json(patch) }),
 
-  delete: (id) => fetch(`/api/documents/${id}`, { method: 'DELETE' }),
+  delete: (id) => requestRaw(`/api/documents/${id}`, { method: 'DELETE' }),
 
   /**
-   * Move a document/folder to a target parent AND a specific slot in one call.
-   * `afterId` — sibling to place the node right after (null = first in the level).
-   * Replaces the old moveToParent + reorder pair.
+   * Переместить узел к target-родителю и вставить после afterId.
+   * afterId = null → первый в уровне.
    */
   move: (id, parentId, afterId) =>
-    fetch(`/api/documents/${id}/move`, {
+    requestRaw(`/api/documents/${id}/move`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ parentId: parentId ?? null, afterId: afterId ?? null }),
+      ...json({ parentId: parentId ?? null, afterId: afterId ?? null }),
     }),
 
-  summarize: (id) => fetch(`/api/documents/${id}/summarize`, { method: 'POST' }).then((r) => json(r, 'Summarize')),
-
-  // ── Admin ─────────────────────────────────────────────────────────────────
-
-  /** Полная переиндексация семантического индекса. Резолвится в `{ indexed }`. */
-  reindex: () => fetch('/api/documents/admin/reindex', { method: 'POST' }).then((r) => json(r, 'Reindex')),
-
   /**
-   * Admin: экспортирует всё дерево документов в серверную папку
-   * (`kb.documents.export-path`). Возвращает сырой Response — вызывающий
-   * проверяет res.ok (бэкенд отвечает 204 без тела).
+   * Экспорт всего дерева в серверную папку. Возвращает сырой Response
+   * (бэк отвечает 204 без тела).
    */
-  exportToFolder: (meta = true) => fetch(`/api/documents/admin/export?meta=${meta}`, { method: 'POST' }),
+  exportToFolder: (meta = true) =>
+    requestRaw(`/api/documents/admin/export?meta=${meta}`, { method: 'POST' }),
 };
 
 export default api;
