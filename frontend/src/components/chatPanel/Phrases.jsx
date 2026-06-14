@@ -128,12 +128,7 @@ const Phrases = ({ onSelect, reloadKey }) => {
       <div className="phrases-grid">
         {filtered.map((phrase) => (
           <div key={phrase.id} className="phrases-chip-wrap">
-            <button
-              type="button"
-              className="phrases-chip"
-              onClick={() => onSelect(phrase.text)}
-              title={phrase.text}
-            >
+            <button type="button" className="phrases-chip" onClick={() => onSelect(phrase.text)} title={phrase.text}>
               <span className="phrases-chip-label">{phrase.label}</span>
               <span className="phrases-chip-category">{phrase.category}</span>
             </button>

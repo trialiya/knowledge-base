@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import Phrases from "./Phrases";
+import Phrases from './Phrases';
 
 const IconSend = () => (
   <svg
