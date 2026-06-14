@@ -293,11 +293,17 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   const failedChatIdsRef = useRef(new Set());
   // Защита от параллельных догрузок старых сообщений для одного и того же чата.
   const loadingOlderRef = useRef(new Set());
+  // Защита от параллельных начальных загрузок сообщений одного чата.
+  // Без неё при старте страницы loadMessages вызывается дважды: первый раз когда
+  // chats=[] (до загрузки списка), второй — когда setChats(chatList) меняет стейт.
+  const loadingMessagesRef = useRef(new Set());
 
   // Загрузка сообщений: последняя страница (PAGE_SIZE) + метаданные чата.
   // Метаданные (model/topic) берём отдельным лёгким запросом includeMessages=false,
   // сами сообщения — пагинированным /messages. Это не тащит весь длинный чат.
   const loadMessages = useCallback(async (chatId) => {
+    if (loadingMessagesRef.current.has(chatId)) return;
+    loadingMessagesRef.current.add(chatId);
     setLoadingMessages(true);
     try {
       const [metaRes, pageRes] = await Promise.all([
@@ -349,6 +355,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       );
       setChatErrorModal({ notFound: false, status: 'network' });
     } finally {
+      loadingMessagesRef.current.delete(chatId);
       setLoadingMessages(false);
     }
   }, []);
@@ -431,8 +438,8 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       .catch(() => setAttachCount(0));
   }, [activeChatId]);
 
-  const activeMessages = useMemo(() => chats.find((c) => c.id === activeChatId)?.messages || [], [chats, activeChatId]);
   const activeChat = useMemo(() => chats.find((c) => c.id === activeChatId) || null, [chats, activeChatId]);
+  const activeMessages = useMemo(() => activeChat?.messages || [], [activeChat]);
 
   // Список для сайдбара: черновик «new» не показываем, пока в нём нет сообщений.
   // Он промоутится в реальный чат (с UUID и draft:false) при отправке первого
