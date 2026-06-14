@@ -1,0 +1,68 @@
+name: Backend tests
+
+# Тесты бэкенда на каждый PR в main и на пуш в main, который трогает бэкенд
+# или сборочные файлы — по аналогии с frontend-pr.yml.
+#
+# Тесты с Testcontainers поднимают PostgreSQL (pgvector) в Docker; на
+# ubuntu-latest Docker доступен из коробки, отдельный сервис не нужен.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'build.gradle'
+      - 'settings.gradle'
+      - 'gradle.properties'
+      - 'gradle.lockfile'
+      - 'gradle/**'
+      - 'gradlew'
+      - '.github/workflows/backend-pr.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'build.gradle'
+      - 'settings.gradle'
+      - 'gradle.properties'
+      - 'gradle.lockfile'
+      - 'gradle/**'
+      - 'gradlew'
+      - '.github/workflows/backend-pr.yml'
+
+permissions:
+  contents: read
+
+# Новый пуш в ту же ветку отменяет предыдущий прогон.
+concurrency:
+  group: backend-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      # Держим в синхроне с backend/build.gradle → toolchain { languageVersion = 25 }
+      - name: Setup JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      # Только :backend:test — без bootJar/copyFrontend, поэтому фронт не собирается.
+      - name: Run backend tests
+        run: ./gradlew :backend:test --no-daemon --stacktrace
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-test-reports
+          path: backend/build/reports/tests/test
+          retention-days: 7
+          if-no-files-found: ignore
