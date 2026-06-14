@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchPhrases, toggleFavorite } from './phrasesApi';
+import { IconStar } from '../../icons';
 import './phrases.css';
 
 // Сентинелы фильтров. Префиксы делают коллизию с пользовательской категорией
@@ -8,8 +9,9 @@ import './phrases.css';
 const ALL = '__all__';
 const FAVORITES = '__fav__';
 
-// Нейтральная иконка-подсказка (без git-специфики).
-const IconSparkle = () => (
+// Простая звёздочка-вспышка для плейсхолдеров фраз.
+// Дизайн отличается от IconSparkle из icons/ (та 16×16 с заливкой), поэтому локальная.
+const IconSparkleSimple = () => (
   <svg
     width="14"
     height="14"
@@ -21,21 +23,6 @@ const IconSparkle = () => (
     strokeLinejoin="round"
   >
     <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" />
-  </svg>
-);
-
-const IconStar = ({ filled }) => (
-  <svg
-    width="14"
-    height="14"
-    viewBox="0 0 24 24"
-    fill={filled ? 'currentColor' : 'none'}
-    stroke="currentColor"
-    strokeWidth="1.8"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <polygon points="12 2 15 9 22 9.3 16.5 13.8 18.5 21 12 16.8 5.5 21 7.5 13.8 2 9.3 9 9" />
   </svg>
 );
 
@@ -107,7 +94,7 @@ const Phrases = ({ onSelect, reloadKey }) => {
     <div className="phrases-block">
       <div className="phrases-block-header">
         <span className="phrases-block-title">
-          <IconSparkle /> {t('phrases.title')}
+          <IconSparkleSimple /> {t('phrases.title')}
         </span>
         <span className="phrases-block-hint">{t('phrases.hint')}</span>
       </div>
