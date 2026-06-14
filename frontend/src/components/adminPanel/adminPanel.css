@@ -59,3 +59,20 @@
   color: var(--kb-error);
   background: var(--kb-error-bg);
 }
+
+.admin-status--inline {
+  margin-top: 10px;
+}
+
+.admin-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 0.8rem;
+  color: var(--kb-muted);
+  cursor: pointer;
+}
+.admin-check input {
+  cursor: pointer;
+}

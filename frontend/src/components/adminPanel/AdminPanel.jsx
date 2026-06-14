@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import SettingsShell, { SettingsContentHead, SettingsSection } from '../common/SettingsShell';
 import { IconRefresh } from '../knowledgeBasePanel/icons';
-import { IconDatabase, IconDownload, IconBolt, IconTool, IconEraser } from '../common/menuIcons';
+import { IconDatabase, IconDownload, IconTool, IconEraser } from '../common/menuIcons';
+import BulkOperations from './BulkOperations';
 import './adminPanel.css';
 
 // Заглушечные данные — на бэке заменить вызовом GET /api/admin/index/stats и т.п.
@@ -61,50 +62,6 @@ const IndexGroup = () => (
   </>
 );
 
-// ─── Группа: массовые операции ────────────────────────────────────────────────
-
-const BulkGroup = () => (
-  <>
-    <SettingsContentHead title="Массовые операции" subtitle="Экспорт, импорт и пакетная обработка документов" />
-    <div className="settings-content__body">
-      <SettingsSection label="Операции" rows>
-        <div className="set-op">
-          <span className="set-op__icon">
-            <IconDownload size={18} />
-          </span>
-          <div className="set-op__text">
-            <div className="set-op__title">Экспорт всех документов</div>
-            <div className="set-op__desc">ZIP: Markdown + вложения, структура папок сохраняется</div>
-          </div>
-          <button className="set-btn set-btn--ghost">Выгрузить</button>
-        </div>
-
-        <div className="set-op">
-          <span className="set-op__icon">
-            <IconBolt size={18} />
-          </span>
-          <div className="set-op__text">
-            <div className="set-op__title">Перегенерировать AI-summary</div>
-            <div className="set-op__desc">Для документов с устаревшим summary ({STATS.stale})</div>
-          </div>
-          <button className="set-btn set-btn--ghost">Запустить</button>
-        </div>
-
-        <div className="set-op">
-          <span className="set-op__icon">
-            <IconDownload size={18} />
-          </span>
-          <div className="set-op__text">
-            <div className="set-op__title">Импорт документов</div>
-            <div className="set-op__desc">ZIP с Markdown — в выбранную папку</div>
-          </div>
-          <button className="set-btn set-btn--ghost">Загрузить</button>
-        </div>
-      </SettingsSection>
-    </div>
-  </>
-);
-
 // ─── Группа: обслуживание ─────────────────────────────────────────────────────
 
 const MaintenanceGroup = () => (
@@ -139,7 +96,7 @@ const AdminPanel = () => {
   return (
     <SettingsShell title="Администрирование" groups={GROUPS} activeKey={group} onSelect={setGroup}>
       {group === 'index' && <IndexGroup />}
-      {group === 'bulk' && <BulkGroup />}
+      {group === 'bulk' && <BulkOperations />}
       {group === 'maintenance' && <MaintenanceGroup />}
     </SettingsShell>
   );
