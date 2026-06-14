@@ -100,3 +100,24 @@ PROJECT_PATH=./; \
 Приложение будет доступно на `http://localhost:8080`, данные H2 — в `backend/local-db/`.
 
 > Подробнее — см. [Руководство по установке](руководство-по-установке.md), раздел 3.
+
+## Запуск из собранного JAR (без Docker)
+
+Соберите исполняемый JAR (фронтенд встраивается автоматически) и запустите его напрямую:
+
+```bash
+# 1. Сборка
+./gradlew :backend:bootJar
+
+# 2. Запуск с H2-профилем
+SPRING_PROFILES_ACTIVE=h2 \
+AI_BASE_URL=https://api.openai.com/ \
+AI_API_KEY=your-key \
+AI_MODEL=gpt-4o \
+PROJECT_PATH=./ \
+java -jar backend/build/libs/backend-1.0-SNAPSHOT.jar
+```
+
+Готовый артефакт — `backend/build/libs/backend-1.0-SNAPSHOT.jar`, данные H2 — в каталоге `local-db/` рядом с процессом. Требуется JDK/JRE 25.
+
+> Подробнее — см. [Руководство по установке](руководство-по-установке.md), раздел 4.
