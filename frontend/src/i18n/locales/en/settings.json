@@ -1,0 +1,41 @@
+{
+  "phrases": {
+    "title": "Phrase library",
+    "subtitle": "Ready-made prompts above the input field in an empty chat",
+    "sectionLabel": "Phrases",
+    "add": "Add",
+    "searchPlaceholder": "Search by name…",
+    "form": {
+      "categoryPlaceholder": "Category",
+      "labelPlaceholder": "Name (chip)",
+      "textPlaceholder": "Text inserted into the input field. Placeholders are edited manually.",
+      "enabled": "Enabled",
+      "save": "Save",
+      "cancel": "Cancel"
+    },
+    "row": {
+      "moveUp": "Up",
+      "moveDown": "Down",
+      "addFavorite": "Add to favorites",
+      "removeFavorite": "Remove from favorites",
+      "enable": "Enable",
+      "disable": "Disable",
+      "edit": "Edit",
+      "delete": "Delete"
+    },
+    "hint": "Phrases used to live in code (<1>GIT_PHRASES</1>). Now it's a single list from the DB: edited here, shown in an empty chat by the <3>Phrases</3> component (<5>GET /api/phrases</5>).",
+    "errors": {
+      "load": "Failed to load phrases",
+      "save": "Failed to save phrase",
+      "delete": "Failed to delete phrase",
+      "toggleStatus": "Failed to change status",
+      "toggleFavorite": "Failed to change favorite",
+      "move": "Failed to move"
+    },
+    "deleteModal": {
+      "title": "Delete phrase?",
+      "message": "“{{label}}” from category “{{category}}” will be deleted permanently.",
+      "confirm": "Delete"
+    }
+  }
+}
