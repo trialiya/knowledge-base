@@ -19,6 +19,7 @@ import java.util.NoSuchElementException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -144,12 +145,18 @@ public class DocumentExportService {
         return count;
     }
 
-    // ── In-memory subtree rendering (for downloads) ──────────────────────────
+    // ── Subtree rendering (for downloads) ────────────────────────────────────
+
+    /** A single rendered file: its archive-relative {@code path} and full {@code content}. */
+    public record ExportEntry(String path, String content) {}
 
     /**
-     * Renders the subtree rooted at {@code rootId} into an in-memory map of
-     * {@code relativePath → fileContent}, without touching the filesystem. Same layout as
-     * {@link #exportAll(boolean)} but scoped to one node:
+     * Lazily renders the subtree rooted at {@code rootId} as a <b>stream</b> of {@link ExportEntry}
+     * (path → content), without touching the filesystem. Entries are produced on demand during a
+     * depth-first walk, so a consumer (e.g. a {@code ZipOutputStream} writer) can stream them to the
+     * client without ever holding the whole subtree's content in memory at once.
+     *
+     * <p>Same layout as {@link #exportAll(boolean)} but scoped to one node:
      *
      * <ul>
      *   <li>a <b>document</b> root yields a single {@code <name>.md} entry (plus {@code <name>.yaml}
@@ -163,71 +170,117 @@ public class DocumentExportService {
      *
      * @throws NoSuchElementException if no node with {@code rootId} exists
      */
-    public LinkedHashMap<String, String> renderSubtree(long rootId, boolean includeMeta) {
+    public Stream<ExportEntry> streamSubtree(long rootId, boolean includeMeta) {
         DocumentEntity root =
                 repo.findById(rootId)
                         .orElseThrow(
                                 () -> new NoSuchElementException("Document not found: " + rootId));
 
-        List<DocumentEntity> all = Streams.stream(repo.findAll()).collect(Collectors.toList());
         Map<Long, List<DocumentEntity>> byParent =
-                all.stream()
+                Streams.stream(repo.findAll())
                         .filter(e -> e.getParentId() != null)
                         .collect(Collectors.groupingBy(DocumentEntity::getParentId));
         byParent.values()
                 .forEach(list -> list.sort(Comparator.comparingInt(DocumentEntity::getPosition)));
 
-        // Virtual base — never hits disk; used only for relativising entry names and links.
+        // Virtual base — never hits disk; used only for relativising entry names and links. The
+        // id → path map is cheap (paths only, no content) and is needed up-front for link rewriting.
         Path base = Paths.get("/");
-
         Map<Long, Path> idToPath = new HashMap<>();
         collectPaths(root, base, byParent, idToPath);
 
+        return walk(root, base, base, byParent, idToPath, includeMeta);
+    }
+
+    /**
+     * Renders the subtree rooted at {@code rootId} into an ordered, in-memory map of
+     * {@code relativePath → fileContent}. Thin eager wrapper over {@link #streamSubtree} kept for
+     * callers/tests that want the whole subtree materialised at once.
+     *
+     * @throws NoSuchElementException if no node with {@code rootId} exists
+     */
+    public LinkedHashMap<String, String> renderSubtree(long rootId, boolean includeMeta) {
         LinkedHashMap<String, String> out = new LinkedHashMap<>();
-        renderNodeToMap(root, base, base, byParent, idToPath, includeMeta, out);
+        try (Stream<ExportEntry> entries = streamSubtree(rootId, includeMeta)) {
+            entries.forEach(e -> out.put(e.path(), e.content()));
+        }
         return out;
     }
 
-    /** Recursive counterpart of {@link #exportNode} that appends to an in-memory map instead of disk. */
-    private void renderNodeToMap(
+    /**
+     * Depth-first lazy walk producing one {@link ExportEntry} per file. Folders expand to their own
+     * header files (optional {@code .meta.yaml}, then {@code .content.md}), then their children
+     * (flattened recursively via {@link Stream#mapMulti}, evaluated on demand), then the trailing
+     * {@code .index.md}. Documents expand to their {@code .md} (plus {@code .yaml} with meta).
+     */
+    private Stream<ExportEntry> walk(
             DocumentEntity entity,
             Path parentDir,
             Path base,
             Map<Long, List<DocumentEntity>> byParent,
             Map<Long, Path> idToPath,
-            boolean includeMeta,
-            Map<String, String> sink) {
+            boolean includeMeta) {
 
-        if (entity.getType().isFolder()) {
-            Path folderDir = parentDir.resolve(safeName(entity.getTitle()));
-
-            if (includeMeta) {
-                put(sink, base, folderDir.resolve(FOLDER_META_FILE), renderMeta(entity));
-            }
-            Path contentFile = folderDir.resolve(FOLDER_CONTENT_FILE);
-            put(sink, base, contentFile, renderContent(entity, contentFile, idToPath));
-
-            List<DocumentEntity> children = childrenOf(entity.getId(), byParent);
-            for (DocumentEntity child : children) {
-                renderNodeToMap(child, folderDir, base, byParent, idToPath, includeMeta, sink);
-            }
-            put(sink, base, folderDir.resolve(INDEX_FILE), renderIndex(children, folderDir, idToPath));
-        } else {
-            Path contentFile = idToPath.get(entity.getId());
-            put(sink, base, contentFile, renderContent(entity, contentFile, idToPath));
-            if (includeMeta) {
-                String name = contentFile.getFileName().toString();
-                Path metaFile =
-                        contentFile.resolveSibling(name.substring(0, name.lastIndexOf('.')) + ".yaml");
-                put(sink, base, metaFile, renderMeta(entity));
-            }
+        if (!entity.getType().isFolder()) {
+            return documentEntries(entity, base, idToPath, includeMeta);
         }
+
+        Path folderDir = parentDir.resolve(safeName(entity.getTitle()));
+        List<DocumentEntity> children = childrenOf(entity.getId(), byParent);
+
+        Stream<ExportEntry> header = folderHeaderEntries(entity, folderDir, base, idToPath, includeMeta);
+        Stream<ExportEntry> descendants =
+                children.stream()
+                        .<ExportEntry>mapMulti(
+                                (child, sink) ->
+                                        walk(child, folderDir, base, byParent, idToPath, includeMeta)
+                                                .forEach(sink));
+        Stream<ExportEntry> index =
+                Stream.of(
+                        entry(
+                                base,
+                                folderDir.resolve(INDEX_FILE),
+                                renderIndex(children, folderDir, idToPath)));
+
+        return Stream.concat(Stream.concat(header, descendants), index);
     }
 
-    /** Adds a single entry to the sink keyed by its path relative to {@code base} (forward slashes). */
-    private void put(Map<String, String> sink, Path base, Path file, String content) {
-        String entry = base.relativize(file).toString().replace('\\', '/');
-        sink.put(entry, content);
+    /** Header entries of a folder: optional {@code .meta.yaml} followed by {@code .content.md}. */
+    private Stream<ExportEntry> folderHeaderEntries(
+            DocumentEntity entity,
+            Path folderDir,
+            Path base,
+            Map<Long, Path> idToPath,
+            boolean includeMeta) {
+
+        Path contentFile = folderDir.resolve(FOLDER_CONTENT_FILE);
+        ExportEntry content = entry(base, contentFile, renderContent(entity, contentFile, idToPath));
+        if (includeMeta) {
+            ExportEntry meta = entry(base, folderDir.resolve(FOLDER_META_FILE), renderMeta(entity));
+            return Stream.of(meta, content);
+        }
+        return Stream.of(content);
+    }
+
+    /** Entries of a document: its {@code .md} body and, with meta, the sidecar {@code .yaml}. */
+    private Stream<ExportEntry> documentEntries(
+            DocumentEntity entity, Path base, Map<Long, Path> idToPath, boolean includeMeta) {
+
+        Path contentFile = idToPath.get(entity.getId());
+        ExportEntry content = entry(base, contentFile, renderContent(entity, contentFile, idToPath));
+        if (includeMeta) {
+            String name = contentFile.getFileName().toString();
+            Path metaFile =
+                    contentFile.resolveSibling(name.substring(0, name.lastIndexOf('.')) + ".yaml");
+            return Stream.of(content, entry(base, metaFile, renderMeta(entity)));
+        }
+        return Stream.of(content);
+    }
+
+    /** Builds an {@link ExportEntry} keyed by {@code file}'s path relative to {@code base}. */
+    private static ExportEntry entry(Path base, Path file, String content) {
+        String path = base.relativize(file).toString().replace('\\', '/');
+        return new ExportEntry(path, content);
     }
 
     // ── Pass 1: collect id → path ────────────────────────────────────────────

@@ -13,13 +13,9 @@ import io.github.trialiya.kb.service.DocumentExportService;
 import io.github.trialiya.kb.service.DocumentImportService;
 import io.github.trialiya.kb.service.DocumentService;
 import io.github.trialiya.kb.service.SemanticSearchService;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +29,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 @RestController
 @RequestMapping("/api/documents")
@@ -103,7 +100,7 @@ public class DocumentController {
      * <pre>GET /api/documents/{id}/download?meta=false</pre>
      */
     @GetMapping("/{id}/download")
-    public ResponseEntity<byte[]> download(
+    public ResponseEntity<StreamingResponseBody> download(
             @PathVariable long id, @RequestParam(defaultValue = "false") boolean meta) {
 
         DocumentNode node = service.getById(id);
@@ -111,53 +108,49 @@ public class DocumentController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
 
-        Map<String, String> entries;
-        try {
-            entries = documentExportService.renderSubtree(id, meta);
-        } catch (NoSuchElementException e) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
-        }
-
         String baseName = DocumentExportService.safeName(node.title());
 
         if ("folder".equalsIgnoreCase(node.type())) {
-            byte[] zip = toZip(entries);
-            return fileResponse(zip, baseName + ".zip", "application/zip");
+            StreamingResponseBody body =
+                    out -> {
+                        try (ZipOutputStream zos = new ZipOutputStream(out);
+                                Stream<DocumentExportService.ExportEntry> entries =
+                                        documentExportService.streamSubtree(id, meta)) {
+                            for (DocumentExportService.ExportEntry e :
+                                    (Iterable<DocumentExportService.ExportEntry>) entries::iterator) {
+                                zos.putNextEntry(new ZipEntry(e.path()));
+                                zos.write(e.content().getBytes(StandardCharsets.UTF_8));
+                                zos.closeEntry();
+                            }
+                        }
+                    };
+            return streamingResponse(body, baseName + ".zip", "application/zip");
         }
 
-        // Document → return its Markdown body directly.
-        String markdown =
-                entries.entrySet().stream()
-                        .filter(en -> en.getKey().endsWith(".md"))
-                        .map(Map.Entry::getValue)
-                        .findFirst()
-                        .orElse("");
-        return fileResponse(
-                markdown.getBytes(StandardCharsets.UTF_8), baseName + ".md", "text/markdown");
+        // Document → stream its Markdown body directly.
+        StreamingResponseBody body =
+                out -> {
+                    try (Stream<DocumentExportService.ExportEntry> entries =
+                            documentExportService.streamSubtree(id, meta)) {
+                        String markdown =
+                                entries.filter(e -> e.path().endsWith(".md"))
+                                        .map(DocumentExportService.ExportEntry::content)
+                                        .findFirst()
+                                        .orElse("");
+                        out.write(markdown.getBytes(StandardCharsets.UTF_8));
+                    }
+                };
+        return streamingResponse(body, baseName + ".md", "text/markdown");
     }
 
-    private static ResponseEntity<byte[]> fileResponse(
-            byte[] body, String filename, String contentType) {
+    private static ResponseEntity<StreamingResponseBody> streamingResponse(
+            StreamingResponseBody body, String filename, String contentType) {
         ContentDisposition disposition =
                 ContentDisposition.attachment().filename(filename, StandardCharsets.UTF_8).build();
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
                 .contentType(MediaType.parseMediaType(contentType))
                 .body(body);
-    }
-
-    private static byte[] toZip(Map<String, String> entries) {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
-            for (Map.Entry<String, String> e : entries.entrySet()) {
-                zos.putNextEntry(new ZipEntry(e.getKey()));
-                zos.write(e.getValue().getBytes(StandardCharsets.UTF_8));
-                zos.closeEntry();
-            }
-        } catch (IOException ex) {
-            throw new UncheckedIOException("Failed to build zip archive", ex);
-        }
-        return baos.toByteArray();
     }
 
     /** История изменений описания документа (newest-first). */
