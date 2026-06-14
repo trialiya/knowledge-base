@@ -85,6 +85,11 @@ const api = {
 
   summarize: (id) => fetch(`/api/documents/${id}/summarize`, { method: 'POST' }).then((r) => json(r, 'Summarize')),
 
+  // ── Admin ─────────────────────────────────────────────────────────────────
+
+  /** Полная переиндексация семантического индекса. Резолвится в `{ indexed }`. */
+  reindex: () => fetch('/api/documents/admin/reindex', { method: 'POST' }).then((r) => json(r, 'Reindex')),
+
   /**
    * Admin: экспортирует всё дерево документов в серверную папку
    * (`kb.documents.export-path`). Возвращает сырой Response — вызывающий
