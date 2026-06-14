@@ -74,6 +74,7 @@ org.awaitility:awaitility:4.2.2=testCompileClasspath,testRuntimeClasspath
 org.checkerframework:checker-qual:3.52.0=productionRuntimeClasspath,runtimeClasspath,testRuntimeClasspath
 org.flywaydb:flyway-core:11.7.2=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 org.flywaydb:flyway-database-postgresql:11.7.2=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+org.hamcrest:hamcrest-core:3.0=testCompileClasspath,testRuntimeClasspath
 org.hamcrest:hamcrest:3.0=testCompileClasspath,testRuntimeClasspath
 org.hdrhistogram:HdrHistogram:2.2.2=productionRuntimeClasspath,runtimeClasspath,testRuntimeClasspath
 org.jetbrains:annotations:17.0.0=testCompileClasspath,testRuntimeClasspath
