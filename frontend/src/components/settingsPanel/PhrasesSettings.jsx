@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { SettingsContentHead, SettingsSection } from '../common/SettingsShell';
 import { IconPlus, IconEdit, IconTrash } from '../knowledgeBasePanel/icons';
 import ConfirmModal from '../common/ConfirmModal';
@@ -20,6 +21,7 @@ const EMPTY_FORM = { category: '', label: '', text: '', enabled: true };
  * Источник данных — /api/admin/phrases (видит и выключенные).
  */
 const PhrasesSettings = () => {
+  const { t } = useTranslation('settings');
   const [phrases, setPhrases] = useState([]);
   const [query, setQuery] = useState('');
   const [form, setForm] = useState(null); // null = форма скрыта; иначе {id?, category, label, text, enabled}
@@ -34,8 +36,8 @@ const PhrasesSettings = () => {
           setPhrases(Array.isArray(d) ? d : []);
           setError(null);
         })
-        .catch((e) => setError(e.message || 'Не удалось загрузить фразы')),
-    [query],
+        .catch((e) => setError(e.message || t('phrases.errors.load'))),
+    [query, t],
   );
 
   // первичная загрузка
@@ -97,7 +99,7 @@ const PhrasesSettings = () => {
       setForm(null);
       await reload();
     } catch (e) {
-      setError(e.message || 'Не удалось сохранить фразу');
+      setError(e.message || t('phrases.errors.save'));
     } finally {
       setBusy(false);
     }
@@ -108,28 +110,28 @@ const PhrasesSettings = () => {
   const confirmDelete = () => {
     const p = pendingDelete;
     setPendingDelete(null);
-    guard(() => deletePhrase(p.id), 'Не удалось удалить фразу');
+    guard(() => deletePhrase(p.id), t('phrases.errors.delete'));
   };
 
   // переключаем только флаг — отдельный PATCH, текст фразы не перетирается
-  const toggleEnabled = (p) => guard(() => adminToggleEnabled(p.id, !p.enabled), 'Не удалось изменить статус');
-  const toggleFav = (p) => guard(() => adminToggleFavorite(p.id, !p.favorite), 'Не удалось изменить избранное');
+  const toggleEnabled = (p) => guard(() => adminToggleEnabled(p.id, !p.enabled), t('phrases.errors.toggleStatus'));
+  const toggleFav = (p) => guard(() => adminToggleFavorite(p.id, !p.favorite), t('phrases.errors.toggleFavorite'));
 
   const moveUp = (p) => {
     const arr = neighbors[p.category];
     const i = arr.findIndex((x) => x.id === p.id);
-    if (i > 0) guard(() => movePhrase(p.id, arr[i - 1].position), 'Не удалось переместить');
+    if (i > 0) guard(() => movePhrase(p.id, arr[i - 1].position), t('phrases.errors.move'));
   };
 
   const moveDown = (p) => {
     const arr = neighbors[p.category];
     const i = arr.findIndex((x) => x.id === p.id);
-    if (i >= 0 && i < arr.length - 1) guard(() => movePhrase(p.id, arr[i + 1].position), 'Не удалось переместить');
+    if (i >= 0 && i < arr.length - 1) guard(() => movePhrase(p.id, arr[i + 1].position), t('phrases.errors.move'));
   };
 
   return (
     <>
-      <SettingsContentHead title="Библиотека фраз" subtitle="Готовые подсказки над полем ввода в пустом чате" />
+      <SettingsContentHead title={t('phrases.title')} subtitle={t('phrases.subtitle')} />
       <div className="settings-content__body">
         {error && (
           <p className="phrase-error" role="alert">
@@ -138,10 +140,10 @@ const PhrasesSettings = () => {
         )}
 
         <SettingsSection
-          label="Фразы"
+          label={t('phrases.sectionLabel')}
           action={
             <button className="set-btn set-btn--ghost set-btn--sm" onClick={startCreate}>
-              <IconPlus /> Добавить
+              <IconPlus /> {t('phrases.add')}
             </button>
           }
           rows
@@ -149,7 +151,7 @@ const PhrasesSettings = () => {
           <div className="phrase-search">
             <input
               className="phrase-input"
-              placeholder="Поиск по названию…"
+              placeholder={t('phrases.searchPlaceholder')}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
@@ -160,13 +162,13 @@ const PhrasesSettings = () => {
               <div className="phrase-form__grid">
                 <input
                   className="phrase-input"
-                  placeholder="Категория"
+                  placeholder={t('phrases.form.categoryPlaceholder')}
                   value={form.category}
                   onChange={(e) => setForm({ ...form, category: e.target.value })}
                 />
                 <input
                   className="phrase-input"
-                  placeholder="Название (чип)"
+                  placeholder={t('phrases.form.labelPlaceholder')}
                   value={form.label}
                   onChange={(e) => setForm({ ...form, label: e.target.value })}
                 />
@@ -174,7 +176,7 @@ const PhrasesSettings = () => {
               <textarea
                 className="set-textarea"
                 rows={3}
-                placeholder="Текст, вставляемый в поле ввода. Плейсхолдеры {{...}} правятся вручную."
+                placeholder={t('phrases.form.textPlaceholder')}
                 value={form.text}
                 onChange={(e) => setForm({ ...form, text: e.target.value })}
               />
@@ -184,14 +186,14 @@ const PhrasesSettings = () => {
                   checked={form.enabled}
                   onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
                 />
-                Включена
+                {t('phrases.form.enabled')}
               </label>
               <div className="set-actions">
                 <button className="set-btn set-btn--primary" onClick={save} disabled={busy}>
-                  Сохранить
+                  {t('phrases.form.save')}
                 </button>
                 <button className="set-btn set-btn--ghost" onClick={cancel} disabled={busy}>
-                  Отмена
+                  {t('phrases.form.cancel')}
                 </button>
               </div>
             </div>
@@ -209,12 +211,17 @@ const PhrasesSettings = () => {
                 </div>
 
                 <div className="phrase-row__order">
-                  <button className="set-icon-btn" title="Выше" disabled={i <= 0} onClick={() => moveUp(p)}>
+                  <button
+                    className="set-icon-btn"
+                    title={t('phrases.row.moveUp')}
+                    disabled={i <= 0}
+                    onClick={() => moveUp(p)}
+                  >
                     ↑
                   </button>
                   <button
                     className="set-icon-btn"
-                    title="Ниже"
+                    title={t('phrases.row.moveDown')}
                     disabled={i < 0 || i >= arr.length - 1}
                     onClick={() => moveDown(p)}
                   >
@@ -224,45 +231,44 @@ const PhrasesSettings = () => {
 
                 <button
                   className={`set-icon-btn ${p.favorite ? 'set-icon-btn--star' : ''}`}
-                  title={p.favorite ? 'Убрать из избранного' : 'В избранное'}
+                  title={p.favorite ? t('phrases.row.removeFavorite') : t('phrases.row.addFavorite')}
                   onClick={() => toggleFav(p)}
                 >
                   {p.favorite ? '★' : '☆'}
                 </button>
                 <button
                   className="set-icon-btn"
-                  title={p.enabled ? 'Выключить' : 'Включить'}
+                  title={p.enabled ? t('phrases.row.disable') : t('phrases.row.enable')}
                   onClick={() => toggleEnabled(p)}
                 >
                   {p.enabled ? '◉' : '○'}
                 </button>
-                <button className="set-icon-btn" title="Редактировать" onClick={() => startEdit(p)}>
+                <button className="set-icon-btn" title={t('phrases.row.edit')} onClick={() => startEdit(p)}>
                   <IconEdit />
                 </button>
-                <button className="set-icon-btn set-icon-btn--danger" title="Удалить" onClick={() => askDelete(p)}>
+                <button
+                  className="set-icon-btn set-icon-btn--danger"
+                  title={t('phrases.row.delete')}
+                  onClick={() => askDelete(p)}
+                >
                   <IconTrash />
                 </button>
               </div>
             );
           })}
         </SettingsSection>
-
-        <p className="set-hint">
-          Раньше фразы жили в коде (<code>GIT_PHRASES</code>). Теперь — единый список из БД: правится здесь,
-          показывается в пустом чате компонентом <code>Phrases</code> (<code>GET /api/phrases</code>).
-        </p>
       </div>
 
       <ConfirmModal
         open={!!pendingDelete}
         icon="🗑️"
-        title="Удалить фразу?"
+        title={t('phrases.deleteModal.title')}
         message={
           pendingDelete
-            ? `«${pendingDelete.label}» из категории «${pendingDelete.category}» будет удалена безвозвратно.`
+            ? t('phrases.deleteModal.message', { label: pendingDelete.label, category: pendingDelete.category })
             : ''
         }
-        confirmLabel="Удалить"
+        confirmLabel={t('phrases.deleteModal.confirm')}
         onConfirm={confirmDelete}
         onCancel={() => setPendingDelete(null)}
       />
