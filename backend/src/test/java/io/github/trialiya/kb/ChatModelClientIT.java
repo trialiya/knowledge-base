@@ -39,8 +39,9 @@ import org.springframework.context.annotation.Import;
  *
  * <p>Идея: собрать настоящий {@link ChatClient} ровно так, как это делает {@code ChatConfig}
  * (advisor памяти поверх модели), но подменить сам {@link ChatModel} моком. Память при этом
- * НАСТОЯЩАЯ — {@link ChatMemoryService} поверх PostgreSQL из Testcontainers. Это позволяет проверить
- * именно то, что обычно ломается в интеграции с моделью, не тратя токены и не завися от сети:
+ * НАСТОЯЩАЯ — {@link ChatMemoryService} поверх PostgreSQL из Testcontainers. Это позволяет
+ * проверить именно то, что обычно ломается в интеграции с моделью, не тратя токены и не завися от
+ * сети:
  *
  * <ul>
  *   <li>выбранная модель ({@link OpenAiChatOptions#getModel()}) реально доходит до слоя модели —

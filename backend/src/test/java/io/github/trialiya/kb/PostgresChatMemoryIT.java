@@ -59,16 +59,20 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
 
         memory.saveAll(
                 conv,
-                List.of(new UserMessage("Что такое pgvector?"), new AssistantMessage("Это расширение для векторов.")));
+                List.of(
+                        new UserMessage("Что такое pgvector?"),
+                        new AssistantMessage("Это расширение для векторов.")));
 
         List<Message> reloaded = memory.findByConversationId(conv);
 
         // порядок чтения задаётся ORDER BY created_at без tiebreak'а, поэтому проверяем
         // состав, а не индексы
         assertThat(reloaded).hasSize(2);
-        assertThat(reloaded).extracting(Message::getText)
+        assertThat(reloaded)
+                .extracting(Message::getText)
                 .containsExactlyInAnyOrder("Что такое pgvector?", "Это расширение для векторов.");
-        assertThat(reloaded).extracting(Message::getMessageType)
+        assertThat(reloaded)
+                .extracting(Message::getMessageType)
                 .containsExactlyInAnyOrder(MessageType.USER, MessageType.ASSISTANT);
     }
 
@@ -77,7 +81,8 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
         String conv = newConversation();
         ChatMemoryService memory = memory();
 
-        memory.saveAll(conv, List.of(new UserMessage("   "), new AssistantMessage("реальный ответ")));
+        memory.saveAll(
+                conv, List.of(new UserMessage("   "), new AssistantMessage("реальный ответ")));
 
         List<Message> reloaded = memory.findByConversationId(conv);
         assertThat(reloaded).hasSize(1);
@@ -109,27 +114,27 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
 
         // первая страница: 2 самых новых, в хронологическом порядке -> [m3, m4]
         ChatMemoryService.Page first = memory.findLatestPage(conv, 2);
-        assertThat(first.messages()).extracting(ChatMessageEntity::getContent).containsExactly("m3", "m4");
+        assertThat(first.messages())
+                .extracting(ChatMessageEntity::getContent)
+                .containsExactly("m3", "m4");
         assertThat(first.hasMore()).isTrue();
 
         // следующая страница «до» курсора (m3) -> [m1, m2]
         ChatMemoryService.Page second =
                 memory.findPageBefore(
-                        conv,
-                        first.oldestCursor().createdAt(),
-                        first.oldestCursor().id(),
-                        2);
-        assertThat(second.messages()).extracting(ChatMessageEntity::getContent).containsExactly("m1", "m2");
+                        conv, first.oldestCursor().createdAt(), first.oldestCursor().id(), 2);
+        assertThat(second.messages())
+                .extracting(ChatMessageEntity::getContent)
+                .containsExactly("m1", "m2");
         assertThat(second.hasMore()).isTrue();
 
         // последняя страница -> [m0], больше нет
         ChatMemoryService.Page third =
                 memory.findPageBefore(
-                        conv,
-                        second.oldestCursor().createdAt(),
-                        second.oldestCursor().id(),
-                        2);
-        assertThat(third.messages()).extracting(ChatMessageEntity::getContent).containsExactly("m0");
+                        conv, second.oldestCursor().createdAt(), second.oldestCursor().id(), 2);
+        assertThat(third.messages())
+                .extracting(ChatMessageEntity::getContent)
+                .containsExactly("m0");
         assertThat(third.hasMore()).isFalse();
     }
 

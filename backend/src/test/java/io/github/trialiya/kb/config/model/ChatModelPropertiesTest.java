@@ -40,8 +40,7 @@ class ChatModelPropertiesTest {
 
     @Test
     void nullModelsListDefaultsToEmptyAndAllowsOnlyDefault() {
-        ChatModelProperties only =
-                new ChatModelProperties(new ModelOption("solo", "Solo"), null);
+        ChatModelProperties only = new ChatModelProperties(new ModelOption("solo", "Solo"), null);
         assertThat(only.models()).isEmpty();
         assertThat(only.isAllowed("solo")).isTrue();
         assertThat(only.isAllowed("anything-else")).isFalse();

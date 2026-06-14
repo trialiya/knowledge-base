@@ -10,13 +10,13 @@ import org.testcontainers.utility.DockerImageName;
  *
  * <p>Поднимает один общий контейнер {@code pgvector/pgvector:pg17} (тот же образ, что и в
  * docker-compose.yaml) на весь JVM и переиспользует его между тестовыми классами — это паттерн
- * singleton-container из документации Testcontainers, он заметно быстрее, чем поднимать контейнер на
- * каждый класс. Контейнер останавливает Ryuk при завершении JVM.
+ * singleton-container из документации Testcontainers, он заметно быстрее, чем поднимать контейнер
+ * на каждый класс. Контейнер останавливает Ryuk при завершении JVM.
  *
  * <p>В отличие от H2-тестов ({@code DocumentServiceUnitTest}), здесь применяются РЕАЛЬНЫЕ миграции
- * из {@code db/migration} — с {@code vector(1024)}, GiST-индексами по {@code gist_trgm_ops},
- * {@code bigserial}/{@code identity} и {@code IS NOT DISTINCT FROM}. Это единственный способ
- * проверить SQL, который на H2 либо не существует, либо ведёт себя иначе.
+ * из {@code db/migration} — с {@code vector(1024)}, GiST-индексами по {@code gist_trgm_ops}, {@code
+ * bigserial}/{@code identity} и {@code IS NOT DISTINCT FROM}. Это единственный способ проверить
+ * SQL, который на H2 либо не существует, либо ведёт себя иначе.
  *
  * <p>Логин/пароль/имя БД совпадают с продовыми ({@code knowledgebase}), чтобы отрабатывал, в
  * частности, {@code ALTER TABLE attachments OWNER TO knowledgebase} из V1.

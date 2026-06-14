@@ -121,8 +121,7 @@ class PostgresDocumentIT extends AbstractPostgresIntegrationTest {
                 .containsExactlyInAnyOrder(top.getId(), mid.getId(), leaf.getId());
 
         // от корня (исключая сам узел) вниз до непосредственного родителя
-        assertThat(repo.findAncestorIds(leaf.getId()))
-                .containsExactly(top.getId(), mid.getId());
+        assertThat(repo.findAncestorIds(leaf.getId())).containsExactly(top.getId(), mid.getId());
     }
 
     @Test
@@ -161,9 +160,11 @@ class PostgresDocumentIT extends AbstractPostgresIntegrationTest {
 
         float[] vector = unitVector(1024, 0);
         embeddingRepo.save(
-                new DocumentEmbeddingEntity(null, document.getId(), vector, "bge-m3", OffsetDateTime.now()));
+                new DocumentEmbeddingEntity(
+                        null, document.getId(), vector, "bge-m3", OffsetDateTime.now()));
 
-        float[] read = embeddingRepo.findByDocumentId(document.getId()).orElseThrow().getEmbedding();
+        float[] read =
+                embeddingRepo.findByDocumentId(document.getId()).orElseThrow().getEmbedding();
 
         assertThat(read).hasSize(1024);
         assertThat(read[0]).isEqualTo(1.0f);
@@ -177,9 +178,11 @@ class PostgresDocumentIT extends AbstractPostgresIntegrationTest {
 
         // near ≈ запрос (тот же базисный вектор), far — ортогонален.
         embeddingRepo.save(
-                new DocumentEmbeddingEntity(null, near.getId(), unitVector(1024, 0), "bge-m3", OffsetDateTime.now()));
+                new DocumentEmbeddingEntity(
+                        null, near.getId(), unitVector(1024, 0), "bge-m3", OffsetDateTime.now()));
         embeddingRepo.save(
-                new DocumentEmbeddingEntity(null, far.getId(), unitVector(1024, 1), "bge-m3", OffsetDateTime.now()));
+                new DocumentEmbeddingEntity(
+                        null, far.getId(), unitVector(1024, 1), "bge-m3", OffsetDateTime.now()));
 
         List<SemanticSearchResult> results =
                 embeddingRepo.findSimilar(unitVector(1024, 0), 0.5, 10);
