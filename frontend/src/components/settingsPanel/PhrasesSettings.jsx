@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SettingsContentHead, SettingsSection } from '../common/SettingsShell';
 import { IconPlus, IconEdit, IconTrash } from '../knowledgeBasePanel/icons';
@@ -29,29 +29,41 @@ const PhrasesSettings = () => {
   const [error, setError] = useState(null);
   const [pendingDelete, setPendingDelete] = useState(null); // фраза, ожидающая подтверждения удаления
 
+  // Ref зеркалит query, чтобы reload не зависел от него в deps и оставался стабильным.
+  // Это предотвращает каскадное пересоздание guard и всех экшн-хендлеров при каждом
+  // нажатии клавиши в поисковой строке.
+  const queryRef = useRef(query);
+  useEffect(() => {
+    queryRef.current = query;
+  }, [query]);
+
   const reload = useCallback(
-    (q = query) =>
-      fetchAllPhrases(q)
+    (q) =>
+      fetchAllPhrases(q !== undefined ? q : queryRef.current)
         .then((d) => {
           setPhrases(Array.isArray(d) ? d : []);
           setError(null);
         })
         .catch((e) => setError(e.message || t('phrases.errors.load'))),
-    [query, t],
+    [t],
   );
 
   // первичная загрузка
   useEffect(() => {
     reload('');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [reload]);
 
-  // дебаунс быстрого поиска
+  // дебаунс быстрого поиска — пропускаем первый рендер, чтобы не дублировать
+  // запрос с первичной загрузкой выше.
+  const skipFirstDebounce = useRef(true);
   useEffect(() => {
-    const id = setTimeout(() => reload(query), 200);
+    if (skipFirstDebounce.current) {
+      skipFirstDebounce.current = false;
+      return;
+    }
+    const id = setTimeout(() => reload(), 200);
     return () => clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query]);
+  }, [query, reload]);
 
   // соседи внутри категории — для стрелок ↑/↓ (передаём позицию соседа)
   const neighbors = useMemo(() => {
