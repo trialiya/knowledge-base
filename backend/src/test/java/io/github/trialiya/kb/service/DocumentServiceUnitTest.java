@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 import io.github.trialiya.kb.config.CommonConfig;
+import io.github.trialiya.kb.model.doc.DocumentType;
 import io.github.trialiya.kb.model.doc.dto.Document;
 import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
 import io.github.trialiya.kb.repository.DocumentHistoryRepository;
@@ -69,19 +70,19 @@ class DocumentServiceUnitTest {
     // ── Fixture helpers ───────────────────────────────────────────────────────
 
     private DocumentEntity folder(String title, Long parentId, int position) {
-        return save(title, "folder", parentId, position, false);
+        return save(title, DocumentType.FOLDER, parentId, position, false);
     }
 
     private DocumentEntity doc(String title, Long parentId, int position) {
-        return save(title, "document", parentId, position, false);
+        return save(title, DocumentType.DOCUMENT, parentId, position, false);
     }
 
     private DocumentEntity systemDoc(String title, Long parentId, int position) {
-        return save(title, "document", parentId, position, true);
+        return save(title, DocumentType.DOCUMENT, parentId, position, true);
     }
 
     private DocumentEntity save(
-            String title, String type, Long parentId, int position, boolean system) {
+            String title, DocumentType type, Long parentId, int position, boolean system) {
         return repo.save(
                 new DocumentEntity(
                         null,

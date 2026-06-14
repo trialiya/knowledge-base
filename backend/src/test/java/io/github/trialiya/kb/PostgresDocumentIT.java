@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import io.github.trialiya.kb.config.CommonConfig;
 import io.github.trialiya.kb.config.JdbcConfig;
 import io.github.trialiya.kb.config.PgVectorJdbcConfig;
+import io.github.trialiya.kb.model.doc.DocumentType;
 import io.github.trialiya.kb.model.doc.dto.Document;
 import io.github.trialiya.kb.model.doc.entity.DocumentEmbeddingEntity;
 import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
@@ -67,14 +68,14 @@ class PostgresDocumentIT extends AbstractPostgresIntegrationTest {
     // ── Fixtures ─────────────────────────────────────────────────────────────
 
     private DocumentEntity folder(String title, Long parentId, int position) {
-        return save(title, "folder", parentId, position);
+        return save(title, DocumentType.FOLDER, parentId, position);
     }
 
     private DocumentEntity doc(String title, Long parentId, int position) {
-        return save(title, "document", parentId, position);
+        return save(title, DocumentType.DOCUMENT, parentId, position);
     }
 
-    private DocumentEntity save(String title, String type, Long parentId, int position) {
+    private DocumentEntity save(String title, DocumentType type, Long parentId, int position) {
         return repo.save(
                 new DocumentEntity(
                         null,
@@ -99,7 +100,7 @@ class PostgresDocumentIT extends AbstractPostgresIntegrationTest {
         // делает truncate + reinsert поверх сидов V1).
         DocumentEntity root = repo.findById(1L).orElseThrow();
         assertThat(root.getTitle()).isEqualTo("Проект");
-        assertThat(root.getType()).isEqualTo("folder");
+        assertThat(root.getType()).isEqualTo(DocumentType.FOLDER);
         assertThat(root.isSystem()).isTrue();
 
         // identity-генерация работает: новая вставка получает сгенерированный id,

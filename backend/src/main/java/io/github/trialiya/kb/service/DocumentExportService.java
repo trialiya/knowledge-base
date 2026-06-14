@@ -12,8 +12,10 @@ import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -142,6 +144,92 @@ public class DocumentExportService {
         return count;
     }
 
+    // ── In-memory subtree rendering (for downloads) ──────────────────────────
+
+    /**
+     * Renders the subtree rooted at {@code rootId} into an in-memory map of
+     * {@code relativePath → fileContent}, without touching the filesystem. Same layout as
+     * {@link #exportAll(boolean)} but scoped to one node:
+     *
+     * <ul>
+     *   <li>a <b>document</b> root yields a single {@code <name>.md} entry (plus {@code <name>.yaml}
+     *       when {@code includeMeta});
+     *   <li>a <b>folder</b> root yields the folder directory with its {@code .content.md} /
+     *       {@code .index.md} / children, ready to be zipped.
+     * </ul>
+     *
+     * <p>Internal {@code /?doc=ID} links are rewritten to relative paths <em>within the subtree</em>;
+     * links pointing outside the subtree are left untouched.
+     *
+     * @throws NoSuchElementException if no node with {@code rootId} exists
+     */
+    public LinkedHashMap<String, String> renderSubtree(long rootId, boolean includeMeta) {
+        DocumentEntity root =
+                repo.findById(rootId)
+                        .orElseThrow(
+                                () -> new NoSuchElementException("Document not found: " + rootId));
+
+        List<DocumentEntity> all = Streams.stream(repo.findAll()).collect(Collectors.toList());
+        Map<Long, List<DocumentEntity>> byParent =
+                all.stream()
+                        .filter(e -> e.getParentId() != null)
+                        .collect(Collectors.groupingBy(DocumentEntity::getParentId));
+        byParent.values()
+                .forEach(list -> list.sort(Comparator.comparingInt(DocumentEntity::getPosition)));
+
+        // Virtual base — never hits disk; used only for relativising entry names and links.
+        Path base = Paths.get("/");
+
+        Map<Long, Path> idToPath = new HashMap<>();
+        collectPaths(root, base, byParent, idToPath);
+
+        LinkedHashMap<String, String> out = new LinkedHashMap<>();
+        renderNodeToMap(root, base, base, byParent, idToPath, includeMeta, out);
+        return out;
+    }
+
+    /** Recursive counterpart of {@link #exportNode} that appends to an in-memory map instead of disk. */
+    private void renderNodeToMap(
+            DocumentEntity entity,
+            Path parentDir,
+            Path base,
+            Map<Long, List<DocumentEntity>> byParent,
+            Map<Long, Path> idToPath,
+            boolean includeMeta,
+            Map<String, String> sink) {
+
+        if (entity.getType().isFolder()) {
+            Path folderDir = parentDir.resolve(safeName(entity.getTitle()));
+
+            if (includeMeta) {
+                put(sink, base, folderDir.resolve(FOLDER_META_FILE), renderMeta(entity));
+            }
+            Path contentFile = folderDir.resolve(FOLDER_CONTENT_FILE);
+            put(sink, base, contentFile, renderContent(entity, contentFile, idToPath));
+
+            List<DocumentEntity> children = childrenOf(entity.getId(), byParent);
+            for (DocumentEntity child : children) {
+                renderNodeToMap(child, folderDir, base, byParent, idToPath, includeMeta, sink);
+            }
+            put(sink, base, folderDir.resolve(INDEX_FILE), renderIndex(children, folderDir, idToPath));
+        } else {
+            Path contentFile = idToPath.get(entity.getId());
+            put(sink, base, contentFile, renderContent(entity, contentFile, idToPath));
+            if (includeMeta) {
+                String name = contentFile.getFileName().toString();
+                Path metaFile =
+                        contentFile.resolveSibling(name.substring(0, name.lastIndexOf('.')) + ".yaml");
+                put(sink, base, metaFile, renderMeta(entity));
+            }
+        }
+    }
+
+    /** Adds a single entry to the sink keyed by its path relative to {@code base} (forward slashes). */
+    private void put(Map<String, String> sink, Path base, Path file, String content) {
+        String entry = base.relativize(file).toString().replace('\\', '/');
+        sink.put(entry, content);
+    }
+
     // ── Pass 1: collect id → path ────────────────────────────────────────────
 
     /**
@@ -155,7 +243,7 @@ public class DocumentExportService {
             Map<Long, List<DocumentEntity>> byParent,
             Map<Long, Path> idToPath) {
 
-        boolean isFolder = "folder".equalsIgnoreCase(entity.getType());
+        boolean isFolder = entity.getType().isFolder();
 
         if (isFolder) {
             Path folderDir = parentDir.resolve(safeName(entity.getTitle()));
@@ -188,7 +276,7 @@ public class DocumentExportService {
             Map<Long, Path> idToPath,
             boolean includeMeta) {
 
-        boolean isFolder = "folder".equalsIgnoreCase(entity.getType());
+        boolean isFolder = entity.getType().isFolder();
         int written = 0;
 
         if (isFolder) {
@@ -315,7 +403,7 @@ public class DocumentExportService {
         StringBuilder sb = new StringBuilder();
         sb.append("id: ").append(e.getId()).append("\n");
         sb.append("title: \"").append(escapeYaml(e.getTitle())).append("\"\n");
-        sb.append("type: ").append(e.getType()).append("\n");
+        sb.append("type: ").append(e.getType().getValue()).append("\n");
         if (e.getParentId() != null) {
             sb.append("parentId: ").append(e.getParentId()).append("\n");
         }
@@ -330,7 +418,7 @@ public class DocumentExportService {
      * Converts a document title into a filesystem-safe name: lower-case, spaces/special chars
      * replaced with hyphens, no leading/trailing hyphens.
      */
-    static String safeName(String title) {
+    public static String safeName(String title) {
         if (title == null || title.isBlank()) {
             return "untitled";
         }
