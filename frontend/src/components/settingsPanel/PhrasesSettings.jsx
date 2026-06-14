@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useTranslation, Trans } from 'react-i18next';
+import { useTranslation } from 'react-i18next';
 import { SettingsContentHead, SettingsSection } from '../common/SettingsShell';
 import { IconPlus, IconEdit, IconTrash } from '../knowledgeBasePanel/icons';
 import ConfirmModal from '../common/ConfirmModal';
@@ -257,13 +257,6 @@ const PhrasesSettings = () => {
             );
           })}
         </SettingsSection>
-
-        <p className="set-hint">
-          <Trans i18nKey="phrases.hint" ns="settings">
-            Раньше фразы жили в коде (<code>GIT_PHRASES</code>). Теперь — единый список из БД: правится здесь,
-            показывается в пустом чате компонентом <code>Phrases</code> (<code>GET /api/phrases</code>).
-          </Trans>
-        </p>
       </div>
 
       <ConfirmModal
