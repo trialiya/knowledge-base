@@ -31,7 +31,7 @@ Lazy-load дочерних узлов с пагинацией. `description` —
 ### GET `/api/documents/{id}/ancestors`
 ID предков от корня до узла (не включая сам узел). Используется UI для раскрытия ветки при прямом переходе.
 
-**Response:** `List<String>` — например `["1", "7", "42"]`
+**Response:** `List<Long>` — например `[1, 7, 42]`
 
 ---
 
@@ -109,36 +109,24 @@ ID предков от корня до узла (не включая сам уз
 
 ---
 
-### PATCH `/api/documents/reorder`
-Изменить порядок сортировки элементов внутри папки (или на корневом уровне).
+### PATCH `/api/documents/{id}/move`
+Переместить документ/папку в целевого родителя и на конкретную позицию за один атомарный вызов. Заменяет старую пару `moveToParent` + `reorder`: клиент указывает одного соседа вместо всего списка siblings, поэтому частично загруженное дерево на фронтенде не может испортить порядок — точный слот вычисляется на сервере из актуального состояния БД.
 
-**Body:** `ReorderRequest`
+**Body:** `MoveRequest`
 ```json
-{
-  "parentId": "42 | null",
-  "orderedIds": ["7", "3", "1"]
-}
+{ "parentId": 1, "afterId": 7 }     // в папку 1, сразу после узла 7
+{ "parentId": 1, "afterId": null }  // в папку 1, первым
+{ "parentId": null, "afterId": 42 } // в корень, сразу после 42
 ```
-**Response:** `204 No Content`
 
----
-
-### PATCH `/api/documents/{id}/parent`
-Переместить документ/папку в другого родителя (или в корень).
-
-**Body:** `MoveToParentRequest`
-```json
-{
-  "parentId": "42 | null"
-}
-```
 **Response:** `Document`
 
 **Ошибки:**
-- `400` — перемещение создаст цикл
+- `400` — цикл, или `afterId == id`
 - `403` — системный узел
-- `404` — документ или целевой родитель не найден
-- `422` — цель не является папкой
+- `404` — узел, целевой родитель или `afterId` не найдены
+- `409` — конкурентное изменение
+- `422` — цель не папка, или `afterId` принадлежит другому уровню
 
 ---
 
@@ -200,22 +188,6 @@ ID предков от корня до узла (не включая сам уз
 
 ---
 
-### GET `/api/chats/models`
-Список доступных AI-моделей и модель по умолчанию.
-
-**Response:** `ChatModelProperties`
-```json
-{
-  "defaultModel": { "id": "gpt-4o", "label": "GPT-4o" },
-  "models": [
-    { "id": "gpt-4o", "label": "GPT-4o" },
-    { "id": "gpt-4o-mini", "label": "GPT-4o Mini" }
-  ]
-}
-```
-
----
-
 ### GET `/api/chats/{conversationId}`
 Получить чат с сообщениями.
 
@@ -264,17 +236,6 @@ ID предков от корня до узла (не включая сам уз
 Создать или обновить тему чата (идемпотентный).
 
 **Body:** `String` — текст темы (raw text)
-
-**Response:** `200 OK`
-
-**Ошибки:** `403` — чужой чат
-
----
-
-### PUT `/api/chats/{conversationId}/model`
-Выбрать AI-модель для чата. Пустое тело — сброс к дефолтной модели.
-
-**Body:** `String` — id модели (raw text) или пусто
 
 **Response:** `200 OK`
 
@@ -341,6 +302,61 @@ Streaming-чат через Server-Sent Events.
 **Body:** JIRA URL (raw text)
 
 **Response:** `Chat`
+
+---
+
+### GET `/api/chats/models`
+Список доступных AI-моделей и модель по умолчанию.
+
+**Response:** `ChatModelProperties`
+```json
+{
+  "defaultModel": { "id": "gpt-4o", "label": "GPT-4o" },
+  "models": [
+    { "id": "gpt-4o", "label": "GPT-4o" },
+    { "id": "gpt-4o-mini", "label": "GPT-4o Mini" }
+  ]
+}
+```
+
+---
+
+### PUT `/api/chats/{conversationId}/model`
+Выбрать AI-модель для чата. Пустое тело — сброс к дефолтной модели.
+
+**Body:** `String` — id модели (raw text) или пусто
+
+**Response:** `200 OK`
+
+**Ошибки:** `403` — чужой чат, `400` — неизвестная модель
+
+---
+
+## PhraseController — `/api/phrases` и `/api/admin/phrases`
+
+### Публичные (чат)
+
+| Метод | Путь | Назначение |
+|---|---|---|
+| `GET` | `/api/phrases` | Только `enabled`, `ORDER BY category, position` |
+| `PATCH` | `/api/phrases/{id}/favorite?value=true\|false` | Переключить избранное |
+
+### Админские (настройки)
+
+| Метод | Путь | Назначение |
+|---|---|---|
+| `GET` | `/api/admin/phrases?q=` | Все фразы (вкл. выключенные); `q` — быстрый поиск по `label` (ILIKE) |
+| `POST` | `/api/admin/phrases` | Создать (добавляется в конец своей категории) |
+| `PUT` | `/api/admin/phrases/{id}` | Изменить (смена категории → переезд в конец новой) |
+| `DELETE` | `/api/admin/phrases/{id}` | Удалить |
+| `PATCH` | `/api/admin/phrases/{id}/favorite?value=` | То же, что публичный тоггл |
+| `PATCH` | `/api/admin/phrases/{id}/enabled?value=` | Переключить только флаг `enabled` |
+| `PATCH` | `/api/admin/phrases/{id}/move` | Переупорядочить; тело `{ "position": <слот соседа> }` |
+
+**Ошибки:**
+- `404` — неизвестный `id` (NoSuchElementException)
+- `400` — пустое `category`/`label`/`text` после трима (IllegalArgumentException)
+- `DELETE` → `204 No Content`
 
 ---
 
