@@ -5,12 +5,7 @@ import api from './api';
 import { getSiblings, applyReorder, parentTitle, isParentChange, updateNodeInTree, applyChildren } from './treeOps';
 import { findNodeById, findPath } from '../common/utils';
 import { isEditorDirty, clearEditorDirty } from './editorDirtyStore';
-
-const PAGE_SIZE = 10;
-// Used when we must guarantee the WHOLE child list is present (e.g. restoring
-// the path to a selected node after refresh / direct-link navigation), so a
-// node sitting on page 2+ of its parent isn't missing from the tree.
-const FULL_PAGE = 1000;
+import { KB_PAGE_SIZE as PAGE_SIZE, KB_FULL_PAGE as FULL_PAGE } from '../../constants/pagination';
 
 const rootItems = (paged) => (Array.isArray(paged?.items) ? paged.items : []);
 

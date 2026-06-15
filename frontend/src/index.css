@@ -1,5 +1,8 @@
+/* ═══════════════════════════════════════════════
+   DESIGN TOKENS — используется во всём приложении
+═══════════════════════════════════════════════ */
 :root {
-  /* accent */
+  /* accent (основной фиолетовый) */
   --kb-accent: #5b4fcf;
   --kb-accent-hover: #4a3eb8;
   --kb-accent-bg: #ededf8;
@@ -16,14 +19,57 @@
   /* surfaces */
   --kb-bg: #f8f8fc;
   --kb-white: #ffffff;
+  --kb-page-bg: #f0f2f5;
 
-  /* misc */
-  --kb-radius: 16px;
-  --tree-indent: 16px;
+  /* chat bubbles */
+  --kb-user-bubble-bg: #007bff;
+  --kb-user-bubble-color: #ffffff;
+  --kb-ai-bubble-bg: #e9e9eb;
+  --kb-ai-bubble-color: #333333;
+
+  /* status */
+  --kb-success: #34a853;
+  --kb-success-bg: #f0faf3;
+  --kb-warning: #e0a800;
+  --kb-warning-bg: #fffbeb;
 
   /* error / danger */
   --kb-error: #e84d6a;
   --kb-error-bg: #fdedf0;
+
+  /* code */
+  --kb-code-dark-bg: #1e1e1e;
+  --kb-code-dark-color: #e6e6e6;
+
+  /* typography */
+  --kb-font-mono: 'Fira Mono', 'Consolas', monospace;
+  --kb-font-system: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  /* layout */
+  --kb-radius: 16px;
+  --tree-indent: 16px;
+}
+
+/* ═══════════════════════════════════════════════
+   ОБЩИЕ АНИМАЦИИ — используются в нескольких компонентах,
+   определяются один раз здесь, а не дублируются в каждом файле.
+═══════════════════════════════════════════════ */
+
+@keyframes kb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes kb-fade-in-down {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 body {

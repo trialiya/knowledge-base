@@ -1,4 +1,28 @@
 {
+  "admin": {
+    "bulk": {
+      "title": "Bulk operations",
+      "subtitle": "Export, import and batch processing of documents",
+      "sectionLabel": "Operations",
+      "export": {
+        "title": "Export all documents",
+        "desc": "Exports the tree to the server folder (DOCUMENTS_EXPORT_PATH): Markdown{{meta}}, folder structure is preserved",
+        "metaSuffix": " + metadata",
+        "metaCheckbox": "With metadata (.yaml)",
+        "run": "Export",
+        "running": "Exporting…",
+        "doneBadge": "done",
+        "done": "Documents exported to the server export folder.",
+        "errorBadge": "error",
+        "error": "Export failed. Make sure DOCUMENTS_EXPORT_PATH is set."
+      },
+      "import": {
+        "title": "Import documents",
+        "desc": "ZIP with Markdown — into the selected folder",
+        "run": "Import"
+      }
+    }
+  },
   "phrases": {
     "title": "Phrase library",
     "subtitle": "Ready-made prompts above the input field in an empty chat",

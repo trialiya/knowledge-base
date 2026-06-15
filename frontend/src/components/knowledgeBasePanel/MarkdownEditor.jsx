@@ -30,6 +30,7 @@ import AtMentionDropdown from './AtMentionDropdown';
 import useAtMention from './useAtMention';
 import CodeBlock from '../common/CodeBlock';
 import { setEditorDirty } from './editorDirtyStore';
+import { COPY_DONE_MS } from '../../constants/ui';
 
 // remark / rehype plugin arrays — stable references so ReactMarkdown doesn't
 // rebuild its processor on every render. rehypeSlug adds GitHub-style `id`s to
@@ -239,7 +240,7 @@ const MarkdownEditor = ({
       await navigator.clipboard.writeText(val);
       setCopied(true);
       clearTimeout(copyTimerRef.current);
-      copyTimerRef.current = setTimeout(() => setCopied(false), 1500);
+      copyTimerRef.current = setTimeout(() => setCopied(false), COPY_DONE_MS);
     } catch {
       /* clipboard API недоступен в insecure context */
     }

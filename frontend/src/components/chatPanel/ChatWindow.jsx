@@ -1,5 +1,9 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import chatApi from '../../api/chatApi';
+import attachmentApi from '../common/attachmentApi';
+import { STORAGE_KEY_ACTIVE_CHAT, STORAGE_KEY_LAST_MODEL, DRAFT_CHAT_ID } from '../../constants/storage';
+import { CHAT_PAGE_SIZE as PAGE_SIZE } from '../../constants/pagination';
 
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
@@ -25,16 +29,6 @@ const generateUUID = () => {
     return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
   });
 };
-
-const STORAGE_KEY_ACTIVE_ID = 'chat_activeId';
-// Последняя модель, с которой реально отправляли сообщение. Новый чат стартует с неё.
-const STORAGE_KEY_LAST_MODEL = 'chat_lastModel';
-// Псевдо-id для черновика: реальный conversationId (UUID) появляется только после
-// отправки первого сообщения. До этого в URL висит 'new' и бэк ничего о нём не знает.
-const DRAFT_CHAT_ID = 'new';
-
-// Сколько сообщений грузим в одной странице (последние + каждая догрузка вверх).
-const PAGE_SIZE = 20;
 
 const metaToCall = (x) => ({
   name: x.name,
@@ -97,7 +91,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   // (его держит useAppNavigation в App). Локальные выборы поднимаются наверх
   // через onSelectChat и возвращаются сюда уже как проп.
   const [activeChatId, setActiveChatId] = useState(
-    propActiveChatId || localStorage.getItem(STORAGE_KEY_ACTIVE_ID) || null,
+    propActiveChatId || localStorage.getItem(STORAGE_KEY_ACTIVE_CHAT) || null,
   );
 
   // Поднять выбор чата наверх (в навигацию). Локальный стейт обновится, когда
@@ -106,7 +100,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   const selectChat = useCallback(
     (id) => {
       setActiveChatId(id);
-      if (id) localStorage.setItem(STORAGE_KEY_ACTIVE_ID, id);
+      if (id) localStorage.setItem(STORAGE_KEY_ACTIVE_CHAT, id);
       if (onSelectChat) onSelectChat(id);
     },
     [onSelectChat],
@@ -173,8 +167,8 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   // Список выбираемых моделей (GET /api/chats/models). Грузим один раз.
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/chats/models')
-      .then((r) => (r.ok ? r.json() : null))
+    chatApi
+      .getModels()
       .then((cfg) => {
         if (!cancelled) setModelConfig(cfg);
       })
@@ -189,7 +183,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   useEffect(() => {
     if (propActiveChatId && propActiveChatId !== activeChatId) {
       setActiveChatId(propActiveChatId);
-      localStorage.setItem(STORAGE_KEY_ACTIVE_ID, propActiveChatId);
+      localStorage.setItem(STORAGE_KEY_ACTIVE_CHAT, propActiveChatId);
     }
   }, [propActiveChatId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -199,9 +193,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     didFetchChatsRef.current = true;
     const fetchChats = async () => {
       try {
-        const res = await fetch('/api/chats');
-        if (!res.ok) throw new Error('Failed to fetch chats');
-        const data = await res.json();
+        const data = await chatApi.listChats();
         const chatList = data.map((chat) => ({
           id: chat.conversationId,
           title: chat.topic || tRef.current('window.defaultTitle'),
@@ -252,12 +244,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   // Переименование чата
   const renameChat = useCallback(async (chatId, newTitle) => {
     try {
-      const res = await fetch(`/api/chats/${encodeURIComponent(chatId)}/topic`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: newTitle,
-      });
-      if (!res.ok) throw new Error('Failed to rename chat');
+      await chatApi.renameChat(chatId, newTitle);
       setChats((prev) => prev.map((chat) => (chat.id === chatId ? { ...chat, title: newTitle } : chat)));
     } catch (err) {
       console.error('Ошибка переименования чата:', err);
@@ -267,9 +254,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   // Фоновое обновление темы чата с бэкенда после ответа
   const fetchAndUpdateTitle = useCallback(async (chatId) => {
     try {
-      const res = await fetch(`/api/chats/${encodeURIComponent(chatId)}?includeMessages=false`);
-      if (!res.ok) return;
-      const data = await res.json();
+      const data = await chatApi.getChatMeta(chatId);
       const newTitle = data.topic;
       setChats((prev) =>
         prev.map((chat) =>
@@ -306,26 +291,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     loadingMessagesRef.current.add(chatId);
     setLoadingMessages(true);
     try {
-      const [metaRes, pageRes] = await Promise.all([
-        fetch(`/api/chats/${encodeURIComponent(chatId)}?includeMessages=false`),
-        fetch(`/api/chats/${encodeURIComponent(chatId)}/messages?limit=${PAGE_SIZE}`),
-      ]);
-
-      if (!metaRes.ok || !pageRes.ok) {
-        const status = !metaRes.ok ? metaRes.status : pageRes.status;
-        const isNotFound = status === 404;
-        failedChatIdsRef.current.add(chatId);
-        setChats((prev) =>
-          prev.map((chat) =>
-            chat.id === chatId ? { ...chat, messages: [], notFound: isNotFound, loadError: status } : chat,
-          ),
-        );
-        setChatErrorModal({ notFound: isNotFound, status });
-        return;
-      }
-
-      const meta = await metaRes.json();
-      const page = await pageRes.json(); // { messages, hasMore, oldestCursor }
+      const [meta, page] = await Promise.all([chatApi.getChatMeta(chatId), chatApi.getMessages(chatId, PAGE_SIZE)]);
       const { bubbles, leadingMetas } = transformPage(page.messages);
 
       failedChatIdsRef.current.delete(chatId);
@@ -347,13 +313,16 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         ),
       );
     } catch (err) {
-      // Сетевая ошибка или иное исключение
       console.error('Ошибка загрузки сообщений:', err);
+      const status = err.status || 'network';
+      const isNotFound = status === 404;
       failedChatIdsRef.current.add(chatId);
       setChats((prev) =>
-        prev.map((chat) => (chat.id === chatId ? { ...chat, messages: [], loadError: 'network' } : chat)),
+        prev.map((chat) =>
+          chat.id === chatId ? { ...chat, messages: [], notFound: isNotFound, loadError: status } : chat,
+        ),
       );
-      setChatErrorModal({ notFound: false, status: 'network' });
+      setChatErrorModal({ notFound: isNotFound, status });
     } finally {
       loadingMessagesRef.current.delete(chatId);
       setLoadingMessages(false);
@@ -368,13 +337,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     if (loadingOlderRef.current.has(chatId)) return false;
     loadingOlderRef.current.add(chatId);
     try {
-      const { createdAt, id } = chat.oldestCursor;
-      const url =
-        `/api/chats/${encodeURIComponent(chatId)}/messages` +
-        `?beforeCreatedAt=${encodeURIComponent(createdAt)}&beforeId=${encodeURIComponent(id)}&limit=${PAGE_SIZE}`;
-      const res = await fetch(url);
-      if (!res.ok) return false;
-      const page = await res.json(); // { messages, hasMore, oldestCursor }
+      const page = await chatApi.getMessages(chatId, PAGE_SIZE, chat.oldestCursor);
       const { bubbles: olderBubbles, leadingMetas } = transformPage(page.messages);
       if (!olderBubbles.length && (!leadingMetas || !leadingMetas.length)) {
         // Пустая страница — больше грузить нечего.
@@ -420,7 +383,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       }
       // Сохраняем в localStorage только реально существующий чат
       if (!chat?.notFound && !chat?.loadError && !alreadyFailed) {
-        localStorage.setItem(STORAGE_KEY_ACTIVE_ID, activeChatId);
+        localStorage.setItem(STORAGE_KEY_ACTIVE_CHAT, activeChatId);
       }
     }
   }, [activeChatId, chats, loadMessages]);
@@ -432,8 +395,8 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   useEffect(() => {
     if (!activeChatId || activeChatId === DRAFT_CHAT_ID) return;
     setAttachCount(0);
-    fetch(`/api/chats/${encodeURIComponent(activeChatId)}/attachments/count`)
-      .then((r) => (r.ok ? r.json() : 0))
+    chatApi
+      .getAttachmentCount(activeChatId)
       .then((count) => setAttachCount(typeof count === 'number' ? count : 0))
       .catch(() => setAttachCount(0));
   }, [activeChatId]);
@@ -860,16 +823,12 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
 
   const handleCreateJiraChat = useCallback(
     async (request) => {
-      const res = await fetch('/api/chats/jira', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request),
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || tRef.current('window.jiraCreateError'));
+      let chat;
+      try {
+        chat = await chatApi.createJiraChat(request);
+      } catch (err) {
+        throw new Error(err.body || tRef.current('window.jiraCreateError'));
       }
-      const chat = await res.json();
       const newChat = {
         id: chat.conversationId,
         title: chat.topic || tRef.current('window.jiraTitle'),
@@ -906,11 +865,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     setChatDeleteConfirm(null);
     if (!target) return;
     const { id } = target;
-    try {
-      await fetch(`/api/chats/${encodeURIComponent(id)}`, { method: 'DELETE' });
-    } catch (err) {
-      console.error('Ошибка удаления чата:', err);
-    }
+    await chatApi.deleteChat(id);
     setChats((prev) => prev.filter((chat) => chat.id !== id));
     if (activeChatId === id) {
       const remaining = chatsRef.current.filter((chat) => chat.id !== id);
@@ -937,12 +892,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       setChats((prev) => prev.map((c) => (c.id === activeChatId ? { ...c, model: newId } : c)));
       if (activeChatId === DRAFT_CHAT_ID) return;
       try {
-        const res = await fetch(`/api/chats/${encodeURIComponent(activeChatId)}/model`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-          body: newId,
-        });
-        if (!res.ok) throw new Error('Failed to update chat model');
+        await chatApi.updateModel(activeChatId, newId);
       } catch (err) {
         console.error('Ошибка смены модели чата:', err);
       }
@@ -954,13 +904,8 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   const handleAttachFile = useCallback(
     async (file) => {
       if (!activeChatId || !file) return;
-      const formData = new FormData();
-      formData.append('file', file);
       try {
-        await fetch(`/api/chats/${activeChatId}/attachments`, {
-          method: 'POST',
-          body: formData,
-        });
+        await attachmentApi.upload('chat', activeChatId, file);
         setAttachCount((n) => n + 1);
         // Open attachment panel to show the uploaded file
         setAttachPanelOpen(true);

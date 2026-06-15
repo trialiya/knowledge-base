@@ -8,6 +8,8 @@ import './message.css';
 import CodeBlock from '../common/CodeBlock';
 import HistoryModal from '../knowledgeBasePanel/HistoryModal';
 import { getToolIcon, toolLabelKey, humanizeTool, getDocChangeRef } from './toolMeta';
+import { IconCopySmall, IconCopied } from '../../icons';
+import { COPY_DONE_MS, GIST_PREVIEW_LEN } from '../../constants/ui';
 
 /** SVG status indicators — not clickable, purely visual */
 const IconStarted = () => (
@@ -48,37 +50,6 @@ const StatusIcon = ({ status }) => {
   }
 };
 
-/** Small copy button SVG */
-const IconCopy = () => (
-  <svg
-    width="12"
-    height="12"
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.6"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
-    <path d="M10.5 5.5V3.5a1.5 1.5 0 0 0-1.5-1.5H3.5A1.5 1.5 0 0 0 2 3.5V9a1.5 1.5 0 0 0 1.5 1.5h2" />
-  </svg>
-);
-const IconCopied = () => (
-  <svg
-    width="12"
-    height="12"
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke="#34a853"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M3 8.5l3 3 7-7.5" />
-  </svg>
-);
-
 /** Кнопка «копировать всё сообщение» — копирует исходный текст сообщения. */
 const MessageCopyButton = ({ text }) => {
   const { t } = useTranslation('chat');
@@ -92,7 +63,7 @@ const MessageCopyButton = ({ text }) => {
       await navigator.clipboard.writeText(text ?? '');
       setCopied(true);
       clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setCopied(false), 1500);
+      timerRef.current = setTimeout(() => setCopied(false), COPY_DONE_MS);
     } catch {
       /* clipboard API may fail in insecure contexts */
     }
@@ -105,7 +76,7 @@ const MessageCopyButton = ({ text }) => {
       title={copied ? t('common:copied') : t('message.copyMessage')}
       type="button"
     >
-      {copied ? <IconCopied /> : <IconCopy />}
+      {copied ? <IconCopied /> : <IconCopySmall />}
     </button>
   );
 };
@@ -116,8 +87,6 @@ const formatArgs = (args) => {
     .map(([key, val]) => `${key}: ${typeof val === 'string' ? val : JSON.stringify(val)}`)
     .join(', ');
 };
-
-const GIST_PREVIEW_LEN = 80;
 
 /** Однострочное усечённое превью resultGist для плашки. */
 const gistPreview = (gist) => {
@@ -195,7 +164,7 @@ const ToolCallItem = ({ tc }) => {
     try {
       await navigator.clipboard.writeText(buildCopyText(tc, t));
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      setTimeout(() => setCopied(false), COPY_DONE_MS);
     } catch {
       /* clipboard API may fail in insecure contexts */
     }
@@ -226,7 +195,7 @@ const ToolCallItem = ({ tc }) => {
         {tc.status === 'ERROR' && tc.error && <span className="tool-call-error">{tc.error}</span>}
       </div>
       <button className="tool-call-copy-btn" onClick={handleCopy} title={t('toolCall.copy')}>
-        {copied ? <IconCopied /> : <IconCopy />}
+        {copied ? <IconCopied /> : <IconCopySmall />}
       </button>
       {hover &&
         ReactDOM.createPortal(
