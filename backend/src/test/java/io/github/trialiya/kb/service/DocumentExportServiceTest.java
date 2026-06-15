@@ -1,16 +1,20 @@
 package io.github.trialiya.kb.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.config.model.DocumentsConfiguration;
+import io.github.trialiya.kb.model.doc.DocumentType;
 import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
 import io.github.trialiya.kb.repository.DocumentRepository;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -50,7 +54,7 @@ class DocumentExportServiceTest {
         DocumentEntity e = new DocumentEntity();
         e.setId(id);
         e.setTitle(title);
-        e.setType("document");
+        e.setType(DocumentType.DOCUMENT);
         e.setParentId(parentId);
         e.setPosition(position);
         e.setDescription(description);
@@ -61,15 +65,25 @@ class DocumentExportServiceTest {
     private static DocumentEntity folder(
             long id, String title, Long parentId, int position, String description) {
         DocumentEntity e = doc(id, title, parentId, position, description);
-        e.setType("folder");
+        e.setType(DocumentType.FOLDER);
         return e;
     }
 
     /** Wires the standard fixture tree into the mocked repository. */
     private void stubTree(List<DocumentEntity> all, List<DocumentEntity> roots) {
-        // Mutable copies — the service sorts the returned lists in place.
-        when(repo.findAll()).thenReturn(new java.util.ArrayList<>(all));
+        // Mutable copy — the service sorts the returned roots in place.
         when(repo.findRoots()).thenReturn(new java.util.ArrayList<>(roots));
+        // Children are loaded one level at a time; answer with a fresh, position-sorted stream for
+        // any parent id (the tree is walked twice — path collection + write — so it can't be
+        // reused).
+        when(repo.findAllByParentIdOrderByPosition(anyLong()))
+                .thenAnswer(
+                        inv -> {
+                            long parentId = inv.getArgument(0);
+                            return all.stream()
+                                    .filter(e -> Objects.equals(e.getParentId(), parentId))
+                                    .sorted(Comparator.comparingInt(DocumentEntity::getPosition));
+                        });
     }
 
     private String read(String relativePath) throws Exception {
