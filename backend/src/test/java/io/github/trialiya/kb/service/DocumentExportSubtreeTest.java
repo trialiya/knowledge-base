@@ -39,7 +39,14 @@ class DocumentExportSubtreeTest {
         repo = mock(DocumentRepository.class);
         service = new DocumentExportService(repo, new DocumentsConfiguration("/unused", true));
 
-        docs = entity(1, "Docs", DocumentType.FOLDER, null, 0, "Folder root, see [intro](/?doc=2).");
+        docs =
+                entity(
+                        1,
+                        "Docs",
+                        DocumentType.FOLDER,
+                        null,
+                        0,
+                        "Folder root, see [intro](/?doc=2).");
         intro = entity(2, "Intro", DocumentType.DOCUMENT, 1L, 0, "See [API doc](/?doc=3).");
         api = entity(3, "API", DocumentType.DOCUMENT, 1L, 1, "API body");
 
@@ -71,14 +78,15 @@ class DocumentExportSubtreeTest {
     void folderSubtreeContainsFullLayout() {
         Map<String, String> entries = service.renderSubtree(1, true);
 
-        assertThat(entries).containsKeys(
-                "docs/.meta.yaml",
-                "docs/.content.md",
-                "docs/.index.md",
-                "docs/intro.md",
-                "docs/intro.yaml",
-                "docs/api.md",
-                "docs/api.yaml");
+        assertThat(entries)
+                .containsKeys(
+                        "docs/.meta.yaml",
+                        "docs/.content.md",
+                        "docs/.index.md",
+                        "docs/intro.md",
+                        "docs/intro.yaml",
+                        "docs/api.md",
+                        "docs/api.yaml");
     }
 
     @Test
@@ -86,7 +94,9 @@ class DocumentExportSubtreeTest {
         Map<String, String> entries = service.renderSubtree(1, false);
 
         // Intro and API are siblings inside the folder → link becomes a bare file name.
-        assertThat(entries.get("docs/intro.md")).contains("[API doc](api.md)").doesNotContain("/?doc=3");
+        assertThat(entries.get("docs/intro.md"))
+                .contains("[API doc](api.md)")
+                .doesNotContain("/?doc=3");
         // The folder body links to the child document.
         assertThat(entries.get("docs/.content.md")).contains("[intro](intro.md)");
         // No meta requested.

@@ -93,9 +93,9 @@ public class DocumentController {
 
     /**
      * Downloads a node: a <b>document</b> is returned as a single {@code .md} file, a <b>folder</b>
-     * as a {@code .zip} archive of its subtree (Markdown + optional {@code .yaml} metadata, mirroring
-     * the export layout). Internal {@code /?doc=ID} links are rewritten to relative paths within the
-     * archive.
+     * as a {@code .zip} archive of its subtree (Markdown + optional {@code .yaml} metadata,
+     * mirroring the export layout). Internal {@code /?doc=ID} links are rewritten to relative paths
+     * within the archive.
      *
      * <pre>GET /api/documents/{id}/download?meta=false</pre>
      */
@@ -117,7 +117,8 @@ public class DocumentController {
                                 Stream<DocumentExportService.ExportEntry> entries =
                                         documentExportService.streamSubtree(id, meta)) {
                             for (DocumentExportService.ExportEntry e :
-                                    (Iterable<DocumentExportService.ExportEntry>) entries::iterator) {
+                                    (Iterable<DocumentExportService.ExportEntry>)
+                                            entries::iterator) {
                                 zos.putNextEntry(new ZipEntry(e.path()));
                                 zos.write(e.content().getBytes(StandardCharsets.UTF_8));
                                 zos.closeEntry();
