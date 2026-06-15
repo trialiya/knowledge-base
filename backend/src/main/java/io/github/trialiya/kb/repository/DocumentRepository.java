@@ -3,6 +3,7 @@ package io.github.trialiya.kb.repository;
 import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jdbc.repository.query.Modifying;
@@ -24,6 +25,14 @@ public interface DocumentRepository
     @Query(
             "SELECT * FROM documents WHERE parent_id = :parentId ORDER BY position, type DESC, title")
     List<DocumentEntity> findByParentId(@Param("parentId") Long parentId);
+
+    /**
+     * Streams the direct children of a folder, ordered by position, fetched lazily one level at a
+     * time. The caller <b>must</b> close the returned stream (try-with-resources) so the underlying
+     * JDBC connection/cursor is released. Used by the subtree download to avoid loading the whole
+     * {@code documents} table into memory.
+     */
+    Stream<DocumentEntity> findAllByParentIdOrderByPosition(Long parentId);
 
     /** Paginated children of a given parent folder, sorted by position. */
     Page<DocumentEntity> findByParentId(Long parentId, Pageable pageable);

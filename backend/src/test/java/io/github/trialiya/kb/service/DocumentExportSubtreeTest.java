@@ -9,10 +9,9 @@ import io.github.trialiya.kb.model.doc.DocumentType;
 import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
 import io.github.trialiya.kb.repository.DocumentRepository;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -44,11 +43,15 @@ class DocumentExportSubtreeTest {
         intro = entity(2, "Intro", DocumentType.DOCUMENT, 1L, 0, "See [API doc](/?doc=3).");
         api = entity(3, "API", DocumentType.DOCUMENT, 1L, 1, "API body");
 
-        List<DocumentEntity> all = new ArrayList<>(List.of(docs, intro, api));
-        when(repo.findAll()).thenReturn(all);
         when(repo.findById(1L)).thenReturn(Optional.of(docs));
         when(repo.findById(2L)).thenReturn(Optional.of(intro));
         when(repo.findById(3L)).thenReturn(Optional.of(api));
+
+        // Children are loaded per level; each call must yield a fresh (single-use) stream because
+        // the subtree is walked twice (path collection + content rendering).
+        when(repo.findAllByParentIdOrderByPosition(1L)).thenAnswer(inv -> Stream.of(intro, api));
+        when(repo.findAllByParentIdOrderByPosition(2L)).thenAnswer(inv -> Stream.empty());
+        when(repo.findAllByParentIdOrderByPosition(3L)).thenAnswer(inv -> Stream.empty());
     }
 
     private static DocumentEntity entity(

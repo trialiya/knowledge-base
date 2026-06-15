@@ -176,20 +176,43 @@ public class DocumentExportService {
                         .orElseThrow(
                                 () -> new NoSuchElementException("Document not found: " + rootId));
 
-        Map<Long, List<DocumentEntity>> byParent =
-                Streams.stream(repo.findAll())
-                        .filter(e -> e.getParentId() != null)
-                        .collect(Collectors.groupingBy(DocumentEntity::getParentId));
-        byParent.values()
-                .forEach(list -> list.sort(Comparator.comparingInt(DocumentEntity::getPosition)));
-
         // Virtual base — never hits disk; used only for relativising entry names and links. The
         // id → path map is cheap (paths only, no content) and is needed up-front for link rewriting.
+        // Children are loaded one level at a time (see #subtreeChildren) rather than via a single
+        // full-table scan, so the whole document set is never held in memory.
         Path base = Paths.get("/");
         Map<Long, Path> idToPath = new HashMap<>();
-        collectPaths(root, base, byParent, idToPath);
+        collectSubtreePaths(root, base, idToPath);
 
-        return walk(root, base, base, byParent, idToPath, includeMeta);
+        return walk(root, base, base, idToPath, includeMeta);
+    }
+
+    /**
+     * Filesystem-free counterpart of {@link #collectPaths} for the in-memory subtree: populates
+     * {@code idToPath} with each node's archive-relative target, loading children lazily per level.
+     */
+    private void collectSubtreePaths(DocumentEntity entity, Path parentDir, Map<Long, Path> idToPath) {
+        if (entity.getType().isFolder()) {
+            Path folderDir = parentDir.resolve(safeName(entity.getTitle()));
+            idToPath.put(entity.getId(), folderDir.resolve(FOLDER_CONTENT_FILE));
+            for (DocumentEntity child : subtreeChildren(entity.getId())) {
+                collectSubtreePaths(child, folderDir, idToPath);
+            }
+        } else {
+            idToPath.put(entity.getId(), parentDir.resolve(safeName(entity.getTitle()) + ".md"));
+        }
+    }
+
+    /**
+     * Loads the direct children of {@code parentId}, already sorted by position in SQL, draining and
+     * closing the repository stream so its JDBC cursor is released. Materialised into a list because
+     * each level is consumed twice (folder body links + the trailing {@code .index.md}); only one
+     * level lives in memory at a time.
+     */
+    private List<DocumentEntity> subtreeChildren(long parentId) {
+        try (Stream<DocumentEntity> children = repo.findAllByParentIdOrderByPosition(parentId)) {
+            return children.toList();
+        }
     }
 
     /**
@@ -217,7 +240,6 @@ public class DocumentExportService {
             DocumentEntity entity,
             Path parentDir,
             Path base,
-            Map<Long, List<DocumentEntity>> byParent,
             Map<Long, Path> idToPath,
             boolean includeMeta) {
 
@@ -226,14 +248,14 @@ public class DocumentExportService {
         }
 
         Path folderDir = parentDir.resolve(safeName(entity.getTitle()));
-        List<DocumentEntity> children = childrenOf(entity.getId(), byParent);
+        List<DocumentEntity> children = subtreeChildren(entity.getId());
 
         Stream<ExportEntry> header = folderHeaderEntries(entity, folderDir, base, idToPath, includeMeta);
         Stream<ExportEntry> descendants =
                 children.stream()
                         .<ExportEntry>mapMulti(
                                 (child, sink) ->
-                                        walk(child, folderDir, base, byParent, idToPath, includeMeta)
+                                        walk(child, folderDir, base, idToPath, includeMeta)
                                                 .forEach(sink));
         Stream<ExportEntry> index =
                 Stream.of(
