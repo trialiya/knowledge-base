@@ -643,10 +643,17 @@
   flex: 1;
   min-height: 0;
 }
-/* preview-only режим (Summary.About): тоже на всю высоту со скроллом */
+/* preview-only режим (Summary.About + история база/изменённая): на всю высоту
+   со скроллом. min-height:0 нужен, чтобы flex-ребёнок мог сжаться ниже своего
+   контента и включить вертикальный скролл (иначе контент вылезает за пределы
+   и обрезается родительским overflow:hidden). min-width:0 + overflow-wrap не
+   дают длинным строкам/ссылкам уехать за правый край модалки. */
 .fs-editor__body .md-preview--embedded {
   flex: 1;
-  overflow-y: auto;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+  overflow-wrap: break-word;
 }
 
 .detail-icon-btn--done,
