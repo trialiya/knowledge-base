@@ -228,15 +228,18 @@ const MarkdownEditor = ({
 
   // ── Toolbar transforms ──────────────────────────────────────────────────────
 
-  const applyTransform = useCallback(({ newVal, from, to }) => {
-    update(newVal);
-    requestAnimationFrame(() => {
-      const ta = textareaRef.current;
-      if (!ta) return;
-      ta.focus();
-      ta.setSelectionRange(from, to);
-    });
-  }, [update]);
+  const applyTransform = useCallback(
+    ({ newVal, from, to }) => {
+      update(newVal);
+      requestAnimationFrame(() => {
+        const ta = textareaRef.current;
+        if (!ta) return;
+        ta.focus();
+        ta.setSelectionRange(from, to);
+      });
+    },
+    [update],
+  );
 
   // Copy the full markdown source to the clipboard.
   const handleCopyAll = useCallback(async () => {
