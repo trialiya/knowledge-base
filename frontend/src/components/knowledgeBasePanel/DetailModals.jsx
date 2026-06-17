@@ -14,6 +14,8 @@ import HistoryModal from './HistoryModal';
  *   showHistory       — boolean
  *   onCloseHistory    — () => void
  *   onUpdate          — (id, patch) => void
+ *   contentDraft      — «поднятый» черновик описания (общий с встроенным редактором)
+ *   setContentDraft   — (val) => void
  *   tree, onNavigate  — forwarded to the editors for DocLinkTooltip
  */
 const DetailModals = ({
@@ -23,23 +25,30 @@ const DetailModals = ({
   showHistory,
   onCloseHistory,
   onUpdate,
+  contentDraft = '',
+  setContentDraft,
   tree = [],
   onNavigate,
 }) => {
   const { t } = useTranslation('knowledgeBase');
   const saveDescription = (val) => onUpdate(node.id, { description: val });
+  const isAbout = fullscreen === 'about';
 
   return (
     <>
       {fullscreen && (
         <FullscreenEditorModal
           title={
-            fullscreen === 'about'
+            isAbout
               ? t('detail.fullscreenAbout', { title: node.title })
               : t('detail.fullscreenContent', { title: node.title })
           }
-          value={node.description || ''}
-          previewOnly={fullscreen === 'about'}
+          // About — это превью сохранённого описания; Content — общий черновик,
+          // поэтому развёрнутое окно открывается с текущими несохранёнными правками.
+          value={isAbout ? node.description || '' : contentDraft}
+          onChange={isAbout ? undefined : setContentDraft}
+          savedValue={node.description || ''}
+          previewOnly={isAbout}
           onSave={saveDescription}
           onClose={onCloseFullscreen}
           tree={tree}

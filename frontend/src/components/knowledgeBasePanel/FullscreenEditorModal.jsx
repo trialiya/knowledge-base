@@ -9,13 +9,25 @@ import { IconX } from './icons';
  * Полноэкранная модалка для разворачивания описания.
  * props:
  *   title       — заголовок в шапке модалки
- *   value       — markdown-строка
+ *   value       — markdown-строка (для Content — общий черновик)
+ *   onChange    — (val) => void; правки черновика (нужен только если previewOnly=false)
+ *   savedValue  — сохранённое описание (для вычисления «грязно» в редакторе)
  *   previewOnly — true → только preview (Summary.About), false → редактор (Content)
  *   onSave      — async (val) => void   (нужен только если previewOnly=false)
  *   onClose     — () => void
  *   tree, onNavigate — пробрасываются в MarkdownEditor для DocLinkTooltip
  */
-const FullscreenEditorModal = ({ title, value, previewOnly = false, onSave, onClose, tree = [], onNavigate }) => {
+const FullscreenEditorModal = ({
+  title,
+  value,
+  onChange,
+  savedValue = '',
+  previewOnly = false,
+  onSave,
+  onClose,
+  tree = [],
+  onNavigate,
+}) => {
   const { t } = useTranslation('knowledgeBase');
   useEscape(onClose);
 
@@ -31,6 +43,8 @@ const FullscreenEditorModal = ({ title, value, previewOnly = false, onSave, onCl
         <div className="fs-editor__body">
           <MarkdownEditor
             value={value}
+            onChange={onChange}
+            savedValue={savedValue}
             previewOnly={previewOnly}
             onSave={onSave || (() => {})}
             tree={tree}
