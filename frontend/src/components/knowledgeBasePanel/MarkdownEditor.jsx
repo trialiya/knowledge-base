@@ -175,6 +175,7 @@ const MarkdownEditor = ({
   const { t } = useTranslation('knowledgeBase');
   const [val, setVal] = useState(value);
   const [dirty, setDirty] = useState(false);
+  const dirtyRef = useRef(false); // синхронное зеркало dirty для эффекта синка value
   const [preview, setPreview] = useState(false);
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -186,9 +187,12 @@ const MarkdownEditor = ({
   // Stable ReactMarkdown components map (was rebuilt every render before).
   const mdComponents = useMemo(() => getMarkdownComponents(tree, onNavigate), [tree, onNavigate]);
 
+  dirtyRef.current = dirty;
   useEffect(() => {
+    // Подхватываем новое значение из props, НО не затираем несохранённые правки,
+    // если value пришёл извне во время редактирования (autosave/внешнее обновление).
+    if (dirtyRef.current) return;
     setVal(value);
-    setDirty(false);
   }, [value]);
 
   // Publish the dirty flag to the shared store so the navigation guard in
@@ -353,7 +357,7 @@ const MarkdownEditor = ({
     ];
   }, [t, applyTransform]);
 
-  // Tab key → indent with 2 spaces; also route to mention keyboard handler
+  // Tab → отступ 2 пробела; также маршрутизируем клавиши в @mention-обработчик
   const handleKeyDown = (e) => {
     // Let @mention consume arrow keys / Enter / Escape when active
     mention.handleKeyDown(e);
@@ -363,12 +367,28 @@ const MarkdownEditor = ({
       e.preventDefault();
       const ta = e.target;
       const { selectionStart: s, selectionEnd: end, value: v } = ta;
-      const newVal = v.slice(0, s) + '  ' + v.slice(end);
-      setVal(newVal);
-      setDirty(true);
-      requestAnimationFrame(() => {
-        ta.setSelectionRange(s + 2, s + 2);
-      });
+      const INDENT = '  ';
+
+      if (s === end) {
+        // Нет выделения — просто вставляем отступ в позицию каретки.
+        const newVal = v.slice(0, s) + INDENT + v.slice(end);
+        setVal(newVal);
+        setDirty(true);
+        requestAnimationFrame(() => ta.setSelectionRange(s + INDENT.length, s + INDENT.length));
+      } else {
+        // Есть выделение — добавляем отступ КАЖДОЙ затронутой строке, сохраняя
+        // сам текст и охват выделения (раньше выделение затиралось двумя пробелами).
+        const lineStart = v.lastIndexOf('\n', s - 1) + 1;
+        const block = v.slice(lineStart, end);
+        const indented = block.replace(/^(?=.)/gm, INDENT); // пустые строки не трогаем
+        const added = indented.length - block.length;
+        const newVal = v.slice(0, lineStart) + indented + v.slice(end);
+        setVal(newVal);
+        setDirty(true);
+        // start сдвигаем на отступ первой строки, end — на суммарно добавленное.
+        const newStart = s + (indented.startsWith(INDENT) ? INDENT.length : 0);
+        requestAnimationFrame(() => ta.setSelectionRange(newStart, end + added));
+      }
     }
   };
 

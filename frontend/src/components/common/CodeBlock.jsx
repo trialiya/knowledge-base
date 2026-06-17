@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconCopySmall, IconCopied } from '../../icons';
 import { COPY_DONE_MS } from '../../constants/ui';
@@ -14,6 +14,10 @@ const CodeBlock = ({ code, className, children, ...props }) => {
   const [copied, setCopied] = useState(false);
   const timerRef = useRef(null);
   const lang = extractLang(className);
+
+  // Сбрасываем таймер «скопировано» при размонтировании, чтобы setCopied не
+  // дёргался на уже удалённом компоненте (смена документа/закрытие превью).
+  useEffect(() => () => clearTimeout(timerRef.current), []);
 
   const handleCopy = async () => {
     try {
