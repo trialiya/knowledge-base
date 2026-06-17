@@ -301,6 +301,10 @@ public class GitService {
                                 int pathScore = fuzzyScore(q, path);
                                 score = pathScore < 0 ? -1 : pathScore - 1000;
                             }
+                            // Demote test files by ~30 % so production sources rank higher.
+                            if (score > 0 && isTestPath(path)) {
+                                score = score * 7 / 10;
+                            }
                             return new Scored(path, score);
                         })
                 .filter(s -> s.score() >= 0)
@@ -318,6 +322,13 @@ public class GitService {
                             return new GitFileNode(s.path(), name, "file", fileSize(s.path()));
                         })
                 .toList();
+    }
+
+    private static boolean isTestPath(String path) {
+        return path.startsWith("src/test/")
+                || path.contains("/src/test/")
+                || path.startsWith("test/")
+                || path.contains("/test/");
     }
 
     /**

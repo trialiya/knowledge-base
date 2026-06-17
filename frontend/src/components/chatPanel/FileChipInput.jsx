@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useCallback, useState, useImperativeHandle, forwardRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import gitApi from '../../api/gitApi';
-import { makeToken, makeRefToken, parseToken, fetchContent, TOKEN_RE } from './fileChips';
+import { makeToken, makeRefToken, parseToken, baseName, fetchContent, TOKEN_RE } from './fileChips';
 import FilePickerDropdown from './FilePickerDropdown';
 
 const DEBOUNCE_MS = 200;
@@ -46,7 +46,7 @@ function makeChipEl(token) {
 
   const label = document.createElement('span');
   label.className = 'file-chip__label';
-  label.textContent = path + range;
+  label.textContent = baseName(path) + range;
 
   const remove = document.createElement('button');
   remove.type = 'button';
@@ -170,6 +170,7 @@ const FileChipInput = forwardRef(function FileChipInput(
   const handleInput = useCallback(() => {
     emitChange();
     detectTrigger();
+    setPreview((pv) => (pv ? null : pv));
   }, [emitChange, detectTrigger]);
 
   const insertFile = useCallback(
@@ -241,7 +242,10 @@ const FileChipInput = forwardRef(function FileChipInput(
 
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        if (!disabled) onSend();
+        if (!disabled) {
+          setPreview(null);
+          onSend();
+        }
       } else if (e.key === 'Enter' && e.shiftKey) {
         e.preventDefault();
         insertTextAtCaret('\n');
@@ -261,7 +265,7 @@ const FileChipInput = forwardRef(function FileChipInput(
       chipEl.dataset.token = newToken;
       const label = chipEl.querySelector('.file-chip__label');
       const range = from != null ? `:${from}-${to}` : '';
-      if (label) label.textContent = path + range;
+      if (label) label.textContent = baseName(path) + range;
       const icon = chipEl.querySelector('.file-chip__icon');
       if (icon) icon.textContent = newRefOnly ? '📎' : '📄';
       if (newRefOnly) chipEl.classList.add('file-chip--ref');
@@ -357,13 +361,15 @@ function FileChipPreview({ preview, onClose, onToggleRef, closeLabel, loadingLab
     left: Math.min(rect.left, window.innerWidth - 460),
     zIndex: 9100,
   };
+  const name = baseName(path);
   const range = from != null ? ` (${from}–${to})` : '';
   return (
     <div className="file-chip-preview" style={style}>
       <div className="file-chip-preview__head">
-        <span className="file-chip-preview__path" title={path + range}>
-          {path}{range}
-        </span>
+        <div className="file-chip-preview__title">
+          <span className="file-chip-preview__name">{name}{range}</span>
+          <span className="file-chip-preview__fullpath" title={path}>{path}</span>
+        </div>
         <button
           type="button"
           className={'file-chip-preview__toggle' + (refOnly ? ' file-chip-preview__toggle--active' : '')}
