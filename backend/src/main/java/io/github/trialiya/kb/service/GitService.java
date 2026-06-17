@@ -270,24 +270,103 @@ public class GitService {
     // ── File search ─────────────────────────────────────────────────────────
 
     /**
-     * Searches tracked file names by glob/substring.
+     * Fuzzy-searches tracked files by name. {@code pattern} is matched as a <b>subsequence</b> of
+     * each file's name, so {@code "mgi"} matches {@code "MessageInput"}. Results are ranked by how
+     * well the characters align to word boundaries (start of name, camelCase humps, and {@code - _
+     * . /} separators) and by consecutive runs, so the most "intentional" match floats to the top.
+     * Falls back to matching the full path when the name alone doesn't match.
      *
-     * @param pattern search pattern (substring match, case-insensitive)
+     * @param pattern partial file name; blank returns an empty list
      * @param maxResults capped at 50
      */
     public List<GitFileNode> searchFiles(@NonNull String pattern, int maxResults) {
+        if (pattern.isBlank()) return List.of();
+        String q = pattern.strip().toLowerCase();
         int limit = Math.min(Math.max(maxResults, 1), 50);
+
         List<String> allFiles = exec(List.of("git", "ls-files", "--full-name"));
-        String lower = pattern.toLowerCase();
+
+        record Scored(String path, int score) {}
         return allFiles.stream()
-                .filter(f -> f.toLowerCase().contains(lower))
+                .map(
+                        path -> {
+                            String name =
+                                    path.contains("/")
+                                            ? path.substring(path.lastIndexOf('/') + 1)
+                                            : path;
+                            int score = fuzzyScore(q, name);
+                            if (score < 0) {
+                                // Name alone didn't match — try the whole path, but rank it
+                                // below any name match so file-name hits always win.
+                                int pathScore = fuzzyScore(q, path);
+                                score = pathScore < 0 ? -1 : pathScore - 1000;
+                            }
+                            // Demote test files by ~30 % so production sources rank higher.
+                            if (score > 0 && isTestPath(path)) {
+                                score = score * 7 / 10;
+                            }
+                            return new Scored(path, score);
+                        })
+                .filter(s -> s.score() >= 0)
+                .sorted(
+                        java.util.Comparator.comparingInt(Scored::score)
+                                .reversed()
+                                .thenComparingInt(s -> s.path().length()))
                 .limit(limit)
                 .map(
-                        f -> {
-                            String name = f.contains("/") ? f.substring(f.lastIndexOf('/') + 1) : f;
-                            return new GitFileNode(f, name, "file", fileSize(f));
+                        s -> {
+                            String name =
+                                    s.path().contains("/")
+                                            ? s.path().substring(s.path().lastIndexOf('/') + 1)
+                                            : s.path();
+                            return new GitFileNode(s.path(), name, "file", fileSize(s.path()));
                         })
                 .toList();
+    }
+
+    private static boolean isTestPath(String path) {
+        return path.startsWith("src/test/")
+                || path.contains("/src/test/")
+                || path.startsWith("test/")
+                || path.contains("/test/");
+    }
+
+    /**
+     * Subsequence fuzzy-match score of {@code query} (already lower-cased) against {@code text}
+     * (original case, for boundary detection). Returns {@code -1} when {@code query} is not a
+     * subsequence of {@code text}; otherwise a non-negative score where higher means a tighter,
+     * more boundary-aligned match.
+     */
+    private static int fuzzyScore(String query, String text) {
+        if (query.isEmpty()) return 0;
+        int score = 0;
+        int qi = 0;
+        int run = 0;
+        for (int ti = 0; ti < text.length() && qi < query.length(); ti++) {
+            if (Character.toLowerCase(text.charAt(ti)) == query.charAt(qi)) {
+                boolean boundary;
+                if (ti == 0) {
+                    boundary = true;
+                } else {
+                    char prev = text.charAt(ti - 1);
+                    boundary =
+                            prev == '-'
+                                    || prev == '_'
+                                    || prev == '/'
+                                    || prev == '.'
+                                    || (Character.isLowerCase(prev)
+                                            && Character.isUpperCase(text.charAt(ti)));
+                }
+                run++;
+                score += 1 + run * 2 + (boundary ? 15 : 0);
+                qi++;
+            } else {
+                run = 0;
+            }
+        }
+        if (qi < query.length()) return -1; // not all query chars consumed
+        // Prefer shorter names (fewer unmatched leftover characters).
+        return Math.max(0, score - (text.length() - query.length()));
     }
 
     // ── Content grep ────────────────────────────────────────────────────────

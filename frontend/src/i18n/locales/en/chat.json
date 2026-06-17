@@ -55,6 +55,19 @@
     "send": "Send",
     "stop": "Stop"
   },
+  "fileInput": {
+    "hintStart": "Type a file name to search",
+    "hintQuery": "Search files: \"{{query}}\"",
+    "searching": "Searching…",
+    "empty": "Nothing found",
+    "navigate": "navigate",
+    "insert": "insert",
+    "dismiss": "dismiss",
+    "closePreview": "Close preview",
+    "previewError": "Failed to load file",
+    "usePathOnly": "Switch to path-only (no content)",
+    "useFullContent": "Switch to full content"
+  },
   "list": {
     "newChat": "New chat",
     "newJiraChat": "JIRA chat",

@@ -160,25 +160,27 @@ public class GitFunction {
     // ── File search ─────────────────────────────────────────────────────────
 
     /**
-     * Searches tracked file names by substring (case-insensitive). Ignored files are excluded.
+     * Fuzzy-searches tracked file names (case-insensitive subsequence match), ranking results by
+     * how well characters align to word boundaries. Ignored files are excluded.
      *
-     * @param pattern search pattern (substring of file path)
+     * @param pattern partial file name; matched as a subsequence (e.g. "mgi" → MessageInput)
      * @param maxResults max results to return (default 20, max 50)
-     * @return matching file nodes
+     * @return matching file nodes, best match first
      */
     @Tool(
             description =
                     """
-                    Ищет tracked файлы по подстроке пути (регистронезависимо). \
-                    Узлы: path, name, type="file", size. Ищет ТОЛЬКО по имени/пути файла \
-                    (поиск по содержимому — grepContent).
+                    Ищет tracked файлы по имени (fuzzy: символы запроса как подпоследовательность, \
+                    регистронезависимо — "mgi" находит MessageInput). Результаты ранжированы: \
+                    лучшее совпадение первым. Узлы: path, name, type="file", size. Ищет ТОЛЬКО по \
+                    имени/пути файла (поиск по содержимому — grepContent).
                     """,
             resultConverter = CompactToolResultConverter.class)
     public List<GitFileNode> searchFiles(
             @ToolParam(
                             description =
-                                    "Подстрока для поиска в пути файла, например: \"Controller\", "
-                                            + "\".yml\", \"src/test\". Регистронезависимо.")
+                                    "Часть имени файла, например: \"Controller\", \".yml\", "
+                                            + "\"mgi\". Регистронезависимый fuzzy-поиск.")
                     String pattern,
             @ToolParam(
                             description =

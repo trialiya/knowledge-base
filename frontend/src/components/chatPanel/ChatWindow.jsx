@@ -1046,6 +1046,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
             onAttach={() => attachFileRef.current?.click()}
             isEmpty={isChatEmpty && !loadingMessages}
             resetSignal={composerResetSignal}
+            chatId={activeChatId}
           />
         )}
       </div>

@@ -55,6 +55,19 @@
     "send": "Отправить",
     "stop": "Остановить"
   },
+  "fileInput": {
+    "hintStart": "Введите имя файла для поиска",
+    "hintQuery": "Поиск файлов: «{{query}}»",
+    "searching": "Поиск…",
+    "empty": "Ничего не найдено",
+    "navigate": "выбрать",
+    "insert": "вставить",
+    "dismiss": "закрыть",
+    "closePreview": "Закрыть превью",
+    "previewError": "Не удалось загрузить файл",
+    "usePathOnly": "Только путь (без содержимого)",
+    "useFullContent": "С содержимым"
+  },
   "list": {
     "newChat": "Новый чат",
     "newJiraChat": "JIRA чат",
