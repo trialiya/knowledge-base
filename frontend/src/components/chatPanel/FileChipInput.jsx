@@ -1,12 +1,11 @@
 import React, { useRef, useEffect, useCallback, useState, useImperativeHandle, forwardRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import gitApi from '../../api/gitApi';
-import { makeToken, parseToken, baseName, fetchContent, TOKEN_RE } from './fileChips';
+import { makeToken, makeRefToken, parseToken, fetchContent, TOKEN_RE } from './fileChips';
 import FilePickerDropdown from './FilePickerDropdown';
 
 const DEBOUNCE_MS = 200;
-const TRIGGER = '/file '; // что печатает пользователь перед запросом
-// Запрос = всё после "/file " до пробела/конца. Срабатывает в начале строки или после пробела.
+const TRIGGER = '/file ';
 const TRIGGER_RE = /(?:^|\s)\/file (\S*)$/;
 
 // ── Сериализация DOM ⇄ плоская строка с токенами ───────────────────────────────
@@ -32,9 +31,10 @@ function makeChipEl(token) {
   const parsed = parseToken(token);
   const path = parsed?.path ?? token;
   const range = parsed?.from != null ? `:${parsed.from}-${parsed.to}` : '';
+  const refOnly = parsed?.refOnly ?? false;
 
   const chip = document.createElement('span');
-  chip.className = 'file-chip';
+  chip.className = 'file-chip' + (refOnly ? ' file-chip--ref' : '');
   chip.contentEditable = 'false';
   chip.dataset.token = token;
   chip.dataset.path = path;
@@ -42,11 +42,11 @@ function makeChipEl(token) {
 
   const icon = document.createElement('span');
   icon.className = 'file-chip__icon';
-  icon.textContent = '📄';
+  icon.textContent = refOnly ? '📎' : '📄';
 
   const label = document.createElement('span');
   label.className = 'file-chip__label';
-  label.textContent = baseName(path) + range;
+  label.textContent = path + range;
 
   const remove = document.createElement('button');
   remove.type = 'button';
@@ -81,23 +81,17 @@ function placeCaretEnd(root) {
 
 // ── Компонент ─────────────────────────────────────────────────────────────────
 
-/**
- * Contenteditable-композер с атомарными «чипами» файлов. Источник истины —
- * плоская строка value (с токенами ⟦file:…⟧); наружу отдаётся через onChange.
- * Триггер `/file <buf>` открывает поиск; выбор вставляет чип. Клик по чипу —
- * превью содержимого, по «×» — удаление.
- */
 const FileChipInput = forwardRef(function FileChipInput(
   { value, onChange, onSend, disabled, placeholder },
   ref,
 ) {
   const { t } = useTranslation('chat');
   const editorRef = useRef(null);
-  const internalRef = useRef(value); // последнее значение, исходящее изнутри
-  const triggerRef = useRef(null); // { node, start, query }
+  const internalRef = useRef(value);
+  const triggerRef = useRef(null);
 
   const [picker, setPicker] = useState({ open: false, query: '', results: [], loading: false, anchor: null, idx: 0 });
-  const [preview, setPreview] = useState(null); // { path, from, to, rect, data, loading, error }
+  const [preview, setPreview] = useState(null); // { path, from, to, refOnly, rect, chipEl, data, loading, error }
 
   const debounceTimer = useRef(null);
   const abortRef = useRef(null);
@@ -106,7 +100,6 @@ const FileChipInput = forwardRef(function FileChipInput(
     focus: () => editorRef.current?.focus(),
   }));
 
-  // Внешнее изменение value (сброс, вставка фразы) → перерисовать DOM.
   useEffect(() => {
     if (value === internalRef.current) return;
     internalRef.current = value;
@@ -116,7 +109,6 @@ const FileChipInput = forwardRef(function FileChipInput(
     if (document.activeElement === root) placeCaretEnd(root);
   }, [value]);
 
-  // Первичная отрисовка.
   useEffect(() => {
     if (editorRef.current) renderValue(editorRef.current, value);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -142,7 +134,6 @@ const FileChipInput = forwardRef(function FileChipInput(
       });
   }, []);
 
-  // Поиск триггера `/file ` у каретки.
   const detectTrigger = useCallback(() => {
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0 || !sel.isCollapsed) return dismissPicker();
@@ -181,7 +172,6 @@ const FileChipInput = forwardRef(function FileChipInput(
     detectTrigger();
   }, [emitChange, detectTrigger]);
 
-  // Вставка выбранного файла: заменяем "/file <query>" на чип + хвостовой пробел.
   const insertFile = useCallback(
     (fileNode) => {
       const trig = triggerRef.current;
@@ -199,7 +189,7 @@ const FileChipInput = forwardRef(function FileChipInput(
 
       const sel = window.getSelection();
       const range = document.createRange();
-      range.setStart(tail, 1); // сразу после пробела за чипом
+      range.setStart(tail, 1);
       range.collapse(true);
       sel.removeAllRanges();
       sel.addRange(range);
@@ -261,7 +251,28 @@ const FileChipInput = forwardRef(function FileChipInput(
     [picker.open, picker.results, picker.idx, insertFile, dismissPicker, disabled, onSend, insertTextAtCaret, emitChange],
   );
 
-  // Клик по чипу: «×» — удалить, тело — превью.
+  // Переключение чипа между режимами «содержимое» и «только путь».
+  const handleToggleRef = useCallback(() => {
+    setPreview((pv) => {
+      if (!pv) return pv;
+      const { chipEl, path, from, to, refOnly } = pv;
+      const newRefOnly = !refOnly;
+      const newToken = newRefOnly ? makeRefToken(path) : makeToken(path, from, to);
+      chipEl.dataset.token = newToken;
+      const label = chipEl.querySelector('.file-chip__label');
+      const range = from != null ? `:${from}-${to}` : '';
+      if (label) label.textContent = path + range;
+      const icon = chipEl.querySelector('.file-chip__icon');
+      if (icon) icon.textContent = newRefOnly ? '📎' : '📄';
+      if (newRefOnly) chipEl.classList.add('file-chip--ref');
+      else chipEl.classList.remove('file-chip--ref');
+      // emitChange внутри setPreview вызвать нельзя, откладываем
+      return { ...pv, refOnly: newRefOnly };
+    });
+    // emitChange здесь — после обновления DOM чипа
+    setTimeout(() => emitChange(), 0);
+  }, [emitChange]);
+
   const handleClick = useCallback(
     (e) => {
       const removeBtn = e.target.closest?.('.file-chip__remove');
@@ -279,10 +290,12 @@ const FileChipInput = forwardRef(function FileChipInput(
         const parsed = parseToken(chip.dataset.token);
         if (!parsed) return;
         const rect = chip.getBoundingClientRect();
-        setPreview({ ...parsed, rect, loading: true, data: null, error: false });
-        fetchContent(parsed.path, parsed.from, parsed.to)
-          .then((data) => setPreview((pv) => (pv && pv.path === parsed.path ? { ...pv, loading: false, data } : pv)))
-          .catch(() => setPreview((pv) => (pv && pv.path === parsed.path ? { ...pv, loading: false, error: true } : pv)));
+        setPreview({ ...parsed, rect, chipEl: chip, loading: !parsed.refOnly, data: null, error: false });
+        if (!parsed.refOnly) {
+          fetchContent(parsed.path, parsed.from, parsed.to)
+            .then((data) => setPreview((pv) => (pv && pv.path === parsed.path ? { ...pv, loading: false, data } : pv)))
+            .catch(() => setPreview((pv) => (pv && pv.path === parsed.path ? { ...pv, loading: false, error: true } : pv)));
+        }
       }
     },
     [emitChange],
@@ -319,7 +332,16 @@ const FileChipInput = forwardRef(function FileChipInput(
       )}
 
       {preview && (
-        <FileChipPreview preview={preview} onClose={() => setPreview(null)} closeLabel={t('fileInput.closePreview')} loadingLabel={t('fileInput.searching')} errorLabel={t('fileInput.previewError')} />
+        <FileChipPreview
+          preview={preview}
+          onClose={() => setPreview(null)}
+          onToggleRef={handleToggleRef}
+          closeLabel={t('fileInput.closePreview')}
+          loadingLabel={t('fileInput.searching')}
+          errorLabel={t('fileInput.previewError')}
+          usePathOnlyLabel={t('fileInput.usePathOnly')}
+          useFullContentLabel={t('fileInput.useFullContent')}
+        />
       )}
     </>
   );
@@ -327,8 +349,8 @@ const FileChipInput = forwardRef(function FileChipInput(
 
 // ── Превью содержимого файла (поповер над чипом) ───────────────────────────────
 
-function FileChipPreview({ preview, onClose, closeLabel, loadingLabel, errorLabel }) {
-  const { rect, path, from, to, loading, data, error } = preview;
+function FileChipPreview({ preview, onClose, onToggleRef, closeLabel, loadingLabel, errorLabel, usePathOnlyLabel, useFullContentLabel }) {
+  const { rect, path, from, to, refOnly, loading, data, error } = preview;
   const style = {
     position: 'fixed',
     bottom: window.innerHeight - rect.top + 6,
@@ -339,20 +361,34 @@ function FileChipPreview({ preview, onClose, closeLabel, loadingLabel, errorLabe
   return (
     <div className="file-chip-preview" style={style}>
       <div className="file-chip-preview__head">
-        <span className="file-chip-preview__path" title={path}>
-          {path}
-          {range}
+        <span className="file-chip-preview__path" title={path + range}>
+          {path}{range}
         </span>
+        <button
+          type="button"
+          className={'file-chip-preview__toggle' + (refOnly ? ' file-chip-preview__toggle--active' : '')}
+          onClick={onToggleRef}
+          title={refOnly ? useFullContentLabel : usePathOnlyLabel}
+        >
+          {refOnly ? '📄' : '📎'}
+        </button>
         <button type="button" className="file-chip-preview__close" onClick={onClose} title={closeLabel}>
           ×
         </button>
       </div>
-      <div className="file-chip-preview__body">
-        {loading && <div className="file-chip-preview__msg">{loadingLabel}</div>}
-        {error && <div className="file-chip-preview__msg">{errorLabel}</div>}
-        {!loading && !error && data?.binary && <div className="file-chip-preview__msg">[бинарный файл]</div>}
-        {!loading && !error && !data?.binary && <pre className="file-chip-preview__code">{data?.content ?? ''}</pre>}
-      </div>
+      {!refOnly && (
+        <div className="file-chip-preview__body">
+          {loading && <div className="file-chip-preview__msg">{loadingLabel}</div>}
+          {error && <div className="file-chip-preview__msg">{errorLabel}</div>}
+          {!loading && !error && data?.binary && <div className="file-chip-preview__msg">[бинарный файл]</div>}
+          {!loading && !error && !data?.binary && <pre className="file-chip-preview__code">{data?.content ?? ''}</pre>}
+        </div>
+      )}
+      {refOnly && (
+        <div className="file-chip-preview__body">
+          <div className="file-chip-preview__ref-note">{path}</div>
+        </div>
+      )}
     </div>
   );
 }

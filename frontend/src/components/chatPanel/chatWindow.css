@@ -473,8 +473,8 @@
   padding: 0.6rem 2.8rem 0.6rem 2.6rem; /* space for attach left, send right */
   font-size: 0.9rem;
   line-height: 1.5;
-  min-height: 42px;
-  max-height: 150px;
+  min-height: 100px;
+  max-height: 260px;
   outline: none;
   color: var(--kb-text);
   background: var(--kb-white);
@@ -631,12 +631,21 @@
   user-select: none;
   vertical-align: baseline;
   cursor: pointer;
+  max-width: 360px;
+}
+.file-chip--ref {
+  background: rgba(91, 79, 207, 0.06);
+  border-style: dashed;
 }
 .file-chip__icon {
   font-size: 0.9em;
+  flex-shrink: 0;
 }
 .file-chip__label {
   font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 .file-chip__remove {
   border: none;
@@ -647,6 +656,7 @@
   line-height: 1;
   padding: 0 2px;
   border-radius: 4px;
+  flex-shrink: 0;
 }
 .file-chip__remove:hover {
   color: #e84d6a;
@@ -655,7 +665,8 @@
 
 /* Дропдаун поиска файлов (открывается вверх) */
 .file-picker-dropdown {
-  width: 320px;
+  width: 500px;
+  max-width: calc(100vw - 24px);
   background: var(--kb-white);
   border: 1.5px solid var(--kb-border);
   border-radius: var(--kb-radius);
@@ -734,6 +745,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  direction: rtl; /* начало пути видно справа → имя файла всегда читаемо */
+  text-align: left;
 }
 .file-picker-dropdown__footer {
   padding: 6px 12px;
@@ -777,6 +790,27 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.file-chip-preview__toggle {
+  border: 1px solid var(--kb-border);
+  background: none;
+  cursor: pointer;
+  color: var(--kb-muted);
+  font-size: 0.88rem;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.12s, color 0.12s;
+  flex-shrink: 0;
+}
+.file-chip-preview__toggle:hover {
+  background: var(--kb-accent-light);
+  color: var(--kb-accent);
+}
+.file-chip-preview__toggle--active {
+  background: var(--kb-accent-light);
+  color: var(--kb-accent);
+  border-color: var(--kb-accent);
+}
 .file-chip-preview__close {
   border: none;
   background: none;
@@ -785,9 +819,17 @@
   font-size: 1.1rem;
   line-height: 1;
   padding: 0 4px;
+  flex-shrink: 0;
 }
 .file-chip-preview__close:hover {
   color: var(--kb-text);
+}
+.file-chip-preview__ref-note {
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  font-family: var(--kb-mono, monospace);
+  color: var(--kb-accent);
+  word-break: break-all;
 }
 .file-chip-preview__body {
   max-height: 320px;

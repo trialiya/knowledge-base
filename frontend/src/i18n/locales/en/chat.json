@@ -64,7 +64,9 @@
     "insert": "insert",
     "dismiss": "dismiss",
     "closePreview": "Close preview",
-    "previewError": "Failed to load file"
+    "previewError": "Failed to load file",
+    "usePathOnly": "Switch to path-only (no content)",
+    "useFullContent": "Switch to full content"
   },
   "list": {
     "newChat": "New chat",

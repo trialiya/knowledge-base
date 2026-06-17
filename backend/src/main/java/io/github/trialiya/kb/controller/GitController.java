@@ -34,7 +34,10 @@ public class GitController {
     public List<GitFileNode> searchFiles(
             @RequestParam("q") String query,
             @RequestParam(name = "limit", defaultValue = "10") int limit) {
-        return gitService.searchFiles(query, limit);
+        // Allow only letters (any script incl. Cyrillic), digits, dot, dash, underscore.
+        String sanitized = query.replaceAll("[^\\p{L}\\p{N}_.\\-]", "");
+        if (sanitized.isBlank()) return List.of();
+        return gitService.searchFiles(sanitized, limit);
     }
 
     /** File content for chip preview/expansion; {@code from}/{@code to} are 1-based inclusive. */

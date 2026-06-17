@@ -1,31 +1,43 @@
 // ─── File chip token model ───────────────────────────────────────────────────
-// Файл, вставленный в композер, хранится в плоском тексте как атомарный токен
-//   ⟦file:PATH⟧            — весь файл
+// Файл в композере хранится как атомарный токен:
+//   ⟦file:PATH⟧            — весь файл (раскрывается в fenced-блок при отправке)
 //   ⟦file:PATH#FROM-TO⟧    — диапазон строк (1-based включительно)
-// В UI токен рисуется «чипом» (FileChipInput), а перед отправкой разворачивается
-// в markdown-блок с реальным содержимым (expandTokensForSend).
+//   ⟦ref:PATH⟧             — только ссылка (раскрывается в `PATH`)
 
 import gitApi from '../../api/gitApi';
 
 const OPEN = '⟦'; // ⟦
 const CLOSE = '⟧'; // ⟧
 
-// Глобальный матчер всех токенов в строке. PATH — всё кроме разделителей/закрывающей скобки.
-export const TOKEN_RE = new RegExp(`${OPEN}file:([^#${CLOSE}]+)(?:#(\\d+)-(\\d+))?${CLOSE}`, 'g');
+// Глобальный матчер обоих видов токенов. Захватных групп нет — parseToken разбирает детально.
+export const TOKEN_RE = new RegExp(`${OPEN}(?:file|ref):[^${CLOSE}]+${CLOSE}`, 'g');
 
-/** Собрать строку-токен из пути и опционального диапазона строк. */
+/** Токен «весь файл / диапазон». */
 export function makeToken(path, from, to) {
   return from != null && to != null
     ? `${OPEN}file:${path}#${from}-${to}${CLOSE}`
     : `${OPEN}file:${path}${CLOSE}`;
 }
 
-/** Разобрать одну строку-токен. Возвращает { path, from, to } или null. */
+/** Токен «только путь» (без раскрытия содержимого). */
+export function makeRefToken(path) {
+  return `${OPEN}ref:${path}${CLOSE}`;
+}
+
+/**
+ * Разобрать строку-токен.
+ * Возвращает { path, from, to, refOnly } или null.
+ */
 export function parseToken(token) {
-  const re = new RegExp(`^${OPEN}file:([^#${CLOSE}]+)(?:#(\\d+)-(\\d+))?${CLOSE}$`);
-  const m = token.match(re);
-  if (!m) return null;
-  return { path: m[1], from: m[2] ? Number(m[2]) : null, to: m[3] ? Number(m[3]) : null };
+  const fileRe = new RegExp(`^${OPEN}file:([^#${CLOSE}]+)(?:#(\\d+)-(\\d+))?${CLOSE}$`);
+  const fm = token.match(fileRe);
+  if (fm) {
+    return { path: fm[1], from: fm[2] ? Number(fm[2]) : null, to: fm[3] ? Number(fm[3]) : null, refOnly: false };
+  }
+  const refRe = new RegExp(`^${OPEN}ref:([^${CLOSE}]+)${CLOSE}$`);
+  const rm = token.match(refRe);
+  if (rm) return { path: rm[1], from: null, to: null, refOnly: true };
+  return null;
 }
 
 /** Короткое имя файла из пути. */
@@ -35,13 +47,12 @@ export function baseName(path) {
 }
 
 // ── Кеш содержимого ──────────────────────────────────────────────────────────
-// Тянем содержимое один раз (при вставке/превью) и переиспользуем при отправке.
 
 const contentCache = new Map(); // key: `path#from-to` → GitFileContent
 
 const cacheKey = (path, from, to) => `${path}#${from ?? ''}-${to ?? ''}`;
 
-/** Получить GitFileContent с кешированием. signal — опц. AbortSignal (превью). */
+/** Получить GitFileContent с кешированием. */
 export async function fetchContent(path, from, to, signal) {
   const key = cacheKey(path, from, to);
   if (contentCache.has(key)) return contentCache.get(key);
@@ -58,19 +69,22 @@ function fenceFor(content) {
 }
 
 /**
- * Развернуть все токены в строке в markdown-блоки с содержимым файлов.
- * Бинарные/ошибочные файлы заменяются на короткую пометку, чтобы отправка не падала.
+ * Развернуть все токены в строке:
+ *  ⟦file:PATH⟧    → fenced code block с содержимым
+ *  ⟦ref:PATH⟧     → `PATH`
  */
 export async function expandTokensForSend(text) {
   const tokens = [...text.matchAll(TOKEN_RE)];
   if (tokens.length === 0) return text;
 
-  // Параллельно тянем содержимое для всех токенов.
   const blocks = await Promise.all(
     tokens.map(async (m) => {
       const parsed = parseToken(m[0]);
       if (!parsed) return m[0];
-      const { path, from, to } = parsed;
+      const { path, from, to, refOnly } = parsed;
+
+      if (refOnly) return `\`${path}\``;
+
       try {
         const data = await fetchContent(path, from, to);
         const range = from != null && to != null ? ` (${from}–${to})` : '';
@@ -85,7 +99,6 @@ export async function expandTokensForSend(text) {
     }),
   );
 
-  // Подставляем блоки по порядку появления токенов.
   let i = 0;
   return text.replace(TOKEN_RE, () => blocks[i++]);
 }

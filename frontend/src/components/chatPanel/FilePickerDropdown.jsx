@@ -35,9 +35,8 @@ const FilePickerDropdown = ({ results, loading, query, anchorRect, selectedIdx, 
 
   const style = {
     position: 'fixed',
-    // Открываемся вверх: нижний край списка чуть выше каретки.
     bottom: window.innerHeight - anchorRect.top + 6,
-    left: Math.min(anchorRect.left, window.innerWidth - 340),
+    left: Math.min(anchorRect.left, window.innerWidth - 524),
     zIndex: 9100,
   };
 
@@ -68,7 +67,7 @@ const FilePickerDropdown = ({ results, loading, query, anchorRect, selectedIdx, 
               key={node.path}
               className={`file-picker-item ${i === selectedIdx ? 'file-picker-item--selected' : ''}`}
               onMouseDown={(e) => {
-                e.preventDefault(); // не терять фокус композера
+                e.preventDefault();
                 onSelect(node);
               }}
             >
@@ -77,7 +76,7 @@ const FilePickerDropdown = ({ results, loading, query, anchorRect, selectedIdx, 
               </span>
               <span className="file-picker-item__body">
                 <span className="file-picker-item__name">{node.name}</span>
-                {dir && <span className="file-picker-item__path">{dir}</span>}
+                <span className="file-picker-item__path" title={node.path}>{dir || node.path}</span>
               </span>
             </div>
           );
