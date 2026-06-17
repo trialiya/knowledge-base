@@ -2,6 +2,8 @@
 .code-block {
   position: relative;
   margin: 0 0 0.8em;
+  min-width: 0; /* позволяем блоку сжиматься в flex/grid-родителе вместо распирания */
+  max-width: 100%;
 }
 
 .code-block__head {
@@ -53,9 +55,14 @@
   opacity: 1;
 }
 
-/* pre теперь стыкуется с шапкой — убираем верхний радиус и двойной отступ */
+/* pre теперь стыкуется с шапкой — убираем верхний радиус и двойной отступ.
+   overflow-x:auto держим прямо здесь (не полагаясь на .md-preview pre), чтобы
+   длинные строки кода скроллились ВНУТРИ блока, а не вылезали за границу
+   контейнера/модалки. max-width:100% не даёт pre распереть родителя. */
 .code-block > pre {
   margin: 0;
+  max-width: 100%;
+  overflow-x: auto;
   border-top-left-radius: 0;
   border-top-right-radius: 0;
 }
