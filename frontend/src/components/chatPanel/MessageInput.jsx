@@ -6,7 +6,7 @@ import { expandTokensForSend } from './fileChips';
 import { IconSend, IconStop, IconPaperclip } from '../../icons';
 
 // isEmpty — true когда в чате ещё нет сообщений; тогда показываем git-подсказки
-const MessageInput = ({ onSend, onStop, disabled, onAttach, isEmpty = false, resetSignal = 0 }) => {
+const MessageInput = ({ onSend, onStop, disabled, onAttach, isEmpty = false, resetSignal = 0, chatId = null }) => {
   const { t } = useTranslation('chat');
   const [text, setText] = useState(''); // плоская строка с токенами ⟦file:…⟧
   const [sending, setSending] = useState(false); // идёт разворачивание токенов перед отправкой
@@ -66,6 +66,7 @@ const MessageInput = ({ onSend, onStop, disabled, onAttach, isEmpty = false, res
           onSend={handleSubmit}
           disabled={disabled}
           placeholder={t('input.placeholder')}
+          chatId={chatId}
         />
         <button
           type="button"

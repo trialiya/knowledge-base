@@ -763,109 +763,77 @@
   font-size: 0.68rem;
 }
 
-/* Поповер превью содержимого файла */
-.file-chip-preview {
-  width: 440px;
-  height: 340px;
-  min-width: 280px;
-  min-height: 80px;
-  max-width: 90vw;
-  background: var(--kb-white);
-  border: 1.5px solid var(--kb-border);
-  border-radius: var(--kb-radius);
-  box-shadow: 0 8px 32px rgba(91, 79, 207, 0.18);
-  overflow: hidden;
-  resize: both;
-  display: grid;
-  grid-template-rows: auto 1fr;
-  animation: kb-fade-in-down 0.1s ease;
-}
-.file-chip-preview__head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px 6px 12px;
-  background: var(--kb-bg);
-  border-bottom: 1px solid var(--kb-border);
-}
-.file-chip-preview__title {
+/* ── Полноэкранная модалка просмотра файла ── */
+/* Использует .fs-editor-overlay / .fs-editor / .fs-editor__head / .fs-editor__close
+   из knowledgeBasePanel/styles/detail.css. Здесь только специфика контента. */
+
+.file-preview-modal__title {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
+  gap: 1px;
 }
-.file-chip-preview__name {
-  font-size: 0.82rem;
-  font-weight: 600;
+.file-preview-modal__name {
+  font-size: 0.9rem;
+  font-weight: 700;
   color: var(--kb-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.file-chip-preview__fullpath {
-  font-size: 0.69rem;
+.file-preview-modal__path {
+  font-size: 0.72rem;
   color: var(--kb-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.file-chip-preview__toggle {
+.file-preview-modal__toggle {
   border: 1px solid var(--kb-border);
   background: none;
   cursor: pointer;
   color: var(--kb-muted);
-  font-size: 0.88rem;
+  font-size: 0.9rem;
   line-height: 1;
-  padding: 2px 6px;
+  padding: 3px 8px;
   border-radius: 4px;
   transition: background 0.12s, color 0.12s;
   flex-shrink: 0;
 }
-.file-chip-preview__toggle:hover {
+.file-preview-modal__toggle:hover {
   background: var(--kb-accent-light);
   color: var(--kb-accent);
 }
-.file-chip-preview__toggle--active {
+.file-preview-modal__toggle--active {
   background: var(--kb-accent-light);
   color: var(--kb-accent);
   border-color: var(--kb-accent);
 }
-.file-chip-preview__close {
-  border: none;
-  background: none;
-  cursor: pointer;
-  color: var(--kb-muted);
-  font-size: 1.1rem;
-  line-height: 1;
-  padding: 0 4px;
-  flex-shrink: 0;
-}
-.file-chip-preview__close:hover {
-  color: var(--kb-text);
-}
-.file-chip-preview__ref-note {
-  padding: 10px 12px;
-  font-size: 0.82rem;
-  font-family: var(--kb-mono, monospace);
-  color: var(--kb-accent);
-  word-break: break-all;
-}
-.file-chip-preview__body {
-  min-height: 0;
+.file-preview-modal__body {
+  padding: 0 !important; /* override fs-editor__body default padding */
   overflow: auto;
 }
-.file-chip-preview__msg {
-  padding: 12px;
-  font-size: 0.82rem;
+.file-preview-modal__msg {
+  padding: 16px 20px;
+  font-size: 0.85rem;
   color: var(--kb-muted);
   font-style: italic;
 }
-.file-chip-preview__code {
+.file-preview-modal__code {
   margin: 0;
-  padding: 10px 12px;
+  padding: 16px 20px;
   font-family: var(--kb-mono, monospace);
-  font-size: 0.76rem;
-  line-height: 1.5;
+  font-size: 0.82rem;
+  line-height: 1.6;
   white-space: pre;
   color: var(--kb-text);
+  min-width: max-content;
+}
+.file-preview-modal__ref-note {
+  padding: 20px;
+  font-size: 0.9rem;
+  font-family: var(--kb-mono, monospace);
+  color: var(--kb-accent);
+  word-break: break-all;
 }
