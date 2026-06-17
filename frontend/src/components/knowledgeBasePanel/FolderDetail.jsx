@@ -30,8 +30,16 @@ const FolderDetail = ({
   tree = [],
 }) => {
   const { t } = useTranslation('knowledgeBase');
-  const { attachmentCount, setAttachmentCount, fullscreen, setFullscreen, showHistory, setShowHistory } =
-    useDetailPanel();
+  const {
+    attachmentCount,
+    setAttachmentCount,
+    fullscreen,
+    setFullscreen,
+    showHistory,
+    setShowHistory,
+    contentDraft,
+    setContentDraft,
+  } = useDetailPanel(node.description || '');
   const { children, loading: childrenLoading } = useFolderChildren(node, onLoadChildren);
 
   return (
@@ -65,7 +73,9 @@ const FolderDetail = ({
 
         {tab === 'content' && (
           <MarkdownEditor
-            value={node.description || ''}
+            value={contentDraft}
+            onChange={setContentDraft}
+            savedValue={node.description || ''}
             placeholder={t('detail.folderPlaceholder')}
             onSave={(val) => onUpdate(node.id, { description: val })}
             onExpand={() => setFullscreen('content')}
@@ -99,6 +109,8 @@ const FolderDetail = ({
         showHistory={showHistory}
         onCloseHistory={() => setShowHistory(false)}
         onUpdate={onUpdate}
+        contentDraft={contentDraft}
+        setContentDraft={setContentDraft}
         tree={tree}
         onNavigate={onNavigate}
       />

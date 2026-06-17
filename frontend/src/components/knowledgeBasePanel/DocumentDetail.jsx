@@ -103,8 +103,16 @@ const DocumentDetail = ({
   tree = [],
 }) => {
   const { t } = useTranslation('knowledgeBase');
-  const { attachmentCount, setAttachmentCount, fullscreen, setFullscreen, showHistory, setShowHistory } =
-    useDetailPanel();
+  const {
+    attachmentCount,
+    setAttachmentCount,
+    fullscreen,
+    setFullscreen,
+    showHistory,
+    setShowHistory,
+    contentDraft,
+    setContentDraft,
+  } = useDetailPanel(node.description || '');
 
   const handleRename = (id, name) => {
     if (onRename) onRename(id, name);
@@ -140,7 +148,9 @@ const DocumentDetail = ({
 
         {tab === 'content' && (
           <MarkdownEditor
-            value={node.description || ''}
+            value={contentDraft}
+            onChange={setContentDraft}
+            savedValue={node.description || ''}
             placeholder={t('detail.docPlaceholder')}
             onSave={(val) => onUpdate(node.id, { description: val })}
             onExpand={() => setFullscreen('content')}
@@ -162,6 +172,8 @@ const DocumentDetail = ({
         showHistory={showHistory}
         onCloseHistory={() => setShowHistory(false)}
         onUpdate={onUpdate}
+        contentDraft={contentDraft}
+        setContentDraft={setContentDraft}
         tree={tree}
         onNavigate={onNavigate}
       />
