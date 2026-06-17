@@ -40,6 +40,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class GitService {
 
+    private static final Pattern SAFE_GIT_RELATIVE_PATH =
+            Pattern.compile("^[\\p{L}\\p{N}._/\\- ]+$");
+
     private static final long MAX_FILE_SIZE = 512 * 1024; // 512 KB — skip huge files
     private static final int MAX_DIFF_LINES = 500; // truncate very large diffs
 
@@ -725,6 +728,7 @@ public class GitService {
      */
     private FileBytes readTrackedFile(String filePath) {
         String normalized = filePath.strip();
+        requireSafeGitRelativePath(normalized);
 
         // Security: confine to the repo before touching the filesystem.
         Path absolute = repoPath.resolve(normalized).normalize();
@@ -880,6 +884,24 @@ public class GitService {
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private static void requireSafeGitRelativePath(String path) {
+        if (path.isBlank()) {
+            throw new IllegalArgumentException("Path must not be blank");
+        }
+        if (path.startsWith("/")
+                || path.startsWith("-")
+                || path.contains("..")
+                || path.indexOf('\0') >= 0) {
+            throw new IllegalArgumentException("Invalid path: " + path);
+        }
+        if (path.contains("\\")) {
+            throw new IllegalArgumentException("Invalid path separator: " + path);
+        }
+        if (!SAFE_GIT_RELATIVE_PATH.matcher(path).matches()) {
+            throw new IllegalArgumentException("Path contains unsupported characters: " + path);
+        }
+    }
 
     /** Returns {@code true} for OS/IDE artefacts that should never appear in results. */
     private static boolean isJunkFile(String path) {
