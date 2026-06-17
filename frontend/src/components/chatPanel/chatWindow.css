@@ -766,17 +766,18 @@
 /* Поповер превью содержимого файла */
 .file-chip-preview {
   width: 440px;
+  height: 340px;
   min-width: 280px;
+  min-height: 80px;
   max-width: 90vw;
-  min-height: 64px;
   background: var(--kb-white);
   border: 1.5px solid var(--kb-border);
   border-radius: var(--kb-radius);
   box-shadow: 0 8px 32px rgba(91, 79, 207, 0.18);
   overflow: hidden;
   resize: both;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto 1fr;
   animation: kb-fade-in-down 0.1s ease;
 }
 .file-chip-preview__head {
@@ -786,7 +787,6 @@
   padding: 6px 8px 6px 12px;
   background: var(--kb-bg);
   border-bottom: 1px solid var(--kb-border);
-  flex-shrink: 0;
 }
 .file-chip-preview__title {
   flex: 1;
@@ -851,9 +851,7 @@
   word-break: break-all;
 }
 .file-chip-preview__body {
-  flex: 1;
   min-height: 0;
-  max-height: 300px;
   overflow: auto;
 }
 .file-chip-preview__msg {
