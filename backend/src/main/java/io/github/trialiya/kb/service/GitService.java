@@ -272,8 +272,8 @@ public class GitService {
     /**
      * Fuzzy-searches tracked files by name. {@code pattern} is matched as a <b>subsequence</b> of
      * each file's name, so {@code "mgi"} matches {@code "MessageInput"}. Results are ranked by how
-     * well the characters align to word boundaries (start of name, camelCase humps, and {@code - _ .
-     * /} separators) and by consecutive runs, so the most "intentional" match floats to the top.
+     * well the characters align to word boundaries (start of name, camelCase humps, and {@code - _
+     * . /} separators) and by consecutive runs, so the most "intentional" match floats to the top.
      * Falls back to matching the full path when the name alone doesn't match.
      *
      * @param pattern partial file name; blank returns an empty list

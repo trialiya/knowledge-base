@@ -76,7 +76,9 @@ const FilePickerDropdown = ({ results, loading, query, anchorRect, selectedIdx, 
               </span>
               <span className="file-picker-item__body">
                 <span className="file-picker-item__name">{node.name}</span>
-                <span className="file-picker-item__path" title={node.path}>{dir || node.path}</span>
+                <span className="file-picker-item__path" title={node.path}>
+                  {dir || node.path}
+                </span>
               </span>
             </div>
           );

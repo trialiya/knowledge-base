@@ -260,7 +260,17 @@ const FileChipInput = forwardRef(function FileChipInput(
         emitChange();
       }
     },
-    [picker.open, picker.results, picker.idx, insertFile, dismissPicker, disabled, onSend, insertTextAtCaret, emitChange],
+    [
+      picker.open,
+      picker.results,
+      picker.idx,
+      insertFile,
+      dismissPicker,
+      disabled,
+      onSend,
+      insertTextAtCaret,
+      emitChange,
+    ],
   );
 
   // Переключение чипа между режимами «содержимое» и «только путь».
@@ -306,7 +316,9 @@ const FileChipInput = forwardRef(function FileChipInput(
         if (!parsed.refOnly) {
           fetchContent(parsed.path, parsed.from, parsed.to)
             .then((data) => setPreview((pv) => (pv && pv.path === parsed.path ? { ...pv, loading: false, data } : pv)))
-            .catch(() => setPreview((pv) => (pv && pv.path === parsed.path ? { ...pv, loading: false, error: true } : pv)));
+            .catch(() =>
+              setPreview((pv) => (pv && pv.path === parsed.path ? { ...pv, loading: false, error: true } : pv)),
+            );
         }
       }
     },
@@ -361,7 +373,16 @@ const FileChipInput = forwardRef(function FileChipInput(
 
 // ── Превью содержимого файла — полноэкранная модалка ─────────────────────────
 
-function FileChipPreview({ preview, onClose, onToggleRef, closeLabel, loadingLabel, errorLabel, usePathOnlyLabel, useFullContentLabel }) {
+function FileChipPreview({
+  preview,
+  onClose,
+  onToggleRef,
+  closeLabel,
+  loadingLabel,
+  errorLabel,
+  usePathOnlyLabel,
+  useFullContentLabel,
+}) {
   const { path, from, to, refOnly, loading, data, error } = preview;
   useEscape(onClose);
   const name = baseName(path);
@@ -372,8 +393,13 @@ function FileChipPreview({ preview, onClose, onToggleRef, closeLabel, loadingLab
       <div className="fs-editor file-preview-modal" onMouseDown={(e) => e.stopPropagation()}>
         <div className="fs-editor__head">
           <div className="file-preview-modal__title">
-            <span className="file-preview-modal__name">{name}{range}</span>
-            <span className="file-preview-modal__path" title={path}>{path}</span>
+            <span className="file-preview-modal__name">
+              {name}
+              {range}
+            </span>
+            <span className="file-preview-modal__path" title={path}>
+              {path}
+            </span>
           </div>
           <button
             type="button"
@@ -398,9 +424,7 @@ function FileChipPreview({ preview, onClose, onToggleRef, closeLabel, loadingLab
               )}
             </>
           )}
-          {refOnly && (
-            <div className="file-preview-modal__ref-note">{path}</div>
-          )}
+          {refOnly && <div className="file-preview-modal__ref-note">{path}</div>}
         </div>
       </div>
     </div>,

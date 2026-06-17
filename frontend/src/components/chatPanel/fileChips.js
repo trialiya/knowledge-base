@@ -14,9 +14,7 @@ export const TOKEN_RE = new RegExp(`${OPEN}(?:file|ref):[^${CLOSE}]+${CLOSE}`, '
 
 /** Токен «весь файл / диапазон». */
 export function makeToken(path, from, to) {
-  return from != null && to != null
-    ? `${OPEN}file:${path}#${from}-${to}${CLOSE}`
-    : `${OPEN}file:${path}${CLOSE}`;
+  return from != null && to != null ? `${OPEN}file:${path}#${from}-${to}${CLOSE}` : `${OPEN}file:${path}${CLOSE}`;
 }
 
 /** Токен «только путь» (без раскрытия содержимого). */
