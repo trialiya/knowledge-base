@@ -37,6 +37,9 @@ import org.springframework.stereotype.Service;
  * (which inherently respect ignore rules).
  */
 @Slf4j
+
+    private static final Pattern SAFE_GIT_RELATIVE_PATH =
+            Pattern.compile("^[\\p{L}\\p{N}._/\\- ]+$");
 @Service
 public class GitService {
 
@@ -725,6 +728,7 @@ public class GitService {
      */
     private FileBytes readTrackedFile(String filePath) {
         String normalized = filePath.strip();
+        requireSafeGitRelativePath(normalized);
 
         // Security: confine to the repo before touching the filesystem.
         Path absolute = repoPath.resolve(normalized).normalize();
@@ -880,6 +884,21 @@ public class GitService {
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private static void requireSafeGitRelativePath(String path) {
+        if (path.isBlank()) {
+            throw new IllegalArgumentException("Path must not be blank");
+        }
+        if (path.startsWith("/") || path.startsWith("-") || path.contains("..") || path.indexOf('\0') >= 0) {
+            throw new IllegalArgumentException("Invalid path: " + path);
+        }
+        if (path.contains("\\")) {
+            throw new IllegalArgumentException("Invalid path separator: " + path);
+        }
+        if (!SAFE_GIT_RELATIVE_PATH.matcher(path).matches()) {
+            throw new IllegalArgumentException("Path contains unsupported characters: " + path);
+        }
+    }
 
     /** Returns {@code true} for OS/IDE artefacts that should never appear in results. */
     private static boolean isJunkFile(String path) {
