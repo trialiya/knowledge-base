@@ -1,62 +1,46 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import Phrases from './Phrases';
+import FileChipInput from './FileChipInput';
+import { expandTokensForSend } from './fileChips';
 import { IconSend, IconStop, IconPaperclip } from '../../icons';
 
 // isEmpty — true когда в чате ещё нет сообщений; тогда показываем git-подсказки
 const MessageInput = ({ onSend, onStop, disabled, onAttach, isEmpty = false, resetSignal = 0 }) => {
   const { t } = useTranslation('chat');
-  const [text, setText] = useState('');
-  const textareaRef = useRef(null);
+  const [text, setText] = useState(''); // плоская строка с токенами ⟦file:…⟧
+  const [sending, setSending] = useState(false); // идёт разворачивание токенов перед отправкой
+  const inputRef = useRef(null);
 
   // Внешний сброс поля ввода (например, «удаление» черновика чата).
-  // На первый рендер тоже сработает — там очистка пустого поля безвредна.
   useEffect(() => {
     setText('');
   }, [resetSignal]);
 
   useEffect(() => {
-    const el = textareaRef.current;
-    if (el) {
-      el.style.height = 'auto';
-      el.style.height = Math.min(el.scrollHeight, 150) + 'px';
-    }
-  }, [text]);
-
-  useEffect(() => {
-    if (!disabled) {
-      textareaRef.current?.focus();
-    }
+    if (!disabled) inputRef.current?.focus();
   }, [disabled]);
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      if (text.trim() && !disabled) {
-        onSend(text);
-        setText('');
-      }
-    }
-  };
-
-  const handleSubmit = () => {
-    if (text.trim() && !disabled) {
-      onSend(text);
+  // Отправка: разворачиваем токены файлов в содержимое, затем отдаём наверх.
+  const handleSubmit = async () => {
+    if (!text.trim() || disabled || sending) return;
+    setSending(true);
+    try {
+      const expanded = await expandTokensForSend(text);
+      onSend(expanded);
       setText('');
+    } finally {
+      setSending(false);
     }
   };
 
-  // Вставить выбранную git-фразу в textarea и поставить курсор в конец
+  // Вставить выбранную git-фразу в поле ввода
   const handleSelectPhrase = (phraseText) => {
     setText(phraseText);
-    setTimeout(() => {
-      const el = textareaRef.current;
-      if (el) {
-        el.focus();
-        el.setSelectionRange(el.value.length, el.value.length);
-      }
-    }, 0);
+    setTimeout(() => inputRef.current?.focus(), 0);
   };
+
+  const sendDisabled = !text.trim() || sending;
 
   return (
     <div className="message-input-area">
@@ -75,15 +59,13 @@ const MessageInput = ({ onSend, onStop, disabled, onAttach, isEmpty = false, res
             <IconPaperclip />
           </button>
         )}
-        <textarea
-          ref={textareaRef}
+        <FileChipInput
+          ref={inputRef}
           value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={t('input.placeholder')}
+          onChange={setText}
+          onSend={handleSubmit}
           disabled={disabled}
-          className="message-input"
-          rows={1}
+          placeholder={t('input.placeholder')}
         />
         <button
           type="button"
@@ -91,7 +73,7 @@ const MessageInput = ({ onSend, onStop, disabled, onAttach, isEmpty = false, res
             disabled ? 'message-action-btn message-action-btn--stop' : 'message-action-btn message-action-btn--send'
           }
           onClick={disabled ? onStop : handleSubmit}
-          disabled={!disabled && !text.trim()}
+          disabled={!disabled && sendDisabled}
           title={disabled ? t('input.stop') : t('input.send')}
         >
           {disabled ? <IconStop /> : <IconSend />}
