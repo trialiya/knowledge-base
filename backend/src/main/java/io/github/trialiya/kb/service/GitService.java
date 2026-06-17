@@ -37,11 +37,11 @@ import org.springframework.stereotype.Service;
  * (which inherently respect ignore rules).
  */
 @Slf4j
+@Service
+public class GitService {
 
     private static final Pattern SAFE_GIT_RELATIVE_PATH =
             Pattern.compile("^[\\p{L}\\p{N}._/\\- ]+$");
-@Service
-public class GitService {
 
     private static final long MAX_FILE_SIZE = 512 * 1024; // 512 KB — skip huge files
     private static final int MAX_DIFF_LINES = 500; // truncate very large diffs
@@ -889,7 +889,10 @@ public class GitService {
         if (path.isBlank()) {
             throw new IllegalArgumentException("Path must not be blank");
         }
-        if (path.startsWith("/") || path.startsWith("-") || path.contains("..") || path.indexOf('\0') >= 0) {
+        if (path.startsWith("/")
+                || path.startsWith("-")
+                || path.contains("..")
+                || path.indexOf('\0') >= 0) {
             throw new IllegalArgumentException("Invalid path: " + path);
         }
         if (path.contains("\\")) {
