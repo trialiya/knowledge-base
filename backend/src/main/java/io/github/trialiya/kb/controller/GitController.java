@@ -4,10 +4,12 @@ import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.service.GitService;
 import java.util.List;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Read-only Git endpoints backing the chat composer's {@code /file} autocomplete.
@@ -41,6 +43,17 @@ public class GitController {
             @RequestParam("path") String path,
             @RequestParam(name = "from", required = false) Integer from,
             @RequestParam(name = "to", required = false) Integer to) {
+        requireSafePath(path);
         return gitService.getFileContent(path, from, to);
+    }
+
+    private static void requireSafePath(String path) {
+        if (path == null || path.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "path must not be blank");
+        }
+        String s = path.strip();
+        if (s.startsWith("/") || s.startsWith("-") || s.contains("..") || s.indexOf('\0') >= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid path");
+        }
     }
 }
