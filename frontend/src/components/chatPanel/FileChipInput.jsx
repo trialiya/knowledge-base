@@ -61,16 +61,25 @@ function makeChipEl(token) {
   return chip;
 }
 
+/** Вставить текст с переносами как чередование text-нодов и &lt;br&gt;. */
+function appendWithBreaks(parent, text) {
+  const parts = text.split('\n');
+  for (let i = 0; i < parts.length; i++) {
+    if (parts[i]) parent.appendChild(document.createTextNode(parts[i]));
+    if (i < parts.length - 1) parent.appendChild(document.createElement('br'));
+  }
+}
+
 /** Отрисовать плоскую строку value в DOM editor (текстовые узлы + чипы). */
 function renderValue(root, value) {
   root.textContent = '';
   let last = 0;
   for (const m of value.matchAll(TOKEN_RE)) {
-    if (m.index > last) root.appendChild(document.createTextNode(value.slice(last, m.index)));
+    if (m.index > last) appendWithBreaks(root, value.slice(last, m.index));
     root.appendChild(makeChipEl(m[0]));
     last = m.index + m[0].length;
   }
-  if (last < value.length) root.appendChild(document.createTextNode(value.slice(last)));
+  if (last < value.length) appendWithBreaks(root, value.slice(last));
 }
 
 function placeCaretEnd(root) {
@@ -215,12 +224,21 @@ const FileChipInput = forwardRef(function FileChipInput(
     if (!sel.rangeCount) return;
     const range = sel.getRangeAt(0);
     range.deleteContents();
-    const tn = document.createTextNode(text);
-    range.insertNode(tn);
-    range.setStart(tn, tn.length);
-    range.collapse(true);
-    sel.removeAllRanges();
-    sel.addRange(range);
+    // Build a fragment so multi-line text uses <br> elements (trailing \n in text nodes is invisible).
+    const frag = document.createDocumentFragment();
+    const lines = text.split('\n');
+    let lastNode = null;
+    for (let i = 0; i < lines.length; i++) {
+      if (i > 0) { lastNode = document.createElement('br'); frag.appendChild(lastNode); }
+      if (lines[i]) { lastNode = document.createTextNode(lines[i]); frag.appendChild(lastNode); }
+    }
+    range.insertNode(frag);
+    if (lastNode) {
+      range.setStartAfter(lastNode);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
   }, []);
 
   // Сбрасываем форматирование при вставке — вставляем только plain text.
@@ -268,21 +286,21 @@ const FileChipInput = forwardRef(function FileChipInput(
         }
       } else if (e.key === 'Enter' && e.shiftKey) {
         e.preventDefault();
-        insertTextAtCaret('\n');
+        const sel2 = window.getSelection();
+        if (sel2?.rangeCount) {
+          const r2 = sel2.getRangeAt(0);
+          r2.deleteContents();
+          const br = document.createElement('br');
+          r2.insertNode(br);
+          r2.setStartAfter(br);
+          r2.collapse(true);
+          sel2.removeAllRanges();
+          sel2.addRange(r2);
+        }
         emitChange();
       }
     },
-    [
-      picker.open,
-      picker.results,
-      picker.idx,
-      insertFile,
-      dismissPicker,
-      disabled,
-      onSend,
-      insertTextAtCaret,
-      emitChange,
-    ],
+    [picker.open, picker.results, picker.idx, insertFile, dismissPicker, disabled, onSend, emitChange],
   );
 
   // Переключение чипа между режимами «содержимое» и «только путь».
