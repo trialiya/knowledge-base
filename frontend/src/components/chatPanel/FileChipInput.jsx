@@ -17,7 +17,7 @@ function serializeNode(node) {
   if (node.nodeType === Node.TEXT_NODE) return node.nodeValue;
   if (node.nodeType !== Node.ELEMENT_NODE) return '';
   if (node.classList?.contains('file-chip')) return node.dataset.token || '';
-  if (node.tagName === 'BR') return '\n';
+  if (node.tagName === 'BR') return node.dataset?.sentinel ? '' : '\n';
   let inner = '';
   node.childNodes.forEach((c) => (inner += serializeNode(c)));
   return /^(DIV|P)$/.test(node.tagName) ? '\n' + inner : inner;
@@ -80,6 +80,12 @@ function renderValue(root, value) {
     last = m.index + m[0].length;
   }
   if (last < value.length) appendWithBreaks(root, value.slice(last));
+  // Trailing \n needs a sentinel <br> so the cursor sits visibly on the new line.
+  if (value.endsWith('\n')) {
+    const sentinel = document.createElement('br');
+    sentinel.dataset.sentinel = '1';
+    root.appendChild(sentinel);
+  }
 }
 
 function placeCaretEnd(root) {
@@ -288,14 +294,30 @@ const FileChipInput = forwardRef(function FileChipInput(
         e.preventDefault();
         const sel2 = window.getSelection();
         if (sel2?.rangeCount) {
+          const root = editorRef.current;
           const r2 = sel2.getRangeAt(0);
           r2.deleteContents();
+
+          // Remove any existing sentinel so there is never more than one.
+          root.querySelectorAll('br[data-sentinel]').forEach((s) => s.remove());
+
           const br = document.createElement('br');
           r2.insertNode(br);
-          r2.setStartAfter(br);
-          r2.collapse(true);
+
+          // Always add a sentinel <br> after the real one.  Without it, a
+          // trailing <br> at the end of a block has no "line" for the cursor
+          // to sit on and the browser doesn't visually advance to the new row.
+          // The sentinel is invisible in serialisation (dataset.sentinel skips it).
+          const sentinel = document.createElement('br');
+          sentinel.dataset.sentinel = '1';
+          br.after(sentinel);
+
+          // Place cursor between real br and sentinel (= on the new blank line).
+          const newRange = document.createRange();
+          newRange.setStartAfter(br);
+          newRange.collapse(true);
           sel2.removeAllRanges();
-          sel2.addRange(r2);
+          sel2.addRange(newRange);
         }
         emitChange();
       }
