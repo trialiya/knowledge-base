@@ -17,7 +17,7 @@ function serializeNode(node) {
   if (node.nodeType === Node.TEXT_NODE) return node.nodeValue;
   if (node.nodeType !== Node.ELEMENT_NODE) return '';
   if (node.classList?.contains('file-chip')) return node.dataset.token || '';
-  if (node.tagName === 'BR') return '\n';
+  if (node.tagName === 'BR') return node.dataset?.sentinel ? '' : '\n';
   let inner = '';
   node.childNodes.forEach((c) => (inner += serializeNode(c)));
   return /^(DIV|P)$/.test(node.tagName) ? '\n' + inner : inner;
@@ -61,16 +61,31 @@ function makeChipEl(token) {
   return chip;
 }
 
+/** Вставить текст с переносами как чередование text-нодов и &lt;br&gt;. */
+function appendWithBreaks(parent, text) {
+  const parts = text.split('\n');
+  for (let i = 0; i < parts.length; i++) {
+    if (parts[i]) parent.appendChild(document.createTextNode(parts[i]));
+    if (i < parts.length - 1) parent.appendChild(document.createElement('br'));
+  }
+}
+
 /** Отрисовать плоскую строку value в DOM editor (текстовые узлы + чипы). */
 function renderValue(root, value) {
   root.textContent = '';
   let last = 0;
   for (const m of value.matchAll(TOKEN_RE)) {
-    if (m.index > last) root.appendChild(document.createTextNode(value.slice(last, m.index)));
+    if (m.index > last) appendWithBreaks(root, value.slice(last, m.index));
     root.appendChild(makeChipEl(m[0]));
     last = m.index + m[0].length;
   }
-  if (last < value.length) root.appendChild(document.createTextNode(value.slice(last)));
+  if (last < value.length) appendWithBreaks(root, value.slice(last));
+  // Trailing \n needs a sentinel <br> so the cursor sits visibly on the new line.
+  if (value.endsWith('\n')) {
+    const sentinel = document.createElement('br');
+    sentinel.dataset.sentinel = '1';
+    root.appendChild(sentinel);
+  }
 }
 
 function placeCaretEnd(root) {
@@ -177,6 +192,16 @@ const FileChipInput = forwardRef(function FileChipInput(
 
   const handleInput = useCallback(() => {
     emitChange();
+    // Chrome auto-inserts a bare <br> when all content is deleted. serialize()
+    // strips the leading \n so value becomes "" — but the <br> stays in the DOM
+    // and the cursor ends up after it, appearing at the end of the placeholder.
+    // Remove any bare <br> nodes (no data-sentinel = not ours) when editor is empty.
+    if (!internalRef.current && editorRef.current) {
+      const root = editorRef.current;
+      if ([...root.childNodes].every((n) => n.nodeName === 'BR' && !n.dataset?.sentinel)) {
+        root.textContent = '';
+      }
+    }
     detectTrigger();
     setPreview((pv) => (pv ? null : pv));
   }, [emitChange, detectTrigger]);
@@ -215,12 +240,21 @@ const FileChipInput = forwardRef(function FileChipInput(
     if (!sel.rangeCount) return;
     const range = sel.getRangeAt(0);
     range.deleteContents();
-    const tn = document.createTextNode(text);
-    range.insertNode(tn);
-    range.setStart(tn, tn.length);
-    range.collapse(true);
-    sel.removeAllRanges();
-    sel.addRange(range);
+    // Build a fragment so multi-line text uses <br> elements (trailing \n in text nodes is invisible).
+    const frag = document.createDocumentFragment();
+    const lines = text.split('\n');
+    let lastNode = null;
+    for (let i = 0; i < lines.length; i++) {
+      if (i > 0) { lastNode = document.createElement('br'); frag.appendChild(lastNode); }
+      if (lines[i]) { lastNode = document.createTextNode(lines[i]); frag.appendChild(lastNode); }
+    }
+    range.insertNode(frag);
+    if (lastNode) {
+      range.setStartAfter(lastNode);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
   }, []);
 
   // Сбрасываем форматирование при вставке — вставляем только plain text.
@@ -268,21 +302,37 @@ const FileChipInput = forwardRef(function FileChipInput(
         }
       } else if (e.key === 'Enter' && e.shiftKey) {
         e.preventDefault();
-        insertTextAtCaret('\n');
+        const sel2 = window.getSelection();
+        if (sel2?.rangeCount) {
+          const root = editorRef.current;
+          const r2 = sel2.getRangeAt(0);
+          r2.deleteContents();
+
+          // Remove any existing sentinel so there is never more than one.
+          root.querySelectorAll('br[data-sentinel]').forEach((s) => s.remove());
+
+          const br = document.createElement('br');
+          r2.insertNode(br);
+
+          // Always add a sentinel <br> after the real one.  Without it, a
+          // trailing <br> at the end of a block has no "line" for the cursor
+          // to sit on and the browser doesn't visually advance to the new row.
+          // The sentinel is invisible in serialisation (dataset.sentinel skips it).
+          const sentinel = document.createElement('br');
+          sentinel.dataset.sentinel = '1';
+          br.after(sentinel);
+
+          // Place cursor between real br and sentinel (= on the new blank line).
+          const newRange = document.createRange();
+          newRange.setStartAfter(br);
+          newRange.collapse(true);
+          sel2.removeAllRanges();
+          sel2.addRange(newRange);
+        }
         emitChange();
       }
     },
-    [
-      picker.open,
-      picker.results,
-      picker.idx,
-      insertFile,
-      dismissPicker,
-      disabled,
-      onSend,
-      insertTextAtCaret,
-      emitChange,
-    ],
+    [picker.open, picker.results, picker.idx, insertFile, dismissPicker, disabled, onSend, emitChange],
   );
 
   // Переключение чипа между режимами «содержимое» и «только путь».
