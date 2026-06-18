@@ -1,0 +1,39 @@
+// Init script: build & test the backend on a Java 21 JDK with preview features.
+//
+// The project targets a Java 25 toolchain (see backend/build.gradle). On machines
+// that only have JDK 21 available (some CI runners, sandboxes), apply this init
+// script to retarget the toolchain to 21 and enable preview language features that
+// were finalized in Java 22-25 (e.g. unnamed variables `_`).
+//
+// Usage:
+//   ./gradlew :backend:test --init-script gradle/java21.gradle --no-configuration-cache
+//
+// Notes:
+//   * --no-configuration-cache is required: the per-task toolchain override is not
+//     serializable into the configuration cache.
+//   * Override happens in afterEvaluate so it wins over the toolchain declared in
+//     the project's own build.gradle.
+allprojects { p ->
+    pluginManager.withPlugin('java') {
+        def toolchains = p.extensions.getByType(JavaToolchainService)
+        def java21 = JavaLanguageVersion.of(21)
+        def launcher = toolchains.launcherFor { languageVersion = java21 }
+        def compiler = toolchains.compilerFor { languageVersion = java21 }
+
+        p.afterEvaluate {
+            tasks.withType(JavaCompile).configureEach {
+                javaCompiler = compiler
+                options.release = 21
+                options.compilerArgs += '--enable-preview'
+            }
+            tasks.withType(Test).configureEach {
+                javaLauncher = launcher
+                jvmArgs += '--enable-preview'
+            }
+            tasks.withType(JavaExec).configureEach {
+                javaLauncher = launcher
+                jvmArgs += '--enable-preview'
+            }
+        }
+    }
+}
