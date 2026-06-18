@@ -245,8 +245,14 @@ const FileChipInput = forwardRef(function FileChipInput(
     const lines = text.split('\n');
     let lastNode = null;
     for (let i = 0; i < lines.length; i++) {
-      if (i > 0) { lastNode = document.createElement('br'); frag.appendChild(lastNode); }
-      if (lines[i]) { lastNode = document.createTextNode(lines[i]); frag.appendChild(lastNode); }
+      if (i > 0) {
+        lastNode = document.createElement('br');
+        frag.appendChild(lastNode);
+      }
+      if (lines[i]) {
+        lastNode = document.createTextNode(lines[i]);
+        frag.appendChild(lastNode);
+      }
     }
     range.insertNode(frag);
     if (lastNode) {
