@@ -223,6 +223,18 @@ const FileChipInput = forwardRef(function FileChipInput(
     sel.addRange(range);
   }, []);
 
+  // Сбрасываем форматирование при вставке — вставляем только plain text.
+  const handlePaste = useCallback(
+    (e) => {
+      e.preventDefault();
+      const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      if (!text) return;
+      insertTextAtCaret(text);
+      emitChange();
+    },
+    [insertTextAtCaret, emitChange],
+  );
+
   const handleKeyDown = useCallback(
     (e) => {
       if (picker.open) {
@@ -339,6 +351,7 @@ const FileChipInput = forwardRef(function FileChipInput(
         data-placeholder={placeholder}
         onInput={handleInput}
         onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
         onClick={handleClick}
         onBlur={() => setTimeout(() => dismissPicker(), 120)}
       />
