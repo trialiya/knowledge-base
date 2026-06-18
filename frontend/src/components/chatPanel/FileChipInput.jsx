@@ -192,6 +192,16 @@ const FileChipInput = forwardRef(function FileChipInput(
 
   const handleInput = useCallback(() => {
     emitChange();
+    // Chrome auto-inserts a bare <br> when all content is deleted. serialize()
+    // strips the leading \n so value becomes "" — but the <br> stays in the DOM
+    // and the cursor ends up after it, appearing at the end of the placeholder.
+    // Remove any bare <br> nodes (no data-sentinel = not ours) when editor is empty.
+    if (!internalRef.current && editorRef.current) {
+      const root = editorRef.current;
+      if ([...root.childNodes].every((n) => n.nodeName === 'BR' && !n.dataset?.sentinel)) {
+        root.textContent = '';
+      }
+    }
     detectTrigger();
     setPreview((pv) => (pv ? null : pv));
   }, [emitChange, detectTrigger]);
