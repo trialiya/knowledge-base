@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import SettingsShell, { SettingsContentHead, SettingsSection } from '../common/SettingsShell';
 import { IconFileText, IconMessage, IconSliders } from '../common/menuIcons';
 import PhrasesSettings from './PhrasesSettings';
+import settingsApi from '../../api/settingsApi';
 import './settingsPanel.css';
 
 const GROUPS = [
@@ -10,17 +11,10 @@ const GROUPS = [
   { key: 'models', label: 'Модели', icon: <IconSliders size={16} /> },
 ];
 
-// Заглушки — на бэке: settings.role, GET /api/chats/models.
-// Библиотека фраз уже на БД (см. PhrasesSettings + /api/admin/phrases).
+// Заглушка — на бэке: settings.role, POST /api/settings/prompt (TODO).
 const DEFAULT_PROMPT =
   'Ты — ассистент базы знаний проекта. Отвечай кратко, ссылайся на документы через /?doc=ID. ' +
   'Для вопросов по коду используй Git-инструменты.';
-
-const MODELS = [
-  { id: 'deepseek-v4-pro', isDefault: true },
-  { id: 'qwen3-coder', isDefault: false },
-  { id: 'gpt-5-mini', isDefault: false },
-];
 
 // ─── Группа: системный промпт ─────────────────────────────────────────────────
 
@@ -48,40 +42,152 @@ const PromptGroup = () => {
   );
 };
 
-// ─── Группа: модели ───────────────────────────────────────────────────────────
+// ─── Группа: конфигурация AI-моделей ─────────────────────────────────────────
 
 const ModelsGroup = () => {
-  const [defaultModel, setDefaultModel] = useState(MODELS.find((m) => m.isDefault)?.id);
+  const [config, setConfig] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    settingsApi
+      .getAiConfig()
+      .then((data) => {
+        if (!cancelled) setConfig(data);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e.message || 'Ошибка загрузки конфигурации');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const head = (
+    <SettingsContentHead
+      title="Конфигурация AI-моделей"
+      subtitle="Основная модель, векторизация, агент поиска, сжатие контекста"
+    />
+  );
+
+  if (error) {
+    return (
+      <>
+        {head}
+        <div className="settings-content__body">
+          <p className="ai-config-error">{error}</p>
+        </div>
+      </>
+    );
+  }
+
+  if (!config) {
+    return (
+      <>
+        {head}
+        <div className="settings-content__body">
+          <p className="ai-config-loading">Загрузка…</p>
+        </div>
+      </>
+    );
+  }
+
+  const { chat, embedding, searchCodebase, summarize } = config;
+  const defaultId = chat.defaultModel?.id;
+  const subagentSameModel = searchCodebase.modelId === defaultId;
+
   return (
     <>
-      <SettingsContentHead title="Модели" subtitle="Доступные модели и модель по умолчанию для новых чатов" />
+      {head}
       <div className="settings-content__body">
-        <SettingsSection label="По умолчанию">
+        {/* ── Основная модель ── */}
+        <SettingsSection label="Основная модель (Чат)">
           <div className="set-row">
-            <span className="set-row__label">Модель для новых чатов</span>
-            <select className="set-select" value={defaultModel} onChange={(e) => setDefaultModel(e.target.value)}>
-              {MODELS.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.id}
-                </option>
-              ))}
-            </select>
+            <span className="set-row__label">Модель</span>
+            <span className="set-row__value">{defaultId}</span>
+            {chat.defaultModel?.label && chat.defaultModel.label !== 'Default' && (
+              <span className="model-row__badge">{chat.defaultModel.label}</span>
+            )}
           </div>
         </SettingsSection>
 
-        <SettingsSection label="Доступные модели" rows>
-          {MODELS.map((m) => (
-            <div key={m.id} className="model-row">
-              <span className="model-row__name">{m.id}</span>
-              {m.id === defaultModel && <span className="model-row__badge">по умолчанию</span>}
-            </div>
-          ))}
+        {chat.models?.length > 0 && (
+          <SettingsSection label="Доступные модели" rows>
+            {chat.models.map((m) => (
+              <div key={m.id} className="model-row">
+                <span className="model-row__name">{m.id}</span>
+                {m.label && m.label !== m.id && <span className="model-row__label">{m.label}</span>}
+                {m.id === defaultId && <span className="model-row__badge">по умолчанию</span>}
+              </div>
+            ))}
+          </SettingsSection>
+        )}
+
+        {/* ── Векторизация ── */}
+        <SettingsSection label="Векторизация (Embedding)">
+          <div className="set-row">
+            <span className="set-row__label">Модель</span>
+            <span className="set-row__value">{embedding.model}</span>
+          </div>
+          <div className="set-row">
+            <span className="set-row__label">Размер чанка</span>
+            <span className="set-row__value">{embedding.chunker?.maxTokens} токенов</span>
+          </div>
+          <div className="set-row">
+            <span className="set-row__label">Перекрытие чанков</span>
+            <span className="set-row__value">{embedding.chunker?.overlapTokens} токенов</span>
+          </div>
+          <div className="set-row">
+            <span className="set-row__label">Кэш векторов</span>
+            <span className="set-row__value">
+              {embedding.cache?.enabled ? `включён · TTL ${embedding.cache.ttlDays} дн.` : 'отключён'}
+            </span>
+          </div>
         </SettingsSection>
 
-        <p className="set-hint">
-          Список приходит из <code>GET /api/chats/models</code> (<code>ChatModelProperties</code>). Модель по умолчанию
-          применяется к черновику нового чата.
-        </p>
+        {/* ── Агент поиска ── */}
+        <SettingsSection label="Агент поиска (searchCodebase)">
+          <div className="set-row">
+            <span className="set-row__label">Статус</span>
+            <span className={`status-badge status-badge--${searchCodebase.enabled ? 'on' : 'off'}`}>
+              {searchCodebase.enabled ? 'включён' : 'отключён'}
+            </span>
+          </div>
+          <div className="set-row">
+            <span className="set-row__label">Модель</span>
+            <span className="set-row__value">
+              {subagentSameModel ? `= основная (${defaultId})` : searchCodebase.modelId}
+            </span>
+          </div>
+          <div className="set-row">
+            <span className="set-row__label">Макс. токенов на вызов</span>
+            <span className="set-row__value">{searchCodebase.maxTokens.toLocaleString('ru')}</span>
+          </div>
+          <div className="set-row">
+            <span className="set-row__label">Макс. итераций инструментов</span>
+            <span className="set-row__value">{searchCodebase.maxIterations}</span>
+          </div>
+        </SettingsSection>
+
+        {/* ── Сжатие контекста ── */}
+        <SettingsSection label="Сжатие контекста (SummarizeService)">
+          <div className="set-row">
+            <span className="set-row__label">Модель</span>
+            <span className="set-row__value">= основная ({defaultId})</span>
+          </div>
+          <div className="set-row">
+            <span className="set-row__label">Порог токенов</span>
+            <span className="set-row__value">{summarize.tokenThreshold.toLocaleString('ru')} токенов</span>
+          </div>
+          <div className="set-row">
+            <span className="set-row__label">Порог сообщений</span>
+            <span className="set-row__value">{summarize.messageCountThreshold} сообщений</span>
+          </div>
+          <div className="set-row">
+            <span className="set-row__label">Буфер живых сообщений</span>
+            <span className="set-row__value">{summarize.overlapMessages} сообщений</span>
+          </div>
+        </SettingsSection>
       </div>
     </>
   );
