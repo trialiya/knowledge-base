@@ -28,7 +28,9 @@ import org.springframework.ai.model.tool.ToolCallingManager;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.ai.tool.ToolCallback;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
@@ -62,8 +64,13 @@ public class ChatConfig {
      * RecordingToolCallback} — the sub-agent's internal steps are not part of the user-facing
      * invocation log. {@code searchCodebase} is excluded by construction (the allow-list contains
      * only git/document tools), which is the recursion guard.
+     *
+     * <p>Only wired when {@code kb.search.subagent.enabled=true}; when disabled the bean is absent
+     * entirely (so nothing reads {@code allowed-tools}) and {@code chatClientBuilder} simply omits
+     * the {@code searchCodebase} tool.
      */
     @Bean
+    @ConditionalOnProperty(prefix = "kb.search.subagent", name = "enabled", havingValue = "true")
     public SearchAgentService searchAgentService(
             OpenAiChatModel openAiChatModel,
             ToolCallingManager toolCallingManager,
@@ -94,8 +101,7 @@ public class ChatConfig {
             GitFunction gitFunction,
             DocumentFunction documentFunction,
             AttachmentService attachmentService,
-            SubAgentConfig subAgentConfig,
-            SearchAgentService searchAgentService) {
+            ObjectProvider<SearchAgentService> searchAgentService) {
         log.info("Model: {}", chatModel.getDefaultOptions());
 
         List<Object> functions =
@@ -106,9 +112,8 @@ public class ChatConfig {
                                 documentFunction,
                                 gitFunction,
                                 new AttachmentFunction(attachmentService)));
-        if (subAgentConfig.enabled()) {
-            functions.add(new SearchAgentFunction(searchAgentService));
-        }
+        // Present only when kb.search.subagent.enabled=true (see searchAgentService bean).
+        searchAgentService.ifAvailable(svc -> functions.add(new SearchAgentFunction(svc)));
 
         ToolCallback[] callbacks =
                 Stream.of(ToolCallbacks.from(functions.toArray()))
