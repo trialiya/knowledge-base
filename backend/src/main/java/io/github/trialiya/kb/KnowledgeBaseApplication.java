@@ -5,6 +5,7 @@ import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.DocumentsConfiguration;
 import io.github.trialiya.kb.config.model.EmbeddingConfiguration;
 import io.github.trialiya.kb.config.model.SearchConfiguration;
+import io.github.trialiya.kb.config.model.SubAgentConfig;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -14,6 +15,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
     DocumentsConfiguration.class,
     EmbeddingConfiguration.class,
     SearchConfiguration.class,
+    SubAgentConfig.class,
     AtlassianConfiguration.class,
     ChatModelProperties.class
 })

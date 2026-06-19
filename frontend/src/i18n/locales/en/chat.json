@@ -139,7 +139,8 @@
     "getFileOutline": "File outline",
     "getFileContent": "Read file",
     "getUncommittedChanges": "Uncommitted changes",
-    "grepContent": "Search in code"
+    "grepContent": "Search in code",
+    "searchCodebase": "Smart search"
   },
   "docChange": {
     "viewChanges": "View changes",
