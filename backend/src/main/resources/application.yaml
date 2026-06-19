@@ -113,7 +113,7 @@ kb:
       model-id: ${KB_SEARCH_SUBAGENT_MODEL:${AI_MODEL}}
       max-tokens: ${KB_SEARCH_SUBAGENT_MAX_TOKENS:12000}
       # Hard cap on tool-call rounds before a forced, tool-less summarization call.
-      max-iterations: ${KB_SEARCH_SUBAGENT_MAX_ITERATIONS:6}
+      max-iterations: ${KB_SEARCH_SUBAGENT_MAX_ITERATIONS:30}
       # Read-only tools the sub-agent may call. MUST NOT include searchCodebase (recursion guard).
       allowed-tools:
         - grepContent
