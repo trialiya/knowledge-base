@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.config.model.SubAgentConfig;
 import io.github.trialiya.kb.functions.GitFunction;
+import io.github.trialiya.kb.model.search.SearchAgentResult;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -103,9 +104,12 @@ class SearchAgentServiceIT {
                 .thenReturn(toolCall("grepContent", "{\"pattern\":\"" + MAGIC + "\"}"))
                 .thenReturn(text("Итог: найдено в AuthService.java:2"));
 
-        String report = newService(6).run("Где определён " + MAGIC + "?", "code", null, null);
+        SearchAgentResult result =
+                newService(6).run("Где определён " + MAGIC + "?", "code", null, null);
 
-        assertThat(report).isEqualTo("Итог: найдено в AuthService.java:2");
+        assertThat(result.report()).isEqualTo("Итог: найдено в AuthService.java:2");
+        assertThat(result.complete()).isTrue();
+        assertThat(result.iterations()).isEqualTo(1);
 
         // The real grep result must have been threaded back into the follow-up prompt — proves the
         // tool was actually executed against the fixture repo, not stubbed.
@@ -125,9 +129,11 @@ class SearchAgentServiceIT {
                 .thenReturn(toolCall("grepContent", "{\"pattern\":\"class\"}"))
                 .thenReturn(text("Итог: сводка по бюджету."));
 
-        String report = newService(2).run("исследуй " + MAGIC, null, null, null);
+        SearchAgentResult result = newService(2).run("исследуй " + MAGIC, null, null, null);
 
-        assertThat(report).isEqualTo("Итог: сводка по бюджету.");
+        assertThat(result.report()).isEqualTo("Итог: сводка по бюджету.");
+        assertThat(result.complete()).isFalse();
+        assertThat(result.iterations()).isEqualTo(2);
 
         ArgumentCaptor<Prompt> prompts = ArgumentCaptor.forClass(Prompt.class);
         verify(chatModel, times(4)).call(prompts.capture());
@@ -146,9 +152,9 @@ class SearchAgentServiceIT {
                 .thenReturn(toolCall("nonExistentTool", "{}"))
                 .thenReturn(text("Итог: восстановился после ошибки."));
 
-        String report = newService(3).run("проверка устойчивости", null, null, null);
+        SearchAgentResult result = newService(3).run("проверка устойчивости", null, null, null);
 
-        assertThat(report).isNotBlank();
+        assertThat(result.report()).isNotBlank();
     }
 
     // ── helpers ─────────────────────────────────────────────────────────────────

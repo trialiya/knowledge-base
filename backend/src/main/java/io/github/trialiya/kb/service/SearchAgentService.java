@@ -5,6 +5,7 @@ import static io.github.trialiya.kb.utils.ChatUtils.buildContext;
 import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
 
 import io.github.trialiya.kb.config.model.SubAgentConfig;
+import io.github.trialiya.kb.model.search.SearchAgentResult;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -96,9 +97,12 @@ public class SearchAgentService {
      * @param pathGlob optional glob to restrict code paths (e.g. {@code "backend/**\/*.java"})
      * @param parentContext the parent tool context (used only to carry the conversation id)
      */
-    public String run(String task, String scope, String pathGlob, ToolContext parentContext) {
+    public SearchAgentResult run(
+            String task, String scope, String pathGlob, ToolContext parentContext) {
+        final long startMs = System.currentTimeMillis();
         final String conversationId =
                 parentContext != null ? conversationId(parentContext) : DEFAULT_CONVERSATION_ID;
+        final String fullTask = buildTask(task, scope, pathGlob);
 
         final OpenAiChatOptions toolOptions =
                 OpenAiChatOptions.builder()
@@ -112,7 +116,7 @@ public class SearchAgentService {
 
         final List<Message> messages = new ArrayList<>();
         messages.add(new SystemMessage(systemPrompt));
-        messages.add(new UserMessage(buildTask(task, scope, pathGlob)));
+        messages.add(new UserMessage(fullTask));
 
         Prompt prompt = new Prompt(messages, toolOptions);
         log.info("[{}] search sub-agent start: task='{}'", conversationId, truncate(task, 160));
@@ -122,7 +126,8 @@ public class SearchAgentService {
             response = chatModel.call(prompt);
         } catch (Exception e) {
             log.error("[{}] search sub-agent initial call failed", conversationId, e);
-            return "Поиск не выполнен: " + rootMessage(e);
+            return result(
+                    conversationId, "Поиск не выполнен: " + rootMessage(e), false, 0, startMs);
         }
 
         int hops = 0;
@@ -132,7 +137,8 @@ public class SearchAgentService {
                         "[{}] search sub-agent hit iteration cap ({}), summarizing",
                         conversationId,
                         config.maxIterations());
-                return summarize(prompt, conversationId, SUMMARIZE_BUDGET);
+                String text = summarize(prompt, conversationId, fullTask, SUMMARIZE_BUDGET);
+                return result(conversationId, text, false, hops, startMs);
             }
 
             final ToolExecutionResult exec;
@@ -146,7 +152,8 @@ public class SearchAgentService {
                         "[{}] search sub-agent tool execution failed: {}",
                         conversationId,
                         e.getMessage());
-                return summarize(prompt, conversationId, SUMMARIZE_BUDGET);
+                String text = summarize(prompt, conversationId, fullTask, SUMMARIZE_BUDGET);
+                return result(conversationId, text, false, hops, startMs);
             }
 
             prompt = new Prompt(exec.conversationHistory(), toolOptions);
@@ -157,7 +164,8 @@ public class SearchAgentService {
                         "[{}] search sub-agent follow-up call failed: {}",
                         conversationId,
                         e.getMessage());
-                return summarize(prompt, conversationId, SUMMARIZE_BUDGET);
+                String text = summarize(prompt, conversationId, fullTask, SUMMARIZE_BUDGET);
+                return result(conversationId, text, false, hops, startMs);
             }
             hops++;
         }
@@ -165,19 +173,38 @@ public class SearchAgentService {
         final String text = response == null ? null : response.getResult().getOutput().getText();
         if (text == null || text.isBlank()) {
             // Model stopped without producing prose — ask it to summarize the gathered evidence.
-            return summarize(prompt, conversationId, SUMMARIZE_DONE);
+            String summary = summarize(prompt, conversationId, fullTask, SUMMARIZE_DONE);
+            return result(conversationId, summary, true, hops, startMs);
         }
-        log.info("[{}] search sub-agent done in {} hop(s)", conversationId, hops);
-        return text;
+        return result(conversationId, text, true, hops, startMs);
+    }
+
+    /** Builds the result record and logs the response (the request's deliverable). */
+    private SearchAgentResult result(
+            String conversationId, String report, boolean complete, int hops, long startMs) {
+        long durationMs = System.currentTimeMillis() - startMs;
+        log.info(
+                "[{}] search sub-agent done: complete={}, hops={}, {} ms, report='{}'",
+                conversationId,
+                complete,
+                hops,
+                durationMs,
+                truncate(report, 1000));
+        return new SearchAgentResult(report, complete, hops, durationMs);
     }
 
     /**
      * Final, tool-less call: the model must answer from the evidence already in {@code prompt}.
      * {@code prompt} never contains a dangling tool-call assistant turn at the call sites above, so
      * the message history stays valid for the provider API.
+     *
+     * <p>The original task is restated alongside the instruction: after many tool-result turns the
+     * model can drift, and re-anchoring on what was actually asked keeps the final report on point.
      */
-    private String summarize(Prompt prompt, String conversationId, String instruction) {
+    private String summarize(
+            Prompt prompt, String conversationId, String fullTask, String instruction) {
         final List<Message> messages = new ArrayList<>(prompt.getInstructions());
+        messages.add(new UserMessage("Напоминание исходной задачи:\n" + fullTask));
         messages.add(new UserMessage(instruction));
 
         final OpenAiChatOptions finalOptions =

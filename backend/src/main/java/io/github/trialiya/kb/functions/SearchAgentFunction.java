@@ -2,6 +2,7 @@ package io.github.trialiya.kb.functions;
 
 import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
 
+import io.github.trialiya.kb.model.search.SearchAgentResult;
 import io.github.trialiya.kb.service.SearchAgentService;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
 import lombok.AllArgsConstructor;
@@ -36,7 +37,7 @@ public class SearchAgentFunction {
                     Для простого точного совпадения используй grepContent напрямую.
                     """,
             resultConverter = CompactToolResultConverter.class)
-    public String searchCodebase(
+    public SearchAgentResult searchCodebase(
             ToolContext context,
             @ToolParam(
                             description =
