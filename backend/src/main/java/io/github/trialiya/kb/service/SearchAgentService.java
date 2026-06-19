@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -100,6 +101,7 @@ public class SearchAgentService {
     public SearchAgentResult run(
             String task, String scope, String pathGlob, ToolContext parentContext) {
         final long startMs = System.currentTimeMillis();
+        final TokenUsage usage = new TokenUsage();
         final String conversationId =
                 parentContext != null ? conversationId(parentContext) : DEFAULT_CONVERSATION_ID;
         final String fullTask = buildTask(task, scope, pathGlob);
@@ -124,10 +126,16 @@ public class SearchAgentService {
         ChatResponse response;
         try {
             response = chatModel.call(prompt);
+            usage.add(response);
         } catch (Exception e) {
             log.error("[{}] search sub-agent initial call failed", conversationId, e);
             return result(
-                    conversationId, "Поиск не выполнен: " + rootMessage(e), false, 0, startMs);
+                    conversationId,
+                    "Поиск не выполнен: " + rootMessage(e),
+                    false,
+                    0,
+                    startMs,
+                    usage);
         }
 
         int hops = 0;
@@ -137,8 +145,8 @@ public class SearchAgentService {
                         "[{}] search sub-agent hit iteration cap ({}), summarizing",
                         conversationId,
                         config.maxIterations());
-                String text = summarize(prompt, conversationId, fullTask, SUMMARIZE_BUDGET);
-                return result(conversationId, text, false, hops, startMs);
+                String text = summarize(prompt, conversationId, fullTask, SUMMARIZE_BUDGET, usage);
+                return result(conversationId, text, false, hops, startMs, usage);
             }
 
             final ToolExecutionResult exec;
@@ -152,20 +160,21 @@ public class SearchAgentService {
                         "[{}] search sub-agent tool execution failed: {}",
                         conversationId,
                         e.getMessage());
-                String text = summarize(prompt, conversationId, fullTask, SUMMARIZE_BUDGET);
-                return result(conversationId, text, false, hops, startMs);
+                String text = summarize(prompt, conversationId, fullTask, SUMMARIZE_BUDGET, usage);
+                return result(conversationId, text, false, hops, startMs, usage);
             }
 
             prompt = new Prompt(exec.conversationHistory(), toolOptions);
             try {
                 response = chatModel.call(prompt);
+                usage.add(response);
             } catch (Exception e) {
                 log.warn(
                         "[{}] search sub-agent follow-up call failed: {}",
                         conversationId,
                         e.getMessage());
-                String text = summarize(prompt, conversationId, fullTask, SUMMARIZE_BUDGET);
-                return result(conversationId, text, false, hops, startMs);
+                String text = summarize(prompt, conversationId, fullTask, SUMMARIZE_BUDGET, usage);
+                return result(conversationId, text, false, hops, startMs, usage);
             }
             hops++;
         }
@@ -173,22 +182,33 @@ public class SearchAgentService {
         final String text = response == null ? null : response.getResult().getOutput().getText();
         if (text == null || text.isBlank()) {
             // Model stopped without producing prose — ask it to summarize the gathered evidence.
-            String summary = summarize(prompt, conversationId, fullTask, SUMMARIZE_DONE);
-            return result(conversationId, summary, true, hops, startMs);
+            String summary = summarize(prompt, conversationId, fullTask, SUMMARIZE_DONE, usage);
+            return result(conversationId, summary, true, hops, startMs, usage);
         }
-        return result(conversationId, text, true, hops, startMs);
+        return result(conversationId, text, true, hops, startMs, usage);
     }
 
-    /** Builds the result record and logs the response (the request's deliverable). */
+    /**
+     * Builds the result record and logs the response and token usage (the request's deliverable).
+     */
     private SearchAgentResult result(
-            String conversationId, String report, boolean complete, int hops, long startMs) {
+            String conversationId,
+            String report,
+            boolean complete,
+            int hops,
+            long startMs,
+            TokenUsage usage) {
         long durationMs = System.currentTimeMillis() - startMs;
         log.info(
-                "[{}] search sub-agent done: complete={}, hops={}, {} ms, report='{}'",
+                "[{}] search sub-agent done: complete={}, hops={}, {} ms, "
+                        + "tokens(prompt={}, completion={}, total={}), report='{}'",
                 conversationId,
                 complete,
                 hops,
                 durationMs,
+                usage.prompt,
+                usage.completion,
+                usage.total,
                 truncate(report, 1000));
         return new SearchAgentResult(report, complete, hops, durationMs);
     }
@@ -202,7 +222,11 @@ public class SearchAgentService {
      * model can drift, and re-anchoring on what was actually asked keeps the final report on point.
      */
     private String summarize(
-            Prompt prompt, String conversationId, String fullTask, String instruction) {
+            Prompt prompt,
+            String conversationId,
+            String fullTask,
+            String instruction,
+            TokenUsage usage) {
         final List<Message> messages = new ArrayList<>(prompt.getInstructions());
         messages.add(new UserMessage("Напоминание исходной задачи:\n" + fullTask));
         messages.add(new UserMessage(instruction));
@@ -216,6 +240,7 @@ public class SearchAgentService {
 
         try {
             final ChatResponse summary = chatModel.call(new Prompt(messages, finalOptions));
+            usage.add(summary);
             final String text = summary.getResult().getOutput().getText();
             return (text == null || text.isBlank()) ? "Поиск не дал результатов." : text;
         } catch (Exception e) {
@@ -256,5 +281,29 @@ public class SearchAgentService {
             return "";
         }
         return s.length() <= max ? s : s.substring(0, max) + "…";
+    }
+
+    /** Running token total across every model call in one sub-agent run (loop + summarization). */
+    private static final class TokenUsage {
+        private long prompt;
+        private long completion;
+        private long total;
+
+        private void add(ChatResponse response) {
+            if (response == null || response.getMetadata() == null) {
+                return;
+            }
+            Usage u = response.getMetadata().getUsage();
+            if (u == null) {
+                return;
+            }
+            prompt += nz(u.getPromptTokens());
+            completion += nz(u.getCompletionTokens());
+            total += nz(u.getTotalTokens());
+        }
+
+        private static long nz(Integer value) {
+            return value == null ? 0L : value;
+        }
     }
 }
