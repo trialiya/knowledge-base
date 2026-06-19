@@ -106,6 +106,25 @@ kb:
       semantic-weight: 0.6  # вес semantic-результатов (0..1)
       threshold: 0.20       # минимальная семантическая схожесть
       limit: 20
+    subagent:
+      # Search sub-agent exposed to the chat model as the `searchCodebase` tool.
+      enabled: ${KB_SEARCH_SUBAGENT_ENABLED:true}
+      # May differ from the main chat model (e.g. a cheaper/faster one). Defaults to the main model.
+      model-id: ${KB_SEARCH_SUBAGENT_MODEL:${AI_MODEL}}
+      max-tokens: ${KB_SEARCH_SUBAGENT_MAX_TOKENS:12000}
+      # Hard cap on tool-call rounds before a forced, tool-less summarization call.
+      max-iterations: ${KB_SEARCH_SUBAGENT_MAX_ITERATIONS:6}
+      # Read-only tools the sub-agent may call. MUST NOT include searchCodebase (recursion guard).
+      allowed-tools:
+        - grepContent
+        - searchFiles
+        - getFileTree
+        - getFileOutline
+        - getFileContent
+        - searchDocuments
+        - findDocumentsByName
+        - getDocument
+        - getTreeSkeleton
   atlassian:
     jira:
       base-url: ${JIRA_BASE_URL}

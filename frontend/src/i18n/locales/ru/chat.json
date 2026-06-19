@@ -140,7 +140,8 @@
     "getFileOutline": "Структура файла",
     "getFileContent": "Чтение файла",
     "getUncommittedChanges": "Незакоммиченные изменения",
-    "grepContent": "Поиск по коду"
+    "grepContent": "Поиск по коду",
+    "searchCodebase": "Умный поиск"
   },
   "docChange": {
     "viewChanges": "Посмотреть изменения",
