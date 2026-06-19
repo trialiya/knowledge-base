@@ -38,6 +38,7 @@ export const TOOL_META = {
   getFileContent: { icon: '📄', category: 'git' },
   getUncommittedChanges: { icon: '📝', category: 'git' },
   grepContent: { icon: '🔎', category: 'git' },
+  searchCodebase: { icon: '🧭', category: 'git' },
 };
 
 /** Иконка инструмента с дефолтом для незнакомых имён. */
