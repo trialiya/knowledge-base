@@ -5,6 +5,7 @@ import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -32,17 +33,24 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 public class ConversationHub {
 
     private final String conversationId;
-    private final Runnable onIdle;
     private final ReentrantLock lock = new ReentrantLock();
     private final List<ChatEvent> eventLog = new ArrayList<>();
     private final List<SseEmitter> subscribers = new ArrayList<>();
+
+    /** Колбэк «хаб простаивает» — реестр пытается выгрузить его (см. {@link ChatEventService}). */
+    private final Consumer<ConversationHub> onIdle;
+
     private long seq;
     private String activeRunId;
     private boolean closed;
 
-    public ConversationHub(String conversationId, Runnable onIdle) {
+    public ConversationHub(String conversationId, Consumer<ConversationHub> onIdle) {
         this.conversationId = conversationId;
         this.onIdle = onIdle;
+    }
+
+    public String conversationId() {
+        return conversationId;
     }
 
     /**
@@ -144,14 +152,19 @@ public class ConversationHub {
     }
 
     private void remove(SseEmitter emitter) {
+        final boolean idle;
         lock.lock();
         try {
             subscribers.remove(emitter);
+            // «Опустел»: последний подписчик ушёл и прогона нет → пора выгружать из реестра.
+            idle = subscribers.isEmpty() && activeRunId == null && !closed;
         } finally {
             lock.unlock();
         }
-        if (closeIfIdle()) {
-            onIdle.run();
+        // Вне лока: onIdle → closeIfIdle перепроверит состояние под локом (вдруг кто-то успел
+        // подписаться), и только тогда хаб закроется и уйдёт из карты.
+        if (idle && onIdle != null) {
+            onIdle.accept(this);
         }
     }
 

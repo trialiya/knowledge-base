@@ -136,6 +136,8 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   const [chatDeleteConfirm, setChatDeleteConfirm] = useState(null);
   // Уведомление «в чате уже идёт генерация» (ответ сервера 409 на старт прогона).
   const [busyNotice, setBusyNotice] = useState(false);
+  // Уведомление «чат удалён в другой вкладке» (событие CHAT_DELETED из потока).
+  const [deletedNotice, setDeletedNotice] = useState(false);
   // Bump → очистить текст в MessageInput («удаление» черновика).
   const [composerResetSignal, setComposerResetSignal] = useState(0);
   // Текущий черновик в поле ввода — нужен для блокировки переключения чата.
@@ -143,6 +145,9 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   // clientMsgId-ы сообщений, отправленных ИЗ ЭТОЙ вкладки. Нужны, чтобы не задвоить
   // свой оптимистично показанный пузырь, получив его же эхом из потока событий.
   const localClientIdsRef = useRef(new Set());
+  // id чатов, которые удаляем из ЭТОЙ вкладки — чтобы не показать себе же модалку
+  // «удалён в другой вкладке», получив собственное эхо CHAT_DELETED.
+  const locallyDeletingRef = useRef(new Set());
   const attachFileRef = useRef(null);
   // Ref to hold activeChatId at mount time so the initial fetch effect
   // doesn't need it in its dependency array (we only want this to run once).
@@ -564,6 +569,22 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   // события легли поверх неё, а не были затёрты последующей загрузкой из БД. При
   // обрыве/перезагрузке поток сам переподключается и дозагружает пропущенное, так
   // что ответ продолжает «течь» после reload и догоняется поздно открытой вкладкой.
+  // Чат удалён извне (из другой вкладки/сессии). Поток событий открыт только для активного
+  // чата, поэтому событие приходит лишь когда удалили именно открытый чат.
+  const handleRemoteChatDeleted = useCallback(
+    (id) => {
+      if (locallyDeletingRef.current.delete(id)) {
+        // Это эхо нашего же удаления — UI уже обновлён в confirmDeleteChat, молчим.
+        return;
+      }
+      setChats((prev) => prev.filter((c) => c.id !== id));
+      setDeletedNotice(true);
+      const remaining = chatsRef.current.filter((c) => c.id !== id);
+      selectChat(remaining[0]?.id || null);
+    },
+    [selectChat],
+  );
+
   const activeMessagesReady = Array.isArray(activeChat?.messages);
   useEffect(() => {
     const chatId = activeChatId;
@@ -579,13 +600,17 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     };
     return openChatEventStream(chatId, {
       onEvent: (ev) => {
+        if (ev.type === 'CHAT_DELETED') {
+          handleRemoteChatDeleted(chatId);
+          return;
+        }
         setChats((prev) => prev.map((c) => (c.id === chatId ? applyChatEvent(c, ev, ctx) : c)));
         if (ev.type === 'RUN_DONE' || ev.type === 'RUN_STOPPED' || ev.type === 'RUN_ERROR') {
           fetchAndUpdateTitle(chatId);
         }
       },
     });
-  }, [activeChatId, activeMessagesReady, fetchAndUpdateTitle]);
+  }, [activeChatId, activeMessagesReady, fetchAndUpdateTitle, handleRemoteChatDeleted]);
 
   const handleNewChat = useCallback(() => {
     // Создаём черновик: реального id ещё нет (в URL будет 'new'), на бэк ничего
@@ -640,6 +665,8 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     setChatDeleteConfirm(null);
     if (!target) return;
     const { id } = target;
+    // Помечаем как «наше» удаление — эхо CHAT_DELETED по потоку не покажет нам модалку.
+    locallyDeletingRef.current.add(id);
     await chatApi.deleteChat(id);
     setChats((prev) => prev.filter((chat) => chat.id !== id));
     if (activeChatId === id) {
@@ -902,6 +929,13 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         title={t('errorModal.busyTitle')}
         message={t('errorModal.busyMessage')}
         onClose={() => setBusyNotice(false)}
+      />
+      <ErrorModal
+        open={deletedNotice}
+        icon="🗑️"
+        title={t('errorModal.deletedTitle')}
+        message={t('errorModal.deletedMessage')}
+        onClose={() => setDeletedNotice(false)}
       />
     </div>
   );

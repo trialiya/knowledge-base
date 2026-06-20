@@ -32,7 +32,9 @@
     "notFoundMessage": "It may have been deleted or the link is outdated. Pick another chat or create a new one.",
     "loadErrorMessage": "Error while loading the chat{{suffix}}. Try again later.",
     "busyTitle": "Generation in progress",
-    "busyMessage": "A response is already being generated in this chat (possibly in another tab). Wait for it to finish or stop it before sending a new message."
+    "busyMessage": "A response is already being generated in this chat (possibly in another tab). Wait for it to finish or stop it before sending a new message.",
+    "deletedTitle": "Chat deleted",
+    "deletedMessage": "This chat was deleted in another tab or session."
   },
   "deleteModal": {
     "title": "Delete chat?",

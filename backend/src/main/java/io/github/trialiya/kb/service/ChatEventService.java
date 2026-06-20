@@ -50,6 +50,23 @@ public class ChatEventService {
         return hub(conversationId).publish(type, runId, clientMsgId, payload);
     }
 
+    /**
+     * Публикует событие, только если на чат уже есть хаб (кто-то подписан/был прогон). Не создаёт
+     * новый хаб — для уведомлений вроде {@link ChatEventType#CHAT_DELETED}, которые незачем слать,
+     * если чат никто не смотрит (иначе плодили бы пустые хабы).
+     */
+    public void publishIfPresent(
+            String conversationId,
+            ChatEventType type,
+            String runId,
+            String clientMsgId,
+            Object payload) {
+        final ConversationHub hub = hubs.get(conversationId);
+        if (hub != null) {
+            hub.publish(type, runId, clientMsgId, payload);
+        }
+    }
+
     public void startRun(String conversationId, String runId) {
         hub(conversationId).startRun(runId);
     }
@@ -60,12 +77,9 @@ public class ChatEventService {
             return;
         }
         hub.endRun(runId);
-        // Подчищаем простаивающий хаб, чтобы карта не росла бесконечно. closeIfIdle атомарно
-        // (под локом хаба) проверяет «нет подписчиков и прогона» и закрывает хаб — после этого
-        // он не примет новых подписчиков, поэтому remove безопасен относительно гонки с subscribe.
-        if (hub.closeIfIdle()) {
-            hubs.remove(conversationId, hub);
-        }
+        // Прогон закончился — хаб мог опустеть (если подписчиков уже нет). Та же логика, что и при
+        // уходе последнего подписчика.
+        onHubIdle(hub);
     }
 
     public Optional<String> activeRunId(String conversationId) {
@@ -77,13 +91,18 @@ public class ChatEventService {
         return hubs.size();
     }
 
+    /**
+     * Хаб сообщил, что простаивает (ушёл последний подписчик). Закрываем и выкидываем из карты;
+     * {@code remove(key, value)} снимает ровно этот инстанс, а {@link ConversationHub#closeIfIdle}
+     * перепроверяет под локом — если кто-то успел подписаться, хаб останется (вернёт false).
+     */
+    private void onHubIdle(ConversationHub hub) {
+        if (hub.closeIfIdle()) {
+            hubs.remove(hub.conversationId(), hub);
+        }
+    }
+
     private ConversationHub hub(String conversationId) {
-        return hubs.computeIfAbsent(conversationId, id -> {
-            // Массив-держатель нужен, чтобы захватить ссылку на хаб в onIdle-колбэке
-            // до завершения его инициализации (иначе circular reference через лямбду).
-            final ConversationHub[] ref = new ConversationHub[1];
-            ref[0] = new ConversationHub(id, () -> hubs.remove(id, ref[0]));
-            return ref[0];
-        });
+        return hubs.computeIfAbsent(conversationId, id -> new ConversationHub(id, this::onHubIdle));
     }
 }
