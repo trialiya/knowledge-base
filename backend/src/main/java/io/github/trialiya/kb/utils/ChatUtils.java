@@ -32,13 +32,24 @@ public class ChatUtils {
 
     public static Map<String, Object> buildContext(
             String conversationId, ToolInvocationCollector toolCollector) {
+        return buildContext(conversationId, toolCollector, getUser());
+    }
+
+    /**
+     * Как {@link #buildContext(String, ToolInvocationCollector)}, но с явно переданным
+     * пользователем. Нужно для фоновой генерации: её инструменты исполняются на потоках Reactor,
+     * где {@link #getUser()} вернул бы анонима (SecurityContext туда не распространяется), поэтому
+     * пользователя захватываем на потоке запроса и протаскиваем сюда.
+     */
+    public static Map<String, Object> buildContext(
+            String conversationId, ToolInvocationCollector toolCollector, String user) {
         return Map.of(
                 ChatMemory.CONVERSATION_ID,
                 conversationId,
                 ToolInvocationCollector.KEY,
                 toolCollector,
                 USER_NAME,
-                getUser());
+                user);
     }
 
     /**

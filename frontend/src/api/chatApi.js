@@ -1,7 +1,7 @@
 // ─── Chat API ────────────────────────────────────────────────────────────────
 // Тонкие обёртки вокруг /api/chats/* эндпоинтов.
-// Стриминговый эндпоинт (POST /messages/stream) НЕ входит сюда — там нужен
-// прямой доступ к response.body для побайтового SSE-чтения.
+// Поток событий (GET /events) живёт отдельно в chatEvents.js — там нужен прямой
+// доступ к response.body для побайтового SSE-чтения.
 
 import { request, requestRaw, json } from './client';
 
@@ -81,6 +81,32 @@ const chatApi = {
       method: 'POST',
       ...(jiraUrl !== undefined ? { headers: { 'Content-Type': 'application/json' }, body: jiraUrl } : {}),
     }),
+
+  /**
+   * Запустить генерацию ответа как фоновую задачу. Возвращает { runId }.
+   * Сам ответ приходит не здесь, а потоком событий (chatEvents.js).
+   * clientMsgId — чтобы не задвоить свой оптимистичный пузырь при получении эха.
+   */
+  startRun: (id, text, { model, clientMsgId } = {}) => {
+    const params = new URLSearchParams();
+    if (model) params.set('model', model);
+    if (clientMsgId) params.set('clientMsgId', clientMsgId);
+    const qs = params.toString();
+    return request(`/api/chats/${enc(id)}/runs${qs ? `?${qs}` : ''}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+      body: text,
+    });
+  },
+
+  /** Остановить прогон. Ошибки — только в консоль. */
+  stopRun: (id, runId) =>
+    requestRaw(`/api/chats/${enc(id)}/runs/${enc(runId)}/stop`, { method: 'POST' }).catch((e) =>
+      console.error('stopRun error:', e),
+    ),
+
+  /** runId активного прогона чата (или {}). Для восстановления состояния. */
+  getActiveRun: (id) => request(`/api/chats/${enc(id)}/runs/active`),
 };
 
 export default chatApi;

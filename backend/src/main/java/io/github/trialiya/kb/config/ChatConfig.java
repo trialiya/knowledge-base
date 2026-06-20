@@ -17,6 +17,8 @@ import io.github.trialiya.kb.service.SearchAgentService;
 import io.github.trialiya.kb.tools.RecordingToolCallback;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -34,10 +36,24 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
+import org.springframework.security.concurrent.DelegatingSecurityContextExecutorService;
 
 @Configuration
 @Slf4j
 public class ChatConfig {
+
+    /**
+     * Пул для фоновой генерации ответов (см. {@code ChatRunService}). Виртуальные потоки — по
+     * одному на прогон; обёртка переносит {@link
+     * org.springframework.security.core.context.SecurityContext} текущего пользователя на
+     * worker-поток. {@code destroyMethod = "shutdown"} — чтобы при остановке контекста корректно
+     * завершить нижележащий {@link ExecutorService} (обёртка делегирует ему shutdown).
+     */
+    @Bean(destroyMethod = "shutdown")
+    public ExecutorService chatRunExecutor() {
+        return new DelegatingSecurityContextExecutorService(
+                Executors.newVirtualThreadPerTaskExecutor());
+    }
 
     @Bean
     public ChatMemory chatMemory(ChatMemoryService chatMemoryService) {

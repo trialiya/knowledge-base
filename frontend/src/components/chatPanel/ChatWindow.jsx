@@ -1,6 +1,8 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import chatApi from '../../api/chatApi';
+import { openChatEventStream } from '../../api/chatEvents';
+import { applyChatEvent } from './chatEventReducer';
 import attachmentApi from '../common/attachmentApi';
 import { STORAGE_KEY_ACTIVE_CHAT, STORAGE_KEY_LAST_MODEL, DRAFT_CHAT_ID } from '../../constants/storage';
 import { CHAT_PAGE_SIZE as PAGE_SIZE } from '../../constants/pagination';
@@ -105,7 +107,6 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     },
     [onSelectChat],
   );
-  const [isLoading, setIsLoading] = useState(false);
 
   // Создаёт объект черновика. model берём из последней использованной (localStorage),
   // иначе сработает фолбэк на дефолтную модель в selectedModelId/отправке.
@@ -133,13 +134,13 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   const [chatErrorModal, setChatErrorModal] = useState(null);
   // Модалка подтверждения удаления чата: null | { id, title }
   const [chatDeleteConfirm, setChatDeleteConfirm] = useState(null);
+  // Уведомление «в чате уже идёт генерация» (ответ сервера 409 на старт прогона).
+  const [busyNotice, setBusyNotice] = useState(false);
   // Bump → очистить текст в MessageInput («удаление» черновика).
   const [composerResetSignal, setComposerResetSignal] = useState(0);
-  const aiMessageTextRef = useRef('');
-  const aiMessageIndexRef = useRef(-1);
-  const abortControllerRef = useRef(null);
-  // Tool calls accumulated for the current AI message segment
-  const toolCallsRef = useRef([]);
+  // clientMsgId-ы сообщений, отправленных ИЗ ЭТОЙ вкладки. Нужны, чтобы не задвоить
+  // свой оптимистично показанный пузырь, получив его же эхом из потока событий.
+  const localClientIdsRef = useRef(new Set());
   const attachFileRef = useRef(null);
   // Ref to hold activeChatId at mount time so the initial fetch effect
   // doesn't need it in its dependency array (we only want this to run once).
@@ -404,6 +405,11 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   const activeChat = useMemo(() => chats.find((c) => c.id === activeChatId) || null, [chats, activeChatId]);
   const activeMessages = useMemo(() => activeChat?.messages || [], [activeChat]);
 
+  // Идёт генерация в активном чате? Источник правды — runId чата (его ставит старт
+  // прогона и снимает терминальное событие). Управляет блокировкой ввода и видом
+  // кнопки (отправить ↔ остановить).
+  const isStreaming = !!activeChat?.runId;
+
   // Список для сайдбара: черновик «new» не показываем, пока в нём нет сообщений.
   // Он промоутится в реальный чат (с UUID и draft:false) при отправке первого
   // сообщения — тогда и появляется пунктом в списке. В главном окне черновик при
@@ -436,7 +442,9 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     return !msgs.some((m) => m && m.sender);
   }, [activeChat]);
 
-  // Отправка сообщения
+  // Отправка сообщения. Больше НЕ стримит ответ из этого запроса: лишь запускает
+  // фоновый прогон (POST /runs) и оптимистично показывает свой вопрос. Сам ответ
+  // (и эхо вопроса для других вкладок) приедет потоком событий — см. эффект ниже.
   const handleSendMessage = useCallback(
     async (text) => {
       if (!activeChatId) return;
@@ -452,18 +460,13 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         return;
       }
 
-      // Вычисляем индекс нового AI-сообщения СИНХРОННО, до setChats.
-      // Updater в setChats выполняется асинхронно, поэтому нельзя
-      // полагаться на значение, присвоенное внутри него.
-      const currentChat = chatsRef.current.find((c) => c.id === activeChatId);
-      const baseMessages = currentChat?.messages || [];
-      // После добавления [user, ai] AI-сообщение будет последним.
-      const initialAiIndex = baseMessages.length + 1;
-
       // Черновик: настоящий conversationId (UUID) рождается именно сейчас.
       // Для обычного чата conversationId === activeChatId.
       const isDraft = activeChatId === DRAFT_CHAT_ID;
       const conversationId = isDraft ? generateUUID() : activeChatId;
+      // clientMsgId — чтобы не задвоить свой пузырь, получив его эхом из /events.
+      const clientMsgId = generateUUID();
+      localClientIdsRef.current.add(clientMsgId);
 
       // Модель, с которой шлём. Всегда явная: выбранная у чата → последняя → дефолтная.
       const selected = chatForSend?.model;
@@ -483,11 +486,12 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         }
       }
 
+      // Оптимистично: промоутим черновик и показываем пузырь пользователя.
+      // AI-пузырь не добавляем — его создаст событие RUN_STARTED.
       setChats((prev) => {
         const found = prev.find((c) => c.id === activeChatId);
         if (!found) return prev;
-        const newMessages = [...(found.messages || []), { text, sender: 'user' }, { text: '', sender: 'ai' }];
-        // Промоушен черновика: присваиваем реальный id и проставляем явную модель.
+        const newMessages = [...(found.messages || []), { text, sender: 'user', clientMsgId }];
         const updatedChat = {
           ...found,
           id: conversationId,
@@ -504,313 +508,82 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         selectChat(conversationId);
       }
 
-      setIsLoading(true);
-      aiMessageTextRef.current = '';
-      aiMessageIndexRef.current = initialAiIndex;
-      toolCallsRef.current = [];
-
-      const abortController = new AbortController();
-      abortControllerRef.current = abortController;
-
       try {
-        const params = modelForSend ? `?model=${encodeURIComponent(modelForSend)}` : '';
-        const url = `/api/chats/${encodeURIComponent(conversationId)}/messages/stream${params}`;
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/event-stream' },
-          body: text,
-          signal: abortController.signal,
-        });
-
-        if (!response.ok) throw new Error('Network response was not ok');
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder('utf-8');
-        let buffer = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            const trimmedLine = line.trim();
-            if (trimmedLine.startsWith('data:')) {
-              const jsonString = trimmedLine.slice(5).trim();
-              if (jsonString === '[DONE]') {
-                aiMessageTextRef.current = aiMessageTextRef.current.trimEnd();
-                setChats((prev) => {
-                  const chatIndex = prev.findIndex((c) => c.id === conversationId);
-                  if (chatIndex === -1) return prev;
-                  const updated = { ...prev[chatIndex] };
-                  const messages = [...updated.messages];
-                  const idx = aiMessageIndexRef.current;
-                  if (messages[idx]?.sender === 'ai') {
-                    messages[idx] = { ...messages[idx], text: aiMessageTextRef.current };
-                    updated.messages = messages;
-                  }
-                  const others = prev.filter((c) => c.id !== conversationId);
-                  return [updated, ...others];
-                });
-                fetchAndUpdateTitle(conversationId);
-                setIsLoading(false);
-                return;
-              }
-
-              if (!jsonString) continue;
-
-              let textChanged = false;
-              let shouldFinishSegment = false;
-              let isDone = false;
-              let toolCallChanged = false;
-              try {
-                const parsed = JSON.parse(jsonString);
-                const reason = (parsed.finishReason || '').trim();
-
-                // ── Tool call events ──
-                if (parsed.toolCall) {
-                  const tc = parsed.toolCall;
-                  const argsKey = JSON.stringify(tc.arguments || {});
-                  const existingIdx = toolCallsRef.current.findIndex(
-                    (t) => t.name === tc.name && JSON.stringify(t.arguments || {}) === argsKey,
-                  );
-                  if (existingIdx >= 0) {
-                    toolCallsRef.current = toolCallsRef.current.map((t, i) =>
-                      i === existingIdx
-                        ? {
-                            ...t,
-                            status: tc.status,
-                            error: tc.error,
-                            resultGist: tc.resultGist ?? t.resultGist,
-                            resultMeta: tc.resultMeta ?? t.resultMeta,
-                          }
-                        : t,
-                    );
-                  } else {
-                    toolCallsRef.current = [
-                      ...toolCallsRef.current,
-                      {
-                        name: tc.name,
-                        arguments: tc.arguments,
-                        status: tc.status,
-                        error: tc.error,
-                        resultGist: tc.resultGist,
-                        resultMeta: tc.resultMeta,
-                      },
-                    ];
-                  }
-                  toolCallChanged = true;
-                }
-
-                // ── toolCalls summary (final, from onComplete) ──
-                if (parsed.toolCalls && Array.isArray(parsed.toolCalls)) {
-                  // Merge any missing tool calls from the summary
-                  for (const tc of parsed.toolCalls) {
-                    const argsKey = JSON.stringify(tc?.arguments || {});
-                    const exists = toolCallsRef.current.some(
-                      (t) => t.name === tc.name && JSON.stringify(t.arguments || {}) === argsKey,
-                    );
-                    if (!exists) {
-                      toolCallsRef.current = [
-                        ...toolCallsRef.current,
-                        {
-                          name: tc.name,
-                          arguments: tc.arguments,
-                          status: tc.status,
-                          error: tc.error,
-                          resultGist: tc.resultGist,
-                          resultMeta: tc.resultMeta,
-                        },
-                      ];
-                    } else {
-                      toolCallsRef.current = toolCallsRef.current.map((t) =>
-                        t.name === tc.name && JSON.stringify(t.arguments || {}) === argsKey
-                          ? {
-                              ...t,
-                              status: tc.status,
-                              error: tc.error,
-                              resultGist: tc.resultGist ?? t.resultGist,
-                              resultMeta: tc.resultMeta ?? t.resultMeta,
-                            }
-                          : t,
-                      );
-                    }
-                  }
-                  toolCallChanged = true;
-                }
-
-                // Текстовый контент — добавляем к накопленному.
-                // Пропускаем пустые строки, а также ведущие переносы строк
-                // в самом начале ответа (модель иногда шлёт "\n\n" первым чанком).
-                if (parsed.message) {
-                  const isFirstChunk = aiMessageTextRef.current === '';
-                  const text = isFirstChunk ? parsed.message.replace(/^\n+/, '') : parsed.message;
-                  if (text) {
-                    aiMessageTextRef.current += text;
-                    textChanged = true;
-                  }
-                }
-
-                // DONE — бэкенд шлёт из onComplete(); финализируем весь ответ.
-                if (reason === 'DONE') {
-                  isDone = true;
-                }
-                // TOOL_CALLS — модель вызвала инструмент, дальше будет новый
-                // текстовый сегмент. Создаём новое AI-сообщение, но только если
-                // в текущем уже накоплен непустой текст.
-                else if (reason === 'TOOL_CALLS' && aiMessageTextRef.current.trim() !== '') {
-                  shouldFinishSegment = true;
-                }
-                // STOP — текстовый ответ закончен. НЕ создаём новый сегмент —
-                // после STOP может прийти ещё DONE или пустые чанки.
-                // Просто игнорируем.
-              } catch {
-                /* ignore parse errors */
-              }
-
-              if (isDone) {
-                aiMessageTextRef.current = aiMessageTextRef.current.trimEnd();
-                const finalText = aiMessageTextRef.current;
-                const finalToolCalls = [...toolCallsRef.current];
-                const idx = aiMessageIndexRef.current;
-                setChats((prev) => {
-                  const chatIndex = prev.findIndex((c) => c.id === conversationId);
-                  if (chatIndex === -1) return prev;
-                  const updated = { ...prev[chatIndex] };
-                  const messages = [...updated.messages];
-                  if (messages[idx]?.sender === 'ai') {
-                    messages[idx] = { ...messages[idx], text: finalText, toolCalls: finalToolCalls };
-                    updated.messages = messages;
-                  }
-                  const others = prev.filter((c) => c.id !== conversationId);
-                  return [updated, ...others];
-                });
-                fetchAndUpdateTitle(conversationId);
-                setIsLoading(false);
-                return;
-              }
-
-              if (shouldFinishSegment) {
-                const finalText = aiMessageTextRef.current.trimEnd();
-                const segmentToolCalls = [...toolCallsRef.current];
-                aiMessageTextRef.current = '';
-                toolCallsRef.current = [];
-                const finishedIdx = aiMessageIndexRef.current;
-                const newIdx = finishedIdx + 1;
-                aiMessageIndexRef.current = newIdx;
-                setChats((prev) => {
-                  const chatIndex = prev.findIndex((c) => c.id === conversationId);
-                  if (chatIndex === -1) return prev;
-                  const updated = { ...prev[chatIndex] };
-                  const messages = [...updated.messages];
-                  if (messages[finishedIdx]?.sender === 'ai') {
-                    messages[finishedIdx] = { ...messages[finishedIdx], text: finalText, toolCalls: segmentToolCalls };
-                  }
-                  if (messages.length <= newIdx) {
-                    messages.push({ text: '', sender: 'ai' });
-                  }
-                  updated.messages = messages;
-                  const others = prev.filter((c) => c.id !== conversationId);
-                  return [updated, ...others];
-                });
-              } else if (textChanged || toolCallChanged) {
-                const idx = aiMessageIndexRef.current;
-                const currentText = aiMessageTextRef.current;
-                const currentToolCalls = [...toolCallsRef.current];
-                setChats((prev) => {
-                  const chatIndex = prev.findIndex((c) => c.id === conversationId);
-                  if (chatIndex === -1) return prev;
-                  const updated = { ...prev[chatIndex] };
-                  const messages = [...updated.messages];
-                  if (messages[idx]?.sender === 'ai') {
-                    messages[idx] = { ...messages[idx], text: currentText, toolCalls: currentToolCalls };
-                    updated.messages = messages;
-                  }
-                  const others = prev.filter((c) => c.id !== conversationId);
-                  return [updated, ...others];
-                });
-              }
-            }
-          }
+        const res = await chatApi.startRun(conversationId, text, { model: modelForSend, clientMsgId });
+        const runId = res?.runId;
+        // Помечаем чат активным прогоном → кнопка «остановить», блокировка ввода.
+        // (RUN_STARTED из потока проставит то же самое, если опередит.)
+        if (runId) {
+          setChats((prev) => prev.map((c) => (c.id === conversationId ? { ...c, runId } : c)));
         }
-
-        // Поток завершился без [DONE]
-        aiMessageTextRef.current = aiMessageTextRef.current.trimEnd();
-        setChats((prev) => {
-          const chatIndex = prev.findIndex((c) => c.id === conversationId);
-          if (chatIndex === -1) return prev;
-          const updated = { ...prev[chatIndex] };
-          const messages = [...updated.messages];
-          const idx = aiMessageIndexRef.current;
-          if (messages[idx]?.sender === 'ai') {
-            messages[idx] = { ...messages[idx], text: aiMessageTextRef.current };
-            updated.messages = messages;
-          }
-          const others = prev.filter((c) => c.id !== conversationId);
-          return [updated, ...others];
-        });
-        fetchAndUpdateTitle(conversationId);
       } catch (error) {
-        if (error.name === 'AbortError') {
-          console.log('Stream aborted');
-          setChats((prev) => {
-            const chatIndex = prev.findIndex((c) => c.id === conversationId);
-            if (chatIndex === -1) return prev;
-            const updated = { ...prev[chatIndex] };
-            const messages = [...updated.messages];
-            const idx = aiMessageIndexRef.current;
-            if (messages[idx]?.sender === 'ai') {
-              messages[idx] = {
-                ...messages[idx],
-                text: (aiMessageTextRef.current || '').trimEnd() + ' ' + tRef.current('window.stopped'),
-              };
-              updated.messages = messages;
-            }
-            const others = prev.filter((c) => c.id !== conversationId);
-            return [updated, ...others];
-          });
-        } else {
-          console.error('Failed to send message:', error);
-          setChats((prev) => {
-            const chatIndex = prev.findIndex((c) => c.id === conversationId);
-            if (chatIndex === -1) return prev;
-            const updated = { ...prev[chatIndex] };
-            const messages = [...updated.messages];
-            const idx = aiMessageIndexRef.current;
-            if (messages[idx]?.sender === 'ai') {
-              const partial = (aiMessageTextRef.current || '').trimEnd();
-              // Пометку оборачиваем в markdown тут, а переводим только текст.
-              const note = `\n\n_**${tRef.current('message.interrupted')}**_`;
-              messages[idx] = {
-                ...messages[idx],
-                // если что-то успело прийти — оставляем и дописываем пометку,
-                // иначе показываем обычный текст ошибки
-                text: partial ? partial + note : tRef.current('window.genericError'),
-                toolCalls: [...toolCallsRef.current],
-              };
-              updated.messages = messages;
-            }
-            const others = prev.filter((c) => c.id !== conversationId);
-            return [updated, ...others];
-          });
+        // Не наша заявка — генерация уже идёт (часто из другой вкладки). Откатываем
+        // оптимистичный пузырь и сообщаем пользователю. Текущий прогон всё равно
+        // «прилетит» в этот чат потоком событий (RUN_STARTED) и покажет «остановить».
+        if (error?.status === 409) {
+          localClientIdsRef.current.delete(clientMsgId);
+          setChats((prev) =>
+            prev.map((c) =>
+              c.id === conversationId
+                ? { ...c, messages: (c.messages || []).filter((m) => m.clientMsgId !== clientMsgId) }
+                : c,
+            ),
+          );
+          setBusyNotice(true);
+          return;
         }
-      } finally {
-        setIsLoading(false);
-        abortControllerRef.current = null;
+        console.error('Failed to start run:', error);
+        setChats((prev) =>
+          prev.map((c) =>
+            c.id === conversationId
+              ? {
+                  ...c,
+                  runId: null,
+                  messages: [...(c.messages || []), { text: tRef.current('window.genericError'), sender: 'ai' }],
+                }
+              : c,
+          ),
+        );
       }
     },
-    [activeChatId, fetchAndUpdateTitle, selectChat, modelConfig, modelOptions],
+    [activeChatId, selectChat, modelConfig, modelOptions],
   );
 
   const handleStopGeneration = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
+    const chat = chatsRef.current.find((c) => c.id === activeChatId);
+    if (chat?.runId) {
+      // Явный сигнал на бэк. Бубл обновит событие RUN_STOPPED (во всех вкладках).
+      chatApi.stopRun(chat.id, chat.runId);
     }
-  }, []);
+  }, [activeChatId]);
+
+  // Поток событий активного чата: стриминг ответа + синхронизация между вкладками.
+  // Подключаемся ТОЛЬКО когда история уже загружена (messages — массив), чтобы
+  // события легли поверх неё, а не были затёрты последующей загрузкой из БД. При
+  // обрыве/перезагрузке поток сам переподключается и дозагружает пропущенное, так
+  // что ответ продолжает «течь» после reload и догоняется поздно открытой вкладкой.
+  const activeMessagesReady = Array.isArray(activeChat?.messages);
+  useEffect(() => {
+    const chatId = activeChatId;
+    if (!chatId || chatId === DRAFT_CHAT_ID) return undefined;
+    const chat = chatsRef.current.find((c) => c.id === chatId);
+    if (!chat || !Array.isArray(chat.messages) || chat.notFound || chat.loadError) return undefined;
+
+    const ctx = {
+      isLocal: (id) => localClientIdsRef.current.has(id),
+      stoppedLabel: tRef.current('window.stopped'),
+      errorLabel: tRef.current('window.genericError'),
+      interruptedNote: `\n\n_**${tRef.current('message.interrupted')}**_`,
+    };
+    return openChatEventStream(chatId, {
+      onEvent: (ev) => {
+        setChats((prev) => prev.map((c) => (c.id === chatId ? applyChatEvent(c, ev, ctx) : c)));
+        if (ev.type === 'RUN_DONE' || ev.type === 'RUN_STOPPED' || ev.type === 'RUN_ERROR') {
+          fetchAndUpdateTitle(chatId);
+        }
+      },
+    });
+  }, [activeChatId, activeMessagesReady, fetchAndUpdateTitle]);
 
   const handleNewChat = useCallback(() => {
     // Создаём черновик: реального id ещё нет (в URL будет 'new'), на бэк ничего
@@ -972,7 +745,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
                   value={selectedModelId}
                   defaultId={modelConfig.defaultModel.id}
                   options={modelOptions}
-                  disabled={isLoading}
+                  disabled={isStreaming}
                   onChange={handleModelChange}
                 />
               )}
@@ -1016,7 +789,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
             onNavigateToDoc={onNavigateToDoc}
             onLoadMore={handleLoadOlder}
             hasMore={!!activeChat?.hasMore}
-            canLoadMore={!isLoading}
+            canLoadMore={!isStreaming}
           />
         )}
 
@@ -1042,7 +815,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
           <MessageInput
             onSend={handleSendMessage}
             onStop={handleStopGeneration}
-            disabled={isLoading}
+            disabled={isStreaming}
             onAttach={() => attachFileRef.current?.click()}
             isEmpty={isChatEmpty && !loadingMessages}
             resetSignal={composerResetSignal}
@@ -1118,6 +891,13 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         cancelLabel={t('deleteModal.cancel')}
         onConfirm={confirmDeleteChat}
         onCancel={() => setChatDeleteConfirm(null)}
+      />
+      <ErrorModal
+        open={busyNotice}
+        icon="⏳"
+        title={t('errorModal.busyTitle')}
+        message={t('errorModal.busyMessage')}
+        onClose={() => setBusyNotice(false)}
       />
     </div>
   );

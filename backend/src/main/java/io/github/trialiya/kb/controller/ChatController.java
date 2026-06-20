@@ -11,42 +11,26 @@ import io.github.trialiya.kb.model.chat.dto.Chat;
 import io.github.trialiya.kb.model.chat.dto.ChatMessage;
 import io.github.trialiya.kb.model.chat.dto.CreateJiraChatRequest;
 import io.github.trialiya.kb.model.chat.dto.MessagePage;
-import io.github.trialiya.kb.model.chat.dto.StreamMessage;
-import io.github.trialiya.kb.model.chat.dto.ToolCallMessage;
-import io.github.trialiya.kb.model.chat.dto.ToolCallsMessage;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
-import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
+import io.github.trialiya.kb.service.ChatEventService;
 import io.github.trialiya.kb.service.ChatMemoryService;
+import io.github.trialiya.kb.service.ChatRunService;
 import io.github.trialiya.kb.service.JiraChatService;
-import io.github.trialiya.kb.service.SummarizeService;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import jakarta.annotation.Nonnull;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.messages.AbstractMessage;
-import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.MessageType;
-import org.springframework.ai.chat.metadata.ChatGenerationMetadata;
-import org.springframework.ai.chat.metadata.ChatResponseMetadata;
 import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.MediaType;
@@ -62,8 +46,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-import reactor.core.Disposable;
-import reactor.core.publisher.SignalType;
 
 @RestController
 @RequestMapping("/api/chats")
@@ -75,8 +57,9 @@ public class ChatController {
     private final ChatMemory chatMemory;
     private final ChatTopicRepository chatTopicRepository;
     private final ChatMemoryService chatMemoryService;
-    private final SummarizeService summarizeService;
     private final JiraChatService jiraChatService;
+    private final ChatRunService chatRunService;
+    private final ChatEventService chatEventService;
 
     public ChatController(
             ChatModelProperties chatModelProperties,
@@ -84,15 +67,17 @@ public class ChatController {
             ChatMemory chatMemory,
             ChatTopicRepository chatTopicRepository,
             ChatMemoryService chatMemoryService,
-            SummarizeService summarizeService,
-            JiraChatService jiraChatService) {
+            JiraChatService jiraChatService,
+            ChatRunService chatRunService,
+            ChatEventService chatEventService) {
         this.chatModelProperties = chatModelProperties;
         this.chatClient = chatClient;
         this.chatMemory = chatMemory;
         this.chatTopicRepository = chatTopicRepository;
         this.chatMemoryService = chatMemoryService;
-        this.summarizeService = summarizeService;
         this.jiraChatService = jiraChatService;
+        this.chatRunService = chatRunService;
+        this.chatEventService = chatEventService;
     }
 
     /** Список выбираемых моделей и какая из них дефолтная. */
@@ -225,10 +210,8 @@ public class ChatController {
     // ---------------------------------------------------------------------
 
     /**
-     * Sends a user message and returns the assistant reply as a single JSON response.
-     *
-     * <p>Shares its URI with {@link #streamMessage}; the two are selected by content negotiation
-     * (this one is chosen for {@code Accept: application/json}).
+     * Sends a user message and returns the assistant reply as a single JSON response. This is the
+     * synchronous, non-streaming path; streaming goes through {@link #startRun} + {@link #events}.
      */
     @PostMapping(value = "/{conversationId}/messages", produces = MediaType.APPLICATION_JSON_VALUE)
     public List<String> createMessage(
@@ -257,163 +240,66 @@ public class ChatController {
                 .toList();
     }
 
+    // ---------------------------------------------------------------------
+    //  Background runs + event channel (streaming, multi-tab, resume, stop)
+    // ---------------------------------------------------------------------
+
     /**
-     * Sends a user message and streams the assistant reply as Server-Sent Events.
+     * Запускает генерацию ответа как фоновую задачу и сразу возвращает {@code runId}. Сам ответ
+     * приходит не в этом запросе, а потоком событий через {@link #events}. Это и есть развязка
+     * «обработка ≠ HTTP-запрос»: ответ переживает перезагрузку страницы и виден всем вкладкам.
      *
-     * <p>Shares its URI with {@link #createMessage}; this one is chosen for {@code Accept:
-     * text/event-stream}.
+     * @param clientMsgId идентификатор клиента — чтобы вкладка-отправитель не задвоила свой
+     *     оптимистично показанный пузырь, получив его же эхом
      */
-    @PostMapping(
-            value = "/{conversationId}/messages/stream",
-            produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter streamMessage(
-            @PathVariable String conversationId,
-            @RequestParam(name = "model", required = false) String model,
-            @RequestBody String userMessage) {
+    @PostMapping("/{conversationId}/runs")
+    public Map<String, String> startRun(
+            @PathVariable final String conversationId,
+            @RequestParam(name = "model", required = false) final String model,
+            @RequestParam(name = "clientMsgId", required = false) final String clientMsgId,
+            @RequestBody final String userMessage) {
         checkChat(conversationId, true);
         final String resolvedModel = resolveModel(conversationId, model);
-
-        final SseEmitter emitter = new SseEmitter(Duration.ofMinutes(30).toMillis());
-        final AtomicReference<Disposable> disposableRef = new AtomicReference<>();
-        final Consumer<Object> liveSink = sendSseEmitterData(emitter);
-        final ToolInvocationCollector toolCollector = new ToolInvocationCollector(liveSink);
-        final StringBuffer buffer = new StringBuffer();
-        final AtomicBoolean persisted = new AtomicBoolean(false);
-
-        try {
-            ChatClient.ChatClientRequestSpec spec =
-                    chatClient
-                            .prompt()
-                            .user(userMessage)
-                            .toolContext(buildContext(conversationId, toolCollector))
-                            .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId));
-            if (resolvedModel != null) {
-                spec = spec.options(OpenAiChatOptions.builder().model(resolvedModel).build());
-            }
-
-            Disposable disposable =
-                    spec.stream()
-                            .chatResponse()
-                            .doFinally(
-                                    signal -> {
-                                        // onComplete сохранит advisor — пропускаем.
-                                        // прерывание/ошибка — спасаем накопленное сами
-                                        if (signal == SignalType.CANCEL
-                                                || signal == SignalType.ON_ERROR) {
-                                            persistPartial(
-                                                    conversationId,
-                                                    buffer,
-                                                    toolCollector,
-                                                    persisted);
-                                        }
-                                    })
-                            .subscribe(
-                                    response -> {
-                                        final String chunk =
-                                                Optional.ofNullable(response)
-                                                        .map(ChatResponse::getResult)
-                                                        .map(Generation::getOutput)
-                                                        .map(AbstractMessage::getText)
-                                                        .orElse("");
-                                        final String finishReason =
-                                                Optional.ofNullable(response)
-                                                        .map(ChatResponse::getResult)
-                                                        .map(Generation::getMetadata)
-                                                        .map(
-                                                                ChatGenerationMetadata
-                                                                        ::getFinishReason)
-                                                        .orElse(null);
-                                        if (finishReason != null) {
-                                            buffer.setLength(0);
-                                        } else {
-                                            buffer.append(chunk);
-                                        }
-                                        liveSink.accept(new StreamMessage(chunk, finishReason));
-                                        printUsageStatistics(
-                                                conversationId, response, finishReason);
-                                    },
-                                    emitter::completeWithError,
-                                    () -> {
-                                        persisted.set(true);
-                                        liveSink.accept(
-                                                new ToolCallsMessage(
-                                                        toolCollector.completedSnapshot().stream()
-                                                                .map(ToolInvocation::toMeta)
-                                                                .toList()));
-                                        chatMemoryService.saveToolCalls(
-                                                conversationId, toolCollector.completedSnapshot());
-                                        liveSink.accept(new StreamMessage("", "DONE"));
-                                        summarizeService.trySummarize(conversationId);
-                                        emitter.complete();
-                                    });
-
-            disposableRef.set(disposable);
-            emitter.onTimeout(
-                    () -> {
-                        dispose(disposableRef);
-                        emitter.complete();
-                    });
-            emitter.onError(
-                    ex -> {
-                        log.error("SSE error {}", conversationId, ex);
-                        dispose(disposableRef);
-                    });
-            emitter.onCompletion(
-                    // важно: разрыв клиентом → CANCEL → частичное сохранение
-                    () -> dispose(disposableRef));
-        } catch (Exception e) {
-            emitter.completeWithError(e);
-        }
-        return emitter;
+        final String runId =
+                chatRunService.start(
+                        conversationId, getUser(), userMessage, resolvedModel, clientMsgId);
+        return Map.of("runId", runId);
     }
 
     /**
-     * Debug-only endpoint that streams a canned sequence of messages and tool calls. Not part of
-     * the public API contract — consider guarding it behind a Spring profile or removing it before
-     * release.
+     * Поток Server-Sent Events для чата: и стриминг текущего ответа, и кросс-вкладочная
+     * синхронизация. При подключении сначала реплеятся пропущенные события (seq &gt; {@code
+     * fromSeq}), затем идут живые — так вкладка догоняет генерацию после перезагрузки/позднего
+     * открытия.
      */
-    @PostMapping(
-            value = "/{conversationId}/messages/test",
-            produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter streamTestMessage(
-            @PathVariable final String conversationId, @RequestBody final String userMessage) {
-        checkChat(conversationId, true);
+    @GetMapping(value = "/{conversationId}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter events(
+            @PathVariable final String conversationId,
+            @RequestParam(name = "fromSeq", defaultValue = "0") final long fromSeq) {
+        // Намеренно не 404-им на отсутствующий чат: вкладка может подписаться чуть раньше, чем
+        // первый run создаст запись в БД. Если чат есть — проверяем владельца.
+        verifyOwnerIfPresent(conversationId);
+        return chatEventService.subscribe(conversationId, fromSeq);
+    }
 
-        final SseEmitter emitter = new SseEmitter(300_000L);
+    /** Останавливает активный прогон. Идемпотентно: на неизвестный runId — просто no-op. */
+    @PostMapping("/{conversationId}/runs/{runId}/stop")
+    public void stopRun(
+            @PathVariable final String conversationId, @PathVariable final String runId) {
+        verifyOwnerIfPresent(conversationId);
+        chatRunService.stop(conversationId, runId);
+    }
 
-        Executors.newVirtualThreadPerTaskExecutor()
-                .submit(
-                        () -> {
-                            final Consumer<Object> liveSink = sendSseEmitterData(emitter);
-                            liveSink.accept(new StreamMessage("Ok", null));
-                            testToolCalls(liveSink, "test", Map.of());
-                            testToolCalls(liveSink, "files", Map.of("id", 1));
-                            for (int j = 1; j < 7; j++) {
-                                for (int index = 0; index < j; index++) {
-                                    liveSink.accept(
-                                            new StreamMessage(
-                                                    "reading file " + index + "\n", null));
-                                    testToolCalls(
-                                            liveSink,
-                                            "file" + j % 2,
-                                            Map.of(
-                                                    "id",
-                                                    index + j * 10,
-                                                    "action",
-                                                    "readingreadingreadingreading reading file id = "
-                                                            + index));
-                                }
-                                if (Math.random() < 0.2) {
-                                    emitter.completeWithError(new RuntimeException());
-                                    return;
-                                }
-                                if (j % 2 == 0) {
-                                    liveSink.accept(new StreamMessage("\n\n", null));
-                                }
-                            }
-                            emitter.complete();
-                        });
-        return emitter;
+    /**
+     * runId активного прогона чата (или пустой объект) — для восстановления состояния на фронте.
+     */
+    @GetMapping("/{conversationId}/runs/active")
+    public Map<String, String> activeRun(@PathVariable final String conversationId) {
+        verifyOwnerIfPresent(conversationId);
+        return chatRunService
+                .activeRun(conversationId)
+                .map(runId -> Map.of("runId", runId))
+                .orElseGet(Map::of);
     }
 
     // ---------------------------------------------------------------------
@@ -459,65 +345,6 @@ public class ChatController {
     //  Helpers
     // ---------------------------------------------------------------------
 
-    private static void testToolCalls(
-            Consumer<Object> liveSink, String name, Map<Object, Object> arguments) {
-        liveSink.accept(
-                new ToolCallMessage(
-                        new ToolInvocation(
-                                name,
-                                arguments,
-                                ToolInvocationCollector.ToolInvocationStatus.STARTED,
-                                null,
-                                null,
-                                null)));
-        try {
-            TimeUnit.MILLISECONDS.sleep(400);
-        } catch (InterruptedException e) {
-            // nothing - testing
-        }
-        liveSink.accept(
-                new ToolCallMessage(
-                        new ToolInvocation(
-                                name,
-                                arguments,
-                                ToolInvocationCollector.ToolInvocationStatus.OK,
-                                null,
-                                null,
-                                "ok")));
-    }
-
-    private static void dispose(AtomicReference<Disposable> ref) {
-        Disposable d = ref.get();
-        if (d != null && !d.isDisposed()) {
-            d.dispose();
-        }
-    }
-
-    private void persistPartial(
-            String conversationId,
-            StringBuffer buffer,
-            ToolInvocationCollector toolCollector,
-            AtomicBoolean persisted) {
-        if (!persisted.compareAndSet(false, true)) {
-            // уже сохранили (onError + doFinally могут прийти оба)
-            return;
-        }
-        final String text = buffer.toString();
-        if (text.isBlank()) {
-            return;
-        }
-        try {
-            chatMemory.add(conversationId, new AssistantMessage(text));
-            chatMemoryService.saveToolCalls(conversationId, toolCollector.completedSnapshot());
-            log.info(
-                    "Saved partial assistant reply for {} ({} chars)",
-                    conversationId,
-                    text.length());
-        } catch (Exception e) {
-            log.warn("Failed to persist partial reply for {}", conversationId, e);
-        }
-    }
-
     private @NonNull ChatTopicEntity getChatTopic(String conversationId) {
         final ChatTopicEntity chatTopicEntity =
                 chatTopicRepository
@@ -531,6 +358,20 @@ public class ChatController {
             throw new ResponseStatusException(FORBIDDEN, "Forbidden");
         }
         return chatTopicEntity;
+    }
+
+    /**
+     * Проверяет владельца, только если чат уже существует (для подписки/стопа без жёсткого 404).
+     */
+    private void verifyOwnerIfPresent(String conversationId) {
+        chatTopicRepository
+                .findById(conversationId)
+                .ifPresent(
+                        chatTopicEntity -> {
+                            if (!chatTopicEntity.getUser().equals(getUser())) {
+                                throw new ResponseStatusException(FORBIDDEN, "Forbidden");
+                            }
+                        });
     }
 
     private void checkChat(@Nonnull final String conversationId, boolean update) {
@@ -556,40 +397,6 @@ public class ChatController {
                                                 null,
                                                 null,
                                                 true)));
-    }
-
-    private static Consumer<Object> sendSseEmitterData(@Nonnull final SseEmitter emitter) {
-        final Lock lock = new ReentrantLock();
-        return obj -> {
-            lock.lock();
-            try {
-                emitter.send(obj, MediaType.APPLICATION_JSON);
-            } catch (Exception e) {
-                log.warn("Failed to push tool call to SSE: {}", e.getMessage());
-            } finally {
-                lock.unlock();
-            }
-        };
-    }
-
-    private void printUsageStatistics(
-            String conversationId, ChatResponse response, String finishReason) {
-        if (finishReason == null || finishReason.isEmpty()) {
-            return;
-        }
-        Optional.ofNullable(response)
-                .map(ChatResponse::getMetadata)
-                .map(ChatResponseMetadata::getUsage)
-                .ifPresent(
-                        usage -> {
-                            log.info("[{}] FinishReason: {}", conversationId, finishReason);
-                            log.info(
-                                    "[{}] Usage:\n PromptToken: {}\n CompletionTokens: {}\n TotalTokens: {}",
-                                    conversationId,
-                                    usage.getPromptTokens(),
-                                    usage.getCompletionTokens(),
-                                    usage.getTotalTokens());
-                        });
     }
 
     private Chat toChat(ChatTopicEntity entity, List<ChatMessage> messages) {
