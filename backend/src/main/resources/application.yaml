@@ -43,6 +43,9 @@ spring:
     enabled: true
     locations: classpath:db/migration
     validate-on-migrate: false
+    # Доступно в миграциях как ${default_user}. По умолчанию = пользователь из kb.security.
+    placeholders:
+      default_user: ${kb.security.username:admin}
   threads:
     virtual:
       enabled: true
@@ -63,6 +66,10 @@ server:
       force: true
 
 kb:
+  security:
+    # Учётные данные единственного пользователя (HTTP Basic, in-memory).
+    username: ${KB_SECURITY_USERNAME:admin}
+    password: ${KB_SECURITY_PASSWORD:admin}
   chat:
     default-model:
       id: ${AI_MODEL}
