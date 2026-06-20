@@ -37,7 +37,9 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.Disposable;
 import reactor.core.publisher.SignalType;
 
@@ -59,6 +61,10 @@ public class ChatRunService {
 
     /** runId -&gt; дескриптор активного прогона (для остановки). */
     private final ConcurrentHashMap<String, RunHandle> runs = new ConcurrentHashMap<>();
+
+    /** conversationId -&gt; runId: гарантирует не более одного активного прогона на чат. */
+    private final ConcurrentHashMap<String, String> activeByConversation =
+            new ConcurrentHashMap<>();
 
     public ChatRunService(
             ChatClient chatClient,
@@ -90,16 +96,28 @@ public class ChatRunService {
             String resolvedModel,
             String clientMsgId) {
         final String runId = UUID.randomUUID().toString();
+        // Атомарная заявка на чат: если генерация уже идёт (в т.ч. из другой вкладки) — 409,
+        // фронт предложит дождаться или остановить текущую.
+        if (activeByConversation.putIfAbsent(conversationId, runId) != null) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "A response is already being generated for this chat");
+        }
         final RunHandle handle =
                 new RunHandle(
                         runId, conversationId, user, new AtomicReference<>(), new AtomicBoolean());
         runs.put(runId, handle);
         events.startRun(conversationId, runId);
-        // executor — DelegatingSecurityContextExecutor: проставит SecurityContext текущего
+        // executor — DelegatingSecurityContextExecutorService: проставит SecurityContext текущего
         // пользователя на worker-поток. Операторы Reactor-стрима исполняются на ДРУГИХ потоках,
         // куда thread-local контекст не доезжает, поэтому пользователя для инструментов передаём
         // ещё и явно — через toolContext (см. buildContext ниже).
-        executor.execute(() -> run(handle, userMessage, resolvedModel, clientMsgId));
+        try {
+            executor.execute(() -> run(handle, userMessage, resolvedModel, clientMsgId));
+        } catch (RuntimeException e) {
+            // например, RejectedExecutionException при остановке пула — не оставляем чат «занятым».
+            cleanup(handle);
+            throw e;
+        }
         return runId;
     }
 
@@ -239,6 +257,7 @@ public class ChatRunService {
 
     private void cleanup(RunHandle handle) {
         runs.remove(handle.runId());
+        activeByConversation.remove(handle.conversationId(), handle.runId());
         events.endRun(handle.conversationId(), handle.runId());
     }
 

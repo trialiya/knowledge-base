@@ -134,6 +134,8 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   const [chatErrorModal, setChatErrorModal] = useState(null);
   // Модалка подтверждения удаления чата: null | { id, title }
   const [chatDeleteConfirm, setChatDeleteConfirm] = useState(null);
+  // Уведомление «в чате уже идёт генерация» (ответ сервера 409 на старт прогона).
+  const [busyNotice, setBusyNotice] = useState(false);
   // Bump → очистить текст в MessageInput («удаление» черновика).
   const [composerResetSignal, setComposerResetSignal] = useState(0);
   // clientMsgId-ы сообщений, отправленных ИЗ ЭТОЙ вкладки. Нужны, чтобы не задвоить
@@ -515,6 +517,21 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
           setChats((prev) => prev.map((c) => (c.id === conversationId ? { ...c, runId } : c)));
         }
       } catch (error) {
+        // Не наша заявка — генерация уже идёт (часто из другой вкладки). Откатываем
+        // оптимистичный пузырь и сообщаем пользователю. Текущий прогон всё равно
+        // «прилетит» в этот чат потоком событий (RUN_STARTED) и покажет «остановить».
+        if (error?.status === 409) {
+          localClientIdsRef.current.delete(clientMsgId);
+          setChats((prev) =>
+            prev.map((c) =>
+              c.id === conversationId
+                ? { ...c, messages: (c.messages || []).filter((m) => m.clientMsgId !== clientMsgId) }
+                : c,
+            ),
+          );
+          setBusyNotice(true);
+          return;
+        }
         console.error('Failed to start run:', error);
         setChats((prev) =>
           prev.map((c) =>
@@ -874,6 +891,13 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         cancelLabel={t('deleteModal.cancel')}
         onConfirm={confirmDeleteChat}
         onCancel={() => setChatDeleteConfirm(null)}
+      />
+      <ErrorModal
+        open={busyNotice}
+        icon="⏳"
+        title={t('errorModal.busyTitle')}
+        message={t('errorModal.busyMessage')}
+        onClose={() => setBusyNotice(false)}
       />
     </div>
   );
