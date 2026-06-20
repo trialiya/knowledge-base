@@ -138,6 +138,8 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   const [busyNotice, setBusyNotice] = useState(false);
   // Bump → очистить текст в MessageInput («удаление» черновика).
   const [composerResetSignal, setComposerResetSignal] = useState(0);
+  // Текущий черновик в поле ввода — нужен для блокировки переключения чата.
+  const composerTextRef = useRef('');
   // clientMsgId-ы сообщений, отправленных ИЗ ЭТОЙ вкладки. Нужны, чтобы не задвоить
   // свой оптимистично показанный пузырь, получив его же эхом из потока событий.
   const localClientIdsRef = useRef(new Set());
@@ -650,6 +652,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   const handleSelectChat = useCallback(
     (id) => {
       if (id === activeChatId) return;
+      if (composerTextRef.current.length > 3) return;
       selectChat(id);
       setAttachCount(0); // reset until new panel loads count for new chat
     },
@@ -820,6 +823,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
             isEmpty={isChatEmpty && !loadingMessages}
             resetSignal={composerResetSignal}
             chatId={activeChatId}
+            onTextChange={(v) => { composerTextRef.current = v; }}
           />
         )}
       </div>

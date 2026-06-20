@@ -78,6 +78,12 @@ public class ChatEventService {
     }
 
     private ConversationHub hub(String conversationId) {
-        return hubs.computeIfAbsent(conversationId, ConversationHub::new);
+        return hubs.computeIfAbsent(conversationId, id -> {
+            // Массив-держатель нужен, чтобы захватить ссылку на хаб в onIdle-колбэке
+            // до завершения его инициализации (иначе circular reference через лямбду).
+            final ConversationHub[] ref = new ConversationHub[1];
+            ref[0] = new ConversationHub(id, () -> hubs.remove(id, ref[0]));
+            return ref[0];
+        });
     }
 }

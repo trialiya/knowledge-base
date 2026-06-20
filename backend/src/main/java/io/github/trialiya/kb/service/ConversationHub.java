@@ -32,6 +32,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 public class ConversationHub {
 
     private final String conversationId;
+    private final Runnable onIdle;
     private final ReentrantLock lock = new ReentrantLock();
     private final List<ChatEvent> eventLog = new ArrayList<>();
     private final List<SseEmitter> subscribers = new ArrayList<>();
@@ -39,8 +40,9 @@ public class ConversationHub {
     private String activeRunId;
     private boolean closed;
 
-    public ConversationHub(String conversationId) {
+    public ConversationHub(String conversationId, Runnable onIdle) {
         this.conversationId = conversationId;
+        this.onIdle = onIdle;
     }
 
     /**
@@ -147,6 +149,9 @@ public class ConversationHub {
             subscribers.remove(emitter);
         } finally {
             lock.unlock();
+        }
+        if (closeIfIdle()) {
+            onIdle.run();
         }
     }
 
