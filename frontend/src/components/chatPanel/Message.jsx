@@ -404,26 +404,32 @@ function getMarkdownComponents(onNavigateToDoc) {
   };
 }
 
-const Message = ({ text, sender, toolCalls, onNavigateToDoc }) => {
+/** Форматирует timestamp: если < 24ч — относительное время, иначе — дата. */
+const formatTimestamp = (ts) => {
+  if (!ts) return null;
+  const date = new Date(ts);
+  if (isNaN(date)) return null;
+  const diffMs = Date.now() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMs < 0) return null;
+  if (diffMin < 1) return '< 1 мин.';
+  if (diffMin < 60) return `${diffMin} мин. назад`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `${diffH} ч. назад`;
+  return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+};
+
+const Message = ({ text, sender, toolCalls, onNavigateToDoc, timestamp }) => {
   const { t } = useTranslation('chat');
   const [showSource, setShowSource] = useState(false);
   const messageClass = `message ${sender}`;
   const hasToolCalls = toolCalls && toolCalls.length > 0;
+  const timeLabel = formatTimestamp(timestamp);
 
   const messageContent = (
     <div className={messageClass}>
       {sender === 'ai' ? (
         <>
-          <div className="message-source-toggle">
-            <MessageCopyButton text={text} />
-            <button
-              className={`message-source-btn ${showSource ? 'message-source-btn--active' : ''}`}
-              onClick={() => setShowSource((v) => !v)}
-              title={showSource ? t('message.viewFormatted') : t('message.viewSource')}
-            >
-              {showSource ? `◈ ${t('message.btnMarkdown')}` : `{ } ${t('message.btnSource')}`}
-            </button>
-          </div>
           {showSource ? (
             <pre className="message-raw-source">{text}</pre>
           ) : (
@@ -433,13 +439,27 @@ const Message = ({ text, sender, toolCalls, onNavigateToDoc }) => {
               </ReactMarkdown>
             </div>
           )}
+          <div className="message-footer">
+            {timeLabel && <span className="message-footer-time">{timeLabel}</span>}
+            <div className="message-footer-actions">
+              <MessageCopyButton text={text} />
+              <button
+                className={`message-source-btn ${showSource ? 'message-source-btn--active' : ''}`}
+                onClick={() => setShowSource((v) => !v)}
+                title={showSource ? t('message.viewFormatted') : t('message.viewSource')}
+              >
+                {showSource ? `◈ ${t('message.btnMarkdown')}` : `{ } ${t('message.btnSource')}`}
+              </button>
+            </div>
+          </div>
         </>
       ) : (
         <>
-          <div className="message-toolbar message-toolbar--user">
+          <div className="user-message-text">{text}</div>
+          <div className="message-footer message-footer--user">
+            {timeLabel && <span className="message-footer-time">{timeLabel}</span>}
             <MessageCopyButton text={text} />
           </div>
-          <div className="user-message-text">{text}</div>
         </>
       )}
     </div>

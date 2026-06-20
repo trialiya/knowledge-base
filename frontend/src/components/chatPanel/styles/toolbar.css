@@ -1,20 +1,27 @@
-/* ── Source toggle ── */
-.message-source-toggle {
+/* ── Футер сообщения: время слева, кнопки справа ── */
+.message-footer {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-bottom: 4px;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 6px;
 }
-
-/* Тулбар сверху сообщения (кнопка копирования) */
-.message-toolbar {
+.message-footer--user {
+  justify-content: flex-end;
+}
+.message-footer-actions {
   display: flex;
   align-items: center;
-  margin-bottom: 4px;
+  gap: 6px;
 }
-.message-toolbar--user {
-  justify-content: flex-end;
+.message-footer-time {
+  font-size: 0.68rem;
+  color: #aaa;
+  white-space: nowrap;
+  user-select: none;
+}
+.message.user .message-footer-time {
+  color: rgba(255, 255, 255, 0.65);
 }
 
 /* ── Кнопка «копировать всё сообщение» ── */

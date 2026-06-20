@@ -68,7 +68,7 @@ const transformPage = (rawMsgs) => {
       continue; // преамбулу как сообщение не рендерим
     }
     if (type !== 'user') sawAi = true;
-    bubbles.push({ text: m.content, sender: type === 'user' ? 'user' : 'ai' });
+    bubbles.push({ text: m.content, sender: type === 'user' ? 'user' : 'ai', timestamp: m.createdAt || null });
   }
   return { bubbles, leadingMetas };
 };

@@ -128,6 +128,7 @@ const MessageList = ({ messages, onNavigateToDoc, onLoadMore, hasMore = false, c
             text={msg.text}
             sender={msg.sender}
             toolCalls={msg.toolCalls}
+            timestamp={msg.timestamp}
             onNavigateToDoc={onNavigateToDoc}
           />
         ))}
