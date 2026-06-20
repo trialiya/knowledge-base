@@ -8,6 +8,7 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.model.chat.dto.Chat;
+import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.ChatMessage;
 import io.github.trialiya.kb.model.chat.dto.CreateJiraChatRequest;
 import io.github.trialiya.kb.model.chat.dto.MessagePage;
@@ -166,8 +167,16 @@ public class ChatController {
     @DeleteMapping("/{conversationId}")
     public void deleteChat(@PathVariable final String conversationId) {
         final ChatTopicEntity chatTopicEntity = getChatTopic(conversationId);
+        // Если в чате идёт генерация — останавливаем, чтобы фоновый прогон не писал в удалённый
+        // чат.
+        chatRunService
+                .activeRun(conversationId)
+                .ifPresent(runId -> chatRunService.stop(conversationId, runId));
         chatTopicRepository.deleteById(chatTopicEntity.getConversationId());
         chatMemory.clear(conversationId);
+        // Уведомляем открытые на этом чате вкладки (в т.ч. в других браузерах) — они закроют его.
+        chatEventService.publishIfPresent(
+                conversationId, ChatEventType.CHAT_DELETED, null, null, null);
     }
 
     /** Sets (or creates) the chat's topic. Idempotent, hence PUT. */
