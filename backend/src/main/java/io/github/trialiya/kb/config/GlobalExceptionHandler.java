@@ -5,11 +5,23 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+
+    /**
+     * Клиент отключился от SSE (закрыл вкладку / переключил чат) во время записи ответа. Писать уже
+     * некуда, тело отдавать нельзя (контент-тип потока — text/event-stream), поэтому просто гасим:
+     * void-возврат означает «без тела». Иначе catch-all ниже сыпал бы ERROR-стек + вторичную
+     * HttpMessageNotWritableException на каждый такой разрыв.
+     */
+    @ExceptionHandler(AsyncRequestNotUsableException.class)
+    public void handleClientDisconnect(AsyncRequestNotUsableException ex) {
+        log.debug("Async request no longer usable (client disconnected): {}", ex.getMessage());
+    }
 
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ErrorResponse> handleResponseStatusException(ResponseStatusException ex) {
