@@ -143,6 +143,16 @@ public class ChatRunService {
         return events.activeRunId(conversationId);
     }
 
+    /** Число прогонов в реестре — для мониторинга утечек (см. ChatRuntimeMonitor). */
+    public int activeRunCount() {
+        return runs.size();
+    }
+
+    /** Число чатов с удержанной заявкой — в норме совпадает с {@link #activeRunCount()}. */
+    public int claimedConversationCount() {
+        return activeByConversation.size();
+    }
+
     private void run(
             RunHandle handle, String userMessage, String resolvedModel, String clientMsgId) {
         final String conversationId = handle.conversationId();

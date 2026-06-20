@@ -79,6 +79,10 @@ public class ConversationHub {
         try {
             final ChatEvent event = new ChatEvent(++seq, type, runId, clientMsgId, payload);
             eventLog.add(event);
+            // Обходим подписчиков без копирования (это горячий путь — на каждый токен). Безопасно:
+            // send() сам глотает ошибку отправки, а контейнерные колбэки onError/onCompletion (они
+            // вызывают remove) срабатывают не синхронно внутри send, а отдельно, плюс remove берёт
+            // тот же лок — так что конкурентной модификации списка при итерации не возникает.
             for (final SseEmitter subscriber : subscribers) {
                 send(subscriber, event);
             }

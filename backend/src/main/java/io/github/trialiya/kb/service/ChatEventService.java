@@ -72,6 +72,11 @@ public class ChatEventService {
         return Optional.ofNullable(hubs.get(conversationId)).map(ConversationHub::activeRunId);
     }
 
+    /** Число живых хабов в реестре — для мониторинга утечек (см. ChatRuntimeMonitor). */
+    public int hubCount() {
+        return hubs.size();
+    }
+
     private ConversationHub hub(String conversationId) {
         return hubs.computeIfAbsent(conversationId, ConversationHub::new);
     }
