@@ -609,8 +609,19 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
           fetchAndUpdateTitle(chatId);
         }
       },
+      onReconnect: () => {
+        // Перезагружаем только если UI думает что идёт прогон — в этом случае либо
+        // бэк перезапустился (прогон мёртв, нужно показать ответ из БД и разблокировать
+        // ввод), либо прогон завершился пока соединение было сломано. При обычном сетевом
+        // сбое без потери прогона runId === null и мы ничего лишнего не делаем.
+        const chat = chatsRef.current.find((c) => c.id === chatId);
+        if (chat?.runId) {
+          setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, runId: null } : c)));
+          loadMessages(chatId);
+        }
+      },
     });
-  }, [activeChatId, activeMessagesReady, fetchAndUpdateTitle, handleRemoteChatDeleted]);
+  }, [activeChatId, activeMessagesReady, fetchAndUpdateTitle, handleRemoteChatDeleted, loadMessages]);
 
   const handleNewChat = useCallback(() => {
     // Создаём черновик: реального id ещё нет (в URL будет 'new'), на бэк ничего
