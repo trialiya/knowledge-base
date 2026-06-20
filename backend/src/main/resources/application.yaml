@@ -43,6 +43,9 @@ spring:
     enabled: true
     locations: classpath:db/migration
     validate-on-migrate: false
+    # Доступно в миграциях как ${default_user}. По умолчанию = пользователь из kb.security.
+    placeholders:
+      default_user: ${kb.security.username:admin}
   threads:
     virtual:
       enabled: true
