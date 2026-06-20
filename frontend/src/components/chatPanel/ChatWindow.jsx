@@ -610,11 +610,15 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         }
       },
       onReconnect: () => {
-        // Бэк перезапустился пока вкладка была отключена: его in-memory хаб пустой,
-        // replay невозможен. Сбрасываем runId (иначе UI зависнет в "ждём ответ") и
-        // перезагружаем историю из БД, чтобы показать уже полученные ответы.
-        setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, runId: null } : c)));
-        loadMessages(chatId);
+        // Перезагружаем только если UI думает что идёт прогон — в этом случае либо
+        // бэк перезапустился (прогон мёртв, нужно показать ответ из БД и разблокировать
+        // ввод), либо прогон завершился пока соединение было сломано. При обычном сетевом
+        // сбое без потери прогона runId === null и мы ничего лишнего не делаем.
+        const chat = chatsRef.current.find((c) => c.id === chatId);
+        if (chat?.runId) {
+          setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, runId: null } : c)));
+          loadMessages(chatId);
+        }
       },
     });
   }, [activeChatId, activeMessagesReady, fetchAndUpdateTitle, handleRemoteChatDeleted, loadMessages]);
