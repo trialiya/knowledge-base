@@ -6,7 +6,7 @@ import { expandTokensForSend } from './fileChips';
 import { IconSend, IconStop, IconPaperclip } from '../../icons';
 
 // isEmpty — true когда в чате ещё нет сообщений; тогда показываем git-подсказки
-const MessageInput = ({ onSend, onStop, disabled, onAttach, isEmpty = false, resetSignal = 0, chatId = null }) => {
+const MessageInput = ({ onSend, onStop, disabled, onAttach, isEmpty = false, resetSignal = 0, chatId = null, onTextChange }) => {
   const { t } = useTranslation('chat');
   const [text, setText] = useState(''); // плоская строка с токенами ⟦file:…⟧
   const [sending, setSending] = useState(false); // идёт разворачивание токенов перед отправкой
@@ -15,7 +15,8 @@ const MessageInput = ({ onSend, onStop, disabled, onAttach, isEmpty = false, res
   // Внешний сброс поля ввода (например, «удаление» черновика чата).
   useEffect(() => {
     setText('');
-  }, [resetSignal]);
+    onTextChange?.('');
+  }, [resetSignal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!disabled) inputRef.current?.focus();
@@ -62,7 +63,7 @@ const MessageInput = ({ onSend, onStop, disabled, onAttach, isEmpty = false, res
         <FileChipInput
           ref={inputRef}
           value={text}
-          onChange={setText}
+          onChange={(v) => { setText(v); onTextChange?.(v); }}
           onSend={handleSubmit}
           disabled={disabled}
           placeholder={t('input.placeholder')}

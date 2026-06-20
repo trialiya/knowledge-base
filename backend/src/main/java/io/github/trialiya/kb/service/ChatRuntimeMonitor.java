@@ -56,6 +56,7 @@ public class ChatRuntimeMonitor {
 
     private void logSizes() {
         try {
+            chatEventService.sendHeartbeats();
             log.info(
                     "chat runtime registries: eventHubs={}, activeRuns={}, claimedChats={}",
                     chatEventService.hubCount(),
