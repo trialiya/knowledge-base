@@ -52,6 +52,11 @@ import reactor.core.publisher.SignalType;
 @Service
 public class ChatRunService {
 
+    /** Пометки в конце сохранённого оборванного ответа (видно после reload). */
+    private static final String STOPPED_MARKER = "[stopped]";
+
+    private static final String ERROR_MARKER = "[error]";
+
     private final ChatClient chatClient;
     private final ChatMemory chatMemory;
     private final ChatMemoryService chatMemoryService;
@@ -249,10 +254,10 @@ public class ChatRunService {
             ToolInvocationCollector toolCollector,
             SignalType signal) {
         if (signal == SignalType.CANCEL) {
-            persistPartial(handle.conversationId(), buffer, toolCollector, handle.persisted());
+            persistPartial(handle, buffer, toolCollector, STOPPED_MARKER);
             events.publish(handle.conversationId(), RUN_STOPPED, handle.runId(), null, null);
         } else if (signal == SignalType.ON_ERROR) {
-            persistPartial(handle.conversationId(), buffer, toolCollector, handle.persisted());
+            persistPartial(handle, buffer, toolCollector, ERROR_MARKER);
             events.publish(
                     handle.conversationId(),
                     RUN_ERROR,
@@ -270,18 +275,22 @@ public class ChatRunService {
     }
 
     private void persistPartial(
-            String conversationId,
+            RunHandle handle,
             StringBuffer buffer,
             ToolInvocationCollector toolCollector,
-            AtomicBoolean persisted) {
-        if (!persisted.compareAndSet(false, true)) {
+            String marker) {
+        if (!handle.persisted().compareAndSet(false, true)) {
             // Уже сохранили (onError + doFinally могут прийти оба).
             return;
         }
-        final String text = buffer.toString().strip();
-        if (text.isBlank()) {
+        final String conversationId = handle.conversationId();
+        final String partial = buffer.toString().strip();
+        if (partial.isBlank()) {
             return;
         }
+        // Помечаем сохранённый ответ как оборванный — чтобы после reload было видно, что
+        // генерацию остановили/она упала, а не получился полный ответ.
+        final String text = partial + "\n\n" + marker;
         try {
             chatMemory.add(conversationId, new AssistantMessage(text));
             chatMemoryService.saveToolCalls(conversationId, toolCollector.completedSnapshot());
