@@ -5,6 +5,7 @@ import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -21,6 +22,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
  * горизонтального масштабирования сюда добавляется Redis Pub/Sub как релей между инстансами,
  * остальное не меняется.
  */
+@Slf4j
 @Service
 public class ChatEventService {
 
@@ -92,12 +94,22 @@ public class ChatEventService {
     }
 
     /**
+     * Отправляет SSE heartbeat всем подписчикам всех хабов. При записи в закрытый сокет
+     * (вкладка закрыта) Spring выбрасывает исключение → onError → remove() → хаб выгружается.
+     * Вызывается по расписанию из {@link ChatRuntimeMonitor}.
+     */
+    public void sendHeartbeats() {
+        hubs.values().forEach(ConversationHub::sendHeartbeat);
+    }
+
+    /**
      * Хаб сообщил, что простаивает (ушёл последний подписчик). Закрываем и выкидываем из карты;
      * {@code remove(key, value)} снимает ровно этот инстанс, а {@link ConversationHub#closeIfIdle}
      * перепроверяет под локом — если кто-то успел подписаться, хаб останется (вернёт false).
      */
     private void onHubIdle(ConversationHub hub) {
         if (hub.closeIfIdle()) {
+            log.info("[{}] hub removed from registry (idle), total={}", hub.conversationId(), hubs.size() - 1);
             hubs.remove(hub.conversationId(), hub);
         }
     }
