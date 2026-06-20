@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
  *   onClose  — close handler
  *   onCreate — called with { jiraUrl, confluenceUrl, title } when user submits
  */
-const CreateJiraChatModal = ({ open, onClose, onCreate }) => {
+const CreateJiraChatModal = ({ open, onClose, onCreate, confluenceConfigured }) => {
   const { t } = useTranslation('chat');
   const [jiraUrl, setJiraUrl] = useState('');
   const [confluenceUrl, setConfluenceUrl] = useState('');
@@ -74,17 +74,19 @@ const CreateJiraChatModal = ({ open, onClose, onCreate }) => {
             />
           </label>
 
-          <label className="jira-modal__label">
-            <span>{t('jiraModal.confluenceLabel')}</span>
-            <input
-              type="url"
-              className="jira-modal__input"
-              placeholder="https://instance.atlassian.net/wiki/spaces/..."
-              value={confluenceUrl}
-              onChange={(e) => setConfluenceUrl(e.target.value)}
-              disabled={loading}
-            />
-          </label>
+          {confluenceConfigured && (
+            <label className="jira-modal__label">
+              <span>{t('jiraModal.confluenceLabel')}</span>
+              <input
+                type="url"
+                className="jira-modal__input"
+                placeholder="https://instance.atlassian.net/wiki/spaces/..."
+                value={confluenceUrl}
+                onChange={(e) => setConfluenceUrl(e.target.value)}
+                disabled={loading}
+              />
+            </label>
+          )}
 
           <label className="jira-modal__label">
             <span>{t('jiraModal.titleLabel')}</span>
