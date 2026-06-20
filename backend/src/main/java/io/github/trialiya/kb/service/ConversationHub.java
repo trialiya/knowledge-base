@@ -4,6 +4,7 @@ import io.github.trialiya.kb.model.chat.dto.ChatEvent;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.locks.ReentrantLock;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -17,34 +18,51 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
  * ответ «на лету», а уже завершённый ответ не реплеится повторно — он лежит в БД и грузится обычным
  * запросом истории.
  *
- * <p>Публикация и подписка сериализованы одним монитором: это гарантирует, что новый подписчик
- * сначала получит весь пропущенный лог, а затем — живые события, без гонки и пропусков. Отправка
- * идёт под локом; при текущем масштабе (один пользователь, единицы вкладок) это не проблема.
+ * <p>Состояние защищено {@link ReentrantLock} (а не {@code synchronized}): отправка событий идёт
+ * под локом и делает блокирующий I/O ({@link SseEmitter#send}), а вызывается в т.ч. с виртуальных
+ * потоков пула генерации — на {@code synchronized} это привязывало бы carrier-поток (pinning) до
+ * JDK 24. Лок на хаб, а не общий (например, Striped по chatId): иначе медленный клиент одного чата
+ * блокировал бы публикацию в другие чаты, попавшие на тот же stripe.
+ *
+ * <p>{@link #closed} закрывает гонку «выгрузка простаивающего хаба ↔ новая подписка»: закрытый хаб
+ * больше не принимает подписчиков, а {@link ChatEventService} в этом случае выбрасывает его из
+ * реестра и повторяет на свежем.
  */
 @Slf4j
 public class ConversationHub {
 
     private final String conversationId;
-    private final Object lock = new Object();
+    private final ReentrantLock lock = new ReentrantLock();
     private final List<ChatEvent> eventLog = new ArrayList<>();
     private final List<SseEmitter> subscribers = new ArrayList<>();
     private long seq;
     private String activeRunId;
+    private boolean closed;
 
     public ConversationHub(String conversationId) {
         this.conversationId = conversationId;
     }
 
-    /** Подписывает вкладку, сразу реплея пропущенные ею события (seq &gt; {@code fromSeq}). */
+    /**
+     * Подписывает вкладку, сразу реплея пропущенные ею события (seq &gt; {@code fromSeq}).
+     * Возвращает {@code null}, если хаб уже закрыт (выгружается из реестра) — вызывающий должен
+     * повторить на свежем.
+     */
     public SseEmitter subscribe(long fromSeq, long timeoutMillis) {
         final SseEmitter emitter = new SseEmitter(timeoutMillis);
-        synchronized (lock) {
+        lock.lock();
+        try {
+            if (closed) {
+                return null;
+            }
             for (final ChatEvent event : eventLog) {
                 if (event.seq() > fromSeq) {
                     send(emitter, event);
                 }
             }
             subscribers.add(emitter);
+        } finally {
+            lock.unlock();
         }
         emitter.onCompletion(() -> remove(emitter));
         emitter.onTimeout(
@@ -57,48 +75,74 @@ public class ConversationHub {
     }
 
     public ChatEvent publish(ChatEventType type, String runId, String clientMsgId, Object payload) {
-        synchronized (lock) {
+        lock.lock();
+        try {
             final ChatEvent event = new ChatEvent(++seq, type, runId, clientMsgId, payload);
             eventLog.add(event);
             for (final SseEmitter subscriber : subscribers) {
                 send(subscriber, event);
             }
             return event;
+        } finally {
+            lock.unlock();
         }
     }
 
     public void startRun(String runId) {
-        synchronized (lock) {
+        lock.lock();
+        try {
             eventLog.clear();
             activeRunId = runId;
+        } finally {
+            lock.unlock();
         }
     }
 
     public void endRun(String runId) {
-        synchronized (lock) {
+        lock.lock();
+        try {
             if (runId.equals(activeRunId)) {
                 activeRunId = null;
                 eventLog.clear();
             }
+        } finally {
+            lock.unlock();
         }
     }
 
     public String activeRunId() {
-        synchronized (lock) {
+        lock.lock();
+        try {
             return activeRunId;
+        } finally {
+            lock.unlock();
         }
     }
 
-    /** Хаб простаивает (можно выгрузить из реестра): нет ни подписчиков, ни активного прогона. */
-    public boolean isIdle() {
-        synchronized (lock) {
-            return subscribers.isEmpty() && activeRunId == null;
+    /**
+     * Если хаб простаивает (нет подписчиков и активного прогона) — помечает его закрытым и
+     * сообщает, что его можно убрать из реестра. После закрытия {@link #subscribe} вернёт {@code
+     * null}.
+     */
+    public boolean closeIfIdle() {
+        lock.lock();
+        try {
+            if (subscribers.isEmpty() && activeRunId == null) {
+                closed = true;
+                return true;
+            }
+            return false;
+        } finally {
+            lock.unlock();
         }
     }
 
     private void remove(SseEmitter emitter) {
-        synchronized (lock) {
+        lock.lock();
+        try {
             subscribers.remove(emitter);
+        } finally {
+            lock.unlock();
         }
     }
 

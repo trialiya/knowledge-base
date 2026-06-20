@@ -29,7 +29,16 @@ public class ChatEventService {
     private final ConcurrentHashMap<String, ConversationHub> hubs = new ConcurrentHashMap<>();
 
     public SseEmitter subscribe(String conversationId, long fromSeq) {
-        return hub(conversationId).subscribe(fromSeq, TIMEOUT);
+        // Гонка с выгрузкой простаивающего хаба: если хаб успел закрыться между computeIfAbsent и
+        // подпиской, subscribe вернёт null — выбрасываем устаревший маппинг и повторяем на свежем.
+        while (true) {
+            final ConversationHub hub = hub(conversationId);
+            final SseEmitter emitter = hub.subscribe(fromSeq, TIMEOUT);
+            if (emitter != null) {
+                return emitter;
+            }
+            hubs.remove(conversationId, hub);
+        }
     }
 
     public ChatEvent publish(
@@ -46,10 +55,17 @@ public class ChatEventService {
     }
 
     public void endRun(String conversationId, String runId) {
-        hub(conversationId).endRun(runId);
-        // Подчищаем простаивающие хабы, чтобы карта не росла бесконечно. Если на хаб прямо сейчас
-        // кто-то подписан — он не idle и останется.
-        hubs.compute(conversationId, (id, hub) -> hub != null && hub.isIdle() ? null : hub);
+        final ConversationHub hub = hubs.get(conversationId);
+        if (hub == null) {
+            return;
+        }
+        hub.endRun(runId);
+        // Подчищаем простаивающий хаб, чтобы карта не росла бесконечно. closeIfIdle атомарно
+        // (под локом хаба) проверяет «нет подписчиков и прогона» и закрывает хаб — после этого
+        // он не примет новых подписчиков, поэтому remove безопасен относительно гонки с subscribe.
+        if (hub.closeIfIdle()) {
+            hubs.remove(conversationId, hub);
+        }
     }
 
     public Optional<String> activeRunId(String conversationId) {

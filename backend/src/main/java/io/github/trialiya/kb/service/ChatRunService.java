@@ -269,9 +269,12 @@ public class ChatRunService {
     }
 
     private void cleanup(RunHandle handle) {
+        // Сначала закрываем хаб прогона, и только потом снимаем заявку на чат. Иначе новый прогон
+        // мог бы стартовать (заявка свободна) и записаться в хаб, который этот cleanup как раз
+        // закрывает, — событие новой генерации потерялось бы.
+        events.endRun(handle.conversationId(), handle.runId());
         runs.remove(handle.runId());
         activeByConversation.remove(handle.conversationId(), handle.runId());
-        events.endRun(handle.conversationId(), handle.runId());
     }
 
     private void persistPartial(
