@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.service;
 
 import io.github.trialiya.kb.config.model.SearchConfiguration;
+import io.github.trialiya.kb.model.doc.DocumentType;
 import io.github.trialiya.kb.model.doc.dto.CreateDocumentRequest;
 import io.github.trialiya.kb.model.doc.dto.Document;
 import io.github.trialiya.kb.model.doc.dto.DocumentHistory;
@@ -148,7 +149,7 @@ public class DocumentService {
                                 new DocumentNode(
                                         e.getId(),
                                         e.getTitle(),
-                                        e.getType(),
+                                        e.getType().getValue(),
                                         e.getParentId(),
                                         e.getVersion(),
                                         null,
@@ -174,7 +175,7 @@ public class DocumentService {
                                         new DocumentNode(
                                                 c.getId(),
                                                 c.getTitle(),
-                                                c.getType(),
+                                                c.getType().getValue(),
                                                 c.getParentId(),
                                                 c.getVersion(),
                                                 null,
@@ -192,7 +193,7 @@ public class DocumentService {
         return new DocumentNode(
                 e.getId(),
                 e.getTitle(),
-                e.getType(),
+                e.getType().getValue(),
                 e.getParentId(),
                 e.getVersion(),
                 e.getDescription(),
@@ -211,7 +212,7 @@ public class DocumentService {
         return new DocumentNode(
                 e.getId(),
                 e.getTitle(),
-                e.getType(),
+                e.getType().getValue(),
                 e.getParentId(),
                 e.getVersion(),
                 snippetOf(e.getDescription()),
@@ -240,7 +241,7 @@ public class DocumentService {
         return new DocumentNode(
                 e.getId(),
                 e.getTitle(),
-                e.getType(),
+                e.getType().getValue(),
                 e.getParentId(),
                 e.getVersion(),
                 null, // description omitted — fetch via GET /api/documents/{id}
@@ -259,7 +260,7 @@ public class DocumentService {
 
     @Transactional
     public Document create(CreateDocumentRequest req) {
-        String type = "folder".equals(req.getType()) ? "folder" : "document";
+        DocumentType type = DocumentType.fromString(req.getType());
         int nextPos = nextSiblingPosition(req.getParentId());
 
         DocumentEntity entity =
@@ -545,7 +546,7 @@ public class DocumentService {
                                 () ->
                                         new ResponseStatusException(
                                                 HttpStatus.NOT_FOUND, "Target parent not found"));
-        if (!"folder".equals(targetFolder.getType())) {
+        if (!targetFolder.getType().isFolder()) {
             throw new ResponseStatusException(
                     HttpStatus.UNPROCESSABLE_ENTITY, "Target must be a folder");
         }
@@ -764,7 +765,7 @@ public class DocumentService {
                 entity.getId(),
                 entity.getVersion(),
                 entity.getTitle(),
-                entity.getType(),
+                entity.getType().getValue(),
                 entity.getDescription(),
                 entity.getUpdatedAt(),
                 entity.getSummary(),
@@ -776,7 +777,7 @@ public class DocumentService {
         return new Document(
                 e.getId(),
                 e.getTitle(),
-                e.getType(),
+                e.getType().getValue(),
                 e.getParentId(),
                 e.getVersion(),
                 e.getDescriptionVersion(),

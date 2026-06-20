@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.model.doc.entity;
 
+import io.github.trialiya.kb.model.doc.DocumentType;
 import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -16,7 +17,7 @@ public class DocumentEntity {
 
     @Id private Long id;
     private String title;
-    private String type;
+    private DocumentType type;
     private Long parentId;
     private String description;
     private LocalDateTime updatedAt;

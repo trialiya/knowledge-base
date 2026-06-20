@@ -1,6 +1,5 @@
 package io.github.trialiya.kb.service;
 
-import com.google.common.collect.Streams;
 import io.github.trialiya.kb.config.model.DocumentsConfiguration;
 import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
 import io.github.trialiya.kb.repository.DocumentRepository;
@@ -9,14 +8,15 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -107,31 +107,22 @@ public class DocumentExportService {
     public int exportAll(boolean includeMeta) {
         Path root = Paths.get(config.exportPath());
 
-        List<DocumentEntity> all = Streams.stream(repo.findAll()).collect(Collectors.toList());
-
-        // Build parent → children index
-        Map<Long, List<DocumentEntity>> byParent =
-                all.stream()
-                        .filter(e -> e.getParentId() != null)
-                        .collect(Collectors.groupingBy(DocumentEntity::getParentId));
-
-        byParent.values()
-                .forEach(list -> list.sort(Comparator.comparingInt(DocumentEntity::getPosition)));
-
+        // Children are loaded one level at a time (see #childrenOf) rather than via a single
+        // full-table scan, so the whole document set is never held in memory.
         List<DocumentEntity> roots = repo.findRoots();
         roots.sort(Comparator.comparingInt(DocumentEntity::getPosition));
 
         // Pass 1: build id → absolute .md path map (needed for link rewriting)
         Map<Long, Path> idToPath = new HashMap<>();
         for (DocumentEntity rootDoc : roots) {
-            collectPaths(rootDoc, root, byParent, idToPath);
+            collectPaths(rootDoc, root, idToPath);
         }
 
         // Pass 2: write files
         createDirectories(root);
         int count = 0;
         for (DocumentEntity rootDoc : roots) {
-            count += exportNode(rootDoc, root, byParent, idToPath, includeMeta);
+            count += exportNode(rootDoc, root, idToPath, includeMeta);
         }
 
         // Write root-level index
@@ -142,6 +133,171 @@ public class DocumentExportService {
         return count;
     }
 
+    // ── Subtree rendering (for downloads) ────────────────────────────────────
+
+    /** A single rendered file: its archive-relative {@code path} and full {@code content}. */
+    public record ExportEntry(String path, String content) {}
+
+    /**
+     * Lazily renders the subtree rooted at {@code rootId} as a <b>stream</b> of {@link ExportEntry}
+     * (path → content), without touching the filesystem. Entries are produced on demand during a
+     * depth-first walk, so a consumer (e.g. a {@code ZipOutputStream} writer) can stream them to
+     * the client without ever holding the whole subtree's content in memory at once.
+     *
+     * <p>Same layout as {@link #exportAll(boolean)} but scoped to one node:
+     *
+     * <ul>
+     *   <li>a <b>document</b> root yields a single {@code <name>.md} entry (plus {@code
+     *       <name>.yaml} when {@code includeMeta});
+     *   <li>a <b>folder</b> root yields the folder directory with its {@code .content.md} / {@code
+     *       .index.md} / children, ready to be zipped.
+     * </ul>
+     *
+     * <p>Internal {@code /?doc=ID} links are rewritten to relative paths <em>within the
+     * subtree</em>; links pointing outside the subtree are left untouched.
+     *
+     * @throws NoSuchElementException if no node with {@code rootId} exists
+     */
+    public Stream<ExportEntry> streamSubtree(long rootId, boolean includeMeta) {
+        DocumentEntity root =
+                repo.findById(rootId)
+                        .orElseThrow(
+                                () -> new NoSuchElementException("Document not found: " + rootId));
+
+        // Virtual base — never hits disk; used only for relativising entry names and links. The
+        // id → path map is cheap (paths only, no content) and is needed up-front for link
+        // rewriting.
+        // Children are loaded one level at a time (see #childrenOf) rather than via a single
+        // full-table scan, so the whole document set is never held in memory.
+        Path base = Paths.get("/");
+        Map<Long, Path> idToPath = new HashMap<>();
+        collectSubtreePaths(root, base, idToPath);
+
+        return walk(root, base, base, idToPath, includeMeta);
+    }
+
+    /**
+     * Filesystem-free counterpart of {@link #collectPaths} for the in-memory subtree: populates
+     * {@code idToPath} with each node's archive-relative target, loading children lazily per level.
+     */
+    private void collectSubtreePaths(
+            DocumentEntity entity, Path parentDir, Map<Long, Path> idToPath) {
+        if (entity.getType().isFolder()) {
+            Path folderDir = parentDir.resolve(safeName(entity.getTitle()));
+            idToPath.put(entity.getId(), folderDir.resolve(FOLDER_CONTENT_FILE));
+            for (DocumentEntity child : childrenOf(entity.getId())) {
+                collectSubtreePaths(child, folderDir, idToPath);
+            }
+        } else {
+            idToPath.put(entity.getId(), parentDir.resolve(safeName(entity.getTitle()) + ".md"));
+        }
+    }
+
+    /**
+     * Loads the direct children of {@code parentId}, already sorted by position in SQL, draining
+     * and closing the repository stream so its JDBC cursor is released. Materialised into a list
+     * because each level is consumed twice (folder body links + the trailing {@code .index.md});
+     * only one level lives in memory at a time.
+     */
+    private List<DocumentEntity> childrenOf(long parentId) {
+        try (Stream<DocumentEntity> children = repo.findAllByParentIdOrderByPosition(parentId)) {
+            return children.toList();
+        }
+    }
+
+    /**
+     * Renders the subtree rooted at {@code rootId} into an ordered, in-memory map of {@code
+     * relativePath → fileContent}. Thin eager wrapper over {@link #streamSubtree} kept for
+     * callers/tests that want the whole subtree materialised at once.
+     *
+     * @throws NoSuchElementException if no node with {@code rootId} exists
+     */
+    public LinkedHashMap<String, String> renderSubtree(long rootId, boolean includeMeta) {
+        LinkedHashMap<String, String> out = new LinkedHashMap<>();
+        try (Stream<ExportEntry> entries = streamSubtree(rootId, includeMeta)) {
+            entries.forEach(e -> out.put(e.path(), e.content()));
+        }
+        return out;
+    }
+
+    /**
+     * Depth-first lazy walk producing one {@link ExportEntry} per file. Folders expand to their own
+     * header files (optional {@code .meta.yaml}, then {@code .content.md}), then their children
+     * (flattened recursively via {@link Stream#mapMulti}, evaluated on demand), then the trailing
+     * {@code .index.md}. Documents expand to their {@code .md} (plus {@code .yaml} with meta).
+     */
+    private Stream<ExportEntry> walk(
+            DocumentEntity entity,
+            Path parentDir,
+            Path base,
+            Map<Long, Path> idToPath,
+            boolean includeMeta) {
+
+        if (!entity.getType().isFolder()) {
+            return documentEntries(entity, base, idToPath, includeMeta);
+        }
+
+        Path folderDir = parentDir.resolve(safeName(entity.getTitle()));
+        List<DocumentEntity> children = childrenOf(entity.getId());
+
+        Stream<ExportEntry> header =
+                folderHeaderEntries(entity, folderDir, base, idToPath, includeMeta);
+        Stream<ExportEntry> descendants =
+                children.stream()
+                        .<ExportEntry>mapMulti(
+                                (child, sink) ->
+                                        walk(child, folderDir, base, idToPath, includeMeta)
+                                                .forEach(sink));
+        Stream<ExportEntry> index =
+                Stream.of(
+                        entry(
+                                base,
+                                folderDir.resolve(INDEX_FILE),
+                                renderIndex(children, folderDir, idToPath)));
+
+        return Stream.concat(Stream.concat(header, descendants), index);
+    }
+
+    /** Header entries of a folder: optional {@code .meta.yaml} followed by {@code .content.md}. */
+    private Stream<ExportEntry> folderHeaderEntries(
+            DocumentEntity entity,
+            Path folderDir,
+            Path base,
+            Map<Long, Path> idToPath,
+            boolean includeMeta) {
+
+        Path contentFile = folderDir.resolve(FOLDER_CONTENT_FILE);
+        ExportEntry content =
+                entry(base, contentFile, renderContent(entity, contentFile, idToPath));
+        if (includeMeta) {
+            ExportEntry meta = entry(base, folderDir.resolve(FOLDER_META_FILE), renderMeta(entity));
+            return Stream.of(meta, content);
+        }
+        return Stream.of(content);
+    }
+
+    /** Entries of a document: its {@code .md} body and, with meta, the sidecar {@code .yaml}. */
+    private Stream<ExportEntry> documentEntries(
+            DocumentEntity entity, Path base, Map<Long, Path> idToPath, boolean includeMeta) {
+
+        Path contentFile = idToPath.get(entity.getId());
+        ExportEntry content =
+                entry(base, contentFile, renderContent(entity, contentFile, idToPath));
+        if (includeMeta) {
+            String name = contentFile.getFileName().toString();
+            Path metaFile =
+                    contentFile.resolveSibling(name.substring(0, name.lastIndexOf('.')) + ".yaml");
+            return Stream.of(content, entry(base, metaFile, renderMeta(entity)));
+        }
+        return Stream.of(content);
+    }
+
+    /** Builds an {@link ExportEntry} keyed by {@code file}'s path relative to {@code base}. */
+    private static ExportEntry entry(Path base, Path file, String content) {
+        String path = base.relativize(file).toString().replace('\\', '/');
+        return new ExportEntry(path, content);
+    }
+
     // ── Pass 1: collect id → path ────────────────────────────────────────────
 
     /**
@@ -149,21 +305,16 @@ public class DocumentExportService {
      * will be written to. Folder content maps to the {@code .content.md} hidden file inside the
      * folder directory.
      */
-    private void collectPaths(
-            DocumentEntity entity,
-            Path parentDir,
-            Map<Long, List<DocumentEntity>> byParent,
-            Map<Long, Path> idToPath) {
+    private void collectPaths(DocumentEntity entity, Path parentDir, Map<Long, Path> idToPath) {
 
-        boolean isFolder = "folder".equalsIgnoreCase(entity.getType());
+        boolean isFolder = entity.getType().isFolder();
 
         if (isFolder) {
             Path folderDir = parentDir.resolve(safeName(entity.getTitle()));
             idToPath.put(entity.getId(), folderDir.resolve(FOLDER_CONTENT_FILE));
 
-            List<DocumentEntity> children = childrenOf(entity.getId(), byParent);
-            for (DocumentEntity child : children) {
-                collectPaths(child, folderDir, byParent, idToPath);
+            for (DocumentEntity child : childrenOf(entity.getId())) {
+                collectPaths(child, folderDir, idToPath);
             }
         } else {
             Path candidate = parentDir.resolve(safeName(entity.getTitle()) + ".md");
@@ -182,13 +333,9 @@ public class DocumentExportService {
     // ── Pass 2: recursive tree walk ──────────────────────────────────────────
 
     private int exportNode(
-            DocumentEntity entity,
-            Path parentDir,
-            Map<Long, List<DocumentEntity>> byParent,
-            Map<Long, Path> idToPath,
-            boolean includeMeta) {
+            DocumentEntity entity, Path parentDir, Map<Long, Path> idToPath, boolean includeMeta) {
 
-        boolean isFolder = "folder".equalsIgnoreCase(entity.getType());
+        boolean isFolder = entity.getType().isFolder();
         int written = 0;
 
         if (isFolder) {
@@ -206,9 +353,9 @@ public class DocumentExportService {
             written++;
             log.debug("Written folder content: {}", contentFile);
 
-            List<DocumentEntity> children = childrenOf(entity.getId(), byParent);
+            List<DocumentEntity> children = childrenOf(entity.getId());
             for (DocumentEntity child : children) {
-                written += exportNode(child, folderDir, byParent, idToPath, includeMeta);
+                written += exportNode(child, folderDir, idToPath, includeMeta);
             }
 
             // Write index for this folder
@@ -315,7 +462,7 @@ public class DocumentExportService {
         StringBuilder sb = new StringBuilder();
         sb.append("id: ").append(e.getId()).append("\n");
         sb.append("title: \"").append(escapeYaml(e.getTitle())).append("\"\n");
-        sb.append("type: ").append(e.getType()).append("\n");
+        sb.append("type: ").append(e.getType().getValue()).append("\n");
         if (e.getParentId() != null) {
             sb.append("parentId: ").append(e.getParentId()).append("\n");
         }
@@ -330,7 +477,7 @@ public class DocumentExportService {
      * Converts a document title into a filesystem-safe name: lower-case, spaces/special chars
      * replaced with hyphens, no leading/trailing hyphens.
      */
-    static String safeName(String title) {
+    public static String safeName(String title) {
         if (title == null || title.isBlank()) {
             return "untitled";
         }
@@ -386,10 +533,6 @@ public class DocumentExportService {
     }
 
     // ── Misc helpers ─────────────────────────────────────────────────────────
-
-    private List<DocumentEntity> childrenOf(Long id, Map<Long, List<DocumentEntity>> byParent) {
-        return byParent.getOrDefault(id, Collections.emptyList());
-    }
 
     private boolean hasContent(String s) {
         return s != null && !s.isBlank();

@@ -10,16 +10,26 @@ import io.github.trialiya.kb.model.doc.dto.PagedChildren;
 import io.github.trialiya.kb.model.doc.dto.SearchResult;
 import io.github.trialiya.kb.model.doc.dto.UpdateDocumentRequest;
 import io.github.trialiya.kb.service.DocumentExportService;
+import io.github.trialiya.kb.service.DocumentImportService;
 import io.github.trialiya.kb.service.DocumentService;
 import io.github.trialiya.kb.service.SemanticSearchService;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 @RestController
 @RequestMapping("/api/documents")
@@ -28,6 +38,7 @@ public class DocumentController {
 
     private final DocumentService service;
     private final DocumentExportService documentExportService;
+    private final DocumentImportService documentImportService;
     private final SemanticSearchService semanticSearchService;
 
     // ── Tree ──────────────────────────────────────────────────────────────────
@@ -78,6 +89,69 @@ public class DocumentController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
         return node;
+    }
+
+    /**
+     * Downloads a node: a <b>document</b> is returned as a single {@code .md} file, a <b>folder</b>
+     * as a {@code .zip} archive of its subtree (Markdown + optional {@code .yaml} metadata,
+     * mirroring the export layout). Internal {@code /?doc=ID} links are rewritten to relative paths
+     * within the archive.
+     *
+     * <pre>GET /api/documents/{id}/download?meta=false</pre>
+     */
+    @GetMapping("/{id}/download")
+    public ResponseEntity<StreamingResponseBody> download(
+            @PathVariable long id, @RequestParam(defaultValue = "false") boolean meta) {
+
+        DocumentNode node = service.getById(id);
+        if (node == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+
+        String baseName = DocumentExportService.safeName(node.title());
+
+        if ("folder".equalsIgnoreCase(node.type())) {
+            StreamingResponseBody body =
+                    out -> {
+                        try (ZipOutputStream zos = new ZipOutputStream(out);
+                                Stream<DocumentExportService.ExportEntry> entries =
+                                        documentExportService.streamSubtree(id, meta)) {
+                            for (DocumentExportService.ExportEntry e :
+                                    (Iterable<DocumentExportService.ExportEntry>)
+                                            entries::iterator) {
+                                zos.putNextEntry(new ZipEntry(e.path()));
+                                zos.write(e.content().getBytes(StandardCharsets.UTF_8));
+                                zos.closeEntry();
+                            }
+                        }
+                    };
+            return streamingResponse(body, baseName + ".zip", "application/zip");
+        }
+
+        // Document → stream its Markdown body directly.
+        StreamingResponseBody body =
+                out -> {
+                    try (Stream<DocumentExportService.ExportEntry> entries =
+                            documentExportService.streamSubtree(id, meta)) {
+                        String markdown =
+                                entries.filter(e -> e.path().endsWith(".md"))
+                                        .map(DocumentExportService.ExportEntry::content)
+                                        .findFirst()
+                                        .orElse("");
+                        out.write(markdown.getBytes(StandardCharsets.UTF_8));
+                    }
+                };
+        return streamingResponse(body, baseName + ".md", "text/markdown");
+    }
+
+    private static ResponseEntity<StreamingResponseBody> streamingResponse(
+            StreamingResponseBody body, String filename, String contentType) {
+        ContentDisposition disposition =
+                ContentDisposition.attachment().filename(filename, StandardCharsets.UTF_8).build();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .contentType(MediaType.parseMediaType(contentType))
+                .body(body);
     }
 
     /** История изменений описания документа (newest-first). */
@@ -213,6 +287,24 @@ public class DocumentController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void export(@RequestParam(defaultValue = "true") boolean meta) {
         documentExportService.exportAll(meta);
+    }
+
+    /**
+     * Synchronises (imports) the server-side export folder ({@code kb.documents.export-path}) back
+     * into the database, recreating the tree under {@code parentId} (or root when omitted).
+     *
+     * <pre>POST /api/documents/admin/import?parentId=42</pre>
+     *
+     * @throws ResponseStatusException 422 if the export folder is not configured or missing
+     */
+    @PostMapping("/admin/import")
+    public DocumentImportService.ImportResult importFromFolder(
+            @RequestParam(required = false) Long parentId) {
+        try {
+            return documentImportService.importFromFolder(parentId);
+        } catch (IllegalStateException e) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, e.getMessage());
+        }
     }
 
     public record ReindexResponse(int indexed) {}
