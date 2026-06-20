@@ -1,4 +1,60 @@
 {
+  "nav": {
+    "title": "Настройки",
+    "prompt": "Системный промпт",
+    "phrases": "Библиотека фраз",
+    "models": "Модели"
+  },
+  "prompt": {
+    "title": "Системный промпт",
+    "subtitle": "Глобальная роль ассистента — блок {role}",
+    "sectionLabel": "Роль ассистента",
+    "save": "Сохранить",
+    "reset": "Сбросить"
+  },
+  "models": {
+    "title": "Конфигурация AI-моделей",
+    "subtitle": "Параметры вызова, основная модель, агент поиска, сжатие контекста",
+    "loading": "Загрузка…",
+    "errorLoading": "Ошибка загрузки конфигурации",
+    "general": {
+      "label": "Общее",
+      "maxTokens": "Макс. токенов ответа",
+      "temperature": "Temperature",
+      "topP": "Top-p",
+      "memoryWindow": "Окно памяти",
+      "memoryWindowValue": "50 сообщений"
+    },
+    "chat": {
+      "label": "Основная модель (Чат)",
+      "model": "Модель"
+    },
+    "available": {
+      "label": "Доступные модели",
+      "defaultBadge": "по умолчанию"
+    },
+    "searchCodebase": {
+      "label": "Агент поиска (searchCodebase)",
+      "status": "Статус",
+      "statusOn": "включён",
+      "statusOff": "отключён",
+      "model": "Модель",
+      "modelSameAs": "= основная ({{id}})",
+      "maxTokens": "Макс. токенов на вызов",
+      "maxTokensValue": "{{count}} токенов",
+      "maxIterations": "Макс. итераций инструментов"
+    },
+    "summarize": {
+      "label": "Сжатие контекста (SummarizeService)",
+      "model": "Модель",
+      "modelSameAs": "= основная ({{id}})",
+      "tokenThreshold": "Порог токенов",
+      "tokensValue": "{{count}} токенов",
+      "messageThreshold": "Порог сообщений",
+      "messagesValue": "{{count}} сообщений",
+      "overlap": "Буфер живых сообщений"
+    }
+  },
   "admin": {
     "bulk": {
       "title": "Массовые операции",

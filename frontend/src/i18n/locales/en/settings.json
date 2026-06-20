@@ -1,4 +1,60 @@
 {
+  "nav": {
+    "title": "Settings",
+    "prompt": "System prompt",
+    "phrases": "Phrase library",
+    "models": "Models"
+  },
+  "prompt": {
+    "title": "System prompt",
+    "subtitle": "Global assistant role — the {role} block",
+    "sectionLabel": "Assistant role",
+    "save": "Save",
+    "reset": "Reset"
+  },
+  "models": {
+    "title": "AI model configuration",
+    "subtitle": "Call parameters, main model, search agent, context compression",
+    "loading": "Loading…",
+    "errorLoading": "Failed to load configuration",
+    "general": {
+      "label": "General",
+      "maxTokens": "Max response tokens",
+      "temperature": "Temperature",
+      "topP": "Top-p",
+      "memoryWindow": "Memory window",
+      "memoryWindowValue": "50 messages"
+    },
+    "chat": {
+      "label": "Main model (Chat)",
+      "model": "Model"
+    },
+    "available": {
+      "label": "Available models",
+      "defaultBadge": "default"
+    },
+    "searchCodebase": {
+      "label": "Search agent (searchCodebase)",
+      "status": "Status",
+      "statusOn": "enabled",
+      "statusOff": "disabled",
+      "model": "Model",
+      "modelSameAs": "= main ({{id}})",
+      "maxTokens": "Max tokens per call",
+      "maxTokensValue": "{{count}} tokens",
+      "maxIterations": "Max tool iterations"
+    },
+    "summarize": {
+      "label": "Context compression (SummarizeService)",
+      "model": "Model",
+      "modelSameAs": "= main ({{id}})",
+      "tokenThreshold": "Token threshold",
+      "tokensValue": "{{count}} tokens",
+      "messageThreshold": "Message threshold",
+      "messagesValue": "{{count}} messages",
+      "overlap": "Live message buffer"
+    }
+  },
   "admin": {
     "bulk": {
       "title": "Bulk operations",

@@ -144,6 +144,7 @@
   border: 1px solid var(--kb-border);
   border-radius: 12px;
   overflow: hidden;
+  flex-shrink: 0;
 }
 .set-section__head {
   display: flex;

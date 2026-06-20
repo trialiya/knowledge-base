@@ -80,6 +80,57 @@
   padding: 2px 9px;
 }
 
+/* ── Человеко-читаемый лейбл рядом с id модели ── */
+.model-row__label {
+  flex-shrink: 0;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 0.8rem;
+  color: var(--kb-muted);
+}
+
+/* ── Read-only значение в set-row (моноширинный) ── */
+.set-row__value {
+  flex-shrink: 0;
+  font-family: 'Fira Mono', 'Consolas', monospace;
+  font-size: 0.83rem;
+  color: var(--kb-text);
+  font-weight: 500;
+}
+
+/* ── Статус-бейдж (включён / отключён) ── */
+.status-badge {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  border-radius: 10px;
+  padding: 2px 9px;
+}
+.status-badge--on {
+  color: #12663b;
+  background: #d1fae5;
+}
+.status-badge--off {
+  color: var(--kb-muted);
+  background: var(--kb-bg);
+}
+
+/* ── Загрузка / ошибка конфига ── */
+.ai-config-loading {
+  padding: 2rem;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--kb-muted);
+}
+.ai-config-error {
+  margin: 0;
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  color: #b42318;
+  background: #fef3f2;
+  border: 1px solid #fda29b;
+  border-radius: 8px;
+}
+
 /* Инлайновый код в подсказках */
 .set-hint code {
   font-family: 'Fira Mono', 'Consolas', monospace;

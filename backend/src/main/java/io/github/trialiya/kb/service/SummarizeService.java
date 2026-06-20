@@ -270,6 +270,13 @@ public class SummarizeService implements DisposableBean {
                 + "Treat this as authoritative context for the entire conversation so far.";
     }
 
+    public record SummarizeConfig(
+            int tokenThreshold, int messageCountThreshold, int overlapMessages) {}
+
+    public static SummarizeConfig config() {
+        return new SummarizeConfig(TOKEN_THRESHOLD, MESSAGE_COUNT_THRESHOLD, OVERLAP_MESSAGES);
+    }
+
     /** Marks old messages as summarized and inserts the new summary row, atomically. */
     private void persistSummary(
             String conversationId,
