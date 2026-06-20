@@ -9,6 +9,7 @@ import io.github.trialiya.kb.config.PgVectorJdbcConfig;
 import io.github.trialiya.kb.model.doc.dto.Document;
 import io.github.trialiya.kb.model.doc.entity.DocumentEmbeddingEntity;
 import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
+import io.github.trialiya.kb.model.doc.entity.DocumentType;
 import io.github.trialiya.kb.model.search.SemanticSearchResult;
 import io.github.trialiya.kb.repository.DocumentEmbeddingRepository;
 import io.github.trialiya.kb.repository.DocumentHistoryRepository;
@@ -79,7 +80,7 @@ class PostgresDocumentIT extends AbstractPostgresIntegrationTest {
                 new DocumentEntity(
                         null,
                         title,
-                        type,
+                        DocumentType.fromValue(type),
                         parentId,
                         null,
                         LocalDateTime.now(),

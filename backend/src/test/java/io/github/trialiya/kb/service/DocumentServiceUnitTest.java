@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 import io.github.trialiya.kb.config.CommonConfig;
 import io.github.trialiya.kb.model.doc.dto.Document;
 import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
+import io.github.trialiya.kb.model.doc.entity.DocumentType;
 import io.github.trialiya.kb.repository.DocumentHistoryRepository;
 import io.github.trialiya.kb.repository.DocumentRepository;
 import java.time.LocalDateTime;
@@ -86,7 +87,7 @@ class DocumentServiceUnitTest {
                 new DocumentEntity(
                         null,
                         title,
-                        type,
+                        DocumentType.fromValue(type),
                         parentId,
                         null,
                         LocalDateTime.now(),

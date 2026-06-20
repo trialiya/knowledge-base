@@ -16,7 +16,7 @@ public class DocumentEntity {
 
     @Id private Long id;
     private String title;
-    private String type;
+    private DocumentType type;
     private Long parentId;
     private String description;
     private LocalDateTime updatedAt;
