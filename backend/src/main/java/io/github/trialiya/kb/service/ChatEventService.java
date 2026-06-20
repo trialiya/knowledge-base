@@ -109,8 +109,8 @@ public class ChatEventService {
      */
     private void onHubIdle(ConversationHub hub) {
         if (hub.closeIfIdle()) {
-            log.info("[{}] hub removed from registry (idle), total={}", hub.conversationId(), hubs.size() - 1);
             hubs.remove(hub.conversationId(), hub);
+            log.info("[{}] hub removed from registry (idle), total={}", hub.conversationId(), hubs.size());
         }
     }
 
