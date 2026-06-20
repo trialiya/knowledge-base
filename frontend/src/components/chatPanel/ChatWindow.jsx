@@ -609,8 +609,15 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
           fetchAndUpdateTitle(chatId);
         }
       },
+      onReconnect: () => {
+        // Бэк перезапустился пока вкладка была отключена: его in-memory хаб пустой,
+        // replay невозможен. Сбрасываем runId (иначе UI зависнет в "ждём ответ") и
+        // перезагружаем историю из БД, чтобы показать уже полученные ответы.
+        setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, runId: null } : c)));
+        loadMessages(chatId);
+      },
     });
-  }, [activeChatId, activeMessagesReady, fetchAndUpdateTitle, handleRemoteChatDeleted]);
+  }, [activeChatId, activeMessagesReady, fetchAndUpdateTitle, handleRemoteChatDeleted, loadMessages]);
 
   const handleNewChat = useCallback(() => {
     // Создаём черновик: реального id ещё нет (в URL будет 'new'), на бэк ничего

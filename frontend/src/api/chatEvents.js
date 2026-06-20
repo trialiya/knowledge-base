@@ -26,8 +26,9 @@ const parseBlock = (block) => {
  * @param {object} cb
  * @param {(event:object)=>void} cb.onEvent — на каждое разобранное событие
  * @param {(status:'open'|'reconnecting'|'closed')=>void} [cb.onStatus]
+ * @param {()=>void} [cb.onReconnect] — при восстановлении после обрыва (не при первом подключении)
  */
-export function openChatEventStream(chatId, { onEvent, onStatus } = {}) {
+export function openChatEventStream(chatId, { onEvent, onStatus, onReconnect } = {}) {
   let closed = false;
   let controller = null;
   let lastSeq = 0;
@@ -42,8 +43,10 @@ export function openChatEventStream(chatId, { onEvent, onStatus } = {}) {
         signal: controller.signal,
       });
       if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+      const wasReconnecting = attempt > 0;
       attempt = 0;
       onStatus?.('open');
+      if (wasReconnecting) onReconnect?.();
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder('utf-8');
