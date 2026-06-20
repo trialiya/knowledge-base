@@ -3,6 +3,7 @@ package io.github.trialiya.kb.service;
 import com.google.common.collect.Streams;
 import io.github.trialiya.kb.config.model.DocumentsConfiguration;
 import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
+import io.github.trialiya.kb.model.doc.entity.DocumentType;
 import io.github.trialiya.kb.repository.DocumentRepository;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -155,7 +156,7 @@ public class DocumentExportService {
             Map<Long, List<DocumentEntity>> byParent,
             Map<Long, Path> idToPath) {
 
-        boolean isFolder = "folder".equalsIgnoreCase(entity.getType());
+        boolean isFolder = entity.getType() == DocumentType.FOLDER;
 
         if (isFolder) {
             Path folderDir = parentDir.resolve(safeName(entity.getTitle()));
@@ -188,7 +189,7 @@ public class DocumentExportService {
             Map<Long, Path> idToPath,
             boolean includeMeta) {
 
-        boolean isFolder = "folder".equalsIgnoreCase(entity.getType());
+        boolean isFolder = entity.getType() == DocumentType.FOLDER;
         int written = 0;
 
         if (isFolder) {
@@ -315,7 +316,7 @@ public class DocumentExportService {
         StringBuilder sb = new StringBuilder();
         sb.append("id: ").append(e.getId()).append("\n");
         sb.append("title: \"").append(escapeYaml(e.getTitle())).append("\"\n");
-        sb.append("type: ").append(e.getType()).append("\n");
+        sb.append("type: ").append(e.getType().getValue()).append("\n");
         if (e.getParentId() != null) {
             sb.append("parentId: ").append(e.getParentId()).append("\n");
         }

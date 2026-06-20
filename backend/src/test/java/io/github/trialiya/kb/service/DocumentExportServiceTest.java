@@ -6,6 +6,7 @@ import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.config.model.DocumentsConfiguration;
 import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
+import io.github.trialiya.kb.model.doc.entity.DocumentType;
 import io.github.trialiya.kb.repository.DocumentRepository;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -50,7 +51,7 @@ class DocumentExportServiceTest {
         DocumentEntity e = new DocumentEntity();
         e.setId(id);
         e.setTitle(title);
-        e.setType("document");
+        e.setType(DocumentType.DOCUMENT);
         e.setParentId(parentId);
         e.setPosition(position);
         e.setDescription(description);
@@ -61,7 +62,7 @@ class DocumentExportServiceTest {
     private static DocumentEntity folder(
             long id, String title, Long parentId, int position, String description) {
         DocumentEntity e = doc(id, title, parentId, position, description);
-        e.setType("folder");
+        e.setType(DocumentType.FOLDER);
         return e;
     }
 
