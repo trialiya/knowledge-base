@@ -63,6 +63,10 @@ server:
       force: true
 
 kb:
+  security:
+    # Учётные данные единственного пользователя (HTTP Basic, in-memory).
+    username: ${KB_SECURITY_USERNAME:admin}
+    password: ${KB_SECURITY_PASSWORD:admin}
   chat:
     default-model:
       id: ${AI_MODEL}

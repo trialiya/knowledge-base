@@ -92,7 +92,6 @@ const ModelsGroup = () => {
     <>
       {head}
       <div className="settings-content__body">
-
         {/* ── Общее ── */}
         <SettingsSection label={t('models.general.label')}>
           <div className="set-row">
@@ -130,9 +129,7 @@ const ModelsGroup = () => {
               <div key={m.id} className="model-row">
                 <span className="model-row__name">{m.id}</span>
                 {m.label && m.label !== m.id && <span className="model-row__label">{m.label}</span>}
-                {m.id === defaultId && (
-                  <span className="model-row__badge">{t('models.available.defaultBadge')}</span>
-                )}
+                {m.id === defaultId && <span className="model-row__badge">{t('models.available.defaultBadge')}</span>}
               </div>
             ))}
           </SettingsSection>
@@ -143,17 +140,13 @@ const ModelsGroup = () => {
           <div className="set-row">
             <span className="set-row__label">{t('models.searchCodebase.status')}</span>
             <span className={`status-badge status-badge--${searchCodebase.enabled ? 'on' : 'off'}`}>
-              {searchCodebase.enabled
-                ? t('models.searchCodebase.statusOn')
-                : t('models.searchCodebase.statusOff')}
+              {searchCodebase.enabled ? t('models.searchCodebase.statusOn') : t('models.searchCodebase.statusOff')}
             </span>
           </div>
           <div className="set-row">
             <span className="set-row__label">{t('models.searchCodebase.model')}</span>
             <span className="set-row__value">
-              {subagentSameModel
-                ? t('models.searchCodebase.modelSameAs', { id: defaultId })
-                : searchCodebase.modelId}
+              {subagentSameModel ? t('models.searchCodebase.modelSameAs', { id: defaultId }) : searchCodebase.modelId}
             </span>
           </div>
           <div className="set-row">
@@ -193,7 +186,6 @@ const ModelsGroup = () => {
             </span>
           </div>
         </SettingsSection>
-
       </div>
     </>
   );

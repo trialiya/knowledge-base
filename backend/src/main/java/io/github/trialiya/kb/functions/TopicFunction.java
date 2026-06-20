@@ -2,6 +2,7 @@ package io.github.trialiya.kb.functions;
 
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
+import io.github.trialiya.kb.utils.ChatUtils;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import lombok.AllArgsConstructor;
@@ -72,6 +73,6 @@ public class TopicFunction {
     private @NonNull String chatUser(ToolContext context) {
         return Optional.ofNullable(context.getContext().get(USER_NAME))
                 .map(Object::toString)
-                .orElse("Test user");
+                .orElse(ChatUtils.ANONYMOUS_USER);
     }
 }
