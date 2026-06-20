@@ -100,7 +100,7 @@ class PostgresDocumentIT extends AbstractPostgresIntegrationTest {
         // делает truncate + reinsert поверх сидов V1).
         DocumentEntity root = repo.findById(1L).orElseThrow();
         assertThat(root.getTitle()).isEqualTo("Проект");
-        assertThat(root.getType()).isEqualTo("folder");
+        assertThat(root.getType()).isEqualTo(DocumentType.FOLDER);
         assertThat(root.isSystem()).isTrue();
 
         // identity-генерация работает: новая вставка получает сгенерированный id,
