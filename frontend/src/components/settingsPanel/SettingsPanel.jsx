@@ -66,7 +66,7 @@ const ModelsGroup = () => {
   const head = (
     <SettingsContentHead
       title="Конфигурация AI-моделей"
-      subtitle="Основная модель, векторизация, агент поиска, сжатие контекста"
+      subtitle="Параметры вызова, основная модель, агент поиска, сжатие контекста"
     />
   );
 
@@ -92,7 +92,7 @@ const ModelsGroup = () => {
     );
   }
 
-  const { chat, embedding, searchCodebase, summarize } = config;
+  const { chat, searchCodebase, summarize } = config;
   const defaultId = chat.defaultModel?.id;
   const subagentSameModel = searchCodebase.modelId === defaultId;
 
@@ -100,6 +100,26 @@ const ModelsGroup = () => {
     <>
       {head}
       <div className="settings-content__body">
+        {/* ── Общее ── */}
+        <SettingsSection label="Общее">
+          <div className="set-row">
+            <span className="set-row__label">Макс. токенов ответа</span>
+            <span className="set-row__value">{chat.options?.maxTokens?.toLocaleString('ru')}</span>
+          </div>
+          <div className="set-row">
+            <span className="set-row__label">Temperature</span>
+            <span className="set-row__value">{chat.options?.temperature}</span>
+          </div>
+          <div className="set-row">
+            <span className="set-row__label">Top-p</span>
+            <span className="set-row__value">{chat.options?.topP}</span>
+          </div>
+          <div className="set-row">
+            <span className="set-row__label">Окно памяти</span>
+            <span className="set-row__value">50 сообщений</span>
+          </div>
+        </SettingsSection>
+
         {/* ── Основная модель ── */}
         <SettingsSection label="Основная модель (Чат)">
           <div className="set-row">
@@ -122,28 +142,6 @@ const ModelsGroup = () => {
             ))}
           </SettingsSection>
         )}
-
-        {/* ── Векторизация ── */}
-        <SettingsSection label="Векторизация (Embedding)">
-          <div className="set-row">
-            <span className="set-row__label">Модель</span>
-            <span className="set-row__value">{embedding.model}</span>
-          </div>
-          <div className="set-row">
-            <span className="set-row__label">Размер чанка</span>
-            <span className="set-row__value">{embedding.chunker?.maxTokens} токенов</span>
-          </div>
-          <div className="set-row">
-            <span className="set-row__label">Перекрытие чанков</span>
-            <span className="set-row__value">{embedding.chunker?.overlapTokens} токенов</span>
-          </div>
-          <div className="set-row">
-            <span className="set-row__label">Кэш векторов</span>
-            <span className="set-row__value">
-              {embedding.cache?.enabled ? `включён · TTL ${embedding.cache.ttlDays} дн.` : 'отключён'}
-            </span>
-          </div>
-        </SettingsSection>
 
         {/* ── Агент поиска ── */}
         <SettingsSection label="Агент поиска (searchCodebase)">
