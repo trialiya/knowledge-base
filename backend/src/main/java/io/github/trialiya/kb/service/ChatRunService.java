@@ -209,10 +209,18 @@ public class ChatRunService {
                         .map(Generation::getMetadata)
                         .map(ChatGenerationMetadata::getFinishReason)
                         .orElse(null);
-        if (finishReason != null) {
-            buffer.setLength(0);
-        } else {
+        // Копим ВЕСЬ текст ответа — он понадобится для частичного сохранения при stop/ошибке.
+        // На нормальном завершении ответ сохраняет advisor (по doOnComplete), а на отмене/ошибке
+        // (doOnComplete не срабатывает) сохраняем только мы. Поэтому на границе сегмента (модель
+        // пошла звать инструменты, finishReason=TOOL_CALLS) буфер НЕ сбрасываем — иначе при
+        // остановке после tool-call потеряются ранние сегменты; вместо сброса ставим разделитель.
+        if (chunk != null && !chunk.isEmpty()) {
             buffer.append(chunk);
+        }
+        if ("TOOL_CALLS".equals(finishReason)
+                && buffer.length() > 0
+                && buffer.charAt(buffer.length() - 1) != '\n') {
+            buffer.append("\n\n");
         }
         liveSink.accept(new StreamMessage(chunk, finishReason));
         printUsageStatistics(conversationId, response, finishReason);
@@ -270,7 +278,7 @@ public class ChatRunService {
             // Уже сохранили (onError + doFinally могут прийти оба).
             return;
         }
-        final String text = buffer.toString();
+        final String text = buffer.toString().strip();
         if (text.isBlank()) {
             return;
         }
