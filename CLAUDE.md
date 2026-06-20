@@ -39,17 +39,13 @@ in 22–25):
 
 ## Running tests in the Claude Code web sandbox
 
-The sandbox has no Docker, so `*IT` tests (Testcontainers / PostgreSQL) always
-fail with `NoClassDefFoundError` / `ExceptionInInitializerError`. Run only unit
-tests and skip the IT classes:
+No Docker → `*IT` tests always fail. Run unit tests only:
 
 ```bash
 ./gradlew :backend:test --init-script gradle/java21.gradle --no-configuration-cache --tests "*Test"
 ```
 
-IT failures in the sandbox are infrastructure-only and unrelated to code
-changes. Before a PR, IT tests must pass locally or in a Docker-capable CI
-environment.
+IT failures are infrastructure-only. Verify them locally or in CI before a PR.
 
 ## Before a PR
 
