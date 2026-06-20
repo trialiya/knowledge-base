@@ -72,6 +72,12 @@
     "usePathOnly": "Только путь (без содержимого)",
     "useFullContent": "С содержимым"
   },
+  "docInput": {
+    "hintStart": "Введите название или ID документа",
+    "hintQuery": "Поиск документов: «{{query}}»",
+    "searching": "Поиск…",
+    "empty": "Ничего не найдено"
+  },
   "list": {
     "newChat": "Новый чат",
     "newJiraChat": "JIRA чат",

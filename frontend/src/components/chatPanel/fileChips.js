@@ -5,12 +5,13 @@
 //   ⟦ref:PATH⟧             — только ссылка (раскрывается в `PATH`)
 
 import gitApi from '../../api/gitApi';
+import documentsApi from '../../api/documentsApi';
 
 const OPEN = '⟦'; // ⟦
 const CLOSE = '⟧'; // ⟧
 
-// Глобальный матчер обоих видов токенов. Захватных групп нет — parseToken разбирает детально.
-export const TOKEN_RE = new RegExp(`${OPEN}(?:file|ref):[^${CLOSE}]+${CLOSE}`, 'g');
+// Глобальный матчер всех видов токенов. Захватных групп нет — parseToken / parseDocToken разбирают детально.
+export const TOKEN_RE = new RegExp(`${OPEN}(?:file|ref|doc):[^${CLOSE}]+${CLOSE}`, 'g');
 
 /** Токен «весь файл / диапазон». */
 export function makeToken(path, from, to) {
@@ -42,6 +43,25 @@ export function parseToken(token) {
 export function baseName(path) {
   const i = path.lastIndexOf('/');
   return i >= 0 ? path.slice(i + 1) : path;
+}
+
+// ── Doc-токены ────────────────────────────────────────────────────────────────
+// Формат: ⟦doc:ID:TITLE⟧
+
+/** Создать токен документа. */
+export function makeDocToken(id, title) {
+  const safeTitle = String(title).replace(/⟧/g, '');
+  return `${OPEN}doc:${id}:${safeTitle}${CLOSE}`;
+}
+
+/**
+ * Разобрать doc-токен.
+ * Возвращает { id, title } или null.
+ */
+export function parseDocToken(token) {
+  const m = token.match(new RegExp(`^${OPEN}doc:(\\d+):(.*)${CLOSE}$`));
+  if (m) return { id: Number(m[1]), title: m[2] };
+  return null;
 }
 
 // ── Кеш содержимого ──────────────────────────────────────────────────────────
@@ -77,6 +97,18 @@ export async function expandTokensForSend(text) {
 
   const blocks = await Promise.all(
     tokens.map(async (m) => {
+      const docParsed = parseDocToken(m[0]);
+      if (docParsed) {
+        try {
+          const doc = await documentsApi.getById(docParsed.id);
+          const title = doc?.title ?? docParsed.title;
+          const description = doc?.description ?? '';
+          return `\n\nДокумент «${title}» (#${docParsed.id}):\n${description}\n`;
+        } catch {
+          return `\n\n[Документ #${docParsed.id}: не удалось загрузить]\n`;
+        }
+      }
+
       const parsed = parseToken(m[0]);
       if (!parsed) return m[0];
       const { path, from, to, refOnly } = parsed;

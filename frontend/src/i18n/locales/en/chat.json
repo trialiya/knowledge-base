@@ -72,6 +72,12 @@
     "usePathOnly": "Switch to path-only (no content)",
     "useFullContent": "Switch to full content"
   },
+  "docInput": {
+    "hintStart": "Type a document name or ID to search",
+    "hintQuery": "Search documents: \"{{query}}\"",
+    "searching": "Searching…",
+    "empty": "Nothing found"
+  },
   "list": {
     "newChat": "New chat",
     "newJiraChat": "JIRA chat",
