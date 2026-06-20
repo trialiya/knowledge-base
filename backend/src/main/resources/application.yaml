@@ -134,11 +134,11 @@ kb:
         - getTreeSkeleton
   atlassian:
     jira:
-      base-url: ${JIRA_BASE_URL}
-      api-token: ${JIRA_TOKEN}
+      base-url: ${JIRA_BASE_URL:}
+      api-token: ${JIRA_TOKEN:}
     confluence:
-      base-url: ${CONFLUENCE_BASE_URL}
-      api-token: ${CONFLUENCE_TOKEN}
+      base-url: ${CONFLUENCE_BASE_URL:}
+      api-token: ${CONFLUENCE_TOKEN:}
 
 #logging:
 #  level:
