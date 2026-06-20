@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.controller;
 
+import io.github.trialiya.kb.config.model.AtlassianConfiguration;
 import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.ChatModelProperties.ModelOption;
 import io.github.trialiya.kb.config.model.EmbeddingConfiguration;
@@ -21,18 +22,21 @@ public class SettingsController {
     private final Integer chatMaxTokens;
     private final Double chatTemperature;
     private final Double chatTopP;
+    private final AtlassianConfiguration atlassianConfiguration;
 
     public SettingsController(
             ChatModelProperties chatModelProperties,
             EmbeddingConfiguration embeddingConfiguration,
             SubAgentConfig subAgentConfig,
-            OpenAiChatModel openAiChatModel) {
+            OpenAiChatModel openAiChatModel,
+            AtlassianConfiguration atlassianConfiguration) {
         this.chatModelProperties = chatModelProperties;
         this.embeddingConfiguration = embeddingConfiguration;
         this.subAgentConfig = subAgentConfig;
         this.chatMaxTokens = openAiChatModel.getDefaultOptions().getMaxTokens();
         this.chatTemperature = openAiChatModel.getDefaultOptions().getTemperature();
         this.chatTopP = openAiChatModel.getDefaultOptions().getTopP();
+        this.atlassianConfiguration = atlassianConfiguration;
     }
 
     /** Full AI configuration snapshot consumed by the Settings → Модели panel. */
@@ -81,4 +85,18 @@ public class SettingsController {
 
     public record SearchCodebaseSection(
             boolean enabled, String modelId, int maxTokens, int maxIterations) {}
+
+    /** Returns which Atlassian integrations have API tokens configured. */
+    @GetMapping("/integrations")
+    public IntegrationsResponse getIntegrations() {
+        boolean jiraConfigured = atlassianConfiguration.jira() != null
+                && atlassianConfiguration.jira().apiToken() != null
+                && !atlassianConfiguration.jira().apiToken().isBlank();
+        boolean confluenceConfigured = atlassianConfiguration.confluence() != null
+                && atlassianConfiguration.confluence().apiToken() != null
+                && !atlassianConfiguration.confluence().apiToken().isBlank();
+        return new IntegrationsResponse(jiraConfigured, confluenceConfigured);
+    }
+
+    public record IntegrationsResponse(boolean jiraConfigured, boolean confluenceConfigured) {}
 }

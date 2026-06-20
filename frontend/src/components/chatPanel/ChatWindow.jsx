@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import chatApi from '../../api/chatApi';
+import settingsApi from '../../api/settingsApi';
 import { openChatEventStream } from '../../api/chatEvents';
 import { applyChatEvent } from './chatEventReducer';
 import attachmentApi from '../common/attachmentApi';
@@ -126,6 +127,8 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   const [attachPanelOpen, setAttachPanelOpen] = useState(false);
   const [attachCount, setAttachCount] = useState(0);
   const [jiraModalOpen, setJiraModalOpen] = useState(false);
+  const [jiraConfigured, setJiraConfigured] = useState(false);
+  const [confluenceConfigured, setConfluenceConfigured] = useState(false);
   // Список выбираемых моделей и дефолтная: { defaultModel: {id,label}, models: [{id,label}] }
   const [modelConfig, setModelConfig] = useState(null);
   // Последняя модель, с которой отправляли сообщение (живёт между перезагрузками).
@@ -181,6 +184,23 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         if (!cancelled) setModelConfig(cfg);
       })
       .catch((err) => console.error('Ошибка загрузки списка моделей:', err));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Проверка наличия токенов Atlassian (GET /api/settings/integrations). Грузим один раз.
+  useEffect(() => {
+    let cancelled = false;
+    settingsApi
+      .getIntegrations()
+      .then((cfg) => {
+        if (!cancelled) {
+          setJiraConfigured(cfg.jiraConfigured);
+          setConfluenceConfigured(cfg.confluenceConfigured);
+        }
+      })
+      .catch((err) => console.error('Ошибка загрузки настроек интеграций:', err));
     return () => {
       cancelled = true;
     };
@@ -744,7 +764,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         onNewChat={handleNewChat}
         onDeleteChat={handleDeleteChat}
         onRenameChat={renameChat}
-        onNewJiraChat={() => setJiraModalOpen(true)}
+        onNewJiraChat={jiraConfigured ? () => setJiraModalOpen(true) : undefined}
       />
 
       {/* ── Center: chat window ── */}
@@ -908,6 +928,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         open={jiraModalOpen}
         onClose={() => setJiraModalOpen(false)}
         onCreate={handleCreateJiraChat}
+        confluenceConfigured={confluenceConfigured}
       />
       <ErrorModal
         open={!!chatErrorModal}
