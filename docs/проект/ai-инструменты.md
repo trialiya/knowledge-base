@@ -127,7 +127,35 @@
 
 ---
 
-## 5. Системные инструменты
+## 5. Умный поиск (searchCodebase)
+
+### `searchCodebase`
+Многошаговый поиск по коду репозитория и базе знаний через сабагента. В отличие от одиночного `grepContent`, сабагент сам итеративно вызывает grep, обзор структуры и чтение файлов, возвращая сжатый отчёт с цитатами `path:line`.
+
+- **Параметры:**
+  - `task` (String) — подробная постановка задачи на естественном языке: что искать и зачем. Чем конкретнее (термины, имена классов/методов, область), тем лучше результат.
+  - `scope` (String, опционально) — область поиска: `"code"` | `"docs"` | `"all"` (по умолчанию all)
+  - `pathGlob` (String, опционально) — glob для ограничения путей в коде, например `"backend/**/*.java"`. null — без ограничения.
+- **Возвращает:** `SearchAgentResult` с полями:
+  - `report` (String) — сжатый отчёт с цитатами `path:line`
+  - `complete` (boolean) — true если сабагент завершил поиск самостоятельно; false если исчерпан бюджет итераций или произошла ошибка
+  - `iterations` (int) — количество раундов tool-call
+  - `durationMs` (long, скрыто от модели) — длительность в миллисекундах
+
+**Когда использовать `searchCodebase` вместо `grepContent`:**
+- `grepContent` — простое точное совпадение, один-два запроса («где вызывается `save()`?»)
+- `searchCodebase` — широкий или неоднозначный вопрос, требующий нескольких шагов (grep → структура → чтение фрагментов) и/или объединения кода и документов («как устроена авторизация и где она проверяется?»)
+
+**Ограничения сабагента:**
+- Только read-only инструменты (grepContent, searchFiles, getFileTree, getFileOutline, getFileContent, searchDocuments, findDocumentsByName, getDocument, getTreeSkeleton)
+- Не может вызывать сам себя (защита от рекурсии через `allowed-tools`)
+- Жёсткий лимит итераций (`maxIterations`, по умолчанию 30) — при исчерпании принудительная суммаризация
+- Отдельная модель (может отличаться от основной — например, более дешёвая/быстрая)
+- Настраивается через `kb.search.subagent.*` в [Конфигурации](конфигурация.md)
+
+---
+
+## 6. Системные инструменты
 
 ### `getCurrentDateTime`
 Текущие дата и время в часовом поясе пользователя.
@@ -156,13 +184,14 @@ ID текущего чата.
 
 ---
 
-## 6. Компактные результаты (CompactToolResultConverter)
+## 7. Компактные результаты (CompactToolResultConverter)
 
 Все инструменты используют `CompactToolResultConverter`, который преобразует полные DTO в сжатое превью:
 
 - **`resultGist`** — краткая текстовая сводка результата (например, `"size=1\n4512b4a 2026-06-03 Trialiya: feature: show compact tool result previews..."`)
-- **`ToolCallResponseItem`** — интерфейс с методом `toGist()`, реализуемый всеми DTO: `GitFileContent`, `GitFileOutline`, `GitCommit`, `GitGrepMatch`, `GitFileNode`, `GitDiffEntry`, `DocumentDto`, `AttachmentDto`
-- **`OutlineResult`** — новый DTO-обёртка для `getFileOutline`, содержит `path`, `language`, `lineCount`, `parser`, `symbols` и реализует `ToolCallResponseItem`
+- **`ToolCallResponseItem`** — интерфейс с методом `toGist()`, реализуемый всеми DTO: `GitFileContent`, `GitFileOutline`, `GitCommit`, `GitGrepMatch`, `GitFileNode`, `GitDiffEntry`, `DocumentDto`, `AttachmentDto`, `SearchAgentResult`
+- **`OutlineResult`** — DTO-обёртка для `getFileOutline`, содержит `path`, `language`, `lineCount`, `parser`, `symbols` и реализует `ToolCallResponseItem`
+- **`SearchAgentResult`** — результат `searchCodebase`, реализует `ToolCallResponseItem` и `ToolCallResultMetaProvider`. Gist: `"⚠ неполно • 3 шаг(ов) • краткий фрагмент отчёта…"`. ResultMeta: `complete`, `iterations`, `durationMs`, `reportChars`.
 
 ### ToolInvocation
 

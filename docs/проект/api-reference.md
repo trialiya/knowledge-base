@@ -256,28 +256,53 @@ ID предков от корня до узла (не включая сам уз
 
 ---
 
-### POST `/api/chats/{conversationId}/messages/stream`
-Streaming-чат через Server-Sent Events.
+### POST `/api/chats/{conversationId}/runs`
+Запустить фоновую генерацию ответа. Возвращает `runId` сразу, сам ответ приходит через SSE event channel (`GET /events`).
 
 | Параметр | Тип | По умолчанию | Описание |
 |---|---|---|---|
-| `model` | String | — | ID модели (опционально, переопределяет модель чата) |
+| `model` | String | — | ID модели (опционально) |
+| `clientMsgId` | String | — | ID клиента-инициатора (защита от задвоения пузыря) |
 
 **Body:** `String` — сообщение пользователя (raw text)
 
-**Response:** `text/event-stream` (SSE)
-- `StreamMessage` — текст ответа и/или finishReason
-- `ToolCallMessage` — вызов инструмента (статус STARTED/OK)
-- `ToolCallsMessage` — снапшот всех завершённых вызовов (список `ToolInvocationMeta`)
+**Response:** `200 OK`
+```json
+{ "runId": "uuid" }
+```
+
+**Ошибки:** `409 Conflict` — генерация уже идёт в этом чате
 
 ---
 
-### POST `/api/chats/{conversationId}/messages/test`
-Тестовый SSE-эндпоинт (имитация стриминга). Только для отладки.
+### GET `/api/chats/{conversationId}/events`
+SSE-поток событий чата: стриминг ответа + кросс-вкладочная синхронизация.
 
-**Body:** `String` — сообщение (raw text)
+| Параметр | Тип | По умолчанию | Описание |
+|---|---|---|---|
+| `fromSeq` | long | `0` | Дозагрузить события с seq > fromSeq |
 
-**Response:** `text/event-stream`
+**Response:** `text/event-stream` (SSE)
+- `ChatEvent` — каждое событие: `seq`, `type`, `runId`, `clientMsgId`, `payload`
+- Типы: `USER_MESSAGE`, `RUN_STARTED`, `STREAM`, `TOOL_CALL`, `TOOL_CALLS`, `RUN_DONE`, `RUN_STOPPED`, `RUN_ERROR`
+
+---
+
+### POST `/api/chats/{conversationId}/runs/{runId}/stop`
+Остановить активный прогон. Идемпотентно.
+
+**Response:** `200 OK`
+
+---
+
+### GET `/api/chats/{conversationId}/runs/active`
+runId активного прогона чата (или пустой объект).
+
+**Response:**
+```json
+{ "runId": "uuid" }   // если прогон активен
+{}                     // если нет активного прогона
+```
 
 ---
 
@@ -329,6 +354,72 @@ Streaming-чат через Server-Sent Events.
 **Response:** `200 OK`
 
 **Ошибки:** `403` — чужой чат, `400` — неизвестная модель
+
+---
+
+## SettingsController — `/api/settings`
+
+### GET `/api/settings/ai-config`
+Полный снапшот AI-конфигурации для панели «Настройки → Модели».
+
+**Response:** `AiConfigResponse`
+```json
+{
+  "chat": {
+    "defaultModel": { "id": "gpt-4o", "label": "GPT-4o" },
+    "models": [ ... ],
+    "options": { "maxTokens": 30000, "temperature": 0.1, "topP": 0.8 }
+  },
+  "embedding": {
+    "model": "bge-m3",
+    "reindexBatchSize": 50,
+    "chunker": { "maxTokens": 512, "overlapTokens": 64 },
+    "cache": { "enabled": true, "ttlDays": 30 }
+  },
+  "searchCodebase": {
+    "enabled": true,
+    "modelId": "gpt-4o-mini",
+    "maxTokens": 12000,
+    "maxIterations": 30
+  },
+  "summarize": {
+    "tokenThreshold": 3000,
+    "messageCountThreshold": 20,
+    "overlapMessages": 10
+  }
+}
+```
+
+---
+
+## GitController — `/api/git`
+
+Read-only эндпоинты для автодополнения `/file` в композере чата. Делегируют в `GitService`, который обеспечивает доступ только к tracked-файлам, защиту от path traversal и ограничения по бинарным/большим файлам.
+
+### GET `/api/git/files/search`
+Fuzzy-поиск tracked-файлов по имени (subsequence match, регистронезависимо). Результаты ранжированы: лучшее совпадение первым.
+
+| Параметр | Тип | По умолчанию | Описание |
+|---|---|---|---|
+| `q` | String | — | Часть имени файла, например `mgi` → `MessageInput` |
+| `limit` | int | `10` | Макс. результатов |
+
+**Response:** `List<GitFileNode>` — `{ path, name, type: "file", size }`
+
+---
+
+### GET `/api/git/files/content`
+Содержимое файла для превью/разворачивания чипа. Диапазон строк опционален.
+
+| Параметр | Тип | По умолчанию | Описание |
+|---|---|---|---|
+| `path` | String | — | Путь к файлу относительно корня репо |
+| `from` | int? | `null` | Первая строка (1-based, включительно) |
+| `to` | int? | `null` | Последняя строка (1-based, включительно) |
+
+**Response:** `GitFileContent` — `{ path, content, binary, sizeBytes, language, totalLines, ... }`
+
+**Ошибки:** `400` — путь пустой или содержит `..`, `/`, `-` в начале, `\0`
 
 ---
 
