@@ -1,19 +1,30 @@
+/* Обёртка пузырь + футер — управляет выравниванием в колонке */
+.message-block {
+  display: flex;
+  flex-direction: column;
+  max-width: 75%;
+  margin-bottom: 10px;
+}
+.message-block--ai {
+  align-self: flex-start;
+}
+.message-block--user {
+  align-self: flex-end;
+  margin-left: auto;
+}
+
 /* Базовые стили для любого сообщения */
 .message {
   padding: 0.7rem 1rem;
   border-radius: 14px;
-  max-width: 75%;
   line-height: 1.5;
   word-wrap: break-word;
-  margin-bottom: 10px;
 }
 
 /* Сообщение от пользователя */
 .message.user {
   background-color: var(--kb-user-bubble-bg);
   color: var(--kb-user-bubble-color);
-  align-self: flex-end;
-  margin-left: auto;
   border-bottom-right-radius: 4px;
 }
 
@@ -26,7 +37,6 @@
 .message.ai {
   background-color: var(--kb-ai-bubble-bg);
   color: var(--kb-ai-bubble-color);
-  align-self: flex-start;
   border-bottom-left-radius: 4px;
   white-space: normal;
 }
