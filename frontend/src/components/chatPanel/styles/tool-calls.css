@@ -16,10 +16,13 @@
   flex-direction: column;
 }
 
-/* Пузырь заполняет колонку без вложенного max-width:75% */
-.message-row-with-tools .message-main-col > .message {
-  align-self: stretch;
+/* Блок (пузырь + футер) заполняет колонку без вложенного max-width:75% */
+.message-row-with-tools .message-main-col > .message-block {
   max-width: 100%;
+  margin-bottom: 0;
+}
+.message-row-with-tools .message-main-col > .message-block > .message {
+  align-self: stretch;
 }
 
 .tool-call-notifications {

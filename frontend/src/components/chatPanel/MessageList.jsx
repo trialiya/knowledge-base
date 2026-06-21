@@ -135,6 +135,7 @@ const MessageList = ({
             text={msg.text}
             sender={msg.sender}
             toolCalls={msg.toolCalls}
+            timestamp={msg.timestamp}
             toolCallsRunId={msg.toolCallsRunId}
             preparing={msg.preparing}
             conversationId={conversationId}
