@@ -491,42 +491,53 @@ const Message = ({ text, sender, toolCalls, toolCallsRunId, preparing, conversat
   const showPreparing = preparing && sender === 'ai';
   const timeLabel = formatTimestamp(timestamp);
 
-  const messageContent = (
+  // Пузырь — только контент сообщения, без футера
+  const bubble = (
     <div className={messageClass}>
       {sender === 'ai' ? (
-        <>
-          {showSource ? (
-            <pre className="message-raw-source">{text}</pre>
-          ) : (
-            <div className="md-preview md-preview--chat">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={getMarkdownComponents(onNavigateToDoc)}>
-                {text}
-              </ReactMarkdown>
-            </div>
-          )}
-          <div className="message-footer">
-            {timeLabel && <span className="message-footer-time">{timeLabel}</span>}
-            <div className="message-footer-actions">
-              <MessageCopyButton text={text} />
-              <button
-                className={`message-source-btn ${showSource ? 'message-source-btn--active' : ''}`}
-                onClick={() => setShowSource((v) => !v)}
-                title={showSource ? t('message.viewFormatted') : t('message.viewSource')}
-              >
-                {showSource ? `◈ ${t('message.btnMarkdown')}` : `{ } ${t('message.btnSource')}`}
-              </button>
-            </div>
+        showSource ? (
+          <pre className="message-raw-source">{text}</pre>
+        ) : (
+          <div className="md-preview md-preview--chat">
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={getMarkdownComponents(onNavigateToDoc)}>
+              {text}
+            </ReactMarkdown>
           </div>
-        </>
+        )
       ) : (
-        <>
-          <div className="user-message-text">{text}</div>
-          <div className="message-footer message-footer--user">
-            {timeLabel && <span className="message-footer-time">{timeLabel}</span>}
-            <MessageCopyButton text={text} />
-          </div>
-        </>
+        <div className="user-message-text">{text}</div>
       )}
+    </div>
+  );
+
+  // Футер под пузырём: AI — справа (время слева, кнопки справа),
+  // user — слева (кнопка + время).
+  const footer =
+    sender === 'ai' ? (
+      <div className="message-footer message-footer--ai">
+        {timeLabel && <span className="message-footer-time">{timeLabel}</span>}
+        <div className="message-footer-actions">
+          <MessageCopyButton text={text} />
+          <button
+            className={`message-source-btn ${showSource ? 'message-source-btn--active' : ''}`}
+            onClick={() => setShowSource((v) => !v)}
+            title={showSource ? t('message.viewFormatted') : t('message.viewSource')}
+          >
+            {showSource ? `◈ ${t('message.btnMarkdown')}` : `{ } ${t('message.btnSource')}`}
+          </button>
+        </div>
+      </div>
+    ) : (
+      <div className="message-footer message-footer--user">
+        <MessageCopyButton text={text} />
+        {timeLabel && <span className="message-footer-time">{timeLabel}</span>}
+      </div>
+    );
+
+  const messageBlock = (
+    <div className={`message-block message-block--${sender}`}>
+      {bubble}
+      {footer}
     </div>
   );
 
@@ -534,7 +545,7 @@ const Message = ({ text, sender, toolCalls, toolCallsRunId, preparing, conversat
     return (
       <div className="message-row-with-tools">
         <div className="message-main-col">
-          {messageContent}
+          {messageBlock}
           <DocChangeBlock toolCalls={toolCalls} onNavigateToDoc={onNavigateToDoc} />
           {showPreparing && <ToolPreparingIndicator />}
         </div>
@@ -546,13 +557,13 @@ const Message = ({ text, sender, toolCalls, toolCallsRunId, preparing, conversat
   if (showPreparing) {
     return (
       <>
-        {messageContent}
+        {messageBlock}
         <ToolPreparingIndicator />
       </>
     );
   }
 
-  return messageContent;
+  return messageBlock;
 };
 
 export default Message;

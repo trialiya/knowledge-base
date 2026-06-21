@@ -73,7 +73,7 @@ const transformPage = (rawMsgs) => {
       continue; // преамбулу как сообщение не рендерим
     }
     if (type !== 'user') sawAi = true;
-    bubbles.push({ text: m.content, sender: type === 'user' ? 'user' : 'ai', timestamp: m.createdAt || null });
+    bubbles.push({ text: m.content, sender: type === 'user' ? 'user' : 'ai', timestamp: m.timestamp || null });
   }
   return { bubbles, leadingMetas };
 };
@@ -523,7 +523,10 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       setChats((prev) => {
         const found = prev.find((c) => c.id === activeChatId);
         if (!found) return prev;
-        const newMessages = [...(found.messages || []), { text, sender: 'user', clientMsgId }];
+        const newMessages = [
+          ...(found.messages || []),
+          { text, sender: 'user', clientMsgId, timestamp: new Date().toISOString() },
+        ];
         const updatedChat = {
           ...found,
           id: conversationId,

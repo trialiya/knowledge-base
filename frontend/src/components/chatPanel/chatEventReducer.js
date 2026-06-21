@@ -53,7 +53,7 @@ const lastAiIndexForRun = (msgs, runId) => {
 };
 
 const pushAi = (msgs, runId) => {
-  msgs.push({ text: '', sender: 'ai', runId, toolCalls: [] });
+  msgs.push({ text: '', sender: 'ai', runId, toolCalls: [], timestamp: new Date().toISOString() });
   return msgs.length - 1;
 };
 
@@ -97,7 +97,7 @@ export function applyChatEvent(chat, ev, ctx) {
       // Дубликат после reload: сообщение уже подгрузилось из БД (хвост истории).
       const last = msgs[msgs.length - 1];
       if (last && last.sender === 'user' && last.text === payload?.text) return chat;
-      msgs.push({ text: payload?.text || '', sender: 'user' });
+      msgs.push({ text: payload?.text || '', sender: 'user', timestamp: new Date().toISOString() });
       return { ...chat, messages: msgs };
     }
 

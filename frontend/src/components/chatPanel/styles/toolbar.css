@@ -1,27 +1,33 @@
-/* ── Футер сообщения: время слева, кнопки справа ── */
+/* ── Футер под пузырём: время + кнопки ──
+   Рендерится ВНЕ пузыря (sibling .message), на фоне чата. */
 .message-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 6px;
-  margin-top: 6px;
+  padding: 2px 2px 0;
 }
+
+/* AI: время слева, кнопки справа */
+.message-footer--ai {
+  justify-content: space-between;
+}
+
+/* User: кнопка + время слева (пузырь прижат вправо) */
 .message-footer--user {
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
+
 .message-footer-actions {
   display: flex;
   align-items: center;
   gap: 6px;
 }
+
 .message-footer-time {
   font-size: 0.68rem;
   color: #aaa;
   white-space: nowrap;
   user-select: none;
-}
-.message.user .message-footer-time {
-  color: rgba(255, 255, 255, 0.65);
 }
 
 /* ── Кнопка «копировать всё сообщение» ── */
@@ -46,16 +52,6 @@
 }
 .message-copy-btn--done {
   color: var(--kb-success);
-}
-
-/* На синем пузыре пользователя — светлые тона */
-.message.user .message-copy-btn {
-  color: rgba(255, 255, 255, 0.8);
-}
-.message.user .message-copy-btn:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.18);
-  border-color: rgba(255, 255, 255, 0.35);
 }
 
 /* ── Кнопка переключения источника ── */
