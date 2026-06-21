@@ -76,19 +76,22 @@ public class ConversationHub {
         } finally {
             lock.unlock();
         }
-        emitter.onCompletion(() -> {
-            log.debug("[{}] emitter completed (client closed)", conversationId);
-            remove(emitter);
-        });
-        emitter.onTimeout(() -> {
-            log.debug("[{}] emitter timed out", conversationId);
-            emitter.complete();
-            remove(emitter);
-        });
-        emitter.onError(e -> {
-            log.debug("[{}] emitter error: {}", conversationId, e.getMessage());
-            remove(emitter);
-        });
+        emitter.onCompletion(
+                () -> {
+                    log.debug("[{}] emitter completed (client closed)", conversationId);
+                    remove(emitter);
+                });
+        emitter.onTimeout(
+                () -> {
+                    log.debug("[{}] emitter timed out", conversationId);
+                    emitter.complete();
+                    remove(emitter);
+                });
+        emitter.onError(
+                e -> {
+                    log.debug("[{}] emitter error: {}", conversationId, e.getMessage());
+                    remove(emitter);
+                });
         return emitter;
     }
 
@@ -161,8 +164,8 @@ public class ConversationHub {
 
     /**
      * Отправляет SSE-комментарий всем подписчикам. При записи в закрытый сокет Spring бросает
-     * исключение → onError/onCompletion → remove() → хаб выгружается из реестра.
-     * Вызывается по расписанию из {@link ChatRuntimeMonitor}.
+     * исключение → onError/onCompletion → remove() → хаб выгружается из реестра. Вызывается по
+     * расписанию из {@link ChatRuntimeMonitor}.
      */
     public void sendHeartbeat() {
         final List<SseEmitter> snapshot;
@@ -178,7 +181,10 @@ public class ConversationHub {
             try {
                 emitter.send(SseEmitter.event().comment("heartbeat"));
             } catch (Exception e) {
-                log.debug("[{}] heartbeat send failed (dead connection): {}", conversationId, e.getMessage());
+                log.debug(
+                        "[{}] heartbeat send failed (dead connection): {}",
+                        conversationId,
+                        e.getMessage());
                 // onError/onCompletion callbacks handle removal
             }
         }
@@ -191,7 +197,11 @@ public class ConversationHub {
             subscribers.remove(emitter);
             // «Опустел»: последний подписчик ушёл и прогона нет → пора выгружать из реестра.
             idle = subscribers.isEmpty() && activeRunId == null && !closed;
-            log.debug("[{}] subscriber removed, remaining={}, idle={}", conversationId, subscribers.size(), idle);
+            log.debug(
+                    "[{}] subscriber removed, remaining={}, idle={}",
+                    conversationId,
+                    subscribers.size(),
+                    idle);
         } finally {
             lock.unlock();
         }
