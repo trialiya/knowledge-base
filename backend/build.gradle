@@ -1,6 +1,6 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '3.5.15'
+    id 'org.springframework.boot' version '4.1.0'
     id 'io.spring.dependency-management' version '1.1.7'
     id 'com.diffplug.spotless'
 }
@@ -38,17 +38,21 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jdbc'
     implementation 'org.postgresql:postgresql'
     implementation 'com.h2database:h2'
+    // Spring Boot 4 extracted FlywayAutoConfiguration out of spring-boot-autoconfigure into the
+    // dedicated spring-boot-flyway module, which flyway-core does not pull transitively. Without it
+    // migrations never run (neither at app startup nor in @DataJdbcTest slices).
+    implementation 'org.springframework.boot:spring-boot-flyway'
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'
 
-    implementation('org.springframework.ai:spring-ai-starter-model-openai') {
-        // spring-boot-reactor and spring-boot-jackson are Spring Boot 4.x-only modules that
-        // register factories incompatible with the Spring Boot 3.x runtime on the classpath.
-        // Our Spring Boot 3.x runtime already provides equivalent Reactor and Jackson support.
-        exclude group: 'org.springframework.boot', module: 'spring-boot-reactor'
-        exclude group: 'org.springframework.boot', module: 'spring-boot-jackson'
-    }
+    implementation 'org.springframework.ai:spring-ai-starter-model-openai'
     implementation 'org.springframework.ai:spring-ai-starter-model-chat-memory-repository-jdbc'
+
+    // Spring Boot 4 makes Jackson 3 (tools.jackson) the auto-configured JSON mapper and demotes
+    // the retained Jackson 2 modules to runtime-only. Our internal serialization (ChatMemoryService,
+    // Spring Data JDBC converters, tool-call persistence) still targets Jackson 2, so pull its
+    // Java-time module back onto the compile classpath. Version is managed by the Jackson 2 BOM.
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
 
     implementation 'com.google.guava:guava:33.6.0-jre'
 
@@ -67,6 +71,10 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    // Spring Boot 4 extracted the per-slice test support out of spring-boot-test-autoconfigure
+    // into dedicated spring-boot-<module>-test artifacts (@DataJdbcTest, @AutoConfigureTestDatabase).
+    testImplementation 'org.springframework.boot:spring-boot-data-jdbc-test'
+    testImplementation 'org.springframework.boot:spring-boot-jdbc-test'
     testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'org.testcontainers:postgresql'
     testImplementation 'org.testcontainers:junit-jupiter'
@@ -76,6 +84,8 @@ dependencies {
 dependencyManagement {
     imports {
         mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
+        // Spring Boot 4 no longer manages Testcontainers versions in its BOM, so import it directly.
+        mavenBom "org.testcontainers:testcontainers-bom:1.21.4"
     }
 }
 

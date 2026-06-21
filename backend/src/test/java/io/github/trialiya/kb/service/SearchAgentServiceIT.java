@@ -140,8 +140,9 @@ class SearchAgentServiceIT {
 
         Prompt finalCall = prompts.getAllValues().get(3);
         // The summarization call offers no tools (model cannot ask for more) and carries the
-        // budget-reached instruction as its last user message.
-        assertThat(((OpenAiChatOptions) finalCall.getOptions()).getToolCallbacks()).isEmpty();
+        // budget-reached instruction as its last user message. Spring AI 2.0.0 leaves an unset
+        // tool-callback list as null (1.x returned an empty list); both mean "no tools".
+        assertThat(((OpenAiChatOptions) finalCall.getOptions()).getToolCallbacks()).isNullOrEmpty();
         assertThat(lastUserText(finalCall)).contains("Лимит шагов поиска исчерпан");
     }
 

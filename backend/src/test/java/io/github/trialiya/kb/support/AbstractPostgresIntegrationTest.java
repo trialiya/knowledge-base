@@ -1,5 +1,7 @@
 package io.github.trialiya.kb.support;
 
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
+import org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -21,6 +23,10 @@ import org.testcontainers.utility.DockerImageName;
  * <p>Логин/пароль/имя БД совпадают с продовыми ({@code knowledgebase}), чтобы отрабатывал, в
  * частности, {@code ALTER TABLE attachments OWNER TO knowledgebase} из V1.
  */
+// Spring Boot 4 dropped Flyway from the @DataJdbcTest slice imports (and @OverrideAutoConfiguration
+// disables everything not explicitly imported), so pull FlywayAutoConfiguration in for subclasses —
+// otherwise migrations never run and the schema is empty.
+@ImportAutoConfiguration(FlywayAutoConfiguration.class)
 public abstract class AbstractPostgresIntegrationTest {
 
     protected static final PostgreSQLContainer<?> POSTGRES =

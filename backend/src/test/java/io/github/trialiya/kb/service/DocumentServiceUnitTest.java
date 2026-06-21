@@ -18,8 +18,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.data.jdbc.DataJdbcTest;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
+import org.springframework.boot.data.jdbc.test.autoconfigure.DataJdbcTest;
+import org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.context.ActiveProfiles;
@@ -46,6 +48,9 @@ import org.springframework.web.server.ResponseStatusException;
             "spring.data.jdbc.dialect=postgresql",
         })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+// Spring Boot 4 dropped Flyway from the @DataJdbcTest slice imports, so pull it in explicitly —
+// these tests run the real db/migration-h2 schema.
+@ImportAutoConfiguration(FlywayAutoConfiguration.class)
 @Import({CommonConfig.class})
 class DocumentServiceUnitTest {
 
@@ -345,7 +350,7 @@ class DocumentServiceUnitTest {
                     .satisfies(
                             t ->
                                     assertThat(statusOf(t))
-                                            .isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY));
+                                            .isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT));
         }
 
         @Test
@@ -368,7 +373,7 @@ class DocumentServiceUnitTest {
                     .satisfies(
                             t ->
                                     assertThat(statusOf(t))
-                                            .isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY));
+                                            .isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT));
         }
 
         @Test

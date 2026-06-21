@@ -31,8 +31,8 @@ import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.data.jdbc.DataJdbcTest;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
+import org.springframework.boot.data.jdbc.test.autoconfigure.DataJdbcTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Import;
 
 /**
@@ -79,8 +79,10 @@ class ChatModelClientIT extends AbstractPostgresIntegrationTest {
 
         // ── модель-заглушка ────────────────────────────────────────────────
         ChatModel chatModel = mock(ChatModel.class);
-        // ChatClient.builder копирует defaultOptions модели — не отдаём null
+        // ChatClient.builder копирует опции модели — не отдаём null. Spring AI 2.0.0 читает
+        // getOptions() в DefaultChatClientUtils, поэтому мокаем оба геттера опций.
         when(chatModel.getDefaultOptions()).thenReturn(OpenAiChatOptions.builder().build());
+        when(chatModel.getOptions()).thenReturn(OpenAiChatOptions.builder().build());
         when(chatModel.call(any(Prompt.class)))
                 .thenReturn(
                         new ChatResponse(
