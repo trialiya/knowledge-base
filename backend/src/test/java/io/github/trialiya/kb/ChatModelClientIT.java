@@ -96,7 +96,7 @@ class ChatModelClientIT extends AbstractPostgresIntegrationTest {
                 chatClient
                         .prompt()
                         .user("Привет, модель")
-                        .options(OpenAiChatOptions.builder().model("gpt-test").build())
+                        .options(OpenAiChatOptions.builder().model("gpt-test"))
                         .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
                         .call()
                         .content();

@@ -1,8 +1,7 @@
 package io.github.trialiya.kb.config;
 
+import io.github.trialiya.kb.advisor.ToolPreparingAdvisor;
 import io.github.trialiya.kb.config.model.SubAgentConfig;
-import io.github.trialiya.kb.diag.StreamDiagnostics;
-import io.github.trialiya.kb.diag.StreamDiagnosticsAdvisor;
 import io.github.trialiya.kb.functions.AttachmentFunction;
 import io.github.trialiya.kb.functions.DocumentFunction;
 import io.github.trialiya.kb.functions.GitFunction;
@@ -12,6 +11,7 @@ import io.github.trialiya.kb.functions.TopicFunction;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.AttachmentService;
+import io.github.trialiya.kb.service.ChatEventService;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.service.DocumentService;
 import io.github.trialiya.kb.service.GitService;
@@ -25,6 +25,7 @@ import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.client.advisor.ToolCallingAdvisor;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
@@ -121,7 +122,7 @@ public class ChatConfig {
             DocumentFunction documentFunction,
             AttachmentService attachmentService,
             ObjectProvider<SearchAgentService> searchAgentService,
-            ObjectProvider<StreamDiagnosticsAdvisor> streamDiagnosticsAdvisor) {
+            ChatEventService chatEventService) {
         log.info("Model: {}", chatModel.getDefaultOptions());
 
         List<Object> functions =
@@ -140,28 +141,19 @@ public class ChatConfig {
                         .map(RecordingToolCallback::new)
                         .toArray(ToolCallback[]::new);
 
-        // ДИАГНОСТИКА: при kb.diag.stream-tool-calls=true добавляем самый внутренний advisor,
-        // логирующий сырой поток модели (см. StreamDiagnosticsAdvisor). Иначе список — только
-        // штатный MessageChatMemoryAdvisor.
+        // Advisor chain (innermost to outermost via getOrder()):
+        //   ToolPreparingAdvisor (LOWEST_PRECEDENCE)  — emits TOOL_PREPARING before each tool call
+        //   MessageChatMemoryAdvisor                  — loads/saves conversation history
+        //   ToolCallingAdvisor (DEFAULT_ORDER ≈ MIN)  — drives the tool-call loop
         List<Advisor> advisors = new ArrayList<>();
+        advisors.add(ToolCallingAdvisor.builder().toolCallingManager(toolCallingManager).build());
         advisors.add(MessageChatMemoryAdvisor.builder(chatMemory).build());
-        streamDiagnosticsAdvisor.ifAvailable(advisors::add);
+        advisors.add(new ToolPreparingAdvisor(chatEventService));
 
         return ChatClient.builder(chatModel)
                 .defaultAdvisors(advisors)
                 .defaultSystem(sysPrompt)
                 .defaultToolCallbacks(callbacks)
                 .build();
-    }
-
-    /**
-     * ДИАГНОСТИКА (временная): advisor, логирующий сырой поток модели для выяснения, виден ли в
-     * Spring AI 1.1.x момент формирования вызова инструмента на уровне advisor. Подключается только
-     * при {@code kb.diag.stream-tool-calls=true}; в норме бин отсутствует и advisor не добавляется.
-     */
-    @Bean
-    @ConditionalOnProperty(prefix = "kb.diag", name = "stream-tool-calls", havingValue = "true")
-    public StreamDiagnosticsAdvisor streamDiagnosticsAdvisor(StreamDiagnostics streamDiagnostics) {
-        return new StreamDiagnosticsAdvisor(streamDiagnostics);
     }
 }

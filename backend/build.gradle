@@ -26,7 +26,7 @@ repositories {
 }
 
 ext {
-    set('springAiVersion', '1.1.6')
+    set('springAiVersion', '2.0.0')
 }
 
 dependencies {
@@ -41,7 +41,13 @@ dependencies {
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'
 
-    implementation 'org.springframework.ai:spring-ai-starter-model-openai'
+    implementation('org.springframework.ai:spring-ai-starter-model-openai') {
+        // spring-boot-reactor and spring-boot-jackson are Spring Boot 4.x-only modules that
+        // register factories incompatible with the Spring Boot 3.x runtime on the classpath.
+        // Our Spring Boot 3.x runtime already provides equivalent Reactor and Jackson support.
+        exclude group: 'org.springframework.boot', module: 'spring-boot-reactor'
+        exclude group: 'org.springframework.boot', module: 'spring-boot-jackson'
+    }
     implementation 'org.springframework.ai:spring-ai-starter-model-chat-memory-repository-jdbc'
 
     implementation 'com.google.guava:guava:33.6.0-jre'

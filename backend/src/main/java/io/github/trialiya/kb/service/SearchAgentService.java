@@ -111,7 +111,6 @@ public class SearchAgentService {
                         .model(config.modelId())
                         .maxTokens(config.maxTokens())
                         .temperature(0.0)
-                        .internalToolExecutionEnabled(false) // we drive the loop ourselves
                         .toolCallbacks(toolCallbacks)
                         .toolContext(buildContext(conversationId))
                         .build();

@@ -249,7 +249,7 @@ public class ChatController {
                         .toolContext(buildContext(conversationId, toolCollector))
                         .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId));
         if (resolvedModel != null) {
-            spec = spec.options(OpenAiChatOptions.builder().model(resolvedModel).build());
+            spec = spec.options(OpenAiChatOptions.builder().model(resolvedModel));
         }
 
         final ChatResponse chatResponse = spec.call().chatResponse();
