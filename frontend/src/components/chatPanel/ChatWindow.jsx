@@ -808,7 +808,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
                     setEditingTitle(true);
                   }}
                 >
-                  ️{activeChat.title}
+                  {activeChat.title}
                 </h3>
               )}
               {!activeChat.notFound && !activeChat.loadError && modelOptions.length > 0 && (

@@ -153,11 +153,14 @@ const ToolCallItem = ({ tc, conversationId, toolCallsRunId }) => {
   const gist = gistPreview(tc.resultGist);
   const itemRef = useRef(null);
   const tooltipRef = useRef(null);
+  const copyTimerRef = useRef(null);
   const [hover, setHover] = useState(false);
   // pos: null пока не измерили реальный размер тултипа (рендерим скрытым).
   const [pos, setPos] = useState(null);
   const [copied, setCopied] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
+
+  useEffect(() => () => clearTimeout(copyTimerRef.current), []);
   const canShowDetail = !!(conversationId && toolCallsRunId && tc.status !== 'STARTED' && tc.hasDetails !== false);
 
   const GAP = 8;
@@ -200,7 +203,8 @@ const ToolCallItem = ({ tc, conversationId, toolCallsRunId }) => {
     try {
       await navigator.clipboard.writeText(buildCopyText(tc, t));
       setCopied(true);
-      setTimeout(() => setCopied(false), COPY_DONE_MS);
+      clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopied(false), COPY_DONE_MS);
     } catch {
       /* clipboard API may fail in insecure contexts */
     }
