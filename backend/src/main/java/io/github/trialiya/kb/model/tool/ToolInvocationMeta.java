@@ -12,4 +12,6 @@ public record ToolInvocationMeta(
         String error,
         Map<String, ?> resultMeta,
         /** null → информация недоступна (старые данные), фронт считает true */
-        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Boolean hasDetails) {}
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Boolean hasDetails,
+        /** null → старые данные без индекса */
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Integer callIndex) {}

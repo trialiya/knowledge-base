@@ -49,14 +49,14 @@ const CopyButton = ({ value }) => {
   );
 };
 
-const ToolCallDetailModal = ({ conversationId, runId, tc, onClose }) => {
+const ToolCallDetailModal = ({ conversationId, runId, callIndex, tc, onClose }) => {
   const { t } = useTranslation('chat');
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!runId) {
+    if (!runId || callIndex == null || callIndex < 0) {
       setError(t('toolCall.detail.loadError'));
       setLoading(false);
       return;
@@ -65,18 +65,10 @@ const ToolCallDetailModal = ({ conversationId, runId, tc, onClose }) => {
     setLoading(true);
     setError(null);
     chatApi
-      .getToolCallDetails(conversationId, runId, tc.name)
+      .getToolCallDetails(conversationId, runId, callIndex)
       .then((data) => {
         if (cancelled) return;
-        const match =
-          data.find(
-            (d) =>
-              d.name === tc.name &&
-              JSON.stringify(JSON.parse(d.argumentsRaw || 'null')) === JSON.stringify(tc.arguments || null),
-          ) ||
-          data.find((d) => d.name === tc.name) ||
-          null;
-        setDetails(match);
+        setDetails(data || null);
         setLoading(false);
       })
       .catch(() => {
@@ -88,7 +80,7 @@ const ToolCallDetailModal = ({ conversationId, runId, tc, onClose }) => {
     return () => {
       cancelled = true;
     };
-  }, [conversationId, runId, tc.name, t]);
+  }, [conversationId, runId, callIndex, t]);
 
   const label = t(toolLabelKey(tc.name), { defaultValue: humanizeTool(tc.name) });
   const icon = getToolIcon(tc.name);

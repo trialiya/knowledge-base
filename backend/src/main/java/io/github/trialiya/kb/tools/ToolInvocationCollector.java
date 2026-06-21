@@ -7,6 +7,7 @@ import io.github.trialiya.kb.model.tool.ToolInvocation;
 import jakarta.annotation.Nullable;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 public final class ToolInvocationCollector {
@@ -14,6 +15,7 @@ public final class ToolInvocationCollector {
     public static final String KEY = "toolInvocationCollector";
 
     private final List<ToolInvocation> invocations = new CopyOnWriteArrayList<>();
+    private final AtomicInteger callIndex = new AtomicInteger(0);
 
     @Nullable private final Consumer<ToolInvocation> liveSink;
 
@@ -26,6 +28,10 @@ public final class ToolInvocationCollector {
                 liveSink != null
                         ? invocation -> liveSink.accept(new ToolCallMessage(invocation))
                         : null;
+    }
+
+    public int nextCallIndex() {
+        return callIndex.getAndIncrement();
     }
 
     public void record(ToolInvocation invocation) {

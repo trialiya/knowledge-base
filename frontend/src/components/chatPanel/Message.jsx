@@ -251,6 +251,7 @@ const ToolCallItem = ({ tc, conversationId, toolCallsRunId }) => {
         <ToolCallDetailModal
           conversationId={conversationId}
           runId={toolCallsRunId}
+          callIndex={tc.callIndex}
           tc={tc}
           onClose={() => setShowDetail(false)}
         />

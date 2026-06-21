@@ -30,9 +30,9 @@ const chatApi = {
     return request(`/api/chats/${enc(id)}/messages?${params}`);
   },
 
-  /** Полные детали вызовов инструментов для указанного run, фильтр по имени тула. */
-  getToolCallDetails: (chatId, runId, name) =>
-    request(`/api/chats/${enc(chatId)}/tool-calls?runId=${enc(runId)}&name=${enc(name)}`),
+  /** Полные детали одного вызова инструмента по runId + callIndex. */
+  getToolCallDetails: (chatId, runId, callIndex) =>
+    request(`/api/chats/${enc(chatId)}/tool-calls?runId=${enc(runId)}&callIndex=${callIndex}`),
 
   /** Количество вложений активного чата (для бейджа). */
   getAttachmentCount: (id) => request(`/api/chats/${enc(id)}/attachments/count`),

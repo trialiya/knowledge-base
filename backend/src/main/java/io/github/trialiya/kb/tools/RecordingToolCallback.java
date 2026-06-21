@@ -63,9 +63,10 @@ public class RecordingToolCallback implements ToolCallback {
         final String name = delegate.getToolDefinition().name();
         final ToolInvocationCollector collector = collectorFrom(toolContext);
         final Map<Object, Object> toolInputMap = parseToolInput(toolInput);
+        final int callIdx = collector != null ? collector.nextCallIndex() : -1;
         if (collector != null) {
             collector.record(
-                    new ToolInvocation(name, toolInputMap, STARTED, null, null, null, null, null));
+                    new ToolInvocation(name, toolInputMap, STARTED, null, null, null, null, null, callIdx));
         }
         try {
             CURRENT_RESULT.remove();
@@ -80,7 +81,8 @@ public class RecordingToolCallback implements ToolCallback {
                                 getMeta(CURRENT_RESULT.get()),
                                 getGist(CURRENT_RESULT.get()),
                                 toolInput,
-                                result));
+                                result,
+                                callIdx));
             }
             return result;
         } catch (Exception e) {
@@ -94,13 +96,15 @@ public class RecordingToolCallback implements ToolCallback {
                                 null,
                                 null,
                                 toolInput,
-                                null));
+                                null,
+                                callIdx));
             }
             throw e;
         } finally {
             CURRENT_RESULT.remove();
         }
     }
+
 
     private static ToolInvocationCollector collectorFrom(ToolContext toolContext) {
         if (toolContext == null) {

@@ -12,15 +12,11 @@ public record ToolInvocation(
         @JsonIgnore Map<String, ?> resultMeta,
         String resultGist,
         @JsonIgnore String argumentsRaw,
-        @JsonIgnore String resultText) {
-
-    @JsonIgnore
-    public ToolInvocationMeta toMeta() {
-        return new ToolInvocationMeta(name, arguments, status, error, resultMeta, null);
-    }
+        @JsonIgnore String resultText,
+        int callIndex) {
 
     @JsonIgnore
     public ToolInvocationMeta toMeta(boolean hasDetails) {
-        return new ToolInvocationMeta(name, arguments, status, error, resultMeta, hasDetails);
+        return new ToolInvocationMeta(name, arguments, status, error, resultMeta, hasDetails, callIndex);
     }
 }

@@ -26,7 +26,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
@@ -160,7 +159,6 @@ public class ChatRunService {
             RunHandle handle, String userMessage, String resolvedModel, String clientMsgId) {
         final String conversationId = handle.conversationId();
         final String runId = handle.runId();
-        final AtomicInteger callIndex = new AtomicInteger(0);
         final Consumer<Object> liveSink =
                 payload -> {
                     if (payload instanceof ToolCallMessage tcm) {
@@ -168,7 +166,7 @@ public class ChatRunService {
                             chatMemoryService.saveToolCallIncremental(
                                     conversationId,
                                     runId,
-                                    callIndex.getAndIncrement(),
+                                    tcm.toolCall().callIndex(),
                                     tcm.toolCall());
                         }
                     }

@@ -194,7 +194,7 @@ public class ChatMemoryService implements ChatMemoryRepository {
 
         final List<ToolInvocationMeta> meta = new ArrayList<>(filtered.size());
         for (ToolInvocation toolCall : filtered) {
-            meta.add(toolCall.toMeta());
+            meta.add(toolCall.toMeta(true));
         }
         chatMessageRepository.save(
                 new ChatMessageEntity(
