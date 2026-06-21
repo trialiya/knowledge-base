@@ -16,7 +16,16 @@ import { IconFileText } from '../../icons';
  *   onSelect(node) — клик/Enter
  *   onDismiss()    — закрыть
  */
-const FilePickerDropdown = ({ results, loading, query, anchorRect, selectedIdx, onSelect, onDismiss, type = 'file' }) => {
+const FilePickerDropdown = ({
+  results,
+  loading,
+  query,
+  anchorRect,
+  selectedIdx,
+  onSelect,
+  onDismiss,
+  type = 'file',
+}) => {
   const { t } = useTranslation('chat');
   const listRef = useRef(null);
 
@@ -42,8 +51,12 @@ const FilePickerDropdown = ({ results, loading, query, anchorRect, selectedIdx, 
   };
 
   const hintKey = query
-    ? type === 'doc' ? t('docInput.hintQuery', { query }) : t('fileInput.hintQuery', { query })
-    : type === 'doc' ? t('docInput.hintStart') : t('fileInput.hintStart');
+    ? type === 'doc'
+      ? t('docInput.hintQuery', { query })
+      : t('fileInput.hintQuery', { query })
+    : type === 'doc'
+    ? t('docInput.hintStart')
+    : t('fileInput.hintStart');
 
   const searchingLabel = type === 'doc' ? t('docInput.searching') : t('fileInput.searching');
   const emptyLabel = type === 'doc' ? t('docInput.empty') : t('fileInput.empty');
@@ -76,9 +89,7 @@ const FilePickerDropdown = ({ results, loading, query, anchorRect, selectedIdx, 
                   onSelect(node);
                 }}
               >
-                <span className="file-picker-item__icon">
-                  {node.type === 'folder' ? '📁' : '📋'}
-                </span>
+                <span className="file-picker-item__icon">{node.type === 'folder' ? '📁' : '📋'}</span>
                 <span className="file-picker-item__body">
                   <span className="file-picker-item__name">{node.title}</span>
                   <span className="file-picker-item__path">#{node.id}</span>

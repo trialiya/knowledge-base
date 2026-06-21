@@ -6,7 +6,16 @@ import { expandTokensForSend } from './fileChips';
 import { IconSend, IconStop, IconPaperclip } from '../../icons';
 
 // isEmpty — true когда в чате ещё нет сообщений; тогда показываем git-подсказки
-const MessageInput = ({ onSend, onStop, disabled, onAttach, isEmpty = false, resetSignal = 0, chatId = null, onTextChange }) => {
+const MessageInput = ({
+  onSend,
+  onStop,
+  disabled,
+  onAttach,
+  isEmpty = false,
+  resetSignal = 0,
+  chatId = null,
+  onTextChange,
+}) => {
   const { t } = useTranslation('chat');
   const [text, setText] = useState(''); // плоская строка с токенами ⟦file:…⟧
   const [sending, setSending] = useState(false); // идёт разворачивание токенов перед отправкой
@@ -63,7 +72,10 @@ const MessageInput = ({ onSend, onStop, disabled, onAttach, isEmpty = false, res
         <FileChipInput
           ref={inputRef}
           value={text}
-          onChange={(v) => { setText(v); onTextChange?.(v); }}
+          onChange={(v) => {
+            setText(v);
+            onTextChange?.(v);
+          }}
           onSend={handleSubmit}
           disabled={disabled}
           placeholder={t('input.placeholder')}

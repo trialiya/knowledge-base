@@ -487,10 +487,25 @@ const formatFullDatetime = (ts) => {
   if (!ts) return null;
   const date = new Date(ts);
   if (isNaN(date)) return null;
-  return date.toLocaleString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleString('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 };
 
-const Message = ({ text, sender, toolCalls, toolCallsRunId, preparing, conversationId, onNavigateToDoc, timestamp }) => {
+const Message = ({
+  text,
+  sender,
+  toolCalls,
+  toolCallsRunId,
+  preparing,
+  conversationId,
+  onNavigateToDoc,
+  timestamp,
+}) => {
   const { t } = useTranslation('chat');
   const [showSource, setShowSource] = useState(false);
   const messageClass = `message ${sender}`;

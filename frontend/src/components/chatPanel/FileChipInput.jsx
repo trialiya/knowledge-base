@@ -3,7 +3,16 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import gitApi from '../../api/gitApi';
 import documentsApi from '../../api/documentsApi';
-import { makeToken, makeRefToken, makeDocToken, parseToken, parseDocToken, baseName, fetchContent, TOKEN_RE } from './fileChips';
+import {
+  makeToken,
+  makeRefToken,
+  makeDocToken,
+  parseToken,
+  parseDocToken,
+  baseName,
+  fetchContent,
+  TOKEN_RE,
+} from './fileChips';
 import FilePickerDropdown from './FilePickerDropdown';
 import useEscape from '../common/useEscape';
 import { IconX } from '../../icons';
@@ -159,7 +168,15 @@ const FileChipInput = forwardRef(function FileChipInput(
   const internalRef = useRef(value);
   const triggerRef = useRef(null);
 
-  const [picker, setPicker] = useState({ open: false, query: '', results: [], loading: false, anchor: null, idx: 0, type: 'file' });
+  const [picker, setPicker] = useState({
+    open: false,
+    query: '',
+    results: [],
+    loading: false,
+    anchor: null,
+    idx: 0,
+    type: 'file',
+  });
   const [preview, setPreview] = useState(null); // { path, from, to, refOnly, rect, chipEl, data, loading, error }
 
   const debounceTimer = useRef(null);
@@ -200,9 +217,8 @@ const FileChipInput = forwardRef(function FileChipInput(
     const controller = new AbortController();
     abortRef.current = controller;
     setPicker((p) => ({ ...p, loading: true }));
-    const search = type === 'doc'
-      ? searchDocsAsync(q, controller.signal)
-      : gitApi.searchFiles(q, 10, controller.signal);
+    const search =
+      type === 'doc' ? searchDocsAsync(q, controller.signal) : gitApi.searchFiles(q, 10, controller.signal);
     search
       .then((data) => setPicker((p) => ({ ...p, loading: false, results: Array.isArray(data) ? data : [], idx: 0 })))
       .catch((err) => {
