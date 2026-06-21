@@ -108,13 +108,18 @@ export function applyChatEvent(chat, ev, ctx) {
       return { ...chat, messages: msgs, runId };
     }
 
+    // TOOL_PREPARING отключён: сигнал приходит вплотную к TOOL_CALL и не даёт раннего
+    // предупреждения. Причина — OpenAiChatModel.internalStream буферизует все дельты
+    // tool-call через bufferUntil/ChunkMerger и выдаёт один агрегированный чанк уже
+    // с полными аргументами; к этому моменту ToolCallingAdvisor тут же запускает
+    // инструмент. Раннего сигнала ни через advisor, ни через observation получить нельзя —
+    // единственный доступный хук до буферизации — это AsyncStreamResponse.Handler внутри
+    // самого клиента openai-java, но корреляция с conversationId там нетривиальна.
+    // Альтернатива: детекция тишины на фронте (таймер после последнего STREAM-события).
+    // Подробнее: docs/проект/диагностика-tool-preparing-стриминг.md
+    // и docs/features/tool-preparing.md
     case 'TOOL_PREPARING': {
-      // Ранний сигнал: модель формирует вызов инструмента. Помечаем текущий пузырь —
-      // компонент сам по таймеру покажет «готовлю данные…», если пауза затянется.
-      let idx = lastAiIndexForRun(msgs, runId);
-      if (idx < 0) idx = pushAi(msgs, runId);
-      msgs[idx] = { ...msgs[idx], preparing: true };
-      return { ...chat, messages: msgs, runId };
+      return { ...chat, runId };
     }
 
     case 'STREAM': {
