@@ -89,12 +89,14 @@ public class SettingsController {
     /** Returns which Atlassian integrations have API tokens configured. */
     @GetMapping("/integrations")
     public IntegrationsResponse getIntegrations() {
-        boolean jiraConfigured = atlassianConfiguration.jira() != null
-                && atlassianConfiguration.jira().apiToken() != null
-                && !atlassianConfiguration.jira().apiToken().isBlank();
-        boolean confluenceConfigured = atlassianConfiguration.confluence() != null
-                && atlassianConfiguration.confluence().apiToken() != null
-                && !atlassianConfiguration.confluence().apiToken().isBlank();
+        boolean jiraConfigured =
+                atlassianConfiguration.jira() != null
+                        && atlassianConfiguration.jira().apiToken() != null
+                        && !atlassianConfiguration.jira().apiToken().isBlank();
+        boolean confluenceConfigured =
+                atlassianConfiguration.confluence() != null
+                        && atlassianConfiguration.confluence().apiToken() != null
+                        && !atlassianConfiguration.confluence().apiToken().isBlank();
         return new IntegrationsResponse(jiraConfigured, confluenceConfigured);
     }
 

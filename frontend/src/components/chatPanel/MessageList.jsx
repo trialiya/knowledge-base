@@ -11,7 +11,14 @@ import {
 // onLoadMore: async () => boolean — true если что-то догрузилось (для UI-индикатора).
 // hasMore: есть ли ещё более старые сообщения на бэке.
 // canLoadMore: разрешена ли догрузка прямо сейчас (например, false во время стриминга).
-const MessageList = ({ messages, onNavigateToDoc, onLoadMore, hasMore = false, canLoadMore = true }) => {
+const MessageList = ({
+  conversationId,
+  messages,
+  onNavigateToDoc,
+  onLoadMore,
+  hasMore = false,
+  canLoadMore = true,
+}) => {
   const { t } = useTranslation('chat');
   const containerRef = useRef(null);
   // Источник правды для синхронной логики в эффектах: держимся ли у низа.
@@ -128,6 +135,9 @@ const MessageList = ({ messages, onNavigateToDoc, onLoadMore, hasMore = false, c
             text={msg.text}
             sender={msg.sender}
             toolCalls={msg.toolCalls}
+            toolCallsRunId={msg.toolCallsRunId}
+            preparing={msg.preparing}
+            conversationId={conversationId}
             onNavigateToDoc={onNavigateToDoc}
           />
         ))}
