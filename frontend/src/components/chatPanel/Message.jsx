@@ -83,6 +83,38 @@ const MessageCopyButton = ({ text }) => {
   );
 };
 
+/** Задержка (мс) перед показом индикатора «готовлю данные…» — короткие паузы не мигают. */
+const PREPARING_VISIBLE_AFTER_MS = 5000;
+
+/**
+ * Индикатор раннего сигнала: модель формирует вызов инструмента (имя ещё недоступно).
+ * Показываем под сообщением и только если подготовка тянется дольше 5 секунд —
+ * быстрые вызовы проходят незаметно. Таймер живёт внутри компонента, поэтому редьюсер
+ * остаётся чистым (без меток времени).
+ */
+const ToolPreparingIndicator = () => {
+  const { t } = useTranslation('chat');
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const id = setTimeout(() => setVisible(true), PREPARING_VISIBLE_AFTER_MS);
+    return () => clearTimeout(id);
+  }, []);
+
+  if (!visible) return null;
+
+  return (
+    <div className="tool-preparing" role="status" aria-live="polite">
+      <span className="tool-preparing-dots" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </span>
+      <span className="tool-preparing-text">{t('toolCall.preparing')}</span>
+    </div>
+  );
+};
+
 const formatArgs = (args) => {
   if (!args || Object.keys(args).length === 0) return null;
   return Object.entries(args)
@@ -201,7 +233,10 @@ const ToolCallItem = ({ tc, conversationId, toolCallsRunId }) => {
       {canShowDetail && (
         <button
           className="tool-call-detail-btn"
-          onClick={(e) => { e.stopPropagation(); setShowDetail(true); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowDetail(true);
+          }}
           title={t('toolCall.detail.open')}
         >
           ⊞
@@ -431,11 +466,12 @@ function getMarkdownComponents(onNavigateToDoc) {
   };
 }
 
-const Message = ({ text, sender, toolCalls, toolCallsRunId, conversationId, onNavigateToDoc }) => {
+const Message = ({ text, sender, toolCalls, toolCallsRunId, preparing, conversationId, onNavigateToDoc }) => {
   const { t } = useTranslation('chat');
   const [showSource, setShowSource] = useState(false);
   const messageClass = `message ${sender}`;
   const hasToolCalls = toolCalls && toolCalls.length > 0;
+  const showPreparing = preparing && sender === 'ai';
 
   const messageContent = (
     <div className={messageClass}>
@@ -478,9 +514,19 @@ const Message = ({ text, sender, toolCalls, toolCallsRunId, conversationId, onNa
         <div className="message-main-col">
           {messageContent}
           <DocChangeBlock toolCalls={toolCalls} onNavigateToDoc={onNavigateToDoc} />
+          {showPreparing && <ToolPreparingIndicator />}
         </div>
         <ToolCallNotifications toolCalls={toolCalls} conversationId={conversationId} toolCallsRunId={toolCallsRunId} />
       </div>
+    );
+  }
+
+  if (showPreparing) {
+    return (
+      <>
+        {messageContent}
+        <ToolPreparingIndicator />
+      </>
     );
   }
 

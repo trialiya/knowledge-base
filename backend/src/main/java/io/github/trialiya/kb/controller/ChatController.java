@@ -480,9 +480,7 @@ public class ChatController {
                 chatMessageEntity.getMessageType().getValue(),
                 chatMessageEntity.getCreatedAt(),
                 chatMessageEntity.getInvocations(),
-                chatMessageEntity.getMeta() != null
-                        ? chatMessageEntity.getMeta().runId()
-                        : null);
+                chatMessageEntity.getMeta() != null ? chatMessageEntity.getMeta().runId() : null);
     }
 
     /**

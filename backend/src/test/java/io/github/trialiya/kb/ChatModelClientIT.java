@@ -69,7 +69,8 @@ class ChatModelClientIT extends AbstractPostgresIntegrationTest {
 
         // ── настоящая память поверх Postgres ────────────────────────────────
         ChatMemoryService memoryService =
-                new ChatMemoryService(topicRepo, messageRepo, mock(ToolCallRepository.class), objectMapper);
+                new ChatMemoryService(
+                        topicRepo, messageRepo, mock(ToolCallRepository.class), objectMapper);
         ChatMemory chatMemory =
                 MessageWindowChatMemory.builder()
                         .chatMemoryRepository(memoryService)

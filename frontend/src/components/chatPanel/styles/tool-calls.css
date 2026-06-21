@@ -273,3 +273,55 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* ── Ранний сигнал: «модель готовит вызов инструмента» ──
+   Показывается под сообщением ассистента, если подготовка тянется >5с. */
+.tool-preparing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 2px;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  color: var(--kb-muted);
+  background: var(--kb-warning-bg, #fff8e1);
+  border-radius: 8px;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.tool-preparing-text {
+  font-style: italic;
+}
+
+.tool-preparing-dots {
+  display: inline-flex;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.tool-preparing-dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--kb-warning, #d99a00);
+  animation: tool-preparing-bounce 1.2s infinite ease-in-out both;
+}
+.tool-preparing-dots span:nth-child(1) {
+  animation-delay: -0.24s;
+}
+.tool-preparing-dots span:nth-child(2) {
+  animation-delay: -0.12s;
+}
+
+@keyframes tool-preparing-bounce {
+  0%,
+  80%,
+  100% {
+    transform: scale(0.6);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}

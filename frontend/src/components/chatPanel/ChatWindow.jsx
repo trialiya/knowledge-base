@@ -887,7 +887,9 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
             isEmpty={isChatEmpty && !loadingMessages}
             resetSignal={composerResetSignal}
             chatId={activeChatId}
-            onTextChange={(v) => { composerTextRef.current = v; }}
+            onTextChange={(v) => {
+              composerTextRef.current = v;
+            }}
           />
         )}
       </div>

@@ -60,7 +60,18 @@ public class ToolCallEntity implements Persistable<Long> {
             @Nullable String error,
             @Nullable String resultText,
             @Nullable String resultMeta) {
-        this(0L, conversationId, runId, callIndex, name, argumentsRaw, status, error, resultText, resultMeta, LocalDateTime.now());
+        this(
+                0L,
+                conversationId,
+                runId,
+                callIndex,
+                name,
+                argumentsRaw,
+                status,
+                error,
+                resultText,
+                resultMeta,
+                LocalDateTime.now());
     }
 
     @Override

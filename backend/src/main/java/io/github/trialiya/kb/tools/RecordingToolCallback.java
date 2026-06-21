@@ -87,7 +87,13 @@ public class RecordingToolCallback implements ToolCallback {
             if (collector != null) {
                 collector.record(
                         new ToolInvocation(
-                                name, toolInputMap, ERROR, e.getMessage(), null, null, toolInput,
+                                name,
+                                toolInputMap,
+                                ERROR,
+                                e.getMessage(),
+                                null,
+                                null,
+                                toolInput,
                                 null));
             }
             throw e;

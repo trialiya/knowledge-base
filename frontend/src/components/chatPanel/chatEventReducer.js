@@ -57,12 +57,24 @@ const pushAi = (msgs, runId) => {
   return msgs.length - 1;
 };
 
+// Снимает флаг «модель готовит вызов инструмента» со всех пузырей прогона.
+// Вызывается, как только появляется что-то осязаемое: текст, плашка вызова или
+// завершение прогона — индикатор «готовлю данные…» при этом исчезает.
+const clearPreparing = (msgs, runId) => {
+  for (let i = 0; i < msgs.length; i++) {
+    if (msgs[i].sender === 'ai' && msgs[i].runId === runId && msgs[i].preparing) {
+      const { preparing: _drop, ...rest } = msgs[i];
+      msgs[i] = rest;
+    }
+  }
+};
+
 // Снимает метку runId (для live-tracking) и сохраняет её как toolCallsRunId
 // (для загрузки деталей tool call после завершения прогона).
 const finalize = (msgs, runId) => {
   for (let i = 0; i < msgs.length; i++) {
     if (msgs[i].sender === 'ai' && msgs[i].runId === runId) {
-      const { runId: _drop, ...rest } = msgs[i];
+      const { runId: _drop, preparing: _p, ...rest } = msgs[i];
       msgs[i] = { ...rest, text: (rest.text || '').trimEnd(), toolCallsRunId: runId };
     }
   }
@@ -96,11 +108,22 @@ export function applyChatEvent(chat, ev, ctx) {
       return { ...chat, messages: msgs, runId };
     }
 
+    case 'TOOL_PREPARING': {
+      // Ранний сигнал: модель формирует вызов инструмента. Помечаем текущий пузырь —
+      // компонент сам по таймеру покажет «готовлю данные…», если пауза затянется.
+      let idx = lastAiIndexForRun(msgs, runId);
+      if (idx < 0) idx = pushAi(msgs, runId);
+      msgs[idx] = { ...msgs[idx], preparing: true };
+      return { ...chat, messages: msgs, runId };
+    }
+
     case 'STREAM': {
       const reason = (payload?.finishReason || '').trim();
       let idx = lastAiIndexForRun(msgs, runId);
       if (idx < 0) idx = pushAi(msgs, runId);
       if (payload?.message) {
+        // Пошёл видимый текст — снимаем индикатор подготовки вызова.
+        clearPreparing(msgs, runId);
         // Срезаем ведущие переносы в самом начале ответа.
         const isFirst = msgs[idx].text === '';
         const piece = isFirst ? payload.message.replace(/^\n+/, '') : payload.message;
@@ -108,6 +131,7 @@ export function applyChatEvent(chat, ev, ctx) {
       }
       // finishReason TOOL_CALLS делит ответ на сегменты: закрываем текущий, открываем новый.
       if (reason === 'TOOL_CALLS' && msgs[idx].text.trim() !== '') {
+        clearPreparing(msgs, runId);
         msgs[idx] = { ...msgs[idx], text: msgs[idx].text.trimEnd() };
         pushAi(msgs, runId);
       }
@@ -117,6 +141,8 @@ export function applyChatEvent(chat, ev, ctx) {
     case 'TOOL_CALL': {
       let idx = lastAiIndexForRun(msgs, runId);
       if (idx < 0) idx = pushAi(msgs, runId);
+      // Инструмент стартовал — плашка заменяет индикатор подготовки.
+      clearPreparing(msgs, runId);
       msgs[idx] = { ...msgs[idx], toolCalls: mergeToolCall(msgs[idx].toolCalls || [], payload?.toolCall) };
       return { ...chat, messages: msgs, runId };
     }
@@ -124,6 +150,7 @@ export function applyChatEvent(chat, ev, ctx) {
     case 'TOOL_CALLS': {
       const idx = lastAiIndexForRun(msgs, runId);
       if (idx < 0) return { ...chat, runId };
+      clearPreparing(msgs, runId);
       msgs[idx] = { ...msgs[idx], toolCalls: mergeToolCalls(msgs[idx].toolCalls || [], payload?.toolCalls) };
       return { ...chat, messages: msgs, runId };
     }
