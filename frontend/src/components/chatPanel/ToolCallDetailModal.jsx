@@ -56,6 +56,11 @@ const ToolCallDetailModal = ({ conversationId, runId, tc, onClose }) => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    if (!runId) {
+      setError(t('toolCall.detail.loadError'));
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     setError(null);
