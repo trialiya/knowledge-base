@@ -129,7 +129,8 @@ class ToolCallRepositoryIT extends AbstractPostgresIntegrationTest {
                         Map.of("id", 7, "descriptionVersion", 3),
                         "short gist",
                         "{\"id\":7,\"body\":\"long\"}",
-                        "the full, untruncated tool result text");
+                        "the full, untruncated tool result text",
+                        0);
 
         memory().saveToolCallIncremental(conv, runId, 0, tc);
 
@@ -158,7 +159,8 @@ class ToolCallRepositoryIT extends AbstractPostgresIntegrationTest {
                         null,
                         "2026-06-21",
                         "{}",
-                        "2026-06-21T12:00:00");
+                        "2026-06-21T12:00:00",
+                        0);
 
         memory().saveToolCallIncremental(conv, runId, 0, skipped);
 
@@ -180,7 +182,8 @@ class ToolCallRepositoryIT extends AbstractPostgresIntegrationTest {
                         null,
                         null,
                         "{\"query\":\"foo\"}",
-                        null);
+                        null,
+                        0);
 
         memory().saveToolCallIncremental(conv, runId, 0, failed);
 
