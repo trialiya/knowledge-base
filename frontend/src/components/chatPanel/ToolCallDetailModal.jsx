@@ -75,7 +75,6 @@ const ToolCallDetailModal = ({ conversationId, runId, tc, onClose }) => {
               JSON.stringify(JSON.parse(d.argumentsRaw || 'null')) === JSON.stringify(tc.arguments || null),
           ) ||
           data.find((d) => d.name === tc.name) ||
-          data[0] ||
           null;
         setDetails(match);
         setLoading(false);
@@ -113,6 +112,7 @@ const ToolCallDetailModal = ({ conversationId, runId, tc, onClose }) => {
 
         {loading && <div className="tcd-loading">{t('loading')}</div>}
         {error && <div className="tcd-error">{error}</div>}
+        {!loading && !error && !details && <div className="tcd-error">{t('toolCall.detail.notFound')}</div>}
 
         {details && !loading && (
           <div className="tcd-body">

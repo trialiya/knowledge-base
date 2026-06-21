@@ -33,15 +33,10 @@ import org.springframework.transaction.annotation.Transactional;
 public class ChatMemoryService implements ChatMemoryRepository {
 
     /**
-     * Инструменты, отметки о вызове которых не сохраняем: служебные либо те, что полезно звать
-     * заново.
+     * Инструменты, отметки о вызове которых не сохраняем: возвращают весь контекст истории —
+     * потенциально очень большой объём, и деталей для просмотра не нужно.
      */
-    private static final Set<String> SKIP_TOOLS =
-            Set.of(
-                    "recordChatInsights",
-                    "getUserName",
-                    "getCurrentDateTime",
-                    "getOriginalMessages");
+    private static final Set<String> SKIP_TOOLS = Set.of("getOriginalMessages");
 
     private static final String PREAMBLE =
             """
