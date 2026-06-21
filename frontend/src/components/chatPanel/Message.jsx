@@ -483,6 +483,13 @@ const formatTimestamp = (ts) => {
   return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
 };
 
+const formatFullDatetime = (ts) => {
+  if (!ts) return null;
+  const date = new Date(ts);
+  if (isNaN(date)) return null;
+  return date.toLocaleString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+
 const Message = ({ text, sender, toolCalls, toolCallsRunId, preparing, conversationId, onNavigateToDoc, timestamp }) => {
   const { t } = useTranslation('chat');
   const [showSource, setShowSource] = useState(false);
@@ -490,6 +497,7 @@ const Message = ({ text, sender, toolCalls, toolCallsRunId, preparing, conversat
   const hasToolCalls = toolCalls && toolCalls.length > 0;
   const showPreparing = preparing && sender === 'ai';
   const timeLabel = formatTimestamp(timestamp);
+  const timeTitle = formatFullDatetime(timestamp);
 
   // Пузырь — только контент сообщения, без футера
   const bubble = (
@@ -510,12 +518,16 @@ const Message = ({ text, sender, toolCalls, toolCallsRunId, preparing, conversat
     </div>
   );
 
-  // Футер под пузырём: AI — справа (время слева, кнопки справа),
-  // user — слева (кнопка + время).
+  // Футер под пузырём: AI — время слева, кнопки справа;
+  // user — кнопка слева, время справа.
   const footer =
     sender === 'ai' ? (
       <div className="message-footer message-footer--ai">
-        {timeLabel && <span className="message-footer-time">{timeLabel}</span>}
+        {timeLabel && (
+          <span className="message-footer-time" title={timeTitle ?? undefined}>
+            {timeLabel}
+          </span>
+        )}
         <div className="message-footer-actions">
           <MessageCopyButton text={text} />
           <button
@@ -530,7 +542,11 @@ const Message = ({ text, sender, toolCalls, toolCallsRunId, preparing, conversat
     ) : (
       <div className="message-footer message-footer--user">
         <MessageCopyButton text={text} />
-        {timeLabel && <span className="message-footer-time">{timeLabel}</span>}
+        {timeLabel && (
+          <span className="message-footer-time" title={timeTitle ?? undefined}>
+            {timeLabel}
+          </span>
+        )}
       </div>
     );
 
