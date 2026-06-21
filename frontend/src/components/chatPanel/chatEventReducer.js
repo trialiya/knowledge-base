@@ -25,21 +25,14 @@ const mergeToolCall = (list, tc) => {
             error: tc.error,
             resultGist: tc.resultGist ?? t.resultGist,
             resultMeta: tc.resultMeta ?? t.resultMeta,
+            callIndex: tc.callIndex ?? t.callIndex,
+            hasDetails: tc.hasDetails ?? t.hasDetails,
           }
         : t,
     );
   }
-  return [
-    ...list,
-    {
-      name: tc.name,
-      arguments: tc.arguments,
-      status: tc.status,
-      error: tc.error,
-      resultGist: tc.resultGist,
-      resultMeta: tc.resultMeta,
-    },
-  ];
+  return [...list, { name: tc.name, arguments: tc.arguments, status: tc.status, error: tc.error,
+      resultGist: tc.resultGist, resultMeta: tc.resultMeta, callIndex: tc.callIndex, hasDetails: tc.hasDetails }];
 };
 
 const mergeToolCalls = (list, metas) => (metas || []).reduce((acc, tc) => mergeToolCall(acc, tc), list);

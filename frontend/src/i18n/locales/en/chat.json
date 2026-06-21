@@ -53,7 +53,8 @@
       "open": "Details",
       "arguments": "Arguments",
       "result": "Result",
-      "loadError": "Failed to load details"
+      "loadError": "Failed to load details",
+      "notFound": "Call details not recorded"
     }
   },
   "scroll": {

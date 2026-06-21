@@ -43,6 +43,11 @@ public class ChatMemoryService implements ChatMemoryRepository {
                     "getCurrentDateTime",
                     "getOriginalMessages");
 
+    /** Возвращает {@code true}, если детали вызова инструмента сохраняются в БД. */
+    public boolean hasDetails(String toolName) {
+        return !SKIP_TOOLS.contains(toolName);
+    }
+
     private static final String PREAMBLE =
             """
         Инструменты, уже вызванные ранее в этом чате (с урезанным результатом).
@@ -189,7 +194,7 @@ public class ChatMemoryService implements ChatMemoryRepository {
 
         final List<ToolInvocationMeta> meta = new ArrayList<>(filtered.size());
         for (ToolInvocation toolCall : filtered) {
-            meta.add(toolCall.toMeta());
+            meta.add(toolCall.toMeta(true));
         }
         chatMessageRepository.save(
                 new ChatMessageEntity(

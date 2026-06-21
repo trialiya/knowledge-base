@@ -39,6 +39,7 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -302,26 +303,28 @@ public class ChatController {
         return chatEventService.subscribe(conversationId, fromSeq);
     }
 
-    /** Полные детали вызовов инструментов для указанного run. */
+    /** Полные детали одного вызова инструмента по runId + callIndex. */
     @GetMapping("/{conversationId}/tool-calls")
-    public List<ToolCallDetail> getToolCallDetails(
-            @PathVariable String conversationId, @RequestParam String runId) {
+    public ResponseEntity<ToolCallDetail> getToolCallDetails(
+            @PathVariable String conversationId,
+            @RequestParam String runId,
+            @RequestParam int callIndex) {
         verifyOwnerIfPresent(conversationId);
         return toolCallRepository
-                .findByConversationIdAndRunIdOrderByCallIndex(conversationId, runId)
-                .stream()
+                .findByConversationIdAndRunIdAndCallIndex(conversationId, runId, callIndex)
                 .map(
                         e ->
-                                new ToolCallDetail(
-                                        e.getCallIndex(),
-                                        e.getName(),
-                                        e.getArgumentsRaw(),
-                                        e.getStatus(),
-                                        e.getError(),
-                                        e.getResultText(),
-                                        parseJsonSafe(e.getResultMeta()),
-                                        e.getCreatedAt()))
-                .toList();
+                                ResponseEntity.ok(
+                                        new ToolCallDetail(
+                                                e.getCallIndex(),
+                                                e.getName(),
+                                                e.getArgumentsRaw(),
+                                                e.getStatus(),
+                                                e.getError(),
+                                                e.getResultText(),
+                                                parseJsonSafe(e.getResultMeta()),
+                                                e.getCreatedAt())))
+                .orElse(ResponseEntity.notFound().build());
     }
 
     /** Останавливает активный прогон. Идемпотентно: на неизвестный runId — просто no-op. */

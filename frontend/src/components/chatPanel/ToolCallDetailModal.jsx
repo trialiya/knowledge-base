@@ -49,30 +49,26 @@ const CopyButton = ({ value }) => {
   );
 };
 
-const ToolCallDetailModal = ({ conversationId, runId, tc, onClose }) => {
+const ToolCallDetailModal = ({ conversationId, runId, callIndex, tc, onClose }) => {
   const { t } = useTranslation('chat');
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    if (!runId || callIndex == null || callIndex < 0) {
+      setError(t('toolCall.detail.loadError'));
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     setError(null);
     chatApi
-      .getToolCallDetails(conversationId, runId)
+      .getToolCallDetails(conversationId, runId, callIndex)
       .then((data) => {
         if (cancelled) return;
-        const match =
-          data.find(
-            (d) =>
-              d.name === tc.name &&
-              JSON.stringify(JSON.parse(d.argumentsRaw || 'null')) === JSON.stringify(tc.arguments || null),
-          ) ||
-          data.find((d) => d.name === tc.name) ||
-          data[0] ||
-          null;
-        setDetails(match);
+        setDetails(data || null);
         setLoading(false);
       })
       .catch(() => {
@@ -84,7 +80,7 @@ const ToolCallDetailModal = ({ conversationId, runId, tc, onClose }) => {
     return () => {
       cancelled = true;
     };
-  }, [conversationId, runId, tc.name, t]);
+  }, [conversationId, runId, callIndex, t]);
 
   const label = t(toolLabelKey(tc.name), { defaultValue: humanizeTool(tc.name) });
   const icon = getToolIcon(tc.name);
@@ -108,6 +104,7 @@ const ToolCallDetailModal = ({ conversationId, runId, tc, onClose }) => {
 
         {loading && <div className="tcd-loading">{t('loading')}</div>}
         {error && <div className="tcd-error">{error}</div>}
+        {!loading && !error && !details && <div className="tcd-error">{t('toolCall.detail.notFound')}</div>}
 
         {details && !loading && (
           <div className="tcd-body">
