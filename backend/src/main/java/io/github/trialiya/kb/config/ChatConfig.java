@@ -1,6 +1,8 @@
 package io.github.trialiya.kb.config;
 
 import io.github.trialiya.kb.config.model.SubAgentConfig;
+import io.github.trialiya.kb.diag.StreamDiagnostics;
+import io.github.trialiya.kb.diag.StreamDiagnosticsAdvisor;
 import io.github.trialiya.kb.functions.AttachmentFunction;
 import io.github.trialiya.kb.functions.DocumentFunction;
 import io.github.trialiya.kb.functions.GitFunction;
@@ -23,6 +25,7 @@ import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
@@ -117,7 +120,8 @@ public class ChatConfig {
             GitFunction gitFunction,
             DocumentFunction documentFunction,
             AttachmentService attachmentService,
-            ObjectProvider<SearchAgentService> searchAgentService) {
+            ObjectProvider<SearchAgentService> searchAgentService,
+            ObjectProvider<StreamDiagnosticsAdvisor> streamDiagnosticsAdvisor) {
         log.info("Model: {}", chatModel.getDefaultOptions());
 
         List<Object> functions =
@@ -135,10 +139,29 @@ public class ChatConfig {
                 Stream.of(ToolCallbacks.from(functions.toArray()))
                         .map(RecordingToolCallback::new)
                         .toArray(ToolCallback[]::new);
+
+        // ДИАГНОСТИКА: при kb.diag.stream-tool-calls=true добавляем самый внутренний advisor,
+        // логирующий сырой поток модели (см. StreamDiagnosticsAdvisor). Иначе список — только
+        // штатный MessageChatMemoryAdvisor.
+        List<Advisor> advisors = new ArrayList<>();
+        advisors.add(MessageChatMemoryAdvisor.builder(chatMemory).build());
+        streamDiagnosticsAdvisor.ifAvailable(advisors::add);
+
         return ChatClient.builder(chatModel)
-                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
+                .defaultAdvisors(advisors)
                 .defaultSystem(sysPrompt)
                 .defaultToolCallbacks(callbacks)
                 .build();
+    }
+
+    /**
+     * ДИАГНОСТИКА (временная): advisor, логирующий сырой поток модели для выяснения, виден ли в
+     * Spring AI 1.1.x момент формирования вызова инструмента на уровне advisor. Подключается только
+     * при {@code kb.diag.stream-tool-calls=true}; в норме бин отсутствует и advisor не добавляется.
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "kb.diag", name = "stream-tool-calls", havingValue = "true")
+    public StreamDiagnosticsAdvisor streamDiagnosticsAdvisor(StreamDiagnostics streamDiagnostics) {
+        return new StreamDiagnosticsAdvisor(streamDiagnostics);
     }
 }

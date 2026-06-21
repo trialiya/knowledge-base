@@ -66,6 +66,14 @@ server:
       force: true
 
 kb:
+  diag:
+    # ДИАГНОСТИКА (временная, ветка claude/clever-ramanujan-oucoiw). Детальный лог формы каждого
+    # чанка стрима ответа в двух точках наблюдения (subscriber/advisor) + момент старта инструмента.
+    # Нужен, чтобы эмпирически выяснить, виден ли в Spring AI 1.1.x момент формирования вызова
+    # инструмента (TOOL_PREPARING). Выключить: false или KB_DIAG_STREAM_TOOL_CALLS=false.
+    # «Интересные» чанки логируются на INFO, все чанки — на DEBUG логгера
+    # io.github.trialiya.kb.diag (см. logging.level ниже).
+    stream-tool-calls: ${KB_DIAG_STREAM_TOOL_CALLS:true}
   security:
     # Учётные данные единственного пользователя (HTTP Basic, in-memory).
     username: ${KB_SECURITY_USERNAME:admin}
@@ -140,8 +148,11 @@ kb:
       base-url: ${CONFLUENCE_BASE_URL:}
       api-token: ${CONFLUENCE_TOKEN:}
 
-#logging:
-#  level:
+logging:
+  level:
+    # ДИАГНОСТИКА: INFO — только «интересные» чанки (пустой текст / finishReason / tool calls);
+    # поставьте DEBUG, чтобы видеть КАЖДЫЙ чанк стрима.
+    io.github.trialiya.kb.diag: INFO
 #    org:
 #      springframework:
 #        jdbc:

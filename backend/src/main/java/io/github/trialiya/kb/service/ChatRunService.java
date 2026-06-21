@@ -10,6 +10,7 @@ import static io.github.trialiya.kb.model.chat.dto.ChatEventType.TOOL_CALLS;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.TOOL_PREPARING;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.USER_MESSAGE;
 
+import io.github.trialiya.kb.diag.StreamDiagnostics;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.StreamMessage;
 import io.github.trialiya.kb.model.chat.dto.ToolCallMessage;
@@ -66,6 +67,7 @@ public class ChatRunService {
     private final SummarizeService summarizeService;
     private final ChatEventService events;
     private final Executor executor;
+    private final StreamDiagnostics diagnostics;
 
     /** runId -&gt; дескриптор активного прогона (для остановки). */
     private final ConcurrentHashMap<String, RunHandle> runs = new ConcurrentHashMap<>();
@@ -80,13 +82,15 @@ public class ChatRunService {
             ChatMemoryService chatMemoryService,
             SummarizeService summarizeService,
             ChatEventService events,
-            @Qualifier("chatRunExecutor") Executor executor) {
+            @Qualifier("chatRunExecutor") Executor executor,
+            StreamDiagnostics diagnostics) {
         this.chatClient = chatClient;
         this.chatMemory = chatMemory;
         this.chatMemoryService = chatMemoryService;
         this.summarizeService = summarizeService;
         this.events = events;
         this.executor = executor;
+        this.diagnostics = diagnostics;
     }
 
     private record RunHandle(
@@ -165,11 +169,17 @@ public class ChatRunService {
         // аргументы), видимого текста нет. Шлём TOOL_PREPARING один раз на такую паузу; сбрасываем,
         // когда инструмент реально стартовал, чтобы следующая пауза снова дала сигнал.
         final AtomicBoolean preparing = new AtomicBoolean(false);
+        // ДИАГНОСТИКА: сквозной номер чанка стрима в пределах прогона (см. StreamDiagnostics).
+        final AtomicInteger streamSeq = new AtomicInteger(0);
         final Consumer<Object> liveSink =
                 payload -> {
                     if (payload instanceof ToolCallMessage tcm) {
                         preparing.set(false);
-                        if (tcm.toolCall().status() != ToolInvocationStatus.STARTED) {
+                        if (tcm.toolCall().status() == ToolInvocationStatus.STARTED) {
+                            // ДИАГНОСТИКА: момент реального запуска инструмента — опорная точка
+                            // для замера «тихой паузы» перед вызовом.
+                            diagnostics.toolStarted(conversationId, tcm.toolCall().name());
+                        } else {
                             chatMemoryService.saveToolCallIncremental(
                                     conversationId,
                                     runId,
@@ -215,6 +225,7 @@ public class ChatRunService {
                                                     buffer,
                                                     liveSink,
                                                     preparing,
+                                                    streamSeq,
                                                     response),
                                     error -> log.error("Stream error {}", conversationId, error),
                                     () -> onComplete(handle, toolCollector, liveSink));
@@ -233,6 +244,7 @@ public class ChatRunService {
             StringBuffer buffer,
             Consumer<Object> liveSink,
             AtomicBoolean preparing,
+            AtomicInteger streamSeq,
             ChatResponse response) {
         final String chunk =
                 Optional.ofNullable(response)
@@ -246,6 +258,11 @@ public class ChatRunService {
                         .map(Generation::getMetadata)
                         .map(ChatGenerationMetadata::getFinishReason)
                         .orElse(null);
+
+        // ДИАГНОСТИКА: ровно то, что доходит до подписчика — точка, на которой работает текущий
+        // детектор hasToolCallDelta. Логи покажут, видны ли здесь tool calls / finishReason.
+        diagnostics.subscriberChunk(
+                conversationId, runId, streamSeq.incrementAndGet(), response, chunk, finishReason);
 
         // Ранний сигнал: модель формирует вызов инструмента — в чанке появились tool-call дельты
         // (или пришёл finishReason=TOOL_CALLS), но видимого текста нет. Шлём TOOL_PREPARING один
