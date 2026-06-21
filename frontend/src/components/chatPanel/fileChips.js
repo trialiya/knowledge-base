@@ -10,8 +10,9 @@ import documentsApi from '../../api/documentsApi';
 const OPEN = '⟦'; // ⟦
 const CLOSE = '⟧'; // ⟧
 
-// Глобальный матчер всех видов токенов. Захватных групп нет — parseToken / parseDocToken разбирают детально.
-export const TOKEN_RE = new RegExp(`${OPEN}(?:file|ref|doc):[^${CLOSE}]+${CLOSE}`, 'g');
+// Глобальный матчер всех видов токенов. Захватных групп нет — parse* разбирают детально.
+// docref идёт перед doc, чтобы не срабатывал prefix-match при чтении.
+export const TOKEN_RE = new RegExp(`${OPEN}(?:file|ref|docref|doc):[^${CLOSE}]+${CLOSE}`, 'g');
 
 /** Токен «весь файл / диапазон». */
 export function makeToken(path, from, to) {
@@ -46,20 +47,39 @@ export function baseName(path) {
 }
 
 // ── Doc-токены ────────────────────────────────────────────────────────────────
-// Формат: ⟦doc:ID:TITLE⟧
+// ⟦doc:ID:TITLE⟧    — полное содержимое (описание документа)
+// ⟦docref:ID:TITLE⟧ — только упоминание (без содержимого)
 
-/** Создать токен документа. */
+function safeDocTitle(title) {
+  return String(title).replace(/⟧/g, '');
+}
+
+/** Токен документа с раскрытием описания при отправке. */
 export function makeDocToken(id, title) {
-  const safeTitle = String(title).replace(/⟧/g, '');
-  return `${OPEN}doc:${id}:${safeTitle}${CLOSE}`;
+  return `${OPEN}doc:${id}:${safeDocTitle(title)}${CLOSE}`;
+}
+
+/** Токен документа — только упоминание (без описания). */
+export function makeDocRefToken(id, title) {
+  return `${OPEN}docref:${id}:${safeDocTitle(title)}${CLOSE}`;
 }
 
 /**
- * Разобрать doc-токен.
+ * Разобрать doc-токен (с содержимым).
  * Возвращает { id, title } или null.
  */
 export function parseDocToken(token) {
   const m = token.match(new RegExp(`^${OPEN}doc:(\\d+):(.*)${CLOSE}$`));
+  if (m) return { id: Number(m[1]), title: m[2] };
+  return null;
+}
+
+/**
+ * Разобрать docref-токен (только ссылка).
+ * Возвращает { id, title } или null.
+ */
+export function parseDocRefToken(token) {
+  const m = token.match(new RegExp(`^${OPEN}docref:(\\d+):(.*)${CLOSE}$`));
   if (m) return { id: Number(m[1]), title: m[2] };
   return null;
 }
@@ -97,6 +117,11 @@ export async function expandTokensForSend(text) {
 
   const blocks = await Promise.all(
     tokens.map(async (m) => {
+      const docRefParsed = parseDocRefToken(m[0]);
+      if (docRefParsed) {
+        return `Документ «${docRefParsed.title}» (#${docRefParsed.id})`;
+      }
+
       const docParsed = parseDocToken(m[0]);
       if (docParsed) {
         try {

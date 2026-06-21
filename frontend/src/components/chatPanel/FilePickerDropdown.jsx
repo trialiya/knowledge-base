@@ -3,18 +3,19 @@ import { useTranslation } from 'react-i18next';
 import { IconFileText } from '../../icons';
 
 /**
- * Плавающий список результатов поиска для триггеров `/file` (файлы репозитория) и `/doc` (документы).
+ * Плавающий список результатов поиска для триггеров `/file` и `/doc`.
  * Открывается НАД кареткой (композер прижат к низу окна).
  *
  * Props:
- *   results     — GitFileNode[] { path, name, size } | DocumentNode[] { id, title, type }
- *   loading     — boolean
- *   query       — string (для пустого состояния)
- *   anchorRect  — DOMRect-like { top, left } каретки
- *   selectedIdx — number
- *   type        — 'file' | 'doc'
- *   onSelect(node) — клик/Enter
- *   onDismiss()    — закрыть
+ *   results              — GitFileNode[] | DocumentNode[]
+ *   loading              — boolean
+ *   query                — string
+ *   anchorRect           — { top, left } каретки
+ *   selectedIdx          — number
+ *   type                 — 'file' | 'doc'
+ *   onSelect(node)       — Enter / клик по строке → вставить ссылку
+ *   onSelectWithContent  — клик по кнопке → вставить содержимое
+ *   onDismiss()          — закрыть
  */
 const FilePickerDropdown = ({
   results,
@@ -23,6 +24,7 @@ const FilePickerDropdown = ({
   anchorRect,
   selectedIdx,
   onSelect,
+  onSelectWithContent,
   onDismiss,
   type = 'file',
 }) => {
@@ -60,6 +62,7 @@ const FilePickerDropdown = ({
 
   const searchingLabel = type === 'doc' ? t('docInput.searching') : t('fileInput.searching');
   const emptyLabel = type === 'doc' ? t('docInput.empty') : t('fileInput.empty');
+  const contentBtnLabel = t('fileInput.insertContent');
 
   return (
     <div className="file-picker-dropdown" style={style}>
@@ -94,6 +97,20 @@ const FilePickerDropdown = ({
                   <span className="file-picker-item__name">{node.title}</span>
                   <span className="file-picker-item__path">#{node.id}</span>
                 </span>
+                <div className="file-picker-item__actions">
+                  <button
+                    type="button"
+                    className="file-picker-item__content-btn"
+                    title={contentBtnLabel}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onSelectWithContent(node);
+                    }}
+                  >
+                    📄 {contentBtnLabel}
+                  </button>
+                </div>
               </div>
             ))
           : results.map((node, i) => {
@@ -116,13 +133,27 @@ const FilePickerDropdown = ({
                       {dir || node.path}
                     </span>
                   </span>
+                  <div className="file-picker-item__actions">
+                    <button
+                      type="button"
+                      className="file-picker-item__content-btn"
+                      title={contentBtnLabel}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onSelectWithContent(node);
+                      }}
+                    >
+                      📄 {contentBtnLabel}
+                    </button>
+                  </div>
                 </div>
               );
             })}
       </div>
 
       <div className="file-picker-dropdown__footer">
-        <kbd>↑↓</kbd> {t('fileInput.navigate')} · <kbd>Enter</kbd> {t('fileInput.insert')} · <kbd>Esc</kbd>{' '}
+        <kbd>↑↓</kbd> {t('fileInput.navigate')} · <kbd>Enter</kbd> {t('fileInput.insertRef')} · <kbd>Esc</kbd>{' '}
         {t('fileInput.dismiss')}
       </div>
     </div>

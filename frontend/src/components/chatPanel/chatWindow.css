@@ -733,6 +733,39 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  flex: 1;
+}
+.file-picker-item__actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.file-picker-item__content-btn {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border: 1px solid var(--kb-border);
+  background: var(--kb-white);
+  border-radius: 3px;
+  font-size: 0.7rem;
+  color: var(--kb-muted);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.1s, color 0.1s, border-color 0.1s, background 0.1s;
+  white-space: nowrap;
+}
+.file-picker-item:hover .file-picker-item__content-btn,
+.file-picker-item--selected .file-picker-item__content-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+.file-picker-item__content-btn:hover {
+  color: var(--kb-accent);
+  border-color: var(--kb-accent);
+  background: var(--kb-accent-light);
 }
 .file-picker-item__name {
   font-size: 0.84rem;

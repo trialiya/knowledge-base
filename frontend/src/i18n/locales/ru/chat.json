@@ -73,6 +73,8 @@
     "empty": "Ничего не найдено",
     "navigate": "выбрать",
     "insert": "вставить",
+    "insertRef": "вставить ссылку",
+    "insertContent": "содержимое",
     "dismiss": "закрыть",
     "closePreview": "Закрыть превью",
     "previewError": "Не удалось загрузить файл",

@@ -73,6 +73,8 @@
     "empty": "Nothing found",
     "navigate": "navigate",
     "insert": "insert",
+    "insertRef": "insert link",
+    "insertContent": "content",
     "dismiss": "dismiss",
     "closePreview": "Close preview",
     "previewError": "Failed to load file",

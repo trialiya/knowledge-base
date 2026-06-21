@@ -7,8 +7,10 @@ import {
   makeToken,
   makeRefToken,
   makeDocToken,
+  makeDocRefToken,
   parseToken,
   parseDocToken,
+  parseDocRefToken,
   baseName,
   fetchContent,
   TOKEN_RE,
@@ -63,33 +65,38 @@ function serialize(root) {
   return out.replace(/^\n/, '');
 }
 
+function makeDocChipEl(token, { id, title }, refOnly) {
+  const chip = document.createElement('span');
+  chip.className = 'file-chip file-chip--doc' + (refOnly ? ' file-chip--ref' : '');
+  chip.contentEditable = 'false';
+  chip.dataset.token = token;
+  chip.title = `${title} (#${id})`;
+
+  const icon = document.createElement('span');
+  icon.className = 'file-chip__icon';
+  icon.textContent = refOnly ? '📎' : '📋';
+
+  const label = document.createElement('span');
+  label.className = 'file-chip__label';
+  label.textContent = title;
+
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'file-chip__remove';
+  remove.textContent = '×';
+  remove.tabIndex = -1;
+
+  chip.append(icon, label, remove);
+  return chip;
+}
+
 /** Построить DOM-элемент чипа из строки-токена. */
 function makeChipEl(token) {
+  const docRefParsed = parseDocRefToken(token);
+  if (docRefParsed) return makeDocChipEl(token, docRefParsed, true);
+
   const docParsed = parseDocToken(token);
-  if (docParsed) {
-    const chip = document.createElement('span');
-    chip.className = 'file-chip file-chip--doc';
-    chip.contentEditable = 'false';
-    chip.dataset.token = token;
-    chip.title = `${docParsed.title} (#${docParsed.id})`;
-
-    const icon = document.createElement('span');
-    icon.className = 'file-chip__icon';
-    icon.textContent = '📋';
-
-    const label = document.createElement('span');
-    label.className = 'file-chip__label';
-    label.textContent = docParsed.title;
-
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.className = 'file-chip__remove';
-    remove.textContent = '×';
-    remove.tabIndex = -1;
-
-    chip.append(icon, label, remove);
-    return chip;
-  }
+  if (docParsed) return makeDocChipEl(token, docParsed, false);
 
   const parsed = parseToken(token);
   const path = parsed?.path ?? token;
@@ -283,17 +290,16 @@ const FileChipInput = forwardRef(function FileChipInput(
     setPreview((pv) => (pv ? null : pv));
   }, [emitChange, detectTrigger]);
 
-  const insertItem = useCallback(
-    (item) => {
+  const doInsert = useCallback(
+    (token) => {
       const trig = triggerRef.current;
       const root = editorRef.current;
       if (!trig || !root) return;
-      const { node, start, cursorOffset, type } = trig;
+      const { node, start, cursorOffset } = trig;
 
       const before = node.nodeValue.slice(0, start);
       const after = node.nodeValue.slice(cursorOffset);
 
-      const token = type === 'doc' ? makeDocToken(item.id, item.title) : makeToken(item.path);
       const chip = makeChipEl(token);
       const tail = document.createTextNode(' ' + after);
       node.nodeValue = before;
@@ -311,6 +317,24 @@ const FileChipInput = forwardRef(function FileChipInput(
       root.focus();
     },
     [dismissPicker, emitChange],
+  );
+
+  // Вставить ссылку (по умолчанию: Enter / клик по строке)
+  const insertItem = useCallback(
+    (item) => {
+      const type = triggerRef.current?.type;
+      doInsert(type === 'doc' ? makeDocRefToken(item.id, item.title) : makeRefToken(item.path));
+    },
+    [doInsert],
+  );
+
+  // Вставить с содержимым (кнопка в дропдауне)
+  const insertItemWithContent = useCallback(
+    (item) => {
+      const type = triggerRef.current?.type;
+      doInsert(type === 'doc' ? makeDocToken(item.id, item.title) : makeToken(item.path));
+    },
+    [doInsert],
   );
 
   const insertTextAtCaret = useCallback((text) => {
@@ -455,7 +479,7 @@ const FileChipInput = forwardRef(function FileChipInput(
       const chip = e.target.closest?.('.file-chip');
       if (chip) {
         e.preventDefault();
-        if (parseDocToken(chip.dataset.token)) return;
+        if (parseDocToken(chip.dataset.token) || parseDocRefToken(chip.dataset.token)) return;
         const parsed = parseToken(chip.dataset.token);
         if (!parsed) return;
         const rect = chip.getBoundingClientRect();
@@ -499,6 +523,7 @@ const FileChipInput = forwardRef(function FileChipInput(
           anchorRect={picker.anchor}
           selectedIdx={picker.idx}
           onSelect={insertItem}
+          onSelectWithContent={insertItemWithContent}
           onDismiss={dismissPicker}
           type={picker.type}
         />
