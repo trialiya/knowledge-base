@@ -302,14 +302,21 @@ public class ChatController {
         return chatEventService.subscribe(conversationId, fromSeq);
     }
 
-    /** Полные детали вызовов инструментов для указанного run. */
+    /** Полные детали вызовов инструментов для указанного run, опционально фильтрует по имени. */
     @GetMapping("/{conversationId}/tool-calls")
     public List<ToolCallDetail> getToolCallDetails(
-            @PathVariable String conversationId, @RequestParam String runId) {
+            @PathVariable String conversationId,
+            @RequestParam String runId,
+            @RequestParam(required = false) String name) {
         verifyOwnerIfPresent(conversationId);
-        return toolCallRepository
-                .findByConversationIdAndRunIdOrderByCallIndex(conversationId, runId)
-                .stream()
+        final var entities =
+                name != null && !name.isBlank()
+                        ? toolCallRepository
+                                .findByConversationIdAndRunIdAndNameOrderByCallIndex(
+                                        conversationId, runId, name)
+                        : toolCallRepository.findByConversationIdAndRunIdOrderByCallIndex(
+                                conversationId, runId);
+        return entities.stream()
                 .map(
                         e ->
                                 new ToolCallDetail(

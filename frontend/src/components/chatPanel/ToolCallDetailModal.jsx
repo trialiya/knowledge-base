@@ -65,7 +65,7 @@ const ToolCallDetailModal = ({ conversationId, runId, tc, onClose }) => {
     setLoading(true);
     setError(null);
     chatApi
-      .getToolCallDetails(conversationId, runId)
+      .getToolCallDetails(conversationId, runId, tc.name)
       .then((data) => {
         if (cancelled) return;
         const match =

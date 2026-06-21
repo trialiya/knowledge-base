@@ -158,7 +158,7 @@ const ToolCallItem = ({ tc, conversationId, toolCallsRunId }) => {
   const [pos, setPos] = useState(null);
   const [copied, setCopied] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
-  const canShowDetail = !!(conversationId && toolCallsRunId && tc.status !== 'STARTED');
+  const canShowDetail = !!(conversationId && toolCallsRunId && tc.status !== 'STARTED' && tc.hasDetails !== false);
 
   const GAP = 8;
 

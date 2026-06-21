@@ -256,7 +256,7 @@ public class ChatRunService {
         liveSink.accept(
                 new ToolCallsMessage(
                         toolCollector.completedSnapshot().stream()
-                                .map(ToolInvocation::toMeta)
+                                .map(tc -> tc.toMeta(chatMemoryService.hasDetails(tc.name())))
                                 .toList()));
         chatMemoryService.saveToolCalls(
                 handle.conversationId(), handle.runId(), toolCollector.completedSnapshot());

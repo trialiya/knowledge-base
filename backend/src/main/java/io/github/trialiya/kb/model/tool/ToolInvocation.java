@@ -16,6 +16,11 @@ public record ToolInvocation(
 
     @JsonIgnore
     public ToolInvocationMeta toMeta() {
-        return new ToolInvocationMeta(name, arguments, status, error, resultMeta);
+        return new ToolInvocationMeta(name, arguments, status, error, resultMeta, null);
+    }
+
+    @JsonIgnore
+    public ToolInvocationMeta toMeta(boolean hasDetails) {
+        return new ToolInvocationMeta(name, arguments, status, error, resultMeta, hasDetails);
     }
 }

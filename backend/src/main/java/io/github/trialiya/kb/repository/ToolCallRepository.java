@@ -9,4 +9,9 @@ public interface ToolCallRepository extends CrudRepository<ToolCallEntity, Long>
 
     List<ToolCallEntity> findByConversationIdAndRunIdOrderByCallIndex(
             @Param("conversationId") String conversationId, @Param("runId") String runId);
+
+    List<ToolCallEntity> findByConversationIdAndRunIdAndNameOrderByCallIndex(
+            @Param("conversationId") String conversationId,
+            @Param("runId") String runId,
+            @Param("name") String name);
 }
