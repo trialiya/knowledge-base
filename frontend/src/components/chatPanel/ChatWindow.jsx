@@ -41,6 +41,9 @@ const metaToCall = (x) => ({
   resultMeta: x.resultMeta,
 });
 
+// Extracts runId from a system message that carries tool call breadcrumbs.
+const extractRunId = (m) => m.runId || null;
+
 // Превращает «сырые» сообщения с бэка (хронологический порядок) в пузыри для рендера.
 // Системные сообщения-«крошки» (toolInvocationMetas из ChatMemoryService.saveToolCalls)
 // пузырём не показываем, а прикрепляем к предыдущему ответу ассистента — это даёт
@@ -57,9 +60,11 @@ const transformPage = (rawMsgs) => {
     if (type === 'system') {
       const metas = m.toolInvocationMetas;
       if (Array.isArray(metas) && metas.length) {
+        const runId = extractRunId(m);
         const prev = bubbles[bubbles.length - 1];
         if (sawAi && prev?.sender === 'ai') {
           prev.toolCalls = [...(prev.toolCalls || []), ...metas.map(metaToCall)];
+          if (runId) prev.toolCallsRunId = runId;
         } else {
           // Ассистент этой крошки — в более старой странице: несём metas наверх.
           leadingMetas.push(...metas.map(metaToCall));
@@ -68,7 +73,7 @@ const transformPage = (rawMsgs) => {
       continue; // преамбулу как сообщение не рендерим
     }
     if (type !== 'user') sawAi = true;
-    bubbles.push({ text: m.content, sender: type === 'user' ? 'user' : 'ai' });
+    bubbles.push({ text: m.content, sender: type === 'user' ? 'user' : 'ai', timestamp: m.timestamp || null });
   }
   return { bubbles, leadingMetas };
 };
@@ -518,7 +523,10 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       setChats((prev) => {
         const found = prev.find((c) => c.id === activeChatId);
         if (!found) return prev;
-        const newMessages = [...(found.messages || []), { text, sender: 'user', clientMsgId }];
+        const newMessages = [
+          ...(found.messages || []),
+          { text, sender: 'user', clientMsgId, timestamp: new Date().toISOString() },
+        ];
         const updatedChat = {
           ...found,
           id: conversationId,
@@ -846,6 +854,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         ) : (
           <MessageList
             key={activeChatId}
+            conversationId={activeChatId}
             messages={activeMessages}
             onNavigateToDoc={onNavigateToDoc}
             onLoadMore={handleLoadOlder}
@@ -881,7 +890,9 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
             isEmpty={isChatEmpty && !loadingMessages}
             resetSignal={composerResetSignal}
             chatId={activeChatId}
-            onTextChange={(v) => { composerTextRef.current = v; }}
+            onTextChange={(v) => {
+              composerTextRef.current = v;
+            }}
           />
         )}
       </div>

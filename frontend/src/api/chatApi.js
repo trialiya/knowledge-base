@@ -30,6 +30,9 @@ const chatApi = {
     return request(`/api/chats/${enc(id)}/messages?${params}`);
   },
 
+  /** Полные детали вызовов инструментов для указанного run. */
+  getToolCallDetails: (chatId, runId) => request(`/api/chats/${enc(chatId)}/tool-calls?runId=${enc(runId)}`),
+
   /** Количество вложений активного чата (для бейджа). */
   getAttachmentCount: (id) => request(`/api/chats/${enc(id)}/attachments/count`),
 

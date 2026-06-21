@@ -7,6 +7,7 @@ import static io.github.trialiya.kb.model.chat.dto.ChatEventType.RUN_STOPPED;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.STREAM;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.TOOL_CALL;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.TOOL_CALLS;
+import static io.github.trialiya.kb.model.chat.dto.ChatEventType.TOOL_PREPARING;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.USER_MESSAGE;
 
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
@@ -16,6 +17,7 @@ import io.github.trialiya.kb.model.chat.dto.ToolCallsMessage;
 import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
+import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
 import io.github.trialiya.kb.utils.ChatUtils;
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -24,6 +26,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
@@ -157,8 +160,25 @@ public class ChatRunService {
             RunHandle handle, String userMessage, String resolvedModel, String clientMsgId) {
         final String conversationId = handle.conversationId();
         final String runId = handle.runId();
+        final AtomicInteger callIndex = new AtomicInteger(0);
+        // Защёлка «ранний сигнал отправлен»: пока модель формирует вызов инструмента (генерирует
+        // аргументы), видимого текста нет. Шлём TOOL_PREPARING один раз на такую паузу; сбрасываем,
+        // когда инструмент реально стартовал, чтобы следующая пауза снова дала сигнал.
+        final AtomicBoolean preparing = new AtomicBoolean(false);
         final Consumer<Object> liveSink =
-                payload -> events.publish(conversationId, eventType(payload), runId, null, payload);
+                payload -> {
+                    if (payload instanceof ToolCallMessage tcm) {
+                        preparing.set(false);
+                        if (tcm.toolCall().status() != ToolInvocationStatus.STARTED) {
+                            chatMemoryService.saveToolCallIncremental(
+                                    conversationId,
+                                    runId,
+                                    callIndex.getAndIncrement(),
+                                    tcm.toolCall());
+                        }
+                    }
+                    events.publish(conversationId, eventType(payload), runId, null, payload);
+                };
         final ToolInvocationCollector toolCollector = new ToolInvocationCollector(liveSink);
         final StringBuffer buffer = new StringBuffer();
 
@@ -194,6 +214,7 @@ public class ChatRunService {
                                                     runId,
                                                     buffer,
                                                     liveSink,
+                                                    preparing,
                                                     response),
                                     error -> log.error("Stream error {}", conversationId, error),
                                     () -> onComplete(handle, toolCollector, liveSink));
@@ -211,6 +232,7 @@ public class ChatRunService {
             String runId,
             StringBuffer buffer,
             Consumer<Object> liveSink,
+            AtomicBoolean preparing,
             ChatResponse response) {
         final String chunk =
                 Optional.ofNullable(response)
@@ -224,6 +246,16 @@ public class ChatRunService {
                         .map(Generation::getMetadata)
                         .map(ChatGenerationMetadata::getFinishReason)
                         .orElse(null);
+
+        // Ранний сигнал: модель формирует вызов инструмента — в чанке появились tool-call дельты
+        // (или пришёл finishReason=TOOL_CALLS), но видимого текста нет. Шлём TOOL_PREPARING один
+        // раз; как только снова идёт текст — снимаем «подготовку», чтобы не залипал индикатор.
+        final boolean toolDelta = hasToolCallDelta(response) || "TOOL_CALLS".equals(finishReason);
+        if (chunk != null && !chunk.isEmpty()) {
+            preparing.set(false);
+        } else if (toolDelta && preparing.compareAndSet(false, true)) {
+            events.publish(conversationId, TOOL_PREPARING, runId, null, null);
+        }
         // Копим ВЕСЬ текст ответа — он понадобится для частичного сохранения при stop/ошибке.
         // На нормальном завершении ответ сохраняет advisor (по doOnComplete), а на отмене/ошибке
         // (doOnComplete не срабатывает) сохраняем только мы. Поэтому на границе сегмента (модель
@@ -249,7 +281,8 @@ public class ChatRunService {
                         toolCollector.completedSnapshot().stream()
                                 .map(ToolInvocation::toMeta)
                                 .toList()));
-        chatMemoryService.saveToolCalls(handle.conversationId(), toolCollector.completedSnapshot());
+        chatMemoryService.saveToolCalls(
+                handle.conversationId(), handle.runId(), toolCollector.completedSnapshot());
         events.publish(handle.conversationId(), RUN_DONE, handle.runId(), null, null);
         summarizeService.trySummarize(handle.conversationId());
     }
@@ -306,7 +339,8 @@ public class ChatRunService {
         final String text = partial + "\n\n" + marker;
         try {
             chatMemory.add(conversationId, new AssistantMessage(text));
-            chatMemoryService.saveToolCalls(conversationId, toolCollector.completedSnapshot());
+            chatMemoryService.saveToolCalls(
+                    conversationId, handle.runId(), toolCollector.completedSnapshot());
             log.info("Saved partial reply for {} ({} chars)", conversationId, text.length());
         } catch (Exception e) {
             log.warn("Failed to persist partial reply for {}", conversationId, e);
@@ -331,6 +365,20 @@ public class ChatRunService {
                                     usage.getCompletionTokens(),
                                     usage.getTotalTokens());
                         });
+    }
+
+    /**
+     * Несёт ли чанк стрима данные вызова инструмента: в стриминге OpenAI имя/аргументы инструмента
+     * приходят отдельными дельтами с пустым текстом — это и есть самый ранний момент, когда видно,
+     * что модель готовит вызов (ещё до finishReason=TOOL_CALLS и до запуска самого инструмента).
+     */
+    private static boolean hasToolCallDelta(ChatResponse response) {
+        return Optional.ofNullable(response)
+                .map(ChatResponse::getResult)
+                .map(Generation::getOutput)
+                .map(AssistantMessage::getToolCalls)
+                .map(calls -> !calls.isEmpty())
+                .orElse(false);
     }
 
     private static ChatEventType eventType(Object payload) {
