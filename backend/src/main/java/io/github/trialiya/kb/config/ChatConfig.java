@@ -141,13 +141,24 @@ public class ChatConfig {
                         .map(RecordingToolCallback::new)
                         .toArray(ToolCallback[]::new);
 
-        // Advisor chain (innermost to outermost via getOrder()):
-        //   ToolPreparingAdvisor (LOWEST_PRECEDENCE)  — emits TOOL_PREPARING before each tool call
-        //   MessageChatMemoryAdvisor                  — loads/saves conversation history
-        //   ToolCallingAdvisor (DEFAULT_ORDER ≈ MIN)  — drives the tool-call loop
+        // Advisor chain — outermost to innermost (ascending getOrder()):
+        //
+        //   MessageChatMemoryAdvisor  (HIGHEST_PRECEDENCE+200 = MIN+200)  — OUTSIDE the loop:
+        //       loads conversation history once before the loop starts and saves only the user
+        //       message + final assistant reply. Tool request/response messages are NOT written to
+        //       the store. This is intentional — our JDBC ChatMemoryRepository does not support
+        //       ToolResponseMessage / tool-call serialization. Matches Spring AI 1.x behaviour.
+        //
+        //   ToolCallingAdvisor        (DEFAULT_ORDER      = MIN+300)       — drives the tool loop.
+        //       Because MessageChatMemoryAdvisor is OUTSIDE the loop (order < DEFAULT_ORDER),
+        //       ToolCallingAdvisor manages its own internal conversation accumulation across
+        //       iterations and no call to .disableInternalConversationHistory() is needed.
+        //
+        //   ToolPreparingAdvisor      (LOWEST_PRECEDENCE  = MAX)           — INSIDE the loop:
+        //       called on every iteration; emits TOOL_PREPARING before each tool execution round.
         List<Advisor> advisors = new ArrayList<>();
-        advisors.add(ToolCallingAdvisor.builder().toolCallingManager(toolCallingManager).build());
         advisors.add(MessageChatMemoryAdvisor.builder(chatMemory).build());
+        advisors.add(ToolCallingAdvisor.builder().toolCallingManager(toolCallingManager).build());
         advisors.add(new ToolPreparingAdvisor(chatEventService));
 
         return ChatClient.builder(chatModel)
