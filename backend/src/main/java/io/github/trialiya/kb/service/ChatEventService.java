@@ -94,9 +94,9 @@ public class ChatEventService {
     }
 
     /**
-     * Отправляет SSE heartbeat всем подписчикам всех хабов. При записи в закрытый сокет
-     * (вкладка закрыта) Spring выбрасывает исключение → onError → remove() → хаб выгружается.
-     * Вызывается по расписанию из {@link ChatRuntimeMonitor}.
+     * Отправляет SSE heartbeat всем подписчикам всех хабов. При записи в закрытый сокет (вкладка
+     * закрыта) Spring выбрасывает исключение → onError → remove() → хаб выгружается. Вызывается по
+     * расписанию из {@link ChatRuntimeMonitor}.
      */
     public void sendHeartbeats() {
         hubs.values().forEach(ConversationHub::sendHeartbeat);
@@ -110,7 +110,10 @@ public class ChatEventService {
     private void onHubIdle(ConversationHub hub) {
         if (hub.closeIfIdle()) {
             hubs.remove(hub.conversationId(), hub);
-            log.info("[{}] hub removed from registry (idle), total={}", hub.conversationId(), hubs.size());
+            log.info(
+                    "[{}] hub removed from registry (idle), total={}",
+                    hub.conversationId(),
+                    hubs.size());
         }
     }
 

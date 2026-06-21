@@ -6,10 +6,12 @@ import io.github.trialiya.kb.model.chat.dto.MessageCursor;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.spring.IMessage;
+import io.github.trialiya.kb.model.tool.ToolCallEntity;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
+import io.github.trialiya.kb.repository.ToolCallRepository;
 import io.github.trialiya.kb.utils.ChatUtils;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -49,6 +51,7 @@ public class ChatMemoryService implements ChatMemoryRepository {
 
     private final ChatTopicRepository chatTopicRepository;
     private final ChatMessageRepository chatMessageRepository;
+    private final ToolCallRepository toolCallRepository;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -134,7 +137,38 @@ public class ChatMemoryService implements ChatMemoryRepository {
             List<ChatMessageEntity> messages, boolean hasMore, MessageCursor oldestCursor) {}
 
     @Transactional
-    public void saveToolCalls(String conversationId, List<ToolInvocation> toolCalls) {
+    public void saveToolCallIncremental(
+            String conversationId, String runId, int callIndex, ToolInvocation tc) {
+        if (SKIP_TOOLS.contains(tc.name())) {
+            return;
+        }
+        try {
+            String resultMetaJson =
+                    tc.resultMeta() != null && !tc.resultMeta().isEmpty()
+                            ? objectMapper.writeValueAsString(tc.resultMeta())
+                            : null;
+            toolCallRepository.save(
+                    new ToolCallEntity(
+                            conversationId,
+                            runId,
+                            callIndex,
+                            tc.name(),
+                            tc.argumentsRaw(),
+                            tc.status().name(),
+                            tc.error(),
+                            tc.resultText(),
+                            resultMetaJson));
+        } catch (JsonProcessingException e) {
+            log.warn(
+                    "Failed to serialize result meta for tool call {} in {}",
+                    tc.name(),
+                    conversationId,
+                    e);
+        }
+    }
+
+    @Transactional
+    public void saveToolCalls(String conversationId, String runId, List<ToolInvocation> toolCalls) {
         if (toolCalls == null || toolCalls.isEmpty()) {
             return;
         }
@@ -167,7 +201,7 @@ public class ChatMemoryService implements ChatMemoryRepository {
                         false,
                         false,
                         LocalDateTime.now(),
-                        new ChatMessageMeta(meta)));
+                        new ChatMessageMeta(runId, meta)));
     }
 
     private long nextPosition(String conversationId) {

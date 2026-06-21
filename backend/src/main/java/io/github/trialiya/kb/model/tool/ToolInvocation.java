@@ -10,7 +10,9 @@ public record ToolInvocation(
         ToolInvocationCollector.ToolInvocationStatus status,
         String error,
         @JsonIgnore Map<String, ?> resultMeta,
-        String resultGist) {
+        String resultGist,
+        @JsonIgnore String argumentsRaw,
+        @JsonIgnore String resultText) {
 
     @JsonIgnore
     public ToolInvocationMeta toMeta() {

@@ -7,9 +7,11 @@ import ChatDocLink from './ChatDocLink';
 import './message.css';
 import CodeBlock from '../common/CodeBlock';
 import HistoryModal from '../knowledgeBasePanel/HistoryModal';
+import ToolCallDetailModal from './ToolCallDetailModal';
 import { getToolIcon, toolLabelKey, humanizeTool, getDocChangeRef } from './toolMeta';
 import { IconCopySmall, IconCopied } from '../../icons';
 import { COPY_DONE_MS, GIST_PREVIEW_LEN } from '../../constants/ui';
+import './styles/tool-call-detail-modal.css';
 
 /** SVG status indicators — not clickable, purely visual */
 const IconStarted = () => (
@@ -81,6 +83,38 @@ const MessageCopyButton = ({ text }) => {
   );
 };
 
+/** Задержка (мс) перед показом индикатора «готовлю данные…» — короткие паузы не мигают. */
+const PREPARING_VISIBLE_AFTER_MS = 5000;
+
+/**
+ * Индикатор раннего сигнала: модель формирует вызов инструмента (имя ещё недоступно).
+ * Показываем под сообщением и только если подготовка тянется дольше 5 секунд —
+ * быстрые вызовы проходят незаметно. Таймер живёт внутри компонента, поэтому редьюсер
+ * остаётся чистым (без меток времени).
+ */
+const ToolPreparingIndicator = () => {
+  const { t } = useTranslation('chat');
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const id = setTimeout(() => setVisible(true), PREPARING_VISIBLE_AFTER_MS);
+    return () => clearTimeout(id);
+  }, []);
+
+  if (!visible) return null;
+
+  return (
+    <div className="tool-preparing" role="status" aria-live="polite">
+      <span className="tool-preparing-dots" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </span>
+      <span className="tool-preparing-text">{t('toolCall.preparing')}</span>
+    </div>
+  );
+};
+
 const formatArgs = (args) => {
   if (!args || Object.keys(args).length === 0) return null;
   return Object.entries(args)
@@ -110,8 +144,8 @@ const buildCopyText = (tc, t) => {
   return parts.join('\n');
 };
 
-/** Одиночная плашка вызова — hover-тултип + кнопка копирования */
-const ToolCallItem = ({ tc }) => {
+/** Одиночная плашка вызова — hover-тултип + кнопка копирования + кнопка деталей */
+const ToolCallItem = ({ tc, conversationId, toolCallsRunId }) => {
   const { t } = useTranslation('chat');
   const label = t(toolLabelKey(tc.name), { defaultValue: humanizeTool(tc.name) });
   const icon = getToolIcon(tc.name);
@@ -123,6 +157,8 @@ const ToolCallItem = ({ tc }) => {
   // pos: null пока не измерили реальный размер тултипа (рендерим скрытым).
   const [pos, setPos] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [showDetail, setShowDetail] = useState(false);
+  const canShowDetail = !!(conversationId && toolCallsRunId && tc.status !== 'STARTED');
 
   const GAP = 8;
 
@@ -194,9 +230,31 @@ const ToolCallItem = ({ tc }) => {
         {gist && <span className="tool-call-gist">{gist}</span>}
         {tc.status === 'ERROR' && tc.error && <span className="tool-call-error">{tc.error}</span>}
       </div>
+      {canShowDetail && (
+        <button
+          className="tool-call-detail-btn"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowDetail(true);
+            setHover(false);
+            setPos(null);
+          }}
+          title={t('toolCall.detail.open')}
+        >
+          ⊞
+        </button>
+      )}
       <button className="tool-call-copy-btn" onClick={handleCopy} title={t('toolCall.copy')}>
         {copied ? <IconCopied /> : <IconCopySmall />}
       </button>
+      {showDetail && canShowDetail && (
+        <ToolCallDetailModal
+          conversationId={conversationId}
+          runId={toolCallsRunId}
+          tc={tc}
+          onClose={() => setShowDetail(false)}
+        />
+      )}
       {hover &&
         ReactDOM.createPortal(
           <div
@@ -223,13 +281,13 @@ const ToolCallItem = ({ tc }) => {
 };
 
 /** Группа одноимённых последовательных вызовов — сворачиваемая */
-const ToolCallGroup = ({ name, items }) => {
+const ToolCallGroup = ({ name, items, conversationId, toolCallsRunId }) => {
   const { t } = useTranslation('chat');
   const [open, setOpen] = useState(false);
 
   // Одиночный вызов — рендерим как обычную плашку, без шеврона/бейджа
   if (items.length === 1) {
-    return <ToolCallItem tc={items[0]} />;
+    return <ToolCallItem tc={items[0]} conversationId={conversationId} toolCallsRunId={toolCallsRunId} />;
   }
 
   // Группа ≥2: заголовок показывает аргументы первого вызова (чтобы высота
@@ -268,7 +326,7 @@ const ToolCallGroup = ({ name, items }) => {
       {open && (
         <div className="tool-call-group-children">
           {items.map((tc, i) => (
-            <ToolCallItem key={i} tc={tc} />
+            <ToolCallItem key={i} tc={tc} conversationId={conversationId} toolCallsRunId={toolCallsRunId} />
           ))}
         </div>
       )}
@@ -276,7 +334,7 @@ const ToolCallGroup = ({ name, items }) => {
   );
 };
 
-const ToolCallNotifications = ({ toolCalls }) => {
+const ToolCallNotifications = ({ toolCalls, conversationId, toolCallsRunId }) => {
   if (!toolCalls || toolCalls.length === 0) return null;
 
   // Группируем последовательные вызовы с одним именем
@@ -294,7 +352,13 @@ const ToolCallNotifications = ({ toolCalls }) => {
     <div className="tool-call-notifications">
       <div className="tool-call-scroll">
         {groups.map((g, i) => (
-          <ToolCallGroup key={`${g.name}-${i}`} name={g.name} items={g.items} />
+          <ToolCallGroup
+            key={`${g.name}-${i}`}
+            name={g.name}
+            items={g.items}
+            conversationId={conversationId}
+            toolCallsRunId={toolCallsRunId}
+          />
         ))}
       </div>
     </div>
@@ -419,11 +483,12 @@ const formatTimestamp = (ts) => {
   return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
 };
 
-const Message = ({ text, sender, toolCalls, onNavigateToDoc, timestamp }) => {
+const Message = ({ text, sender, toolCalls, toolCallsRunId, preparing, conversationId, onNavigateToDoc, timestamp }) => {
   const { t } = useTranslation('chat');
   const [showSource, setShowSource] = useState(false);
   const messageClass = `message ${sender}`;
   const hasToolCalls = toolCalls && toolCalls.length > 0;
+  const showPreparing = preparing && sender === 'ai';
   const timeLabel = formatTimestamp(timestamp);
 
   const messageContent = (
@@ -471,9 +536,19 @@ const Message = ({ text, sender, toolCalls, onNavigateToDoc, timestamp }) => {
         <div className="message-main-col">
           {messageContent}
           <DocChangeBlock toolCalls={toolCalls} onNavigateToDoc={onNavigateToDoc} />
+          {showPreparing && <ToolPreparingIndicator />}
         </div>
-        <ToolCallNotifications toolCalls={toolCalls} />
+        <ToolCallNotifications toolCalls={toolCalls} conversationId={conversationId} toolCallsRunId={toolCallsRunId} />
       </div>
+    );
+  }
+
+  if (showPreparing) {
+    return (
+      <>
+        {messageContent}
+        <ToolPreparingIndicator />
+      </>
     );
   }
 
