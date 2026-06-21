@@ -74,16 +74,41 @@ public class StreamDiagnostics {
         log("subscriber", conversationId, runId, seq, response, text, finishReason);
     }
 
-    /** Точка 2 — самый внутренний advisor (ближе всего к модели). */
+    /**
+     * Точка 2 — самый внутренний advisor (ближе всего к модели). Логируем БЕЗУСЛОВНО на INFO: эти
+     * строки — главное сравнение с подписчиком, и их по определению немного.
+     */
     public void advisorChunk(String conversationId, int seq, ChatResponse response) {
-        log(
-                "advisor",
-                conversationId,
-                "-",
-                seq,
-                response,
-                textOf(response),
-                finishReasonOf(response));
+        if (!enabled) {
+            return;
+        }
+        log.info(
+                format(
+                        "advisor",
+                        conversationId,
+                        "-",
+                        seq,
+                        response,
+                        textOf(response),
+                        finishReasonOf(response)));
+    }
+
+    /** Маркер: поток advisor'а реально подписан (отвечает «advisor вообще вызывается?»). */
+    public void advisorSubscribed(String conversationId) {
+        if (enabled) {
+            log.info("[stream-diag][{}][advisor] >>> stream SUBSCRIBED", conversationId);
+        }
+    }
+
+    /** Маркер завершения потока advisor'а с числом прошедших чанков. */
+    public void advisorFinished(String conversationId, String signal, int chunks) {
+        if (enabled) {
+            log.info(
+                    "[stream-diag][{}][advisor] <<< stream {} after {} chunks",
+                    conversationId,
+                    signal,
+                    chunks);
+        }
     }
 
     /** Реальный старт инструмента — опорная точка для замера «тихой паузы». */
@@ -104,30 +129,41 @@ public class StreamDiagnostics {
         if (!enabled) {
             return;
         }
-        final int textLen = text == null ? -1 : text.length();
+        // «Интересные» (INFO): пустой текст, РЕАЛЬНЫЙ finishReason (не "" — в стриме промежуточные
+        // чанки несут пустую строку), есть tool calls. Обычный текстовый поток — на DEBUG.
         final boolean emptyText = text == null || text.isEmpty();
+        final boolean hasFinish = finishReason != null && !finishReason.isBlank();
         final boolean hasToolCalls = response != null && response.hasToolCalls();
-        final List<AssistantMessage.ToolCall> calls = toolCalls(response);
         final boolean interesting =
-                emptyText || finishReason != null || hasToolCalls || !calls.isEmpty();
-        final String msg =
-                String.format(
-                        "[stream-diag][%s][run=%s][%s #%d] textLen=%d empty=%b finishReason=%s"
-                                + " hasToolCalls=%b outToolCalls=%s",
-                        conversationId,
-                        runId,
-                        where,
-                        seq,
-                        textLen,
-                        emptyText,
-                        finishReason,
-                        hasToolCalls,
-                        describe(calls));
+                emptyText || hasFinish || hasToolCalls || !toolCalls(response).isEmpty();
+        final String msg = format(where, conversationId, runId, seq, response, text, finishReason);
         if (interesting) {
             log.info(msg);
         } else {
             log.debug(msg);
         }
+    }
+
+    private static String format(
+            String where,
+            String conversationId,
+            String runId,
+            int seq,
+            ChatResponse response,
+            String text,
+            String finishReason) {
+        return String.format(
+                "[stream-diag][%s][run=%s][%s #%d] textLen=%d empty=%b finishReason=%s"
+                        + " hasToolCalls=%b outToolCalls=%s",
+                conversationId,
+                runId,
+                where,
+                seq,
+                text == null ? -1 : text.length(),
+                text == null || text.isEmpty(),
+                finishReason,
+                response != null && response.hasToolCalls(),
+                describe(toolCalls(response)));
     }
 
     private static List<AssistantMessage.ToolCall> toolCalls(ChatResponse response) {

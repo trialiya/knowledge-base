@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.diag;
 
 import java.util.concurrent.atomic.AtomicInteger;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.ai.chat.client.advisor.api.StreamAdvisor;
@@ -22,12 +23,18 @@ import reactor.core.publisher.Flux;
  * MessageAggregator} находятся глубже), и решение лежит в плоскости либо ручного цикла, либо
  * апгрейда до 2.0.
  */
+@Slf4j
 public class StreamDiagnosticsAdvisor implements StreamAdvisor {
 
     private final StreamDiagnostics diagnostics;
 
     public StreamDiagnosticsAdvisor(StreamDiagnostics diagnostics) {
         this.diagnostics = diagnostics;
+        log.info(
+                "[stream-diag] StreamDiagnosticsAdvisor REGISTERED (order={}) — if no [advisor] lines"
+                        + " appear during a run, custom StreamAdvisors do not see the per-chunk"
+                        + " stream in this Spring AI version",
+                getOrder());
     }
 
     @Override
@@ -48,12 +55,19 @@ public class StreamDiagnosticsAdvisor implements StreamAdvisor {
         final String conversationId =
                 String.valueOf(request.context().getOrDefault(ChatMemory.CONVERSATION_ID, "?"));
         final AtomicInteger seq = new AtomicInteger();
+        // Маркеры subscribe/finally + счётчик чанков снимают неоднозначность «advisor не
+        // зарегистрирован» vs «зарегистрирован, но поток до него не доходит».
         return chain.nextStream(request)
+                .doOnSubscribe(s -> diagnostics.advisorSubscribed(conversationId))
                 .doOnNext(
                         response ->
                                 diagnostics.advisorChunk(
                                         conversationId,
                                         seq.incrementAndGet(),
-                                        response.chatResponse()));
+                                        response.chatResponse()))
+                .doFinally(
+                        signal ->
+                                diagnostics.advisorFinished(
+                                        conversationId, signal.name(), seq.get()));
     }
 }
