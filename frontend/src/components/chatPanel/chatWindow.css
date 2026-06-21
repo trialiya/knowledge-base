@@ -757,8 +757,7 @@
   transition: opacity 0.1s, color 0.1s, border-color 0.1s, background 0.1s;
   white-space: nowrap;
 }
-.file-picker-item:hover .file-picker-item__content-btn,
-.file-picker-item--selected .file-picker-item__content-btn {
+.file-picker-item:hover .file-picker-item__content-btn {
   opacity: 1;
   pointer-events: auto;
 }
