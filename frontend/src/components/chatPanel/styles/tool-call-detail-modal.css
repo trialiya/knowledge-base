@@ -1,0 +1,176 @@
+/* ── ToolCallDetailModal ── */
+
+.tcd-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tcd-modal {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.22);
+  width: 560px;
+  max-width: 95vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tcd-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid #eee;
+  flex-shrink: 0;
+}
+
+.tcd-title {
+  flex: 1;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #222;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tcd-icon {
+  font-size: 1.1em;
+}
+
+.tcd-close {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  color: #999;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.tcd-close:hover {
+  background: #f0f0f0;
+  color: #444;
+}
+
+.tcd-loading,
+.tcd-error {
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #888;
+}
+.tcd-error {
+  color: #ea4335;
+}
+
+.tcd-body {
+  padding: 12px 16px 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+
+.tcd-status-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 6px;
+  width: fit-content;
+  background: #eee;
+  color: #555;
+}
+.tcd-status--ok {
+  background: var(--kb-success-bg, #e6f4ea);
+  color: var(--kb-success, #34a853);
+}
+.tcd-status--error {
+  background: #fef0ef;
+  color: #ea4335;
+}
+.tcd-status--started {
+  background: var(--kb-warning-bg, #fff8e1);
+  color: var(--kb-warning, #d99a00);
+}
+
+.tcd-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tcd-section-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #999;
+}
+.tcd-section-label--error {
+  color: #ea4335;
+}
+
+.tcd-pre {
+  margin: 0;
+  padding: 8px 10px;
+  background: var(--kb-code-dark-bg, #1e1e2e);
+  color: var(--kb-code-dark-color, #cdd6f4);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-family: 'Fira Mono', 'Cascadia Code', 'Consolas', monospace;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.tcd-pre--result {
+  max-height: 320px;
+}
+.tcd-pre--error {
+  background: #fff0ef;
+  color: #c62828;
+}
+
+/* Detail expand button on ToolCallItem */
+.tool-call-detail-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  color: #bbb;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+.tool-call-item:hover .tool-call-detail-btn {
+  opacity: 1;
+}
+.tool-call-detail-btn:hover {
+  color: #666;
+  background: rgba(0, 0, 0, 0.06);
+}

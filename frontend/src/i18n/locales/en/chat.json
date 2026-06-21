@@ -47,7 +47,13 @@
     "copy": "Copy",
     "status": "Status",
     "result": "Result",
-    "error": "Error"
+    "error": "Error",
+    "detail": {
+      "open": "Details",
+      "arguments": "Arguments",
+      "result": "Result",
+      "loadError": "Failed to load details"
+    }
   },
   "scroll": {
     "toLatest": "Scroll to latest message",

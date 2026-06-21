@@ -12,6 +12,7 @@ import io.github.trialiya.kb.config.JdbcConfig;
 import io.github.trialiya.kb.config.PgVectorJdbcConfig;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
+import io.github.trialiya.kb.repository.ToolCallRepository;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.support.AbstractPostgresIntegrationTest;
 import java.util.List;
@@ -68,7 +69,7 @@ class ChatModelClientIT extends AbstractPostgresIntegrationTest {
 
         // ── настоящая память поверх Postgres ────────────────────────────────
         ChatMemoryService memoryService =
-                new ChatMemoryService(topicRepo, messageRepo, objectMapper);
+                new ChatMemoryService(topicRepo, messageRepo, mock(ToolCallRepository.class), objectMapper);
         ChatMemory chatMemory =
                 MessageWindowChatMemory.builder()
                         .chatMemoryRepository(memoryService)

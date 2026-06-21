@@ -17,6 +17,7 @@ import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import io.github.trialiya.kb.utils.ChatUtils;
+import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Optional;
@@ -24,6 +25,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
@@ -157,8 +159,20 @@ public class ChatRunService {
             RunHandle handle, String userMessage, String resolvedModel, String clientMsgId) {
         final String conversationId = handle.conversationId();
         final String runId = handle.runId();
+        final AtomicInteger callIndex = new AtomicInteger(0);
         final Consumer<Object> liveSink =
-                payload -> events.publish(conversationId, eventType(payload), runId, null, payload);
+                payload -> {
+                    if (payload instanceof ToolCallMessage tcm) {
+                        if (tcm.toolCall().status() != ToolInvocationStatus.STARTED) {
+                            chatMemoryService.saveToolCallIncremental(
+                                    conversationId,
+                                    runId,
+                                    callIndex.getAndIncrement(),
+                                    tcm.toolCall());
+                        }
+                    }
+                    events.publish(conversationId, eventType(payload), runId, null, payload);
+                };
         final ToolInvocationCollector toolCollector = new ToolInvocationCollector(liveSink);
         final StringBuffer buffer = new StringBuffer();
 
@@ -249,7 +263,8 @@ public class ChatRunService {
                         toolCollector.completedSnapshot().stream()
                                 .map(ToolInvocation::toMeta)
                                 .toList()));
-        chatMemoryService.saveToolCalls(handle.conversationId(), toolCollector.completedSnapshot());
+        chatMemoryService.saveToolCalls(
+                handle.conversationId(), handle.runId(), toolCollector.completedSnapshot());
         events.publish(handle.conversationId(), RUN_DONE, handle.runId(), null, null);
         summarizeService.trySummarize(handle.conversationId());
     }
@@ -306,7 +321,8 @@ public class ChatRunService {
         final String text = partial + "\n\n" + marker;
         try {
             chatMemory.add(conversationId, new AssistantMessage(text));
-            chatMemoryService.saveToolCalls(conversationId, toolCollector.completedSnapshot());
+            chatMemoryService.saveToolCalls(
+                    conversationId, handle.runId(), toolCollector.completedSnapshot());
             log.info("Saved partial reply for {} ({} chars)", conversationId, text.length());
         } catch (Exception e) {
             log.warn("Failed to persist partial reply for {}", conversationId, e);

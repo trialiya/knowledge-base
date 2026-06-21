@@ -6,6 +6,8 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.model.chat.dto.Chat;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
@@ -14,7 +16,9 @@ import io.github.trialiya.kb.model.chat.dto.CreateJiraChatRequest;
 import io.github.trialiya.kb.model.chat.dto.MessagePage;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
+import io.github.trialiya.kb.model.tool.ToolCallDetail;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
+import io.github.trialiya.kb.repository.ToolCallRepository;
 import io.github.trialiya.kb.service.ChatEventService;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.service.ChatRunService;
@@ -61,6 +65,8 @@ public class ChatController {
     private final JiraChatService jiraChatService;
     private final ChatRunService chatRunService;
     private final ChatEventService chatEventService;
+    private final ToolCallRepository toolCallRepository;
+    private final ObjectMapper objectMapper;
 
     public ChatController(
             ChatModelProperties chatModelProperties,
@@ -70,7 +76,9 @@ public class ChatController {
             ChatMemoryService chatMemoryService,
             JiraChatService jiraChatService,
             ChatRunService chatRunService,
-            ChatEventService chatEventService) {
+            ChatEventService chatEventService,
+            ToolCallRepository toolCallRepository,
+            ObjectMapper objectMapper) {
         this.chatModelProperties = chatModelProperties;
         this.chatClient = chatClient;
         this.chatMemory = chatMemory;
@@ -79,6 +87,8 @@ public class ChatController {
         this.jiraChatService = jiraChatService;
         this.chatRunService = chatRunService;
         this.chatEventService = chatEventService;
+        this.toolCallRepository = toolCallRepository;
+        this.objectMapper = objectMapper;
     }
 
     /** Список выбираемых моделей и какая из них дефолтная. */
@@ -159,7 +169,8 @@ public class ChatController {
                                                 e.getContent(),
                                                 e.getType().name(),
                                                 e.getCreatedAt(),
-                                                e.getInvocations()))
+                                                e.getInvocations(),
+                                                e.getMeta() != null ? e.getMeta().runId() : null))
                         .toList();
         return new MessagePage(dtos, page.hasMore(), page.oldestCursor());
     }
@@ -291,6 +302,28 @@ public class ChatController {
         return chatEventService.subscribe(conversationId, fromSeq);
     }
 
+    /** Полные детали вызовов инструментов для указанного run. */
+    @GetMapping("/{conversationId}/tool-calls")
+    public List<ToolCallDetail> getToolCallDetails(
+            @PathVariable String conversationId, @RequestParam String runId) {
+        verifyOwnerIfPresent(conversationId);
+        return toolCallRepository
+                .findByConversationIdAndRunIdOrderByCallIndex(conversationId, runId)
+                .stream()
+                .map(
+                        e ->
+                                new ToolCallDetail(
+                                        e.getCallIndex(),
+                                        e.getName(),
+                                        e.getArgumentsRaw(),
+                                        e.getStatus(),
+                                        e.getError(),
+                                        e.getResultText(),
+                                        parseJsonSafe(e.getResultMeta()),
+                                        e.getCreatedAt()))
+                .toList();
+    }
+
     /** Останавливает активный прогон. Идемпотентно: на неизвестный runId — просто no-op. */
     @PostMapping("/{conversationId}/runs/{runId}/stop")
     public void stopRun(
@@ -408,6 +441,17 @@ public class ChatController {
                                                 true)));
     }
 
+    private Object parseJsonSafe(String json) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(json, Object.class);
+        } catch (JsonProcessingException e) {
+            return null;
+        }
+    }
+
     private Chat toChat(ChatTopicEntity entity, List<ChatMessage> messages) {
         return new Chat(
                 entity.getConversationId(),
@@ -435,7 +479,10 @@ public class ChatController {
                 message,
                 chatMessageEntity.getMessageType().getValue(),
                 chatMessageEntity.getCreatedAt(),
-                chatMessageEntity.getInvocations());
+                chatMessageEntity.getInvocations(),
+                chatMessageEntity.getMeta() != null
+                        ? chatMessageEntity.getMeta().runId()
+                        : null);
     }
 
     /**

@@ -57,12 +57,13 @@ const pushAi = (msgs, runId) => {
   return msgs.length - 1;
 };
 
-// Снимает метку runId и подчищает текст у всех пузырей завершившегося прогона.
+// Снимает метку runId (для live-tracking) и сохраняет её как toolCallsRunId
+// (для загрузки деталей tool call после завершения прогона).
 const finalize = (msgs, runId) => {
   for (let i = 0; i < msgs.length; i++) {
     if (msgs[i].sender === 'ai' && msgs[i].runId === runId) {
       const { runId: _drop, ...rest } = msgs[i];
-      msgs[i] = { ...rest, text: (rest.text || '').trimEnd() };
+      msgs[i] = { ...rest, text: (rest.text || '').trimEnd(), toolCallsRunId: runId };
     }
   }
 };
