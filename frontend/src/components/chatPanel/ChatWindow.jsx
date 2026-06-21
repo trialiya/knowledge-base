@@ -39,6 +39,8 @@ const metaToCall = (x) => ({
   status: x.status,
   error: x.error,
   resultMeta: x.resultMeta,
+  callIndex: x.callIndex,
+  hasDetails: x.hasDetails,
 });
 
 // Extracts runId from a system message that carries tool call breadcrumbs.
