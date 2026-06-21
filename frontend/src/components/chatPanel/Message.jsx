@@ -236,6 +236,8 @@ const ToolCallItem = ({ tc, conversationId, toolCallsRunId }) => {
           onClick={(e) => {
             e.stopPropagation();
             setShowDetail(true);
+            setHover(false);
+            setPos(null);
           }}
           title={t('toolCall.detail.open')}
         >
