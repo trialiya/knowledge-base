@@ -140,8 +140,9 @@ kb:
       base-url: ${CONFLUENCE_BASE_URL:}
       api-token: ${CONFLUENCE_TOKEN:}
 
-#logging:
-#  level:
+logging:
+  level:
+    root: INFO
 #    org:
 #      springframework:
 #        jdbc:

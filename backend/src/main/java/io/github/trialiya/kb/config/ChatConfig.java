@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.config;
 
+import io.github.trialiya.kb.advisor.ToolPreparingAdvisor;
 import io.github.trialiya.kb.config.model.SubAgentConfig;
 import io.github.trialiya.kb.functions.AttachmentFunction;
 import io.github.trialiya.kb.functions.DocumentFunction;
@@ -10,6 +11,7 @@ import io.github.trialiya.kb.functions.TopicFunction;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.AttachmentService;
+import io.github.trialiya.kb.service.ChatEventService;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.service.DocumentService;
 import io.github.trialiya.kb.service.GitService;
@@ -23,6 +25,8 @@ import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.client.advisor.ToolCallingAdvisor;
+import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
@@ -117,7 +121,8 @@ public class ChatConfig {
             GitFunction gitFunction,
             DocumentFunction documentFunction,
             AttachmentService attachmentService,
-            ObjectProvider<SearchAgentService> searchAgentService) {
+            ObjectProvider<SearchAgentService> searchAgentService,
+            ChatEventService chatEventService) {
         log.info("Model: {}", chatModel.getDefaultOptions());
 
         List<Object> functions =
@@ -135,8 +140,29 @@ public class ChatConfig {
                 Stream.of(ToolCallbacks.from(functions.toArray()))
                         .map(RecordingToolCallback::new)
                         .toArray(ToolCallback[]::new);
+
+        // Advisor chain — outermost to innermost (ascending getOrder()):
+        //
+        //   MessageChatMemoryAdvisor  (HIGHEST_PRECEDENCE+200 = MIN+200)  — OUTSIDE the loop:
+        //       loads conversation history once before the loop starts and saves only the user
+        //       message + final assistant reply. Tool request/response messages are NOT written to
+        //       the store. This is intentional — our JDBC ChatMemoryRepository does not support
+        //       ToolResponseMessage / tool-call serialization. Matches Spring AI 1.x behaviour.
+        //
+        //   ToolCallingAdvisor        (DEFAULT_ORDER      = MIN+300)       — drives the tool loop.
+        //       Because MessageChatMemoryAdvisor is OUTSIDE the loop (order < DEFAULT_ORDER),
+        //       ToolCallingAdvisor manages its own internal conversation accumulation across
+        //       iterations and no call to .disableInternalConversationHistory() is needed.
+        //
+        //   ToolPreparingAdvisor      (LOWEST_PRECEDENCE  = MAX)           — INSIDE the loop:
+        //       called on every iteration; emits TOOL_PREPARING before each tool execution round.
+        List<Advisor> advisors = new ArrayList<>();
+        advisors.add(MessageChatMemoryAdvisor.builder(chatMemory).build());
+        advisors.add(ToolCallingAdvisor.builder().toolCallingManager(toolCallingManager).build());
+        advisors.add(new ToolPreparingAdvisor(chatEventService));
+
         return ChatClient.builder(chatModel)
-                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
+                .defaultAdvisors(advisors)
                 .defaultSystem(sysPrompt)
                 .defaultToolCallbacks(callbacks)
                 .build();
