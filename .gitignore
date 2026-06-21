@@ -43,3 +43,7 @@ replay_pid*
 
 frontend/node_modules/
 backend/local-db
+
+# Gradle may extract Spring Boot 4.x spring.factories into the project root
+# during dependency resolution; this file is a build artifact, not project source
+META-INF/
