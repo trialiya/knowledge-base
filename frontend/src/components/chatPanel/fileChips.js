@@ -5,12 +5,14 @@
 //   ⟦ref:PATH⟧             — только ссылка (раскрывается в `PATH`)
 
 import gitApi from '../../api/gitApi';
+import documentsApi from '../../api/documentsApi';
 
 const OPEN = '⟦'; // ⟦
 const CLOSE = '⟧'; // ⟧
 
-// Глобальный матчер обоих видов токенов. Захватных групп нет — parseToken разбирает детально.
-export const TOKEN_RE = new RegExp(`${OPEN}(?:file|ref):[^${CLOSE}]+${CLOSE}`, 'g');
+// Глобальный матчер всех видов токенов. Захватных групп нет — parse* разбирают детально.
+// docref идёт перед doc, чтобы не срабатывал prefix-match при чтении.
+export const TOKEN_RE = new RegExp(`${OPEN}(?:file|ref|docref|doc):[^${CLOSE}]+${CLOSE}`, 'g');
 
 /** Токен «весь файл / диапазон». */
 export function makeToken(path, from, to) {
@@ -42,6 +44,44 @@ export function parseToken(token) {
 export function baseName(path) {
   const i = path.lastIndexOf('/');
   return i >= 0 ? path.slice(i + 1) : path;
+}
+
+// ── Doc-токены ────────────────────────────────────────────────────────────────
+// ⟦doc:ID:TITLE⟧    — полное содержимое (описание документа)
+// ⟦docref:ID:TITLE⟧ — только упоминание (без содержимого)
+
+function safeDocTitle(title) {
+  return String(title).replace(/⟧/g, '');
+}
+
+/** Токен документа с раскрытием описания при отправке. */
+export function makeDocToken(id, title) {
+  return `${OPEN}doc:${id}:${safeDocTitle(title)}${CLOSE}`;
+}
+
+/** Токен документа — только упоминание (без описания). */
+export function makeDocRefToken(id, title) {
+  return `${OPEN}docref:${id}:${safeDocTitle(title)}${CLOSE}`;
+}
+
+/**
+ * Разобрать doc-токен (с содержимым).
+ * Возвращает { id, title } или null.
+ */
+export function parseDocToken(token) {
+  const m = token.match(new RegExp(`^${OPEN}doc:(\\d+):(.*)${CLOSE}$`));
+  if (m) return { id: Number(m[1]), title: m[2] };
+  return null;
+}
+
+/**
+ * Разобрать docref-токен (только ссылка).
+ * Возвращает { id, title } или null.
+ */
+export function parseDocRefToken(token) {
+  const m = token.match(new RegExp(`^${OPEN}docref:(\\d+):(.*)${CLOSE}$`));
+  if (m) return { id: Number(m[1]), title: m[2] };
+  return null;
 }
 
 // ── Кеш содержимого ──────────────────────────────────────────────────────────
@@ -77,6 +117,23 @@ export async function expandTokensForSend(text) {
 
   const blocks = await Promise.all(
     tokens.map(async (m) => {
+      const docRefParsed = parseDocRefToken(m[0]);
+      if (docRefParsed) {
+        return `Документ «${docRefParsed.title}» (#${docRefParsed.id})`;
+      }
+
+      const docParsed = parseDocToken(m[0]);
+      if (docParsed) {
+        try {
+          const doc = await documentsApi.getById(docParsed.id);
+          const title = doc?.title ?? docParsed.title;
+          const description = doc?.description ?? '';
+          return `\n\nДокумент «${title}» (#${docParsed.id}):\n${description}\n`;
+        } catch {
+          return `\n\n[Документ #${docParsed.id}: не удалось загрузить]\n`;
+        }
+      }
+
       const parsed = parseToken(m[0]);
       if (!parsed) return m[0];
       const { path, from, to, refOnly } = parsed;

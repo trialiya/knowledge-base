@@ -2,14 +2,50 @@ import React, { useRef, useEffect, useCallback, useState, useImperativeHandle, f
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import gitApi from '../../api/gitApi';
-import { makeToken, makeRefToken, parseToken, baseName, fetchContent, TOKEN_RE } from './fileChips';
+import documentsApi from '../../api/documentsApi';
+import {
+  makeToken,
+  makeRefToken,
+  makeDocToken,
+  makeDocRefToken,
+  parseToken,
+  parseDocToken,
+  parseDocRefToken,
+  baseName,
+  fetchContent,
+  TOKEN_RE,
+} from './fileChips';
 import FilePickerDropdown from './FilePickerDropdown';
 import useEscape from '../common/useEscape';
 import { IconX } from '../../icons';
 
 const DEBOUNCE_MS = 200;
-const TRIGGER = '/file ';
-const TRIGGER_RE = /(?:^|\s)\/file (\S*)$/;
+const FILE_TRIGGER = '/file';
+const FILE_TRIGGER_RE = /(?:^|\s)\/file\s*(\S*)$/;
+const DOC_TRIGGER = '/doc';
+const DOC_TRIGGER_RE = /(?:^|\s)\/doc\s*(\S*)$/;
+
+async function searchDocsAsync(q, signal) {
+  const isNumeric = q.length > 0 && /^\d+$/.test(q);
+  if (!isNumeric) {
+    return documentsApi.searchByName(q, 10, signal);
+  }
+  const [nameRes, idRes] = await Promise.all([
+    documentsApi.searchByName(q, 10, signal).catch((e) => {
+      if (e.name === 'AbortError') throw e;
+      return [];
+    }),
+    documentsApi.getById(Number(q), signal).catch((e) => {
+      if (e.name === 'AbortError') throw e;
+      return null;
+    }),
+  ]);
+  const results = Array.isArray(nameRes) ? [...nameRes] : [];
+  if (idRes && !results.find((r) => r.id === idRes.id)) {
+    results.unshift(idRes);
+  }
+  return results;
+}
 
 // ── Сериализация DOM ⇄ плоская строка с токенами ───────────────────────────────
 
@@ -29,8 +65,39 @@ function serialize(root) {
   return out.replace(/^\n/, '');
 }
 
+function makeDocChipEl(token, { id, title }, refOnly) {
+  const chip = document.createElement('span');
+  chip.className = 'file-chip file-chip--doc' + (refOnly ? ' file-chip--ref' : '');
+  chip.contentEditable = 'false';
+  chip.dataset.token = token;
+  chip.title = `${title} (#${id})`;
+
+  const icon = document.createElement('span');
+  icon.className = 'file-chip__icon';
+  icon.textContent = refOnly ? '📎' : '📋';
+
+  const label = document.createElement('span');
+  label.className = 'file-chip__label';
+  label.textContent = title;
+
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'file-chip__remove';
+  remove.textContent = '×';
+  remove.tabIndex = -1;
+
+  chip.append(icon, label, remove);
+  return chip;
+}
+
 /** Построить DOM-элемент чипа из строки-токена. */
 function makeChipEl(token) {
+  const docRefParsed = parseDocRefToken(token);
+  if (docRefParsed) return makeDocChipEl(token, docRefParsed, true);
+
+  const docParsed = parseDocToken(token);
+  if (docParsed) return makeDocChipEl(token, docParsed, false);
+
   const parsed = parseToken(token);
   const path = parsed?.path ?? token;
   const range = parsed?.from != null ? `:${parsed.from}-${parsed.to}` : '';
@@ -108,7 +175,15 @@ const FileChipInput = forwardRef(function FileChipInput(
   const internalRef = useRef(value);
   const triggerRef = useRef(null);
 
-  const [picker, setPicker] = useState({ open: false, query: '', results: [], loading: false, anchor: null, idx: 0 });
+  const [picker, setPicker] = useState({
+    open: false,
+    query: '',
+    results: [],
+    loading: false,
+    anchor: null,
+    idx: 0,
+    type: 'file',
+  });
   const [preview, setPreview] = useState(null); // { path, from, to, refOnly, rect, chipEl, data, loading, error }
 
   const debounceTimer = useRef(null);
@@ -144,13 +219,14 @@ const FileChipInput = forwardRef(function FileChipInput(
     setPicker((p) => (p.open ? { ...p, open: false, results: [], query: '' } : p));
   }, []);
 
-  const runSearch = useCallback((q) => {
+  const runSearch = useCallback((q, type) => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
     setPicker((p) => ({ ...p, loading: true }));
-    gitApi
-      .searchFiles(q, 10, controller.signal)
+    const search =
+      type === 'doc' ? searchDocsAsync(q, controller.signal) : gitApi.searchFiles(q, 10, controller.signal);
+    search
       .then((data) => setPicker((p) => ({ ...p, loading: false, results: Array.isArray(data) ? data : [], idx: 0 })))
       .catch((err) => {
         if (err.name !== 'AbortError') setPicker((p) => ({ ...p, loading: false, results: [] }));
@@ -165,20 +241,28 @@ const FileChipInput = forwardRef(function FileChipInput(
     if (node.nodeType !== Node.TEXT_NODE) return dismissPicker();
 
     const before = node.nodeValue.slice(0, range.startOffset);
-    const m = before.match(TRIGGER_RE);
+
+    let m = before.match(FILE_TRIGGER_RE);
+    let type = 'file';
+    if (!m) {
+      m = before.match(DOC_TRIGGER_RE);
+      type = 'doc';
+    }
     if (!m) return dismissPicker();
 
     const query = m[1];
-    const start = range.startOffset - TRIGGER.length - query.length;
-    triggerRef.current = { node, start, query };
+    const commandStr = type === 'file' ? FILE_TRIGGER : DOC_TRIGGER;
+    const start = before.lastIndexOf(commandStr);
+
+    triggerRef.current = { node, start, cursorOffset: range.startOffset, query, type };
 
     const rect = range.getBoundingClientRect();
     const anchor = rect && (rect.top || rect.left) ? { top: rect.top, left: rect.left } : null;
-    setPicker((p) => ({ ...p, open: true, query, anchor, idx: 0 }));
+    setPicker((p) => ({ ...p, open: true, query, anchor, idx: 0, type }));
 
     clearTimeout(debounceTimer.current);
     if (query.length >= 1) {
-      debounceTimer.current = setTimeout(() => runSearch(query), DEBOUNCE_MS);
+      debounceTimer.current = setTimeout(() => runSearch(query, type), DEBOUNCE_MS);
     } else {
       setPicker((p) => ({ ...p, results: [], loading: false }));
     }
@@ -206,17 +290,17 @@ const FileChipInput = forwardRef(function FileChipInput(
     setPreview((pv) => (pv ? null : pv));
   }, [emitChange, detectTrigger]);
 
-  const insertFile = useCallback(
-    (fileNode) => {
+  const doInsert = useCallback(
+    (token) => {
       const trig = triggerRef.current;
       const root = editorRef.current;
       if (!trig || !root) return;
-      const { node, start, query } = trig;
+      const { node, start, cursorOffset } = trig;
 
       const before = node.nodeValue.slice(0, start);
-      const after = node.nodeValue.slice(start + TRIGGER.length + query.length);
+      const after = node.nodeValue.slice(cursorOffset);
 
-      const chip = makeChipEl(makeToken(fileNode.path));
+      const chip = makeChipEl(token);
       const tail = document.createTextNode(' ' + after);
       node.nodeValue = before;
       node.after(chip, tail);
@@ -233,6 +317,24 @@ const FileChipInput = forwardRef(function FileChipInput(
       root.focus();
     },
     [dismissPicker, emitChange],
+  );
+
+  // Вставить ссылку (по умолчанию: Enter / клик по строке)
+  const insertItem = useCallback(
+    (item) => {
+      const type = triggerRef.current?.type;
+      doInsert(type === 'doc' ? makeDocRefToken(item.id, item.title) : makeRefToken(item.path));
+    },
+    [doInsert],
+  );
+
+  // Вставить с содержимым (кнопка в дропдауне)
+  const insertItemWithContent = useCallback(
+    (item) => {
+      const type = triggerRef.current?.type;
+      doInsert(type === 'doc' ? makeDocToken(item.id, item.title) : makeToken(item.path));
+    },
+    [doInsert],
   );
 
   const insertTextAtCaret = useCallback((text) => {
@@ -290,7 +392,7 @@ const FileChipInput = forwardRef(function FileChipInput(
         }
         if (e.key === 'Enter' && picker.results.length > 0) {
           e.preventDefault();
-          insertFile(picker.results[picker.idx]);
+          insertItem(picker.results[picker.idx]);
           return;
         }
         if (e.key === 'Escape') {
@@ -338,7 +440,7 @@ const FileChipInput = forwardRef(function FileChipInput(
         emitChange();
       }
     },
-    [picker.open, picker.results, picker.idx, insertFile, dismissPicker, disabled, onSend, emitChange],
+    [picker.open, picker.results, picker.idx, insertItem, dismissPicker, disabled, onSend, emitChange],
   );
 
   // Переключение чипа между режимами «содержимое» и «только путь».
@@ -377,6 +479,7 @@ const FileChipInput = forwardRef(function FileChipInput(
       const chip = e.target.closest?.('.file-chip');
       if (chip) {
         e.preventDefault();
+        if (parseDocToken(chip.dataset.token) || parseDocRefToken(chip.dataset.token)) return;
         const parsed = parseToken(chip.dataset.token);
         if (!parsed) return;
         const rect = chip.getBoundingClientRect();
@@ -419,8 +522,10 @@ const FileChipInput = forwardRef(function FileChipInput(
           query={picker.query}
           anchorRect={picker.anchor}
           selectedIdx={picker.idx}
-          onSelect={insertFile}
+          onSelect={insertItem}
+          onSelectWithContent={insertItemWithContent}
           onDismiss={dismissPicker}
+          type={picker.type}
         />
       )}
 

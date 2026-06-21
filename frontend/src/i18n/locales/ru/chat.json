@@ -73,11 +73,19 @@
     "empty": "Ничего не найдено",
     "navigate": "выбрать",
     "insert": "вставить",
+    "insertRef": "вставить ссылку",
+    "insertContent": "содержимое",
     "dismiss": "закрыть",
     "closePreview": "Закрыть превью",
     "previewError": "Не удалось загрузить файл",
     "usePathOnly": "Только путь (без содержимого)",
     "useFullContent": "С содержимым"
+  },
+  "docInput": {
+    "hintStart": "Введите название или ID документа",
+    "hintQuery": "Поиск документов: «{{query}}»",
+    "searching": "Поиск…",
+    "empty": "Ничего не найдено"
   },
   "list": {
     "newChat": "Новый чат",
