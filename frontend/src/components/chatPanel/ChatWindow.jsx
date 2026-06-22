@@ -155,6 +155,8 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   const [busyNotice, setBusyNotice] = useState(false);
   // Уведомление «чат удалён в другой вкладке» (событие CHAT_DELETED из потока).
   const [deletedNotice, setDeletedNotice] = useState(false);
+  // Уведомление об ошибке загрузки файла (вместо нативного alert).
+  const [uploadErrorNotice, setUploadErrorNotice] = useState(false);
   // Bump → очистить текст в MessageInput («удаление» черновика).
   const [composerResetSignal, setComposerResetSignal] = useState(0);
   // Неотправленные черновики по чатам ({ chatId: text }). Живут в localStorage,
@@ -846,10 +848,10 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         setAttachPanelOpen(true);
       } catch (err) {
         console.error('Upload error:', err);
-        alert(t('window.uploadError'));
+        setUploadErrorNotice(true);
       }
     },
-    [activeChatId, t],
+    [activeChatId],
   );
 
   // Суффикс с кодом ошибки для сообщения модалки (если это не сетевой сбой).
@@ -1072,6 +1074,13 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         title={t('errorModal.deletedTitle')}
         message={t('errorModal.deletedMessage')}
         onClose={() => setDeletedNotice(false)}
+      />
+      <ErrorModal
+        open={uploadErrorNotice}
+        icon="⚠️"
+        title={t('errorModal.uploadTitle')}
+        message={t('window.uploadError')}
+        onClose={() => setUploadErrorNotice(false)}
       />
     </div>
   );
