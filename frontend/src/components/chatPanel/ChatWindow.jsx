@@ -110,13 +110,17 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     setDraft(draftsRef.current, id, '');
     saveDrafts(draftsRef.current);
   }, []);
-  // На размонтировании гасим таймер и фиксируем последний черновик (вкладку могли
-  // закрыть в течение debounce-окна после набора).
+  // Гасим таймер и фиксируем последний черновик. На полную перезагрузку/закрытие
+  // вкладки cleanup эффекта не срабатывает — поэтому ещё и beforeunload-flush.
   useEffect(() => {
-    const drafts = draftsRef.current;
-    return () => {
+    const flush = () => {
       clearTimeout(draftsPersistTimerRef.current);
-      saveDrafts(drafts);
+      saveDrafts(draftsRef.current);
+    };
+    window.addEventListener('beforeunload', flush);
+    return () => {
+      window.removeEventListener('beforeunload', flush);
+      flush();
     };
   }, []);
   // clientMsgId-ы сообщений, отправленных ИЗ ЭТОЙ вкладки. Нужны, чтобы не задвоить
