@@ -8,6 +8,7 @@ import attachmentApi from '../common/attachmentApi';
 import { STORAGE_KEY_ACTIVE_CHAT, STORAGE_KEY_LAST_MODEL, DRAFT_CHAT_ID } from '../../constants/storage';
 import { CHAT_PAGE_SIZE as PAGE_SIZE } from '../../constants/pagination';
 import { loadDrafts, saveDrafts, getDraft, setDraft } from './chatDrafts';
+import { nextMessageId } from './messageId';
 
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
@@ -76,7 +77,12 @@ const transformPage = (rawMsgs) => {
       continue; // преамбулу как сообщение не рендерим
     }
     if (type !== 'user') sawAi = true;
-    bubbles.push({ text: m.content, sender: type === 'user' ? 'user' : 'ai', timestamp: m.timestamp || null });
+    bubbles.push({
+      mid: nextMessageId(),
+      text: m.content,
+      sender: type === 'user' ? 'user' : 'ai',
+      timestamp: m.timestamp || null,
+    });
   }
   return { bubbles, leadingMetas };
 };
@@ -562,7 +568,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
                 runId: null,
                 messages: [
                   ...(c.messages || []),
-                  { text: tRef.current('window.genericError'), sender: 'ai', error: true, retryText: text },
+                  { mid: nextMessageId(), text: tRef.current('window.genericError'), sender: 'ai', error: true, retryText: text },
                 ],
               }
             : c,
@@ -605,7 +611,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         if (!found) return prev;
         const newMessages = [
           ...(found.messages || []),
-          { text, sender: 'user', clientMsgId, timestamp: new Date().toISOString() },
+          { mid: nextMessageId(), text, sender: 'user', clientMsgId, timestamp: new Date().toISOString() },
         ];
         const updatedChat = {
           ...found,

@@ -132,7 +132,7 @@ const MessageList = ({
       <div className="message-list" ref={containerRef} onScroll={handleScroll}>
         {messages.map((msg, index) => (
           <Message
-            key={index}
+            key={msg.mid ?? index}
             text={msg.text}
             sender={msg.sender}
             toolCalls={msg.toolCalls}
