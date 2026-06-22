@@ -6,21 +6,17 @@ spring:
       base-url: ${AI_BASE_URL}
       api-key: ${AI_API_KEY}
       chat:
-        options:
-          model: ${kb.chat.default-model.id}
-          max-tokens: 30000
-          temperature: 0.1
-          top-p: 0.8
-          stream-usage: true
-          extra-body:
-            thinking:
-              type: disabled
+        model: ${kb.chat.default-model.id}
+        max-tokens: 30000
+        temperature: 0.1
+        top-p: 0.8
+        extra-body:
+          thinking:
+            type: disabled
       embedding:
         base-url: ${AI_EMBED_BASE_URL:${AI_BASE_URL}}
         api-key: ${AI_EMBED_API_KEY:${AI_API_KEY}}
-        embeddings-path: /v1/embeddings
-        options:
-          model: ${kb.embedding.model:bge-m3}   # 1024-dim
+        model: ${kb.embedding.model:bge-m3}   # 1024-dim
     chat:
       memory:
         repository:
