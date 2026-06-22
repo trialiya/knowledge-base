@@ -5,7 +5,8 @@
     "viewFormatted": "Show formatted",
     "btnSource": "Source",
     "btnMarkdown": "Markdown",
-    "interrupted": "[⚠ Response interrupted due to a server error]"
+    "interrupted": "[⚠ Response interrupted due to a server error]",
+    "retry": "Retry"
   },
   "window": {
     "defaultTitle": "New chat",
@@ -34,7 +35,8 @@
     "busyTitle": "Generation in progress",
     "busyMessage": "A response is already being generated in this chat (possibly in another tab). Wait for it to finish or stop it before sending a new message.",
     "deletedTitle": "Chat deleted",
-    "deletedMessage": "This chat was deleted in another tab or session."
+    "deletedMessage": "This chat was deleted in another tab or session.",
+    "uploadTitle": "Upload failed"
   },
   "deleteModal": {
     "title": "Delete chat?",

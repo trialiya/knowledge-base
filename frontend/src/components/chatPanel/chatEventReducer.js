@@ -8,6 +8,8 @@
 // снимается (finalize). Сообщения из БД runId не имеют — события ложатся поверх
 // истории, не конфликтуя с ней.
 
+import { nextMessageId } from './messageId';
+
 const sameCall = (a, b) => a.name === b.name && JSON.stringify(a.arguments || {}) === JSON.stringify(b.arguments || {});
 
 // Слияние одного вызова инструмента в список (по name+arguments).
@@ -46,7 +48,7 @@ const lastAiIndexForRun = (msgs, runId) => {
 };
 
 const pushAi = (msgs, runId) => {
-  msgs.push({ text: '', sender: 'ai', runId, toolCalls: [], timestamp: new Date().toISOString() });
+  msgs.push({ mid: nextMessageId(), text: '', sender: 'ai', runId, toolCalls: [], timestamp: new Date().toISOString() });
   return msgs.length - 1;
 };
 
@@ -90,7 +92,7 @@ export function applyChatEvent(chat, ev, ctx) {
       // Дубликат после reload: сообщение уже подгрузилось из БД (хвост истории).
       const last = msgs[msgs.length - 1];
       if (last && last.sender === 'user' && last.text === payload?.text) return chat;
-      msgs.push({ text: payload?.text || '', sender: 'user', timestamp: new Date().toISOString() });
+      msgs.push({ mid: nextMessageId(), text: payload?.text || '', sender: 'user', timestamp: new Date().toISOString() });
       return { ...chat, messages: msgs };
     }
 
@@ -169,11 +171,17 @@ export function applyChatEvent(chat, ev, ctx) {
     }
 
     case 'RUN_ERROR': {
-      const idx = lastAiIndexForRun(msgs, runId);
-      if (idx >= 0) {
-        const partial = (msgs[idx].text || '').trimEnd();
-        msgs[idx] = { ...msgs[idx], text: partial ? partial + ctx.interruptedNote : ctx.errorLabel };
-      }
+      // Помечаем пузырь error:true — под ним покажем кнопку «Повторить» (см. Message.jsx).
+      // Если ассистент ещё не появился (ошибка до первого чанка) — заводим пустой,
+      // чтобы было к чему прицепить ошибку и повтор.
+      let idx = lastAiIndexForRun(msgs, runId);
+      if (idx < 0) idx = pushAi(msgs, runId);
+      const partial = (msgs[idx].text || '').trimEnd();
+      msgs[idx] = {
+        ...msgs[idx],
+        text: partial ? partial + ctx.interruptedNote : ctx.errorLabel,
+        error: true,
+      };
       finalize(msgs, runId);
       return { ...chat, messages: msgs, runId: null };
     }

@@ -14,15 +14,32 @@ const MessageInput = ({
   isEmpty = false,
   resetSignal = 0,
   chatId = null,
+  initialText = '',
   onTextChange,
 }) => {
   const { t } = useTranslation('chat');
-  const [text, setText] = useState(''); // плоская строка с токенами ⟦file:…⟧
+  // Текст инициализируем из сохранённого черновика активного чата.
+  const [text, setText] = useState(initialText); // плоская строка с токенами ⟦file:…⟧
   const [sending, setSending] = useState(false); // идёт разворачивание токенов перед отправкой
   const inputRef = useRef(null);
+  // Чтобы эффект resetSignal не сработал на МОНТировании (resetSignal=0) и не стёр
+  // только что восстановленный из localStorage черновик — пропускаем первый прогон.
+  const resetMountedRef = useRef(false);
 
-  // Внешний сброс поля ввода (например, «удаление» черновика чата).
+  // Смена чата — подставляем его черновик (или пусто). Текст набирается локально,
+  // поэтому родитель не ре-рендерится на каждый keystroke; черновик приезжает только
+  // при переключении чата через initialText.
   useEffect(() => {
+    setText(initialText);
+  }, [chatId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Внешний сброс поля ввода (например, «удаление» черновика чата). Только на реальное
+  // изменение resetSignal, не на монтировании — иначе затрём восстановленный черновик.
+  useEffect(() => {
+    if (!resetMountedRef.current) {
+      resetMountedRef.current = true;
+      return;
+    }
     setText('');
     onTextChange?.('');
   }, [resetSignal]); // eslint-disable-line react-hooks/exhaustive-deps

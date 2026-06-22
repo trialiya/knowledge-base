@@ -16,6 +16,7 @@ const MessageList = ({
   messages,
   onNavigateToDoc,
   onLoadMore,
+  onRetry,
   hasMore = false,
   canLoadMore = true,
 }) => {
@@ -131,13 +132,15 @@ const MessageList = ({
       <div className="message-list" ref={containerRef} onScroll={handleScroll}>
         {messages.map((msg, index) => (
           <Message
-            key={index}
+            key={msg.mid ?? index}
             text={msg.text}
             sender={msg.sender}
             toolCalls={msg.toolCalls}
             timestamp={msg.timestamp}
             toolCallsRunId={msg.toolCallsRunId}
             preparing={msg.preparing}
+            error={msg.error}
+            onRetry={onRetry && msg.error ? () => onRetry(index) : undefined}
             conversationId={conversationId}
             onNavigateToDoc={onNavigateToDoc}
           />

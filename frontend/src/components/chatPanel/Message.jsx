@@ -153,11 +153,14 @@ const ToolCallItem = ({ tc, conversationId, toolCallsRunId }) => {
   const gist = gistPreview(tc.resultGist);
   const itemRef = useRef(null);
   const tooltipRef = useRef(null);
+  const copyTimerRef = useRef(null);
   const [hover, setHover] = useState(false);
   // pos: null пока не измерили реальный размер тултипа (рендерим скрытым).
   const [pos, setPos] = useState(null);
   const [copied, setCopied] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
+
+  useEffect(() => () => clearTimeout(copyTimerRef.current), []);
   const canShowDetail = !!(conversationId && toolCallsRunId && tc.status !== 'STARTED' && tc.hasDetails !== false);
 
   const GAP = 8;
@@ -200,7 +203,8 @@ const ToolCallItem = ({ tc, conversationId, toolCallsRunId }) => {
     try {
       await navigator.clipboard.writeText(buildCopyText(tc, t));
       setCopied(true);
-      setTimeout(() => setCopied(false), COPY_DONE_MS);
+      clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopied(false), COPY_DONE_MS);
     } catch {
       /* clipboard API may fail in insecure contexts */
     }
@@ -469,26 +473,31 @@ function getMarkdownComponents(onNavigateToDoc) {
   };
 }
 
-/** Форматирует timestamp: если < 24ч — относительное время, иначе — дата. */
-const formatTimestamp = (ts) => {
+/**
+ * Форматирует timestamp: если < 24ч — относительное время, иначе — дата.
+ * Локаль берётся из i18n (lang) — относительное время и плюрализацию даёт нативный
+ * Intl.RelativeTimeFormat, поэтому отдельные ключи перевода не нужны.
+ */
+const formatTimestamp = (ts, lang) => {
   if (!ts) return null;
   const date = new Date(ts);
   if (isNaN(date)) return null;
   const diffMs = Date.now() - date.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
   if (diffMs < 0) return null;
-  if (diffMin < 1) return '< 1 мин.';
-  if (diffMin < 60) return `${diffMin} мин. назад`;
+  const diffMin = Math.floor(diffMs / 60000);
+  const rtf = new Intl.RelativeTimeFormat(lang, { numeric: 'auto' });
+  if (diffMin < 1) return rtf.format(0, 'minute');
+  if (diffMin < 60) return rtf.format(-diffMin, 'minute');
   const diffH = Math.floor(diffMin / 60);
-  if (diffH < 24) return `${diffH} ч. назад`;
-  return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+  if (diffH < 24) return rtf.format(-diffH, 'hour');
+  return date.toLocaleDateString(lang, { day: 'numeric', month: 'short' });
 };
 
-const formatFullDatetime = (ts) => {
+const formatFullDatetime = (ts, lang) => {
   if (!ts) return null;
   const date = new Date(ts);
   if (isNaN(date)) return null;
-  return date.toLocaleString('ru-RU', {
+  return date.toLocaleString(lang, {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -503,17 +512,19 @@ const Message = ({
   toolCalls,
   toolCallsRunId,
   preparing,
+  error,
+  onRetry,
   conversationId,
   onNavigateToDoc,
   timestamp,
 }) => {
-  const { t } = useTranslation('chat');
+  const { t, i18n } = useTranslation('chat');
   const [showSource, setShowSource] = useState(false);
-  const messageClass = `message ${sender}`;
+  const messageClass = `message ${sender}${error && sender === 'ai' ? ' message--error' : ''}`;
   const hasToolCalls = toolCalls && toolCalls.length > 0;
   const showPreparing = preparing && sender === 'ai';
-  const timeLabel = formatTimestamp(timestamp);
-  const timeTitle = formatFullDatetime(timestamp);
+  const timeLabel = formatTimestamp(timestamp, i18n.language);
+  const timeTitle = formatFullDatetime(timestamp, i18n.language);
 
   // Пузырь — только контент сообщения, без футера
   const bubble = (
@@ -545,6 +556,11 @@ const Message = ({
           </span>
         )}
         <div className="message-footer-actions">
+          {error && onRetry && (
+            <button className="message-retry-btn" onClick={onRetry} title={t('message.retry')} type="button">
+              ↻ {t('message.retry')}
+            </button>
+          )}
           <MessageCopyButton text={text} />
           <button
             className={`message-source-btn ${showSource ? 'message-source-btn--active' : ''}`}

@@ -1,12 +1,14 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import chatApi from '../../api/chatApi';
-import settingsApi from '../../api/settingsApi';
-import { openChatEventStream } from '../../api/chatEvents';
-import { applyChatEvent } from './chatEventReducer';
 import attachmentApi from '../common/attachmentApi';
 import { STORAGE_KEY_ACTIVE_CHAT, STORAGE_KEY_LAST_MODEL, DRAFT_CHAT_ID } from '../../constants/storage';
-import { CHAT_PAGE_SIZE as PAGE_SIZE } from '../../constants/pagination';
+import { loadDrafts, saveDrafts, getDraft, setDraft } from './chatDrafts';
+import { nextMessageId } from './messageId';
+import useModelConfig from './useModelConfig';
+import useIntegrationsConfig from './useIntegrationsConfig';
+import useChatMessages from './useChatMessages';
+import useChatEventStream from './useChatEventStream';
 
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
@@ -31,67 +33,6 @@ const generateUUID = () => {
     const r = (Math.random() * 16) | 0;
     return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
   });
-};
-
-const metaToCall = (x) => ({
-  name: x.name,
-  arguments: x.arguments,
-  status: x.status,
-  error: x.error,
-  resultMeta: x.resultMeta,
-  callIndex: x.callIndex,
-  hasDetails: x.hasDetails,
-});
-
-// Extracts runId from a system message that carries tool call breadcrumbs.
-const extractRunId = (m) => m.runId || null;
-
-// Превращает «сырые» сообщения с бэка (хронологический порядок) в пузыри для рендера.
-// Системные сообщения-«крошки» (toolInvocationMetas из ChatMemoryService.saveToolCalls)
-// пузырём не показываем, а прикрепляем к предыдущему ответу ассистента — это даёт
-// resultMeta для блока «изменения документа».
-// Если крошка идёт в самом начале страницы (её ассистент остался в более старой,
-// ещё не загруженной странице) — её metas возвращаются в leadingMetas, чтобы прицепить
-// их позже, когда догрузим страницу с этим ассистентом (см. attachLeadingMetas).
-const transformPage = (rawMsgs) => {
-  const bubbles = [];
-  const leadingMetas = [];
-  let sawAi = false;
-  for (const m of rawMsgs || []) {
-    const type = m.type?.toLowerCase?.();
-    if (type === 'system') {
-      const metas = m.toolInvocationMetas;
-      if (Array.isArray(metas) && metas.length) {
-        const runId = extractRunId(m);
-        const prev = bubbles[bubbles.length - 1];
-        if (sawAi && prev?.sender === 'ai') {
-          prev.toolCalls = [...(prev.toolCalls || []), ...metas.map(metaToCall)];
-          if (runId) prev.toolCallsRunId = runId;
-        } else {
-          // Ассистент этой крошки — в более старой странице: несём metas наверх.
-          leadingMetas.push(...metas.map(metaToCall));
-        }
-      }
-      continue; // преамбулу как сообщение не рендерим
-    }
-    if (type !== 'user') sawAi = true;
-    bubbles.push({ text: m.content, sender: type === 'user' ? 'user' : 'ai', timestamp: m.timestamp || null });
-  }
-  return { bubbles, leadingMetas };
-};
-
-// Прицепляет «висячие» metas (крошки без ассистента в своей странице) к последнему
-// AI-пузырю переданного набора. Возвращает остаток, который не удалось прицепить
-// (если в наборе вообще нет ассистента) — его несём дальше вверх.
-const attachLeadingMetas = (bubbles, metas) => {
-  if (!metas || !metas.length) return [];
-  for (let i = bubbles.length - 1; i >= 0; i--) {
-    if (bubbles[i].sender === 'ai') {
-      bubbles[i] = { ...bubbles[i], toolCalls: [...(bubbles[i].toolCalls || []), ...metas] };
-      return [];
-    }
-  }
-  return metas;
 };
 
 const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActiveChatId = null, onSelectChat }) => {
@@ -130,14 +71,12 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   );
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
-  const [loadingMessages, setLoadingMessages] = useState(false);
   const [attachPanelOpen, setAttachPanelOpen] = useState(false);
   const [attachCount, setAttachCount] = useState(0);
   const [jiraModalOpen, setJiraModalOpen] = useState(false);
-  const [jiraConfigured, setJiraConfigured] = useState(false);
-  const [confluenceConfigured, setConfluenceConfigured] = useState(false);
-  // Список выбираемых моделей и дефолтная: { defaultModel: {id,label}, models: [{id,label}] }
-  const [modelConfig, setModelConfig] = useState(null);
+  // Конфиг моделей и интеграций грузятся один раз — вынесено в отдельные хуки.
+  const { modelConfig, modelOptions } = useModelConfig();
+  const { jiraConfigured, confluenceConfigured } = useIntegrationsConfig();
   // Последняя модель, с которой отправляли сообщение (живёт между перезагрузками).
   const lastModelRef = useRef(localStorage.getItem(STORAGE_KEY_LAST_MODEL) || null);
   // Модалка ошибки загрузки чата: null | { notFound: bool, status }
@@ -148,10 +87,42 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   const [busyNotice, setBusyNotice] = useState(false);
   // Уведомление «чат удалён в другой вкладке» (событие CHAT_DELETED из потока).
   const [deletedNotice, setDeletedNotice] = useState(false);
+  // Уведомление об ошибке загрузки файла (вместо нативного alert).
+  const [uploadErrorNotice, setUploadErrorNotice] = useState(false);
   // Bump → очистить текст в MessageInput («удаление» черновика).
   const [composerResetSignal, setComposerResetSignal] = useState(0);
-  // Текущий черновик в поле ввода — нужен для блокировки переключения чата.
-  const composerTextRef = useRef('');
+  // Неотправленные черновики по чатам ({ chatId: text }). Живут в localStorage,
+  // чтобы переключение чатов и перезагрузка не теряли набранный текст.
+  const draftsRef = useRef(loadDrafts());
+  const draftsPersistTimerRef = useRef(null);
+  // Отложенная запись черновиков на диск (на каждый keystroke писать не нужно).
+  const scheduleDraftsPersist = useCallback(() => {
+    clearTimeout(draftsPersistTimerRef.current);
+    draftsPersistTimerRef.current = setTimeout(() => saveDrafts(draftsRef.current), 400);
+  }, []);
+  // Обновить черновик активного чата из поля ввода.
+  const handleComposerTextChange = useCallback((id, text) => {
+    setDraft(draftsRef.current, id, text);
+    scheduleDraftsPersist();
+  }, [scheduleDraftsPersist]);
+  // Полностью убрать черновик чата (после отправки / удаления) и сохранить сразу.
+  const clearDraft = useCallback((id) => {
+    setDraft(draftsRef.current, id, '');
+    saveDrafts(draftsRef.current);
+  }, []);
+  // Гасим таймер и фиксируем последний черновик. На полную перезагрузку/закрытие
+  // вкладки cleanup эффекта не срабатывает — поэтому ещё и beforeunload-flush.
+  useEffect(() => {
+    const flush = () => {
+      clearTimeout(draftsPersistTimerRef.current);
+      saveDrafts(draftsRef.current);
+    };
+    window.addEventListener('beforeunload', flush);
+    return () => {
+      window.removeEventListener('beforeunload', flush);
+      flush();
+    };
+  }, []);
   // clientMsgId-ы сообщений, отправленных ИЗ ЭТОЙ вкладки. Нужны, чтобы не задвоить
   // свой оптимистично показанный пузырь, получив его же эхом из потока событий.
   const localClientIdsRef = useRef(new Set());
@@ -181,37 +152,6 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   useEffect(() => {
     chatsRef.current = chats;
   }, [chats]);
-
-  // Список выбираемых моделей (GET /api/chats/models). Грузим один раз.
-  useEffect(() => {
-    let cancelled = false;
-    chatApi
-      .getModels()
-      .then((cfg) => {
-        if (!cancelled) setModelConfig(cfg);
-      })
-      .catch((err) => console.error('Ошибка загрузки списка моделей:', err));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Проверка наличия токенов Atlassian (GET /api/settings/integrations). Грузим один раз.
-  useEffect(() => {
-    let cancelled = false;
-    settingsApi
-      .getIntegrations()
-      .then((cfg) => {
-        if (!cancelled) {
-          setJiraConfigured(cfg.jiraConfigured);
-          setConfluenceConfigured(cfg.confluenceConfigured);
-        }
-      })
-      .catch((err) => console.error('Ошибка загрузки настроек интеграций:', err));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   // Источник правды — проп из навигации. Когда он меняется (клик по вкладке,
   // popstate, восстановление из URL), подхватываем активный чат.
@@ -309,119 +249,17 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     }
   }, []);
 
-  // Ref для защиты от повторных попыток по chatId, которых нет в списке chats
-  const failedChatIdsRef = useRef(new Set());
-  // Защита от параллельных догрузок старых сообщений для одного и того же чата.
-  const loadingOlderRef = useRef(new Set());
-  // Защита от параллельных начальных загрузок сообщений одного чата.
-  // Без неё при старте страницы loadMessages вызывается дважды: первый раз когда
-  // chats=[] (до загрузки списка), второй — когда setChats(chatList) меняет стейт.
-  const loadingMessagesRef = useRef(new Set());
-
-  // Загрузка сообщений: последняя страница (PAGE_SIZE) + метаданные чата.
-  // Метаданные (model/topic) берём отдельным лёгким запросом includeMessages=false,
-  // сами сообщения — пагинированным /messages. Это не тащит весь длинный чат.
-  const loadMessages = useCallback(async (chatId) => {
-    if (loadingMessagesRef.current.has(chatId)) return;
-    loadingMessagesRef.current.add(chatId);
-    setLoadingMessages(true);
-    try {
-      const [meta, page] = await Promise.all([chatApi.getChatMeta(chatId), chatApi.getMessages(chatId, PAGE_SIZE)]);
-      const { bubbles, leadingMetas } = transformPage(page.messages);
-
-      failedChatIdsRef.current.delete(chatId);
-      setChats((prev) =>
-        prev.map((chat) =>
-          chat.id === chatId
-            ? {
-                ...chat,
-                messages: bubbles,
-                hasMore: !!page.hasMore,
-                oldestCursor: page.oldestCursor || null,
-                // metas, чей ассистент в ещё не загруженной более старой странице
-                pendingLeadingMetas: leadingMetas,
-                notFound: false,
-                loadError: null,
-                model: meta.model ?? null,
-              }
-            : chat,
-        ),
-      );
-    } catch (err) {
-      console.error('Ошибка загрузки сообщений:', err);
-      const status = err.status || 'network';
-      const isNotFound = status === 404;
-      failedChatIdsRef.current.add(chatId);
-      setChats((prev) =>
-        prev.map((chat) =>
-          chat.id === chatId ? { ...chat, messages: [], notFound: isNotFound, loadError: status } : chat,
-        ),
-      );
-      setChatErrorModal({ notFound: isNotFound, status });
-    } finally {
-      loadingMessagesRef.current.delete(chatId);
-      setLoadingMessages(false);
-    }
-  }, []);
-
-  // Догрузка более старой страницы сообщений (вызывается при прокрутке вверх).
-  // Возвращает true, если что-то догрузилось (нужно MessageList для коррекции скролла).
-  const loadOlderMessages = useCallback(async (chatId) => {
-    const chat = chatsRef.current.find((c) => c.id === chatId);
-    if (!chat || !chat.hasMore || !chat.oldestCursor) return false;
-    if (loadingOlderRef.current.has(chatId)) return false;
-    loadingOlderRef.current.add(chatId);
-    try {
-      const page = await chatApi.getMessages(chatId, PAGE_SIZE, chat.oldestCursor);
-      const { bubbles: olderBubbles, leadingMetas } = transformPage(page.messages);
-      if (!olderBubbles.length && (!leadingMetas || !leadingMetas.length)) {
-        // Пустая страница — больше грузить нечего.
-        setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, hasMore: false } : c)));
-        return false;
-      }
-
-      setChats((prev) =>
-        prev.map((c) => {
-          if (c.id !== chatId) return c;
-          const merged = olderBubbles.slice();
-          // Крошки с прошлой (более новой) границы — их ассистент мог оказаться
-          // в этой странице. Прицепляем; что не прицепилось — несём дальше вверх.
-          const carry = attachLeadingMetas(merged, c.pendingLeadingMetas);
-          return {
-            ...c,
-            messages: [...merged, ...(c.messages || [])],
-            hasMore: !!page.hasMore,
-            oldestCursor: page.oldestCursor || c.oldestCursor,
-            pendingLeadingMetas: [...(leadingMetas || []), ...carry],
-          };
-        }),
-      );
-      return true;
-    } catch (err) {
-      console.error('Ошибка догрузки старых сообщений:', err);
-      return false;
-    } finally {
-      loadingOlderRef.current.delete(chatId);
-    }
-  }, []);
+  // Загрузка/пагинация сообщений активного чата (+ защита от повторных загрузок и
+  // запоминание активного чата) вынесены в useChatMessages.
+  const { loadingMessages, loadMessages, loadOlderMessages } = useChatMessages({
+    chats,
+    chatsRef,
+    setChats,
+    activeChatId,
+    onLoadError: setChatErrorModal,
+  });
 
   const handleLoadOlder = useCallback(() => loadOlderMessages(activeChatId), [activeChatId, loadOlderMessages]);
-
-  useEffect(() => {
-    if (activeChatId && activeChatId !== DRAFT_CHAT_ID) {
-      const chat = chats.find((c) => c.id === activeChatId);
-      // Не загружаем если: сообщения уже есть, чат помечен как ошибочный,
-      // или chatId уже в ref (защита когда чат ещё не появился в списке)
-      const alreadyFailed = failedChatIdsRef.current.has(activeChatId);
-      if (!chat?.messages && !chat?.notFound && !chat?.loadError && !alreadyFailed) {
-        loadMessages(activeChatId);
-      }
-      // Сохраняем в localStorage только реально существующий чат
-      if (!chat?.notFound && !chat?.loadError && !alreadyFailed) {
-        localStorage.setItem(STORAGE_KEY_ACTIVE_CHAT, activeChatId);
-      }
-    }
-  }, [activeChatId, chats, loadMessages]);
 
   // (Запись URL вынесена в useAppNavigation — ChatWindow историю не трогает.)
 
@@ -450,15 +288,6 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   // этом остаётся активным (берётся из полного chats), печатать в него можно.
   const visibleChats = useMemo(() => chats.filter((c) => c.id !== DRAFT_CHAT_ID), [chats]);
 
-  // Опции для селектора: модели из конфига + дефолтная (если её нет в списке — добавляем).
-  const modelOptions = useMemo(() => {
-    const def = modelConfig?.defaultModel;
-    if (!def?.id) return [];
-    const list = Array.isArray(modelConfig.models) ? [...modelConfig.models] : [];
-    if (!list.some((m) => m.id === def.id)) list.unshift(def);
-    return list;
-  }, [modelConfig]);
-
   // Выбранная в селекторе модель. Если у чата модель не задана или её больше нет
   // в конфиге — показываем дефолтную (чтобы select оставался валидным).
   const selectedModelId = useMemo(() => {
@@ -475,6 +304,74 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     if (!Array.isArray(msgs)) return false; // ещё не загружено
     return !msgs.some((m) => m && m.sender);
   }, [activeChat]);
+
+  // Модель для отправки — всегда явная: выбранная у чата → последняя → дефолтная.
+  const resolveModelForSend = useCallback(
+    (chat) => {
+      const selected = chat?.model;
+      if (selected && modelOptions.some((o) => o.id === selected)) return selected;
+      if (lastModelRef.current && modelOptions.some((o) => o.id === lastModelRef.current)) return lastModelRef.current;
+      return modelConfig?.defaultModel?.id || null;
+    },
+    [modelOptions, modelConfig],
+  );
+
+  // Старт фонового прогона для уже показанного вопроса. Общий код для первой отправки
+  // и для «Повторить»: бьёт POST /runs и обрабатывает исход — runId (идёт генерация),
+  // 409 (занято) или ошибку (помечаем пузырь error+retryText, чтобы можно было повторить).
+  const runConversation = useCallback(async (conversationId, text, clientMsgId, modelForSend) => {
+    // Запоминаем как «последнюю» — новый чат стартует именно с неё.
+    if (modelForSend) {
+      lastModelRef.current = modelForSend;
+      try {
+        localStorage.setItem(STORAGE_KEY_LAST_MODEL, modelForSend);
+      } catch {
+        /* ignore quota errors */
+      }
+    }
+    try {
+      const res = await chatApi.startRun(conversationId, text, { model: modelForSend, clientMsgId });
+      const runId = res?.runId;
+      // Помечаем чат активным прогоном → кнопка «остановить», блокировка ввода.
+      // (RUN_STARTED из потока проставит то же самое, если опередит.)
+      if (runId) {
+        setChats((prev) => prev.map((c) => (c.id === conversationId ? { ...c, runId } : c)));
+      }
+    } catch (error) {
+      // Не наша заявка — генерация уже идёт (часто из другой вкладки). Откатываем
+      // оптимистичный пузырь (если был) и сообщаем пользователю. Текущий прогон всё
+      // равно «прилетит» потоком событий (RUN_STARTED) и покажет «остановить».
+      if (error?.status === 409) {
+        localClientIdsRef.current.delete(clientMsgId);
+        setChats((prev) =>
+          prev.map((c) =>
+            c.id === conversationId
+              ? { ...c, messages: (c.messages || []).filter((m) => m.clientMsgId !== clientMsgId) }
+              : c,
+          ),
+        );
+        setBusyNotice(true);
+        return;
+      }
+      // Сетевой сбой / 5xx — POST не стартовал прогон. Показываем пузырь с ошибкой и
+      // retryText, чтобы пользователь мог переотправить тот же вопрос (см. Message.jsx).
+      console.error('Failed to start run:', error);
+      setChats((prev) =>
+        prev.map((c) =>
+          c.id === conversationId
+            ? {
+                ...c,
+                runId: null,
+                messages: [
+                  ...(c.messages || []),
+                  { mid: nextMessageId(), text: tRef.current('window.genericError'), sender: 'ai', error: true, retryText: text },
+                ],
+              }
+            : c,
+        ),
+      );
+    }
+  }, []);
 
   // Отправка сообщения. Больше НЕ стримит ответ из этого запроса: лишь запускает
   // фоновый прогон (POST /runs) и оптимистично показывает свой вопрос. Сам ответ
@@ -501,24 +398,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       // clientMsgId — чтобы не задвоить свой пузырь, получив его эхом из /events.
       const clientMsgId = generateUUID();
       localClientIdsRef.current.add(clientMsgId);
-
-      // Модель, с которой шлём. Всегда явная: выбранная у чата → последняя → дефолтная.
-      const selected = chatForSend?.model;
-      const modelForSend =
-        selected && modelOptions.some((o) => o.id === selected)
-          ? selected
-          : lastModelRef.current && modelOptions.some((o) => o.id === lastModelRef.current)
-          ? lastModelRef.current
-          : modelConfig?.defaultModel?.id || null;
-      // Запоминаем как «последнюю» — новый чат стартует именно с неё.
-      if (modelForSend) {
-        lastModelRef.current = modelForSend;
-        try {
-          localStorage.setItem(STORAGE_KEY_LAST_MODEL, modelForSend);
-        } catch {
-          /* ignore quota errors */
-        }
-      }
+      const modelForSend = resolveModelForSend(chatForSend);
 
       // Оптимистично: промоутим черновик и показываем пузырь пользователя.
       // AI-пузырь не добавляем — его создаст событие RUN_STARTED.
@@ -527,7 +407,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         if (!found) return prev;
         const newMessages = [
           ...(found.messages || []),
-          { text, sender: 'user', clientMsgId, timestamp: new Date().toISOString() },
+          { mid: nextMessageId(), text, sender: 'user', clientMsgId, timestamp: new Date().toISOString() },
         ];
         const updatedChat = {
           ...found,
@@ -544,46 +424,48 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       if (isDraft) {
         selectChat(conversationId);
       }
+      // Сообщение ушло — черновик этого чата больше не нужен.
+      clearDraft(activeChatId);
 
-      try {
-        const res = await chatApi.startRun(conversationId, text, { model: modelForSend, clientMsgId });
-        const runId = res?.runId;
-        // Помечаем чат активным прогоном → кнопка «остановить», блокировка ввода.
-        // (RUN_STARTED из потока проставит то же самое, если опередит.)
-        if (runId) {
-          setChats((prev) => prev.map((c) => (c.id === conversationId ? { ...c, runId } : c)));
-        }
-      } catch (error) {
-        // Не наша заявка — генерация уже идёт (часто из другой вкладки). Откатываем
-        // оптимистичный пузырь и сообщаем пользователю. Текущий прогон всё равно
-        // «прилетит» в этот чат потоком событий (RUN_STARTED) и покажет «остановить».
-        if (error?.status === 409) {
-          localClientIdsRef.current.delete(clientMsgId);
-          setChats((prev) =>
-            prev.map((c) =>
-              c.id === conversationId
-                ? { ...c, messages: (c.messages || []).filter((m) => m.clientMsgId !== clientMsgId) }
-                : c,
-            ),
-          );
-          setBusyNotice(true);
-          return;
-        }
-        console.error('Failed to start run:', error);
-        setChats((prev) =>
-          prev.map((c) =>
-            c.id === conversationId
-              ? {
-                  ...c,
-                  runId: null,
-                  messages: [...(c.messages || []), { text: tRef.current('window.genericError'), sender: 'ai' }],
-                }
-              : c,
-          ),
-        );
-      }
+      await runConversation(conversationId, text, clientMsgId, modelForSend);
     },
-    [activeChatId, selectChat, modelConfig, modelOptions],
+    [activeChatId, selectChat, resolveModelForSend, runConversation, clearDraft],
+  );
+
+  // Переотправить вопрос после ошибки: убираем ошибочный AI-пузырь и заново запускаем
+  // прогон по тому же тексту. Пузырь пользователя уже на месте — новый не добавляем,
+  // эхо USER_MESSAGE гасится по clientMsgId. Чистый случай (без дублей на бэке) —
+  // сбой самого POST /runs: прогон не стартовал и вопрос ещё не сохранён. Для
+  // асинхронной RUN_ERROR вопрос уже в памяти чата, поэтому повтор создаёт новый ход.
+  const handleRetryMessage = useCallback(
+    (index) => {
+      const chat = chatsRef.current.find((c) => c.id === activeChatId);
+      if (!chat || chat.runId) return; // во время генерации повтор недоступен
+      const msgs = chat.messages || [];
+      const target = msgs[index];
+      if (!target || target.sender !== 'ai' || !target.error) return;
+      // Текст для повтора: явный retryText или ближайший пузырь пользователя выше.
+      let text = target.retryText || null;
+      if (!text) {
+        for (let i = index - 1; i >= 0; i--) {
+          if (msgs[i].sender === 'user') {
+            text = msgs[i].text;
+            break;
+          }
+        }
+      }
+      if (!text || !text.trim()) return;
+      const clientMsgId = generateUUID();
+      localClientIdsRef.current.add(clientMsgId);
+      // Снимаем ошибочный AI-пузырь, чтобы не копить ошибки.
+      setChats((prev) =>
+        prev.map((c) =>
+          c.id === activeChatId ? { ...c, messages: (c.messages || []).filter((_, i) => i !== index) } : c,
+        ),
+      );
+      runConversation(activeChatId, text, clientMsgId, resolveModelForSend(chat));
+    },
+    [activeChatId, resolveModelForSend, runConversation],
   );
 
   const handleStopGeneration = useCallback(() => {
@@ -616,42 +498,17 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   );
 
   const activeMessagesReady = Array.isArray(activeChat?.messages);
-  useEffect(() => {
-    const chatId = activeChatId;
-    if (!chatId || chatId === DRAFT_CHAT_ID) return undefined;
-    const chat = chatsRef.current.find((c) => c.id === chatId);
-    if (!chat || !Array.isArray(chat.messages) || chat.notFound || chat.loadError) return undefined;
-
-    const ctx = {
-      isLocal: (id) => localClientIdsRef.current.has(id),
-      stoppedLabel: tRef.current('window.stopped'),
-      errorLabel: tRef.current('window.genericError'),
-      interruptedNote: `\n\n_**${tRef.current('message.interrupted')}**_`,
-    };
-    return openChatEventStream(chatId, {
-      onEvent: (ev) => {
-        if (ev.type === 'CHAT_DELETED') {
-          handleRemoteChatDeleted(chatId);
-          return;
-        }
-        setChats((prev) => prev.map((c) => (c.id === chatId ? applyChatEvent(c, ev, ctx) : c)));
-        if (ev.type === 'RUN_DONE' || ev.type === 'RUN_STOPPED' || ev.type === 'RUN_ERROR') {
-          fetchAndUpdateTitle(chatId);
-        }
-      },
-      onReconnect: () => {
-        // Перезагружаем только если UI думает что идёт прогон — в этом случае либо
-        // бэк перезапустился (прогон мёртв, нужно показать ответ из БД и разблокировать
-        // ввод), либо прогон завершился пока соединение было сломано. При обычном сетевом
-        // сбое без потери прогона runId === null и мы ничего лишнего не делаем.
-        const chat = chatsRef.current.find((c) => c.id === chatId);
-        if (chat?.runId) {
-          setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, runId: null } : c)));
-          loadMessages(chatId);
-        }
-      },
-    });
-  }, [activeChatId, activeMessagesReady, fetchAndUpdateTitle, handleRemoteChatDeleted, loadMessages]);
+  useChatEventStream({
+    activeChatId,
+    activeMessagesReady,
+    chatsRef,
+    localClientIdsRef,
+    tRef,
+    setChats,
+    onChatDeleted: handleRemoteChatDeleted,
+    onRunSettled: fetchAndUpdateTitle,
+    reloadMessages: loadMessages,
+  });
 
   const handleNewChat = useCallback(() => {
     // Создаём черновик: реального id ещё нет (в URL будет 'new'), на бэк ничего
@@ -690,6 +547,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       if (id === DRAFT_CHAT_ID) {
         // У черновика нет сущности на бэке — «удаление» лишь очищает поле ввода.
         // Сам черновик и выбранная модель остаются.
+        clearDraft(DRAFT_CHAT_ID);
         setComposerResetSignal((n) => n + 1);
         return;
       }
@@ -697,7 +555,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       const chat = chats.find((c) => c.id === id);
       setChatDeleteConfirm({ id, title: chat?.title ?? '' });
     },
-    [chats],
+    [chats, clearDraft],
   );
 
   // Реальное удаление — после подтверждения в модалке.
@@ -708,6 +566,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     const { id } = target;
     // Помечаем как «наше» удаление — эхо CHAT_DELETED по потоку не покажет нам модалку.
     locallyDeletingRef.current.add(id);
+    clearDraft(id); // черновик удалённого чата больше не нужен
     await chatApi.deleteChat(id);
     setChats((prev) => prev.filter((chat) => chat.id !== id));
     if (activeChatId === id) {
@@ -715,12 +574,15 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       const newActiveId = remaining[0]?.id || null;
       selectChat(newActiveId);
     }
-  }, [chatDeleteConfirm, activeChatId, selectChat]);
+  }, [chatDeleteConfirm, activeChatId, selectChat, clearDraft]);
 
   const handleSelectChat = useCallback(
     (id) => {
       if (id === activeChatId) return;
-      if (composerTextRef.current.length > 3) return;
+      // Раньше здесь стояла блокировка переключения при наборе >3 символов — из-за
+      // неё выбор чата в списке «переставал работать». Теперь черновик каждого чата
+      // сохраняется отдельно (см. draftsRef), поэтому переключаться можно свободно.
+      saveDrafts(draftsRef.current); // зафиксировать текущий черновик до ухода
       selectChat(id);
       setAttachCount(0); // reset until new panel loads count for new chat
     },
@@ -755,10 +617,10 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         setAttachPanelOpen(true);
       } catch (err) {
         console.error('Upload error:', err);
-        alert(t('window.uploadError'));
+        setUploadErrorNotice(true);
       }
     },
-    [activeChatId, t],
+    [activeChatId],
   );
 
   // Суффикс с кодом ошибки для сообщения модалки (если это не сетевой сбой).
@@ -808,7 +670,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
                     setEditingTitle(true);
                   }}
                 >
-                  ️{activeChat.title}
+                  {activeChat.title}
                 </h3>
               )}
               {!activeChat.notFound && !activeChat.loadError && modelOptions.length > 0 && (
@@ -860,6 +722,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
             messages={activeMessages}
             onNavigateToDoc={onNavigateToDoc}
             onLoadMore={handleLoadOlder}
+            onRetry={handleRetryMessage}
             hasMore={!!activeChat?.hasMore}
             canLoadMore={!isStreaming}
           />
@@ -892,9 +755,8 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
             isEmpty={isChatEmpty && !loadingMessages}
             resetSignal={composerResetSignal}
             chatId={activeChatId}
-            onTextChange={(v) => {
-              composerTextRef.current = v;
-            }}
+            initialText={getDraft(draftsRef.current, activeChatId)}
+            onTextChange={(v) => handleComposerTextChange(activeChatId, v)}
           />
         )}
       </div>
@@ -981,6 +843,13 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         title={t('errorModal.deletedTitle')}
         message={t('errorModal.deletedMessage')}
         onClose={() => setDeletedNotice(false)}
+      />
+      <ErrorModal
+        open={uploadErrorNotice}
+        icon="⚠️"
+        title={t('errorModal.uploadTitle')}
+        message={t('window.uploadError')}
+        onClose={() => setUploadErrorNotice(false)}
       />
     </div>
   );
