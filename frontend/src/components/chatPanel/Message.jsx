@@ -473,26 +473,31 @@ function getMarkdownComponents(onNavigateToDoc) {
   };
 }
 
-/** Форматирует timestamp: если < 24ч — относительное время, иначе — дата. */
-const formatTimestamp = (ts) => {
+/**
+ * Форматирует timestamp: если < 24ч — относительное время, иначе — дата.
+ * Локаль берётся из i18n (lang) — относительное время и плюрализацию даёт нативный
+ * Intl.RelativeTimeFormat, поэтому отдельные ключи перевода не нужны.
+ */
+const formatTimestamp = (ts, lang) => {
   if (!ts) return null;
   const date = new Date(ts);
   if (isNaN(date)) return null;
   const diffMs = Date.now() - date.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
   if (diffMs < 0) return null;
-  if (diffMin < 1) return '< 1 мин.';
-  if (diffMin < 60) return `${diffMin} мин. назад`;
+  const diffMin = Math.floor(diffMs / 60000);
+  const rtf = new Intl.RelativeTimeFormat(lang, { numeric: 'auto' });
+  if (diffMin < 1) return rtf.format(0, 'minute');
+  if (diffMin < 60) return rtf.format(-diffMin, 'minute');
   const diffH = Math.floor(diffMin / 60);
-  if (diffH < 24) return `${diffH} ч. назад`;
-  return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+  if (diffH < 24) return rtf.format(-diffH, 'hour');
+  return date.toLocaleDateString(lang, { day: 'numeric', month: 'short' });
 };
 
-const formatFullDatetime = (ts) => {
+const formatFullDatetime = (ts, lang) => {
   if (!ts) return null;
   const date = new Date(ts);
   if (isNaN(date)) return null;
-  return date.toLocaleString('ru-RU', {
+  return date.toLocaleString(lang, {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -513,13 +518,13 @@ const Message = ({
   onNavigateToDoc,
   timestamp,
 }) => {
-  const { t } = useTranslation('chat');
+  const { t, i18n } = useTranslation('chat');
   const [showSource, setShowSource] = useState(false);
   const messageClass = `message ${sender}${error && sender === 'ai' ? ' message--error' : ''}`;
   const hasToolCalls = toolCalls && toolCalls.length > 0;
   const showPreparing = preparing && sender === 'ai';
-  const timeLabel = formatTimestamp(timestamp);
-  const timeTitle = formatFullDatetime(timestamp);
+  const timeLabel = formatTimestamp(timestamp, i18n.language);
+  const timeTitle = formatFullDatetime(timestamp, i18n.language);
 
   // Пузырь — только контент сообщения, без футера
   const bubble = (
