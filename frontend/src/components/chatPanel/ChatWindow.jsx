@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import chatApi from '../../api/chatApi';
-import settingsApi from '../../api/settingsApi';
 import { openChatEventStream } from '../../api/chatEvents';
 import { applyChatEvent } from './chatEventReducer';
 import attachmentApi from '../common/attachmentApi';
@@ -9,6 +8,8 @@ import { STORAGE_KEY_ACTIVE_CHAT, STORAGE_KEY_LAST_MODEL, DRAFT_CHAT_ID } from '
 import { CHAT_PAGE_SIZE as PAGE_SIZE } from '../../constants/pagination';
 import { loadDrafts, saveDrafts, getDraft, setDraft } from './chatDrafts';
 import { nextMessageId } from './messageId';
+import useModelConfig from './useModelConfig';
+import useIntegrationsConfig from './useIntegrationsConfig';
 
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
@@ -141,10 +142,9 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   const [attachPanelOpen, setAttachPanelOpen] = useState(false);
   const [attachCount, setAttachCount] = useState(0);
   const [jiraModalOpen, setJiraModalOpen] = useState(false);
-  const [jiraConfigured, setJiraConfigured] = useState(false);
-  const [confluenceConfigured, setConfluenceConfigured] = useState(false);
-  // Список выбираемых моделей и дефолтная: { defaultModel: {id,label}, models: [{id,label}] }
-  const [modelConfig, setModelConfig] = useState(null);
+  // Конфиг моделей и интеграций грузятся один раз — вынесено в отдельные хуки.
+  const { modelConfig, modelOptions } = useModelConfig();
+  const { jiraConfigured, confluenceConfigured } = useIntegrationsConfig();
   // Последняя модель, с которой отправляли сообщение (живёт между перезагрузками).
   const lastModelRef = useRef(localStorage.getItem(STORAGE_KEY_LAST_MODEL) || null);
   // Модалка ошибки загрузки чата: null | { notFound: bool, status }
@@ -216,37 +216,6 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   useEffect(() => {
     chatsRef.current = chats;
   }, [chats]);
-
-  // Список выбираемых моделей (GET /api/chats/models). Грузим один раз.
-  useEffect(() => {
-    let cancelled = false;
-    chatApi
-      .getModels()
-      .then((cfg) => {
-        if (!cancelled) setModelConfig(cfg);
-      })
-      .catch((err) => console.error('Ошибка загрузки списка моделей:', err));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Проверка наличия токенов Atlassian (GET /api/settings/integrations). Грузим один раз.
-  useEffect(() => {
-    let cancelled = false;
-    settingsApi
-      .getIntegrations()
-      .then((cfg) => {
-        if (!cancelled) {
-          setJiraConfigured(cfg.jiraConfigured);
-          setConfluenceConfigured(cfg.confluenceConfigured);
-        }
-      })
-      .catch((err) => console.error('Ошибка загрузки настроек интеграций:', err));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   // Источник правды — проп из навигации. Когда он меняется (клик по вкладке,
   // popstate, восстановление из URL), подхватываем активный чат.
@@ -484,15 +453,6 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   // сообщения — тогда и появляется пунктом в списке. В главном окне черновик при
   // этом остаётся активным (берётся из полного chats), печатать в него можно.
   const visibleChats = useMemo(() => chats.filter((c) => c.id !== DRAFT_CHAT_ID), [chats]);
-
-  // Опции для селектора: модели из конфига + дефолтная (если её нет в списке — добавляем).
-  const modelOptions = useMemo(() => {
-    const def = modelConfig?.defaultModel;
-    if (!def?.id) return [];
-    const list = Array.isArray(modelConfig.models) ? [...modelConfig.models] : [];
-    if (!list.some((m) => m.id === def.id)) list.unshift(def);
-    return list;
-  }, [modelConfig]);
 
   // Выбранная в селекторе модель. Если у чата модель не задана или её больше нет
   // в конфиге — показываем дефолтную (чтобы select оставался валидным).
