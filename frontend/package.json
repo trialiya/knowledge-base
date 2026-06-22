@@ -53,6 +53,10 @@
     "serialize-javascript": "^7.0.4",
     "postcss": "^8.4.31",
     "underscore": "^1.13.7",
-    "@tootallnate/once": "^2.0.0"
+    "@tootallnate/once": "^2.0.0",
+    "jsdom/ws": "^7.5.11",
+    "webpack-dev-server/ws": "^8.21.0",
+    "@eslint/eslintrc/js-yaml": "^4.2.0",
+    "eslint/js-yaml": "^4.2.0"
   }
 }
