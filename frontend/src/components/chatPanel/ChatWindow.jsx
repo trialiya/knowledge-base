@@ -1,8 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import chatApi from '../../api/chatApi';
-import { openChatEventStream } from '../../api/chatEvents';
-import { applyChatEvent } from './chatEventReducer';
 import attachmentApi from '../common/attachmentApi';
 import { STORAGE_KEY_ACTIVE_CHAT, STORAGE_KEY_LAST_MODEL, DRAFT_CHAT_ID } from '../../constants/storage';
 import { loadDrafts, saveDrafts, getDraft, setDraft } from './chatDrafts';
@@ -10,6 +8,7 @@ import { nextMessageId } from './messageId';
 import useModelConfig from './useModelConfig';
 import useIntegrationsConfig from './useIntegrationsConfig';
 import useChatMessages from './useChatMessages';
+import useChatEventStream from './useChatEventStream';
 
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
@@ -495,42 +494,17 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   );
 
   const activeMessagesReady = Array.isArray(activeChat?.messages);
-  useEffect(() => {
-    const chatId = activeChatId;
-    if (!chatId || chatId === DRAFT_CHAT_ID) return undefined;
-    const chat = chatsRef.current.find((c) => c.id === chatId);
-    if (!chat || !Array.isArray(chat.messages) || chat.notFound || chat.loadError) return undefined;
-
-    const ctx = {
-      isLocal: (id) => localClientIdsRef.current.has(id),
-      stoppedLabel: tRef.current('window.stopped'),
-      errorLabel: tRef.current('window.genericError'),
-      interruptedNote: `\n\n_**${tRef.current('message.interrupted')}**_`,
-    };
-    return openChatEventStream(chatId, {
-      onEvent: (ev) => {
-        if (ev.type === 'CHAT_DELETED') {
-          handleRemoteChatDeleted(chatId);
-          return;
-        }
-        setChats((prev) => prev.map((c) => (c.id === chatId ? applyChatEvent(c, ev, ctx) : c)));
-        if (ev.type === 'RUN_DONE' || ev.type === 'RUN_STOPPED' || ev.type === 'RUN_ERROR') {
-          fetchAndUpdateTitle(chatId);
-        }
-      },
-      onReconnect: () => {
-        // Перезагружаем только если UI думает что идёт прогон — в этом случае либо
-        // бэк перезапустился (прогон мёртв, нужно показать ответ из БД и разблокировать
-        // ввод), либо прогон завершился пока соединение было сломано. При обычном сетевом
-        // сбое без потери прогона runId === null и мы ничего лишнего не делаем.
-        const chat = chatsRef.current.find((c) => c.id === chatId);
-        if (chat?.runId) {
-          setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, runId: null } : c)));
-          loadMessages(chatId);
-        }
-      },
-    });
-  }, [activeChatId, activeMessagesReady, fetchAndUpdateTitle, handleRemoteChatDeleted, loadMessages]);
+  useChatEventStream({
+    activeChatId,
+    activeMessagesReady,
+    chatsRef,
+    localClientIdsRef,
+    tRef,
+    setChats,
+    onChatDeleted: handleRemoteChatDeleted,
+    onRunSettled: fetchAndUpdateTitle,
+    reloadMessages: loadMessages,
+  });
 
   const handleNewChat = useCallback(() => {
     // Создаём черновик: реального id ещё нет (в URL будет 'new'), на бэк ничего
