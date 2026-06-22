@@ -7,6 +7,7 @@ import { applyChatEvent } from './chatEventReducer';
 import attachmentApi from '../common/attachmentApi';
 import { STORAGE_KEY_ACTIVE_CHAT, STORAGE_KEY_LAST_MODEL, DRAFT_CHAT_ID } from '../../constants/storage';
 import { CHAT_PAGE_SIZE as PAGE_SIZE } from '../../constants/pagination';
+import { loadDrafts, saveDrafts, getDraft, setDraft } from './chatDrafts';
 
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
@@ -150,8 +151,34 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   const [deletedNotice, setDeletedNotice] = useState(false);
   // Bump → очистить текст в MessageInput («удаление» черновика).
   const [composerResetSignal, setComposerResetSignal] = useState(0);
-  // Текущий черновик в поле ввода — нужен для блокировки переключения чата.
-  const composerTextRef = useRef('');
+  // Неотправленные черновики по чатам ({ chatId: text }). Живут в localStorage,
+  // чтобы переключение чатов и перезагрузка не теряли набранный текст.
+  const draftsRef = useRef(loadDrafts());
+  const draftsPersistTimerRef = useRef(null);
+  // Отложенная запись черновиков на диск (на каждый keystroke писать не нужно).
+  const scheduleDraftsPersist = useCallback(() => {
+    clearTimeout(draftsPersistTimerRef.current);
+    draftsPersistTimerRef.current = setTimeout(() => saveDrafts(draftsRef.current), 400);
+  }, []);
+  // Обновить черновик активного чата из поля ввода.
+  const handleComposerTextChange = useCallback((id, text) => {
+    setDraft(draftsRef.current, id, text);
+    scheduleDraftsPersist();
+  }, [scheduleDraftsPersist]);
+  // Полностью убрать черновик чата (после отправки / удаления) и сохранить сразу.
+  const clearDraft = useCallback((id) => {
+    setDraft(draftsRef.current, id, '');
+    saveDrafts(draftsRef.current);
+  }, []);
+  // На размонтировании гасим таймер и фиксируем последний черновик (вкладку могли
+  // закрыть в течение debounce-окна после набора).
+  useEffect(() => {
+    const drafts = draftsRef.current;
+    return () => {
+      clearTimeout(draftsPersistTimerRef.current);
+      saveDrafts(drafts);
+    };
+  }, []);
   // clientMsgId-ы сообщений, отправленных ИЗ ЭТОЙ вкладки. Нужны, чтобы не задвоить
   // свой оптимистично показанный пузырь, получив его же эхом из потока событий.
   const localClientIdsRef = useRef(new Set());
@@ -544,6 +571,8 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       if (isDraft) {
         selectChat(conversationId);
       }
+      // Сообщение ушло — черновик этого чата больше не нужен.
+      clearDraft(activeChatId);
 
       try {
         const res = await chatApi.startRun(conversationId, text, { model: modelForSend, clientMsgId });
@@ -583,7 +612,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         );
       }
     },
-    [activeChatId, selectChat, modelConfig, modelOptions],
+    [activeChatId, selectChat, modelConfig, modelOptions, clearDraft],
   );
 
   const handleStopGeneration = useCallback(() => {
@@ -690,6 +719,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       if (id === DRAFT_CHAT_ID) {
         // У черновика нет сущности на бэке — «удаление» лишь очищает поле ввода.
         // Сам черновик и выбранная модель остаются.
+        clearDraft(DRAFT_CHAT_ID);
         setComposerResetSignal((n) => n + 1);
         return;
       }
@@ -697,7 +727,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       const chat = chats.find((c) => c.id === id);
       setChatDeleteConfirm({ id, title: chat?.title ?? '' });
     },
-    [chats],
+    [chats, clearDraft],
   );
 
   // Реальное удаление — после подтверждения в модалке.
@@ -708,6 +738,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     const { id } = target;
     // Помечаем как «наше» удаление — эхо CHAT_DELETED по потоку не покажет нам модалку.
     locallyDeletingRef.current.add(id);
+    clearDraft(id); // черновик удалённого чата больше не нужен
     await chatApi.deleteChat(id);
     setChats((prev) => prev.filter((chat) => chat.id !== id));
     if (activeChatId === id) {
@@ -715,12 +746,15 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       const newActiveId = remaining[0]?.id || null;
       selectChat(newActiveId);
     }
-  }, [chatDeleteConfirm, activeChatId, selectChat]);
+  }, [chatDeleteConfirm, activeChatId, selectChat, clearDraft]);
 
   const handleSelectChat = useCallback(
     (id) => {
       if (id === activeChatId) return;
-      if (composerTextRef.current.length > 3) return;
+      // Раньше здесь стояла блокировка переключения при наборе >3 символов — из-за
+      // неё выбор чата в списке «переставал работать». Теперь черновик каждого чата
+      // сохраняется отдельно (см. draftsRef), поэтому переключаться можно свободно.
+      saveDrafts(draftsRef.current); // зафиксировать текущий черновик до ухода
       selectChat(id);
       setAttachCount(0); // reset until new panel loads count for new chat
     },
@@ -892,9 +926,8 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
             isEmpty={isChatEmpty && !loadingMessages}
             resetSignal={composerResetSignal}
             chatId={activeChatId}
-            onTextChange={(v) => {
-              composerTextRef.current = v;
-            }}
+            initialText={getDraft(draftsRef.current, activeChatId)}
+            onTextChange={(v) => handleComposerTextChange(activeChatId, v)}
           />
         )}
       </div>
