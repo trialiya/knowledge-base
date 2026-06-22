@@ -56,14 +56,22 @@ describe('applyChatEvent', () => {
     const mid = last(chat).mid;
     expect(mid).toBeTruthy();
     chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'hi' } }, ctx);
-    chat = applyChatEvent(chat, { type: 'TOOL_CALL', runId: 'r1', payload: { toolCall: { name: 'x', status: 'OK' } } }, ctx);
+    chat = applyChatEvent(
+      chat,
+      { type: 'TOOL_CALL', runId: 'r1', payload: { toolCall: { name: 'x', status: 'OK' } } },
+      ctx,
+    );
     expect(last(chat).mid).toBe(mid);
   });
 
   test('local USER_MESSAGE echo is ignored (already shown optimistically)', () => {
     const localCtx = { ...ctx, isLocal: (id) => id === 'mine' };
     const before = userChat();
-    const after = applyChatEvent(before, { type: 'USER_MESSAGE', clientMsgId: 'mine', payload: { text: 'вопрос' } }, localCtx);
+    const after = applyChatEvent(
+      before,
+      { type: 'USER_MESSAGE', clientMsgId: 'mine', payload: { text: 'вопрос' } },
+      localCtx,
+    );
     expect(after).toBe(before); // no change
   });
 });

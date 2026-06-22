@@ -15,7 +15,6 @@ import io.github.trialiya.kb.model.chat.dto.StreamMessage;
 import io.github.trialiya.kb.model.chat.dto.ToolCallMessage;
 import io.github.trialiya.kb.model.chat.dto.ToolCallsMessage;
 import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
-import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
 import io.github.trialiya.kb.utils.ChatUtils;

@@ -66,7 +66,8 @@ public class RecordingToolCallback implements ToolCallback {
         final int callIdx = collector != null ? collector.nextCallIndex() : -1;
         if (collector != null) {
             collector.record(
-                    new ToolInvocation(name, toolInputMap, STARTED, null, null, null, null, null, callIdx));
+                    new ToolInvocation(
+                            name, toolInputMap, STARTED, null, null, null, null, null, callIdx));
         }
         try {
             CURRENT_RESULT.remove();
@@ -104,7 +105,6 @@ public class RecordingToolCallback implements ToolCallback {
             CURRENT_RESULT.remove();
         }
     }
-
 
     private static ToolInvocationCollector collectorFrom(ToolContext toolContext) {
         if (toolContext == null) {

@@ -33,8 +33,19 @@ const mergeToolCall = (list, tc) => {
         : t,
     );
   }
-  return [...list, { name: tc.name, arguments: tc.arguments, status: tc.status, error: tc.error,
-      resultGist: tc.resultGist, resultMeta: tc.resultMeta, callIndex: tc.callIndex, hasDetails: tc.hasDetails }];
+  return [
+    ...list,
+    {
+      name: tc.name,
+      arguments: tc.arguments,
+      status: tc.status,
+      error: tc.error,
+      resultGist: tc.resultGist,
+      resultMeta: tc.resultMeta,
+      callIndex: tc.callIndex,
+      hasDetails: tc.hasDetails,
+    },
+  ];
 };
 
 const mergeToolCalls = (list, metas) => (metas || []).reduce((acc, tc) => mergeToolCall(acc, tc), list);
@@ -48,7 +59,14 @@ const lastAiIndexForRun = (msgs, runId) => {
 };
 
 const pushAi = (msgs, runId) => {
-  msgs.push({ mid: nextMessageId(), text: '', sender: 'ai', runId, toolCalls: [], timestamp: new Date().toISOString() });
+  msgs.push({
+    mid: nextMessageId(),
+    text: '',
+    sender: 'ai',
+    runId,
+    toolCalls: [],
+    timestamp: new Date().toISOString(),
+  });
   return msgs.length - 1;
 };
 
@@ -92,7 +110,12 @@ export function applyChatEvent(chat, ev, ctx) {
       // Дубликат после reload: сообщение уже подгрузилось из БД (хвост истории).
       const last = msgs[msgs.length - 1];
       if (last && last.sender === 'user' && last.text === payload?.text) return chat;
-      msgs.push({ mid: nextMessageId(), text: payload?.text || '', sender: 'user', timestamp: new Date().toISOString() });
+      msgs.push({
+        mid: nextMessageId(),
+        text: payload?.text || '',
+        sender: 'user',
+        timestamp: new Date().toISOString(),
+      });
       return { ...chat, messages: msgs };
     }
 

@@ -101,10 +101,13 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     draftsPersistTimerRef.current = setTimeout(() => saveDrafts(draftsRef.current), 400);
   }, []);
   // Обновить черновик активного чата из поля ввода.
-  const handleComposerTextChange = useCallback((id, text) => {
-    setDraft(draftsRef.current, id, text);
-    scheduleDraftsPersist();
-  }, [scheduleDraftsPersist]);
+  const handleComposerTextChange = useCallback(
+    (id, text) => {
+      setDraft(draftsRef.current, id, text);
+      scheduleDraftsPersist();
+    },
+    [scheduleDraftsPersist],
+  );
   // Полностью убрать черновик чата (после отправки / удаления) и сохранить сразу.
   const clearDraft = useCallback((id) => {
     setDraft(draftsRef.current, id, '');
@@ -364,7 +367,13 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
                 runId: null,
                 messages: [
                   ...(c.messages || []),
-                  { mid: nextMessageId(), text: tRef.current('window.genericError'), sender: 'ai', error: true, retryText: text },
+                  {
+                    mid: nextMessageId(),
+                    text: tRef.current('window.genericError'),
+                    sender: 'ai',
+                    error: true,
+                    retryText: text,
+                  },
                 ],
               }
             : c,
