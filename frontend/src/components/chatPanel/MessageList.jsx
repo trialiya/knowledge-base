@@ -16,6 +16,7 @@ const MessageList = ({
   messages,
   onNavigateToDoc,
   onLoadMore,
+  onRetry,
   hasMore = false,
   canLoadMore = true,
 }) => {
@@ -138,6 +139,8 @@ const MessageList = ({
             timestamp={msg.timestamp}
             toolCallsRunId={msg.toolCallsRunId}
             preparing={msg.preparing}
+            error={msg.error}
+            onRetry={onRetry && msg.error ? () => onRetry(index) : undefined}
             conversationId={conversationId}
             onNavigateToDoc={onNavigateToDoc}
           />

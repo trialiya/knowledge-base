@@ -507,13 +507,15 @@ const Message = ({
   toolCalls,
   toolCallsRunId,
   preparing,
+  error,
+  onRetry,
   conversationId,
   onNavigateToDoc,
   timestamp,
 }) => {
   const { t } = useTranslation('chat');
   const [showSource, setShowSource] = useState(false);
-  const messageClass = `message ${sender}`;
+  const messageClass = `message ${sender}${error && sender === 'ai' ? ' message--error' : ''}`;
   const hasToolCalls = toolCalls && toolCalls.length > 0;
   const showPreparing = preparing && sender === 'ai';
   const timeLabel = formatTimestamp(timestamp);
@@ -549,6 +551,11 @@ const Message = ({
           </span>
         )}
         <div className="message-footer-actions">
+          {error && onRetry && (
+            <button className="message-retry-btn" onClick={onRetry} title={t('message.retry')} type="button">
+              ↻ {t('message.retry')}
+            </button>
+          )}
           <MessageCopyButton text={text} />
           <button
             className={`message-source-btn ${showSource ? 'message-source-btn--active' : ''}`}

@@ -77,3 +77,23 @@
   color: var(--kb-user-bubble-bg);
   background: rgba(0, 123, 255, 0.06);
 }
+
+/* ── Кнопка «повторить» (показывается под ответом, завершившимся ошибкой) ── */
+.message-retry-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--kb-error);
+  border-radius: 12px;
+  padding: 2px 10px;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  color: var(--kb-error);
+  background: var(--kb-error-bg);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.message-retry-btn:hover {
+  color: #fff;
+  background: var(--kb-error);
+}

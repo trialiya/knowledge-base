@@ -5,7 +5,8 @@
     "viewFormatted": "Показать с форматированием",
     "btnSource": "Исходник",
     "btnMarkdown": "Markdown",
-    "interrupted": "[⚠ Ответ прерван из-за ошибки на сервере]"
+    "interrupted": "[⚠ Ответ прерван из-за ошибки на сервере]",
+    "retry": "Повторить"
   },
   "window": {
     "defaultTitle": "Новый чат",

@@ -503,6 +503,74 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     return !msgs.some((m) => m && m.sender);
   }, [activeChat]);
 
+  // Модель для отправки — всегда явная: выбранная у чата → последняя → дефолтная.
+  const resolveModelForSend = useCallback(
+    (chat) => {
+      const selected = chat?.model;
+      if (selected && modelOptions.some((o) => o.id === selected)) return selected;
+      if (lastModelRef.current && modelOptions.some((o) => o.id === lastModelRef.current)) return lastModelRef.current;
+      return modelConfig?.defaultModel?.id || null;
+    },
+    [modelOptions, modelConfig],
+  );
+
+  // Старт фонового прогона для уже показанного вопроса. Общий код для первой отправки
+  // и для «Повторить»: бьёт POST /runs и обрабатывает исход — runId (идёт генерация),
+  // 409 (занято) или ошибку (помечаем пузырь error+retryText, чтобы можно было повторить).
+  const runConversation = useCallback(async (conversationId, text, clientMsgId, modelForSend) => {
+    // Запоминаем как «последнюю» — новый чат стартует именно с неё.
+    if (modelForSend) {
+      lastModelRef.current = modelForSend;
+      try {
+        localStorage.setItem(STORAGE_KEY_LAST_MODEL, modelForSend);
+      } catch {
+        /* ignore quota errors */
+      }
+    }
+    try {
+      const res = await chatApi.startRun(conversationId, text, { model: modelForSend, clientMsgId });
+      const runId = res?.runId;
+      // Помечаем чат активным прогоном → кнопка «остановить», блокировка ввода.
+      // (RUN_STARTED из потока проставит то же самое, если опередит.)
+      if (runId) {
+        setChats((prev) => prev.map((c) => (c.id === conversationId ? { ...c, runId } : c)));
+      }
+    } catch (error) {
+      // Не наша заявка — генерация уже идёт (часто из другой вкладки). Откатываем
+      // оптимистичный пузырь (если был) и сообщаем пользователю. Текущий прогон всё
+      // равно «прилетит» потоком событий (RUN_STARTED) и покажет «остановить».
+      if (error?.status === 409) {
+        localClientIdsRef.current.delete(clientMsgId);
+        setChats((prev) =>
+          prev.map((c) =>
+            c.id === conversationId
+              ? { ...c, messages: (c.messages || []).filter((m) => m.clientMsgId !== clientMsgId) }
+              : c,
+          ),
+        );
+        setBusyNotice(true);
+        return;
+      }
+      // Сетевой сбой / 5xx — POST не стартовал прогон. Показываем пузырь с ошибкой и
+      // retryText, чтобы пользователь мог переотправить тот же вопрос (см. Message.jsx).
+      console.error('Failed to start run:', error);
+      setChats((prev) =>
+        prev.map((c) =>
+          c.id === conversationId
+            ? {
+                ...c,
+                runId: null,
+                messages: [
+                  ...(c.messages || []),
+                  { text: tRef.current('window.genericError'), sender: 'ai', error: true, retryText: text },
+                ],
+              }
+            : c,
+        ),
+      );
+    }
+  }, []);
+
   // Отправка сообщения. Больше НЕ стримит ответ из этого запроса: лишь запускает
   // фоновый прогон (POST /runs) и оптимистично показывает свой вопрос. Сам ответ
   // (и эхо вопроса для других вкладок) приедет потоком событий — см. эффект ниже.
@@ -528,24 +596,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       // clientMsgId — чтобы не задвоить свой пузырь, получив его эхом из /events.
       const clientMsgId = generateUUID();
       localClientIdsRef.current.add(clientMsgId);
-
-      // Модель, с которой шлём. Всегда явная: выбранная у чата → последняя → дефолтная.
-      const selected = chatForSend?.model;
-      const modelForSend =
-        selected && modelOptions.some((o) => o.id === selected)
-          ? selected
-          : lastModelRef.current && modelOptions.some((o) => o.id === lastModelRef.current)
-          ? lastModelRef.current
-          : modelConfig?.defaultModel?.id || null;
-      // Запоминаем как «последнюю» — новый чат стартует именно с неё.
-      if (modelForSend) {
-        lastModelRef.current = modelForSend;
-        try {
-          localStorage.setItem(STORAGE_KEY_LAST_MODEL, modelForSend);
-        } catch {
-          /* ignore quota errors */
-        }
-      }
+      const modelForSend = resolveModelForSend(chatForSend);
 
       // Оптимистично: промоутим черновик и показываем пузырь пользователя.
       // AI-пузырь не добавляем — его создаст событие RUN_STARTED.
@@ -574,45 +625,45 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       // Сообщение ушло — черновик этого чата больше не нужен.
       clearDraft(activeChatId);
 
-      try {
-        const res = await chatApi.startRun(conversationId, text, { model: modelForSend, clientMsgId });
-        const runId = res?.runId;
-        // Помечаем чат активным прогоном → кнопка «остановить», блокировка ввода.
-        // (RUN_STARTED из потока проставит то же самое, если опередит.)
-        if (runId) {
-          setChats((prev) => prev.map((c) => (c.id === conversationId ? { ...c, runId } : c)));
-        }
-      } catch (error) {
-        // Не наша заявка — генерация уже идёт (часто из другой вкладки). Откатываем
-        // оптимистичный пузырь и сообщаем пользователю. Текущий прогон всё равно
-        // «прилетит» в этот чат потоком событий (RUN_STARTED) и покажет «остановить».
-        if (error?.status === 409) {
-          localClientIdsRef.current.delete(clientMsgId);
-          setChats((prev) =>
-            prev.map((c) =>
-              c.id === conversationId
-                ? { ...c, messages: (c.messages || []).filter((m) => m.clientMsgId !== clientMsgId) }
-                : c,
-            ),
-          );
-          setBusyNotice(true);
-          return;
-        }
-        console.error('Failed to start run:', error);
-        setChats((prev) =>
-          prev.map((c) =>
-            c.id === conversationId
-              ? {
-                  ...c,
-                  runId: null,
-                  messages: [...(c.messages || []), { text: tRef.current('window.genericError'), sender: 'ai' }],
-                }
-              : c,
-          ),
-        );
-      }
+      await runConversation(conversationId, text, clientMsgId, modelForSend);
     },
-    [activeChatId, selectChat, modelConfig, modelOptions, clearDraft],
+    [activeChatId, selectChat, resolveModelForSend, runConversation, clearDraft],
+  );
+
+  // Переотправить вопрос после ошибки: убираем ошибочный AI-пузырь и заново запускаем
+  // прогон по тому же тексту. Пузырь пользователя уже на месте — новый не добавляем,
+  // эхо USER_MESSAGE гасится по clientMsgId. Чистый случай (без дублей на бэке) —
+  // сбой самого POST /runs: прогон не стартовал и вопрос ещё не сохранён. Для
+  // асинхронной RUN_ERROR вопрос уже в памяти чата, поэтому повтор создаёт новый ход.
+  const handleRetryMessage = useCallback(
+    (index) => {
+      const chat = chatsRef.current.find((c) => c.id === activeChatId);
+      if (!chat || chat.runId) return; // во время генерации повтор недоступен
+      const msgs = chat.messages || [];
+      const target = msgs[index];
+      if (!target || target.sender !== 'ai' || !target.error) return;
+      // Текст для повтора: явный retryText или ближайший пузырь пользователя выше.
+      let text = target.retryText || null;
+      if (!text) {
+        for (let i = index - 1; i >= 0; i--) {
+          if (msgs[i].sender === 'user') {
+            text = msgs[i].text;
+            break;
+          }
+        }
+      }
+      if (!text || !text.trim()) return;
+      const clientMsgId = generateUUID();
+      localClientIdsRef.current.add(clientMsgId);
+      // Снимаем ошибочный AI-пузырь, чтобы не копить ошибки.
+      setChats((prev) =>
+        prev.map((c) =>
+          c.id === activeChatId ? { ...c, messages: (c.messages || []).filter((_, i) => i !== index) } : c,
+        ),
+      );
+      runConversation(activeChatId, text, clientMsgId, resolveModelForSend(chat));
+    },
+    [activeChatId, resolveModelForSend, runConversation],
   );
 
   const handleStopGeneration = useCallback(() => {
@@ -894,6 +945,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
             messages={activeMessages}
             onNavigateToDoc={onNavigateToDoc}
             onLoadMore={handleLoadOlder}
+            onRetry={handleRetryMessage}
             hasMore={!!activeChat?.hasMore}
             canLoadMore={!isStreaming}
           />

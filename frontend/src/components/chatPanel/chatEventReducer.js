@@ -169,11 +169,17 @@ export function applyChatEvent(chat, ev, ctx) {
     }
 
     case 'RUN_ERROR': {
-      const idx = lastAiIndexForRun(msgs, runId);
-      if (idx >= 0) {
-        const partial = (msgs[idx].text || '').trimEnd();
-        msgs[idx] = { ...msgs[idx], text: partial ? partial + ctx.interruptedNote : ctx.errorLabel };
-      }
+      // Помечаем пузырь error:true — под ним покажем кнопку «Повторить» (см. Message.jsx).
+      // Если ассистент ещё не появился (ошибка до первого чанка) — заводим пустой,
+      // чтобы было к чему прицепить ошибку и повтор.
+      let idx = lastAiIndexForRun(msgs, runId);
+      if (idx < 0) idx = pushAi(msgs, runId);
+      const partial = (msgs[idx].text || '').trimEnd();
+      msgs[idx] = {
+        ...msgs[idx],
+        text: partial ? partial + ctx.interruptedNote : ctx.errorLabel,
+        error: true,
+      };
       finalize(msgs, runId);
       return { ...chat, messages: msgs, runId: null };
     }

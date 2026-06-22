@@ -5,7 +5,8 @@
     "viewFormatted": "Show formatted",
     "btnSource": "Source",
     "btnMarkdown": "Markdown",
-    "interrupted": "[⚠ Response interrupted due to a server error]"
+    "interrupted": "[⚠ Response interrupted due to a server error]",
+    "retry": "Retry"
   },
   "window": {
     "defaultTitle": "New chat",
