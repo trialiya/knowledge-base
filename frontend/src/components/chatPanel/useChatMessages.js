@@ -30,19 +30,21 @@ export const transformPage = (rawMsgs) => {
   let sawAi = false;
   for (const m of rawMsgs || []) {
     const type = m.type?.toLowerCase?.();
-    // Сообщения-«крошки» вызовов инструментов несут toolInvocationMetas. Раньше они приходили
+    // Сообщения-«крошки» вызовов инструментов помечены флагом toolCalls. Раньше они приходили
     // как system, теперь — как assistant (не все модели принимают system в середине диалога),
-    // поэтому распознаём их по наличию metas, а не по типу.
-    const metas = m.toolInvocationMetas;
-    if (Array.isArray(metas) && metas.length) {
+    // поэтому распознаём их по флагу, а не по типу сообщения.
+    if (m.toolCalls) {
+      const metas = m.toolInvocationMetas;
       const runId = extractRunId(m);
       const prev = bubbles[bubbles.length - 1];
-      if (sawAi && prev?.sender === 'ai') {
-        prev.toolCalls = [...(prev.toolCalls || []), ...metas.map(metaToCall)];
-        if (runId) prev.toolCallsRunId = runId;
-      } else {
-        // Ассистент этой крошки — в более старой странице: несём metas наверх.
-        leadingMetas.push(...metas.map(metaToCall));
+      if (Array.isArray(metas) && metas.length) {
+        if (sawAi && prev?.sender === 'ai') {
+          prev.toolCalls = [...(prev.toolCalls || []), ...metas.map(metaToCall)];
+          if (runId) prev.toolCallsRunId = runId;
+        } else {
+          // Ассистент этой крошки — в более старой странице: несём metas наверх.
+          leadingMetas.push(...metas.map(metaToCall));
+        }
       }
       continue; // преамбулу как сообщение не рендерим
     }

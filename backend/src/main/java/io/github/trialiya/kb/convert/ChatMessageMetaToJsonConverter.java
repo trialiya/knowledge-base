@@ -16,7 +16,10 @@ public final class ChatMessageMetaToJsonConverter {
 
     /** Projection for reading the new object format {"runId":"...","invocations":[...]}. */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record MetaJson(@Nullable String runId, List<ToolInvocationMeta> invocations) {}
+    private record MetaJson(
+            @Nullable String runId,
+            @Nullable Boolean toolCalls,
+            List<ToolInvocationMeta> invocations) {}
 
     @ReadingConverter
     public static class Reader implements Converter<String, ChatMessageMeta> {
@@ -35,12 +38,15 @@ public final class ChatMessageMetaToJsonConverter {
             try {
                 String trimmed = source.trim();
                 if (trimmed.startsWith("[")) {
-                    // Legacy format: bare array
+                    // Legacy format: bare array — это всегда «крошки» вызовов инструментов.
                     return new ChatMessageMeta(objectMapper.readValue(trimmed, LIST_TYPE));
                 }
-                // New format: {"runId":"...","invocations":[...]}
+                // New format: {"runId":"...","toolCalls":true,"invocations":[...]}.
                 MetaJson json = objectMapper.readValue(trimmed, MetaJson.class);
-                return new ChatMessageMeta(json.runId(), json.invocations());
+                // Старые записи без поля toolCalls — это «крошки» (meta тогда писали только для
+                // них).
+                boolean toolCalls = json.toolCalls() == null || json.toolCalls();
+                return new ChatMessageMeta(json.runId(), toolCalls, json.invocations());
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to deserialize chat message meta", e);
             }
@@ -60,7 +66,7 @@ public final class ChatMessageMetaToJsonConverter {
         public String convert(ChatMessageMeta source) {
             try {
                 return objectMapper.writeValueAsString(
-                        new MetaJson(source.runId(), source.invocations()));
+                        new MetaJson(source.runId(), source.toolCalls(), source.invocations()));
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to serialize chat message meta", e);
             }

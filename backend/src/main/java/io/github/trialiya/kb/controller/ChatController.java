@@ -170,7 +170,8 @@ public class ChatController {
                                                 e.getType().name(),
                                                 e.getCreatedAt(),
                                                 e.getInvocations(),
-                                                e.getMeta() != null ? e.getMeta().runId() : null))
+                                                e.getMeta() != null ? e.getMeta().runId() : null,
+                                                isToolCalls(e)))
                         .toList();
         return new MessagePage(dtos, page.hasMore(), page.oldestCursor());
     }
@@ -467,10 +468,10 @@ public class ChatController {
 
     private ChatMessage toChatMessage(ChatMessageEntity chatMessageEntity) {
         final String message;
-        // «Крошки» вызовов инструментов несут meta и хранят PREAMBLE + JSON: показываем только
-        // преамбулу. Раньше они сохранялись как SYSTEM, теперь — как ASSISTANT, поэтому отличаем
-        // их по наличию meta, а не по типу сообщения.
-        if (chatMessageEntity.getMeta() != null && chatMessageEntity.getText() != null) {
+        // «Крошки» вызовов инструментов хранят PREAMBLE + JSON: показываем только преамбулу.
+        // Раньше их отличали по типу SYSTEM, потом по наличию meta — теперь по явному флагу
+        // meta.toolCalls, чтобы не путать с другими сообщениями, у которых может появиться meta.
+        if (isToolCalls(chatMessageEntity) && chatMessageEntity.getText() != null) {
             final int i = chatMessageEntity.getText().indexOf("\n{");
             message =
                     i > 0
@@ -484,7 +485,13 @@ public class ChatController {
                 chatMessageEntity.getMessageType().getValue(),
                 chatMessageEntity.getCreatedAt(),
                 chatMessageEntity.getInvocations(),
-                chatMessageEntity.getMeta() != null ? chatMessageEntity.getMeta().runId() : null);
+                chatMessageEntity.getMeta() != null ? chatMessageEntity.getMeta().runId() : null,
+                isToolCalls(chatMessageEntity));
+    }
+
+    /** «Крошка» вызовов инструментов — служебное сообщение, которое не показываем пользователю. */
+    private static boolean isToolCalls(ChatMessageEntity entity) {
+        return entity.getMeta() != null && entity.getMeta().toolCalls();
     }
 
     /**
