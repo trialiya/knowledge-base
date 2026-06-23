@@ -30,21 +30,23 @@ export const transformPage = (rawMsgs) => {
   let sawAi = false;
   for (const m of rawMsgs || []) {
     const type = m.type?.toLowerCase?.();
-    if (type === 'system') {
-      const metas = m.toolInvocationMetas;
-      if (Array.isArray(metas) && metas.length) {
-        const runId = extractRunId(m);
-        const prev = bubbles[bubbles.length - 1];
-        if (sawAi && prev?.sender === 'ai') {
-          prev.toolCalls = [...(prev.toolCalls || []), ...metas.map(metaToCall)];
-          if (runId) prev.toolCallsRunId = runId;
-        } else {
-          // Ассистент этой крошки — в более старой странице: несём metas наверх.
-          leadingMetas.push(...metas.map(metaToCall));
-        }
+    // Сообщения-«крошки» вызовов инструментов несут toolInvocationMetas. Раньше они приходили
+    // как system, теперь — как assistant (не все модели принимают system в середине диалога),
+    // поэтому распознаём их по наличию metas, а не по типу.
+    const metas = m.toolInvocationMetas;
+    if (Array.isArray(metas) && metas.length) {
+      const runId = extractRunId(m);
+      const prev = bubbles[bubbles.length - 1];
+      if (sawAi && prev?.sender === 'ai') {
+        prev.toolCalls = [...(prev.toolCalls || []), ...metas.map(metaToCall)];
+        if (runId) prev.toolCallsRunId = runId;
+      } else {
+        // Ассистент этой крошки — в более старой странице: несём metas наверх.
+        leadingMetas.push(...metas.map(metaToCall));
       }
       continue; // преамбулу как сообщение не рендерим
     }
+    if (type === 'system') continue; // прочие системные сообщения (напр. summary) не показываем
     if (type !== 'user') sawAi = true;
     bubbles.push({
       mid: nextMessageId(),

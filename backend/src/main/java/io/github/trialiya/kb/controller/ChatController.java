@@ -34,7 +34,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -468,8 +467,10 @@ public class ChatController {
 
     private ChatMessage toChatMessage(ChatMessageEntity chatMessageEntity) {
         final String message;
-        if (chatMessageEntity.getMessageType() == MessageType.SYSTEM
-                && chatMessageEntity.getText() != null) {
+        // «Крошки» вызовов инструментов несут meta и хранят PREAMBLE + JSON: показываем только
+        // преамбулу. Раньше они сохранялись как SYSTEM, теперь — как ASSISTANT, поэтому отличаем
+        // их по наличию meta, а не по типу сообщения.
+        if (chatMessageEntity.getMeta() != null && chatMessageEntity.getText() != null) {
             final int i = chatMessageEntity.getText().indexOf("\n{");
             message =
                     i > 0

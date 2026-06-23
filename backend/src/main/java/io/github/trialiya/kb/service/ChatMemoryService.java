@@ -196,12 +196,16 @@ public class ChatMemoryService implements ChatMemoryRepository {
         for (ToolInvocation toolCall : filtered) {
             meta.add(toolCall.toMeta(true));
         }
+        // Сохраняем «крошки» как ASSISTANT, а не SYSTEM: не все модели принимают системные
+        // сообщения в середине диалога. Пользователю это сообщение по-прежнему не показываем —
+        // фронт распознаёт его по наличию toolInvocationMetas (см. transformPage), а контроллер
+        // вырезает JSON по наличию meta (см. toChatMessage).
         chatMessageRepository.save(
                 new ChatMessageEntity(
                         0L,
                         conversationId,
                         PREAMBLE + "\n" + json,
-                        MessageType.SYSTEM,
+                        MessageType.ASSISTANT,
                         nextPosition(conversationId),
                         false,
                         false,
