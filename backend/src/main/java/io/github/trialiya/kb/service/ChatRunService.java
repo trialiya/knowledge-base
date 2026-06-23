@@ -10,6 +10,7 @@ import static io.github.trialiya.kb.model.chat.dto.ChatEventType.TOOL_CALL;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.TOOL_CALLS;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.USER_MESSAGE;
 
+import com.openai.models.chat.completions.ChatCompletion;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.StreamMessage;
 import io.github.trialiya.kb.model.chat.dto.ToolCallMessage;
@@ -27,6 +28,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
@@ -57,6 +59,9 @@ public class ChatRunService {
     private static final String STOPPED_MARKER = "[stopped]";
 
     private static final String ERROR_MARKER = "[error]";
+
+    public static final String _UNKNOWN_FINISH_REASON =
+            ChatCompletion.Choice.FinishReason.Value._UNKNOWN.name();
 
     private final ChatClient chatClient;
     private final ChatMemory chatMemory;
@@ -238,9 +243,10 @@ public class ChatRunService {
                         .map(ChatResponse::getResult)
                         .map(Generation::getMetadata)
                         .map(ChatGenerationMetadata::getFinishReason)
+                        .filter(Predicate.not(_UNKNOWN_FINISH_REASON::equals))
                         .orElse(null);
 
-        if (chunk != null && !chunk.isEmpty()) {
+        if (!chunk.isEmpty()) {
             buffer.append(chunk);
         }
         liveSink.accept(new StreamMessage(chunk, finishReason));
@@ -323,7 +329,9 @@ public class ChatRunService {
 
     private void printUsageStatistics(
             String conversationId, ChatResponse response, String finishReason) {
-        if (finishReason == null || finishReason.isEmpty()) {
+        if (finishReason == null
+                || finishReason.isEmpty()
+                || finishReason.equals(_UNKNOWN_FINISH_REASON)) {
             return;
         }
         Optional.ofNullable(response)
