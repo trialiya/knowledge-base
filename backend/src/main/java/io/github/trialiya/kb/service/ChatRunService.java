@@ -167,11 +167,13 @@ public class ChatRunService {
                 payload -> {
                     if (payload instanceof ToolCallMessage tcm) {
                         if (tcm.toolCall().status() != ToolInvocationStatus.STARTED) {
-                            chatMemoryService.saveToolCallIncremental(
-                                    conversationId,
-                                    runId,
-                                    tcm.toolCall().callIndex(),
-                                    tcm.toolCall());
+                            // DB write is best-effort bookkeeping; offload it so SSE goes out
+                            // immediately without waiting for disk I/O.
+                            final var tc = tcm.toolCall();
+                            executor.execute(
+                                    () ->
+                                            chatMemoryService.saveToolCallIncremental(
+                                                    conversationId, runId, tc.callIndex(), tc));
                         }
                     }
                     events.publish(conversationId, eventType(payload), runId, null, payload);
