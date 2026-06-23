@@ -470,7 +470,7 @@
   flex: 1;
   border: 1.5px solid var(--kb-border);
   border-radius: 20px;
-  padding: 0.6rem 2.8rem 0.6rem 2.6rem; /* space for attach left, send right */
+  padding: 0.6rem 2.8rem 0.85rem 2.6rem; /* space for attach left, send right */
   font-size: 0.9rem;
   line-height: 1.5;
   min-height: 100px;

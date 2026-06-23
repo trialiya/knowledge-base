@@ -436,6 +436,19 @@ const FileChipInput = forwardRef(function FileChipInput(
           newRange.collapse(true);
           sel2.removeAllRanges();
           sel2.addRange(newRange);
+
+          // Scroll the editor so the cursor line is visible.
+          requestAnimationFrame(() => {
+            const editorEl = editorRef.current;
+            if (!editorEl) return;
+            const curSel = window.getSelection();
+            if (!curSel?.rangeCount) return;
+            const curRect = curSel.getRangeAt(0).getBoundingClientRect();
+            const editorRect = editorEl.getBoundingClientRect();
+            if (curRect.bottom > editorRect.bottom - 4) {
+              editorEl.scrollTop += curRect.bottom - editorRect.bottom + 10;
+            }
+          });
         }
         emitChange();
       }
