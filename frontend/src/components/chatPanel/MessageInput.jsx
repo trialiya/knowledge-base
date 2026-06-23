@@ -31,6 +31,7 @@ const MessageInput = ({
   // при переключении чата через initialText.
   useEffect(() => {
     setText(initialText);
+    inputRef.current?.focus();
   }, [chatId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Внешний сброс поля ввода (например, «удаление» черновика чата). Только на реальное
