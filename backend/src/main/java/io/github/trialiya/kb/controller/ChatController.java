@@ -34,7 +34,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -171,7 +170,8 @@ public class ChatController {
                                                 e.getType().name(),
                                                 e.getCreatedAt(),
                                                 e.getInvocations(),
-                                                e.getMeta() != null ? e.getMeta().runId() : null))
+                                                e.getMeta() != null ? e.getMeta().runId() : null,
+                                                isToolCalls(e)))
                         .toList();
         return new MessagePage(dtos, page.hasMore(), page.oldestCursor());
     }
@@ -468,8 +468,10 @@ public class ChatController {
 
     private ChatMessage toChatMessage(ChatMessageEntity chatMessageEntity) {
         final String message;
-        if (chatMessageEntity.getMessageType() == MessageType.SYSTEM
-                && chatMessageEntity.getText() != null) {
+        // «Крошки» вызовов инструментов хранят PREAMBLE + JSON: показываем только преамбулу.
+        // Раньше их отличали по типу SYSTEM, потом по наличию meta — теперь по явному флагу
+        // meta.toolCalls, чтобы не путать с другими сообщениями, у которых может появиться meta.
+        if (isToolCalls(chatMessageEntity) && chatMessageEntity.getText() != null) {
             final int i = chatMessageEntity.getText().indexOf("\n{");
             message =
                     i > 0
@@ -483,7 +485,13 @@ public class ChatController {
                 chatMessageEntity.getMessageType().getValue(),
                 chatMessageEntity.getCreatedAt(),
                 chatMessageEntity.getInvocations(),
-                chatMessageEntity.getMeta() != null ? chatMessageEntity.getMeta().runId() : null);
+                chatMessageEntity.getMeta() != null ? chatMessageEntity.getMeta().runId() : null,
+                isToolCalls(chatMessageEntity));
+    }
+
+    /** «Крошка» вызовов инструментов — служебное сообщение, которое не показываем пользователю. */
+    private static boolean isToolCalls(ChatMessageEntity entity) {
+        return entity.getMeta() != null && entity.getMeta().toolCalls();
     }
 
     /**

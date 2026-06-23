@@ -30,11 +30,14 @@ export const transformPage = (rawMsgs) => {
   let sawAi = false;
   for (const m of rawMsgs || []) {
     const type = m.type?.toLowerCase?.();
-    if (type === 'system') {
+    // Сообщения-«крошки» вызовов инструментов помечены флагом toolCalls. Раньше они приходили
+    // как system, теперь — как assistant (не все модели принимают system в середине диалога),
+    // поэтому распознаём их по флагу, а не по типу сообщения.
+    if (m.toolCalls) {
       const metas = m.toolInvocationMetas;
+      const runId = extractRunId(m);
+      const prev = bubbles[bubbles.length - 1];
       if (Array.isArray(metas) && metas.length) {
-        const runId = extractRunId(m);
-        const prev = bubbles[bubbles.length - 1];
         if (sawAi && prev?.sender === 'ai') {
           prev.toolCalls = [...(prev.toolCalls || []), ...metas.map(metaToCall)];
           if (runId) prev.toolCallsRunId = runId;
@@ -45,6 +48,7 @@ export const transformPage = (rawMsgs) => {
       }
       continue; // преамбулу как сообщение не рендерим
     }
+    if (type === 'system') continue; // прочие системные сообщения (напр. summary) не показываем
     if (type !== 'user') sawAi = true;
     bubbles.push({
       mid: nextMessageId(),

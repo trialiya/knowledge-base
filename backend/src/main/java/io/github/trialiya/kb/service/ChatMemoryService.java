@@ -196,17 +196,21 @@ public class ChatMemoryService implements ChatMemoryRepository {
         for (ToolInvocation toolCall : filtered) {
             meta.add(toolCall.toMeta(true));
         }
+        // Сохраняем «крошки» как ASSISTANT, а не SYSTEM: не все модели принимают системные
+        // сообщения в середине диалога. Пользователю это сообщение по-прежнему не показываем —
+        // его помечает флаг meta.toolCalls=true, по которому контроллер вырезает JSON
+        // (см. toChatMessage), а фронт прячет пузырь (см. transformPage).
         chatMessageRepository.save(
                 new ChatMessageEntity(
                         0L,
                         conversationId,
                         PREAMBLE + "\n" + json,
-                        MessageType.SYSTEM,
+                        MessageType.ASSISTANT,
                         nextPosition(conversationId),
                         false,
                         false,
                         LocalDateTime.now(),
-                        new ChatMessageMeta(runId, meta)));
+                        new ChatMessageMeta(runId, true, meta)));
     }
 
     private long nextPosition(String conversationId) {
