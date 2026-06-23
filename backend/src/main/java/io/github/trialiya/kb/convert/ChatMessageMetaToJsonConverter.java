@@ -41,12 +41,11 @@ public final class ChatMessageMetaToJsonConverter {
                     // Legacy format: bare array — это всегда «крошки» вызовов инструментов.
                     return new ChatMessageMeta(objectMapper.readValue(trimmed, LIST_TYPE));
                 }
-                // New format: {"runId":"...","toolCalls":true,"invocations":[...]}.
+                // New format: {"runId":"...","toolCalls":true,"invocations":[...]}. Поле toolCalls
+                // проставлено и в новых записях, и в старых (см. миграцию backfill).
                 MetaJson json = objectMapper.readValue(trimmed, MetaJson.class);
-                // Старые записи без поля toolCalls — это «крошки» (meta тогда писали только для
-                // них).
-                boolean toolCalls = json.toolCalls() == null || json.toolCalls();
-                return new ChatMessageMeta(json.runId(), toolCalls, json.invocations());
+                return new ChatMessageMeta(
+                        json.runId(), Boolean.TRUE.equals(json.toolCalls()), json.invocations());
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to deserialize chat message meta", e);
             }
