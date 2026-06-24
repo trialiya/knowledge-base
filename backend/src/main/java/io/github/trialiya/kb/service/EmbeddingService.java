@@ -21,7 +21,6 @@ import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.ai.openai.OpenAiEmbeddingModel;
 import org.springframework.ai.openai.OpenAiEmbeddingOptions;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Produces {@code float[]} embedding vectors with three layers of optimisation:
@@ -90,7 +89,6 @@ public class EmbeddingService {
      * Embeds a single text, going through the cache and chunker. For query strings this is
      * typically called with short text, so chunking rarely activates.
      */
-    @Transactional
     public EmbeddingResponse embed(String text) {
         if (!enabled) {
             return new EmbeddingResponse(List.of());
@@ -103,7 +101,6 @@ public class EmbeddingService {
      * Embeds {@code title + "\n" + description} as a document representation. Delegates to {@link
      * #embed} so caching and chunking apply automatically.
      */
-    @Transactional
     public EmbeddingResponse embedDocument(String title, String description) {
         if (!enabled) {
             return new EmbeddingResponse(List.of());
@@ -128,7 +125,6 @@ public class EmbeddingService {
      * @param texts input strings, in order
      * @return vectors in the same order as {@code texts}
      */
-    @Transactional
     public List<float[]> embedBatch(List<String> texts) {
         if (!enabled) {
             return List.of();

@@ -84,6 +84,12 @@ kb:
     # Number of documents sent to embedBatch() per slice during reindexAll().
     # Keep below OpenAI's per-request limit (~2 048 inputs / ~300 k tokens).
     reindex-batch-size: 50
+    # Max concurrent OpenAI embedding API calls (semaphore on virtual-thread executor).
+    workers: 4
+    # How many embedding_tasks rows to claim per scheduler poll.
+    poll-batch-size: 20
+    # Delay between scheduler polls in milliseconds.
+    poll-interval-ms: 1000
     cache:
       # Set to false to bypass the Postgres cache entirely (e.g. in tests).
       enabled: true

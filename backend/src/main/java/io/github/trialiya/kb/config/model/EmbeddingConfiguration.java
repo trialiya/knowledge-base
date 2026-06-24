@@ -10,6 +10,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *   embedding:
  *     model: text-embedding-3-small
  *     reindex-batch-size: 50
+ *     workers: 4
+ *     poll-batch-size: 20
  *     cache:
  *       enabled: true
  *       ttl-days: 30
@@ -23,6 +25,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record EmbeddingConfiguration(
         String model,
         int reindexBatchSize,
+        int workers,
+        int pollBatchSize,
         EmbeddingCacheConfiguration cache,
         EmbeddingChunkerConfiguration chunker) {
 
