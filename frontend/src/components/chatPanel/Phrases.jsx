@@ -1,30 +1,13 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchPhrases, toggleFavorite } from './phrasesApi';
-import { IconStar } from '../../icons';
+import { IconStar, IconSparkleSimple } from '../../icons';
 import './phrases.css';
 
 // Сентинелы фильтров. Префиксы делают коллизию с пользовательской категорией
 // практически невозможной.
 const ALL = '__all__';
 const FAVORITES = '__fav__';
-
-// Простая звёздочка-вспышка для плейсхолдеров фраз.
-// Дизайн отличается от IconSparkle из icons/ (та 16×16 с заливкой), поэтому локальная.
-const IconSparkleSimple = () => (
-  <svg
-    width="14"
-    height="14"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" />
-  </svg>
-);
 
 /**
  * Блок готовых фраз над полем ввода (обычно на пустом чате).

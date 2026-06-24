@@ -433,8 +433,8 @@ export const IconDots = ({ size = 18 }) => (
 );
 
 /** Глобус — переключение языка. */
-export const IconWorld = ({ size = 16 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" {...s}>
+export const IconWorld = ({ size = 16, className }) => (
+  <svg className={className} width={size} height={size} viewBox="0 0 24 24" {...s}>
     <circle cx="12" cy="12" r="10" />
     <line x1="2" y1="12" x2="22" y2="12" />
     <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
@@ -519,5 +519,98 @@ export const IconFileText = ({ size = 16 }) => (
     <line x1="16" y1="13" x2="8" y2="13" />
     <line x1="16" y1="17" x2="8" y2="17" />
     <line x1="10" y1="9" x2="8" y2="9" />
+  </svg>
+);
+
+// ─── Drag / reorder ───────────────────────────────────────────────────────────
+
+/** Шесть точек (2×3) — ручка перетаскивания в дереве. viewBox 10×14. */
+export const IconDragHandle = () => (
+  <svg width="10" height="14" viewBox="0 0 10 14" fill="none">
+    <circle cx="3" cy="2" r="1.2" fill="currentColor" />
+    <circle cx="7" cy="2" r="1.2" fill="currentColor" />
+    <circle cx="3" cy="7" r="1.2" fill="currentColor" />
+    <circle cx="7" cy="7" r="1.2" fill="currentColor" />
+    <circle cx="3" cy="12" r="1.2" fill="currentColor" />
+    <circle cx="7" cy="12" r="1.2" fill="currentColor" />
+  </svg>
+);
+
+// ─── AI / phrases ─────────────────────────────────────────────────────────────
+
+/** Простая звёздочка-вспышка (24×24 stroke, без заливки) — заголовок блока фраз. */
+export const IconSparkleSimple = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" {...s}>
+    <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" />
+  </svg>
+);
+
+// ─── Refresh (stroke variant) ─────────────────────────────────────────────────
+
+/** Круговые стрелки — перегрузить/синхронизировать. Принимает spinning для CSS-анимации. */
+export const IconRefreshCw = ({ size = 14, spinning }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    style={{ animation: spinning ? 'jira-panel-spin 0.8s linear infinite' : 'none' }}
+  >
+    <polyline points="23 4 23 10 17 10" />
+    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+  </svg>
+);
+
+// ─── Brand / integration logos ────────────────────────────────────────────────
+
+/** Логотип Jira (32×32 viewBox, fill-based). */
+export const IconJira = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+    <path d="M16 2L2 16l14 14 14-14L16 2zm0 4.83L25.17 16 16 25.17 6.83 16 16 6.83z" fill="currentColor" opacity=".4" />
+    <path d="M16 9.66L9.66 16 16 22.34 22.34 16 16 9.66z" fill="currentColor" />
+  </svg>
+);
+
+/** Логотип Confluence (32×32 viewBox, fill-based). */
+export const IconConfluence = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+    <path
+      d="M2.5 22.6c-.4.6-.8 1.4-.4 2 .2.3.6.5 1 .5h7.2c.5 0 .9-.3 1.1-.7 1-1.9 1.9-3.5 5.6-3.5s4.6 1.6 5.6 3.5c.2.4.6.7 1.1.7H30c.4 0 .8-.2 1-.5.4-.6 0-1.4-.4-2C27.4 18 22 14.7 16 14.7S4.6 18 2.5 22.6z"
+      fill="currentColor"
+    />
+    <path
+      d="M29.5 9.4c.4-.6.8-1.4.4-2-.2-.3-.6-.5-1-.5h-7.2c-.5 0-.9.3-1.1.7C19.6 9.5 18.7 11 15 11s-4.6-1.5-5.6-3.4C9.2 7.2 8.8 7 8.3 7H1.1c-.4 0-.8.2-1 .5-.4.6 0 1.4.4 2C4.6 14 10 17.3 16 17.3s11.4-3.3 13.5-7.9z"
+      fill="currentColor"
+      opacity=".6"
+    />
+  </svg>
+);
+
+// ─── Tool-call status indicators ──────────────────────────────────────────────
+
+/** Жёлтый пунктирный круг — вызов инструмента выполняется. */
+export const IconStatusStarted = () => (
+  <svg className="tool-call-status-svg tool-call-status-svg--started" width="14" height="14" viewBox="0 0 16 16">
+    <circle cx="8" cy="8" r="6" fill="none" stroke="#d99a00" strokeWidth="2" strokeDasharray="9 5" />
+  </svg>
+);
+
+/** Зелёный круг с галочкой — вызов инструмента выполнен успешно. */
+export const IconStatusOk = () => (
+  <svg className="tool-call-status-svg tool-call-status-svg--ok" width="14" height="14" viewBox="0 0 16 16">
+    <circle cx="8" cy="8" r="7" fill="#34a853" />
+    <path d="M5 8.2l2 2 4-4.4" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+/** Красный круг с крестом — вызов инструмента завершился ошибкой. */
+export const IconStatusError = () => (
+  <svg className="tool-call-status-svg tool-call-status-svg--error" width="14" height="14" viewBox="0 0 16 16">
+    <circle cx="8" cy="8" r="7" fill="#ea4335" />
+    <path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
   </svg>
 );

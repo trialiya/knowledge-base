@@ -3,109 +3,7 @@ import { useTranslation } from 'react-i18next';
 import './jiraAttachmentPanel.css';
 import chatApi from '../../api/chatApi';
 import { formatFileSize } from '../common/attachmentApi';
-
-// ─── Icons ────────────────────────────────────────────────────────────────────
-
-const IconJira = () => (
-  <svg width="16" height="16" viewBox="0 0 32 32" fill="none">
-    <path d="M16 2L2 16l14 14 14-14L16 2zm0 4.83L25.17 16 16 25.17 6.83 16 16 6.83z" fill="currentColor" opacity=".4" />
-    <path d="M16 9.66L9.66 16 16 22.34 22.34 16 16 9.66z" fill="currentColor" />
-  </svg>
-);
-
-const IconConfluence = () => (
-  <svg width="16" height="16" viewBox="0 0 32 32" fill="none">
-    <path
-      d="M2.5 22.6c-.4.6-.8 1.4-.4 2 .2.3.6.5 1 .5h7.2c.5 0 .9-.3 1.1-.7 1-1.9 1.9-3.5 5.6-3.5s4.6 1.6 5.6 3.5c.2.4.6.7 1.1.7H30c.4 0 .8-.2 1-.5.4-.6 0-1.4-.4-2C27.4 18 22 14.7 16 14.7S4.6 18 2.5 22.6z"
-      fill="currentColor"
-    />
-    <path
-      d="M29.5 9.4c.4-.6.8-1.4.4-2-.2-.3-.6-.5-1-.5h-7.2c-.5 0-.9.3-1.1.7C19.6 9.5 18.7 11 15 11s-4.6-1.5-5.6-3.4C9.2 7.2 8.8 7 8.3 7H1.1c-.4 0-.8.2-1 .5-.4.6 0 1.4.4 2C4.6 14 10 17.3 16 17.3s11.4-3.3 13.5-7.9z"
-      fill="currentColor"
-      opacity=".6"
-    />
-  </svg>
-);
-
-const IconFile = () => (
-  <svg
-    width="14"
-    height="14"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-    <polyline points="14 2 14 8 20 8" />
-  </svg>
-);
-
-const IconRefresh = ({ spinning }) => (
-  <svg
-    width="14"
-    height="14"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    style={{ animation: spinning ? 'jira-panel-spin 0.8s linear infinite' : 'none' }}
-  >
-    <polyline points="23 4 23 10 17 10" />
-    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-  </svg>
-);
-
-const IconEye = () => (
-  <svg
-    width="13"
-    height="13"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-    <circle cx="12" cy="12" r="3" />
-  </svg>
-);
-
-const IconClose = () => (
-  <svg
-    width="12"
-    height="12"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.5"
-    strokeLinecap="round"
-  >
-    <line x1="18" y1="6" x2="6" y2="18" />
-    <line x1="6" y1="6" x2="18" y2="18" />
-  </svg>
-);
-
-const IconLink = () => (
-  <svg
-    width="11"
-    height="11"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-  </svg>
-);
+import { IconJira, IconConfluence, IconDoc, IconRefreshCw, IconEye, IconX, IconLink } from '../../icons';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -153,7 +51,7 @@ const ContentDrawer = ({ attachment, onClose }) => {
         <div className="jira-drawer__header">
           <span className="jira-drawer__title">{attachment.fileName}</span>
           <button className="jira-drawer__close" onClick={onClose}>
-            <IconClose />
+            <IconX />
           </button>
         </div>
         <div className="jira-drawer__body">
@@ -178,7 +76,7 @@ const AttachmentCard = ({ attachment, onView }) => {
     <div className={`jira-att-card jira-att-card--${type}`}>
       <div className="jira-att-card__head">
         <span className="jira-att-card__type-icon">
-          {type === 'jira' ? <IconJira /> : type === 'confluence' ? <IconConfluence /> : <IconFile />}
+          {type === 'jira' ? <IconJira /> : type === 'confluence' ? <IconConfluence /> : <IconDoc size={14} />}
         </span>
         <span className="jira-att-card__name" title={attachment.fileName}>
           {attachment.fileName}
@@ -199,7 +97,7 @@ const AttachmentCard = ({ attachment, onView }) => {
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
         >
-          <IconLink /> {t('jira.openSource')}
+          <IconLink size={11} /> {t('jira.openSource')}
         </a>
       )}
     </div>
@@ -276,7 +174,7 @@ const JiraAttachmentPanel = ({ conversationId, jiraUrl, onCountChange }) => {
             disabled={refreshing || loading}
             title={t('jira.refreshTitle')}
           >
-            <IconRefresh spinning={refreshing} />
+            <IconRefreshCw spinning={refreshing} />
             {refreshing ? t('jira.refreshing') : t('jira.refresh')}
           </button>
         )}

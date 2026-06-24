@@ -9,46 +9,20 @@ import CodeBlock from '../common/CodeBlock';
 import HistoryModal from '../knowledgeBasePanel/HistoryModal';
 import ToolCallDetailModal from './ToolCallDetailModal';
 import { getToolIcon, toolLabelKey, humanizeTool, getDocChangeRef } from './toolMeta';
-import { IconCopySmall, IconCopied } from '../../icons';
+import { IconCopySmall, IconCopied, IconStatusStarted, IconStatusOk, IconStatusError } from '../../icons';
 import { COPY_DONE_MS, GIST_PREVIEW_LEN } from '../../constants/ui';
 import './styles/tool-call-detail-modal.css';
-
-/** SVG status indicators — not clickable, purely visual */
-const IconStarted = () => (
-  <svg className="tool-call-status-svg tool-call-status-svg--started" width="14" height="14" viewBox="0 0 16 16">
-    <circle cx="8" cy="8" r="6" fill="none" stroke="#d99a00" strokeWidth="2" strokeDasharray="9 5" />
-  </svg>
-);
-const IconOk = () => (
-  <svg className="tool-call-status-svg tool-call-status-svg--ok" width="14" height="14" viewBox="0 0 16 16">
-    <circle cx="8" cy="8" r="7" fill="#34a853" />
-    <path
-      d="M5 8.2l2 2 4-4.4"
-      fill="none"
-      stroke="#fff"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-const IconError = () => (
-  <svg className="tool-call-status-svg tool-call-status-svg--error" width="14" height="14" viewBox="0 0 16 16">
-    <circle cx="8" cy="8" r="7" fill="#ea4335" />
-    <path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
-  </svg>
-);
 
 const StatusIcon = ({ status }) => {
   switch (status) {
     case 'STARTED':
-      return <IconStarted />;
+      return <IconStatusStarted />;
     case 'OK':
-      return <IconOk />;
+      return <IconStatusOk />;
     case 'ERROR':
-      return <IconError />;
+      return <IconStatusError />;
     default:
-      return <IconStarted />;
+      return <IconStatusStarted />;
   }
 };
 

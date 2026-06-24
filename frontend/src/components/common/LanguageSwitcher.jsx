@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { IconWorld, IconChevronDown } from '../../icons';
 import './languageSwitcher.css';
 
 const LANGS = [
@@ -67,38 +68,9 @@ export default function LanguageSwitcher() {
         aria-label="Язык интерфейса"
         onClick={() => setOpen((v) => !v)}
       >
-        {/* глобус */}
-        <svg
-          className="lang-switch__globe"
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <circle cx="12" cy="12" r="9" />
-          <path d="M3 12h18" />
-          <path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18" />
-        </svg>
+        <IconWorld className="lang-switch__globe" size={16} />
         <span className="lang-switch__code">{currentLang.short}</span>
-        <svg
-          className={`lang-switch__chevron${open ? ' lang-switch__chevron--open' : ''}`}
-          width="12"
-          height="12"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M6 9l6 6 6-6" />
-        </svg>
+        <IconChevronDown className={`lang-switch__chevron${open ? ' lang-switch__chevron--open' : ''}`} size={12} />
       </button>
 
       {open && (
