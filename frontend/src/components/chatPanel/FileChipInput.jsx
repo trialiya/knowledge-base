@@ -438,15 +438,18 @@ const FileChipInput = forwardRef(function FileChipInput(
           sel2.addRange(newRange);
 
           // Scroll the editor so the cursor line is visible.
+          // A collapsed range after a <br> returns zero rects, so we measure
+          // via a temporary inline span inserted at the cursor position.
           requestAnimationFrame(() => {
             const editorEl = editorRef.current;
             if (!editorEl) return;
-            const curSel = window.getSelection();
-            if (!curSel?.rangeCount) return;
-            const curRect = curSel.getRangeAt(0).getBoundingClientRect();
+            const tmp = document.createElement('span');
+            sentinel.before(tmp);
+            const tmpRect = tmp.getBoundingClientRect();
+            tmp.remove();
             const editorRect = editorEl.getBoundingClientRect();
-            if (curRect.bottom > editorRect.bottom - 4) {
-              editorEl.scrollTop += curRect.bottom - editorRect.bottom + 10;
+            if (tmpRect.bottom > editorRect.bottom - 4) {
+              editorEl.scrollTop += tmpRect.bottom - editorRect.bottom + 10;
             }
           });
         }
