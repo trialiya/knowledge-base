@@ -13,6 +13,7 @@ const MessageInput = ({
   onAttach,
   isEmpty = false,
   resetSignal = 0,
+  focusSignal = 0,
   chatId = null,
   initialText = '',
   onTextChange,
@@ -31,6 +32,7 @@ const MessageInput = ({
   // при переключении чата через initialText.
   useEffect(() => {
     setText(initialText);
+    inputRef.current?.focus();
   }, [chatId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Внешний сброс поля ввода (например, «удаление» черновика чата). Только на реальное
@@ -47,6 +49,10 @@ const MessageInput = ({
   useEffect(() => {
     if (!disabled) inputRef.current?.focus();
   }, [disabled]);
+
+  useEffect(() => {
+    if (focusSignal) inputRef.current?.focus();
+  }, [focusSignal]);
 
   // Отправка: разворачиваем токены файлов в содержимое, затем отдаём наверх.
   const handleSubmit = async () => {
