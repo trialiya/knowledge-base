@@ -13,6 +13,7 @@ const MessageInput = ({
   onAttach,
   isEmpty = false,
   resetSignal = 0,
+  focusSignal = 0,
   chatId = null,
   initialText = '',
   onTextChange,
@@ -48,6 +49,10 @@ const MessageInput = ({
   useEffect(() => {
     if (!disabled) inputRef.current?.focus();
   }, [disabled]);
+
+  useEffect(() => {
+    if (focusSignal) inputRef.current?.focus();
+  }, [focusSignal]);
 
   // Отправка: разворачиваем токены файлов в содержимое, затем отдаём наверх.
   const handleSubmit = async () => {

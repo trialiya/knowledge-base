@@ -91,6 +91,8 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   const [uploadErrorNotice, setUploadErrorNotice] = useState(false);
   // Bump → очистить текст в MessageInput («удаление» черновика).
   const [composerResetSignal, setComposerResetSignal] = useState(0);
+  // Bump → сфокусировать MessageInput (при активации панели чата).
+  const [composerFocusSignal, setComposerFocusSignal] = useState(0);
   // Неотправленные черновики по чатам ({ chatId: text }). Живут в localStorage,
   // чтобы переключение чатов и перезагрузка не теряли набранный текст.
   const draftsRef = useRef(loadDrafts());
@@ -164,6 +166,11 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       localStorage.setItem(STORAGE_KEY_ACTIVE_CHAT, propActiveChatId);
     }
   }, [propActiveChatId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Фокус на поле ввода при переключении на панель чата.
+  useEffect(() => {
+    if (isActive) setComposerFocusSignal((n) => n + 1);
+  }, [isActive]);
 
   // Загрузка списка чатов
   useEffect(() => {
@@ -763,6 +770,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
             onAttach={() => attachFileRef.current?.click()}
             isEmpty={isChatEmpty && !loadingMessages}
             resetSignal={composerResetSignal}
+            focusSignal={composerFocusSignal}
             chatId={activeChatId}
             initialText={getDraft(draftsRef.current, activeChatId)}
             onTextChange={(v) => handleComposerTextChange(activeChatId, v)}
