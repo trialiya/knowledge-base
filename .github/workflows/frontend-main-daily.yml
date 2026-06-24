@@ -31,7 +31,7 @@ jobs:
     outputs:
       changed: ${{ steps.check.outputs.changed }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # полная история — нужна для git diff с прошлым SHA
 
@@ -87,7 +87,7 @@ jobs:
     if: needs.detect.outputs.changed == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup JDK
         uses: actions/setup-java@v5
