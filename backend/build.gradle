@@ -85,7 +85,7 @@ dependencyManagement {
     imports {
         mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
         // Spring Boot 4 no longer manages Testcontainers versions in its BOM, so import it directly.
-        mavenBom "org.testcontainers:testcontainers-bom:1.21.4"
+        mavenBom "org.testcontainers:testcontainers-bom:2.0.5"
     }
 }
 
