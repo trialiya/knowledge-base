@@ -28,6 +28,14 @@ public class EmbeddingExecutor {
     }
 
     /**
+     * Number of semaphore permits currently available — used by the scheduler for adaptive batch
+     * sizing so it does not claim more tasks than the executor can immediately start.
+     */
+    public int availablePermits() {
+        return semaphore.availablePermits();
+    }
+
+    /**
      * Submits {@code task} for async execution. Returns immediately. The task runs on a virtual
      * thread once a semaphore permit is available.
      */

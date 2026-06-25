@@ -12,6 +12,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *     reindex-batch-size: 50
  *     workers: 4
  *     poll-batch-size: 20
+ *     max-attempts: 3
+ *     stuck-timeout-minutes: 10
+ *     stuck-check-ms: 300000
+ *     cleanup-retention-days: 7
  *     cache:
  *       enabled: true
  *       ttl-days: 30
@@ -27,6 +31,9 @@ public record EmbeddingConfiguration(
         int reindexBatchSize,
         int workers,
         int pollBatchSize,
+        int maxAttempts,
+        int stuckTimeoutMinutes,
+        int cleanupRetentionDays,
         EmbeddingCacheConfiguration cache,
         EmbeddingChunkerConfiguration chunker) {
 

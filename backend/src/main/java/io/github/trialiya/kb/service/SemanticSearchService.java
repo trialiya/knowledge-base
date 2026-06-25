@@ -173,14 +173,14 @@ public class SemanticSearchService {
     private int enqueueAllDocuments() {
         List<DocumentEntity> all = new ArrayList<>();
         documentRepo.findAll().forEach(all::add);
-        all.forEach(doc -> taskRepo.enqueue("document", doc.getId()));
+        all.forEach(doc -> taskRepo.enqueueIfAbsent("document", doc.getId()));
         return all.size();
     }
 
     private int enqueueAllAttachments() {
         List<AttachmentEntity> all = new ArrayList<>();
         attachmentRepo.findAll().forEach(all::add);
-        all.forEach(att -> taskRepo.enqueue("attachment", att.getId()));
+        all.forEach(att -> taskRepo.enqueueIfAbsent("attachment", att.getId()));
         return all.size();
     }
 

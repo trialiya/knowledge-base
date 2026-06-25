@@ -90,6 +90,14 @@ kb:
     poll-batch-size: 20
     # Delay between scheduler polls in milliseconds.
     poll-interval-ms: 1000
+    # Maximum attempts before a task is permanently marked failed.
+    max-attempts: 3
+    # Minutes a task may stay in 'starting' before the stuck-task reaper resets it.
+    stuck-timeout-minutes: 10
+    # Delay between stuck-task reaper runs in milliseconds.
+    stuck-check-ms: 300000
+    # Days to keep done/failed/superseded rows before cleanup deletes them.
+    cleanup-retention-days: 7
     cache:
       # Set to false to bypass the Postgres cache entirely (e.g. in tests).
       enabled: true
