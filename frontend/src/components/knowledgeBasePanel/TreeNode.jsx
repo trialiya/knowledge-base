@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconFolder, IconDoc, IconChevron, IconLock } from './icons';
+import { IconFolder, IconDoc, IconChevron, IconLock, IconDragHandle } from './icons';
 import { findNodeById } from '../common/utils';
 import { KB_PAGE_SIZE as PAGE_SIZE } from '../../constants/pagination';
 
@@ -17,14 +17,7 @@ const DragHandle = ({ disabled }) => {
     <span className="tree-row__drag-handle tree-row__drag-handle--disabled" aria-hidden="true" />
   ) : (
     <span className="tree-row__drag-handle" title={t('tree.dragToReorder')}>
-      <svg width="10" height="14" viewBox="0 0 10 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="3" cy="2" r="1.2" fill="currentColor" />
-        <circle cx="7" cy="2" r="1.2" fill="currentColor" />
-        <circle cx="3" cy="7" r="1.2" fill="currentColor" />
-        <circle cx="7" cy="7" r="1.2" fill="currentColor" />
-        <circle cx="3" cy="12" r="1.2" fill="currentColor" />
-        <circle cx="7" cy="12" r="1.2" fill="currentColor" />
-      </svg>
+      <IconDragHandle />
     </span>
   );
 };
