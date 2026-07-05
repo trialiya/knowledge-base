@@ -99,7 +99,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
 
       - name: Cache node toolchain & modules
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ${{ env.FRONTEND_DIR }}/node_modules
