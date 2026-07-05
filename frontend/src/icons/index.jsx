@@ -603,7 +603,14 @@ export const IconStatusStarted = () => (
 export const IconStatusOk = () => (
   <svg className="tool-call-status-svg tool-call-status-svg--ok" width="14" height="14" viewBox="0 0 16 16">
     <circle cx="8" cy="8" r="7" fill="#34a853" />
-    <path d="M5 8.2l2 2 4-4.4" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    <path
+      d="M5 8.2l2 2 4-4.4"
+      fill="none"
+      stroke="#fff"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
   </svg>
 );
 
