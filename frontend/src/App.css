@@ -72,7 +72,7 @@ body {
   flex: 1 1 0;
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 8px;
   min-width: 0;
 }
 .app-tabs__right {
@@ -83,65 +83,57 @@ body {
   min-width: 0;
 }
 
-.app-tabs__left button {
-  background: none;
-  border: none;
-  font-size: 1rem;
-  padding: 0.5rem 1rem;
-  cursor: pointer;
-  border-radius: 20px;
-  transition: all 0.2s;
-  white-space: nowrap;
-}
-.app-tabs__left button.active {
-  background: var(--kb-accent);
-  color: var(--kb-white);
-}
-
-/* ── Глобальный поиск по базе знаний (по центру) ── */
-
-.app-search-row {
-  flex: 0 1 480px;
+/* Вкладки-иконки: активная — заливка акцентом, неактивная — рамка.
+   Подпись показывается во всплывающей подсказке (data-tooltip). */
+.app-tab-icon {
+  position: relative;
+  width: 38px;
+  height: 38px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.app-search-row input {
-  flex: 1;
-  min-width: 0;
-  padding: 7px 14px 7px 34px;
-  font-size: 0.84rem;
+  justify-content: center;
+  border-radius: 50%;
   border: 1.5px solid var(--kb-border);
-  border-radius: 20px;
-  outline: none;
-  color: var(--kb-text);
-  background: var(--kb-bg)
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238886aa' stroke-width='2.5'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E")
-    no-repeat 10px center;
-  transition: border-color 0.15s;
-}
-.app-search-row input:focus {
-  border-color: var(--kb-accent);
-}
-
-.app-search-row select {
-  flex: 0 0 auto;
-  width: 116px;
-  padding: 7px 8px;
-  font-size: 0.78rem;
-  border-radius: 20px;
-  border: 1.5px solid var(--kb-border);
-  background-color: var(--kb-white);
-  color: var(--kb-text);
+  background: var(--kb-white);
+  font-size: 1.05rem;
+  line-height: 1;
   cursor: pointer;
-  outline: none;
-  transition: border-color 0.15s;
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s;
 }
-.app-search-row select:focus {
+.app-tab-icon:hover:not(.app-tab-icon--active) {
+  border-color: var(--kb-accent);
+  background: var(--kb-accent-light);
+}
+.app-tab-icon--active {
+  background: var(--kb-accent);
   border-color: var(--kb-accent);
 }
+
+.app-tab-icon::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-2px);
+  background: var(--kb-text);
+  color: var(--kb-white);
+  font-size: 0.72rem;
+  padding: 4px 9px;
+  border-radius: 7px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s, transform 0.12s;
+  z-index: 1100;
+}
+.app-tab-icon:hover::after,
+.app-tab-icon:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Глобальный поиск (по центру) — см. components/common/globalSearch.css */
 
 /* ── Refresh button (в шапке, справа) ── */
 

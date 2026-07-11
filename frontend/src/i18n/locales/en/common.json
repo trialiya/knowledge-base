@@ -17,7 +17,8 @@
     "knowledgeBase": "Knowledge Base"
   },
   "search": {
-    "placeholder": "Search the knowledge base... (Enter)",
+    "placeholder": "Search the knowledge base…",
+    "modeTitle": "Search mode",
     "hybrid": "Hybrid",
     "semantic": "Semantic",
     "keyword": "Keywords"
