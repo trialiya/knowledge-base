@@ -26,10 +26,22 @@
 .files-panel-tree {
   width: 280px;
   flex-shrink: 0;
-  overflow-y: auto;
+  /* Скролл по обеим осям: на большой глубине вложенности строки шире панели,
+     без горизонтального скролла имена файлов уезжали бы за границу. */
+  overflow: auto;
   background: var(--kb-bg);
   border-right: 1px solid var(--kb-border);
   padding: 0.5rem 0;
+  /* Отступ на уровень меньше глобального --tree-indent: глубина путей репозитория
+     (java-пакеты) заметно больше, чем у дерева базы знаний. */
+  --file-tree-indent: 12px;
+}
+
+/* Ширина по самой длинной строке (не меньше панели) — фон выделенной строки
+   тянется на всю прокручиваемую ширину, а не обрезается на 280px. */
+.file-tree {
+  width: max-content;
+  min-width: 100%;
 }
 
 .file-tree-node-wrap {
@@ -41,7 +53,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 14px 7px calc(14px + var(--depth, 0) * var(--tree-indent));
+  padding: 7px 14px 7px calc(14px + var(--depth, 0) * var(--file-tree-indent));
   font-size: 0.86rem;
   color: var(--kb-text);
   cursor: pointer;
@@ -79,12 +91,11 @@
 .file-tree-row__icon--folder {
   color: var(--kb-accent);
 }
+/* Без ellipsis: имя задаёт ширину строки, недостающее добирается
+   горизонтальным скроллом панели. */
 .file-tree-row__label {
   flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
-  min-width: 0;
 }
 
 .file-tree-children {

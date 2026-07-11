@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconFolder, IconDoc, IconChevron } from '../../icons';
 
@@ -9,6 +9,14 @@ const FileTreeNode = ({ node, level, selectedPath, expanded, treeCache, loadingD
   const isSelected = node.path === selectedPath;
   const children = treeCache[node.path];
   const isLoading = loadingDirs.has(node.path);
+
+  // Доскроллить дерево до выбранного узла: на глубокой вложенности (deep link)
+  // он оказывается за нижней/правой границей панели. 'nearest' — no-op, когда
+  // узел уже виден (обычный клик).
+  const labelRef = useRef(null);
+  useEffect(() => {
+    if (isSelected) labelRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [isSelected]);
 
   return (
     <div className="file-tree-node-wrap">
@@ -32,7 +40,9 @@ const FileTreeNode = ({ node, level, selectedPath, expanded, treeCache, loadingD
         <span className={`file-tree-row__icon ${isDir ? 'file-tree-row__icon--folder' : 'file-tree-row__icon--file'}`}>
           {isDir ? <IconFolder /> : <IconDoc />}
         </span>
-        <span className="file-tree-row__label">{node.name}</span>
+        <span ref={labelRef} className="file-tree-row__label">
+          {node.name}
+        </span>
       </div>
 
       {isDir && isOpen && (
