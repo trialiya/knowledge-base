@@ -47,6 +47,37 @@ No Docker → `*IT` tests always fail. Run unit tests only:
 
 IT failures are infrastructure-only. Verify them locally or in CI before a PR.
 
+## Visually validating the frontend in the web sandbox (Playwright)
+
+Chromium is pre-installed and Playwright is global (no `playwright install`):
+
+```bash
+NODE_PATH=/opt/node22/lib/node_modules node script.js
+```
+
+```js
+const { chromium } = require('playwright');
+const browser = await chromium.launch({
+  executablePath: '/opt/pw-browsers/chromium-<rev>/chrome-linux/chrome', // ls /opt/pw-browsers
+  args: ['--no-sandbox'],
+});
+```
+
+Run the app like this, not `yarn start` / `./gradlew :backend:bootRun`
+(yarn's dev server doesn't work here; `bootRun` needs a Java preview flag it
+doesn't get on its own):
+
+```bash
+./gradlew :backend:bootJar -x :frontend:yarnTest \
+  --init-script gradle/java21.gradle --no-configuration-cache
+
+SPRING_PROFILES_ACTIVE=h2 AI_BASE_URL=http://localhost:9999/v1 AI_API_KEY=dummy \
+AI_MODEL=dummy-model PROJECT_PATH=. \
+java --enable-preview -jar backend/build/libs/backend-1.0-SNAPSHOT.jar
+```
+
+Auth: HTTP Basic `admin`/`admin`. Poll the port before driving with Playwright.
+
 ## Before a PR
 
 `./gradlew spotlessCheck` · `./gradlew :backend:test` · `./gradlew build`
