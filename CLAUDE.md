@@ -82,27 +82,32 @@ fighting it, build once and let Spring Boot serve the bundled frontend:
 
 ```bash
 ./gradlew :backend:bootJar -x :frontend:yarnTest \
-  --init-script gradle/java21.gradle --no-configuration-cache   # builds & copies frontend into build/resources/main/static
+  --init-script gradle/java21.gradle --no-configuration-cache   # builds & copies frontend into the jar
 
+SPRING_PROFILES_ACTIVE=h2 \
 AI_BASE_URL=http://localhost:9999/v1 AI_API_KEY=dummy AI_MODEL=dummy-model \
-AI_EMBED_MODEL=bge-m3 PROJECT_PATH=/tmp/kb-project DOCUMENTS_EXPORT_PATH=/tmp/kb-export \
-./gradlew :backend:bootRun --args='--spring.profiles.active=h2' \
-  --init-script gradle/java21.gradle --no-configuration-cache   # separate invocation — see below
+PROJECT_PATH=. \
+java --enable-preview -jar backend/build/libs/backend-1.0-SNAPSHOT.jar
 ```
 
-Run these as **two separate `./gradlew` invocations**, not
-`:backend:bootJar :backend:bootRun` in one command — `bootRun` doesn't
-declare a dependency on `:frontend:copyFrontend` (only `bootJar` does, see
-`backend/build.gradle`), and putting both tasks in one build graph can trip
-Gradle's implicit-dependency validation since they touch the same
-`build/resources/main` output. Two invocations sidestep it: the first
-leaves the built frontend on disk, the second just serves it.
+Run the jar directly with `java`, not `./gradlew :backend:bootRun` — `bootRun`
+doesn't declare a dependency on `:frontend:copyFrontend` (only `bootJar` does,
+see `backend/build.gradle`), so requesting both tasks in one `./gradlew`
+invocation trips Gradle's implicit-dependency validation (both touch
+`build/resources/main`). `java -jar` sidesteps the Gradle task graph
+entirely — just don't forget `--enable-preview`: classes were compiled
+against the Java 21 preview features the `java21.gradle` init script enables
+(unnamed variables `_`), and the plain `java` launcher rejects that bytecode
+without the flag (`UnsupportedClassVersionError: Preview features are not
+enabled`). Also note the `h2` datasource URL (`jdbc:h2:./local-db/h2`) is
+relative to the process's cwd — running from the repo root leaves an
+untracked `local-db/` behind there instead of under `backend/` (which is
+`.gitignore`d); clean it up or run from `backend/` instead.
 
 The `h2` profile still eagerly builds the OpenAI chat/embedding clients, so
-the dummy values above for `AI_BASE_URL`/`AI_API_KEY`/`AI_MODEL`/
-`AI_EMBED_MODEL`/`PROJECT_PATH`/`DOCUMENTS_EXPORT_PATH` are required just to
-reach a running app — no real key needed for a UI-only smoke test. Auth is
-HTTP Basic, `admin`/`admin` by default (`kb.security.*`); pass it via
+the dummy values above for `AI_BASE_URL`/`AI_API_KEY`/`AI_MODEL` are required
+just to reach a running app — no real key needed for a UI-only smoke test.
+Auth is HTTP Basic, `admin`/`admin` by default (`kb.security.*`); pass it via
 Playwright's `httpCredentials` context option. Poll the port instead of
 sleeping, then drive with `page.goto`/`page.screenshot`, and check
 `page.on('console', …)` / `page.on('pageerror', …)` before trusting a
