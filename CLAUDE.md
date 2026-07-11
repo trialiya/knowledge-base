@@ -49,10 +49,7 @@ IT failures are infrastructure-only. Verify them locally or in CI before a PR.
 
 ## Visually validating the frontend in the web sandbox (Playwright)
 
-`frontend/` has no `playwright` dependency and there's no `chromium-cli`, but
-a global install and a pre-fetched Chromium are already on the box (see
-`ls /opt/pw-browsers` for the exact revision) — don't run `playwright install`.
-Ad-hoc scripts need the global root on `NODE_PATH`:
+Chromium is pre-installed and Playwright is global (no `playwright install`):
 
 ```bash
 NODE_PATH=/opt/node22/lib/node_modules node script.js
@@ -61,15 +58,14 @@ NODE_PATH=/opt/node22/lib/node_modules node script.js
 ```js
 const { chromium } = require('playwright');
 const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium-<rev>/chrome-linux/chrome',
+  executablePath: '/opt/pw-browsers/chromium-<rev>/chrome-linux/chrome', // ls /opt/pw-browsers
   args: ['--no-sandbox'],
 });
 ```
 
-`yarn start` crashes here (`allowedHosts[0] should be a non-empty string` —
-CRA's host-check reacts to the `proxy` field in `package.json`). Skip the dev
-server: build once and run the jar directly, which serves the bundled
-frontend from Spring Boot on `:8080`.
+Run the app like this, not `yarn start` / `./gradlew :backend:bootRun`
+(yarn's dev server doesn't work here; `bootRun` needs a Java preview flag it
+doesn't get on its own):
 
 ```bash
 ./gradlew :backend:bootJar -x :frontend:yarnTest \
@@ -80,15 +76,7 @@ AI_MODEL=dummy-model PROJECT_PATH=. \
 java --enable-preview -jar backend/build/libs/backend-1.0-SNAPSHOT.jar
 ```
 
-Use `java -jar`, not `./gradlew :backend:bootRun` — that task doesn't depend
-on `:frontend:copyFrontend`, so running both together in one `./gradlew`
-invocation trips Gradle's implicit-dependency validation. `--enable-preview`
-is required: classes are compiled with the Java 21 preview features
-`java21.gradle` enables (unnamed variables `_`). Dummy `AI_*` values are
-enough for a UI-only smoke test — no real key needed. Auth is HTTP Basic
-`admin`/`admin` (`kb.security.*`); pass it via Playwright's `httpCredentials`.
-Poll the port instead of sleeping, and check `page.on('console', …)` /
-`page.on('pageerror', …)` before trusting a screenshot.
+Auth: HTTP Basic `admin`/`admin`. Poll the port before driving with Playwright.
 
 ## Before a PR
 
