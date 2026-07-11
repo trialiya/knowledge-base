@@ -71,12 +71,19 @@ doesn't get on its own):
 ./gradlew :backend:bootJar -x :frontend:yarnTest \
   --init-script gradle/java21.gradle --no-configuration-cache
 
+LANG=C.utf8 LC_ALL=C.utf8 \
 SPRING_PROFILES_ACTIVE=h2 AI_BASE_URL=http://localhost:9999/v1 AI_API_KEY=dummy \
 AI_MODEL=dummy-model PROJECT_PATH=. \
 java --enable-preview -jar backend/build/libs/backend-1.0-SNAPSHOT.jar
 ```
 
 Auth: HTTP Basic `admin`/`admin`. Poll the port before driving with Playwright.
+
+`LANG=C.utf8` matters: the sandbox has no locale configured, so the JVM defaults
+to `sun.jnu.encoding=ANSI_X3.4-1968` (ASCII), and any code touching a non-ASCII
+path (e.g. `GitService` reading `docs/проект/*.md`) throws "Malformed input or
+input contains unmappable characters". `C.utf8` is glibc's built-in UTF-8 locale
+— no `locale-gen` needed.
 
 ## Before a PR
 

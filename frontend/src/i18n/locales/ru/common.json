@@ -14,7 +14,8 @@
   "error": "Ошибка",
   "nav": {
     "chats": "Чаты",
-    "knowledgeBase": "База знаний"
+    "knowledgeBase": "База знаний",
+    "files": "Файлы"
   },
   "search": {
     "placeholder": "Поиск по базе знаний…",

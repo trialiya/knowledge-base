@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import ChatWindow from './components/chatPanel/ChatWindow';
 import KnowledgeBase from './components/knowledgeBasePanel/KnowledgeBase';
+import FilesPanel from './components/filesPanel/FilesPanel';
 import ConfirmModal from './components/common/ConfirmModal';
 import { isEditorDirty } from './components/knowledgeBasePanel/editorDirtyStore';
 import useAppNavigation from './useAppNavigation';
@@ -13,8 +14,8 @@ import './App.css';
 
 function App() {
   const { t } = useTranslation();
-  const { nav, switchView, openDoc, setDocTab, setSearch, openChat } = useAppNavigation();
-  const view = nav.view; // 'chat' | 'knowledge' | 'admin' | 'settings'
+  const { nav, switchView, openDoc, setDocTab, setSearch, openChat, openFilePath } = useAppNavigation();
+  const view = nav.view; // 'chat' | 'knowledge' | 'files' | 'admin' | 'settings'
 
   // ── Глобальная строка поиска (живёт в шапке вкладок, видна всегда) ──────────
   const [searchText, setSearchText] = useState(nav.search || '');
@@ -77,6 +78,14 @@ function App() {
           >
             <span aria-hidden="true">📚</span>
           </button>
+          <button
+            className={`app-tab-icon${view === 'files' ? ' app-tab-icon--active' : ''}`}
+            onClick={() => goView('files')}
+            aria-label={t('nav.files')}
+            data-tooltip={t('nav.files')}
+          >
+            <span aria-hidden="true">📁</span>
+          </button>
         </div>
 
         {/* Центр — глобальный поиск по базе знаний */}
@@ -127,7 +136,12 @@ function App() {
           />
         </div>
 
-        {/* Admin / Settings — полноценные view со своим URL, монтируются по адресу */}
+        {/* Files / Admin / Settings — полноценные view со своим URL, монтируются по адресу */}
+        {view === 'files' && (
+          <div className="app-tab-panel app-tab-panel--active">
+            <FilesPanel path={nav.filePath} onPathChange={openFilePath} />
+          </div>
+        )}
         {view === 'admin' && (
           <div className="app-tab-panel app-tab-panel--active">
             <AdminPanel />

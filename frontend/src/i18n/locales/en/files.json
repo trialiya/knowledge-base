@@ -1,0 +1,17 @@
+{
+  "tree": {
+    "loading": "Loading…",
+    "empty": "Empty"
+  },
+  "breadcrumb": {
+    "label": "Path",
+    "root": "Repository"
+  },
+  "file": {
+    "lines": "Lines: {{count}}",
+    "truncated": "truncated",
+    "binary": "Binary file — preview unavailable",
+    "notFound": "File or directory not found",
+    "loadError": "Failed to load content"
+  }
+}

@@ -913,8 +913,19 @@ public class GitService {
 
     private List<String> exec(List<String> command) {
         try {
+            // core.quotepath=false: without it, git quotes/octal-escapes any path containing
+            // non-ASCII bytes (e.g. Cyrillic filenames) in ls-files/diff/log output — "docs/проект"
+            // becomes "\"docs/\\320\\277...\"", which breaks path parsing (splitting on '/' yields
+            // a bogus "\"docs" node distinct from the real "docs" directory). Applied globally here
+            // since every call site starts its command with "git".
+            List<String> withConfig = new ArrayList<>(command.size() + 2);
+            withConfig.add(command.get(0));
+            withConfig.add("-c");
+            withConfig.add("core.quotepath=false");
+            withConfig.addAll(command.subList(1, command.size()));
+
             ProcessBuilder pb =
-                    new ProcessBuilder(command)
+                    new ProcessBuilder(withConfig)
                             .directory(repoPath.toFile())
                             .redirectErrorStream(true);
             Process process = pb.start();
