@@ -17,7 +17,8 @@
     "knowledgeBase": "База знаний"
   },
   "search": {
-    "placeholder": "Поиск по базе знаний... (Enter)",
+    "placeholder": "Поиск по базе знаний…",
+    "modeTitle": "Режим поиска",
     "hybrid": "Гибридный",
     "semantic": "Семантический",
     "keyword": "По словам"

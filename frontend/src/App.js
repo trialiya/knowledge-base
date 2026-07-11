@@ -6,6 +6,7 @@ import ConfirmModal from './components/common/ConfirmModal';
 import { isEditorDirty } from './components/knowledgeBasePanel/editorDirtyStore';
 import useAppNavigation from './useAppNavigation';
 import HeaderMenu from './components/common/HeaderMenu';
+import GlobalSearch from './components/common/GlobalSearch';
 import AdminPanel from './components/adminPanel/AdminPanel';
 import SettingsPanel from './components/settingsPanel/SettingsPanel';
 import './App.css';
@@ -32,8 +33,7 @@ function App() {
     setSearch(searchText.trim(), searchMode);
   };
 
-  const handleSearchModeChange = (e) => {
-    const m = e.target.value;
+  const handleSearchModeChange = (m) => {
     setSearchMode(m);
     if (searchText.trim()) setSearch(searchText.trim(), m);
   };
@@ -59,33 +59,34 @@ function App() {
   return (
     <div className="App">
       <div className="app-tabs">
-        {/* Левая зона — вкладки */}
+        {/* Левая зона — вкладки-иконки (подпись во всплывающей подсказке) */}
         <div className="app-tabs__left">
-          <button className={view === 'chat' ? 'active' : ''} onClick={() => goView('chat')}>
-            💬 {t('nav.chats')}
+          <button
+            className={`app-tab-icon${view === 'chat' ? ' app-tab-icon--active' : ''}`}
+            onClick={() => goView('chat')}
+            aria-label={t('nav.chats')}
+            data-tooltip={t('nav.chats')}
+          >
+            <span aria-hidden="true">💬</span>
           </button>
-          <button className={view === 'knowledge' ? 'active' : ''} onClick={() => goView('knowledge')}>
-            📚 {t('nav.knowledgeBase')}
+          <button
+            className={`app-tab-icon${view === 'knowledge' ? ' app-tab-icon--active' : ''}`}
+            onClick={() => goView('knowledge')}
+            aria-label={t('nav.knowledgeBase')}
+            data-tooltip={t('nav.knowledgeBase')}
+          >
+            <span aria-hidden="true">📚</span>
           </button>
         </div>
 
         {/* Центр — глобальный поиск по базе знаний */}
-        <div className="app-search-row">
-          <input
-            type="text"
-            placeholder={t('search.placeholder')}
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') submitSearch();
-            }}
-          />
-          <select value={searchMode} onChange={handleSearchModeChange}>
-            <option value="hybrid">{t('search.hybrid')}</option>
-            <option value="semantic">{t('search.semantic')}</option>
-            <option value="keyword">{t('search.keyword')}</option>
-          </select>
-        </div>
+        <GlobalSearch
+          value={searchText}
+          mode={searchMode}
+          onChange={setSearchText}
+          onModeChange={handleSearchModeChange}
+          onSubmit={submitSearch}
+        />
 
         {/* Правая зона — единое меню (обновить · язык · админ · настройки) */}
         <div className="app-tabs__right">
