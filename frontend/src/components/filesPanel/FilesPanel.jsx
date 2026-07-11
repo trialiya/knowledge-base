@@ -1,6 +1,7 @@
 import React from 'react';
 import FileTree from './FileTree';
 import FileContent from './FileContent';
+import FileSearch from './FileSearch';
 import useFileTree from './useFileTree';
 import './filesPanel.css';
 
@@ -14,15 +15,20 @@ const FilesPanel = ({ path, onPathChange }) => {
   return (
     <div className="files-panel-container">
       <div className="files-panel-main">
-        <div className="files-panel-tree">
-          <FileTree
-            treeCache={treeCache}
-            loadingDirs={loadingDirs}
-            expanded={expanded}
-            selectedPath={path}
-            onToggle={toggleExpand}
-            onSelect={selectNode}
-          />
+        <div className="files-panel-left">
+          <div className="files-panel-toolbar">
+            <FileSearch onSelect={onPathChange} />
+          </div>
+          <div className="files-panel-tree">
+            <FileTree
+              treeCache={treeCache}
+              loadingDirs={loadingDirs}
+              expanded={expanded}
+              selectedPath={path}
+              onToggle={toggleExpand}
+              onSelect={selectNode}
+            />
+          </div>
         </div>
         <div className="files-panel-preview">
           <FileContent content={content} loading={contentLoading} onNavigate={onPathChange} />
