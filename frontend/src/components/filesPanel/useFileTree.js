@@ -49,9 +49,12 @@ export default function useFileTree({ path, onPathChange }) {
       return inFlightRef.current.get(dirPath);
     }
     setLoadingDirs((prev) => new Set(prev).add(dirPath));
+    // Ошибку НЕ кэшируем в treeCache: иначе каталог навсегда застревает
+    // «пустым» (неотличимо от реально пустой папки) без возможности повторить
+    // запрос. Промис отклоняется, и следующий ensureDir(dirPath) (повторный
+    // клик по шеврону) увидит, что в кэше ничего нет, и запросит заново.
     const promise = gitApi
       .getTree(dirPath)
-      .catch(() => [])
       .then((nodes) => {
         setTreeCache((prev) => ({ ...prev, [dirPath]: nodes }));
         return nodes;
@@ -76,67 +79,68 @@ export default function useFileTree({ path, onPathChange }) {
         else next.add(dirPath);
         return next;
       });
-      ensureDir(dirPath);
+      ensureDir(dirPath).catch(() => {});
     },
     [ensureDir],
   );
 
   // ── Разрешение выбранного пути: раскрыть предков, определить тип, загрузить
   // содержимое (листинг каталога либо текст файла). ──────────────────────────
+  // Единый try/finally на всю функцию: contentLoading обязан сброситься на
+  // любом выходе (успех, not-found, ошибка загрузки предков/каталога/файла) —
+  // раньше он выставлялся точечно перед каждой веткой и не сбрасывался в
+  // ветке not-found, а ошибка ensureDir() (после того как она перестала
+  // проглатываться внутри) могла и вовсе прервать функцию, оставив «Загрузка…»
+  // навсегда.
   useEffect(() => {
     let cancelled = false;
+    setContentLoading(true);
 
     (async () => {
-      const ancestors = ancestorsOf(path);
-      for (const dir of ancestors) {
-        // eslint-disable-next-line no-await-in-loop
-        await ensureDir(dir);
-      }
-      if (cancelled) return;
-      setExpanded((prev) => {
-        const next = new Set(prev);
-        ancestors.forEach((d) => next.add(d));
-        return next;
-      });
-
-      if (!path) {
-        setContentLoading(true);
-        const nodes = await ensureDir('');
-        if (cancelled) return;
-        setContent({ type: 'directory', path: '', nodes });
-        setContentLoading(false);
-        return;
-      }
-
-      const parentDir = parentOf(path);
-      const siblings = await ensureDir(parentDir);
-      if (cancelled) return;
-      const name = path.slice(path.lastIndexOf('/') + 1);
-      const node = (siblings || []).find((n) => n.name === name);
-
-      if (!node) {
-        setContent({ type: 'not-found', path });
-        return;
-      }
-
-      if (node.type === 'directory') {
-        setContentLoading(true);
-        setExpanded((prev) => new Set(prev).add(path));
-        const nodes = await ensureDir(path);
-        if (cancelled) return;
-        setContent({ type: 'directory', path, nodes });
-        setContentLoading(false);
-        return;
-      }
-
-      setContentLoading(true);
       try {
+        const ancestors = ancestorsOf(path);
+        for (const dir of ancestors) {
+          // eslint-disable-next-line no-await-in-loop
+          await ensureDir(dir);
+        }
+        if (cancelled) return;
+        setExpanded((prev) => {
+          const next = new Set(prev);
+          ancestors.forEach((d) => next.add(d));
+          return next;
+        });
+
+        if (!path) {
+          const nodes = await ensureDir('');
+          if (cancelled) return;
+          setContent({ type: 'directory', path: '', nodes });
+          return;
+        }
+
+        const parentDir = parentOf(path);
+        const siblings = await ensureDir(parentDir);
+        if (cancelled) return;
+        const name = path.slice(path.lastIndexOf('/') + 1);
+        const node = (siblings || []).find((n) => n.name === name);
+
+        if (!node) {
+          setContent({ type: 'not-found', path });
+          return;
+        }
+
+        if (node.type === 'directory') {
+          setExpanded((prev) => new Set(prev).add(path));
+          const nodes = await ensureDir(path);
+          if (cancelled) return;
+          setContent({ type: 'directory', path, nodes });
+          return;
+        }
+
         const file = await gitApi.getFileContent(path);
         if (cancelled) return;
         setContent({ type: 'file', path, file });
       } catch (error) {
-        if (cancelled) return;
-        setContent({ type: 'error', path, error });
+        if (!cancelled) setContent({ type: 'error', path, error });
       } finally {
         if (!cancelled) setContentLoading(false);
       }

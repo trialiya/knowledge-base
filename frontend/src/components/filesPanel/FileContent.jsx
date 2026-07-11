@@ -4,7 +4,7 @@ import { IconFolder, IconDoc } from '../../icons';
 import { formatFileSize } from '../../utils/formatting';
 import Breadcrumb from './Breadcrumb';
 
-const CodeView = ({ text, fromLine = 1 }) => {
+const CodeView = ({ text, fromLine = 1, showLineNumbers = true }) => {
   const lines = text.split('\n');
   return (
     <div className="file-code">
@@ -13,7 +13,7 @@ const CodeView = ({ text, fromLine = 1 }) => {
           {lines.map((line, i) => (
             // eslint-disable-next-line react/no-array-index-key
             <tr key={i}>
-              <td className="file-code__gutter">{fromLine + i}</td>
+              {showLineNumbers && <td className="file-code__gutter">{fromLine + i}</td>}
               <td className="file-code__line">
                 <code>{line.length ? line : ' '}</code>
               </td>
@@ -60,7 +60,15 @@ const FileView = ({ file }) => {
       {file.binary ? (
         <div className="file-content__empty">{t('file.binary')}</div>
       ) : (
-        <CodeView text={file.content ?? ''} fromLine={file.fromLine ?? 1} />
+        // truncated + fromLine == null — это head+tail-вырезка большого файла
+        // (см. GitService.headTailExcerpt): хвост идёт не сразу за головой,
+        // сквозная нумерация от 1 была бы неверной для его строк. Диапазонный
+        // же запрос (fromLine задан) нумеруется корректно от fromLine.
+        <CodeView
+          text={file.content ?? ''}
+          fromLine={file.fromLine ?? 1}
+          showLineNumbers={!(file.truncated && file.fromLine == null)}
+        />
       )}
     </div>
   );
