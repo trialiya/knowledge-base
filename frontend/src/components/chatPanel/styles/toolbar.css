@@ -73,9 +73,9 @@
   background: rgba(0, 0, 0, 0.03);
 }
 .message-source-btn--active {
-  border-color: var(--kb-user-bubble-bg);
-  color: var(--kb-user-bubble-bg);
-  background: rgba(0, 123, 255, 0.06);
+  border-color: var(--kb-accent);
+  color: var(--kb-accent);
+  background: var(--kb-accent-light);
 }
 
 /* ── Кнопка «повторить» (показывается под ответом, завершившимся ошибкой) ── */

@@ -94,8 +94,8 @@ body {
   white-space: nowrap;
 }
 .app-tabs__left button.active {
-  background: var(--kb-user-bubble-bg);
-  color: var(--kb-user-bubble-color);
+  background: var(--kb-accent);
+  color: var(--kb-white);
 }
 
 /* ── Глобальный поиск по базе знаний (по центру) ── */

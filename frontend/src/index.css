@@ -14,7 +14,7 @@
 
   /* text */
   --kb-text: #2d2b55;
-  --kb-muted: #8886aa;
+  --kb-muted: #726f9a; /* WCAG AA vs white/light surfaces (>=4.5:1); #8886aa was ~3.5:1 */
 
   /* surfaces */
   --kb-bg: #f8f8fc;
