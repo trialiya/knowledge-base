@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import highlightMatch, { highlightFileMatch } from '../common/highlightMatch';
 import { IconFileText } from '../../icons';
 
 /**
@@ -94,8 +95,8 @@ const FilePickerDropdown = ({
               >
                 <span className="file-picker-item__icon">{node.type === 'folder' ? '📁' : '📋'}</span>
                 <span className="file-picker-item__body">
-                  <span className="file-picker-item__name">{node.title}</span>
-                  <span className="file-picker-item__path">#{node.id}</span>
+                  <span className="file-picker-item__name">{highlightMatch(node.title, query)}</span>
+                  <span className="file-picker-item__path">#{highlightMatch(String(node.id), query)}</span>
                 </span>
                 <div className="file-picker-item__actions">
                   <button
@@ -114,7 +115,7 @@ const FilePickerDropdown = ({
               </div>
             ))
           : results.map((node, i) => {
-              const dir = node.path.includes('/') ? node.path.slice(0, node.path.lastIndexOf('/')) : '';
+              const { name, dir } = highlightFileMatch(node.name, node.path, query);
               return (
                 <div
                   key={node.path}
@@ -128,9 +129,9 @@ const FilePickerDropdown = ({
                     <IconFileText size={13} />
                   </span>
                   <span className="file-picker-item__body">
-                    <span className="file-picker-item__name">{node.name}</span>
+                    <span className="file-picker-item__name">{name}</span>
                     <span className="file-picker-item__path" title={node.path}>
-                      {dir || node.path}
+                      {dir || name}
                     </span>
                   </span>
                   <div className="file-picker-item__actions">

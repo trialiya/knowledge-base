@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import gitApi from '../../api/gitApi';
+import { highlightFileMatch } from '../common/highlightMatch';
 import { IconSearch, IconX, IconDoc } from '../../icons';
 
 const DEBOUNCE_MS = 200;
@@ -184,7 +185,7 @@ const FileSearch = ({ onSelect }) => {
             {results.length > 0 && (
               <div className="file-search-dropdown__list" ref={listRef}>
                 {results.map((node, i) => {
-                  const dir = node.path.includes('/') ? node.path.slice(0, node.path.lastIndexOf('/')) : '';
+                  const { name, dir } = highlightFileMatch(node.name, node.path, query);
                   return (
                     <button
                       key={node.path}
@@ -200,7 +201,7 @@ const FileSearch = ({ onSelect }) => {
                         <IconDoc size={13} />
                       </span>
                       <span className="file-search-item__body">
-                        <span className="file-search-item__name">{node.name}</span>
+                        <span className="file-search-item__name">{name}</span>
                         {dir && <span className="file-search-item__path">{dir}</span>}
                       </span>
                     </button>

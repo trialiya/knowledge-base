@@ -37,6 +37,9 @@
   --kb-error: #e84d6a;
   --kb-error-bg: #fdedf0;
 
+  /* search */
+  --kb-match-bg: #fde68a;
+
   /* code */
   --kb-code-dark-bg: #1e1e1e;
   --kb-code-dark-color: #e6e6e6;
@@ -59,6 +62,15 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Подсветка совпадающих подстрок в результатах поиска (highlightMatch.jsx).
+   Заметна и на белом фоне строки, и на --kb-accent-light у выбранной строки. */
+mark.search-match {
+  background: var(--kb-match-bg);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0;
 }
 
 @keyframes kb-fade-in-down {
