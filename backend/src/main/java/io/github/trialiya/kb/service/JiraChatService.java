@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -209,7 +210,7 @@ public class JiraChatService {
             String issueKey,
             String issueSummary,
             String jiraFileName,
-            String confluenceFileName) {
+            @Nullable String confluenceFileName) {
 
         StringBuilder sb = new StringBuilder();
         sb.append("Веду работу над задачей **").append(issueKey).append("**");
@@ -240,7 +241,7 @@ public class JiraChatService {
     }
 
     private AttachmentEntity createAttachment(
-            String conversationId, String fileName, String content, String sourceUrl) {
+            String conversationId, String fileName, @Nullable String content, String sourceUrl) {
         OffsetDateTime now = OffsetDateTime.now();
         AttachmentEntity entity = new AttachmentEntity();
         entity.setOwnerType("chat");

@@ -4,6 +4,7 @@ import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.model.tool.ToolCallResultMetaProvider;
 import java.util.HashMap;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Один узел файлового дерева репозитория.
@@ -13,7 +14,7 @@ import java.util.Map;
  * @param type "file" или "directory"
  * @param size размер в байтах (только для файлов, у каталогов — null)
  */
-public record GitFileNode(String path, String name, String type, Long size)
+public record GitFileNode(String path, String name, String type, @Nullable Long size)
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
     @Override

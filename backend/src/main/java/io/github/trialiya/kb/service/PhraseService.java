@@ -8,6 +8,7 @@ import io.github.trialiya.kb.repository.PhraseRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.NoSuchElementException;
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,7 +41,7 @@ public class PhraseService {
     }
 
     /** Quick search by label. Blank query falls back to the full admin list. */
-    public List<Phrase> search(String q) {
+    public List<Phrase> search(@Nullable String q) {
         String needle = q == null ? "" : q.strip();
         if (needle.isEmpty()) return listAll();
         return repository.searchByLabel(needle).stream().map(Phrase::from).toList();

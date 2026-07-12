@@ -6,6 +6,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -26,7 +27,7 @@ public class ChatRuntimeMonitor {
     private final ChatRunService chatRunService;
     private final ChatEventService chatEventService;
     private final long intervalMs;
-    private ScheduledExecutorService scheduler;
+    @Nullable private ScheduledExecutorService scheduler;
 
     public ChatRuntimeMonitor(
             ChatRunService chatRunService,

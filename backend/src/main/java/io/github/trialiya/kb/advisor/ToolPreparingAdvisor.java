@@ -5,6 +5,7 @@ import static io.github.trialiya.kb.model.chat.dto.ChatEventType.TOOL_PREPARING;
 import io.github.trialiya.kb.service.ChatEventService;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.ai.chat.client.advisor.api.StreamAdvisor;
@@ -79,6 +80,7 @@ public class ToolPreparingAdvisor implements StreamAdvisor {
                         });
     }
 
+    @Nullable
     private static String finishReasonOf(ChatResponse response) {
         return Optional.ofNullable(response)
                 .map(ChatResponse::getResult)

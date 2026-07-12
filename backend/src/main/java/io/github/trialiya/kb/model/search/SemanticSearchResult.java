@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.model.search;
 
 import java.time.LocalDateTime;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Result row returned by a semantic (vector) search query.
@@ -14,7 +15,7 @@ import java.time.LocalDateTime;
 public record SemanticSearchResult(
         long id,
         String title,
-        String description,
+        @Nullable String description,
         LocalDateTime updatedAt,
-        String summary,
+        @Nullable String summary,
         double similarity) {}

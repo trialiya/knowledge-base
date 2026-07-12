@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.model.doc.entity;
 
 import java.time.LocalDateTime;
+import org.jspecify.annotations.Nullable;
 
 public record DocumentHistoryShortResult(
         long id,
@@ -9,5 +10,5 @@ public record DocumentHistoryShortResult(
         String title,
         String type,
         LocalDateTime updatedAt,
-        Integer summarySourceVersion,
+        @Nullable Integer summarySourceVersion,
         int descriptionVersion) {}

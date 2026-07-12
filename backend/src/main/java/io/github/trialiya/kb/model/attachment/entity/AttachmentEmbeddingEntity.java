@@ -4,6 +4,7 @@ import java.time.OffsetDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.jspecify.annotations.Nullable;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Table;
 
@@ -17,7 +18,7 @@ import org.springframework.data.relational.core.mapping.Table;
 @Table("attachment_embeddings")
 public class AttachmentEmbeddingEntity {
 
-    @Id private Long id;
+    @Id @Nullable private Long id;
 
     /** FK → attachments.id (UNIQUE — one embedding per attachment). */
     private Long attachmentId;

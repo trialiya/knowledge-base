@@ -1,7 +1,7 @@
 package io.github.trialiya.kb.model.tool;
 
-import jakarta.annotation.Nullable;
 import java.time.LocalDateTime;
+import org.jspecify.annotations.Nullable;
 
 public record ToolCallDetail(
         int callIndex,

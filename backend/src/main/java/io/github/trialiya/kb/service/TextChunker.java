@@ -3,6 +3,7 @@ package io.github.trialiya.kb.service;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.Builder;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Splits a text into overlapping chunks that fit within a configurable token budget.
@@ -59,7 +60,7 @@ public class TextChunker {
      * Splits {@code text} into chunks. Returns a single-element list when the text fits in one
      * chunk. Never returns an empty list for non-blank input.
      */
-    public List<String> split(String text) {
+    public List<String> split(@Nullable String text) {
         if (text == null || text.isBlank()) {
             return List.of();
         }
@@ -75,7 +76,7 @@ public class TextChunker {
     }
 
     /** Returns {@code true} if the text is short enough to embed without splitting. */
-    public boolean fitsInOneChunk(String text) {
+    public boolean fitsInOneChunk(@Nullable String text) {
         return text == null || text.length() <= (long) maxTokens * CHARS_PER_TOKEN;
     }
 

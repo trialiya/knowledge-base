@@ -4,6 +4,7 @@ import java.time.OffsetDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.jspecify.annotations.Nullable;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Table;
 
@@ -26,16 +27,16 @@ import org.springframework.data.relational.core.mapping.Table;
 @Table("attachments")
 public class AttachmentEntity {
 
-    @Id private Long id;
+    @Id @Nullable private Long id;
 
     /** Discriminator: {@code "document"} or {@code "chat"}. */
     private String ownerType;
 
     /** FK → documents.id (non-null when ownerType = 'document'). */
-    private Long documentId;
+    @Nullable private Long documentId;
 
     /** FK → chat_topic.conversation_id (non-null when ownerType = 'chat'). */
-    private String conversationId;
+    @Nullable private String conversationId;
 
     // ── File metadata ────────────────────────────────────────────────────────
 
@@ -51,10 +52,10 @@ public class AttachmentEntity {
     // ── Content ──────────────────────────────────────────────────────────────
 
     /** Raw text content (for text-based files). */
-    private String content;
+    @Nullable private String content;
 
     /** AI-generated summary / description. */
-    private String summary;
+    @Nullable private String summary;
 
     // ── Source ────────────────────────────────────────────────────────────────
 
@@ -62,7 +63,7 @@ public class AttachmentEntity {
      * URL of the external source this attachment was fetched from (JIRA, Confluence, etc.). Null
      * for user-uploaded files.
      */
-    private String sourceUrl;
+    @Nullable private String sourceUrl;
 
     // ── Timestamps ───────────────────────────────────────────────────────────
 

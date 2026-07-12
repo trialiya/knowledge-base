@@ -5,6 +5,7 @@ import io.github.trialiya.kb.model.tool.ToolCallResultMetaProvider;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Запись из истории коммитов.
@@ -24,7 +25,7 @@ public record GitCommit(
         String email,
         OffsetDateTime date,
         String message,
-        List<GitDiffEntry> files)
+        @Nullable List<GitDiffEntry> files)
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
     @Override

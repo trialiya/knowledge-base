@@ -1,8 +1,8 @@
 package io.github.trialiya.kb.model.chat.entity;
 
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
-import jakarta.annotation.Nullable;
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Метаданные сообщения. {@code toolCalls} — явный признак сообщения-«крошки» вызовов инструментов:

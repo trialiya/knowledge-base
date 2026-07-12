@@ -4,11 +4,11 @@ import static io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocation
 
 import io.github.trialiya.kb.model.chat.dto.ToolCallMessage;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
-import jakarta.annotation.Nullable;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import org.jspecify.annotations.Nullable;
 
 public final class ToolInvocationCollector {
 

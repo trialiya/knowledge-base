@@ -4,6 +4,7 @@ import io.github.trialiya.kb.model.doc.dto.SearchResult;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Custom fragment for {@link DocumentRepository} operations that require dynamic SQL (e.g. batch
@@ -23,5 +24,5 @@ public interface DocumentRepositoryCustom {
      * @param ids document ids to resolve; {@code null}/empty input returns an empty map
      * @return map of document id → ordered ancestor list (root first, immediate parent last)
      */
-    Map<Long, List<SearchResult.Parent>> findAncestorsByIds(Collection<Long> ids);
+    Map<Long, List<SearchResult.Parent>> findAncestorsByIds(@Nullable Collection<Long> ids);
 }

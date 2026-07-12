@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.model.phrase.entity;
 
 import java.time.Instant;
+import org.jspecify.annotations.Nullable;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Table;
 
@@ -12,7 +13,7 @@ import org.springframework.data.relational.core.mapping.Table;
  */
 @Table("phrase")
 public record PhraseEntity(
-        @Id Long id,
+        @Id @Nullable Long id,
         String category,
         String label,
         String text,

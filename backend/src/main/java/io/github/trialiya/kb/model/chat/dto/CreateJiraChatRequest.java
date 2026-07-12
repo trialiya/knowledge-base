@@ -1,5 +1,7 @@
 package io.github.trialiya.kb.model.chat.dto;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * Request body for creating a JIRA-linked chat.
  *
@@ -7,4 +9,5 @@ package io.github.trialiya.kb.model.chat.dto;
  * @param confluenceUrl optional — URL of a related Confluence page
  * @param title optional — custom chat title; if blank, auto-generated from issue key
  */
-public record CreateJiraChatRequest(String jiraUrl, String confluenceUrl, String title) {}
+public record CreateJiraChatRequest(
+        String jiraUrl, @Nullable String confluenceUrl, @Nullable String title) {}

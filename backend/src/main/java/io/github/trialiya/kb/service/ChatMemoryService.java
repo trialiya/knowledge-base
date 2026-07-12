@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.util.Strings;
+import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
@@ -139,7 +140,9 @@ public class ChatMemoryService implements ChatMemoryRepository {
     }
 
     public record Page(
-            List<ChatMessageEntity> messages, boolean hasMore, MessageCursor oldestCursor) {}
+            List<ChatMessageEntity> messages,
+            boolean hasMore,
+            @Nullable MessageCursor oldestCursor) {}
 
     @Transactional
     public void saveToolCallIncremental(
@@ -173,7 +176,8 @@ public class ChatMemoryService implements ChatMemoryRepository {
     }
 
     @Transactional
-    public void saveToolCalls(String conversationId, String runId, List<ToolInvocation> toolCalls) {
+    public void saveToolCalls(
+            String conversationId, String runId, @Nullable List<ToolInvocation> toolCalls) {
         if (toolCalls == null || toolCalls.isEmpty()) {
             return;
         }

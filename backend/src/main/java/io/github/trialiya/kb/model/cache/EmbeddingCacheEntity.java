@@ -4,6 +4,7 @@ import java.time.OffsetDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.jspecify.annotations.Nullable;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Table;
 
@@ -20,7 +21,7 @@ import org.springframework.data.relational.core.mapping.Table;
 @Table("embedding_cache")
 public class EmbeddingCacheEntity {
 
-    @Id private Long id;
+    @Id @Nullable private Long id;
 
     /** Lowercase SHA-256 hex digest of the raw input text (64 chars). */
     private String textHash;

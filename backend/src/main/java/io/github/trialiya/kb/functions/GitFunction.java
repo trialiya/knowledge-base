@@ -11,6 +11,7 @@ import io.github.trialiya.kb.tools.CompactToolResultConverter;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 
@@ -65,7 +66,7 @@ public class GitFunction {
                                     "Путь к подкаталогу относительно корня репозитория (например, "
                                             + "\"src/main/java\"). Пустая строка или null — корень репо.",
                             required = false)
-                    String path) {
+                    @Nullable String path) {
         log.info("getFileTree called: path='{}'", path);
         List<GitFileNode> fileTree = gitService.getFileTree(path);
         log.info("getFileTree called: fileTree={}", fileTree);
@@ -95,13 +96,13 @@ public class GitFunction {
                                     "Максимальное количество коммитов для возврата. "
                                             + "Допустимый диапазон: 1–100, по умолчанию 20.",
                             required = false)
-                    Integer maxCount,
+                    @Nullable Integer maxCount,
             @ToolParam(
                             description =
                                     "Путь к файлу (относительно корня репо) — вернуть только коммиты, "
                                             + "затрагивающие этот файл. Null — вся история.",
                             required = false)
-                    String filePath) {
+                    @Nullable String filePath) {
         int limit = (maxCount != null && maxCount > 0) ? maxCount : 20;
         log.info("getCommitLog called: maxCount={}, filePath='{}'", limit, filePath);
         List<GitCommit> commitLog = gitService.getCommitLog(limit, filePath);
@@ -139,13 +140,13 @@ public class GitFunction {
                                             + "false (по умолчанию) — только список файлов и статистика строк; "
                                             + "true — добавляет текст изменений, увеличивает объём ответа.",
                             required = false)
-                    Boolean includePatch,
+                    @Nullable Boolean includePatch,
             @ToolParam(
                             description =
                                     "Путь к файлу (относительно корня репо) — вернуть diff только по этому файлу. "
                                             + "Null — все изменённые файлы коммита.",
                             required = false)
-                    String filePath) {
+                    @Nullable String filePath) {
         boolean patch = includePatch != null && includePatch;
         log.info(
                 "getCommitDiff called: hashes='{}', includePatch={}, filePath='{}'",
@@ -186,7 +187,7 @@ public class GitFunction {
                             description =
                                     "Максимальное количество результатов. Диапазон: 1–50, по умолчанию 20.",
                             required = false)
-                    Integer maxResults) {
+                    @Nullable Integer maxResults) {
         int limit = (maxResults != null && maxResults > 0) ? maxResults : 20;
         log.info("searchFiles called: pattern='{}', maxResults={}", pattern, limit);
         List<GitFileNode> gitFileNodes = gitService.searchFiles(pattern, limit);
@@ -259,14 +260,14 @@ public class GitFunction {
                                             + "null — с начала файла. Используй вместе с toLine для "
                                             + "чтения только нужного фрагмента большого файла.",
                             required = false)
-                    Integer fromLine,
+                    @Nullable Integer fromLine,
             @ToolParam(
                             description =
                                     "Последняя строка для чтения (1-based, включительно). "
                                             + "null — до конца файла. Выход за пределы файла "
                                             + "автоматически усекается.",
                             required = false)
-                    Integer toLine) {
+                    @Nullable Integer toLine) {
         log.info(
                 "getFileContent called: filePath='{}', fromLine={}, toLine={}",
                 filePath,
@@ -339,23 +340,23 @@ public class GitFunction {
                                     "Glob для ограничения по путям: \"*.java\", \"src/main/**\", "
                                             + "\"**/*Service*.java\". null — все tracked файлы.",
                             required = false)
-                    String pathGlob,
+                    @Nullable String pathGlob,
             @ToolParam(
                             description =
                                     "true (по умолчанию) — POSIX ERE (при | .* ^ $); false — "
                                             + "буквальная подстрока.",
                             required = false)
-                    Boolean regex,
+                    @Nullable Boolean regex,
             @ToolParam(
                             description =
                                     "Строк контекста до/после совпадения (как grep -C). "
                                             + "1 по умолчанию, рекомендуется 2–5. Диапазон: 0–10.",
                             required = false)
-                    Integer contextLines,
+                    @Nullable Integer contextLines,
             @ToolParam(
                             description = "Максимум совпадений. По умолчанию 50, диапазон 1–200.",
                             required = false)
-                    Integer maxResults) {
+                    @Nullable Integer maxResults) {
         boolean useRegex = regex == null || regex;
         int ctx = contextLines != null ? contextLines : 1;
         int limit = maxResults != null ? maxResults : 50;
