@@ -105,3 +105,15 @@ tasks.named('test') {
 bootJar {
     dependsOn ':frontend:copyFrontend'
 }
+
+// Обычный jar тоже пакует build/resources/main, куда :frontend:copyFrontend кладёт статику.
+// Без явной зависимости Gradle валит сборку (implicit dependency validation).
+jar {
+    dependsOn ':frontend:copyFrontend'
+}
+
+// compileTestJava/test читают build/resources/main через classpath — той же валидации нужно
+// упорядочивание. mustRunAfter (а не dependsOn): `:backend:test` сам по себе не должен
+// тянуть сборку фронтенда, порядок нужен только когда обе задачи в одном запуске (build).
+tasks.named('compileTestJava') { mustRunAfter ':frontend:copyFrontend' }
+tasks.named('test') { mustRunAfter ':frontend:copyFrontend' }
