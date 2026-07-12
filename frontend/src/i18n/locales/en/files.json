@@ -1,0 +1,25 @@
+{
+  "tree": {
+    "loading": "Loading…",
+    "empty": "Empty"
+  },
+  "search": {
+    "open": "Find file",
+    "close": "Close search",
+    "placeholder": "Find a file…",
+    "searching": "Searching…",
+    "empty": "No matches",
+    "hint": "Type a file name"
+  },
+  "breadcrumb": {
+    "label": "Path",
+    "root": "Repository"
+  },
+  "file": {
+    "lines": "Lines: {{count}}",
+    "truncated": "truncated",
+    "binary": "Binary file — preview unavailable",
+    "notFound": "File or directory not found",
+    "loadError": "Failed to load content"
+  }
+}

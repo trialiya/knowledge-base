@@ -14,7 +14,8 @@
   "error": "Error",
   "nav": {
     "chats": "Chats",
-    "knowledgeBase": "Knowledge Base"
+    "knowledgeBase": "Knowledge Base",
+    "files": "Files"
   },
   "search": {
     "placeholder": "Search the knowledge base…",

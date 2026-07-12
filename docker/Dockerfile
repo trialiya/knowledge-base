@@ -35,6 +35,13 @@ RUN java -Djarmode=tools -jar app.jar extract --layers --destination extracted
 # ── Stage 3: Runtime ─────────────────────────────────────────────
 FROM eclipse-temurin:25-jre-jammy
 
+# glibc's built-in UTF-8 locale (no locale-gen needed). Without this the JVM falls
+# back to sun.jnu.encoding=ANSI_X3.4-1968 (plain ASCII) on this base image, and
+# GitService throws "Malformed input or input contains unmappable characters" for
+# any non-ASCII path — e.g. every file under docs/проект.
+ENV LANG=C.utf8 \
+    LC_ALL=C.utf8
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git curl \
     && rm -rf /var/lib/apt/lists/*
