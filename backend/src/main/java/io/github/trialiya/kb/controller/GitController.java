@@ -3,7 +3,6 @@ package io.github.trialiya.kb.controller;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.service.GitService;
-import java.util.Comparator;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -62,12 +61,7 @@ public class GitController {
         if (path != null && !path.isBlank()) {
             requireSafePath(path);
         }
-        return gitService.getFileTree(path).stream()
-                .sorted(
-                        Comparator.<GitFileNode, Boolean>comparing(
-                                        n -> !"directory".equals(n.type()))
-                                .thenComparing(GitFileNode::name, String.CASE_INSENSITIVE_ORDER))
-                .toList();
+        return gitService.getFileTree(path);
     }
 
     private static void requireSafePath(String path) {

@@ -18,6 +18,7 @@ import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -83,14 +84,18 @@ public class GitService {
     // ── File tree ────────────────────────────────────────────────────────────
 
     /**
-     * Returns tracked files/directories under {@code subPath} (or repo root if null). Uses {@code
-     * git ls-files} so .gitignore'd files are automatically excluded.
+     * Returns tracked files/directories under {@code subPath} (or repo root if null), directories
+     * first then alphabetically (case-insensitive). Uses {@code git ls-files} so .gitignore'd files
+     * are automatically excluded.
      */
     public List<GitFileNode> getFileTree(@Nullable String subPath) {
         String base = normalizeSub(subPath);
         // git ls-files lists tracked files; untracked/ignored are excluded.
         List<String> args = new ArrayList<>(List.of("git", "ls-files", "--full-name"));
         if (!base.isEmpty()) {
+            // "--" stops git from ever interpreting `base` as an option (e.g. a
+            // leading "-" or "--foo"), regardless of caller-side validation.
+            args.add("--");
             args.add(base);
         }
         List<String> lines = exec(args);
@@ -115,7 +120,12 @@ public class GitService {
                 nodes.putIfAbsent(line, new GitFileNode(line, relative, "file", size));
             }
         }
-        return new ArrayList<>(nodes.values());
+        return nodes.values().stream()
+                .sorted(
+                        Comparator.<GitFileNode, Boolean>comparing(
+                                        n -> !"directory".equals(n.type()))
+                                .thenComparing(GitFileNode::name, String.CASE_INSENSITIVE_ORDER))
+                .toList();
     }
 
     // ── Commit history ───────────────────────────────────────────────────────
