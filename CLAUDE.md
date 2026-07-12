@@ -39,14 +39,10 @@ in 22–25):
 
 ## Building & testing in the Claude Code web sandbox
 
-**`./gradlew` does not work here.** The wrapper downloads gradle-9.6.1 from
-services.gradle.org, which redirects to GitHub release assets — blocked by the
-sandbox egress policy (403). Use the pre-installed Gradle at
-`/opt/gradle/bin/gradle` instead (8.14.3, verified compatible with this build).
+**`./gradlew` does not work here** (the gradle-9.6.1 download is blocked) —
+use the system Gradle at `/opt/gradle/bin/gradle`.
 
-**Docker works, but the daemon isn't running by default.** Start it once per
-session and `*IT` (Testcontainers) tests pass — `pgvector/pgvector:pg17` pulls
-fine through the proxy:
+**For `*IT` tests start `dockerd` first:**
 
 ```bash
 sudo dockerd > /tmp/dockerd.log 2>&1 &
