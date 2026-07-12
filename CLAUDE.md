@@ -37,15 +37,38 @@ in 22–25):
 `--no-configuration-cache` is required. This is a local/CI workaround only — keep
 `backend/build.gradle` on Java 25.
 
-## Running tests in the Claude Code web sandbox
+## Building & testing in the Claude Code web sandbox
 
-No Docker → `*IT` tests always fail. Run unit tests only:
+**`./gradlew` does not work here.** The wrapper downloads gradle-9.6.1 from
+services.gradle.org, which redirects to GitHub release assets — blocked by the
+sandbox egress policy (403). Use the pre-installed Gradle at
+`/opt/gradle/bin/gradle` instead (8.14.3, verified compatible with this build).
+
+**Docker works, but the daemon isn't running by default.** Start it once per
+session and `*IT` (Testcontainers) tests pass — `pgvector/pgvector:pg17` pulls
+fine through the proxy:
 
 ```bash
-./gradlew :backend:test --init-script gradle/java21.gradle --no-configuration-cache --tests "*Test"
+sudo dockerd > /tmp/dockerd.log 2>&1 &
+until docker ps > /dev/null 2>&1; do sleep 1; done
 ```
 
-IT failures are infrastructure-only. Verify them locally or in CI before a PR.
+Then (init script needed because only JDK 21 is available, see above):
+
+```bash
+# Unit tests only (no Docker needed)
+/opt/gradle/bin/gradle :backend:test --init-script gradle/java21.gradle --no-configuration-cache --tests "*Test"
+
+# All backend tests incl. *IT (dockerd must be running)
+/opt/gradle/bin/gradle :backend:test --init-script gradle/java21.gradle --no-configuration-cache
+
+# Full build (frontend Node/yarn downloads work; Jest runs too)
+/opt/gradle/bin/gradle build --init-script gradle/java21.gradle --no-configuration-cache
+```
+
+`--no-configuration-cache` is required with the init script. Maven Central,
+plugins.gradle.org, nodejs.org and Docker Hub are all reachable; only the
+Gradle distribution download is blocked.
 
 ## Visually validating the frontend in the web sandbox (Playwright)
 
@@ -58,17 +81,15 @@ NODE_PATH=/opt/node22/lib/node_modules node script.js
 ```js
 const { chromium } = require('playwright');
 const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium-<rev>/chrome-linux/chrome', // ls /opt/pw-browsers
+  executablePath: '/opt/pw-browsers/chromium', // stable symlink to the versioned binary
   args: ['--no-sandbox'],
 });
 ```
 
-Run the app like this, not `yarn start` / `./gradlew :backend:bootRun`
-(yarn's dev server doesn't work here; `bootRun` needs a Java preview flag it
-doesn't get on its own):
+Run the app like this, not `yarn start` (yarn's dev server doesn't work here):
 
 ```bash
-./gradlew :backend:bootJar -x :frontend:yarnTest \
+/opt/gradle/bin/gradle :backend:bootJar -x :frontend:yarnTest \
   --init-script gradle/java21.gradle --no-configuration-cache
 
 LANG=C.utf8 LC_ALL=C.utf8 \
@@ -76,6 +97,10 @@ SPRING_PROFILES_ACTIVE=h2 AI_BASE_URL=http://localhost:9999/v1 AI_API_KEY=dummy 
 AI_MODEL=dummy-model PROJECT_PATH=. \
 java --enable-preview -jar backend/build/libs/backend-1.0-SNAPSHOT.jar
 ```
+
+`:backend:bootRun` also works with the same env vars plus the init script
+(it injects `--enable-preview` into JavaExec tasks); the jar route above is
+closer to prod and easier to background.
 
 Auth: HTTP Basic `admin`/`admin`. Poll the port before driving with Playwright.
 
@@ -88,6 +113,8 @@ input contains unmappable characters". `C.utf8` is glibc's built-in UTF-8 locale
 ## Before a PR
 
 `./gradlew spotlessCheck` · `./gradlew :backend:test` · `./gradlew build`
-(add `--init-script gradle/java21.gradle --no-configuration-cache` on JDK 21).
+(add `--init-script gradle/java21.gradle --no-configuration-cache` on JDK 21;
+in the web sandbox use `/opt/gradle/bin/gradle` and start `dockerd` first —
+all three checks can run there, IT tests included).
 Dependency locking is on — after changing deps run
 `./gradlew resolveAndLockAll --write-locks`.
