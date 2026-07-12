@@ -38,6 +38,7 @@ const FileSearch = ({ onSelect }) => {
     setQuery('');
     setResults([]);
     setIdx(0);
+    setLoading(false);
   }, []);
 
   const openSearch = useCallback(() => {
