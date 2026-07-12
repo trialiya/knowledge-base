@@ -49,7 +49,15 @@ export function renderHighlighted(text, indices) {
     const m = i < text.length && set.has(i);
     if (i === text.length || m !== marked) {
       const chunk = text.slice(start, i);
-      nodes.push(marked ? <mark key={start} className="search-match">{chunk}</mark> : chunk);
+      nodes.push(
+        marked ? (
+          <mark key={start} className="search-match">
+            {chunk}
+          </mark>
+        ) : (
+          chunk
+        ),
+      );
       start = i;
       marked = m;
     }
