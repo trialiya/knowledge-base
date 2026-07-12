@@ -85,7 +85,7 @@ public class GitFunction {
             description =
                     """
                     История коммитов в обратном хронологическом порядке. Коммит: hash (полный SHA), \
-                    shortHash (8 символов), author, email, date (ISO-8601), message. \
+                    shortHash (сокращённый, минимум 7 символов), author, email, date (ISO-8601), message. \
                     Поле files всегда null (изменения — через getCommitDiff по shortHash).
                     """,
             resultConverter = CompactToolResultConverter.class)

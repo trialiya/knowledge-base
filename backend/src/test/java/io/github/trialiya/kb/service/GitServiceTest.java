@@ -1,7 +1,10 @@
 package io.github.trialiya.kb.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.github.trialiya.kb.model.git.dto.GitCommit;
+import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -123,5 +126,90 @@ class GitServiceTest {
         List<GitFileNode> result = service.getFileTree("--others");
 
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    void untrackedAndMissingFilesReportIdenticalError() {
+        writeFile("tracked.txt", "tracked");
+        commitAll();
+        // Present on disk but never added/committed.
+        writeFile("secret.env", "API_KEY=hunter2");
+
+        assertThatThrownBy(() -> service.getFileContent("secret.env"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("File not found: secret.env");
+
+        // A path that doesn't exist on disk at all must produce the exact same message —
+        // otherwise the error text itself would leak which untracked files exist on disk.
+        assertThatThrownBy(() -> service.getFileContent("does-not-exist.txt"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("File not found: does-not-exist.txt");
+    }
+
+    @Test
+    void rootCommitDiffIncludesTheInitialFiles() {
+        writeFile("a.txt", "line1\nline2\n");
+        commitAll();
+
+        List<GitCommit> log = service.getCommitLog(10, null);
+        assertThat(log).hasSize(1);
+
+        // Regression: `git diff-tree` needs --root to show anything for the very first commit;
+        // the original implementation never passed it, so this used to come back with an empty
+        // files list even though the commit clearly added a file.
+        List<GitCommit> diff = service.getCommitDiff(log.get(0).hash(), false);
+        assertThat(diff).hasSize(1);
+        List<GitDiffEntry> files = diff.get(0).files();
+        assertThat(files).hasSize(1);
+        assertThat(files.get(0).status()).isEqualTo("A");
+        assertThat(files.get(0).path()).isEqualTo("a.txt");
+        assertThat(files.get(0).additions()).isEqualTo(2);
+    }
+
+    @Test
+    void appendOnlyEditToExistingFileIsReportedAsModifyNotAdd() throws IOException {
+        writeFile("a.txt", "line1\nline2\n");
+        commitAll();
+
+        // Pure addition, no deletions — a naive numstat heuristic (additions>0 && deletions==0)
+        // would misclassify this as "added" even though the file already existed.
+        Files.writeString(
+                repoDir.resolve("a.txt"), "line1\nline2\nline3\n", StandardCharsets.UTF_8);
+
+        List<GitDiffEntry> changes = service.getUncommittedChanges(false);
+        assertThat(changes).hasSize(1);
+        assertThat(changes.get(0).status()).isEqualTo("M");
+        assertThat(changes.get(0).path()).isEqualTo("a.txt");
+        assertThat(changes.get(0).additions()).isEqualTo(1);
+        assertThat(changes.get(0).deletions()).isEqualTo(0);
+    }
+
+    @Test
+    void uncommittedChangesSeparatesTrackedEditsFromUntrackedNewFiles() {
+        writeFile("tracked.txt", "hello\n");
+        commitAll();
+
+        writeFile("tracked.txt", "hello\nworld\n");
+        writeFile("new-file.txt", "brand new");
+
+        List<GitDiffEntry> changes = service.getUncommittedChanges(true);
+        assertThat(changes).hasSize(2);
+
+        GitDiffEntry modified =
+                changes.stream()
+                        .filter(e -> e.path().equals("tracked.txt"))
+                        .findFirst()
+                        .orElseThrow();
+        assertThat(modified.status()).isEqualTo("M");
+        assertThat(modified.patch()).contains("+world");
+
+        GitDiffEntry added =
+                changes.stream()
+                        .filter(e -> e.path().equals("new-file.txt"))
+                        .findFirst()
+                        .orElseThrow();
+        assertThat(added.status()).isEqualTo("A");
+        // Untracked files never get patch content — only a line count.
+        assertThat(added.patch()).isNull();
     }
 }

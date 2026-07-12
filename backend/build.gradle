@@ -63,6 +63,9 @@ dependencies {
     implementation 'io.github.bonede:tree-sitter-python:0.25.0'
 
     implementation 'org.jspecify:jspecify:1.0.0'
+    // In-process Git access for GitService (file tree, log, diff, status). git grep has no JGit
+    // equivalent, so that one operation still shells out to the git binary.
+    implementation 'org.eclipse.jgit:org.eclipse.jgit:7.7.0.202606012155-r'
     compileOnly 'org.projectlombok:lombok'
 
 //	developmentOnly 'org.springframework.boot:spring-boot-devtools'

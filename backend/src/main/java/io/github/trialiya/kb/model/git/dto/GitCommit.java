@@ -10,7 +10,7 @@ import java.util.Map;
  * Запись из истории коммитов.
  *
  * @param hash полный SHA коммита
- * @param shortHash первые 8 символов SHA
+ * @param shortHash сокращённый SHA (минимум 7 символов, длиннее при неоднозначности)
  * @param author имя автора
  * @param email email автора
  * @param date дата коммита (ISO-8601 с offset)
