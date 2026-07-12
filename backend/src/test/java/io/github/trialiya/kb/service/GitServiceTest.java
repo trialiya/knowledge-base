@@ -50,6 +50,11 @@ class GitServiceTest {
     }
 
     private void runGit(String... args) {
+        runGit(true, args);
+    }
+
+    /** Runs git; with {@code failOnError=false} a non-zero exit (e.g. a conflicted merge) is OK. */
+    private void runGit(boolean failOnError, String... args) {
         try {
             var command = new java.util.ArrayList<String>();
             command.add("git");
@@ -62,7 +67,7 @@ class GitServiceTest {
             String output =
                     new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             int exit = process.waitFor();
-            if (exit != 0) {
+            if (failOnError && exit != 0) {
                 throw new IllegalStateException(
                         "git " + String.join(" ", args) + " failed: " + output);
             }
@@ -211,5 +216,76 @@ class GitServiceTest {
         assertThat(added.status()).isEqualTo("A");
         // Untracked files never get patch content — only a line count.
         assertThat(added.patch()).isNull();
+    }
+
+    @Test
+    void renameCommitDiffReportsStatusRWithOldAndNewPath() {
+        writeFile("old-name.txt", "one\ntwo\nthree\n");
+        commitAll();
+        runGit("mv", "old-name.txt", "new-name.txt");
+        runGit("commit", "-q", "-m", "rename");
+
+        List<GitCommit> log = service.getCommitLog(1, null);
+        List<GitDiffEntry> files = service.getCommitDiff(log.get(0).hash(), false).get(0).files();
+
+        assertThat(files).hasSize(1);
+        GitDiffEntry entry = files.get(0);
+        assertThat(entry.status()).isEqualTo("R");
+        assertThat(entry.oldPath()).isEqualTo("old-name.txt");
+        assertThat(entry.path()).isEqualTo("new-name.txt");
+        // A pure rename moves content untouched — no line churn.
+        assertThat(entry.additions()).isZero();
+        assertThat(entry.deletions()).isZero();
+    }
+
+    @Test
+    void copyDetectedAlongsideRenameCarriesItsSourcePath() {
+        writeFile("origin.txt", "shared\ncontent\nlines\n");
+        commitAll();
+        // Delete the original and add two byte-identical files: JGit's rename detector pairs the
+        // delete with one add (RENAME) and marks the leftover exact match as COPY.
+        runGit("mv", "origin.txt", "kept.txt");
+        writeFile("extra.txt", "shared\ncontent\nlines\n");
+        commitAll();
+
+        List<GitCommit> log = service.getCommitLog(1, null);
+        List<GitDiffEntry> files = service.getCommitDiff(log.get(0).hash(), false).get(0).files();
+
+        // Both new files are byte-identical, so which one the detector promotes to RENAME (vs
+        // COPY) is an arbitrary internal choice — assert the pair, not the assignment.
+        assertThat(files).extracting(GitDiffEntry::status).containsExactlyInAnyOrder("R", "C");
+        assertThat(files)
+                .extracting(GitDiffEntry::path)
+                .containsExactlyInAnyOrder("kept.txt", "extra.txt");
+        // The copy must carry its source path, same as the rename.
+        assertThat(files)
+                .extracting(GitDiffEntry::oldPath)
+                .containsExactly("origin.txt", "origin.txt");
+    }
+
+    @Test
+    void conflictedFilesRemainVisibleInTreeContentAndUncommittedChanges() {
+        writeFile("conflict.txt", "base\n");
+        commitAll();
+        runGit("branch", "-M", "main");
+        runGit("checkout", "-q", "-b", "side");
+        writeFile("conflict.txt", "side\n");
+        commitAll();
+        runGit("checkout", "-q", "main");
+        writeFile("conflict.txt", "ours\n");
+        commitAll();
+        // Non-zero exit — the conflict is exactly the state under test.
+        runGit(false, "merge", "side");
+
+        // A conflicted file has only stage-1..3 index entries (no stage 0). It is still tracked,
+        // so it must not vanish from the tree, from file content, or from uncommitted changes.
+        assertThat(service.getFileTree(null))
+                .extracting(GitFileNode::name)
+                .contains("conflict.txt");
+        assertThat(service.getFileContent("conflict.txt").content()).contains("<<<<<<<");
+
+        List<GitDiffEntry> changes = service.getUncommittedChanges(false);
+        assertThat(changes).extracting(GitDiffEntry::path).containsExactly("conflict.txt");
+        assertThat(changes.get(0).status()).isEqualTo("M");
     }
 }

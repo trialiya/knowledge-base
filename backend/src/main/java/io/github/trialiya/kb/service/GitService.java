@@ -34,7 +34,6 @@ import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.diff.Edit;
 import org.eclipse.jgit.dircache.DirCache;
-import org.eclipse.jgit.dircache.DirCacheEntry;
 import org.eclipse.jgit.errors.AmbiguousObjectException;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.errors.MissingObjectException;
@@ -829,6 +828,9 @@ public class GitService {
         changedPaths.addAll(status.getModified());
         changedPaths.addAll(status.getRemoved());
         changedPaths.addAll(status.getMissing());
+        // Unresolved merge conflicts live in none of the sets above, yet `git diff HEAD` shows
+        // them (worktree content with conflict markers vs HEAD) — without this they'd vanish.
+        changedPaths.addAll(status.getConflicting());
 
         List<GitDiffEntry> entries = new ArrayList<>();
 
@@ -893,8 +895,10 @@ public class GitService {
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     /**
-     * All stage-0 (i.e. non-conflicted) paths currently in the Git index, matching {@code git
-     * ls-files}'s default (cached, no {@code -u}) behaviour.
+     * All paths currently in the Git index, matching {@code git ls-files}'s default behaviour.
+     * Files with an unresolved merge conflict have only stage-1..3 entries (no stage 0); they are
+     * still tracked, so their stages collapse to a single de-duplicated path here (index entries
+     * are sorted by path, so duplicates are adjacent and the set stays in ls-files order).
      */
     private List<String> trackedPaths() {
         DirCache cache;
@@ -903,19 +907,18 @@ public class GitService {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to read Git index: " + repoPath, e);
         }
-        List<String> paths = new ArrayList<>(cache.getEntryCount());
+        Set<String> paths = LinkedHashSet.newLinkedHashSet(cache.getEntryCount());
         for (int i = 0; i < cache.getEntryCount(); i++) {
-            DirCacheEntry entry = cache.getEntry(i);
-            if (entry.getStage() != 0) continue; // unresolved merge-conflict stage, not stage 0
-            paths.add(entry.getPathString());
+            paths.add(cache.getEntry(i).getPathString());
         }
-        return paths;
+        return List.copyOf(paths);
     }
 
     private boolean isTracked(String path) {
         try {
-            DirCacheEntry entry = repository.readDirCache().getEntry(path);
-            return entry != null && entry.getStage() == 0;
+            // getEntry(path) returns the path's first index entry — stage 0 normally, stage 1+
+            // while a merge conflict is unresolved. Either way the file is tracked.
+            return repository.readDirCache().getEntry(path) != null;
         } catch (IOException e) {
             throw new IllegalStateException("Failed to read Git index: " + repoPath, e);
         }
@@ -938,8 +941,8 @@ public class GitService {
 
     /**
      * Maps one JGit {@link DiffEntry} to the API's {@link GitDiffEntry}, using the change type JGit
-     * already computed (add/modify/delete/rename) rather than inferring it from add/delete line
-     * counts — the previous numstat-based heuristic (add&gt;0 &amp;&amp; del==0 ⇒ "A")
+     * already computed (add/modify/delete/rename/copy) rather than inferring it from add/delete
+     * line counts — the previous numstat-based heuristic (add&gt;0 &amp;&amp; del==0 ⇒ "A")
      * misclassified an append-only edit to an *existing* file as "added".
      */
     private GitDiffEntry toGitDiffEntry(
@@ -960,7 +963,8 @@ public class GitService {
                     default -> "M";
                 };
         String path = "D".equals(status) ? oldPath : newPath;
-        String reportedOldPath = "R".equals(status) ? oldPath : null;
+        // Renames AND copies both carry a meaningful source path; everything else has none.
+        String reportedOldPath = "R".equals(status) || "C".equals(status) ? oldPath : null;
 
         int add = 0;
         int del = 0;
