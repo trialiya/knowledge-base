@@ -133,6 +133,19 @@ const FileSearch = ({ onSelect }) => {
     return () => document.removeEventListener('mousedown', onDocMouseDown);
   }, [open, close]);
 
+  // Якорь фиксируется один раз при открытии и не следит за окном — при ресайзе
+  // или скролле список «отрывается» от поля. Дешевле закрыть поиск, чем
+  // пересчитывать позицию на каждый scroll/resize.
+  useEffect(() => {
+    if (!open) return;
+    window.addEventListener('resize', close);
+    window.addEventListener('scroll', close, true);
+    return () => {
+      window.removeEventListener('resize', close);
+      window.removeEventListener('scroll', close, true);
+    };
+  }, [open, close]);
+
   useEffect(() => {
     listRef.current?.children[idx]?.scrollIntoView({ block: 'nearest' });
   }, [idx]);
