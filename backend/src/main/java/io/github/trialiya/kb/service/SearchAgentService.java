@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
@@ -99,7 +100,10 @@ public class SearchAgentService {
      * @param parentContext the parent tool context (used only to carry the conversation id)
      */
     public SearchAgentResult run(
-            String task, String scope, String pathGlob, ToolContext parentContext) {
+            String task,
+            @Nullable String scope,
+            @Nullable String pathGlob,
+            @Nullable ToolContext parentContext) {
         final long startMs = System.currentTimeMillis();
         final TokenUsage usage = new TokenUsage();
         final String conversationId =
@@ -248,7 +252,8 @@ public class SearchAgentService {
         }
     }
 
-    private static String buildTask(String task, String scope, String pathGlob) {
+    private static String buildTask(
+            String task, @Nullable String scope, @Nullable String pathGlob) {
         final StringBuilder sb = new StringBuilder("ЗАДАЧА ПОИСКА:\n").append(task);
         if (scope != null && !scope.isBlank()) {
             sb.append("\n\nОбласть: ").append(scope.trim());

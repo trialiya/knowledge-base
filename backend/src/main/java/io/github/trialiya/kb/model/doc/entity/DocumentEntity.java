@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.jspecify.annotations.Nullable;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Version;
 import org.springframework.data.relational.core.mapping.Table;
@@ -14,10 +15,10 @@ import org.springframework.data.relational.core.mapping.Table;
 @Table("documents")
 public class DocumentEntity {
 
-    @Id private Long id;
+    @Id @Nullable private Long id;
     private String title;
     private DocumentType type;
-    private Long parentId;
+    @Nullable private Long parentId;
     private String description;
     private LocalDateTime updatedAt;
 
@@ -52,7 +53,7 @@ public class DocumentEntity {
      * AI-generated summary of the document description. {@code null} until the user explicitly
      * triggers summarisation via {@code POST /api/documents/{id}/summarize}.
      */
-    private String summary;
+    @Nullable private String summary;
 
     /**
      * The value of {@link #descriptionVersion} at the time {@link #summary} was last generated.
@@ -60,7 +61,7 @@ public class DocumentEntity {
      *
      * <p>Stale check: {@code summarySourceVersion < descriptionVersion}.
      */
-    private Integer summarySourceVersion;
+    @Nullable private Integer summarySourceVersion;
 
     /**
      * Incremented <em>only</em> when {@link #description} actually changes. Intentionally separate

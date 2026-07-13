@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.model.doc.dto;
 
 import java.time.LocalDateTime;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Read-only DTO for a single history entry returned to the client.
@@ -20,4 +21,4 @@ public record DocumentHistory(
         String type,
         String description,
         LocalDateTime updatedAt,
-        String summary) {}
+        @Nullable String summary) {}

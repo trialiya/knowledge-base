@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.ai.openai.OpenAiChatModel;
@@ -126,7 +127,7 @@ public class AttachmentService implements DisposableBean {
     public Attachment createFromText(
             @Nonnull String conversationId,
             @Nonnull String fileName,
-            String contentType,
+            @Nullable String contentType,
             @Nonnull String content) {
         return persistAttachment(
                 "chat",
@@ -320,12 +321,12 @@ public class AttachmentService implements DisposableBean {
      */
     private Attachment persistAttachment(
             String ownerType,
-            Long documentId,
-            String conversationId,
+            @Nullable Long documentId,
+            @Nullable String conversationId,
             String fileName,
-            String contentType,
+            @Nullable String contentType,
             String content,
-            Long fileSize) {
+            @Nullable Long fileSize) {
         OffsetDateTime now = OffsetDateTime.now();
         AttachmentEntity entity = new AttachmentEntity();
         entity.setOwnerType(ownerType);
@@ -429,7 +430,7 @@ public class AttachmentService implements DisposableBean {
         return sb.toString();
     }
 
-    private void validateTextFile(MultipartFile file) {
+    private void validateTextFile(@Nullable MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "File is empty");
         }

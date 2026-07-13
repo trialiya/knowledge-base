@@ -7,6 +7,7 @@ import io.github.trialiya.kb.service.SearchAgentService;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -49,13 +50,13 @@ public class SearchAgentFunction {
                             description =
                                     "Область поиска: \"code\" | \"docs\" | \"all\" (по умолчанию all).",
                             required = false)
-                    String scope,
+                    @Nullable String scope,
             @ToolParam(
                             description =
                                     "Glob для ограничения путей в коде, например \"backend/**/*.java\"."
                                             + " null — без ограничения.",
                             required = false)
-                    String pathGlob) {
+                    @Nullable String pathGlob) {
         final String conversationId = conversationId(context);
         log.info(
                 "[{}] searchCodebase called: scope={} pathGlob={}",

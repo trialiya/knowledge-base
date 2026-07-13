@@ -3,6 +3,7 @@ package io.github.trialiya.kb.model.attachment.dto;
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.tools.Compact;
 import java.time.OffsetDateTime;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Read-only DTO returned by the REST API and AI tools.
@@ -22,13 +23,13 @@ import java.time.OffsetDateTime;
 public record Attachment(
         Long id,
         String ownerType,
-        Long documentId,
-        String conversationId,
+        @Nullable Long documentId,
+        @Nullable String conversationId,
         String fileName,
         String contentType,
         long fileSize,
-        String summary,
-        String sourceUrl,
+        @Nullable String summary,
+        @Nullable String sourceUrl,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt)
         implements ToolCallResponseItem {

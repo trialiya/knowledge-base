@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AbstractMessage;
@@ -104,7 +105,7 @@ public class ChatRunService {
             String conversationId,
             String user,
             String userMessage,
-            String resolvedModel,
+            @Nullable String resolvedModel,
             String clientMsgId) {
         final String runId = UUID.randomUUID().toString();
         // Атомарная заявка на чат: если генерация уже идёт (в т.ч. из другой вкладки) — 409,
@@ -160,7 +161,10 @@ public class ChatRunService {
     }
 
     private void run(
-            RunHandle handle, String userMessage, String resolvedModel, String clientMsgId) {
+            RunHandle handle,
+            String userMessage,
+            @Nullable String resolvedModel,
+            String clientMsgId) {
         final String conversationId = handle.conversationId();
         final String runId = handle.runId();
         final Consumer<Object> liveSink =
@@ -329,7 +333,7 @@ public class ChatRunService {
     }
 
     private void printUsageStatistics(
-            String conversationId, ChatResponse response, String finishReason) {
+            String conversationId, ChatResponse response, @Nullable String finishReason) {
         if (finishReason == null
                 || finishReason.isEmpty()
                 || finishReason.equals(_UNKNOWN_FINISH_REASON)) {

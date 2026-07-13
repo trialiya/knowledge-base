@@ -1,5 +1,7 @@
 package io.github.trialiya.kb.model.doc.dto;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * Request body for {@code PATCH /api/documents/{id}/move}.
  *
@@ -10,4 +12,4 @@ package io.github.trialiya.kb.model.doc.dto;
  * @param parentId target parent id, {@code null} = root level
  * @param afterId sibling to place the node right after, {@code null} = first in the level
  */
-public record MoveRequest(Long parentId, Long afterId) {}
+public record MoveRequest(@Nullable Long parentId, @Nullable Long afterId) {}

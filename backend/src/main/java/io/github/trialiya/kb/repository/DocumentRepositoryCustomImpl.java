@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
+import org.jspecify.annotations.Nullable;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -22,7 +23,7 @@ public class DocumentRepositoryCustomImpl implements DocumentRepositoryCustom {
     private final JdbcTemplate jdbcTemplate;
 
     @Override
-    public Map<Long, List<SearchResult.Parent>> findAncestorsByIds(Collection<Long> ids) {
+    public Map<Long, List<SearchResult.Parent>> findAncestorsByIds(@Nullable Collection<Long> ids) {
         if (ids == null || ids.isEmpty()) return Map.of();
 
         // One placeholder per id for the IN (...) list.

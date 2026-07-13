@@ -7,6 +7,7 @@ import io.github.trialiya.kb.config.model.EmbeddingConfiguration;
 import io.github.trialiya.kb.config.model.SubAgentConfig;
 import io.github.trialiya.kb.service.SummarizeService;
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -19,9 +20,9 @@ public class SettingsController {
     private final ChatModelProperties chatModelProperties;
     private final EmbeddingConfiguration embeddingConfiguration;
     private final SubAgentConfig subAgentConfig;
-    private final Integer chatMaxTokens;
-    private final Double chatTemperature;
-    private final Double chatTopP;
+    private final @Nullable Integer chatMaxTokens;
+    private final @Nullable Double chatTemperature;
+    private final @Nullable Double chatTopP;
     private final AtlassianConfiguration atlassianConfiguration;
 
     public SettingsController(

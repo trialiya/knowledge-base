@@ -1,3 +1,5 @@
 package io.github.trialiya.kb.model.chat.dto;
 
-public record StreamMessage(String message, String finishReason) {}
+import org.jspecify.annotations.Nullable;
+
+public record StreamMessage(String message, @Nullable String finishReason) {}

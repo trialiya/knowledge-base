@@ -4,6 +4,7 @@ import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.tools.Compact;
 import java.time.LocalDateTime;
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Lightweight document DTO returned by create / update / move operations.
@@ -26,15 +27,15 @@ public record Document(
         long id,
         String title,
         String type,
-        Long parentId,
+        @Nullable Long parentId,
         int version,
         int descriptionVersion,
-        String description,
+        @Nullable String description,
         LocalDateTime updatedAt,
         List<Document> children,
-        String summary,
+        @Nullable String summary,
         boolean summaryStale,
-        Integer summarySourceVersion)
+        @Nullable Integer summarySourceVersion)
         implements ToolCallResponseItem {
     @Override
     public String getFormattedResponse() {

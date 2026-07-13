@@ -4,6 +4,7 @@ import io.github.trialiya.kb.config.model.EmbeddingConfiguration;
 import io.github.trialiya.kb.repository.EmbeddingCacheRepository;
 import java.time.OffsetDateTime;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -83,7 +84,7 @@ public class EmbeddingCacheCleanupTask {
      * @return number of deleted rows
      */
     @Transactional
-    public int evictNow(Integer customTtlDays) {
+    public int evictNow(@Nullable Integer customTtlDays) {
         int effectiveTtl = customTtlDays != null ? customTtlDays : ttlDays;
         OffsetDateTime cutoff = OffsetDateTime.now().minusDays(effectiveTtl);
         log.info("Manual cache eviction triggered — cutoff={} ttl={}d", cutoff, effectiveTtl);

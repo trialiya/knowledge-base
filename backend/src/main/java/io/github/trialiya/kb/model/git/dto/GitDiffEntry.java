@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.model.git.dto;
 
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Одна запись из diff коммита.
@@ -13,7 +14,12 @@ import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
  * @param patch текстовый diff (unified), null если не запрашивался
  */
 public record GitDiffEntry(
-        String status, String path, String oldPath, int additions, int deletions, String patch)
+        String status,
+        String path,
+        @Nullable String oldPath,
+        int additions,
+        int deletions,
+        @Nullable String patch)
         implements ToolCallResponseItem {
 
     @Override

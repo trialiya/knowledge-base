@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -310,7 +311,7 @@ public class SemanticSearchService {
         return sb.toString();
     }
 
-    private static String buildDocumentText(String title, String description) {
+    private static String buildDocumentText(@Nullable String title, @Nullable String description) {
         StringBuilder sb = new StringBuilder(title == null ? "" : title.trim());
         if (description != null && !description.isBlank()) {
             sb.append('\n').append(description.trim());

@@ -20,6 +20,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 
 /**
@@ -331,7 +332,7 @@ public class DocumentExportService {
      * Converts a document title into a filesystem-safe name: lower-case, spaces/special chars
      * replaced with hyphens, no leading/trailing hyphens.
      */
-    static String safeName(String title) {
+    static String safeName(@Nullable String title) {
         if (title == null || title.isBlank()) {
             return "untitled";
         }
@@ -381,7 +382,7 @@ public class DocumentExportService {
     }
 
     /** Escapes double quotes for safe YAML string values. */
-    private static String escapeYaml(String value) {
+    private static String escapeYaml(@Nullable String value) {
         if (value == null) return "";
         return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
@@ -392,7 +393,7 @@ public class DocumentExportService {
         return byParent.getOrDefault(id, Collections.emptyList());
     }
 
-    private boolean hasContent(String s) {
+    private boolean hasContent(@Nullable String s) {
         return s != null && !s.isBlank();
     }
 }

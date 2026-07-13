@@ -4,6 +4,7 @@ import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.service.GitService;
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -46,8 +47,8 @@ public class GitController {
     @GetMapping("/files/content")
     public GitFileContent getFileContent(
             @RequestParam("path") String path,
-            @RequestParam(name = "from", required = false) Integer from,
-            @RequestParam(name = "to", required = false) Integer to) {
+            @RequestParam(name = "from", required = false) @Nullable Integer from,
+            @RequestParam(name = "to", required = false) @Nullable Integer to) {
         requireSafePath(path);
         return gitService.getFileContent(path, from, to);
     }
@@ -57,14 +58,15 @@ public class GitController {
      * {@code path} for the repo root. Directories sort before files, then alphabetically.
      */
     @GetMapping("/tree")
-    public List<GitFileNode> getTree(@RequestParam(name = "path", required = false) String path) {
+    public List<GitFileNode> getTree(
+            @RequestParam(name = "path", required = false) @Nullable String path) {
         if (path != null && !path.isBlank()) {
             requireSafePath(path);
         }
         return gitService.getFileTree(path);
     }
 
-    private static void requireSafePath(String path) {
+    private static void requireSafePath(@Nullable String path) {
         if (path == null || path.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "path must not be blank");
         }
