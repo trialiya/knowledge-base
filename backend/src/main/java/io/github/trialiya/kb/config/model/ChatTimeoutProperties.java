@@ -10,8 +10,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * NOT here — it has no kb-specific equivalent, it's the standard {@code spring.ai.openai.timeout}
  * property. That one property drives both the SDK's own request deadline (the thing that actually
  * cancels a call — {@code ClientOptions.timeout}) and the underlying OkHttp client's timeouts, so
- * it must be set there rather than via a {@code OpenAiHttpClientBuilderCustomizer} bean, which
- * only reaches the OkHttp layer and leaves the SDK-level deadline at its 60s default.
+ * it must be set there rather than via a {@code OpenAiHttpClientBuilderCustomizer} bean, which only
+ * reaches the OkHttp layer and leaves the SDK-level deadline at its 60s default.
  *
  * <pre>
  * kb:
