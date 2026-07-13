@@ -171,6 +171,14 @@ export default function useInChatSearch({ activeChatId, chatsRef, loadOlderMessa
       const chat = chatsRef.current.find((c) => c.id === activeChatId);
       return !!chat?.messages?.some((m) => m.dbId === activeMatch.id);
     };
+    // Первичную проверку делаем по messages (свежий снимок из рендера), а не по
+    // chatsRef — он синхронизируется отдельным эффектом и на один рендер отстаёт
+    // (см. комментарий в ChatWindow). Иначе для уже загруженного совпадения (обычно
+    // это дефолтный — самый свежий — хит) догрузка стартует лишний раз: она проходит
+    // мимо MessageList.prependRef (тот снимает scrollTop только на догрузках через
+    // скролл), поэтому вставка старых сообщений сдвигает вьюпорт без компенсации —
+    // уже подсвеченное сообщение мгновенно уезжает из видимой области.
+    if (messages.some((m) => m.dbId === activeMatch.id)) return undefined;
     if (hasLocally()) return undefined;
 
     // Пузыри, добавленные в текущей сессии (стриминг/отправка), не имеют dbId,
@@ -199,6 +207,10 @@ export default function useInChatSearch({ activeChatId, chatsRef, loadOlderMessa
     return () => {
       cancelled = true;
     };
+    // messages не в deps намеренно: нужен лишь свежий снимок в момент срабатывания
+    // эффекта (смена activeMatch/activeChatId) — реагировать на его последующие
+    // изменения не нужно, догрузку уже ведёт цикл внутри эффекта через chatsRef.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMatch, activeChatId, chatsRef, loadOlderMessages]);
 
   return {
