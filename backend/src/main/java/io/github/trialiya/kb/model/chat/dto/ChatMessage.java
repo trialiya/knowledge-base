@@ -6,6 +6,7 @@ import java.util.List;
 import org.jspecify.annotations.Nullable;
 
 public record ChatMessage(
+        @Nullable Long id,
         String content,
         String type,
         LocalDateTime timestamp,

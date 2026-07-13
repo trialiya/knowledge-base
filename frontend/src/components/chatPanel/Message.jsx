@@ -491,6 +491,8 @@ const Message = ({
   conversationId,
   onNavigateToDoc,
   timestamp,
+  mid,
+  searchActive,
 }) => {
   const { t, i18n } = useTranslation('chat');
   const [showSource, setShowSource] = useState(false);
@@ -500,6 +502,15 @@ const Message = ({
   const timeLabel = formatTimestamp(timestamp, i18n.language);
   const timeTitle = formatFullDatetime(timestamp, i18n.language);
 
+  // Стабильные идентичности markdown-компонентов между рендерами (как в
+  // MarkdownEditor). Без useMemo каждый рендер создаёт новые функции `code`/`a`,
+  // React считает их другими типами и пересоздаёт DOM-поддеревья кода и ссылок
+  // с новыми текстовыми узлами. Это ломает CSS Highlight подсветку find-бара:
+  // её Range-ы держат ссылки на старые узлы, и совпадения в `код`-фрагментах
+  // гасли при любом ре-рендере списка (например, setShowScrollButton после
+  // плавного скролла к совпадению).
+  const mdComponents = useMemo(() => getMarkdownComponents(onNavigateToDoc), [onNavigateToDoc]);
+
   // Пузырь — только контент сообщения, без футера
   const bubble = (
     <div className={messageClass}>
@@ -508,7 +519,7 @@ const Message = ({
           <pre className="message-raw-source">{text}</pre>
         ) : (
           <div className="md-preview md-preview--chat">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={getMarkdownComponents(onNavigateToDoc)}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
               {text}
             </ReactMarkdown>
           </div>
@@ -557,7 +568,10 @@ const Message = ({
     );
 
   const messageBlock = (
-    <div className={`message-block message-block--${sender}`}>
+    <div
+      className={`message-block message-block--${sender}${searchActive ? ' message-block--search-hit' : ''}`}
+      data-mid={mid ?? undefined}
+    >
       {bubble}
       {footer}
     </div>

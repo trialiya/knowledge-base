@@ -52,6 +52,9 @@ export const transformPage = (rawMsgs) => {
     if (type !== 'user') sawAi = true;
     bubbles.push({
       mid: nextMessageId(),
+      // id сообщения в БД — якорь для поиска по чату (find-бар, Ctrl+F): позволяет
+      // сопоставить хит бэкенда с пузырём и понять, догружена ли страница с совпадением.
+      dbId: m.id ?? null,
       text: m.content,
       sender: type === 'user' ? 'user' : 'ai',
       timestamp: m.timestamp || null,

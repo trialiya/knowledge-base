@@ -1,7 +1,17 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import ChatSearch from './ChatSearch';
 
-const ChatList = ({ chats, activeChatId, onSelectChat, onNewChat, onDeleteChat, onRenameChat, onNewJiraChat }) => {
+const ChatList = ({
+  chats,
+  activeChatId,
+  onSelectChat,
+  onNewChat,
+  onDeleteChat,
+  onRenameChat,
+  onNewJiraChat,
+  onSearchSelect,
+}) => {
   const { t } = useTranslation('chat');
   const [editingId, setEditingId] = useState(null);
   const [editValue, setEditValue] = useState('');
@@ -41,6 +51,7 @@ const ChatList = ({ chats, activeChatId, onSelectChat, onNewChat, onDeleteChat, 
           🔗 {t('list.newJiraChat')}
         </button>
       )}
+      {onSearchSelect && <ChatSearch onSelect={onSearchSelect} />}
       <ul>
         {chats.map((chat) => (
           <li

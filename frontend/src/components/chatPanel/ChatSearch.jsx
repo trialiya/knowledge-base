@@ -1,24 +1,21 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import gitApi from '../../api/gitApi';
-import { highlightFileMatch } from '../common/highlightMatch';
-import { IconSearch, IconX, IconDoc } from '../../icons';
+import chatApi from '../../api/chatApi';
+import { highlightSubstring } from '../common/highlightMatch';
+import { IconSearch, IconX, IconMessage } from '../../icons';
 
-const DEBOUNCE_MS = 200;
+const DEBOUNCE_MS = 250;
 const RESULT_LIMIT = 15;
 
 /**
- * Быстрый поиск файла по имени над деревом: кнопка-лупа → инпут → плавающий
- * список результатов (портал, позиционируется под инпутом). Выбор — Enter,
- * клик по строке или ↑↓+Enter — вызывает onSelect(path) и закрывает поиск.
- * Паттерн подсказки заимствован у FileChipInput/FilePickerDropdown (композер
- * чата), но своя, более простая реализация: там список открывается НАД
- * кареткой (композер прижат к низу окна) и умеет вставлять контент чипом —
- * здесь нужен список ПОД полем и только переход к файлу.
+ * Поиск по чатам (лупа над списком): и по названию, и по содержимому сообщений
+ * одновременно, результаты объединены по чату. Паттерн — как FileSearch над
+ * деревом файлов (кнопка-лупа → инпут → плавающий список), своя более простая
+ * реализация: список результатов, а не одиночная подсказка по имени.
  */
-const FileSearch = ({ onSelect }) => {
-  const { t } = useTranslation('files');
+const ChatSearch = ({ onSelect }) => {
+  const { t } = useTranslation('chat');
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -57,8 +54,8 @@ const FileSearch = ({ onSelect }) => {
     const controller = new AbortController();
     abortRef.current = controller;
     setLoading(true);
-    gitApi
-      .searchFiles(q, RESULT_LIMIT, controller.signal)
+    chatApi
+      .searchChats(q, RESULT_LIMIT, controller.signal)
       .then((data) => {
         setResults(Array.isArray(data) ? data : []);
         setIdx(0);
@@ -89,11 +86,11 @@ const FileSearch = ({ onSelect }) => {
   );
 
   const choose = useCallback(
-    (node) => {
-      onSelect(node.path);
+    (result) => {
+      onSelect(result, query.trim());
       close();
     },
-    [onSelect, close],
+    [onSelect, query, close],
   );
 
   const handleKeyDown = useCallback(
@@ -126,22 +123,20 @@ const FileSearch = ({ onSelect }) => {
     if (!open) return;
     const onDocMouseDown = (e) => {
       if (wrapRef.current?.contains(e.target)) return;
-      if (e.target.closest?.('.file-search-dropdown')) return;
+      if (e.target.closest?.('.chat-search-dropdown')) return;
       close();
     };
     document.addEventListener('mousedown', onDocMouseDown);
     return () => document.removeEventListener('mousedown', onDocMouseDown);
   }, [open, close]);
 
-  // Якорь фиксируется один раз при открытии и не следит за окном — при ресайзе
-  // или скролле список «отрывается» от поля. Дешевле закрыть поиск, чем
-  // пересчитывать позицию на каждый scroll/resize. Прокрутка внутри самого
-  // списка результатов (колёсиком или scrollIntoView при навигации стрелками)
-  // якорь не двигает — её игнорируем.
   useEffect(() => {
     if (!open) return;
+    // Скролл страницы «отрывает» плавающий список от якоря — закрываем. Но прокрутка
+    // внутри самого списка результатов (колёсиком или scrollIntoView при навигации
+    // стрелками) закрывать поиск не должна.
     const onScroll = (e) => {
-      if (e.target instanceof Element && e.target.closest('.file-search-dropdown')) return;
+      if (e.target instanceof Element && e.target.closest('.chat-search-dropdown')) return;
       close();
     };
     window.addEventListener('resize', close);
@@ -157,33 +152,29 @@ const FileSearch = ({ onSelect }) => {
   }, [idx]);
 
   return (
-    <div className="file-search" ref={wrapRef}>
+    <div className="chat-search" ref={wrapRef}>
       {open ? (
-        <div className="file-search__field">
-          <span className="file-search__field-icon">
+        <div className="chat-search__field">
+          <span className="chat-search__field-icon">
             <IconSearch size={13} />
           </span>
           <input
             ref={inputRef}
             type="text"
-            className="file-search__input"
-            placeholder={t('search.placeholder')}
+            className="chat-search__input"
+            placeholder={t('sidebarSearch.placeholder')}
             value={query}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
           />
-          <button className="file-search__close" title={t('search.close')} onClick={close}>
+          <button className="chat-search__close" title={t('sidebarSearch.close')} onClick={close}>
             <IconX size={11} />
           </button>
         </div>
       ) : (
-        <button
-          className="file-search__trigger"
-          onClick={openSearch}
-          aria-label={t('search.open')}
-          title={t('search.open')}
-        >
+        <button className="chat-search__trigger" onClick={openSearch} title={t('sidebarSearch.open')}>
           <IconSearch size={14} />
+          <span>{t('sidebarSearch.open')}</span>
         </button>
       )}
 
@@ -191,41 +182,45 @@ const FileSearch = ({ onSelect }) => {
         anchorRect &&
         createPortal(
           <div
-            className="file-search-dropdown"
-            style={{ top: anchorRect.bottom + 6, left: anchorRect.left, width: Math.max(anchorRect.width, 360) }}
+            className="chat-search-dropdown"
+            style={{ top: anchorRect.bottom + 6, left: anchorRect.left, width: Math.max(anchorRect.width, 320) }}
           >
-            {loading && <div className="file-search-dropdown__msg">{t('search.searching')}</div>}
+            {loading && <div className="chat-search-dropdown__msg">{t('sidebarSearch.searching')}</div>}
             {!loading && query.trim().length >= 1 && results.length === 0 && (
-              <div className="file-search-dropdown__msg">{t('search.empty')}</div>
+              <div className="chat-search-dropdown__msg">{t('sidebarSearch.empty')}</div>
             )}
             {!loading && query.trim().length === 0 && (
-              <div className="file-search-dropdown__msg">{t('search.hint')}</div>
+              <div className="chat-search-dropdown__msg">{t('sidebarSearch.hint')}</div>
             )}
             {results.length > 0 && (
-              <div className="file-search-dropdown__list" ref={listRef}>
-                {results.map((node, i) => {
-                  const { name, dir } = highlightFileMatch(node.name, node.path, query);
-                  return (
-                    <button
-                      key={node.path}
-                      type="button"
-                      className={`file-search-item${i === idx ? ' file-search-item--selected' : ''}`}
-                      onMouseEnter={() => setIdx(i)}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        choose(node);
-                      }}
-                    >
-                      <span className="file-search-item__icon">
-                        <IconDoc size={13} />
+              <div className="chat-search-dropdown__list" ref={listRef}>
+                {results.map((res, i) => (
+                  <button
+                    key={res.conversationId}
+                    type="button"
+                    className={`chat-search-item${i === idx ? ' chat-search-item--selected' : ''}`}
+                    onMouseEnter={() => setIdx(i)}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      choose(res);
+                    }}
+                  >
+                    <span className="chat-search-item__icon">
+                      <IconMessage size={13} />
+                    </span>
+                    <span className="chat-search-item__body">
+                      <span className="chat-search-item__title">
+                        {highlightSubstring(res.topic || t('window.defaultTitle'), query)}
                       </span>
-                      <span className="file-search-item__body">
-                        <span className="file-search-item__name">{name}</span>
-                        {dir && <span className="file-search-item__path">{dir}</span>}
-                      </span>
-                    </button>
-                  );
-                })}
+                      {res.snippet && (
+                        <span className="chat-search-item__snippet">{highlightSubstring(res.snippet, query)}</span>
+                      )}
+                    </span>
+                    {res.messageMatchCount > 0 && (
+                      <span className="chat-search-item__badge">{res.messageMatchCount}</span>
+                    )}
+                  </button>
+                ))}
               </div>
             )}
           </div>,
@@ -235,4 +230,4 @@ const FileSearch = ({ onSelect }) => {
   );
 };
 
-export default FileSearch;
+export default ChatSearch;

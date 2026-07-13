@@ -1,4 +1,4 @@
-import { matchIndices, renderHighlighted, highlightFileMatch } from './highlightMatch';
+import { matchIndices, renderHighlighted, highlightFileMatch, highlightSubstring } from './highlightMatch';
 
 // Собрать из результата renderHighlighted строку, где подсвеченные фрагменты
 // обёрнуты в [..] — так тесты читаются как «что видит пользователь».
@@ -54,6 +54,23 @@ describe('renderHighlighted', () => {
     expect(toMarkedString(renderHighlighted('abc', matchIndices('abc', 'a')))).toBe('[a]bc');
     expect(toMarkedString(renderHighlighted('abc', matchIndices('abc', 'c')))).toBe('ab[c]');
     expect(toMarkedString(renderHighlighted('abc', matchIndices('abc', 'abc')))).toBe('[abc]');
+  });
+});
+
+describe('highlightSubstring', () => {
+  it('подсвечивает непрерывную подстроку без учёта регистра', () => {
+    expect(toMarkedString(highlightSubstring('Обсуждение Жирафов', 'жираф'))).toBe('Обсуждение [Жираф]ов');
+  });
+
+  it('НЕ падает на подпоследовательность: без подстроки возвращает текст как есть', () => {
+    // highlightMatch подсветил бы g,i,t,s,v врассыпную — для сниппетов это шум.
+    expect(highlightSubstring('GitService.java', 'gitsv')).toBe('GitService.java');
+  });
+
+  it('пустой query или text — текст без изменений', () => {
+    expect(highlightSubstring('abc', '')).toBe('abc');
+    expect(highlightSubstring('abc', '  ')).toBe('abc');
+    expect(highlightSubstring('', 'a')).toBe('');
   });
 });
 

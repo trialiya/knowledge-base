@@ -71,6 +71,23 @@ export default function highlightMatch(text, query) {
 }
 
 /**
+ * Как highlightMatch, но только непрерывная подстрока — без фолбэка на
+ * подпоследовательность. Для названий чатов и сниппетов сообщений (ChatSearch)
+ * рассыпанная по отдельным буквам подсветка выглядит как шум: бэкенд там ищет
+ * именно подстроку, значит и подсвечивать надо либо её целиком, либо ничего.
+ */
+export function highlightSubstring(text, query) {
+  const q = (query ?? '').trim().toLowerCase();
+  if (!q || !text) return text;
+  const at = text.toLowerCase().indexOf(q);
+  if (at < 0) return text;
+  return renderHighlighted(
+    text,
+    Array.from({ length: q.length }, (_, i) => at + i),
+  );
+}
+
+/**
  * Подсветка результата поиска файла, где имя и каталог рендерятся отдельными
  * строками. Как на бэкенде: сначала матчим имя; если имя не совпало — матчим
  * полный путь и раскладываем совпавшие индексы на части dir и name.
