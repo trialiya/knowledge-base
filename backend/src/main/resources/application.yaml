@@ -79,9 +79,6 @@ kb:
 #    models:
 #      - id: ${KB_CHAT_MODELS_0_ID}
 #        label: ${KB_CHAT_MODELS_0_LABEL}
-    timeout:
-      # SseEmitter timeout per browser tab subscription (replay/reconnect window).
-      sse: ${KB_CHAT_SSE_TIMEOUT:30m}
   documents:
     export-path: ${DOCUMENTS_EXPORT_PATH}
     replace: true
