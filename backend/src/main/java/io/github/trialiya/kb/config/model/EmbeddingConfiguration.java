@@ -13,9 +13,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *     workers: 4
  *     poll-batch-size: 20
  *     max-attempts: 3
+ *     retry-backoff-seconds: 30
  *     stuck-timeout-minutes: 10
- *     stuck-check-ms: 300000
  *     cleanup-retention-days: 7
+ *     poll-interval-ms: 1000    # read by @Scheduled placeholders, not bound here
+ *     stuck-check-ms: 300000    # read by @Scheduled placeholders, not bound here
  *     cache:
  *       enabled: true
  *       ttl-days: 30
@@ -32,6 +34,7 @@ public record EmbeddingConfiguration(
         int workers,
         int pollBatchSize,
         int maxAttempts,
+        int retryBackoffSeconds,
         int stuckTimeoutMinutes,
         int cleanupRetentionDays,
         EmbeddingCacheConfiguration cache,

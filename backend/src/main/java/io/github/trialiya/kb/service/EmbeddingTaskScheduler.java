@@ -18,20 +18,23 @@ import org.springframework.stereotype.Component;
  *
  * <ol>
  *   <li>Adaptive batch size = {@code min(pollBatchSize, executor.availablePermits())} — skips the
- *       poll entirely when the executor is saturated.
- *   <li>{@link EmbeddingTaskRepository#claimPending} atomically marks tasks {@code starting},
- *       assigns a random {@code claim_token}, and deduplicates concurrent tasks for the same entity
- *       using {@code FOR UPDATE SKIP LOCKED} + a {@code NOT EXISTS} guard.
- *   <li>Each claimed task is submitted to {@link EmbeddingExecutor}: a virtual thread acquires a
- *       semaphore permit, validates the claim token, calls the AI API, persists the vector, then
- *       marks the task {@code done}, {@code pending} (retry), or {@code failed}.
+ *       poll entirely when the executor is saturated. Unclaimed tasks stay {@code pending} for the
+ *       next tick.
+ *   <li>{@link EmbeddingTaskRepository#claimPending} atomically marks exactly that many tasks
+ *       {@code starting} (oldest first, respecting retry backoff, skipping entities already being
+ *       processed) and assigns them a random {@code claim_token}, using {@code FOR UPDATE SKIP
+ *       LOCKED} so concurrent claimers never collide.
+ *   <li>Each claimed task is submitted to {@link EmbeddingExecutor}: a virtual thread validates the
+ *       claim token, calls the AI API, persists the vector, then marks the task {@code done},
+ *       {@code pending} (retry), or {@code failed}. If no executor permit is free (a rare race),
+ *       the claim is released back to the queue without burning an attempt.
  * </ol>
  *
  * <h3>Stuck-task reaper</h3>
  *
  * <p>A separate scheduled method ({@link #recoverAndCleanup}) periodically resets tasks that have
- * been stuck in {@code starting} beyond {@code kb.embedding.stuck-timeout-minutes}, and deletes
- * old terminal rows ({@code done}/{@code failed}/{@code superseded}).
+ * been stuck in {@code starting} beyond {@code kb.embedding.stuck-timeout-minutes}, and deletes old
+ * terminal rows ({@code done}/{@code failed}/{@code superseded}).
  */
 @Slf4j
 @Component
@@ -43,6 +46,7 @@ public class EmbeddingTaskScheduler {
     private final SemanticSearchService searchService;
     private final int pollBatchSize;
     private final int maxAttempts;
+    private final int retryBackoffSeconds;
     private final int stuckTimeoutMinutes;
     private final int cleanupRetentionDays;
 
@@ -56,6 +60,7 @@ public class EmbeddingTaskScheduler {
         this.searchService = searchService;
         this.pollBatchSize = config.pollBatchSize();
         this.maxAttempts = config.maxAttempts();
+        this.retryBackoffSeconds = config.retryBackoffSeconds();
         this.stuckTimeoutMinutes = config.stuckTimeoutMinutes();
         this.cleanupRetentionDays = config.cleanupRetentionDays();
     }
@@ -69,18 +74,26 @@ public class EmbeddingTaskScheduler {
         int batchSize = Math.min(pollBatchSize, available);
         // claimPending() manages its own TX and commits before we submit to the executor,
         // so workers never race against an uncommitted status change.
-        List<EmbeddingTaskEntity> tasks = taskRepo.claimPending(batchSize);
+        List<EmbeddingTaskEntity> tasks = taskRepo.claimPending(batchSize, retryBackoffSeconds);
         if (!tasks.isEmpty()) {
             log.debug("Claimed {} embedding task(s)", tasks.size());
         }
-        tasks.forEach(t -> executor.submit(() -> processTask(t)));
+        for (EmbeddingTaskEntity task : tasks) {
+            if (!executor.submit(() -> processTask(task))) {
+                // Executor saturated between availablePermits() and here — hand the task back.
+                taskRepo.releaseClaim(task.getId(), task.getClaimToken());
+            }
+        }
     }
 
     @Scheduled(fixedDelayString = "${kb.embedding.stuck-check-ms:300000}")
     public void recoverAndCleanup() {
         int recovered = taskRepo.resetStuck(stuckTimeoutMinutes, maxAttempts);
         if (recovered > 0) {
-            log.warn("Recovered {} stuck embedding task(s) (timeout={}m)", recovered, stuckTimeoutMinutes);
+            log.warn(
+                    "Recovered {} stuck embedding task(s) (timeout={}m)",
+                    recovered,
+                    stuckTimeoutMinutes);
         }
         int deleted = taskRepo.cleanupCompleted(cleanupRetentionDays);
         if (deleted > 0) {
@@ -89,11 +102,9 @@ public class EmbeddingTaskScheduler {
     }
 
     private void processTask(EmbeddingTaskEntity task) {
-        // Guard against the reaper resetting this task while we were waiting for a semaphore permit.
+        // Guard against the reaper having reclaimed this task before the worker got scheduled.
         if (!taskRepo.isMyClaimValid(task.getId(), task.getClaimToken())) {
-            log.debug(
-                    "Embedding task id={} claim_token no longer valid, skipping",
-                    task.getId());
+            log.debug("Embedding task id={} claim_token no longer valid, skipping", task.getId());
             return;
         }
         try {

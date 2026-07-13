@@ -13,15 +13,19 @@ import org.springframework.data.relational.core.mapping.Table;
 @Table("embedding_tasks")
 public class EmbeddingTaskEntity {
 
-    @Id
-    private Long id;
+    @Id private Long id;
 
     /** {@code "document"} or {@code "attachment"}. */
     private String entityType;
 
     private Long entityId;
 
-    /** Status machine: {@code pending → starting → done / failed / pending(retry) / superseded}. */
+    /**
+     * Status machine: {@code pending → starting → done / failed / pending (retry) / superseded}.
+     * {@code superseded} means the task was collapsed into a newer {@code pending} task for the
+     * same entity, enqueued while this one was in flight — the newer task re-embeds the entity, so
+     * nothing is lost.
+     */
     private String status;
 
     private int attempts;

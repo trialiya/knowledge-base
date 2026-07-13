@@ -1,6 +1,5 @@
 package io.github.trialiya.kb.service;
 
-import io.github.trialiya.kb.config.model.EmbeddingConfiguration;
 import io.github.trialiya.kb.config.model.SearchConfiguration;
 import io.github.trialiya.kb.model.attachment.entity.AttachmentEmbeddingEntity;
 import io.github.trialiya.kb.model.attachment.entity.AttachmentEntity;
@@ -16,8 +15,8 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
-import org.jspecify.annotations.Nullable;
 import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,11 +28,11 @@ import org.springframework.transaction.annotation.Transactional;
  * <h3>Indexing</h3>
  *
  * <ul>
- *   <li>{@link #indexDocument} – enqueues an embedding task for one document (Transactional
- *       Outbox: joins the caller's TX so the task is never visible if the document save rolls back).
+ *   <li>{@link #indexDocument} – enqueues an embedding task for one document (Transactional Outbox:
+ *       joins the caller's TX so the task is never visible if the document save rolls back).
  *   <li>{@link #reindexAll} – enqueues tasks for every document and attachment; returns quickly.
- *   <li>{@link #indexDocumentById} / {@link #indexAttachmentById} – called by
- *       {@link EmbeddingTaskScheduler} workers: load entity, call AI, persist vector.
+ *   <li>{@link #indexDocumentById} / {@link #indexAttachmentById} – called by {@link
+ *       EmbeddingTaskScheduler} workers: load entity, call AI, persist vector.
  *   <li>{@link #deleteIndex} – removes the document embedding.
  * </ul>
  *
@@ -67,7 +66,6 @@ public class SemanticSearchService {
             DocumentRepository documentRepo,
             AttachmentEmbeddingRepository attachmentEmbeddingRepo,
             AttachmentRepository attachmentRepo,
-            EmbeddingConfiguration embeddingConfig,
             SearchConfiguration searchConfig) {
         this.embeddingService = embeddingService;
         this.taskRepo = taskRepo;
@@ -113,13 +111,13 @@ public class SemanticSearchService {
      * outside any database transaction.
      */
     public void indexDocumentById(Long documentId) {
-        DocumentEntity doc =
-                documentRepo
-                        .findById(documentId)
-                        .orElseThrow(
-                                () ->
-                                        new IllegalStateException(
-                                                "Document not found for embedding: " + documentId));
+        Optional<DocumentEntity> found = documentRepo.findById(documentId);
+        if (found.isEmpty()) {
+            // Deleted after the task was enqueued — nothing to embed, treat as done.
+            log.debug("Document id={} no longer exists, skipping embedding", documentId);
+            return;
+        }
+        DocumentEntity doc = found.get();
 
         EmbeddingResponse response =
                 embeddingService.embedDocument(doc.getTitle(), doc.getDescription());
@@ -135,14 +133,13 @@ public class SemanticSearchService {
      * thread outside any database transaction.
      */
     public void indexAttachmentById(Long attachmentId) {
-        AttachmentEntity att =
-                attachmentRepo
-                        .findById(attachmentId)
-                        .orElseThrow(
-                                () ->
-                                        new IllegalStateException(
-                                                "Attachment not found for embedding: "
-                                                        + attachmentId));
+        Optional<AttachmentEntity> found = attachmentRepo.findById(attachmentId);
+        if (found.isEmpty()) {
+            // Deleted after the task was enqueued — nothing to embed, treat as done.
+            log.debug("Attachment id={} no longer exists, skipping embedding", attachmentId);
+            return;
+        }
+        AttachmentEntity att = found.get();
 
         String text = buildAttachmentText(att);
         EmbeddingResponse response = embeddingService.embed(text);
@@ -226,8 +223,9 @@ public class SemanticSearchService {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    @Transactional
-    void upsertDocumentEmbedding(Long documentId, float[] vector) {
+    // Runs in autocommit on a worker thread by design: the find+save pair needs no atomicity
+    // (upsert is idempotent, last writer wins) and must not hold a connection during AI calls.
+    private void upsertDocumentEmbedding(Long documentId, float[] vector) {
         DocumentEmbeddingEntity entity =
                 embeddingRepo
                         .findByDocumentId(documentId)
@@ -243,8 +241,7 @@ public class SemanticSearchService {
         embeddingRepo.save(entity);
     }
 
-    @Transactional
-    void upsertAttachmentEmbedding(Long attachmentId, float[] vector) {
+    private void upsertAttachmentEmbedding(Long attachmentId, float[] vector) {
         AttachmentEmbeddingEntity entity =
                 attachmentEmbeddingRepo
                         .findByAttachmentId(attachmentId)
@@ -269,14 +266,6 @@ public class SemanticSearchService {
             String content = att.getContent();
             if (content.length() > 6000) content = content.substring(0, 6000);
             sb.append('\n').append(content);
-        }
-        return sb.toString();
-    }
-
-    private static String buildDocumentText(@Nullable String title, @Nullable String description) {
-        StringBuilder sb = new StringBuilder(title == null ? "" : title.trim());
-        if (description != null && !description.isBlank()) {
-            sb.append('\n').append(description.trim());
         }
         return sb.toString();
     }

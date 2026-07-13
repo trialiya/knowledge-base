@@ -5,6 +5,7 @@ create table embedding_tasks
     entity_id   bigint       not null,
     status      varchar(20)  not null default 'pending',
     attempts    int          not null default 0,
+    claim_token uuid,
     created_at  timestamptz  not null default now(),
     updated_at  timestamptz  not null default now()
 );
@@ -14,7 +15,13 @@ create index embedding_tasks_pending_idx
     on embedding_tasks (created_at)
     where status = 'pending';
 
--- Prevent double-queueing the same entity while it's still pending or in flight
-create unique index embedding_tasks_active_unique
+-- At most one pending task per entity; enqueueIfAbsent relies on this via ON CONFLICT DO NOTHING.
+-- Pending-only (not 'starting'), so an update arriving mid-processing can still enqueue a new task.
+create unique index embedding_tasks_pending_unique
     on embedding_tasks (entity_type, entity_id)
-    where status in ('pending', 'processing');
+    where status = 'pending';
+
+-- Fast NOT EXISTS probe in claimPending: skip entities already being processed
+create index embedding_tasks_starting_idx
+    on embedding_tasks (entity_type, entity_id)
+    where status = 'starting';

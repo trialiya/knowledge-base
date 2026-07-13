@@ -5,9 +5,11 @@ CREATE TABLE embedding_tasks
     entity_id   BIGINT      NOT NULL,
     status      VARCHAR(20) NOT NULL DEFAULT 'pending',
     attempts    INT         NOT NULL DEFAULT 0,
+    claim_token UUID,
     created_at  TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Simple index; table is never used in H2 mode (kb.search.semantic.enabled=false)
+-- Simple index only: the queue is never polled in H2 mode (kb.search.semantic.enabled=false),
+-- and partial/unique indexes plus SKIP LOCKED are PostgreSQL-specific.
 CREATE INDEX embedding_tasks_pending_idx ON embedding_tasks (created_at);
