@@ -1,7 +1,6 @@
 package io.github.trialiya.kb.config;
 
 import io.github.trialiya.kb.advisor.ToolPreparingAdvisor;
-import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.config.model.SubAgentConfig;
 import io.github.trialiya.kb.functions.AttachmentFunction;
 import io.github.trialiya.kb.functions.DocumentFunction;
@@ -33,7 +32,6 @@ import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.model.tool.ToolCallingManager;
 import org.springframework.ai.openai.OpenAiChatModel;
-import org.springframework.ai.openai.http.okhttp.OpenAiHttpClientBuilderCustomizer;
 import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.beans.factory.ObjectProvider;
@@ -59,18 +57,6 @@ public class ChatConfig {
     public ExecutorService chatRunExecutor() {
         return new DelegatingSecurityContextExecutorService(
                 Executors.newVirtualThreadPerTaskExecutor());
-    }
-
-    /**
-     * Applies {@code kb.chat.timeout.stream} as the call timeout of the underlying openai-java HTTP
-     * client used by every spring-ai-openai model (chat, embedding, ...). Without this, long/slow
-     * streaming generations hit the SDK's default timeout and abort mid-stream with {@code
-     * OpenAIIoException: Stream failed} / {@code StreamResetException: CANCEL}.
-     */
-    @Bean
-    public OpenAiHttpClientBuilderCustomizer openAiHttpClientBuilderCustomizer(
-            ChatTimeoutProperties chatTimeoutProperties) {
-        return builder -> builder.timeout(chatTimeoutProperties.stream());
     }
 
     @Bean
