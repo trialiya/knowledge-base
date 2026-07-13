@@ -62,10 +62,10 @@ public class ChatConfig {
     }
 
     /**
-     * Applies {@code kb.chat.timeout.stream} as the call timeout of the underlying openai-java
-     * HTTP client used by every spring-ai-openai model (chat, embedding, ...). Without this,
-     * long/slow streaming generations hit the SDK's default timeout and abort mid-stream with
-     * {@code OpenAIIoException: Stream failed} / {@code StreamResetException: CANCEL}.
+     * Applies {@code kb.chat.timeout.stream} as the call timeout of the underlying openai-java HTTP
+     * client used by every spring-ai-openai model (chat, embedding, ...). Without this, long/slow
+     * streaming generations hit the SDK's default timeout and abort mid-stream with {@code
+     * OpenAIIoException: Stream failed} / {@code StreamResetException: CANCEL}.
      */
     @Bean
     public OpenAiHttpClientBuilderCustomizer openAiHttpClientBuilderCustomizer(

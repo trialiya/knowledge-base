@@ -10,6 +10,7 @@ import io.github.trialiya.kb.model.doc.dto.UpdateDocumentRequest;
 import io.github.trialiya.kb.service.AttachmentService;
 import io.github.trialiya.kb.service.DocumentService;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
+import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -202,17 +203,29 @@ public class DocumentFunction {
     /**
      * Updates an existing document's title and/or content.
      *
+     * <p>Guard: a content update ({@code description != null}) is rejected unless this document was
+     * already read via {@link #getDocument} earlier in the same chat-response session (checked
+     * against the request-scoped {@link ToolInvocationCollector}). This prevents the model from
+     * blindly overwriting content it has never seen. Pass {@code forceOverwrite=true} to skip the
+     * check when a full rewrite is intended.
+     *
+     * @param context tool context (provides the per-response tool invocation log)
      * @param documentId document id
      * @param title new title (null to keep current)
      * @param description new content (null to keep current)
+     * @param forceOverwrite skip the read-before-write check (intentional full rewrite)
      * @return updated document
      */
     @Tool(
             description =
                     "Обновить существующий документ: изменить название и/или содержимое. "
-                            + "Передай только те поля, которые нужно изменить.",
+                            + "Передай только те поля, которые нужно изменить. "
+                            + "Перед изменением содержимого документ должен быть прочитан через "
+                            + "getDocument в этом же ответе. Если нужно намеренно полностью "
+                            + "переписать содержимое без чтения — передай forceOverwrite=true.",
             resultConverter = CompactToolResultConverter.class)
     public DocumentShort updateDocument(
+            ToolContext context,
             @ToolParam(description = "ID документа для обновления") long documentId,
             @ToolParam(
                             description = "Новое название (null чтобы оставить текущее)",
@@ -223,15 +236,64 @@ public class DocumentFunction {
                                     "Новое содержимое (null чтобы оставить текущее). "
                                             + "Ссылки на другие документы базы знаний оформляй как [Название](/?doc=ID).",
                             required = false)
-                    @Nullable String description) {
+                    @Nullable String description,
+            @ToolParam(
+                            description =
+                                    "true — намеренно переписать содержимое без предварительного "
+                                            + "чтения документа (пропускает проверку)",
+                            required = false)
+                    @Nullable Boolean forceOverwrite) {
 
-        log.info("updateDocument called: id={} title='{}'", documentId, title);
+        log.info(
+                "updateDocument called: id={} title='{}' forceOverwrite={}",
+                documentId,
+                title,
+                forceOverwrite);
+
+        if (description != null && !Boolean.TRUE.equals(forceOverwrite)) {
+            requireReadInThisResponse(context, documentId);
+        }
 
         UpdateDocumentRequest req = new UpdateDocumentRequest();
         req.setTitle(title);
         req.setDescription(description);
 
         return documentService.update(documentId, req).toDocumentShort();
+    }
+
+    /**
+     * Rejects a content update if the document was not successfully read via {@link #getDocument}
+     * earlier within the same chat-response session. When no {@link ToolInvocationCollector} is
+     * present in the context (background jobs, tests), the check is skipped.
+     */
+    private static void requireReadInThisResponse(ToolContext context, long documentId) {
+        final ToolInvocationCollector collector = ToolInvocationCollector.from(context);
+        if (collector == null) {
+            return;
+        }
+        final String id = String.valueOf(documentId);
+        final boolean wasRead =
+                collector.snapshot().stream()
+                        .anyMatch(
+                                inv ->
+                                        "getDocument".equals(inv.name())
+                                                && ToolInvocationCollector.ToolInvocationStatus.OK
+                                                        == inv.status()
+                                                && id.equals(
+                                                        String.valueOf(
+                                                                inv.arguments()
+                                                                        .get("documentId"))));
+        if (!wasRead) {
+            throw new IllegalStateException(
+                    "Документ id="
+                            + documentId
+                            + " НЕ обновлён: его содержимое не было прочитано в этом ответе. "
+                            + "Сначала вызови getDocument(documentId="
+                            + documentId
+                            + "), чтобы увидеть текущее содержимое и не потерять данные, затем "
+                            + "повтори updateDocument. Если нужно намеренно полностью переписать "
+                            + "содержимое без чтения — повтори вызов с forceOverwrite=true.");
+        }
     }
 
     //    /**
