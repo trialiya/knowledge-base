@@ -1,9 +1,10 @@
 package io.github.trialiya.kb.model.doc.dto;
 
 import lombok.Data;
+import org.jspecify.annotations.Nullable;
 
 @Data
 public class UpdateDocumentRequest {
-    private String title; // опционально — можно переименовать
-    private String description; // для папок и документов
+    @Nullable private String title; // опционально — можно переименовать
+    @Nullable private String description; // для папок и документов
 }

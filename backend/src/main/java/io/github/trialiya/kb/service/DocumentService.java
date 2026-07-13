@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -101,6 +102,7 @@ public class DocumentService {
                 .collect(Collectors.toList());
     }
 
+    @Nullable
     public DocumentNode getById(Long id) {
         return repo.findById(id).map(this::toShallowNode).orElse(null);
     }
@@ -118,7 +120,7 @@ public class DocumentService {
      * Pageable}. Each node includes {@code hasChildren} so the UI can show a chevron without
      * loading the next level eagerly.
      */
-    public PagedChildren getChildrenPaged(Long parentId, Pageable pageable) {
+    public PagedChildren getChildrenPaged(@Nullable Long parentId, Pageable pageable) {
         Page<DocumentEntity> page =
                 parentId == null
                         ? repo.findByParentIdIsNull(pageable)
@@ -131,7 +133,7 @@ public class DocumentService {
      * Returns ALL children for a given parent (null = root), unpaged. Kept for backward compat (AI
      * tools, reorder, etc.).
      */
-    public List<DocumentNode> getChildren(Long parentId) {
+    public List<DocumentNode> getChildren(@Nullable Long parentId) {
         List<DocumentEntity> items =
                 parentId == null ? repo.findRoots() : repo.findByParentId(parentId);
         return items.stream().map(this::toStubNode).collect(Collectors.toList());
@@ -227,7 +229,8 @@ public class DocumentService {
     }
 
     /** Returns the first {@value #SNIPPET_LENGTH} characters of {@code text}, or null. */
-    private static String snippetOf(String text) {
+    @Nullable
+    private static String snippetOf(@Nullable String text) {
         if (text == null || text.isBlank()) return null;
         return text.length() <= SNIPPET_LENGTH ? text : text.substring(0, SNIPPET_LENGTH);
     }
@@ -452,7 +455,7 @@ public class DocumentService {
      * @throws ResponseStatusException 422 target is not a folder, or afterId is in another level
      */
     @Transactional
-    public Document move(long id, Long targetParentId, Long afterId) {
+    public Document move(long id, @Nullable Long targetParentId, @Nullable Long afterId) {
         DocumentEntity node = findOrThrow(id);
 
         if (node.isSystem()) {
@@ -622,7 +625,8 @@ public class DocumentService {
      * @param threshold cosine-similarity cutoff (0–1); pass {@code null} for default
      * @param limit max results; pass {@code null} for default
      */
-    public List<SearchResult> semanticSearch(String q, Double threshold, Integer limit) {
+    public List<SearchResult> semanticSearch(
+            String q, @Nullable Double threshold, @Nullable Integer limit) {
         double t = threshold != null ? threshold : searchConfig.semantic().threshold();
         int l = limit != null ? limit : searchConfig.semantic().limit();
 
@@ -661,7 +665,11 @@ public class DocumentService {
      * @param semWeight semantic weight 0..1; {@code null} → from config
      */
     public List<SearchResult> hybridSearch(
-            String q, Double threshold, Integer limit, Double kwWeight, Double semWeight) {
+            String q,
+            @Nullable Double threshold,
+            @Nullable Integer limit,
+            @Nullable Double kwWeight,
+            @Nullable Double semWeight) {
 
         SearchConfiguration.HybridConfig cfg = searchConfig.hybrid();
         double kw = kwWeight != null ? kwWeight : cfg.keywordWeight();
@@ -812,7 +820,7 @@ public class DocumentService {
                 e.updatedAt());
     }
 
-    private String generateSnippet(String content, String query) {
+    private String generateSnippet(@Nullable String content, String query) {
         if (content == null) return "";
         int idx = content.toLowerCase().indexOf(query);
         if (idx == -1) return content.substring(0, Math.min(150, content.length())) + "...";

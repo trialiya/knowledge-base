@@ -96,6 +96,21 @@
     "rename": "Rename",
     "delete": "Delete"
   },
+  "inChatSearch": {
+    "open": "Search in chat (Ctrl+F)",
+    "placeholder": "Search in this chat…",
+    "searching": "Searching…",
+    "prev": "Previous match",
+    "next": "Next match"
+  },
+  "sidebarSearch": {
+    "open": "Search chats",
+    "placeholder": "Search by title or message…",
+    "close": "Close search",
+    "searching": "Searching…",
+    "empty": "Nothing found",
+    "hint": "Search by chat title or message content"
+  },
   "jira": {
     "attachments": "Attachments",
     "attachmentCount_one": "{{count}} attachment",

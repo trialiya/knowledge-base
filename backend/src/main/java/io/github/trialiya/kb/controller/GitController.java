@@ -4,6 +4,7 @@ import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.service.GitService;
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -12,12 +13,14 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Read-only Git endpoints backing the chat composer's {@code /file} autocomplete.
+ * Read-only Git endpoints backing the chat composer's {@code /file} autocomplete and the file
+ * browser panel.
  *
  * <p>{@code GET /search} fuzzy-matches tracked file names for the picker; {@code GET /content}
  * returns a file (optionally a line range) so an inserted chip can be previewed and expanded into
- * the outgoing message. Both delegate to {@link GitService}, which enforces tracked-files-only
- * access, path-traversal guards and binary/size limits.
+ * the outgoing message; {@code GET /tree} lists the direct children of a directory for the file
+ * browser tree. All delegate to {@link GitService}, which enforces tracked-files-only access,
+ * path-traversal guards and binary/size limits.
  */
 @RestController
 @RequestMapping("/api/git")
@@ -44,13 +47,26 @@ public class GitController {
     @GetMapping("/files/content")
     public GitFileContent getFileContent(
             @RequestParam("path") String path,
-            @RequestParam(name = "from", required = false) Integer from,
-            @RequestParam(name = "to", required = false) Integer to) {
+            @RequestParam(name = "from", required = false) @Nullable Integer from,
+            @RequestParam(name = "to", required = false) @Nullable Integer to) {
         requireSafePath(path);
         return gitService.getFileContent(path, from, to);
     }
 
-    private static void requireSafePath(String path) {
+    /**
+     * Direct children (files + subdirectories) of {@code path} for the file browser tree; omit
+     * {@code path} for the repo root. Directories sort before files, then alphabetically.
+     */
+    @GetMapping("/tree")
+    public List<GitFileNode> getTree(
+            @RequestParam(name = "path", required = false) @Nullable String path) {
+        if (path != null && !path.isBlank()) {
+            requireSafePath(path);
+        }
+        return gitService.getFileTree(path);
+    }
+
+    private static void requireSafePath(@Nullable String path) {
         if (path == null || path.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "path must not be blank");
         }

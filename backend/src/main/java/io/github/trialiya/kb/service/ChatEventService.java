@@ -6,6 +6,7 @@ import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -47,8 +48,8 @@ public class ChatEventService {
             String conversationId,
             ChatEventType type,
             String runId,
-            String clientMsgId,
-            Object payload) {
+            @Nullable String clientMsgId,
+            @Nullable Object payload) {
         return hub(conversationId).publish(type, runId, clientMsgId, payload);
     }
 
@@ -61,8 +62,8 @@ public class ChatEventService {
             String conversationId,
             ChatEventType type,
             String runId,
-            String clientMsgId,
-            Object payload) {
+            @Nullable String clientMsgId,
+            @Nullable Object payload) {
         final ConversationHub hub = hubs.get(conversationId);
         if (hub != null) {
             hub.publish(type, runId, clientMsgId, payload);

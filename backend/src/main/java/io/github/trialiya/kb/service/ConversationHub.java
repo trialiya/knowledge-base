@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.http.MediaType;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -38,13 +39,13 @@ public class ConversationHub {
     private final List<SseEmitter> subscribers = new ArrayList<>();
 
     /** Колбэк «хаб простаивает» — реестр пытается выгрузить его (см. {@link ChatEventService}). */
-    private final Consumer<ConversationHub> onIdle;
+    @Nullable private final Consumer<ConversationHub> onIdle;
 
     private long seq;
-    private String activeRunId;
+    @Nullable private String activeRunId;
     private boolean closed;
 
-    public ConversationHub(String conversationId, Consumer<ConversationHub> onIdle) {
+    public ConversationHub(String conversationId, @Nullable Consumer<ConversationHub> onIdle) {
         this.conversationId = conversationId;
         this.onIdle = onIdle;
         log.debug("[{}] hub created", conversationId);
@@ -59,6 +60,7 @@ public class ConversationHub {
      * Возвращает {@code null}, если хаб уже закрыт (выгружается из реестра) — вызывающий должен
      * повторить на свежем.
      */
+    @Nullable
     public SseEmitter subscribe(long fromSeq, long timeoutMillis) {
         final SseEmitter emitter = new SseEmitter(timeoutMillis);
         lock.lock();
@@ -135,6 +137,7 @@ public class ConversationHub {
         }
     }
 
+    @Nullable
     public String activeRunId() {
         lock.lock();
         try {

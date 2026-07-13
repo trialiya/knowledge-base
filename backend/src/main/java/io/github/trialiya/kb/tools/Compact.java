@@ -1,15 +1,19 @@
 package io.github.trialiya.kb.tools;
 
+import org.jspecify.annotations.Nullable;
+
 public final class Compact {
     private Compact() {}
 
-    public static String truncate(String s, int max) {
+    @Nullable
+    public static String truncate(@Nullable String s, int max) {
         if (s == null) return null;
         s = s.strip();
         return s.length() <= max ? s : s.substring(0, max) + "…(+" + (s.length() - max) + ")";
     }
 
-    public static String truncateObject(Object object, int max) {
+    @Nullable
+    public static String truncateObject(@Nullable Object object, int max) {
         if (object == null) return null;
         return truncate(object.toString(), max);
     }
@@ -25,7 +29,7 @@ public final class Compact {
             sb = new StringBuilder(tag);
         }
 
-        public Kv add(String k, Object v) {
+        public Kv add(String k, @Nullable Object v) {
             if (v == null) return this;
             String s = v.toString();
             if (s.isBlank()) return this;
@@ -33,7 +37,7 @@ public final class Compact {
             return this;
         }
 
-        public Kv body(String text) { // тело на новой строке
+        public Kv body(@Nullable String text) { // тело на новой строке
             if (text != null && !text.isBlank()) sb.append('\n').append(text);
             return this;
         }

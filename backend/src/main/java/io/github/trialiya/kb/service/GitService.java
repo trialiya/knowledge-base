@@ -8,7 +8,9 @@ import io.github.trialiya.kb.model.git.dto.GitFileOutline;
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.model.git.dto.OutlineResult;
 import io.github.trialiya.kb.service.outline.LanguageDetector;
+import jakarta.annotation.PreDestroy;
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
@@ -17,13 +19,38 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.regex.Matcher;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.Status;
+import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.api.errors.NoHeadException;
+import org.eclipse.jgit.diff.DiffEntry;
+import org.eclipse.jgit.diff.DiffFormatter;
+import org.eclipse.jgit.diff.Edit;
+import org.eclipse.jgit.dircache.DirCache;
+import org.eclipse.jgit.errors.AmbiguousObjectException;
+import org.eclipse.jgit.errors.IncorrectObjectTypeException;
+import org.eclipse.jgit.errors.MissingObjectException;
+import org.eclipse.jgit.errors.RevisionSyntaxException;
+import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.ObjectReader;
+import org.eclipse.jgit.lib.PersonIdent;
+import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.patch.FileHeader;
+import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.revwalk.RevWalk;
+import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
+import org.eclipse.jgit.treewalk.AbstractTreeIterator;
+import org.eclipse.jgit.treewalk.CanonicalTreeParser;
+import org.eclipse.jgit.treewalk.EmptyTreeIterator;
+import org.eclipse.jgit.treewalk.FileTreeIterator;
+import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,9 +59,10 @@ import org.springframework.stereotype.Service;
 /**
  * Service for read-only Git repository operations.
  *
- * <p>All commands run against the repository at {@code kb.project-path}. Files matched by {@code
- * .gitignore} are excluded from tree/search results via {@code git ls-files} and {@code git log}
- * (which inherently respect ignore rules).
+ * <p>All operations run against the repository at {@code kb.project-path} via JGit, in-process — no
+ * {@code git} subprocess, no argv, no output parsing — except {@link #grepContent}, which still
+ * shells out to {@code git grep} (JGit has no equivalent). Files matched by {@code .gitignore} are
+ * excluded from tree/search/status results the same way native git excludes them.
  */
 @Slf4j
 @Service
@@ -54,46 +82,66 @@ public class GitService {
 
     private static final int TRUNCATE_TAIL_LINES = 50;
 
+    /**
+     * Minimum length for abbreviated commit hashes, matching native git's own default (grows
+     * automatically if ambiguous — see {@link
+     * ObjectReader#abbreviate(org.eclipse.jgit.lib.AnyObjectId, int)}).
+     */
+    private static final int ABBREV_LEN = 7;
+
     /** File names to always exclude from uncommitted changes (OS/IDE junk). */
-    private static final java.util.Set<String> IGNORED_FILES =
-            java.util.Set.of(".DS_Store", "Thumbs.db", "desktop.ini", ".directory");
+    private static final Set<String> IGNORED_FILES =
+            Set.of(".DS_Store", "Thumbs.db", "desktop.ini", ".directory");
 
     /** File extensions to always exclude from uncommitted changes. */
-    private static final java.util.Set<String> IGNORED_EXTENSIONS =
-            java.util.Set.of(
+    private static final Set<String> IGNORED_EXTENSIONS =
+            Set.of(
                     ".class", ".jar", ".war", ".ear", ".o", ".so", ".dylib", ".dll", ".exe", ".pyc",
                     ".pyo", ".swp", ".swo", ".bak", ".tmp", ".orig");
 
-    /** Record separator used in custom git log format. */
-    private static final String RS = "\u001e";
-
-    /** Unit separator for fields inside one record. */
-    private static final String US = "\u001f";
-
     private final Path repoPath;
+    private final Repository repository;
+    private final Git git;
     private final OutlineService outlineService;
 
     public GitService(
             @Value("${kb.project-path}") String projectPath, OutlineService outlineService) {
         this.repoPath = Path.of(projectPath).toAbsolutePath().normalize();
         this.outlineService = outlineService;
+        try {
+            this.repository = new FileRepositoryBuilder().setWorkTree(repoPath.toFile()).build();
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to open Git repository at " + repoPath, e);
+        }
+        // FileRepositoryBuilder.build() never touches disk to verify a .git dir exists — without
+        // this check a bad kb.project-path would silently produce empty results from every
+        // tool (readDirCache() on a missing index just returns 0 entries) instead of failing
+        // Spring bean creation with an actionable error.
+        if (!repository.getDirectory().isDirectory()) {
+            throw new IllegalStateException("Not a Git repository (no .git found): " + repoPath);
+        }
+        this.git = new Git(repository);
         log.info("GitService initialised for repo: {}", repoPath);
+    }
+
+    @PreDestroy
+    void closeRepository() {
+        repository.close();
     }
 
     // ── File tree ────────────────────────────────────────────────────────────
 
     /**
-     * Returns tracked files/directories under {@code subPath} (or repo root if null). Uses {@code
-     * git ls-files} so .gitignore'd files are automatically excluded.
+     * Returns tracked files/directories under {@code subPath} (or repo root if null), directories
+     * first then alphabetically (case-insensitive). Reads the Git index directly, so untracked and
+     * ignored files are automatically excluded.
      */
     public List<GitFileNode> getFileTree(@Nullable String subPath) {
         String base = normalizeSub(subPath);
-        // git ls-files lists tracked files; untracked/ignored are excluded.
-        List<String> args = new ArrayList<>(List.of("git", "ls-files", "--full-name"));
-        if (!base.isEmpty()) {
-            args.add(base);
-        }
-        List<String> lines = exec(args);
+        List<String> lines =
+                trackedPaths().stream()
+                        .filter(p -> base.isEmpty() || p.equals(base) || p.startsWith(base + "/"))
+                        .toList();
 
         // Build a de-duplicated list: files + their direct parent directories
         // relative to the requested subPath.
@@ -115,7 +163,12 @@ public class GitService {
                 nodes.putIfAbsent(line, new GitFileNode(line, relative, "file", size));
             }
         }
-        return new ArrayList<>(nodes.values());
+        return nodes.values().stream()
+                .sorted(
+                        Comparator.<GitFileNode, Boolean>comparing(
+                                        n -> !"directory".equals(n.type()))
+                                .thenComparing(GitFileNode::name, String.CASE_INSENSITIVE_ORDER))
+                .toList();
     }
 
     // ── Commit history ───────────────────────────────────────────────────────
@@ -128,29 +181,22 @@ public class GitService {
      */
     public List<GitCommit> getCommitLog(int maxCount, @Nullable String filePath) {
         int limit = Math.min(Math.max(maxCount, 1), 100);
-        // Format: hash, short hash, author, email, ISO date, subject — separated by US
-        String format = String.join(US, "%H", "%h", "%an", "%ae", "%aI", "%s");
-        List<String> args =
-                new ArrayList<>(
-                        List.of(
-                                "git",
-                                "log",
-                                "--format=" + RS + format,
-                                "-n",
-                                String.valueOf(limit)));
-        if (filePath != null && !filePath.isBlank()) {
-            args.add("--");
-            args.add(filePath.strip());
+        try (ObjectReader reader = repository.newObjectReader()) {
+            var logCommand = git.log().setMaxCount(limit);
+            if (filePath != null && !filePath.isBlank()) {
+                logCommand.addPath(filePath.strip());
+            }
+            List<GitCommit> commits = new ArrayList<>();
+            for (RevCommit commit : logCommand.call()) {
+                commits.add(toGitCommit(commit, null, reader));
+            }
+            return commits;
+        } catch (NoHeadException e) {
+            // Repository has no commits yet — an empty history, not an error.
+            return List.of();
+        } catch (GitAPIException | IOException e) {
+            throw new IllegalStateException("Failed to read commit log", e);
         }
-        String raw = String.join("\n", exec(args));
-        List<GitCommit> commits = new ArrayList<>();
-        for (String record : raw.split(RS)) {
-            if (record.isBlank()) continue;
-            String[] f = record.strip().split(US, -1);
-            if (f.length < 6) continue;
-            commits.add(new GitCommit(f[0], f[1], f[2], f[3], parseDate(f[4]), f[5], null));
-        }
-        return commits;
     }
 
     // ── Diff for commit(s) ──────────────────────────────────────────────────
@@ -187,87 +233,60 @@ public class GitService {
     }
 
     private GitCommit diffForSingleCommit(String hash, boolean includePatch, String filePath) {
-        // Commit metadata
-        String format = String.join(US, "%H", "%h", "%an", "%ae", "%aI", "%s");
-        List<String> metaLines = exec(List.of("git", "log", "-1", "--format=" + format, hash));
-        String meta = String.join("", metaLines).strip();
-        String[] f = meta.split(US, -1);
-        if (f.length < 6) {
+        try (RevWalk revWalk = new RevWalk(repository);
+                ObjectReader reader = repository.newObjectReader()) {
+            RevCommit commit = revWalk.parseCommit(resolveCommitId(hash));
+            RevCommit parent =
+                    commit.getParentCount() > 0 ? revWalk.parseCommit(commit.getParent(0)) : null;
+
+            // No parent (root commit) → diff against the empty tree, equivalent to `git diff-tree
+            // --root`. Native git's diff-tree needs that flag explicitly and getCommitDiff never
+            // passed it, so the very first commit of a repo used to come back with an empty files
+            // list — fixed here, since it's the natural (and simpler) way to express it in JGit.
+            AbstractTreeIterator oldTree =
+                    parent == null ? new EmptyTreeIterator() : treeIterator(reader, parent);
+            AbstractTreeIterator newTree = treeIterator(reader, commit);
+
+            List<GitDiffEntry> entries = new ArrayList<>();
+            var patchOut = new ByteArrayOutputStream();
+            try (DiffFormatter formatter = new DiffFormatter(patchOut)) {
+                formatter.setRepository(repository);
+                formatter.setDetectRenames(true);
+                if (filePath != null) {
+                    formatter.setPathFilter(PathFilterGroup.createFromStrings(List.of(filePath)));
+                }
+                for (DiffEntry entry : formatter.scan(oldTree, newTree)) {
+                    entries.add(toGitDiffEntry(entry, formatter, includePatch, patchOut));
+                }
+            }
+            return toGitCommit(commit, entries, reader);
+        } catch (MissingObjectException | IncorrectObjectTypeException e) {
+            throw new IllegalArgumentException("Commit not found: " + hash, e);
+        } catch (AmbiguousObjectException e) {
+            throw new IllegalArgumentException("Ambiguous commit reference: " + hash, e);
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed reading commit: " + hash, e);
+        }
+    }
+
+    private ObjectId resolveCommitId(String hash) throws IOException {
+        ObjectId id;
+        try {
+            id = repository.resolve(hash);
+        } catch (RevisionSyntaxException e) {
+            throw new IllegalArgumentException("Invalid commit reference: " + hash, e);
+        }
+        if (id == null) {
             throw new IllegalArgumentException("Commit not found: " + hash);
         }
+        return id;
+    }
 
-        // Changed files with stats
-        List<String> statCmd =
-                new ArrayList<>(
-                        List.of(
-                                "git",
-                                "diff-tree",
-                                "--no-commit-id",
-                                "-r",
-                                "--numstat",
-                                "--find-renames",
-                                hash));
-        if (filePath != null) {
-            statCmd.add("--");
-            statCmd.add(filePath);
-        }
-        List<String> statLines = exec(statCmd);
-
-        // Optionally get patches
-        Map<String, String> patches;
-        if (includePatch) {
-            List<String> patchCmd =
-                    new ArrayList<>(
-                            List.of(
-                                    "git",
-                                    "diff-tree",
-                                    "--no-commit-id",
-                                    "-r",
-                                    "-p",
-                                    "--find-renames",
-                                    hash));
-            if (filePath != null) {
-                patchCmd.add("--");
-                patchCmd.add(filePath);
-            }
-            patches = parsePatchBlocks(exec(patchCmd));
-        } else {
-            patches = Collections.emptyMap();
-        }
-
-        List<GitDiffEntry> entries = new ArrayList<>();
-        for (String line : statLines) {
-            if (line.isBlank()) continue;
-            // numstat format: additions\tdeletions\tpath  (or old\tnew for renames)
-            String[] parts = line.split("\t", 3);
-            if (parts.length < 3) continue;
-            int add = parseStat(parts[0]);
-            int del = parseStat(parts[1]);
-            String pathPart = parts[2];
-            String oldPath = null;
-            String entryPath;
-            // Rename: "old => new" or "{old => new}/rest"
-            if (pathPart.contains(" => ")) {
-                String[] rp = parseRenamePath(pathPart);
-                oldPath = rp[0];
-                entryPath = rp[1];
-            } else {
-                entryPath = pathPart;
-            }
-            String status =
-                    oldPath != null
-                            ? "R"
-                            : (add > 0 && del == 0 ? "A" : (add == 0 && del > 0 ? "D" : "M"));
-            String patch = patches.getOrDefault(entryPath, patches.get(oldPath));
-            if (patch != null && patch.lines().count() > MAX_DIFF_LINES) {
-                patch =
-                        patch.lines().limit(MAX_DIFF_LINES).collect(Collectors.joining("\n"))
-                                + "\n... (truncated)";
-            }
-            entries.add(new GitDiffEntry(status, entryPath, oldPath, add, del, patch));
-        }
-
-        return new GitCommit(f[0], f[1], f[2], f[3], parseDate(f[4]), f[5], entries);
+    private static AbstractTreeIterator treeIterator(ObjectReader reader, RevCommit commit)
+            throws IOException {
+        CanonicalTreeParser parser = new CanonicalTreeParser();
+        parser.reset(reader, commit.getTree());
+        return parser;
     }
 
     // ── File search ─────────────────────────────────────────────────────────
@@ -287,7 +306,7 @@ public class GitService {
         String q = pattern.strip().toLowerCase();
         int limit = Math.min(Math.max(maxResults, 1), 50);
 
-        List<String> allFiles = exec(List.of("git", "ls-files", "--full-name"));
+        List<String> allFiles = trackedPaths();
 
         record Scored(String path, int score) {}
         return allFiles.stream()
@@ -379,7 +398,8 @@ public class GitService {
      *
      * <p>Delegates to {@code git grep}, which searches only tracked files (honouring {@code
      * .gitignore}) and is orders of magnitude faster than scanning the filesystem. Binary files are
-     * skipped automatically by git grep.
+     * skipped automatically by git grep. JGit has no equivalent of {@code git grep}, so this is the
+     * one operation in this class that still shells out to the {@code git} binary.
      *
      * <p>The search is <b>literal by default</b> ({@code --fixed-strings}). Pass {@code regex=true}
      * to enable POSIX extended regular expressions. The search is always <b>case-insensitive</b>
@@ -598,11 +618,13 @@ public class GitService {
     /**
      * Returns the content of a <b>tracked</b> file, optimised for AI/LLM consumption.
      *
-     * <p>Only files tracked by Git are served. Untracked files (those returned by {@code git
-     * ls-files --others}) are explicitly rejected even though they exist on disk: their content is
-     * unreviewed working-tree state and serving it would both leak arbitrary local files and feed
-     * unverified data to the model. Ignored files (via {@code .gitignore}) are untracked by
-     * definition and therefore rejected too.
+     * <p>Only files tracked by Git are served (checked against the index). Untracked files are
+     * explicitly rejected even though they exist on disk: their content is unreviewed working-tree
+     * state and serving it would both leak arbitrary local files and feed unverified data to the
+     * model. Ignored files (via {@code .gitignore}) are untracked by definition and therefore
+     * rejected too. The rejection message is identical whether the path is untracked-but-present or
+     * genuinely absent — see {@link #readTrackedFile} — so this check cannot be used to probe for
+     * the existence of arbitrary files (e.g. {@code .env}) via disk presence alone.
      *
      * <p>The returned {@link GitFileContent} carries metadata the model can act on without extra
      * calls: detected {@code language}, total {@code lineCount}, a {@code truncated} flag, and the
@@ -736,22 +758,10 @@ public class GitService {
             throw new IllegalArgumentException("Path traversal not allowed: " + normalized);
         }
 
-        // Only tracked files may be served. `git ls-files -- <path>` prints the path on stdout
-        // iff Git tracks it, and prints nothing otherwise (untracked, ignored, or missing) — with
-        // no stderr noise, which matters because exec() merges stderr into its returned lines. We
-        // then disambiguate untracked-but-present from genuinely-missing so the caller (and the
-        // AI) gets a precise, intentional rejection rather than a vague "not found".
-        List<String> tracked =
-                exec(List.of("git", "ls-files", "--full-name", "-z", "--", normalized));
-        boolean isTracked =
-                tracked.stream()
-                        .flatMap(l -> java.util.Arrays.stream(l.split("\0")))
-                        .anyMatch(p -> p.equals(normalized));
-        if (!isTracked) {
-            if (Files.exists(absolute)) {
-                throw new IllegalArgumentException(
-                        "Refusing to read untracked file: " + normalized);
-            }
+        // Only tracked files may be served. The message is the same whether the path is
+        // untracked-but-present or genuinely missing, so a caller can't use it to fingerprint
+        // which unrelated files (e.g. a gitignored .env) happen to exist on disk.
+        if (!isTracked(normalized)) {
             throw new IllegalArgumentException("File not found: " + normalized);
         }
 
@@ -796,94 +806,193 @@ public class GitService {
      * <p>Covers three categories:
      *
      * <ul>
-     *   <li><b>Modified/deleted tracked files</b> (both staged and unstaged) — via {@code git diff
-     *       HEAD --numstat}
-     *   <li><b>New untracked files</b> not ignored — via {@code git ls-files --others
-     *       --exclude-standard}
+     *   <li><b>Modified/deleted tracked files</b> (both staged and unstaged) — diffed directly
+     *       against HEAD, mirroring {@code git diff HEAD}
+     *   <li><b>New untracked files</b> not ignored — from {@code Status.getUntracked()}, mirroring
+     *       {@code git ls-files --others --exclude-standard}
      * </ul>
      *
      * @param includePatch whether to include unified diff text for modified files
      */
     public List<GitDiffEntry> getUncommittedChanges(boolean includePatch) {
-        List<GitDiffEntry> entries = new ArrayList<>();
-
-        // 1) Staged + unstaged modifications vs HEAD
-        List<String> statLines =
-                exec(List.of("git", "diff", "HEAD", "--numstat", "--find-renames"));
-
-        List<String> patchLines =
-                includePatch
-                        ? exec(List.of("git", "diff", "HEAD", "-p", "--find-renames"))
-                        : Collections.emptyList();
-        var patches =
-                includePatch
-                        ? parsePatchBlocks(patchLines)
-                        : Collections.<String, String>emptyMap();
-
-        for (String line : statLines) {
-            if (line.isBlank()) continue;
-            String[] parts = line.split("\t", 3);
-            if (parts.length < 3) continue;
-            int add = parseStat(parts[0]);
-            int del = parseStat(parts[1]);
-            String pathPart = parts[2];
-            String oldPath = null;
-            String filePath;
-            if (pathPart.contains(" => ")) {
-                String[] rp = parseRenamePath(pathPart);
-                oldPath = rp[0];
-                filePath = rp[1];
-            } else {
-                filePath = pathPart;
-            }
-            if (isJunkFile(filePath)) continue;
-
-            String status;
-            if (oldPath != null) {
-                status = "R";
-            } else {
-                // Check if file exists on disk to distinguish delete from modify
-                boolean existsOnDisk = Files.exists(repoPath.resolve(filePath));
-                status = !existsOnDisk ? "D" : (add > 0 && del == 0 ? "A" : "M");
-            }
-
-            String patch = patches.getOrDefault(filePath, patches.get(oldPath));
-            if (patch != null && patch.lines().count() > MAX_DIFF_LINES) {
-                patch =
-                        patch.lines().limit(MAX_DIFF_LINES).collect(Collectors.joining("\n"))
-                                + "\n... (truncated)";
-            }
-            entries.add(new GitDiffEntry(status, filePath, oldPath, add, del, patch));
+        Status status;
+        try {
+            status = git.status().call();
+        } catch (GitAPIException e) {
+            throw new IllegalStateException("Failed to compute working tree status", e);
         }
 
-        // 2) Untracked files (not ignored by .gitignore)
-        List<String> untrackedFiles =
-                exec(List.of("git", "ls-files", "--others", "--exclude-standard"));
+        Set<String> changedPaths = new LinkedHashSet<>();
+        changedPaths.addAll(status.getAdded());
+        changedPaths.addAll(status.getChanged());
+        changedPaths.addAll(status.getModified());
+        changedPaths.addAll(status.getRemoved());
+        changedPaths.addAll(status.getMissing());
+        // Unresolved merge conflicts live in none of the sets above, yet `git diff HEAD` shows
+        // them (worktree content with conflict markers vs HEAD) — without this they'd vanish.
+        changedPaths.addAll(status.getConflicting());
 
-        for (String file : untrackedFiles) {
-            if (file.isBlank()) continue;
-            // Skip if already covered by diff HEAD (shouldn't happen, but be safe)
-            String f = file.strip();
-            if (isJunkFile(f)) continue;
-            if (entries.stream().anyMatch(e -> f.equals(e.path()))) continue;
+        List<GitDiffEntry> entries = new ArrayList<>();
 
-            long size = fileSize(f);
+        if (!changedPaths.isEmpty()) {
+            try (ObjectReader reader = repository.newObjectReader()) {
+                AbstractTreeIterator oldTree = headTreeIterator(reader);
+                FileTreeIterator newTree = new FileTreeIterator(repository);
+
+                var patchOut = new ByteArrayOutputStream();
+                try (DiffFormatter formatter = new DiffFormatter(patchOut)) {
+                    formatter.setRepository(repository);
+                    formatter.setDetectRenames(true);
+                    formatter.setPathFilter(PathFilterGroup.createFromStrings(changedPaths));
+
+                    for (DiffEntry entry : formatter.scan(oldTree, newTree)) {
+                        GitDiffEntry mapped =
+                                toGitDiffEntry(entry, formatter, includePatch, patchOut);
+                        if (isJunkFile(mapped.path())) continue;
+                        entries.add(mapped);
+                    }
+                }
+            } catch (IOException e) {
+                throw new IllegalStateException("Failed to diff working tree against HEAD", e);
+            }
+        }
+
+        // Untracked files (not ignored by .gitignore) — patch is never populated for these, only
+        // a line count, same as before.
+        for (String path : status.getUntracked()) {
+            if (isJunkFile(path)) continue;
+
+            long size = fileSize(path);
             int lineCount = 0;
             if (size > 0 && size <= MAX_FILE_SIZE) {
                 try {
                     lineCount =
-                            (int) Files.lines(repoPath.resolve(f), StandardCharsets.UTF_8).count();
+                            (int)
+                                    Files.lines(repoPath.resolve(path), StandardCharsets.UTF_8)
+                                            .count();
                 } catch (IOException | UncheckedIOException ignored) {
                     // binary or unreadable — leave lineCount as 0
                 }
             }
-            entries.add(new GitDiffEntry("A", f, null, lineCount, 0, null));
+            entries.add(new GitDiffEntry("A", path, null, lineCount, 0, null));
         }
 
         return entries;
     }
 
+    /** HEAD's tree, or an empty tree when the branch is unborn (no commits yet). */
+    private AbstractTreeIterator headTreeIterator(ObjectReader reader) throws IOException {
+        ObjectId headId = repository.resolve("HEAD");
+        if (headId == null) {
+            return new EmptyTreeIterator();
+        }
+        try (RevWalk revWalk = new RevWalk(repository)) {
+            RevCommit head = revWalk.parseCommit(headId);
+            return treeIterator(reader, head);
+        }
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /**
+     * All paths currently in the Git index, matching {@code git ls-files}'s default behaviour.
+     * Files with an unresolved merge conflict have only stage-1..3 entries (no stage 0); they are
+     * still tracked, so their stages collapse to a single de-duplicated path here (index entries
+     * are sorted by path, so duplicates are adjacent and the set stays in ls-files order).
+     */
+    private List<String> trackedPaths() {
+        DirCache cache;
+        try {
+            cache = repository.readDirCache();
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to read Git index: " + repoPath, e);
+        }
+        Set<String> paths = LinkedHashSet.newLinkedHashSet(cache.getEntryCount());
+        for (int i = 0; i < cache.getEntryCount(); i++) {
+            paths.add(cache.getEntry(i).getPathString());
+        }
+        return List.copyOf(paths);
+    }
+
+    private boolean isTracked(String path) {
+        try {
+            // getEntry(path) returns the path's first index entry — stage 0 normally, stage 1+
+            // while a merge conflict is unresolved. Either way the file is tracked.
+            return repository.readDirCache().getEntry(path) != null;
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to read Git index: " + repoPath, e);
+        }
+    }
+
+    private static GitCommit toGitCommit(
+            RevCommit commit, List<GitDiffEntry> files, ObjectReader reader) throws IOException {
+        PersonIdent author = commit.getAuthorIdent();
+        OffsetDateTime date =
+                author.getWhenAsInstant().atZone(author.getZoneId()).toOffsetDateTime();
+        return new GitCommit(
+                commit.getName(),
+                reader.abbreviate(commit, ABBREV_LEN).name(),
+                author.getName(),
+                author.getEmailAddress(),
+                date,
+                commit.getShortMessage(),
+                files);
+    }
+
+    /**
+     * Maps one JGit {@link DiffEntry} to the API's {@link GitDiffEntry}, using the change type JGit
+     * already computed (add/modify/delete/rename/copy) rather than inferring it from add/delete
+     * line counts — the previous numstat-based heuristic (add&gt;0 &amp;&amp; del==0 ⇒ "A")
+     * misclassified an append-only edit to an *existing* file as "added".
+     */
+    private GitDiffEntry toGitDiffEntry(
+            DiffEntry entry,
+            DiffFormatter formatter,
+            boolean includePatch,
+            ByteArrayOutputStream patchOut)
+            throws IOException {
+        String oldPath = normalizedDiffPath(entry.getOldPath());
+        String newPath = normalizedDiffPath(entry.getNewPath());
+
+        String status =
+                switch (entry.getChangeType()) {
+                    case ADD -> "A";
+                    case DELETE -> "D";
+                    case RENAME -> "R";
+                    case COPY -> "C";
+                    default -> "M";
+                };
+        String path = "D".equals(status) ? oldPath : newPath;
+        // Renames AND copies both carry a meaningful source path; everything else has none.
+        String reportedOldPath = "R".equals(status) || "C".equals(status) ? oldPath : null;
+
+        int add = 0;
+        int del = 0;
+        FileHeader header = formatter.toFileHeader(entry);
+        if (header.getPatchType() == FileHeader.PatchType.UNIFIED) {
+            for (Edit edit : header.toEditList()) {
+                add += edit.getEndB() - edit.getBeginB();
+                del += edit.getEndA() - edit.getBeginA();
+            }
+        }
+
+        String patch = null;
+        if (includePatch) {
+            patchOut.reset();
+            formatter.format(entry);
+            patch = patchOut.toString(StandardCharsets.UTF_8);
+            if (patch.lines().count() > MAX_DIFF_LINES) {
+                patch =
+                        patch.lines().limit(MAX_DIFF_LINES).collect(Collectors.joining("\n"))
+                                + "\n... (truncated)";
+            }
+        }
+        return new GitDiffEntry(status, path, reportedOldPath, add, del, patch);
+    }
+
+    private static String normalizedDiffPath(String path) {
+        return DiffEntry.DEV_NULL.equals(path) ? null : path;
+    }
 
     private static void requireSafeGitRelativePath(String path) {
         if (path.isBlank()) {
@@ -911,10 +1020,20 @@ public class GitService {
         return dot >= 0 && IGNORED_EXTENSIONS.contains(name.substring(dot).toLowerCase());
     }
 
+    /** Runs {@code git grep} as a subprocess — the one operation JGit cannot do in-process. */
     private List<String> exec(List<String> command) {
         try {
+            // core.quotepath=false: without it, git quotes/octal-escapes any path containing
+            // non-ASCII bytes (e.g. Cyrillic filenames) in grep output — "docs/проект" becomes
+            // "\"docs/\\320\\277...\"", which breaks path parsing.
+            List<String> withConfig = new ArrayList<>(command.size() + 2);
+            withConfig.add(command.get(0));
+            withConfig.add("-c");
+            withConfig.add("core.quotepath=false");
+            withConfig.addAll(command.subList(1, command.size()));
+
             ProcessBuilder pb =
-                    new ProcessBuilder(command)
+                    new ProcessBuilder(withConfig)
                             .directory(repoPath.toFile())
                             .redirectErrorStream(true);
             Process process = pb.start();
@@ -929,8 +1048,8 @@ public class GitService {
             if (exit != 0) {
                 String output = String.join("\n", lines);
                 log.warn("Git command exited {}: {} → {}", exit, command, output);
-                // For some commands non-zero is expected (e.g. diff --no-index)
-                // so we still return whatever output we got.
+                // git grep exits 1 when there are simply no matches — not an error, so we still
+                // return whatever output we got (empty in that case).
             }
             return lines;
         } catch (IOException | InterruptedException e) {
@@ -952,61 +1071,5 @@ public class GitService {
         } catch (IOException e) {
             return -1;
         }
-    }
-
-    private static OffsetDateTime parseDate(String iso) {
-        try {
-            return OffsetDateTime.parse(iso);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private static int parseStat(String s) {
-        try {
-            return Integer.parseInt(s.strip());
-        } catch (NumberFormatException e) {
-            return 0;
-        }
-    }
-
-    /** Parses git rename path formats: "a => b", "{a => b}/rest", "prefix/{a => b}/suffix" */
-    private static String[] parseRenamePath(String raw) {
-        Pattern p = Pattern.compile("^(.*?)\\{(.+?) => (.+?)}(.*)$");
-        Matcher m = p.matcher(raw);
-        if (m.matches()) {
-            String prefix = m.group(1);
-            String suffix = m.group(4);
-            return new String[] {prefix + m.group(2) + suffix, prefix + m.group(3) + suffix};
-        }
-        // Simple "old => new"
-        String[] parts = raw.split(" => ", 2);
-        return parts.length == 2 ? parts : new String[] {raw, raw};
-    }
-
-    /**
-     * Splits unified diff output into per-file patch blocks. Key = new file path from "b/..."
-     * header.
-     */
-    private static java.util.Map<String, String> parsePatchBlocks(List<String> lines) {
-        var map = new java.util.LinkedHashMap<String, String>();
-        String currentFile = null;
-        var buf = new StringBuilder();
-        for (String line : lines) {
-            if (line.startsWith("diff --git")) {
-                if (currentFile != null) {
-                    map.put(currentFile, buf.toString());
-                }
-                buf.setLength(0);
-                // Extract b/path from "diff --git a/old b/new"
-                int bIdx = line.lastIndexOf(" b/");
-                currentFile = bIdx >= 0 ? line.substring(bIdx + 3) : null;
-            }
-            buf.append(line).append('\n');
-        }
-        if (currentFile != null) {
-            map.put(currentFile, buf.toString());
-        }
-        return map;
     }
 }

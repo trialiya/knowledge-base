@@ -3,16 +3,17 @@ package io.github.trialiya.kb.model.tool;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 
 public record ToolInvocation(
         String name,
         Map<Object, Object> arguments,
         ToolInvocationCollector.ToolInvocationStatus status,
-        String error,
-        @JsonIgnore Map<String, ?> resultMeta,
-        String resultGist,
+        @Nullable String error,
+        @JsonIgnore @Nullable Map<String, ?> resultMeta,
+        @Nullable String resultGist,
         @JsonIgnore String argumentsRaw,
-        @JsonIgnore String resultText,
+        @JsonIgnore @Nullable String resultText,
         int callIndex) {
 
     @JsonIgnore

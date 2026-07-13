@@ -67,4 +67,28 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
             @Param("beforeCreatedAt") LocalDateTime beforeCreatedAt,
             @Param("beforeId") long beforeId,
             @Param("limit") int limit);
+
+    /** Совпадения по тексту сообщения внутри чата, хронологически (для find-бара, Ctrl+F). */
+    @Query(
+            """
+    SELECT * FROM chat_message
+    WHERE conversation_id = :conversationId AND summary = false
+      AND content ILIKE '%' || :q || '%'
+    ORDER BY created_at ASC, id ASC
+    """)
+    List<ChatMessageEntity> searchInConversation(
+            @Param("conversationId") String conversationId, @Param("q") String q);
+
+    /** Совпадения по тексту сообщений среди всех чатов пользователя (поиск по чатам). */
+    @Query(
+            """
+    SELECT cm.* FROM chat_message cm
+    JOIN chat_topic ct ON ct.conversation_id = cm.conversation_id
+    WHERE ct."user" = :user AND cm.summary = false
+      AND cm.content ILIKE '%' || :q || '%'
+    ORDER BY cm.created_at DESC, cm.id DESC
+    LIMIT :limit
+    """)
+    List<ChatMessageEntity> searchForUser(
+            @Param("user") String user, @Param("q") String q, @Param("limit") int limit);
 }

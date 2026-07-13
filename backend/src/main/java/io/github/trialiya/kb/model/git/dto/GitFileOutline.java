@@ -3,6 +3,7 @@ package io.github.trialiya.kb.model.git.dto;
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.tools.Compact;
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Структурный обзор файла: список символов верхнего уровня без полного содержимого. Позволяет ИИ
@@ -15,7 +16,11 @@ import java.util.List;
  * @param symbols список символов в порядке появления в файле
  */
 public record GitFileOutline(
-        String path, String language, int lineCount, String parser, List<GitSymbol> symbols)
+        String path,
+        @Nullable String language,
+        int lineCount,
+        String parser,
+        List<GitSymbol> symbols)
         implements ToolCallResponseItem {
 
     @Override

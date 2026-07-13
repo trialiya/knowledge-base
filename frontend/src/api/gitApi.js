@@ -24,6 +24,16 @@ const gitApi = {
     if (to != null) params.set('to', String(to));
     return request(`/api/git/files/content?${params}`, signal ? { signal } : undefined);
   },
+
+  /**
+   * Прямые потомки каталога (файлы + подкаталоги) для дерева файлового браузера.
+   * path='' или omitted — корень репозитория. Возвращает GitFileNode[], каталоги
+   * отсортированы перед файлами, затем по алфавиту.
+   */
+  getTree: (path, signal) => {
+    const qs = path ? `?${new URLSearchParams({ path })}` : '';
+    return request(`/api/git/tree${qs}`, signal ? { signal } : undefined);
+  },
 };
 
 export default gitApi;

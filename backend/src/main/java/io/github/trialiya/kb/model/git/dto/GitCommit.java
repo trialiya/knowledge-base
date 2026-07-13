@@ -5,12 +5,13 @@ import io.github.trialiya.kb.model.tool.ToolCallResultMetaProvider;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Запись из истории коммитов.
  *
  * @param hash полный SHA коммита
- * @param shortHash первые 8 символов SHA
+ * @param shortHash сокращённый SHA (минимум 7 символов, длиннее при неоднозначности)
  * @param author имя автора
  * @param email email автора
  * @param date дата коммита (ISO-8601 с offset)
@@ -24,7 +25,7 @@ public record GitCommit(
         String email,
         OffsetDateTime date,
         String message,
-        List<GitDiffEntry> files)
+        @Nullable List<GitDiffEntry> files)
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
     @Override

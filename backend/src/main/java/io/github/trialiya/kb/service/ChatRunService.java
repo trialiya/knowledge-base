@@ -16,7 +16,6 @@ import io.github.trialiya.kb.model.chat.dto.StreamMessage;
 import io.github.trialiya.kb.model.chat.dto.ToolCallMessage;
 import io.github.trialiya.kb.model.chat.dto.ToolCallsMessage;
 import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
-import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
 import io.github.trialiya.kb.utils.ChatUtils;
@@ -31,6 +30,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AbstractMessage;
@@ -105,7 +105,7 @@ public class ChatRunService {
             String conversationId,
             String user,
             String userMessage,
-            String resolvedModel,
+            @Nullable String resolvedModel,
             String clientMsgId) {
         final String runId = UUID.randomUUID().toString();
         // Атомарная заявка на чат: если генерация уже идёт (в т.ч. из другой вкладки) — 409,
@@ -161,18 +161,23 @@ public class ChatRunService {
     }
 
     private void run(
-            RunHandle handle, String userMessage, String resolvedModel, String clientMsgId) {
+            RunHandle handle,
+            String userMessage,
+            @Nullable String resolvedModel,
+            String clientMsgId) {
         final String conversationId = handle.conversationId();
         final String runId = handle.runId();
         final Consumer<Object> liveSink =
                 payload -> {
                     if (payload instanceof ToolCallMessage tcm) {
                         if (tcm.toolCall().status() != ToolInvocationStatus.STARTED) {
-                            chatMemoryService.saveToolCallIncremental(
-                                    conversationId,
-                                    runId,
-                                    tcm.toolCall().callIndex(),
-                                    tcm.toolCall());
+                            // DB write is best-effort bookkeeping; offload it so SSE goes out
+                            // immediately without waiting for disk I/O.
+                            final var tc = tcm.toolCall();
+                            executor.execute(
+                                    () ->
+                                            chatMemoryService.saveToolCallIncremental(
+                                                    conversationId, runId, tc.callIndex(), tc));
                         }
                     }
                     events.publish(conversationId, eventType(payload), runId, null, payload);
@@ -328,7 +333,7 @@ public class ChatRunService {
     }
 
     private void printUsageStatistics(
-            String conversationId, ChatResponse response, String finishReason) {
+            String conversationId, ChatResponse response, @Nullable String finishReason) {
         if (finishReason == null
                 || finishReason.isEmpty()
                 || finishReason.equals(_UNKNOWN_FINISH_REASON)) {

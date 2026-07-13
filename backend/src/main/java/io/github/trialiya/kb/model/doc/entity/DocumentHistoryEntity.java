@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.jspecify.annotations.Nullable;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Table;
 
@@ -22,7 +23,7 @@ import org.springframework.data.relational.core.mapping.Table;
 @Table("document_history")
 public class DocumentHistoryEntity {
 
-    @Id private Long id;
+    @Id @Nullable private Long id;
 
     private Long documentId;
 
@@ -37,6 +38,6 @@ public class DocumentHistoryEntity {
     private String description;
     private LocalDateTime updatedAt;
     private String summary;
-    private Integer summarySourceVersion;
+    @Nullable private Integer summarySourceVersion;
     private int descriptionVersion;
 }

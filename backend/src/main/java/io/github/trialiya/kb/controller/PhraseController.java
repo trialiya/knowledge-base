@@ -5,6 +5,7 @@ import io.github.trialiya.kb.model.phrase.dto.Phrase;
 import io.github.trialiya.kb.model.phrase.dto.PhraseRequest;
 import io.github.trialiya.kb.service.PhraseService;
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -53,7 +54,7 @@ public class PhraseController {
 
     /** Full list, or quick search by label when {@code q} is present. */
     @GetMapping("/api/admin/phrases")
-    public List<Phrase> listAll(@RequestParam(required = false) String q) {
+    public List<Phrase> listAll(@RequestParam(required = false) @Nullable String q) {
         return service.search(q);
     }
 

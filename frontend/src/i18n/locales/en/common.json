@@ -14,10 +14,12 @@
   "error": "Error",
   "nav": {
     "chats": "Chats",
-    "knowledgeBase": "Knowledge Base"
+    "knowledgeBase": "Knowledge Base",
+    "files": "Files"
   },
   "search": {
-    "placeholder": "Search the knowledge base... (Enter)",
+    "placeholder": "Search the knowledge base…",
+    "modeTitle": "Search mode",
     "hybrid": "Hybrid",
     "semantic": "Semantic",
     "keyword": "Keywords"

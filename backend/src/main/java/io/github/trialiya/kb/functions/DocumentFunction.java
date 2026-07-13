@@ -13,6 +13,7 @@ import io.github.trialiya.kb.tools.CompactToolResultConverter;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -62,20 +63,20 @@ public class DocumentFunction {
             @ToolParam(
                             description = "Режим поиска: hybrid (по умолчанию), semantic, keyword",
                             required = false)
-                    String mode,
+                    @Nullable String mode,
             @ToolParam(
                             description =
                                     "Минимальный порог схожести для семантического поиска (0.0–1.0)",
                             required = false)
-                    Double threshold,
+                    @Nullable Double threshold,
             @ToolParam(description = "Максимальное количество результатов", required = false)
-                    Integer limit,
+                    @Nullable Integer limit,
             @ToolParam(
                             description = "Вес ключевых слов в гибридном поиске (0.0–1.0)",
                             required = false)
-                    Double kwWeight,
+                    @Nullable Double kwWeight,
             @ToolParam(description = "Вес семантики в гибридном поиске (0.0–1.0)", required = false)
-                    Double semWeight) {
+                    @Nullable Double semWeight) {
 
         String effectiveMode = (mode != null && !mode.isBlank()) ? mode.toLowerCase() : "hybrid";
         log.info(
@@ -173,18 +174,19 @@ public class DocumentFunction {
             resultConverter = CompactToolResultConverter.class)
     public DocumentShort createDocument(
             @ToolParam(description = "Название документа или папки") String title,
-            @ToolParam(description = "Тип: 'document' или 'folder'", required = false) String type,
+            @ToolParam(description = "Тип: 'document' или 'folder'", required = false)
+                    @Nullable String type,
             @ToolParam(
                             description =
                                     "ID родительской папки (null или пусто для корневого уровня)",
                             required = false)
-                    Long parentId,
+                    @Nullable Long parentId,
             @ToolParam(
                             description =
                                     "Содержимое документа (текст, markdown). "
                                             + "Ссылки на другие документы базы знаний оформляй как [Название](/?doc=ID).",
                             required = false)
-                    String description) {
+                    @Nullable String description) {
 
         log.info("createDocument called: title='{}' type={} parentId={}", title, type, parentId);
 
@@ -215,13 +217,13 @@ public class DocumentFunction {
             @ToolParam(
                             description = "Новое название (null чтобы оставить текущее)",
                             required = false)
-                    String title,
+                    @Nullable String title,
             @ToolParam(
                             description =
                                     "Новое содержимое (null чтобы оставить текущее). "
                                             + "Ссылки на другие документы базы знаний оформляй как [Название](/?doc=ID).",
                             required = false)
-                    String description) {
+                    @Nullable String description) {
 
         log.info("updateDocument called: id={} title='{}'", documentId, title);
 

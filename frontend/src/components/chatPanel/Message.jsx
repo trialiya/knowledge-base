@@ -9,46 +9,20 @@ import CodeBlock from '../common/CodeBlock';
 import HistoryModal from '../knowledgeBasePanel/HistoryModal';
 import ToolCallDetailModal from './ToolCallDetailModal';
 import { getToolIcon, toolLabelKey, humanizeTool, getDocChangeRef } from './toolMeta';
-import { IconCopySmall, IconCopied } from '../../icons';
+import { IconCopySmall, IconCopied, IconStatusStarted, IconStatusOk, IconStatusError } from '../../icons';
 import { COPY_DONE_MS, GIST_PREVIEW_LEN } from '../../constants/ui';
 import './styles/tool-call-detail-modal.css';
-
-/** SVG status indicators — not clickable, purely visual */
-const IconStarted = () => (
-  <svg className="tool-call-status-svg tool-call-status-svg--started" width="14" height="14" viewBox="0 0 16 16">
-    <circle cx="8" cy="8" r="6" fill="none" stroke="#d99a00" strokeWidth="2" strokeDasharray="9 5" />
-  </svg>
-);
-const IconOk = () => (
-  <svg className="tool-call-status-svg tool-call-status-svg--ok" width="14" height="14" viewBox="0 0 16 16">
-    <circle cx="8" cy="8" r="7" fill="#34a853" />
-    <path
-      d="M5 8.2l2 2 4-4.4"
-      fill="none"
-      stroke="#fff"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-const IconError = () => (
-  <svg className="tool-call-status-svg tool-call-status-svg--error" width="14" height="14" viewBox="0 0 16 16">
-    <circle cx="8" cy="8" r="7" fill="#ea4335" />
-    <path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
-  </svg>
-);
 
 const StatusIcon = ({ status }) => {
   switch (status) {
     case 'STARTED':
-      return <IconStarted />;
+      return <IconStatusStarted />;
     case 'OK':
-      return <IconOk />;
+      return <IconStatusOk />;
     case 'ERROR':
-      return <IconError />;
+      return <IconStatusError />;
     default:
-      return <IconStarted />;
+      return <IconStatusStarted />;
   }
 };
 
@@ -517,6 +491,8 @@ const Message = ({
   conversationId,
   onNavigateToDoc,
   timestamp,
+  mid,
+  searchActive,
 }) => {
   const { t, i18n } = useTranslation('chat');
   const [showSource, setShowSource] = useState(false);
@@ -526,6 +502,15 @@ const Message = ({
   const timeLabel = formatTimestamp(timestamp, i18n.language);
   const timeTitle = formatFullDatetime(timestamp, i18n.language);
 
+  // Стабильные идентичности markdown-компонентов между рендерами (как в
+  // MarkdownEditor). Без useMemo каждый рендер создаёт новые функции `code`/`a`,
+  // React считает их другими типами и пересоздаёт DOM-поддеревья кода и ссылок
+  // с новыми текстовыми узлами. Это ломает CSS Highlight подсветку find-бара:
+  // её Range-ы держат ссылки на старые узлы, и совпадения в `код`-фрагментах
+  // гасли при любом ре-рендере списка (например, setShowScrollButton после
+  // плавного скролла к совпадению).
+  const mdComponents = useMemo(() => getMarkdownComponents(onNavigateToDoc), [onNavigateToDoc]);
+
   // Пузырь — только контент сообщения, без футера
   const bubble = (
     <div className={messageClass}>
@@ -534,7 +519,7 @@ const Message = ({
           <pre className="message-raw-source">{text}</pre>
         ) : (
           <div className="md-preview md-preview--chat">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={getMarkdownComponents(onNavigateToDoc)}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
               {text}
             </ReactMarkdown>
           </div>
@@ -583,7 +568,10 @@ const Message = ({
     );
 
   const messageBlock = (
-    <div className={`message-block message-block--${sender}`}>
+    <div
+      className={`message-block message-block--${sender}${searchActive ? ' message-block--search-hit' : ''}`}
+      data-mid={mid ?? undefined}
+    >
       {bubble}
       {footer}
     </div>

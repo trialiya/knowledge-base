@@ -1,5 +1,7 @@
 package io.github.trialiya.kb.model.chat.dto;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * Конверт одного события в канале чата.
  *
@@ -11,4 +13,8 @@ package io.github.trialiya.kb.model.chat.dto;
  * @param payload полезная нагрузка, зависит от {@link #type}
  */
 public record ChatEvent(
-        long seq, ChatEventType type, String runId, String clientMsgId, Object payload) {}
+        long seq,
+        ChatEventType type,
+        @Nullable String runId,
+        String clientMsgId,
+        @Nullable Object payload) {}

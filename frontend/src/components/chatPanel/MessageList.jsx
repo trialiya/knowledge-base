@@ -11,6 +11,43 @@ import {
 // onLoadMore: async () => boolean — true если что-то догрузилось (для UI-индикатора).
 // hasMore: есть ли ещё более старые сообщения на бэке.
 // canLoadMore: разрешена ли догрузка прямо сейчас (например, false во время стриминга).
+// activeSearchMid: mid пузыря, на который сейчас указывает find-бар (useInChatSearch) —
+// подсвечивается и к первому вхождению запроса в нём делается программный скролл
+// (один раз на mid).
+// searchQuery: текущий запрос find-бара ('' — бар закрыт) — по нему подсвечиваются
+// вхождения в тексте сообщений.
+
+// Текстовые Range всех вхождений query (без учёта регистра) в текстовых узлах
+// пузырей .message внутри root. Совпадение, разорванное границей узлов
+// (например, markdown-форматированием), не находится — как и на бэке, где
+// поиск идёт по сырому тексту, это редкий краевой случай.
+const collectMatchRanges = (root, query) => {
+  const q = query.toLowerCase();
+  const ranges = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: (node) =>
+      node.parentElement?.closest('.message') ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT,
+  });
+  let node;
+  while ((node = walker.nextNode())) {
+    const lower = node.nodeValue.toLowerCase();
+    let i = lower.indexOf(q);
+    while (i !== -1) {
+      const r = document.createRange();
+      r.setStart(node, i);
+      r.setEnd(node, i + q.length);
+      ranges.push(r);
+      i = lower.indexOf(q, i + q.length);
+    }
+  }
+  return ranges;
+};
+
+const setHighlight = (name, ranges) => {
+  if (ranges.length) window.CSS.highlights.set(name, new window.Highlight(...ranges));
+  else window.CSS.highlights.delete(name);
+};
+
 const MessageList = ({
   conversationId,
   messages,
@@ -19,6 +56,8 @@ const MessageList = ({
   onRetry,
   hasMore = false,
   canLoadMore = true,
+  activeSearchMid = null,
+  searchQuery = '',
 }) => {
   const { t } = useTranslation('chat');
   const containerRef = useRef(null);
@@ -125,6 +164,62 @@ const MessageList = ({
     return () => ro.disconnect();
   }, []);
 
+  // Прокрутка к активному совпадению find-бара (useInChatSearch). Срабатывает ровно
+  // раз на каждый activeSearchMid — как только целевой пузырь появляется в DOM,
+  // будь то сразу или после догрузки более старых страниц (см. useInChatSearch).
+  // Повторных скроллов при последующих обновлениях messages для того же mid не делаем.
+  const scrolledSearchMidRef = useRef(null);
+  useEffect(() => {
+    if (activeSearchMid == null) {
+      scrolledSearchMidRef.current = null;
+      return;
+    }
+    if (scrolledSearchMidRef.current === activeSearchMid) return;
+    const container = containerRef.current;
+    const el = container?.querySelector(`[data-mid="${activeSearchMid}"]`);
+    if (!el) return;
+    scrolledSearchMidRef.current = activeSearchMid;
+    stickRef.current = false; // не залипаем к низу при программной прокрутке к совпадению
+    // Длинное сообщение может быть выше экрана — центрируем не пузырь целиком,
+    // а первое вхождение запроса в нём.
+    const range = searchQuery ? collectMatchRanges(el, searchQuery)[0] : null;
+    if (range) {
+      const rect = range.getBoundingClientRect();
+      const contRect = container.getBoundingClientRect();
+      container.scrollTo({
+        top: container.scrollTop + (rect.top - contRect.top) - container.clientHeight / 2,
+        behavior: 'smooth',
+      });
+    } else {
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+  }, [activeSearchMid, searchQuery, messages]);
+
+  // Подсветка вхождений запроса в тексте сообщений (CSS Custom Highlight API,
+  // без вмешательства в DOM, которым управляет React). Вхождения в активном
+  // пузыре подсвечиваются отдельным, более контрастным стилем. В браузерах без
+  // поддержки подсветки нет — остаётся рамка вокруг активного пузыря.
+  useEffect(() => {
+    if (!window.CSS?.highlights) return undefined;
+    const container = containerRef.current;
+    const q = searchQuery.trim();
+    if (!container || !q) {
+      window.CSS.highlights.delete('kb-chat-find');
+      window.CSS.highlights.delete('kb-chat-find-active');
+      return undefined;
+    }
+    const all = collectMatchRanges(container, q);
+    const activeEl = activeSearchMid != null ? container.querySelector(`[data-mid="${activeSearchMid}"]`) : null;
+    const active = activeEl ? all.filter((r) => activeEl.contains(r.startContainer)) : [];
+    const rest = activeEl ? all.filter((r) => !activeEl.contains(r.startContainer)) : all;
+    setHighlight('kb-chat-find', rest);
+    setHighlight('kb-chat-find-active', active);
+    return () => {
+      window.CSS.highlights.delete('kb-chat-find');
+      window.CSS.highlights.delete('kb-chat-find-active');
+    };
+  }, [searchQuery, activeSearchMid, messages]);
+
   return (
     <div className="message-list-container">
       {loadingMore && <div className="message-list-loading-older">{t('window.loadingMessages')}</div>}
@@ -143,6 +238,8 @@ const MessageList = ({
             onRetry={onRetry && msg.error ? () => onRetry(index) : undefined}
             conversationId={conversationId}
             onNavigateToDoc={onNavigateToDoc}
+            mid={msg.mid}
+            searchActive={msg.mid != null && msg.mid === activeSearchMid}
           />
         ))}
       </div>

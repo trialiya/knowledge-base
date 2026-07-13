@@ -4,6 +4,7 @@ import static io.github.trialiya.kb.tools.Compact.truncate;
 
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.tools.Compact;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Содержимое файла из репозитория, обогащённое метаданными для ИИ.
@@ -22,14 +23,14 @@ import io.github.trialiya.kb.tools.Compact;
  */
 public record GitFileContent(
         String path,
-        String content,
+        @Nullable String content,
         boolean binary,
         long sizeBytes,
-        String language,
+        @Nullable String language,
         int lineCount,
         boolean truncated,
-        Integer fromLine,
-        Integer toLine)
+        @Nullable Integer fromLine,
+        @Nullable Integer toLine)
         implements ToolCallResponseItem {
 
     @Override

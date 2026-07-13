@@ -8,14 +8,15 @@ import io.github.trialiya.kb.tools.Compact;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 
 public record SearchResult(
         Long id,
         String title,
         String snippet,
         LocalDateTime updatedAt,
-        String summary,
-        List<Parent> parentList)
+        @Nullable String summary,
+        @Nullable List<Parent> parentList)
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
     public record Parent(long id, String title) {}

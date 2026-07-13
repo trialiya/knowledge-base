@@ -6,6 +6,7 @@ import io.github.trialiya.kb.tools.Compact;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Lightweight document DTO returned by create / update / move operations.
@@ -20,12 +21,12 @@ public record DocumentShort(
         long id,
         String title,
         String type,
-        Long parentId,
+        @Nullable Long parentId,
         int version,
         int descriptionVersion,
         LocalDateTime updatedAt,
         boolean summaryStale,
-        Integer summarySourceVersion)
+        @Nullable Integer summarySourceVersion)
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
     @Override
     public String getFormattedResponse() {

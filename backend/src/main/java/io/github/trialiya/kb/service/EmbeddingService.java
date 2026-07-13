@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.ai.embedding.Embedding;
 import org.springframework.ai.embedding.EmbeddingRequest;
 import org.springframework.ai.embedding.EmbeddingResponse;
@@ -270,7 +271,7 @@ public class EmbeddingService {
 
     // ── Utility ───────────────────────────────────────────────────────────────
 
-    private static String buildDocumentText(String title, String description) {
+    private static String buildDocumentText(@Nullable String title, @Nullable String description) {
         StringBuilder sb = new StringBuilder(title == null ? "" : title.trim());
         if (description != null && !description.isBlank()) {
             sb.append('\n').append(description.trim());

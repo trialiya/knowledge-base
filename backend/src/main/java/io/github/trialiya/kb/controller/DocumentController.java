@@ -14,6 +14,7 @@ import io.github.trialiya.kb.service.DocumentService;
 import io.github.trialiya.kb.service.SemanticSearchService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -45,7 +46,7 @@ public class DocumentController {
      */
     @GetMapping("/children")
     public PagedChildren getChildren(
-            @RequestParam(required = false) Long parentId,
+            @RequestParam(required = false) @Nullable Long parentId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("position"));
@@ -164,10 +165,10 @@ public class DocumentController {
     public List<SearchResult> searchDocuments(
             @RequestParam String q,
             @RequestParam(defaultValue = "keyword") String mode,
-            @RequestParam(required = false) Double threshold,
-            @RequestParam(required = false) Integer limit,
-            @RequestParam(required = false) Double kwWeight,
-            @RequestParam(required = false) Double semWeight) {
+            @RequestParam(required = false) @Nullable Double threshold,
+            @RequestParam(required = false) @Nullable Integer limit,
+            @RequestParam(required = false) @Nullable Double kwWeight,
+            @RequestParam(required = false) @Nullable Double semWeight) {
 
         return switch (mode.toLowerCase()) {
             case "semantic" -> service.semanticSearch(q, threshold, limit);

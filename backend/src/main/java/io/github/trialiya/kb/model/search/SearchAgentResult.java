@@ -5,6 +5,7 @@ import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.model.tool.ToolCallResultMetaProvider;
 import io.github.trialiya.kb.tools.Compact;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Result of one {@code searchCodebase} sub-agent run.
@@ -22,7 +23,7 @@ import java.util.Map;
  * @param durationMs wall-clock time of the whole run, in milliseconds
  */
 public record SearchAgentResult(
-        String report, boolean complete, int iterations, @JsonIgnore long durationMs)
+        @Nullable String report, boolean complete, int iterations, @JsonIgnore long durationMs)
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
     /** Short, human-readable gist for the invocation log. */

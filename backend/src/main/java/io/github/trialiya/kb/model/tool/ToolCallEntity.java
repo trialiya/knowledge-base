@@ -1,7 +1,7 @@
 package io.github.trialiya.kb.model.tool;
 
-import jakarta.annotation.Nullable;
 import java.time.LocalDateTime;
+import org.jspecify.annotations.Nullable;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.PersistenceCreator;
 import org.springframework.data.domain.Persistable;

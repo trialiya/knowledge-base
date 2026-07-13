@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Full document node returned by {@code GET /api/documents/{id}} and tree/children endpoints.
@@ -29,17 +30,17 @@ public record DocumentNode(
         long id,
         String title,
         String type,
-        Long parentId,
+        @Nullable Long parentId,
         int version,
         String description,
         int descriptionVersion,
         LocalDateTime updatedAt,
-        List<DocumentNode> children,
+        @Nullable List<DocumentNode> children,
         boolean hasChildren,
         boolean system,
-        String summary,
+        @Nullable String summary,
         boolean summaryStale,
-        Integer summarySourceVersion)
+        @Nullable Integer summarySourceVersion)
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
     @Override

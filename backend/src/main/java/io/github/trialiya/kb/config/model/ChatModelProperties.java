@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.config.model;
 
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "kb.chat")
@@ -12,7 +13,7 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
 
     public record ModelOption(String id, String label) {}
 
-    public boolean isAllowed(String id) {
+    public boolean isAllowed(@Nullable String id) {
         return id != null
                 && (id.equals(defaultModel.id())
                         || models.stream().anyMatch(m -> id.equals(m.id())));

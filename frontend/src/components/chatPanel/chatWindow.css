@@ -869,3 +869,269 @@
   color: var(--kb-accent);
   word-break: break-all;
 }
+
+/* ── Search toggle button in chat header (Ctrl/Cmd+F) ── */
+.chat-header-search-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  background: none;
+  border: 1.5px solid var(--kb-border);
+  border-radius: 20px;
+  padding: 5px 9px;
+  color: var(--kb-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.chat-header-search-btn:hover {
+  border-color: var(--kb-accent);
+  color: var(--kb-accent);
+  background: var(--kb-accent-light);
+}
+.chat-header-search-btn--active {
+  border-color: var(--kb-accent);
+  color: var(--kb-accent);
+  background: var(--kb-accent-bg);
+}
+
+/* ── In-chat find bar (Ctrl+F) ── */
+.chat-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.5rem 1.2rem;
+  border-bottom: 1px solid var(--kb-border);
+  background: var(--kb-bg);
+  flex-shrink: 0;
+}
+.chat-search-bar__icon {
+  display: flex;
+  align-items: center;
+  color: var(--kb-muted);
+  flex-shrink: 0;
+}
+.chat-search-bar__input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: none;
+  font: inherit;
+  font-size: 0.86rem;
+  color: var(--kb-text);
+}
+.chat-search-bar__input::placeholder {
+  color: var(--kb-muted);
+}
+.chat-search-bar__count {
+  flex-shrink: 0;
+  font-size: 0.76rem;
+  color: var(--kb-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.chat-search-bar__nav,
+.chat-search-bar__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--kb-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.chat-search-bar__nav:hover:not(:disabled),
+.chat-search-bar__close:hover {
+  background: var(--kb-accent-light);
+  color: var(--kb-accent);
+}
+.chat-search-bar__nav:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Активное совпадение find-бара — обводка плашки сообщения. Только outline, без
+   заливки: заливка на пузыре пользователя (синий фон, белый текст) убила бы контраст. */
+.message-block--search-hit .message {
+  outline: 2px solid var(--kb-accent);
+  outline-offset: 2px;
+}
+
+/* Вхождения запроса find-бара в тексте сообщений (CSS Custom Highlight API,
+   см. MessageList). Цвета заданы литералами: подсветка ложится и на пузырь
+   пользователя (акцентный фон, белый текст), тёмный текст нужен явно.
+   В браузерах без поддержки правила игнорируются — остаётся только рамка. */
+::highlight(kb-chat-find) {
+  background-color: rgba(255, 213, 79, 0.6);
+  color: #1f1f1f;
+}
+::highlight(kb-chat-find-active) {
+  background-color: #ffb300;
+  color: #1f1f1f;
+}
+
+/* ── Chat search (лупа над списком чатов) ── */
+.chat-search {
+  margin: 0 1rem 0.75rem;
+}
+
+.chat-search__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 7px 14px;
+  background: none;
+  border: 1.5px solid var(--kb-border);
+  border-radius: 20px;
+  color: var(--kb-muted);
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 600;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.chat-search__trigger:hover {
+  border-color: var(--kb-accent);
+  color: var(--kb-accent);
+  background: var(--kb-accent-light);
+}
+
+.chat-search__field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 16px;
+  border: 1.5px solid var(--kb-accent);
+  background: var(--kb-white);
+}
+.chat-search__field-icon {
+  display: flex;
+  align-items: center;
+  color: var(--kb-muted);
+  flex-shrink: 0;
+}
+.chat-search__input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: none;
+  font: inherit;
+  font-size: 0.84rem;
+  color: var(--kb-text);
+}
+.chat-search__input::placeholder {
+  color: var(--kb-muted);
+}
+.chat-search__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--kb-muted);
+  cursor: pointer;
+}
+.chat-search__close:hover {
+  background: var(--kb-accent-light);
+  color: var(--kb-accent);
+}
+
+.chat-search-dropdown {
+  position: fixed;
+  z-index: 1200;
+  background: var(--kb-white);
+  border: 1px solid var(--kb-border);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(91, 79, 207, 0.16);
+  overflow: hidden;
+  max-height: 420px;
+  display: flex;
+  flex-direction: column;
+}
+.chat-search-dropdown__msg {
+  padding: 12px 14px;
+  font-size: 0.82rem;
+  color: var(--kb-muted);
+}
+.chat-search-dropdown__list {
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.chat-search-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.chat-search-item:hover,
+.chat-search-item--selected {
+  background: var(--kb-accent-light);
+}
+.chat-search-item__icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--kb-muted);
+}
+.chat-search-item__body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  gap: 2px;
+}
+.chat-search-item__title {
+  font-size: 0.85rem;
+  color: var(--kb-text);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* До двух строк вместо одной с ellipsis: вместе с коротким префиксом сниппета
+   на бэке (см. ChatMemoryService.buildSnippet) гарантирует, что само совпадение
+   видно, а не спрятано за границей области. */
+.chat-search-item__snippet {
+  font-size: 0.78rem;
+  color: var(--kb-muted);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+.chat-search-item__badge {
+  flex-shrink: 0;
+  margin-top: 2px;
+  background: var(--kb-accent-bg);
+  color: var(--kb-accent);
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}

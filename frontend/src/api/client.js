@@ -16,6 +16,9 @@ export async function request(url, options) {
   try {
     res = await fetch(url, options);
   } catch (e) {
+    // Отмена через AbortSignal — не сетевая ошибка: пробрасываем как есть,
+    // чтобы вызывающий код мог отличить её по err.name === 'AbortError'.
+    if (e.name === 'AbortError') throw e;
     const err = new Error(`Network error: ${e.message}`);
     err.type = 'network';
     throw err;
@@ -39,6 +42,7 @@ export async function requestRaw(url, options) {
   try {
     return await fetch(url, options);
   } catch (e) {
+    if (e.name === 'AbortError') throw e;
     const err = new Error(`Network error: ${e.message}`);
     err.type = 'network';
     throw err;

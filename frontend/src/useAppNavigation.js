@@ -16,20 +16,23 @@ import { useState, useEffect, useRef, useCallback } from 'react';
  *   /chat                                   → (+ ?chat=<id>)
  *   /knowledge?doc=<id>&tab=<docTab>        → документ
  *   /knowledge?search=<q>&mode=<m>          → поиск (взаимоисключающе с doc)
+ *   /files?path=<relativePath>              → выбранный файл/каталог репозитория
  *   /admin                                  → (+ ?chat=<id>)
  *   /settings                               → (+ ?chat=<id>)
  *
  *   • chat=<id> сохраняется во всех view, чтобы возврат в чат помнил активный.
  *   • doc/tab/search/mode пишутся ТОЛЬКО для /knowledge.
+ *   • path пишется ТОЛЬКО для /files.
  *
  * Состояние:
  *   {
- *     view:    'chat' | 'knowledge' | 'admin' | 'settings'   ← путь
- *     chatId:  string | null      — последний открытый чат (живёт во всех view)
- *     docId:   string | null      — документ, активный для ТЕКУЩЕЙ записи истории
- *     docTab:  'summary' | 'content' | ...
- *     search:  string             — поисковый запрос KB
- *     mode:    'hybrid' | ...      — режим поиска KB
+ *     view:     'chat' | 'knowledge' | 'files' | 'admin' | 'settings'   ← путь
+ *     chatId:   string | null      — последний открытый чат (живёт во всех view)
+ *     docId:    string | null      — документ, активный для ТЕКУЩЕЙ записи истории
+ *     docTab:   'summary' | 'content' | ...
+ *     search:   string             — поисковый запрос KB
+ *     mode:     'hybrid' | ...      — режим поиска KB
+ *     filePath: string             — выбранный путь в файловом браузере ('' = корень)
  *   }
  *
  * Почему docId в состоянии берётся строго из URL (а «последний документ» хранится
@@ -53,18 +56,20 @@ import { useState, useEffect, useRef, useCallback } from 'react';
  */
 
 // Допустимые верхнеуровневые view.
-const TOP_VIEWS = ['chat', 'knowledge', 'admin', 'settings'];
+const TOP_VIEWS = ['chat', 'knowledge', 'files', 'admin', 'settings'];
 
 // view ⇄ путь (первый сегмент URL).
 const VIEW_TO_PATH = {
   chat: '/chat',
   knowledge: '/knowledge',
+  files: '/files',
   admin: '/admin',
   settings: '/settings',
 };
 const PATH_TO_VIEW = {
   '/chat': 'chat',
   '/knowledge': 'knowledge',
+  '/files': 'files',
   '/admin': 'admin',
   '/settings': 'settings',
 };
@@ -101,6 +106,7 @@ function readUrl() {
     docTab: p.get('tab') || 'summary',
     search: p.get('search') || '',
     mode: p.get('mode') || 'hybrid',
+    filePath: p.get('path') || '',
   };
 }
 
@@ -109,6 +115,7 @@ function readUrl() {
  * релевантные текущему view:
  *   • /chat                  → ?chat
  *   • /knowledge             → ?chat & (doc[&tab] | search[&mode])  (взаимоисключающе)
+ *   • /files                 → ?chat & path
  *   • /admin | /settings     → ?chat
  */
 function buildUrl(nav) {
@@ -128,6 +135,11 @@ function buildUrl(nav) {
     }
   }
 
+  // Файловый браузер кладёт в URL выбранный путь (пусто — корень репозитория).
+  if (nav.view === 'files' && nav.filePath) {
+    p.set('path', nav.filePath);
+  }
+
   const qs = p.toString();
   return (VIEW_TO_PATH[nav.view] || '/chat') + (qs ? `?${qs}` : '');
 }
@@ -145,6 +157,7 @@ function initialNav() {
     docTab: u.docTab,
     search: u.search,
     mode: u.mode,
+    filePath: u.filePath,
   };
 }
 
@@ -223,6 +236,7 @@ export default function useAppNavigation() {
         docTab: u.docTab,
         search: u.search,
         mode: u.mode,
+        filePath: u.filePath,
       });
     };
     window.addEventListener('popstate', onPop);
@@ -274,6 +288,11 @@ export default function useAppNavigation() {
     }));
   }, []);
 
+  /** Открыть путь в файловом браузере ('' — корень репозитория). */
+  const openFilePath = useCallback((path) => {
+    setNav((prev) => ({ ...prev, view: 'files', filePath: path || '' }));
+  }, []);
+
   /** Открыть/сменить активный чат. */
   const openChat = useCallback((chatId) => {
     const id = chatId == null ? null : String(chatId);
@@ -290,7 +309,17 @@ export default function useAppNavigation() {
     setNav((prev) => (prev.view === 'settings' ? prev : { ...prev, view: 'settings' }));
   }, []);
 
-  return { nav, switchView, openDoc, setDocTab, setSearch, openChat, openAdmin, openSettings };
+  return {
+    nav,
+    switchView,
+    openDoc,
+    setDocTab,
+    setSearch,
+    openChat,
+    openAdmin,
+    openSettings,
+    openFilePath,
+  };
 }
 
 /*
@@ -307,7 +336,7 @@ export default function useAppNavigation() {
  *
  *       @Controller
  *       class SpaForwardController {
- *           @GetMapping({ "/chat", "/knowledge", "/admin", "/settings" })
+ *           @GetMapping({ "/chat", "/knowledge", "/files", "/admin", "/settings" })
  *           String forward() { return "forward:/index.html"; }
  *       }
  *
