@@ -73,6 +73,13 @@ kb:
 #    models:
 #      - id: ${KB_CHAT_MODELS_0_ID}
 #        label: ${KB_CHAT_MODELS_0_LABEL}
+    timeout:
+      # OpenAI HTTP client call timeout (openai-java SDK). Too short aborts slow/long generations
+      # mid-stream (OpenAIIoException/StreamResetException CANCEL); too long delays noticing a
+      # genuinely dead upstream.
+      stream: ${KB_CHAT_STREAM_TIMEOUT:5m}
+      # SseEmitter timeout per browser tab subscription (replay/reconnect window).
+      sse: ${KB_CHAT_SSE_TIMEOUT:30m}
   documents:
     export-path: ${DOCUMENTS_EXPORT_PATH}
     replace: true
