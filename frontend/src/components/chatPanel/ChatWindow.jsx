@@ -306,7 +306,9 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     if (!isActive) return undefined;
     const onKeyDown = (e) => {
       if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
-      if (e.key !== 'f' && e.key !== 'F') return;
+      // e.code — физическая клавиша: на нелатинских раскладках (например, русской)
+      // e.key даёт символ раскладки («а»), и проверка только по key ломает шорткат.
+      if (e.key !== 'f' && e.key !== 'F' && e.code !== 'KeyF') return;
       if (!canSearchChat) return;
       e.preventDefault();
       if (inChatSearch.open) {

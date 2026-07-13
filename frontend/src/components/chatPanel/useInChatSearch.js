@@ -136,6 +136,16 @@ export default function useInChatSearch({ activeChatId, chatsRef, loadOlderMessa
     };
     if (hasLocally()) return undefined;
 
+    // Пузыри, добавленные в текущей сессии (стриминг/отправка), не имеют dbId,
+    // поэтому hasLocally() их не видит. Такое совпадение не старше самого старого
+    // загруженного из БД сообщения (id растут вместе с курсором пагинации), и
+    // листать более старые страницы ради него бессмысленно — иначе догрузили бы
+    // всю историю впустую.
+    const oldestLoadedDbId = chatsRef.current
+      .find((c) => c.id === activeChatId)
+      ?.messages?.find((m) => m.dbId != null)?.dbId;
+    if (oldestLoadedDbId != null && activeMatch.id >= oldestLoadedDbId) return undefined;
+
     let cancelled = false;
     (async () => {
       setNavigating(true);
