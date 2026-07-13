@@ -53,7 +53,7 @@ export const transformPage = (rawMsgs) => {
     bubbles.push({
       mid: nextMessageId(),
       // id сообщения в БД — якорь для поиска по чату (find-бар, Ctrl+F): позволяет
-      // найти нужный пузырь в DOM и понять, догружена ли ещё страница с совпадением.
+      // сопоставить хит бэкенда с пузырём и понять, догружена ли страница с совпадением.
       dbId: m.id ?? null,
       text: m.content,
       sender: type === 'user' ? 'user' : 'ai',

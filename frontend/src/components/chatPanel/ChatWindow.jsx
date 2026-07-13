@@ -295,7 +295,13 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   const isStreaming = !!activeChat?.runId;
 
   // Поиск сообщений внутри активного чата (find-бар, Ctrl+F / кнопка-лупа в шапке).
-  const inChatSearch = useInChatSearch({ activeChatId, chatsRef, loadOlderMessages });
+  // messages передаём из рендера (chatsRef обновляется эффектом и на рендер отстаёт).
+  const inChatSearch = useInChatSearch({
+    activeChatId,
+    chatsRef,
+    loadOlderMessages,
+    messages: activeChat?.messages,
+  });
   const inChatSearchInputRef = useRef(null);
   const canSearchChat =
     !!activeChatId && activeChatId !== DRAFT_CHAT_ID && !activeChat?.notFound && !activeChat?.loadError;
@@ -809,7 +815,8 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
             onRetry={handleRetryMessage}
             hasMore={!!activeChat?.hasMore}
             canLoadMore={!isStreaming}
-            activeSearchDbId={inChatSearch.activeMatchDbId}
+            activeSearchMid={inChatSearch.activeMatchMid}
+            searchQuery={inChatSearch.open ? inChatSearch.query.trim() : ''}
           />
         )}
 

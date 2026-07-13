@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import chatApi from '../../api/chatApi';
-import highlightMatch from '../common/highlightMatch';
+import { highlightSubstring } from '../common/highlightMatch';
 import { IconSearch, IconX, IconMessage } from '../../icons';
 
 const DEBOUNCE_MS = 250;
@@ -132,11 +132,18 @@ const ChatSearch = ({ onSelect }) => {
 
   useEffect(() => {
     if (!open) return;
+    // Скролл страницы «отрывает» плавающий список от якоря — закрываем. Но прокрутка
+    // внутри самого списка результатов (колёсиком или scrollIntoView при навигации
+    // стрелками) закрывать поиск не должна.
+    const onScroll = (e) => {
+      if (e.target instanceof Element && e.target.closest('.chat-search-dropdown')) return;
+      close();
+    };
     window.addEventListener('resize', close);
-    window.addEventListener('scroll', close, true);
+    window.addEventListener('scroll', onScroll, true);
     return () => {
       window.removeEventListener('resize', close);
-      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('scroll', onScroll, true);
     };
   }, [open, close]);
 
@@ -203,10 +210,10 @@ const ChatSearch = ({ onSelect }) => {
                     </span>
                     <span className="chat-search-item__body">
                       <span className="chat-search-item__title">
-                        {highlightMatch(res.topic || t('window.defaultTitle'), query)}
+                        {highlightSubstring(res.topic || t('window.defaultTitle'), query)}
                       </span>
                       {res.snippet && (
-                        <span className="chat-search-item__snippet">{highlightMatch(res.snippet, query)}</span>
+                        <span className="chat-search-item__snippet">{highlightSubstring(res.snippet, query)}</span>
                       )}
                     </span>
                     {res.messageMatchCount > 0 && (

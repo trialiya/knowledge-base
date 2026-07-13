@@ -239,8 +239,14 @@ public class ChatMemoryService implements ChatMemoryRepository {
     /** Сколько сырых совпадений сообщений просматриваем при поиске по всем чатам пользователя. */
     private static final int MESSAGE_SEARCH_SCAN_LIMIT = 200;
 
-    /** Радиус (в символах) вокруг найденного вхождения при построении сниппета. */
-    private static final int SNIPPET_RADIUS = 60;
+    /**
+     * Контекст (в символах) до и после вхождения при построении сниппета. Префикс намеренно
+     * короткий: сниппет в дропдауне обрезается справа, и при длинном префиксе само совпадение
+     * оказывалось за границей видимой области.
+     */
+    private static final int SNIPPET_PREFIX = 30;
+
+    private static final int SNIPPET_SUFFIX = 90;
 
     /**
      * Сообщение видно пользователю и осмысленно для поиска: не служебное SYSTEM и не «крошка»
@@ -339,22 +345,27 @@ public class ChatMemoryService implements ChatMemoryRepository {
                 .toList();
     }
 
-    /** Фрагмент текста вокруг первого вхождения query (без учёта регистра), с многоточиями. */
-    private static String buildSnippet(String content, String query) {
+    /**
+     * Фрагмент текста вокруг первого вхождения query (без учёта регистра), с многоточиями. Переносы
+     * строк и повторные пробелы схлопываются: сниппет — одна плотная строка, а не первая (часто
+     * пустая или заголовочная) строка markdown-сообщения. Package-private для юнит-теста.
+     */
+    static @Nullable String buildSnippet(@Nullable String content, String query) {
         if (content == null) {
             return null;
         }
-        String stripped = content.strip();
-        int idx = stripped.toLowerCase().indexOf(query.toLowerCase());
+        String flat = content.strip().replaceAll("\\s+", " ");
+        int idx = flat.toLowerCase().indexOf(query.toLowerCase());
         if (idx < 0) {
-            return stripped.length() > SNIPPET_RADIUS * 2
-                    ? stripped.substring(0, SNIPPET_RADIUS * 2) + "…"
-                    : stripped;
+            // Запрос с пробелами мог совпасть в сыром тексте через перенос строки — после
+            // схлопывания его не найти; показываем начало сообщения.
+            int cap = SNIPPET_PREFIX + SNIPPET_SUFFIX;
+            return flat.length() > cap ? flat.substring(0, cap) + "…" : flat;
         }
-        int start = Math.max(0, idx - SNIPPET_RADIUS);
-        int end = Math.min(stripped.length(), idx + query.length() + SNIPPET_RADIUS);
+        int start = Math.max(0, idx - SNIPPET_PREFIX);
+        int end = Math.min(flat.length(), idx + query.length() + SNIPPET_SUFFIX);
         String prefix = start > 0 ? "…" : "";
-        String suffix = end < stripped.length() ? "…" : "";
-        return prefix + stripped.substring(start, end).strip() + suffix;
+        String suffix = end < flat.length() ? "…" : "";
+        return prefix + flat.substring(start, end).strip() + suffix;
     }
 }

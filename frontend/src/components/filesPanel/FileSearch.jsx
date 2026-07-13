@@ -135,14 +135,20 @@ const FileSearch = ({ onSelect }) => {
 
   // Якорь фиксируется один раз при открытии и не следит за окном — при ресайзе
   // или скролле список «отрывается» от поля. Дешевле закрыть поиск, чем
-  // пересчитывать позицию на каждый scroll/resize.
+  // пересчитывать позицию на каждый scroll/resize. Прокрутка внутри самого
+  // списка результатов (колёсиком или scrollIntoView при навигации стрелками)
+  // якорь не двигает — её игнорируем.
   useEffect(() => {
     if (!open) return;
+    const onScroll = (e) => {
+      if (e.target instanceof Element && e.target.closest('.file-search-dropdown')) return;
+      close();
+    };
     window.addEventListener('resize', close);
-    window.addEventListener('scroll', close, true);
+    window.addEventListener('scroll', onScroll, true);
     return () => {
       window.removeEventListener('resize', close);
-      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('scroll', onScroll, true);
     };
   }, [open, close]);
 

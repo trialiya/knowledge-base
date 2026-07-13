@@ -962,6 +962,19 @@
   outline-offset: 2px;
 }
 
+/* Вхождения запроса find-бара в тексте сообщений (CSS Custom Highlight API,
+   см. MessageList). Цвета заданы литералами: подсветка ложится и на пузырь
+   пользователя (акцентный фон, белый текст), тёмный текст нужен явно.
+   В браузерах без поддержки правила игнорируются — остаётся только рамка. */
+::highlight(kb-chat-find) {
+  background-color: rgba(255, 213, 79, 0.6);
+  color: #1f1f1f;
+}
+::highlight(kb-chat-find-active) {
+  background-color: #ffb300;
+  color: #1f1f1f;
+}
+
 /* ── Chat search (лупа над списком чатов) ── */
 .chat-search {
   margin: 0 1rem 0.75rem;
@@ -1100,12 +1113,17 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* До двух строк вместо одной с ellipsis: вместе с коротким префиксом сниппета
+   на бэке (см. ChatMemoryService.buildSnippet) гарантирует, что само совпадение
+   видно, а не спрятано за границей области. */
 .chat-search-item__snippet {
   font-size: 0.78rem;
   color: var(--kb-muted);
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
 }
 .chat-search-item__badge {
   flex-shrink: 0;

@@ -4,7 +4,7 @@
 // навигацию prev/next по найденным сообщениям. Если совпадение лежит в ещё
 // не загруженной (более старой) странице — молча догружает её же самым
 // хуком useChatMessages.loadOlderMessages, пока сообщение не появится в DOM
-// (см. MessageList: именно оно делает финальный scrollIntoView по dbId).
+// (см. MessageList: именно оно делает финальный скролл и подсветку по mid).
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import chatApi from '../../api/chatApi';
@@ -15,7 +15,44 @@ const DEBOUNCE_MS = 250;
 // на случай рассинхронизации курсора не крутим цикл бесконечно.
 const MAX_LOAD_STEPS = 50;
 
-export default function useInChatSearch({ activeChatId, chatsRef, loadOlderMessages }) {
+/**
+ * Пузырь (его mid), которому соответствует активное совпадение поиска.
+ *
+ * Обычный случай — пузырь с таким dbId уже загружен. Но сообщения, появившиеся
+ * в текущей сессии (отправка/стриминг), в стейте без dbId: их id знает только
+ * бэкенд. Для них сопоставляем по порядку: и хиты бэкенда, и пузыри хронологичны,
+ * поэтому k-й «свежий» хит (id новее самого нового загруженного dbId) — это k-й
+ * пузырь без dbId, содержащий запрос.
+ *
+ * @returns {*} mid пузыря или null (совпадение в ещё не догруженной странице)
+ */
+export function resolveActiveMatchMid({ messages, matches, activeMatch, query }) {
+  if (!activeMatch || !Array.isArray(messages) || messages.length === 0) return null;
+
+  const direct = messages.find((m) => m.dbId === activeMatch.id);
+  if (direct) return direct.mid;
+
+  let newestLoadedDbId = null;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].dbId != null) {
+      newestLoadedDbId = messages[i].dbId;
+      break;
+    }
+  }
+  // Старее самого нового загруженного, но не найден — лежит в незагруженной
+  // странице; догрузку страниц ведёт эффект в useInChatSearch.
+  if (newestLoadedDbId != null && activeMatch.id < newestLoadedDbId) return null;
+
+  const q = (query || '').trim().toLowerCase();
+  if (!q) return null;
+  const freshHits = matches.filter((h) => newestLoadedDbId == null || h.id > newestLoadedDbId);
+  const k = freshHits.findIndex((h) => h.id === activeMatch.id);
+  if (k < 0) return null;
+  const freshBubbles = messages.filter((m) => m.dbId == null && (m.text || '').toLowerCase().includes(q));
+  return freshBubbles[k]?.mid ?? null;
+}
+
+export default function useInChatSearch({ activeChatId, chatsRef, loadOlderMessages, messages }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [matches, setMatches] = useState([]); // [{ id, createdAt }] хронологически (ASC)
@@ -171,7 +208,7 @@ export default function useInChatSearch({ activeChatId, chatsRef, loadOlderMessa
     total: matches.length,
     activeIndex,
     loading: searching || navigating,
-    activeMatchDbId: activeMatch?.id ?? null,
+    activeMatchMid: resolveActiveMatchMid({ messages, matches, activeMatch, query }),
     openBar,
     openWithQuery,
     close,
