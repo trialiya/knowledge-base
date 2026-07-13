@@ -30,6 +30,22 @@ const chatApi = {
     return request(`/api/chats/${enc(id)}/messages?${params}`);
   },
 
+  /**
+   * Поиск сообщений внутри одного чата — для локального find-бара (Ctrl+F).
+   * Возвращает совпадения в хронологическом порядке: [{ id, createdAt }].
+   */
+  searchMessages: (id, q, signal) =>
+    request(`/api/chats/${enc(id)}/messages/search?${new URLSearchParams({ q })}`, signal ? { signal } : undefined),
+
+  /**
+   * Поиск чатов текущего пользователя по названию и/или содержимому сообщений (лупа над списком).
+   * Возвращает [{ conversationId, topic, updatedAt, titleMatched, messageMatchCount, snippet }].
+   */
+  searchChats: (q, limit = 20, signal) => {
+    const params = new URLSearchParams({ q, limit: String(limit) });
+    return request(`/api/chats/search?${params}`, signal ? { signal } : undefined);
+  },
+
   /** Полные детали одного вызова инструмента по runId + callIndex. */
   getToolCallDetails: (chatId, runId, callIndex) =>
     request(`/api/chats/${enc(chatId)}/tool-calls?runId=${enc(runId)}&callIndex=${callIndex}`),

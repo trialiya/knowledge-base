@@ -63,6 +63,13 @@ export const IconChevronDown = ({ size = 12, className }) => (
   </svg>
 );
 
+/** Верхний шеврон (навигация «предыдущий» — find-бар чата и т.п.). */
+export const IconChevronUp = ({ size = 12, className }) => (
+  <svg className={className} width={size} height={size} viewBox="0 0 24 24" {...s} strokeWidth="2.4">
+    <polyline points="18 15 12 9 6 15" />
+  </svg>
+);
+
 export const IconArrowLeft = () => (
   <svg width="15" height="15" viewBox="0 0 24 24" {...s} strokeWidth="2.5">
     <line x1="19" y1="12" x2="5" y2="12" />

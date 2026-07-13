@@ -12,8 +12,10 @@ import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.model.chat.dto.Chat;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.ChatMessage;
+import io.github.trialiya.kb.model.chat.dto.ChatSearchResult;
 import io.github.trialiya.kb.model.chat.dto.CreateJiraChatRequest;
 import io.github.trialiya.kb.model.chat.dto.MessagePage;
+import io.github.trialiya.kb.model.chat.dto.MessageSearchHit;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.tool.ToolCallDetail;
@@ -118,6 +120,17 @@ public class ChatController {
                 .toList();
     }
 
+    /**
+     * Поиск чатов текущего пользователя по названию и/или содержимому сообщений (лупа над списком
+     * чатов). Объединяет оба вида совпадений по чату.
+     */
+    @GetMapping("/search")
+    public List<ChatSearchResult> searchChats(
+            @RequestParam String q, @RequestParam(defaultValue = "20") int limit) {
+        int safe = Math.min(Math.max(limit, 1), 50);
+        return chatMemoryService.searchChats(getUser(), q, safe);
+    }
+
     // ---------------------------------------------------------------------
     //  Single chat: /api/chats/{conversationId}
     // ---------------------------------------------------------------------
@@ -166,6 +179,7 @@ public class ChatController {
                         .map(
                                 e ->
                                         new ChatMessage(
+                                                e.getId(),
                                                 e.getContent(),
                                                 e.getType().name(),
                                                 e.getCreatedAt(),
@@ -174,6 +188,14 @@ public class ChatController {
                                                 isToolCalls(e)))
                         .toList();
         return new MessagePage(dtos, page.hasMore(), page.oldestCursor());
+    }
+
+    /** Поиск сообщений внутри одного чата — для локального find-бара (Ctrl+F). */
+    @GetMapping("/{conversationId}/messages/search")
+    public List<MessageSearchHit> searchMessages(
+            @PathVariable String conversationId, @RequestParam String q) {
+        getChatTopic(conversationId); // 404/403 + проверка владельца
+        return chatMemoryService.searchMessages(conversationId, q);
     }
 
     @DeleteMapping("/{conversationId}")
@@ -481,6 +503,7 @@ public class ChatController {
             message = chatMessageEntity.getText();
         }
         return new ChatMessage(
+                chatMessageEntity.getId(),
                 message,
                 chatMessageEntity.getMessageType().getValue(),
                 chatMessageEntity.getCreatedAt(),

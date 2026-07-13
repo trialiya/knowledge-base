@@ -2,9 +2,12 @@ package io.github.trialiya.kb.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.trialiya.kb.model.chat.dto.ChatSearchResult;
 import io.github.trialiya.kb.model.chat.dto.MessageCursor;
+import io.github.trialiya.kb.model.chat.dto.MessageSearchHit;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
+import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.chat.spring.IMessage;
 import io.github.trialiya.kb.model.tool.ToolCallEntity;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
@@ -15,7 +18,13 @@ import io.github.trialiya.kb.repository.ToolCallRepository;
 import io.github.trialiya.kb.utils.ChatUtils;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.AllArgsConstructor;
@@ -223,5 +232,129 @@ public class ChatMemoryService implements ChatMemoryRepository {
                         .map(ChatMessageEntity::getPosition)
                         .orElse(0L)
                 + 1;
+    }
+
+    // ── Search ────────────────────────────────────────────────────────────────
+
+    /** Сколько сырых совпадений сообщений просматриваем при поиске по всем чатам пользователя. */
+    private static final int MESSAGE_SEARCH_SCAN_LIMIT = 200;
+
+    /** Радиус (в символах) вокруг найденного вхождения при построении сниппета. */
+    private static final int SNIPPET_RADIUS = 60;
+
+    /**
+     * Сообщение видно пользователю и осмысленно для поиска: не служебное SYSTEM и не «крошка»
+     * вызовов инструментов (см. {@link #saveToolCalls}) — те же критерии, что и в отображении
+     * истории чата.
+     */
+    private static boolean isSearchable(ChatMessageEntity entity) {
+        if (entity.getType() == MessageType.SYSTEM) {
+            return false;
+        }
+        ChatMessageMeta meta = entity.getMeta();
+        return meta == null || !meta.toolCalls();
+    }
+
+    /** Поиск сообщений внутри одного чата — для локального find-бара (Ctrl+F). */
+    public List<MessageSearchHit> searchMessages(String conversationId, String q) {
+        String pattern = q == null ? "" : q.trim();
+        if (pattern.isEmpty()) {
+            return List.of();
+        }
+        return chatMessageRepository.searchInConversation(conversationId, pattern).stream()
+                .filter(ChatMemoryService::isSearchable)
+                .map(e -> new MessageSearchHit(e.getId(), e.getCreatedAt()))
+                .toList();
+    }
+
+    /**
+     * Поиск чатов пользователя по названию и/или содержимому сообщений. Результат объединяет оба
+     * вида совпадений по чату; сниппет строится вокруг самого свежего совпавшего сообщения.
+     */
+    public List<ChatSearchResult> searchChats(String user, String q, int limit) {
+        String pattern = q == null ? "" : q.trim();
+        if (pattern.isEmpty()) {
+            return List.of();
+        }
+
+        List<ChatTopicEntity> titleHits = chatTopicRepository.searchByTopic(user, pattern);
+        Set<String> titleMatchIds = new LinkedHashSet<>();
+        Map<String, ChatTopicEntity> topicsById = new LinkedHashMap<>();
+        for (ChatTopicEntity t : titleHits) {
+            titleMatchIds.add(t.getConversationId());
+            topicsById.put(t.getConversationId(), t);
+        }
+
+        List<ChatMessageEntity> rawHits =
+                chatMessageRepository.searchForUser(user, pattern, MESSAGE_SEARCH_SCAN_LIMIT);
+        // rawHits идёт от новых к старым — первое сообщение на conversationId и есть самое свежее.
+        Map<String, ChatMessageEntity> latestHitByConversation = new LinkedHashMap<>();
+        Map<String, Integer> countByConversation = new HashMap<>();
+        for (ChatMessageEntity e : rawHits) {
+            if (!isSearchable(e)) {
+                continue;
+            }
+            latestHitByConversation.putIfAbsent(e.getConversationId(), e);
+            countByConversation.merge(e.getConversationId(), 1, Integer::sum);
+        }
+
+        List<String> missingTopics =
+                latestHitByConversation.keySet().stream()
+                        .filter(id -> !topicsById.containsKey(id))
+                        .toList();
+        if (!missingTopics.isEmpty()) {
+            // Безопасно без повторной фильтрации по user: эти id уже пришли из
+            // searchForUser(user, ...), т.е. и так принадлежат этому пользователю.
+            chatTopicRepository
+                    .findAllById(missingTopics)
+                    .forEach(t -> topicsById.put(t.getConversationId(), t));
+        }
+
+        Set<String> allIds = new LinkedHashSet<>(titleMatchIds);
+        allIds.addAll(latestHitByConversation.keySet());
+
+        return allIds.stream()
+                .map(topicsById::get)
+                .filter(Objects::nonNull)
+                .map(
+                        topic -> {
+                            ChatMessageEntity hit =
+                                    latestHitByConversation.get(topic.getConversationId());
+                            return new ChatSearchResult(
+                                    topic.getConversationId(),
+                                    topic.getTopic(),
+                                    topic.getUpdatedAt(),
+                                    titleMatchIds.contains(topic.getConversationId()),
+                                    countByConversation.getOrDefault(topic.getConversationId(), 0),
+                                    hit != null ? buildSnippet(hit.getContent(), pattern) : null);
+                        })
+                .sorted(
+                        Comparator.comparing(
+                                        (ChatSearchResult r) ->
+                                                r.updatedAt() != null
+                                                        ? r.updatedAt()
+                                                        : LocalDateTime.MIN)
+                                .reversed())
+                .limit(limit)
+                .toList();
+    }
+
+    /** Фрагмент текста вокруг первого вхождения query (без учёта регистра), с многоточиями. */
+    private static String buildSnippet(String content, String query) {
+        if (content == null) {
+            return null;
+        }
+        String stripped = content.strip();
+        int idx = stripped.toLowerCase().indexOf(query.toLowerCase());
+        if (idx < 0) {
+            return stripped.length() > SNIPPET_RADIUS * 2
+                    ? stripped.substring(0, SNIPPET_RADIUS * 2) + "…"
+                    : stripped;
+        }
+        int start = Math.max(0, idx - SNIPPET_RADIUS);
+        int end = Math.min(stripped.length(), idx + query.length() + SNIPPET_RADIUS);
+        String prefix = start > 0 ? "…" : "";
+        String suffix = end < stripped.length() ? "…" : "";
+        return prefix + stripped.substring(start, end).strip() + suffix;
     }
 }

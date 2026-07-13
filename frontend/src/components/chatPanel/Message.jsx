@@ -491,6 +491,8 @@ const Message = ({
   conversationId,
   onNavigateToDoc,
   timestamp,
+  dbId,
+  searchActive,
 }) => {
   const { t, i18n } = useTranslation('chat');
   const [showSource, setShowSource] = useState(false);
@@ -557,7 +559,10 @@ const Message = ({
     );
 
   const messageBlock = (
-    <div className={`message-block message-block--${sender}`}>
+    <div
+      className={`message-block message-block--${sender}${searchActive ? ' message-block--search-hit' : ''}`}
+      data-db-id={dbId ?? undefined}
+    >
       {bubble}
       {footer}
     </div>

@@ -9,13 +9,15 @@ import useModelConfig from './useModelConfig';
 import useIntegrationsConfig from './useIntegrationsConfig';
 import useChatMessages from './useChatMessages';
 import useChatEventStream from './useChatEventStream';
+import useInChatSearch from './useInChatSearch';
 
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import ChatList from './ChatList';
+import ChatSearchBar from './ChatSearchBar';
 import ModelSelector from './ModelSelector';
 import AttachmentPanel from '../common/AttachmentPanel';
-import { IconPaperclip, IconTrash } from '../knowledgeBasePanel/icons';
+import { IconPaperclip, IconTrash, IconSearch } from '../knowledgeBasePanel/icons';
 import './chatWindow.css';
 import '../common/attachmentPanel.css';
 import CreateJiraChatModal from './CreateJiraChatModal';
@@ -291,6 +293,32 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   // прогона и снимает терминальное событие). Управляет блокировкой ввода и видом
   // кнопки (отправить ↔ остановить).
   const isStreaming = !!activeChat?.runId;
+
+  // Поиск сообщений внутри активного чата (find-бар, Ctrl+F / кнопка-лупа в шапке).
+  const inChatSearch = useInChatSearch({ activeChatId, chatsRef, loadOlderMessages });
+  const inChatSearchInputRef = useRef(null);
+  const canSearchChat =
+    !!activeChatId && activeChatId !== DRAFT_CHAT_ID && !activeChat?.notFound && !activeChat?.loadError;
+
+  // Ctrl/Cmd+F открывает (или фокусирует уже открытый) find-бар текущего чата —
+  // только пока вкладка «Чат» активна, иначе перехватывали бы поиск в других вкладках.
+  useEffect(() => {
+    if (!isActive) return undefined;
+    const onKeyDown = (e) => {
+      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+      if (e.key !== 'f' && e.key !== 'F') return;
+      if (!canSearchChat) return;
+      e.preventDefault();
+      if (inChatSearch.open) {
+        inChatSearchInputRef.current?.focus();
+        inChatSearchInputRef.current?.select();
+      } else {
+        inChatSearch.openBar();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isActive, canSearchChat, inChatSearch]);
 
   // Список для сайдбара: черновик «new» не показываем, пока в нём нет сообщений.
   // Он промоутится в реальный чат (с UUID и draft:false) при отправке первого
@@ -605,6 +633,19 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     [activeChatId, selectChat],
   );
 
+  // Выбор результата поиска по чатам (сайдбар): открываем чат и, если совпадение
+  // было по сообщениям, сразу запускаем в нём find-бар с тем же запросом — он
+  // по умолчанию садится на самое свежее совпадение, то же, что дало сниппет.
+  const handleChatSearchSelect = useCallback(
+    (result, query) => {
+      handleSelectChat(result.conversationId);
+      if (result.messageMatchCount > 0 && query) {
+        inChatSearch.openWithQuery(query);
+      }
+    },
+    [handleSelectChat, inChatSearch],
+  );
+
   // Смена модели активного чата. Храним выбранный id как есть (модель всегда явная).
   // Для черновика на бэке чата ещё нет — PUT откладываем, модель уедет с первым сообщением.
   const handleModelChange = useCallback(
@@ -653,6 +694,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         onDeleteChat={handleDeleteChat}
         onRenameChat={renameChat}
         onNewJiraChat={jiraConfigured ? () => setJiraModalOpen(true) : undefined}
+        onSearchSelect={handleChatSearchSelect}
       />
 
       {/* ── Center: chat window ── */}
@@ -704,6 +746,16 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
                 </div>
               )}
             </div>
+            {/* Search toggle button in header (Ctrl/Cmd+F) */}
+            {canSearchChat && (
+              <button
+                className={`chat-header-search-btn ${inChatSearch.open ? 'chat-header-search-btn--active' : ''}`}
+                onClick={() => (inChatSearch.open ? inChatSearch.close() : inChatSearch.openBar())}
+                title={t('inChatSearch.open')}
+              >
+                <IconSearch size={14} />
+              </button>
+            )}
             {/* Attachment toggle button in header */}
             <button
               className={`chat-header-attachments-btn ${attachPanelOpen ? 'chat-header-attachments-btn--active' : ''}`}
@@ -717,6 +769,20 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
               <IconTrash />
             </button>
           </div>
+        )}
+
+        {inChatSearch.open && canSearchChat && (
+          <ChatSearchBar
+            inputRef={inChatSearchInputRef}
+            query={inChatSearch.query}
+            onQueryChange={inChatSearch.setQuery}
+            total={inChatSearch.total}
+            activeIndex={inChatSearch.activeIndex}
+            loading={inChatSearch.loading}
+            onPrev={inChatSearch.goPrev}
+            onNext={inChatSearch.goNext}
+            onClose={inChatSearch.close}
+          />
         )}
 
         {loadingMessages ? (
@@ -741,6 +807,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
             onRetry={handleRetryMessage}
             hasMore={!!activeChat?.hasMore}
             canLoadMore={!isStreaming}
+            activeSearchDbId={inChatSearch.activeMatchDbId}
           />
         )}
 

@@ -11,6 +11,8 @@ import {
 // onLoadMore: async () => boolean — true если что-то догрузилось (для UI-индикатора).
 // hasMore: есть ли ещё более старые сообщения на бэке.
 // canLoadMore: разрешена ли догрузка прямо сейчас (например, false во время стриминга).
+// activeSearchDbId: id (из БД) сообщения, на которое сейчас указывает find-бар (useInChatSearch) —
+// подсвечивается и по нему делается программный scrollIntoView (один раз на id).
 const MessageList = ({
   conversationId,
   messages,
@@ -19,6 +21,7 @@ const MessageList = ({
   onRetry,
   hasMore = false,
   canLoadMore = true,
+  activeSearchDbId = null,
 }) => {
   const { t } = useTranslation('chat');
   const containerRef = useRef(null);
@@ -125,6 +128,24 @@ const MessageList = ({
     return () => ro.disconnect();
   }, []);
 
+  // Прокрутка к активному совпадению find-бара (useInChatSearch). Срабатывает ровно
+  // раз на каждый activeSearchDbId — как только целевой пузырь появляется в DOM,
+  // будь то сразу или после догрузки более старых страниц (см. useInChatSearch).
+  // Повторных скроллов при последующих обновлениях messages для того же id не делаем.
+  const scrolledSearchIdRef = useRef(null);
+  useEffect(() => {
+    if (activeSearchDbId == null) {
+      scrolledSearchIdRef.current = null;
+      return;
+    }
+    if (scrolledSearchIdRef.current === activeSearchDbId) return;
+    const el = containerRef.current?.querySelector(`[data-db-id="${activeSearchDbId}"]`);
+    if (!el) return;
+    scrolledSearchIdRef.current = activeSearchDbId;
+    stickRef.current = false; // не залипаем к низу при программной прокрутке к совпадению
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [activeSearchDbId, messages]);
+
   return (
     <div className="message-list-container">
       {loadingMore && <div className="message-list-loading-older">{t('window.loadingMessages')}</div>}
@@ -143,6 +164,8 @@ const MessageList = ({
             onRetry={onRetry && msg.error ? () => onRetry(index) : undefined}
             conversationId={conversationId}
             onNavigateToDoc={onNavigateToDoc}
+            dbId={msg.dbId}
+            searchActive={msg.dbId != null && msg.dbId === activeSearchDbId}
           />
         ))}
       </div>
