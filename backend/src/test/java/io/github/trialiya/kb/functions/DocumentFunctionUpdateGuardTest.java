@@ -28,8 +28,7 @@ import org.springframework.ai.chat.model.ToolContext;
 /**
  * Read-before-write guard of {@link DocumentFunction#updateDocument}: a content update must be
  * preceded by a successful {@code getDocument} of the same document within the same chat-response
- * session (tracked by the request-scoped {@link ToolInvocationCollector}), unless {@code
- * forceOverwrite=true} is passed explicitly.
+ * session (tracked by the request-scoped {@link ToolInvocationCollector}).
  */
 class DocumentFunctionUpdateGuardTest {
 
@@ -65,12 +64,10 @@ class DocumentFunctionUpdateGuardTest {
 
     @Test
     void contentUpdateWithoutPriorReadIsRejected() {
-        assertThatThrownBy(
-                        () -> function.updateDocument(context, DOC_ID, null, "new content", null))
+        assertThatThrownBy(() -> function.updateDocument(context, DOC_ID, null, "new content"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("НЕ обновлён")
-                .hasMessageContaining("getDocument")
-                .hasMessageContaining("forceOverwrite");
+                .hasMessageContaining("getDocument");
         verify(documentService, never()).update(anyLong(), any(UpdateDocumentRequest.class));
     }
 
@@ -78,7 +75,7 @@ class DocumentFunctionUpdateGuardTest {
     void contentUpdateAfterSuccessfulReadPasses() {
         recordGetDocument(String.valueOf(DOC_ID), OK);
 
-        assertThatCode(() -> function.updateDocument(context, DOC_ID, null, "new content", null))
+        assertThatCode(() -> function.updateDocument(context, DOC_ID, null, "new content"))
                 .doesNotThrowAnyException();
         verify(documentService).update(anyLong(), any(UpdateDocumentRequest.class));
     }
@@ -87,7 +84,7 @@ class DocumentFunctionUpdateGuardTest {
     void numericDocumentIdArgumentAlsoCountsAsRead() {
         recordGetDocument(42, OK);
 
-        assertThatCode(() -> function.updateDocument(context, DOC_ID, null, "new content", null))
+        assertThatCode(() -> function.updateDocument(context, DOC_ID, null, "new content"))
                 .doesNotThrowAnyException();
     }
 
@@ -95,8 +92,7 @@ class DocumentFunctionUpdateGuardTest {
     void readOfDifferentDocumentDoesNotCount() {
         recordGetDocument("7", OK);
 
-        assertThatThrownBy(
-                        () -> function.updateDocument(context, DOC_ID, null, "new content", null))
+        assertThatThrownBy(() -> function.updateDocument(context, DOC_ID, null, "new content"))
                 .isInstanceOf(IllegalStateException.class);
     }
 
@@ -104,21 +100,13 @@ class DocumentFunctionUpdateGuardTest {
     void failedReadDoesNotCount() {
         recordGetDocument(String.valueOf(DOC_ID), ERROR);
 
-        assertThatThrownBy(
-                        () -> function.updateDocument(context, DOC_ID, null, "new content", null))
+        assertThatThrownBy(() -> function.updateDocument(context, DOC_ID, null, "new content"))
                 .isInstanceOf(IllegalStateException.class);
     }
 
     @Test
-    void forceOverwriteSkipsTheCheck() {
-        assertThatCode(() -> function.updateDocument(context, DOC_ID, null, "new content", true))
-                .doesNotThrowAnyException();
-        verify(documentService).update(anyLong(), any(UpdateDocumentRequest.class));
-    }
-
-    @Test
     void titleOnlyUpdateDoesNotRequireRead() {
-        assertThatCode(() -> function.updateDocument(context, DOC_ID, "new title", null, null))
+        assertThatCode(() -> function.updateDocument(context, DOC_ID, "new title", null))
                 .doesNotThrowAnyException();
     }
 
@@ -126,10 +114,7 @@ class DocumentFunctionUpdateGuardTest {
     void missingCollectorSkipsTheCheck() {
         ToolContext noCollector = new ToolContext(Map.of());
 
-        assertThatCode(
-                        () ->
-                                function.updateDocument(
-                                        noCollector, DOC_ID, null, "new content", null))
+        assertThatCode(() -> function.updateDocument(noCollector, DOC_ID, null, "new content"))
                 .doesNotThrowAnyException();
     }
 
