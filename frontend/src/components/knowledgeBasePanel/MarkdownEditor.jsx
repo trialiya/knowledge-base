@@ -24,8 +24,8 @@ import {
   IconImage,
   IconTable,
   IconHistory,
-} from './icons';
-import DocLinkTooltip from './DocLinkTooltip';
+} from '../../icons';
+import DocLinkTooltip from '../common/DocLinkTooltip';
 import AtMentionDropdown from './AtMentionDropdown';
 import useAtMention from './useAtMention';
 import CodeBlock from '../common/CodeBlock';

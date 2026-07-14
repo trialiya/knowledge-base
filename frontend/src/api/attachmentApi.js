@@ -2,8 +2,7 @@
 // Обёртки вокруг /api/attachments/* и /<type>/<id>/attachments эндпоинтов.
 // Documents и chats используют одну форму, различаясь только URL-сегментом.
 
-import { request, requestRaw } from '../../api/client';
-export { formatFileSize } from '../../utils/formatting';
+import { request, requestRaw } from './client';
 
 const seg = (ownerType) => (ownerType === 'document' ? 'documents' : 'chats');
 

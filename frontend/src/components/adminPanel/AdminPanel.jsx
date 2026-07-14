@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import SettingsShell, { SettingsContentHead, SettingsSection } from '../common/SettingsShell';
-import { IconRefresh } from '../knowledgeBasePanel/icons';
-import { IconDatabase, IconDownload, IconTool, IconEraser } from '../common/menuIcons';
+import { IconRefresh, IconDatabase, IconDownload, IconTool, IconEraser } from '../../icons';
 import BulkOperations from './BulkOperations';
 import './adminPanel.css';
 

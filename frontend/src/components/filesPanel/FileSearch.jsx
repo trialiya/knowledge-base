@@ -1,92 +1,40 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import gitApi from '../../api/gitApi';
+import useSearchDropdown from '../../hooks/useSearchDropdown';
 import { highlightFileMatch } from '../common/highlightMatch';
 import { IconSearch, IconX, IconDoc } from '../../icons';
 
-const DEBOUNCE_MS = 200;
 const RESULT_LIMIT = 15;
 
 /**
  * Быстрый поиск файла по имени над деревом: кнопка-лупа → инпут → плавающий
  * список результатов (портал, позиционируется под инпутом). Выбор — Enter,
  * клик по строке или ↑↓+Enter — вызывает onSelect(path) и закрывает поиск.
- * Паттерн подсказки заимствован у FileChipInput/FilePickerDropdown (композер
- * чата), но своя, более простая реализация: там список открывается НАД
- * кареткой (композер прижат к низу окна) и умеет вставлять контент чипом —
- * здесь нужен список ПОД полем и только переход к файлу.
+ * Состояние — в общем useSearchDropdown (тот же, что у ChatSearch над списком
+ * чатов); здесь — только фетч-функция и разметка строк с подсветкой имени/пути.
  */
 const FileSearch = ({ onSelect }) => {
   const { t } = useTranslation('files');
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [idx, setIdx] = useState(0);
-  const [anchorRect, setAnchorRect] = useState(null);
-
-  const wrapRef = useRef(null);
-  const inputRef = useRef(null);
-  const listRef = useRef(null);
-  const debounceRef = useRef(null);
-  const abortRef = useRef(null);
-
-  const close = useCallback(() => {
-    clearTimeout(debounceRef.current);
-    abortRef.current?.abort();
-    setOpen(false);
-    setQuery('');
-    setResults([]);
-    setIdx(0);
-    setLoading(false);
-  }, []);
-
-  const openSearch = useCallback(() => {
-    setOpen(true);
-    requestAnimationFrame(() => inputRef.current?.focus());
-  }, []);
-
-  // Якорь дропдауна — позиция инпута на момент открытия.
-  useEffect(() => {
-    if (open) setAnchorRect(inputRef.current?.getBoundingClientRect() ?? null);
-  }, [open]);
-
-  const runSearch = useCallback((q) => {
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    setLoading(true);
-    gitApi
-      .searchFiles(q, RESULT_LIMIT, controller.signal)
-      .then((data) => {
-        setResults(Array.isArray(data) ? data : []);
-        setIdx(0);
-        setLoading(false);
-      })
-      .catch((err) => {
-        if (err.name !== 'AbortError') {
-          setResults([]);
-          setLoading(false);
-        }
-      });
-  }, []);
-
-  const handleChange = useCallback(
-    (e) => {
-      const q = e.target.value;
-      setQuery(q);
-      clearTimeout(debounceRef.current);
-      if (q.trim().length >= 1) {
-        debounceRef.current = setTimeout(() => runSearch(q.trim()), DEBOUNCE_MS);
-      } else {
-        abortRef.current?.abort();
-        setResults([]);
-        setLoading(false);
-      }
-    },
-    [runSearch],
-  );
+  const search = useCallback((q, signal) => gitApi.searchFiles(q, RESULT_LIMIT, signal), []);
+  const {
+    open,
+    query,
+    results,
+    loading,
+    idx,
+    anchorRect,
+    wrapRef,
+    inputRef,
+    listRef,
+    portalRef,
+    setIdx,
+    openSearch,
+    close,
+    handleChange,
+    handleKeyDown,
+  } = useSearchDropdown(search);
 
   const choose = useCallback(
     (node) => {
@@ -95,66 +43,6 @@ const FileSearch = ({ onSelect }) => {
     },
     [onSelect, close],
   );
-
-  const handleKeyDown = useCallback(
-    (e) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        close();
-        return;
-      }
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setIdx((i) => Math.min(i + 1, results.length - 1));
-        return;
-      }
-      if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setIdx((i) => Math.max(i - 1, 0));
-        return;
-      }
-      if (e.key === 'Enter' && results.length > 0) {
-        e.preventDefault();
-        choose(results[idx]);
-      }
-    },
-    [close, results, idx, choose],
-  );
-
-  // Клик снаружи (кнопки/инпута И плавающего списка) закрывает поиск.
-  useEffect(() => {
-    if (!open) return;
-    const onDocMouseDown = (e) => {
-      if (wrapRef.current?.contains(e.target)) return;
-      if (e.target.closest?.('.file-search-dropdown')) return;
-      close();
-    };
-    document.addEventListener('mousedown', onDocMouseDown);
-    return () => document.removeEventListener('mousedown', onDocMouseDown);
-  }, [open, close]);
-
-  // Якорь фиксируется один раз при открытии и не следит за окном — при ресайзе
-  // или скролле список «отрывается» от поля. Дешевле закрыть поиск, чем
-  // пересчитывать позицию на каждый scroll/resize. Прокрутка внутри самого
-  // списка результатов (колёсиком или scrollIntoView при навигации стрелками)
-  // якорь не двигает — её игнорируем.
-  useEffect(() => {
-    if (!open) return;
-    const onScroll = (e) => {
-      if (e.target instanceof Element && e.target.closest('.file-search-dropdown')) return;
-      close();
-    };
-    window.addEventListener('resize', close);
-    window.addEventListener('scroll', onScroll, true);
-    return () => {
-      window.removeEventListener('resize', close);
-      window.removeEventListener('scroll', onScroll, true);
-    };
-  }, [open, close]);
-
-  useEffect(() => {
-    listRef.current?.children[idx]?.scrollIntoView({ block: 'nearest' });
-  }, [idx]);
 
   return (
     <div className="file-search" ref={wrapRef}>
@@ -170,7 +58,7 @@ const FileSearch = ({ onSelect }) => {
             placeholder={t('search.placeholder')}
             value={query}
             onChange={handleChange}
-            onKeyDown={handleKeyDown}
+            onKeyDown={(e) => handleKeyDown(e, choose)}
           />
           <button className="file-search__close" title={t('search.close')} onClick={close}>
             <IconX size={11} />
@@ -191,6 +79,7 @@ const FileSearch = ({ onSelect }) => {
         anchorRect &&
         createPortal(
           <div
+            ref={portalRef}
             className="file-search-dropdown"
             style={{ top: anchorRect.bottom + 6, left: anchorRect.left, width: Math.max(anchorRect.width, 360) }}
           >

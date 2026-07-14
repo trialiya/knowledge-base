@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import './createJiraChatModal.css';
 
 /**
  * Modal dialog for creating a JIRA-linked chat.

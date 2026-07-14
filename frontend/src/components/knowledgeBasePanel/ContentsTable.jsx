@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { IconFolder, IconDoc } from './icons';
+import { IconFolder, IconDoc } from '../../icons';
 import { makeSnippet } from '../common/utils';
 import { KB_PAGE_SIZE as PAGE_SIZE } from '../../constants/pagination';
 

@@ -23,16 +23,6 @@ export function findPath(nodes, targetId, path = []) {
   return null;
 }
 
-export function flatFolders(nodes, acc = []) {
-  nodes.forEach((n) => {
-    if (n.type === 'folder') {
-      acc.push(n);
-      if (n.children) flatFolders(n.children, acc);
-    }
-  });
-  return acc;
-}
-
 // ─── Content helpers ──────────────────────────────────────────────────────────
 
 /** Strip markdown syntax and return first non-empty line, capped at maxLen chars */

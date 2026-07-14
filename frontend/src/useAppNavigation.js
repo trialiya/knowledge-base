@@ -299,16 +299,6 @@ export default function useAppNavigation() {
     setNav((prev) => ({ ...prev, view: 'chat', chatId: id }));
   }, []);
 
-  /** Открыть админ-панель (свой адрес /admin). */
-  const openAdmin = useCallback(() => {
-    setNav((prev) => (prev.view === 'admin' ? prev : { ...prev, view: 'admin' }));
-  }, []);
-
-  /** Открыть настройки (свой адрес /settings). */
-  const openSettings = useCallback(() => {
-    setNav((prev) => (prev.view === 'settings' ? prev : { ...prev, view: 'settings' }));
-  }, []);
-
   return {
     nav,
     switchView,
@@ -316,8 +306,6 @@ export default function useAppNavigation() {
     setDocTab,
     setSearch,
     openChat,
-    openAdmin,
-    openSettings,
     openFilePath,
   };
 }

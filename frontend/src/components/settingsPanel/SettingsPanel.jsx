@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import SettingsShell, { SettingsContentHead, SettingsSection } from '../common/SettingsShell';
-import { IconFileText, IconMessage, IconSliders } from '../common/menuIcons';
+import { IconFileText, IconMessage, IconSliders } from '../../icons';
 import PhrasesSettings from './PhrasesSettings';
 import settingsApi from '../../api/settingsApi';
 import './settingsPanel.css';

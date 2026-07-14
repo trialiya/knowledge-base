@@ -3,9 +3,9 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { diffLines } from 'diff';
 import MarkdownEditor from './MarkdownEditor';
-import api from './api';
+import api from '../../api/documentsApi';
 import useEscape from '../common/useEscape';
-import { IconX } from './icons';
+import { IconX } from '../../icons';
 
 /**
  * Полноэкранная панель истории изменений описания документа.

@@ -10,7 +10,7 @@ import MoveConfirmModal from './MoveConfirmModal';
 import ConfirmModal from '../common/ConfirmModal';
 import SearchResults from './SearchResults';
 import ErrorModal from '../common/ErrorModal';
-import { IconPlus } from './icons';
+import { IconPlus } from '../../icons';
 import useKnowledgeBase from './useKnowledgeBase';
 
 const KnowledgeBase = ({

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import MarkdownEditor from './MarkdownEditor';
 import useEscape from '../common/useEscape';
-import { IconX } from './icons';
+import { IconX } from '../../icons';
 
 /**
  * Полноэкранная модалка для разворачивания описания.

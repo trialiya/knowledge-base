@@ -2,11 +2,17 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import useDocPreview from './useDocPreview';
-import { IconFolder, IconDoc, IconSparkle } from './icons';
+import { IconFolder, IconDoc, IconSparkle } from '../../icons';
 import { TOOLTIP_WIDTH, TOOLTIP_GAP, TOOLTIP_HEIGHT_ESTIMATE } from '../../constants/ui';
 
 /**
- * Wraps a `/?doc=N` link with a hover-activated preview tooltip.
+ * Wraps a `/?doc=N` link with a hover-activated preview tooltip. Shared by the
+ * Knowledge Base markdown renderer (MarkdownEditor, has a `tree` for instant
+ * lookups) and the chat message renderer (Message, no tree — always goes
+ * through useDocPreview's module cache). Previously these were two
+ * near-identical components (DocLinkTooltip / ChatDocLink); the chat copy was
+ * missing the anchor-link branch below and hardcoded a ru-RU/en-US locale
+ * instead of the active UI language.
  *
  * Three link kinds are handled:
  *   1. In-document anchors (`#обзор`) — scroll to the heading WITHIN the same
@@ -17,10 +23,9 @@ import { TOOLTIP_WIDTH, TOOLTIP_GAP, TOOLTIP_HEIGHT_ESTIMATE } from '../../const
  *   3. Everything else — plain external `<a target="_blank">`.
  *
  * Navigation for (2) goes through the `onNavigate` prop (in KB this is
- * selectNode, which accepts an id). A custom-event fallback is kept for
- * backward compatibility if onNavigate isn't passed.
+ * selectNode, in chat it's openDoc from useAppNavigation) — both accept an id.
  */
-const DocLinkTooltip = ({ href, children, tree, onNavigate, ...rest }) => {
+const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
   const [visible, setVisible] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0 });
   const enterTimer = useRef(null);
@@ -82,17 +87,11 @@ const DocLinkTooltip = ({ href, children, tree, onNavigate, ...rest }) => {
   );
 
   // ── Navigate ─────────────────────────────────────────────────────────────
-  // Навигация идёт через проп onNavigate (в KB это selectNode, принимающий id).
-  // selectNode → fetchFullAndSelect(id, {notify:true}) → документ грузится,
-  // выбирается, и useAppNavigation обновляет URL. Фолбэк на событие оставлен
-  // для обратной совместимости, если onNavigate почему-то не передан.
+  // Навигация идёт через проп onNavigate (в KB это selectNode, в чате —
+  // openDoc), оба принимают id документа.
   const navigateToDoc = useCallback(
     (id) => {
-      if (onNavigate) {
-        onNavigate(id);
-      } else {
-        window.dispatchEvent(new CustomEvent('app:navigate-doc', { detail: { docId: id } }));
-      }
+      onNavigate?.(id);
     },
     [onNavigate],
   );

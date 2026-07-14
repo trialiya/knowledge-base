@@ -36,7 +36,9 @@
     "busyMessage": "В этом чате уже генерируется ответ (возможно, в другой вкладке). Дождитесь завершения или остановите её, прежде чем отправлять новое сообщение.",
     "deletedTitle": "Чат удалён",
     "deletedMessage": "Этот чат был удалён в другой вкладке или сессии.",
-    "uploadTitle": "Не удалось загрузить файл"
+    "uploadTitle": "Не удалось загрузить файл",
+    "deleteErrorTitle": "Не удалось удалить чат",
+    "deleteErrorMessage": "Сервер отклонил удаление{{suffix}}. Попробуйте ещё раз."
   },
   "deleteModal": {
     "title": "Удалить чат?",
@@ -141,15 +143,6 @@
     "categoryAll": "Все",
     "categoryFavorites": "Избранное",
     "favoriteToggle": "В избранное"
-  },
-  "docLink": {
-    "notFound": "Документ не найден",
-    "folder": "Folder",
-    "document": "Document",
-    "aiSummary": "AI Summary",
-    "stale": "устарел",
-    "noDescription": "Нет описания",
-    "open": "Открыть →"
   },
   "tools": {
     "searchDocuments": "Поиск документов",

@@ -7,7 +7,7 @@ import AttachmentPanel from '../common/AttachmentPanel';
 import DetailTabs from './DetailTabs';
 import DetailModals from './DetailModals';
 import useDetailPanel from './useDetailPanel';
-import { IconSparkle, IconSparkleLoading } from './icons';
+import { IconSparkle, IconSparkleLoading } from '../../icons';
 
 const TABS = [
   { key: 'summary', labelKey: 'tabs.summary' },
