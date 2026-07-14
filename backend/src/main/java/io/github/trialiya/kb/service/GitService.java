@@ -222,7 +222,10 @@ public class GitService {
      */
     public List<GitCommit> getCommitDiff(
             @NonNull String commitHashes, boolean includePatch, String filePath) {
-        String spec = (filePath == null || filePath.isBlank()) ? null : filePath.strip();
+        String spec =
+                (filePath == null || filePath.isBlank())
+                        ? null
+                        : toForwardSlashes(filePath.strip());
         List<GitCommit> result = new ArrayList<>();
         for (String hash : commitHashes.split(",")) {
             String h = hash.strip();

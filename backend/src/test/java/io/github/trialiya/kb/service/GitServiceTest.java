@@ -297,6 +297,19 @@ class GitServiceTest {
     }
 
     @Test
+    void windowsBackslashInCommitDiffFilePathIsNormalized() {
+        writeFile("src/main/Baz.java", "class Baz {}\n");
+        commitAll();
+        String hash = service.getCommitLog(1, null).get(0).hash();
+
+        // A backslash path must resolve to the same file the diff's PathFilter expects.
+        var diff = service.getCommitDiff(hash, false, "src\\main\\Baz.java");
+        assertThat(diff).hasSize(1);
+        assertThat(diff.get(0).files()).hasSize(1);
+        assertThat(diff.get(0).files().get(0).path()).isEqualTo("src/main/Baz.java");
+    }
+
+    @Test
     void crlfLineEndingsAreNormalizedInFileContent() throws IOException {
         writeFile("crlf.txt", "line1\nline2\n");
         commitAll();
