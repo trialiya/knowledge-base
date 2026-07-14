@@ -166,7 +166,10 @@ public class SummarizeService implements DisposableBean {
         final String summaryText =
                 collapseSummaries
                         ? buildMetaSummaryText(summaryContent)
-                        : buildSummaryText(summaryContent, cutoff);
+                        : buildSummaryText(
+                                summaryContent,
+                                toCompress.getFirst().getPosition(),
+                                toCompress.getLast().getPosition());
 
         log.info(
                 "[{}] Summarization finished ({} messages ({} tokens) compressed) -> {} tokens",
@@ -239,15 +242,17 @@ public class SummarizeService implements DisposableBean {
                 .content();
     }
 
-    private String buildSummaryText(String content, int lastIndex) {
-        return "Earlier conversation summary (first "
-                + lastIndex
-                + " messages):\n"
+    private String buildSummaryText(String content, long firstPosition, long lastPosition) {
+        return "Earlier conversation summary (messages "
+                + firstPosition
+                + "-"
+                + lastPosition
+                + "):\n"
                 + "<summary>\n"
                 + content
                 + "\n</summary>\n"
                 + "Continue from message "
-                + (lastIndex + 1)
+                + (lastPosition + 1)
                 + " onward. "
                 + "Treat the summary as authoritative context.";
     }
