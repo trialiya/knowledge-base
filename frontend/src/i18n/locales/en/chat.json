@@ -36,7 +36,9 @@
     "busyMessage": "A response is already being generated in this chat (possibly in another tab). Wait for it to finish or stop it before sending a new message.",
     "deletedTitle": "Chat deleted",
     "deletedMessage": "This chat was deleted in another tab or session.",
-    "uploadTitle": "Upload failed"
+    "uploadTitle": "Upload failed",
+    "deleteErrorTitle": "Failed to delete chat",
+    "deleteErrorMessage": "The server rejected the deletion{{suffix}}. Please try again."
   },
   "deleteModal": {
     "title": "Delete chat?",
@@ -90,6 +92,13 @@
     "searching": "Searching…",
     "empty": "Nothing found"
   },
+  "fileChips": {
+    "docRef": "Document \"{{title}}\" (#{{id}})",
+    "docHeader": "Document \"{{title}}\" (#{{id}}):",
+    "docLoadFailed": "[Document #{{id}}: failed to load]",
+    "binaryFile": "[binary file]",
+    "readFailed": "[failed to read file]"
+  },
   "list": {
     "newChat": "New chat",
     "newJiraChat": "JIRA chat",
@@ -141,22 +150,16 @@
     "categoryFavorites": "Favorites",
     "favoriteToggle": "Toggle favorite"
   },
-  "docLink": {
-    "notFound": "Document not found",
-    "folder": "Folder",
-    "document": "Document",
-    "aiSummary": "AI Summary",
-    "stale": "stale",
-    "noDescription": "No description",
-    "open": "Open →"
-  },
   "tools": {
     "searchDocuments": "Search documents",
     "findDocumentsByName": "Find by name",
     "getTreeSkeleton": "KB structure",
     "getDocument": "Read document",
+    "getDocumentOutline": "Document outline",
+    "getDocumentSection": "Read section",
     "createDocument": "Create document",
     "updateDocument": "Update document",
+    "updateDocumentSection": "Update section",
     "copyAttachmentToDocument": "Copy attachment",
     "getDocumentAttachments": "Document attachments",
     "getChatAttachments": "Chat attachments",

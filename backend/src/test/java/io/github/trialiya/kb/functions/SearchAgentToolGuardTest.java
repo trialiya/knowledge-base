@@ -28,6 +28,8 @@ class SearchAgentToolGuardTest {
                     "searchDocuments",
                     "findDocumentsByName",
                     "getDocument",
+                    "getDocumentOutline",
+                    "getDocumentSection",
                     "getTreeSkeleton");
 
     // Tools that mutate state or are otherwise off-limits for a read-only search agent.
@@ -35,6 +37,7 @@ class SearchAgentToolGuardTest {
             Set.of(
                     "createDocument",
                     "updateDocument",
+                    "updateDocumentSection",
                     "copyAttachmentToDocument",
                     "searchCodebase");
 

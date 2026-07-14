@@ -178,7 +178,7 @@ export default function useInChatSearch({ activeChatId, chatsRef, loadOlderMessa
     // мимо MessageList.prependRef (тот снимает scrollTop только на догрузках через
     // скролл), поэтому вставка старых сообщений сдвигает вьюпорт без компенсации —
     // уже подсвеченное сообщение мгновенно уезжает из видимой области.
-    if (messages.some((m) => m.dbId === activeMatch.id)) return undefined;
+    if (messages?.some((m) => m.dbId === activeMatch.id)) return undefined;
     if (hasLocally()) return undefined;
 
     // Пузыри, добавленные в текущей сессии (стриминг/отправка), не имеют dbId,

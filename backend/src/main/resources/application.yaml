@@ -5,6 +5,12 @@ spring:
     openai:
       base-url: ${AI_BASE_URL}
       api-key: ${AI_API_KEY}
+      # Call timeout of the openai-java SDK client shared by every OpenAI model (chat, embedding,
+      # ...). Drives BOTH the SDK's own request deadline (ClientOptions.timeout — the thing that
+      # actually cancels a call) and the underlying OkHttp client's timeouts. Default (60s, see
+      # AbstractOpenAiProperties.DEFAULT_TIMEOUT) is too short for long tool-call/generation
+      # rounds and aborts the stream mid-flight with OpenAIIoException/StreamResetException(CANCEL).
+      timeout: ${KB_CHAT_STREAM_TIMEOUT:10m}
       chat:
         model: ${kb.chat.default-model.id}
         max-tokens: 30000
@@ -73,6 +79,9 @@ kb:
 #    models:
 #      - id: ${KB_CHAT_MODELS_0_ID}
 #        label: ${KB_CHAT_MODELS_0_LABEL}
+    timeout:
+      # SseEmitter timeout per browser tab subscription (replay/reconnect window).
+      sse: ${KB_CHAT_SSE_TIMEOUT:30m}
   documents:
     export-path: ${DOCUMENTS_EXPORT_PATH}
     replace: true
@@ -143,6 +152,8 @@ kb:
         - searchDocuments
         - findDocumentsByName
         - getDocument
+        - getDocumentOutline
+        - getDocumentSection
         - getTreeSkeleton
   atlassian:
     jira:

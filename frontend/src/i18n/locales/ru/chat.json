@@ -36,7 +36,9 @@
     "busyMessage": "В этом чате уже генерируется ответ (возможно, в другой вкладке). Дождитесь завершения или остановите её, прежде чем отправлять новое сообщение.",
     "deletedTitle": "Чат удалён",
     "deletedMessage": "Этот чат был удалён в другой вкладке или сессии.",
-    "uploadTitle": "Не удалось загрузить файл"
+    "uploadTitle": "Не удалось загрузить файл",
+    "deleteErrorTitle": "Не удалось удалить чат",
+    "deleteErrorMessage": "Сервер отклонил удаление{{suffix}}. Попробуйте ещё раз."
   },
   "deleteModal": {
     "title": "Удалить чат?",
@@ -90,6 +92,13 @@
     "searching": "Поиск…",
     "empty": "Ничего не найдено"
   },
+  "fileChips": {
+    "docRef": "Документ «{{title}}» (#{{id}})",
+    "docHeader": "Документ «{{title}}» (#{{id}}):",
+    "docLoadFailed": "[Документ #{{id}}: не удалось загрузить]",
+    "binaryFile": "[бинарный файл]",
+    "readFailed": "[не удалось прочитать файл]"
+  },
   "list": {
     "newChat": "Новый чат",
     "newJiraChat": "JIRA чат",
@@ -142,22 +151,16 @@
     "categoryFavorites": "Избранное",
     "favoriteToggle": "В избранное"
   },
-  "docLink": {
-    "notFound": "Документ не найден",
-    "folder": "Folder",
-    "document": "Document",
-    "aiSummary": "AI Summary",
-    "stale": "устарел",
-    "noDescription": "Нет описания",
-    "open": "Открыть →"
-  },
   "tools": {
     "searchDocuments": "Поиск документов",
     "findDocumentsByName": "Поиск по названию",
     "getTreeSkeleton": "Структура базы",
     "getDocument": "Чтение документа",
+    "getDocumentOutline": "Оглавление документа",
+    "getDocumentSection": "Чтение секции",
     "createDocument": "Создание документа",
     "updateDocument": "Правка документа",
+    "updateDocumentSection": "Правка секции",
     "copyAttachmentToDocument": "Копирование вложения",
     "getDocumentAttachments": "Вложения документа",
     "getChatAttachments": "Вложения чата",

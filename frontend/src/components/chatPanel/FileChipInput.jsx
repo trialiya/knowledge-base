@@ -35,7 +35,7 @@ async function searchDocsAsync(q, signal) {
       if (e.name === 'AbortError') throw e;
       return [];
     }),
-    documentsApi.getById(Number(q), signal).catch((e) => {
+    documentsApi.fetchById(Number(q), signal).catch((e) => {
       if (e.name === 'AbortError') throw e;
       return null;
     }),
@@ -553,6 +553,7 @@ const FileChipInput = forwardRef(function FileChipInput(
           closeLabel={t('fileInput.closePreview')}
           loadingLabel={t('fileInput.searching')}
           errorLabel={t('fileInput.previewError')}
+          binaryLabel={t('fileChips.binaryFile')}
           usePathOnlyLabel={t('fileInput.usePathOnly')}
           useFullContentLabel={t('fileInput.useFullContent')}
         />
@@ -570,6 +571,7 @@ function FileChipPreview({
   closeLabel,
   loadingLabel,
   errorLabel,
+  binaryLabel,
   usePathOnlyLabel,
   useFullContentLabel,
 }) {
@@ -608,7 +610,7 @@ function FileChipPreview({
             <>
               {loading && <div className="file-preview-modal__msg">{loadingLabel}</div>}
               {error && <div className="file-preview-modal__msg">{errorLabel}</div>}
-              {!loading && !error && data?.binary && <div className="file-preview-modal__msg">[бинарный файл]</div>}
+              {!loading && !error && data?.binary && <div className="file-preview-modal__msg">{binaryLabel}</div>}
               {!loading && !error && !data?.binary && (
                 <pre className="file-preview-modal__code">{data?.content ?? ''}</pre>
               )}

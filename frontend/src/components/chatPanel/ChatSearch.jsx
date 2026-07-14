@@ -1,7 +1,8 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import chatApi from '../../api/chatApi';
+import useSearchDropdown from '../../hooks/useSearchDropdown';
 import { highlightSubstring } from '../common/highlightMatch';
 import { IconSearch, IconX, IconMessage } from '../../icons';
 
@@ -10,80 +11,31 @@ const RESULT_LIMIT = 15;
 
 /**
  * Поиск по чатам (лупа над списком): и по названию, и по содержимому сообщений
- * одновременно, результаты объединены по чату. Паттерн — как FileSearch над
- * деревом файлов (кнопка-лупа → инпут → плавающий список), своя более простая
- * реализация: список результатов, а не одиночная подсказка по имени.
+ * одновременно, результаты объединены по чату. Состояние (debounce, abort,
+ * клавиатурная навигация, закрытие по клику снаружи/скроллу) — в общем
+ * useSearchDropdown (тот же, что у FileSearch над деревом файлов); здесь —
+ * только фетч-функция и разметка строк.
  */
 const ChatSearch = ({ onSelect }) => {
   const { t } = useTranslation('chat');
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [idx, setIdx] = useState(0);
-  const [anchorRect, setAnchorRect] = useState(null);
-
-  const wrapRef = useRef(null);
-  const inputRef = useRef(null);
-  const listRef = useRef(null);
-  const debounceRef = useRef(null);
-  const abortRef = useRef(null);
-
-  const close = useCallback(() => {
-    clearTimeout(debounceRef.current);
-    abortRef.current?.abort();
-    setOpen(false);
-    setQuery('');
-    setResults([]);
-    setIdx(0);
-    setLoading(false);
-  }, []);
-
-  const openSearch = useCallback(() => {
-    setOpen(true);
-    requestAnimationFrame(() => inputRef.current?.focus());
-  }, []);
-
-  // Якорь дропдауна — позиция инпута на момент открытия.
-  useEffect(() => {
-    if (open) setAnchorRect(inputRef.current?.getBoundingClientRect() ?? null);
-  }, [open]);
-
-  const runSearch = useCallback((q) => {
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    setLoading(true);
-    chatApi
-      .searchChats(q, RESULT_LIMIT, controller.signal)
-      .then((data) => {
-        setResults(Array.isArray(data) ? data : []);
-        setIdx(0);
-        setLoading(false);
-      })
-      .catch((err) => {
-        if (err.name !== 'AbortError') {
-          setResults([]);
-          setLoading(false);
-        }
-      });
-  }, []);
-
-  const handleChange = useCallback(
-    (e) => {
-      const q = e.target.value;
-      setQuery(q);
-      clearTimeout(debounceRef.current);
-      if (q.trim().length >= 1) {
-        debounceRef.current = setTimeout(() => runSearch(q.trim()), DEBOUNCE_MS);
-      } else {
-        abortRef.current?.abort();
-        setResults([]);
-        setLoading(false);
-      }
-    },
-    [runSearch],
-  );
+  const search = useCallback((q, signal) => chatApi.searchChats(q, RESULT_LIMIT, signal), []);
+  const {
+    open,
+    query,
+    results,
+    loading,
+    idx,
+    anchorRect,
+    wrapRef,
+    inputRef,
+    listRef,
+    portalRef,
+    setIdx,
+    openSearch,
+    close,
+    handleChange,
+    handleKeyDown,
+  } = useSearchDropdown(search, { debounceMs: DEBOUNCE_MS });
 
   const choose = useCallback(
     (result) => {
@@ -92,64 +44,6 @@ const ChatSearch = ({ onSelect }) => {
     },
     [onSelect, query, close],
   );
-
-  const handleKeyDown = useCallback(
-    (e) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        close();
-        return;
-      }
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setIdx((i) => Math.min(i + 1, results.length - 1));
-        return;
-      }
-      if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setIdx((i) => Math.max(i - 1, 0));
-        return;
-      }
-      if (e.key === 'Enter' && results.length > 0) {
-        e.preventDefault();
-        choose(results[idx]);
-      }
-    },
-    [close, results, idx, choose],
-  );
-
-  // Клик снаружи (кнопки/инпута И плавающего списка) закрывает поиск.
-  useEffect(() => {
-    if (!open) return;
-    const onDocMouseDown = (e) => {
-      if (wrapRef.current?.contains(e.target)) return;
-      if (e.target.closest?.('.chat-search-dropdown')) return;
-      close();
-    };
-    document.addEventListener('mousedown', onDocMouseDown);
-    return () => document.removeEventListener('mousedown', onDocMouseDown);
-  }, [open, close]);
-
-  useEffect(() => {
-    if (!open) return;
-    // Скролл страницы «отрывает» плавающий список от якоря — закрываем. Но прокрутка
-    // внутри самого списка результатов (колёсиком или scrollIntoView при навигации
-    // стрелками) закрывать поиск не должна.
-    const onScroll = (e) => {
-      if (e.target instanceof Element && e.target.closest('.chat-search-dropdown')) return;
-      close();
-    };
-    window.addEventListener('resize', close);
-    window.addEventListener('scroll', onScroll, true);
-    return () => {
-      window.removeEventListener('resize', close);
-      window.removeEventListener('scroll', onScroll, true);
-    };
-  }, [open, close]);
-
-  useEffect(() => {
-    listRef.current?.children[idx]?.scrollIntoView({ block: 'nearest' });
-  }, [idx]);
 
   return (
     <div className="chat-search" ref={wrapRef}>
@@ -165,7 +59,7 @@ const ChatSearch = ({ onSelect }) => {
             placeholder={t('sidebarSearch.placeholder')}
             value={query}
             onChange={handleChange}
-            onKeyDown={handleKeyDown}
+            onKeyDown={(e) => handleKeyDown(e, choose)}
           />
           <button className="chat-search__close" title={t('sidebarSearch.close')} onClick={close}>
             <IconX size={11} />
@@ -182,6 +76,7 @@ const ChatSearch = ({ onSelect }) => {
         anchorRect &&
         createPortal(
           <div
+            ref={portalRef}
             className="chat-search-dropdown"
             style={{ top: anchorRect.bottom + 6, left: anchorRect.left, width: Math.max(anchorRect.width, 320) }}
           >

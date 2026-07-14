@@ -10,7 +10,7 @@ import {
   IconCheck,
   IconX,
   IconLock,
-} from './icons';
+} from '../../icons';
 
 // ─── Inline rename ────────────────────────────────────────────────────────────
 

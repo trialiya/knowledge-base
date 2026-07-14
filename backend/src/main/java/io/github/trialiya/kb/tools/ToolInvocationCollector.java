@@ -9,6 +9,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import org.jspecify.annotations.Nullable;
+import org.springframework.ai.chat.model.ToolContext;
 
 public final class ToolInvocationCollector {
 
@@ -28,6 +29,17 @@ public final class ToolInvocationCollector {
                 liveSink != null
                         ? invocation -> liveSink.accept(new ToolCallMessage(invocation))
                         : null;
+    }
+
+    /** Достаёт коллектор из {@link ToolContext}; {@code null}, если его там нет. */
+    @Nullable
+    public static ToolInvocationCollector from(@Nullable ToolContext context) {
+        if (context == null) {
+            return null;
+        }
+        return context.getContext().get(KEY) instanceof ToolInvocationCollector collector
+                ? collector
+                : null;
     }
 
     public int nextCallIndex() {

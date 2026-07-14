@@ -84,4 +84,25 @@ describe('useInChatSearch — догрузка старых страниц не 
     await waitFor(() => expect(result.current.activeMatchMid).toBe('m1'));
     expect(loadOlderMessages).not.toHaveBeenCalled();
   });
+
+  // Регрессия: удаление активного чата переключает activeChatId на другой чат, чьи
+  // messages ещё не загружены (undefined), пока activeMatch с прошлого чата ещё не
+  // сброшен (сброс произойдёт в отдельном эффекте на следующем рендере). Раньше
+  // первичная проверка звала messages.some(...) напрямую и падала с TypeError.
+  it('не падает, если messages стал undefined при смене чата (удаление активного чата)', async () => {
+    const messages = [loaded('m1', 10, 'про жирафов')];
+    const chatsRef = { current: [{ id: 'chat-1', messages, hasMore: false }] };
+    const loadOlderMessages = jest.fn().mockResolvedValue(true);
+    chatApi.searchMessages.mockResolvedValue([{ id: 10, createdAt: '2026-01-01' }]);
+
+    const { result, rerender } = renderHook((props) => useInChatSearch(props), {
+      initialProps: { activeChatId: 'chat-1', chatsRef, loadOlderMessages, messages },
+    });
+
+    act(() => result.current.openWithQuery('жираф'));
+    await waitFor(() => expect(result.current.activeMatchMid).toBe('m1'));
+
+    chatsRef.current = [{ id: 'chat-2', messages: undefined, hasMore: true }];
+    expect(() => rerender({ activeChatId: 'chat-2', chatsRef, loadOlderMessages, messages: undefined })).not.toThrow();
+  });
 });

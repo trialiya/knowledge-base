@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import attachmentApi from './attachmentApi';
+import attachmentApi from '../../api/attachmentApi';
 
 /**
  * Single modal for viewing an attachment's content or its summary.

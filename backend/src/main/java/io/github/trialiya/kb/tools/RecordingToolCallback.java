@@ -107,11 +107,7 @@ public class RecordingToolCallback implements ToolCallback {
     }
 
     private static ToolInvocationCollector collectorFrom(ToolContext toolContext) {
-        if (toolContext == null) {
-            return null;
-        }
-        Object value = toolContext.getContext().get(ToolInvocationCollector.KEY);
-        return (value instanceof ToolInvocationCollector c) ? c : null;
+        return ToolInvocationCollector.from(toolContext);
     }
 
     private Map<Object, Object> parseToolInput(@Nullable String toolInput) {

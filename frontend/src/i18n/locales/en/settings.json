@@ -1,16 +1,8 @@
 {
   "nav": {
     "title": "Settings",
-    "prompt": "System prompt",
     "phrases": "Phrase library",
     "models": "Models"
-  },
-  "prompt": {
-    "title": "System prompt",
-    "subtitle": "Global assistant role — the {role} block",
-    "sectionLabel": "Assistant role",
-    "save": "Save",
-    "reset": "Reset"
   },
   "models": {
     "title": "AI model configuration",
@@ -56,6 +48,26 @@
     }
   },
   "admin": {
+    "nav": {
+      "title": "Administration",
+      "index": "Semantic index",
+      "bulk": "Bulk operations"
+    },
+    "index": {
+      "title": "Semantic index",
+      "subtitle": "Re-indexing of knowledge base embeddings",
+      "sectionLabel": "Operations",
+      "reindex": {
+        "title": "Re-index all documents",
+        "desc": "Rebuilds embeddings for all documents. Search may be slower while the index is rebuilding.",
+        "run": "Re-index",
+        "running": "Indexing…",
+        "doneBadge": "done",
+        "done": "Re-indexing has been started.",
+        "errorBadge": "error",
+        "error": "Failed to start re-indexing. Try again later."
+      }
+    },
     "bulk": {
       "title": "Bulk operations",
       "subtitle": "Export, import and batch processing of documents",
@@ -71,11 +83,6 @@
         "done": "Documents exported to the server export folder.",
         "errorBadge": "error",
         "error": "Export failed. Make sure DOCUMENTS_EXPORT_PATH is set."
-      },
-      "import": {
-        "title": "Import documents",
-        "desc": "ZIP with Markdown — into the selected folder",
-        "run": "Import"
       }
     }
   },

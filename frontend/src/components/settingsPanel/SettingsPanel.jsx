@@ -1,42 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import SettingsShell, { SettingsContentHead, SettingsSection } from '../common/SettingsShell';
-import { IconFileText, IconMessage, IconSliders } from '../common/menuIcons';
+import { IconMessage, IconSliders } from '../../icons';
 import PhrasesSettings from './PhrasesSettings';
 import settingsApi from '../../api/settingsApi';
 import './settingsPanel.css';
 
-// Заглушка — на бэке: settings.role, POST /api/settings/prompt (TODO).
-const DEFAULT_PROMPT =
-  'Ты — ассистент базы знаний проекта. Отвечай кратко, ссылайся на документы через /?doc=ID. ' +
-  'Для вопросов по коду используй Git-инструменты.';
-
-// ─── Группа: системный промпт ─────────────────────────────────────────────────
-
-const PromptGroup = () => {
-  const { t } = useTranslation('settings');
-  const [value, setValue] = useState(DEFAULT_PROMPT);
-  return (
-    <>
-      <SettingsContentHead title={t('prompt.title')} subtitle={t('prompt.subtitle')} />
-      <div className="settings-content__body">
-        <SettingsSection label={t('prompt.sectionLabel')}>
-          <textarea className="set-textarea" rows={5} value={value} onChange={(e) => setValue(e.target.value)} />
-          <p className="set-hint">
-            Подставляется в Spring AI <code>defaultSystem</code> на месте <code>{'{role}'}</code>. Дополнение
-            конкретного чата — <code>{'{userExtra}'}</code> — задаётся в шапке самого чата, а не здесь.
-          </p>
-          <div className="set-actions">
-            <button className="set-btn set-btn--primary">{t('prompt.save')}</button>
-            <button className="set-btn set-btn--ghost" onClick={() => setValue(DEFAULT_PROMPT)}>
-              {t('prompt.reset')}
-            </button>
-          </div>
-        </SettingsSection>
-      </div>
-    </>
-  );
-};
+// Раздел «Системный промпт» удалён: это был макет без бэкенд-эндпоинта
+// (кнопка «Сохранить» ничего не делала). Вернуть, когда появится
+// settings.role / POST /api/settings/prompt.
 
 // ─── Группа: конфигурация AI-моделей ─────────────────────────────────────────
 
@@ -195,17 +167,15 @@ const ModelsGroup = () => {
 
 const SettingsPanel = () => {
   const { t } = useTranslation('settings');
-  const [group, setGroup] = useState('prompt');
+  const [group, setGroup] = useState('phrases');
 
   const groups = [
-    { key: 'prompt', label: t('nav.prompt'), icon: <IconFileText size={16} /> },
     { key: 'phrases', label: t('nav.phrases'), icon: <IconMessage size={16} /> },
     { key: 'models', label: t('nav.models'), icon: <IconSliders size={16} /> },
   ];
 
   return (
     <SettingsShell title={t('nav.title')} groups={groups} activeKey={group} onSelect={setGroup}>
-      {group === 'prompt' && <PromptGroup />}
       {group === 'phrases' && <PhrasesSettings />}
       {group === 'models' && <ModelsGroup />}
     </SettingsShell>

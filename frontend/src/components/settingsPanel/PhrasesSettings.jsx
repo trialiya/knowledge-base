@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SettingsContentHead, SettingsSection } from '../common/SettingsShell';
-import { IconPlus, IconEdit, IconTrash } from '../knowledgeBasePanel/icons';
+import { IconPlus, IconEdit, IconTrash } from '../../icons';
 import ConfirmModal from '../common/ConfirmModal';
 import {
   fetchAllPhrases,
@@ -11,7 +11,7 @@ import {
   adminToggleFavorite,
   adminToggleEnabled,
   movePhrase,
-} from '../chatPanel/phrasesApi';
+} from '../../api/phrasesApi';
 
 const EMPTY_FORM = { category: '', label: '', text: '', enabled: true };
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import api from './api';
+import api from '../../api/documentsApi';
 
 const DEBOUNCE_MS = 200;
 const MIN_QUERY_LEN = 1;

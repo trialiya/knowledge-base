@@ -1,8 +1,8 @@
 package io.github.trialiya.kb.service;
 
+import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.model.chat.dto.ChatEvent;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
-import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
@@ -27,16 +27,20 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @Service
 public class ChatEventService {
 
-    private static final long TIMEOUT = Duration.ofMinutes(30).toMillis();
-
+    private final ChatTimeoutProperties chatTimeoutProperties;
     private final ConcurrentHashMap<String, ConversationHub> hubs = new ConcurrentHashMap<>();
+
+    public ChatEventService(ChatTimeoutProperties chatTimeoutProperties) {
+        this.chatTimeoutProperties = chatTimeoutProperties;
+    }
 
     public SseEmitter subscribe(String conversationId, long fromSeq) {
         // Гонка с выгрузкой простаивающего хаба: если хаб успел закрыться между computeIfAbsent и
         // подпиской, subscribe вернёт null — выбрасываем устаревший маппинг и повторяем на свежем.
         while (true) {
             final ConversationHub hub = hub(conversationId);
-            final SseEmitter emitter = hub.subscribe(fromSeq, TIMEOUT);
+            final SseEmitter emitter =
+                    hub.subscribe(fromSeq, chatTimeoutProperties.sse().toMillis());
             if (emitter != null) {
                 return emitter;
             }

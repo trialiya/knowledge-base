@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import api from './api';
+import api from '../../api/documentsApi';
 
 /**
  * Module-level cache: id (string) → DocumentNode | 'loading' | 'error'
@@ -17,6 +17,17 @@ function notify(id, value) {
 }
 
 /**
+ * Drops a cached preview so the next hover re-fetches it. Called by
+ * useKnowledgeBase after a successful edit/summarize, so a doc-link tooltip
+ * hovered again after the change shows the fresh description/summary instead
+ * of whatever was cached from before the edit.
+ */
+export function invalidateDocPreviewCache(id) {
+  if (id == null) return;
+  cache.delete(Number(id));
+}
+
+/**
  * Fetches (or returns cached) a document preview node.
  *
  * Strategy:
@@ -31,7 +42,7 @@ function notify(id, value) {
  * setters for a now-stale id.
  *
  * @param {string|null} id       – document id to preview (null = disabled)
- * @param {Array}       tree     – KB tree for instant-lookup before fetch
+ * @param {Array}       tree     – KB tree for instant-lookup before fetch (chat has none)
  * @param {boolean}     enabled  – only fetch when true (hover active)
  */
 export default function useDocPreview(id, tree, enabled) {

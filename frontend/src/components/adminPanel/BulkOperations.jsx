@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SettingsContentHead, SettingsSection } from '../common/SettingsShell';
-import { IconDownload } from '../common/menuIcons';
-import api from '../knowledgeBasePanel/api';
+import { IconDownload } from '../../icons';
+import api from '../../api/documentsApi';
 
 // ─── Группа: массовые операции ────────────────────────────────────────────────
 // Экспорт/импорт и пакетная обработка документов. Экспорт вызывает текущий
@@ -69,16 +69,6 @@ const BulkOperations = () => {
             </button>
           </div>
 
-          <div className="set-op">
-            <span className="set-op__icon">
-              <IconDownload size={18} />
-            </span>
-            <div className="set-op__text">
-              <div className="set-op__title">{t('admin.bulk.import.title')}</div>
-              <div className="set-op__desc">{t('admin.bulk.import.desc')}</div>
-            </div>
-            <button className="set-btn set-btn--ghost">{t('admin.bulk.import.run')}</button>
-          </div>
         </SettingsSection>
       </div>
     </>

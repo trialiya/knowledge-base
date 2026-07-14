@@ -1,29 +1,25 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import chatApi from '../../api/chatApi';
-import attachmentApi from '../common/attachmentApi';
+import attachmentApi from '../../api/attachmentApi';
 import { STORAGE_KEY_ACTIVE_CHAT, STORAGE_KEY_LAST_MODEL, DRAFT_CHAT_ID } from '../../constants/storage';
-import { loadDrafts, saveDrafts, getDraft, setDraft } from './chatDrafts';
 import { nextMessageId } from './messageId';
 import useModelConfig from './useModelConfig';
 import useIntegrationsConfig from './useIntegrationsConfig';
 import useChatMessages from './useChatMessages';
 import useChatEventStream from './useChatEventStream';
 import useInChatSearch from './useInChatSearch';
+import useChatDrafts from './useChatDrafts';
 
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import ChatList from './ChatList';
+import ChatHeader from './ChatHeader';
 import ChatSearchBar from './ChatSearchBar';
-import ModelSelector from './ModelSelector';
 import AttachmentPanel from '../common/AttachmentPanel';
-import { IconPaperclip, IconTrash, IconSearch } from '../knowledgeBasePanel/icons';
 import './chatWindow.css';
-import '../common/attachmentPanel.css';
 import CreateJiraChatModal from './CreateJiraChatModal';
-import './createJiraChatModal.css';
 import JiraAttachmentPanel from './JiraAttachmentPanel';
-import './jiraAttachmentPanel.css';
 import ErrorModal from '../common/ErrorModal';
 import ConfirmModal from '../common/ConfirmModal';
 
@@ -71,8 +67,6 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     }),
     [],
   );
-  const [editingTitle, setEditingTitle] = useState(false);
-  const [titleDraft, setTitleDraft] = useState('');
   const [attachPanelOpen, setAttachPanelOpen] = useState(false);
   const [attachCount, setAttachCount] = useState(0);
   const [jiraModalOpen, setJiraModalOpen] = useState(false);
@@ -91,45 +85,19 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   const [deletedNotice, setDeletedNotice] = useState(false);
   // Уведомление об ошибке загрузки файла (вместо нативного alert).
   const [uploadErrorNotice, setUploadErrorNotice] = useState(false);
+  // Уведомление об ошибке удаления чата на сервере: null | { status }.
+  const [deleteErrorNotice, setDeleteErrorNotice] = useState(null);
+  // chatId, для которого POST /runs уже отправлен, но runId ещё не получен.
+  // Закрывает окно между кликом «отправить» и ответом сервера: isStreaming
+  // становится true синхронно, и ввод блокируется сразу, а не с приходом runId.
+  const [pendingRunChatId, setPendingRunChatId] = useState(null);
   // Bump → очистить текст в MessageInput («удаление» черновика).
   const [composerResetSignal, setComposerResetSignal] = useState(0);
   // Bump → сфокусировать MessageInput (при активации панели чата).
   const [composerFocusSignal, setComposerFocusSignal] = useState(0);
-  // Неотправленные черновики по чатам ({ chatId: text }). Живут в localStorage,
-  // чтобы переключение чатов и перезагрузка не теряли набранный текст.
-  const draftsRef = useRef(loadDrafts());
-  const draftsPersistTimerRef = useRef(null);
-  // Отложенная запись черновиков на диск (на каждый keystroke писать не нужно).
-  const scheduleDraftsPersist = useCallback(() => {
-    clearTimeout(draftsPersistTimerRef.current);
-    draftsPersistTimerRef.current = setTimeout(() => saveDrafts(draftsRef.current), 400);
-  }, []);
-  // Обновить черновик активного чата из поля ввода.
-  const handleComposerTextChange = useCallback(
-    (id, text) => {
-      setDraft(draftsRef.current, id, text);
-      scheduleDraftsPersist();
-    },
-    [scheduleDraftsPersist],
-  );
-  // Полностью убрать черновик чата (после отправки / удаления) и сохранить сразу.
-  const clearDraft = useCallback((id) => {
-    setDraft(draftsRef.current, id, '');
-    saveDrafts(draftsRef.current);
-  }, []);
-  // Гасим таймер и фиксируем последний черновик. На полную перезагрузку/закрытие
-  // вкладки cleanup эффекта не срабатывает — поэтому ещё и beforeunload-flush.
-  useEffect(() => {
-    const flush = () => {
-      clearTimeout(draftsPersistTimerRef.current);
-      saveDrafts(draftsRef.current);
-    };
-    window.addEventListener('beforeunload', flush);
-    return () => {
-      window.removeEventListener('beforeunload', flush);
-      flush();
-    };
-  }, []);
+  // Неотправленные черновики по чатам ({ chatId: text }, localStorage) — вынесено
+  // в useChatDrafts (отложенная запись + flush на beforeunload/размонтирование).
+  const { getDraftFor, handleTextChange: handleComposerTextChange, clearDraft, flushDrafts } = useChatDrafts();
   // clientMsgId-ы сообщений, отправленных ИЗ ЭТОЙ вкладки. Нужны, чтобы не задвоить
   // свой оптимистично показанный пузырь, получив его же эхом из потока событий.
   const localClientIdsRef = useRef(new Set());
@@ -230,6 +198,12 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
 
   // Переименование чата
   const renameChat = useCallback(async (chatId, newTitle) => {
+    // Черновик на бэке не существует — PUT /chats/new/topic вернул бы 4xx.
+    // Заголовок правим только локально; на бэк он уедет вместе с первым сообщением.
+    if (chatId === DRAFT_CHAT_ID) {
+      setChats((prev) => prev.map((chat) => (chat.id === chatId ? { ...chat, title: newTitle } : chat)));
+      return;
+    }
     try {
       await chatApi.renameChat(chatId, newTitle);
       setChats((prev) => prev.map((chat) => (chat.id === chatId ? { ...chat, title: newTitle } : chat)));
@@ -290,9 +264,10 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   const activeMessages = useMemo(() => activeChat?.messages || [], [activeChat]);
 
   // Идёт генерация в активном чате? Источник правды — runId чата (его ставит старт
-  // прогона и снимает терминальное событие). Управляет блокировкой ввода и видом
+  // прогона и снимает терминальное событие) ПЛЮС pendingRunChatId, закрывающий
+  // окно до ответа сервера на POST /runs. Управляет блокировкой ввода и видом
   // кнопки (отправить ↔ остановить).
-  const isStreaming = !!activeChat?.runId;
+  const isStreaming = !!activeChat?.runId || pendingRunChatId === activeChatId;
 
   // Поиск сообщений внутри активного чата (find-бар, Ctrl+F / кнопка-лупа в шапке).
   // messages передаём из рендера (chatsRef обновляется эффектом и на рендер отстаёт).
@@ -375,6 +350,10 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         /* ignore quota errors */
       }
     }
+    // Блокируем ввод сразу, не дожидаясь runId от сервера. Снимается в finally:
+    // при успехе к этому моменту у чата уже стоит runId (isStreaming не мигает),
+    // при 409/ошибке ввод разблокируется — отправку можно повторить.
+    setPendingRunChatId(conversationId);
     try {
       const res = await chatApi.startRun(conversationId, text, { model: modelForSend, clientMsgId });
       const runId = res?.runId;
@@ -422,6 +401,8 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
             : c,
         ),
       );
+    } finally {
+      setPendingRunChatId((cur) => (cur === conversationId ? null : cur));
     }
   }, []);
 
@@ -489,12 +470,18 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   // эхо USER_MESSAGE гасится по clientMsgId. Чистый случай (без дублей на бэке) —
   // сбой самого POST /runs: прогон не стартовал и вопрос ещё не сохранён. Для
   // асинхронной RUN_ERROR вопрос уже в памяти чата, поэтому повтор создаёт новый ход.
+  // Пузырь ищем по mid, а не по индексу в массиве: догрузка старых страниц
+  // добавляет сообщения В НАЧАЛО списка, и индекс из замыкания рендера успел бы
+  // устареть — фильтр по индексу снял бы не тот пузырь.
   const handleRetryMessage = useCallback(
-    (index) => {
+    (mid) => {
       const chat = chatsRef.current.find((c) => c.id === activeChatId);
-      if (!chat || chat.runId) return; // во время генерации повтор недоступен
+      // Во время генерации/ожидания старта В ЭТОМ чате повтор недоступен;
+      // pending в другом чате повтору здесь не мешает (как и в isStreaming).
+      if (!chat || chat.runId || pendingRunChatId === activeChatId) return;
       const msgs = chat.messages || [];
-      const target = msgs[index];
+      const index = msgs.findIndex((m) => m.mid === mid);
+      const target = index >= 0 ? msgs[index] : null;
       if (!target || target.sender !== 'ai' || !target.error) return;
       // Текст для повтора: явный retryText или ближайший пузырь пользователя выше.
       let text = target.retryText || null;
@@ -512,12 +499,12 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       // Снимаем ошибочный AI-пузырь, чтобы не копить ошибки.
       setChats((prev) =>
         prev.map((c) =>
-          c.id === activeChatId ? { ...c, messages: (c.messages || []).filter((_, i) => i !== index) } : c,
+          c.id === activeChatId ? { ...c, messages: (c.messages || []).filter((m) => m.mid !== mid) } : c,
         ),
       );
       runConversation(activeChatId, text, clientMsgId, resolveModelForSend(chat));
     },
-    [activeChatId, resolveModelForSend, runConversation],
+    [activeChatId, pendingRunChatId, resolveModelForSend, runConversation],
   );
 
   const handleStopGeneration = useCallback(() => {
@@ -610,16 +597,30 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     [chats, clearDraft],
   );
 
-  // Реальное удаление — после подтверждения в модалке.
+  // Реальное удаление — после подтверждения в модалке. Помечаем как «наше»
+  // удаление ДО запроса — эхо CHAT_DELETED по потоку не покажет нам модалку
+  // «удалён в другой вкладке» — но снимаем метку обратно, если сервер отказал:
+  // иначе будущее реальное удаление этого чата (кем-то другим) молча
+  // проигнорируется, как будто это снова наше же эхо.
   const confirmDeleteChat = useCallback(async () => {
     const target = chatDeleteConfirm;
     setChatDeleteConfirm(null);
     if (!target) return;
     const { id } = target;
-    // Помечаем как «наше» удаление — эхо CHAT_DELETED по потоку не покажет нам модалку.
     locallyDeletingRef.current.add(id);
+    try {
+      const res = await chatApi.deleteChat(id);
+      if (!res.ok) {
+        locallyDeletingRef.current.delete(id);
+        setDeleteErrorNotice({ status: res.status });
+        return;
+      }
+    } catch {
+      locallyDeletingRef.current.delete(id);
+      setDeleteErrorNotice({ status: 'network' });
+      return;
+    }
     clearDraft(id); // черновик удалённого чата больше не нужен
-    await chatApi.deleteChat(id);
     setChats((prev) => prev.filter((chat) => chat.id !== id));
     if (activeChatId === id) {
       const remaining = chatsRef.current.filter((chat) => chat.id !== id);
@@ -633,12 +634,12 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       if (id === activeChatId) return;
       // Раньше здесь стояла блокировка переключения при наборе >3 символов — из-за
       // неё выбор чата в списке «переставал работать». Теперь черновик каждого чата
-      // сохраняется отдельно (см. draftsRef), поэтому переключаться можно свободно.
-      saveDrafts(draftsRef.current); // зафиксировать текущий черновик до ухода
+      // сохраняется отдельно (см. useChatDrafts), поэтому переключаться можно свободно.
+      flushDrafts(); // зафиксировать текущий черновик до ухода
       selectChat(id);
       setAttachCount(0); // reset until new panel loads count for new chat
     },
-    [activeChatId, selectChat],
+    [activeChatId, selectChat, flushDrafts],
   );
 
   // Выбор результата поиска по чатам (сайдбар): открываем чат и, если совпадение
@@ -707,76 +708,23 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
 
       {/* ── Center: chat window ── */}
       <div className="chat-window">
-        {/* Шапка активного чата */}
         {activeChat && (
-          <div className="chat-header">
-            <div className="chat-header-title">
-              {editingTitle ? (
-                <input
-                  className="chat-header-edit"
-                  value={titleDraft}
-                  autoFocus
-                  onChange={(e) => setTitleDraft(e.target.value)}
-                  onBlur={() => {
-                    if (titleDraft.trim()) renameChat(activeChat.id, titleDraft.trim());
-                    setEditingTitle(false);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') e.target.blur();
-                    if (e.key === 'Escape') {
-                      setEditingTitle(false);
-                    }
-                  }}
-                />
-              ) : (
-                <h3
-                  title={t('window.renameHint')}
-                  onClick={() => {
-                    setTitleDraft(activeChat.title);
-                    setEditingTitle(true);
-                  }}
-                >
-                  {activeChat.title}
-                </h3>
-              )}
-              {!activeChat.notFound && !activeChat.loadError && modelOptions.length > 0 && (
-                <ModelSelector
-                  value={selectedModelId}
-                  defaultId={modelConfig.defaultModel.id}
-                  options={modelOptions}
-                  disabled={isStreaming}
-                  onChange={handleModelChange}
-                />
-              )}
-              {activeChat.createdAt && (
-                <div className="chat-meta">
-                  {t('window.createdAt', { date: new Date(activeChat.createdAt).toLocaleString() })}
-                </div>
-              )}
-            </div>
-            {/* Search toggle button in header (Ctrl/Cmd+F) */}
-            {canSearchChat && (
-              <button
-                className={`chat-header-search-btn ${inChatSearch.open ? 'chat-header-search-btn--active' : ''}`}
-                onClick={() => (inChatSearch.open ? inChatSearch.close() : inChatSearch.openBar())}
-                title={t('inChatSearch.open')}
-              >
-                <IconSearch size={14} />
-              </button>
-            )}
-            {/* Attachment toggle button in header */}
-            <button
-              className={`chat-header-attachments-btn ${attachPanelOpen ? 'chat-header-attachments-btn--active' : ''}`}
-              onClick={() => setAttachPanelOpen((v) => !v)}
-              title={t('window.attachments')}
-            >
-              <IconPaperclip size={15} />
-              {attachCount > 0 && <span className="attach-badge">{attachCount}</span>}
-            </button>
-            <button className="chat-header-delete" onClick={() => handleDeleteChat(activeChat.id)}>
-              <IconTrash />
-            </button>
-          </div>
+          <ChatHeader
+            chat={activeChat}
+            modelConfig={modelConfig}
+            modelOptions={modelOptions}
+            selectedModelId={selectedModelId}
+            isStreaming={isStreaming}
+            canSearch={canSearchChat}
+            searchOpen={inChatSearch.open}
+            onToggleSearch={() => (inChatSearch.open ? inChatSearch.close() : inChatSearch.openBar())}
+            attachPanelOpen={attachPanelOpen}
+            attachCount={attachCount}
+            onToggleAttach={() => setAttachPanelOpen((v) => !v)}
+            onRename={renameChat}
+            onDelete={handleDeleteChat}
+            onModelChange={handleModelChange}
+          />
         )}
 
         {inChatSearch.open && canSearchChat && (
@@ -848,7 +796,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
             resetSignal={composerResetSignal}
             focusSignal={composerFocusSignal}
             chatId={activeChatId}
-            initialText={getDraft(draftsRef.current, activeChatId)}
+            initialText={getDraftFor(activeChatId)}
             onTextChange={(v) => handleComposerTextChange(activeChatId, v)}
           />
         )}
@@ -943,6 +891,15 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         title={t('errorModal.uploadTitle')}
         message={t('window.uploadError')}
         onClose={() => setUploadErrorNotice(false)}
+      />
+      <ErrorModal
+        open={!!deleteErrorNotice}
+        icon="⚠️"
+        title={t('errorModal.deleteErrorTitle')}
+        message={t('errorModal.deleteErrorMessage', {
+          suffix: deleteErrorNotice && deleteErrorNotice.status !== 'network' ? ` (${deleteErrorNotice.status})` : '',
+        })}
+        onClose={() => setDeleteErrorNotice(null)}
       />
     </div>
   );

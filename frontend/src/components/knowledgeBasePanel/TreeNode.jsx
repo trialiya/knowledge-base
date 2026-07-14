@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconFolder, IconDoc, IconChevron, IconLock, IconDragHandle } from './icons';
+import { IconFolder, IconDoc, IconChevron, IconLock, IconDragHandle } from '../../icons';
 import { findNodeById } from '../common/utils';
 import { KB_PAGE_SIZE as PAGE_SIZE } from '../../constants/pagination';
 

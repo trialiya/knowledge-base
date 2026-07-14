@@ -13,8 +13,11 @@ export const TOOL_META = {
   findDocumentsByName: { icon: '🔎', category: 'doc' },
   getTreeSkeleton: { icon: '🌳', category: 'doc' },
   getDocument: { icon: '📄', category: 'doc' },
+  getDocumentOutline: { icon: '🗂️', category: 'doc' },
+  getDocumentSection: { icon: '📄', category: 'doc' },
   createDocument: { icon: '➕', category: 'doc' },
   updateDocument: { icon: '✏️', category: 'doc' },
+  updateDocumentSection: { icon: '✏️', category: 'doc' },
   copyAttachmentToDocument: { icon: '📎', category: 'doc' },
   // ── Вложения ──
   getDocumentAttachments: { icon: '📎', category: 'attachment' },
@@ -63,7 +66,7 @@ export const humanizeTool = (name) =>
 // Инструменты, которые меняют документ и возвращают resultMeta { id, version }.
 // Для них под ответом ИИ показываем блок «посмотреть изменения» (см. Message.jsx),
 // открывающий HistoryModal на нужной версии.
-export const DOC_MUTATION_TOOLS = new Set(['createDocument', 'updateDocument']);
+export const DOC_MUTATION_TOOLS = new Set(['createDocument', 'updateDocument', 'updateDocumentSection']);
 
 /**
  * Если tc — документная мутация с валидным resultMeta — вернуть
