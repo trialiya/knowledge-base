@@ -184,7 +184,7 @@ public class GitService {
         try (ObjectReader reader = repository.newObjectReader()) {
             var logCommand = git.log().setMaxCount(limit);
             if (filePath != null && !filePath.isBlank()) {
-                logCommand.addPath(filePath.strip());
+                logCommand.addPath(toForwardSlashes(filePath.strip()));
             }
             List<GitCommit> commits = new ArrayList<>();
             for (RevCommit commit : logCommand.call()) {
@@ -454,7 +454,7 @@ public class GitService {
         args.add(pattern);
         if (pathGlob != null && !pathGlob.isBlank()) {
             args.add("--"); // second -- separates pattern from pathspecs
-            args.add(pathGlob.strip());
+            args.add(toForwardSlashes(pathGlob.strip()));
         }
 
         List<String> lines = exec(args);
@@ -649,7 +649,8 @@ public class GitService {
                     fb.path(), null, true, fb.size(), language, 0, false, null, null);
         }
 
-        String full = new String(fb.bytes(), StandardCharsets.UTF_8);
+        // Normalize CRLF → LF so Windows working-tree files don't leave \r at the end of each line.
+        String full = new String(fb.bytes(), StandardCharsets.UTF_8).replace("\r\n", "\n");
         // Split keeping a stable line index; -1 keeps trailing empty lines.
         String[] lines = full.split("\n", -1);
         int total = lines.length;
@@ -718,7 +719,8 @@ public class GitService {
                             + " (supported: java, javascript, typescript, python, sql)");
         }
 
-        String source = new String(fb.bytes(), StandardCharsets.UTF_8);
+        // Normalize CRLF → LF so Windows working-tree files don't leave \r at the end of each line.
+        String source = new String(fb.bytes(), StandardCharsets.UTF_8).replace("\r\n", "\n");
         int total = source.split("\n", -1).length;
         OutlineResult result = outlineService.outline(language, source);
         return new GitFileOutline(fb.path(), language, total, result.parser(), result.symbols());
@@ -749,7 +751,7 @@ public class GitService {
      * security checks shared by {@link #getFileContent} and {@link #getFileOutline}.
      */
     private FileBytes readTrackedFile(String filePath) {
-        String normalized = filePath.strip();
+        String normalized = toForwardSlashes(filePath.strip());
         requireSafeGitRelativePath(normalized);
 
         // Security: confine to the repo before touching the filesystem.
@@ -1004,9 +1006,6 @@ public class GitService {
                 || path.indexOf('\0') >= 0) {
             throw new IllegalArgumentException("Invalid path: " + path);
         }
-        if (path.contains("\\")) {
-            throw new IllegalArgumentException("Invalid path separator: " + path);
-        }
         if (!SAFE_GIT_RELATIVE_PATH.matcher(path).matches()) {
             throw new IllegalArgumentException("Path contains unsupported characters: " + path);
         }
@@ -1060,9 +1059,13 @@ public class GitService {
 
     private String normalizeSub(@Nullable String sub) {
         if (sub == null || sub.isBlank()) return "";
-        String s = sub.strip().replaceAll("^/+|/+$", "");
+        String s = toForwardSlashes(sub.strip()).replaceAll("^/+|/+$", "");
         if (s.contains("..")) throw new IllegalArgumentException("Path traversal not allowed");
         return s;
+    }
+
+    private static String toForwardSlashes(String path) {
+        return path.replace('\\', '/');
     }
 
     private long fileSize(String relativePath) {
