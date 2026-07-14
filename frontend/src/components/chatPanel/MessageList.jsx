@@ -235,7 +235,7 @@ const MessageList = ({
             toolCallsRunId={msg.toolCallsRunId}
             preparing={msg.preparing}
             error={msg.error}
-            onRetry={onRetry && msg.error ? () => onRetry(index) : undefined}
+            onRetry={onRetry && msg.error ? () => onRetry(msg.mid) : undefined}
             conversationId={conversationId}
             onNavigateToDoc={onNavigateToDoc}
             mid={msg.mid}

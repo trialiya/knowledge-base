@@ -92,6 +92,13 @@
     "searching": "Поиск…",
     "empty": "Ничего не найдено"
   },
+  "fileChips": {
+    "docRef": "Документ «{{title}}» (#{{id}})",
+    "docHeader": "Документ «{{title}}» (#{{id}}):",
+    "docLoadFailed": "[Документ #{{id}}: не удалось загрузить]",
+    "binaryFile": "[бинарный файл]",
+    "readFailed": "[не удалось прочитать файл]"
+  },
   "list": {
     "newChat": "Новый чат",
     "newJiraChat": "JIRA чат",

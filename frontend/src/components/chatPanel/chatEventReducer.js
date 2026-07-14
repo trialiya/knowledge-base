@@ -10,7 +10,16 @@
 
 import { nextMessageId } from './messageId';
 
-const sameCall = (a, b) => a.name === b.name && JSON.stringify(a.arguments || {}) === JSON.stringify(b.arguments || {});
+// Совпадение вызовов. Когда callIndex известен у обоих — он однозначен (имя +
+// порядковый номер в прогоне); иначе фолбэк на name+arguments. Фолбэк нужен для
+// живых TOOL_CALL-событий без callIndex, но у него есть предел: два вызова
+// одного инструмента с ОДИНАКОВЫМИ аргументами без callIndex сольются в один.
+// С callIndex (итоговые TOOL_CALLS-metas) такие вызовы остаются раздельными.
+const sameCall = (a, b) => {
+  if (a.name !== b.name) return false;
+  if (a.callIndex != null && b.callIndex != null) return a.callIndex === b.callIndex;
+  return JSON.stringify(a.arguments || {}) === JSON.stringify(b.arguments || {});
+};
 
 // Слияние одного вызова инструмента в список (по name+arguments).
 // resultGist приходит из живых TOOL_CALL, resultMeta — из итогового TOOL_CALLS;

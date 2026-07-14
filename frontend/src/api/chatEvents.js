@@ -8,15 +8,18 @@
 const enc = (id) => encodeURIComponent(id);
 
 // Разбирает один SSE-блок ("id:..\ndata:..") в { id, data }.
+// Несколько строк data: склеиваются через \n, как требует спека SSE (раньше они
+// конкатенировались без разделителя с trim'ом каждой строки — однострочный JSON
+// это переживал, но многострочный кадр молча ломался бы).
 const parseBlock = (block) => {
-  let data = '';
   let id;
+  const data = [];
   for (const line of block.split('\n')) {
-    const l = line.trimEnd();
-    if (l.startsWith('data:')) data += l.slice(5).trim();
+    const l = line.endsWith('\r') ? line.slice(0, -1) : line;
+    if (l.startsWith('data:')) data.push(l.slice(5).replace(/^ /, ''));
     else if (l.startsWith('id:')) id = l.slice(3).trim();
   }
-  return { id, data };
+  return { id, data: data.join('\n') };
 };
 
 /**

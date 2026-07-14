@@ -69,16 +69,6 @@ const BulkOperations = () => {
             </button>
           </div>
 
-          <div className="set-op">
-            <span className="set-op__icon">
-              <IconDownload size={18} />
-            </span>
-            <div className="set-op__text">
-              <div className="set-op__title">{t('admin.bulk.import.title')}</div>
-              <div className="set-op__desc">{t('admin.bulk.import.desc')}</div>
-            </div>
-            <button className="set-btn set-btn--ghost">{t('admin.bulk.import.run')}</button>
-          </div>
         </SettingsSection>
       </div>
     </>
