@@ -103,8 +103,6 @@ describe('useInChatSearch — догрузка старых страниц не 
     await waitFor(() => expect(result.current.activeMatchMid).toBe('m1'));
 
     chatsRef.current = [{ id: 'chat-2', messages: undefined, hasMore: true }];
-    expect(() =>
-      rerender({ activeChatId: 'chat-2', chatsRef, loadOlderMessages, messages: undefined }),
-    ).not.toThrow();
+    expect(() => rerender({ activeChatId: 'chat-2', chatsRef, loadOlderMessages, messages: undefined })).not.toThrow();
   });
 });

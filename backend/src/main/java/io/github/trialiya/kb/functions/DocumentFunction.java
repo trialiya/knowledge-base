@@ -177,10 +177,8 @@ public class DocumentFunction {
      */
     @Tool(
             description =
-                    "Получить оглавление markdown-документа: секции (sectionPath, уровень, "
-                            + "заголовок, размер в символах) без содержимого. Для больших "
-                            + "документов используй его, чтобы читать и править только нужные "
-                            + "секции через getDocumentSection / updateDocumentSection.",
+                    "Получить оглавление markdown-документа (секции без содержимого) — для "
+                            + "чтения и правки отдельных секций вместо всего документа.",
             resultConverter = CompactToolResultConverter.class)
     public DocumentOutline getDocumentOutline(
             @ToolParam(description = "ID документа") String documentId) {
@@ -212,9 +210,8 @@ public class DocumentFunction {
      */
     @Tool(
             description =
-                    "Прочитать одну секцию markdown-документа по sectionPath из getDocumentOutline "
-                            + "(заголовок + содержимое + подсекции). Экономит контекст по "
-                            + "сравнению с getDocument.",
+                    "Прочитать одну секцию markdown-документа (заголовок + содержимое + "
+                            + "подсекции), не загружая весь документ.",
             resultConverter = CompactToolResultConverter.class)
     public DocumentSection getDocumentSection(
             @ToolParam(description = "ID документа") String documentId,
@@ -263,36 +260,28 @@ public class DocumentFunction {
     @Tool(
             description =
                     "Заменить одну секцию markdown-документа (заголовок + содержимое + "
-                            + "подсекции), не передавая весь документ. sectionPath и "
-                            + "expectedDescriptionVersion бери из getDocumentOutline / "
-                            + "getDocumentSection. Перед правкой секция должна быть прочитана "
-                            + "через getDocumentSection (или весь документ через getDocument) в "
-                            + "этом же ответе; forceOverwrite=true пропускает проверку.",
+                            + "подсекции), не передавая весь документ. Перед правкой прочитай "
+                            + "секцию (getDocumentSection) или документ (getDocument) в этом же "
+                            + "ответе.",
             resultConverter = CompactToolResultConverter.class)
     public DocumentShort updateDocumentSection(
             ToolContext context,
             @ToolParam(description = "ID документа") long documentId,
             @ToolParam(
                             description =
-                                    "Путь секции из getDocumentOutline. Спец-секция _preamble — "
-                                            + "текст до первого заголовка.")
+                                    "Путь секции из getDocumentOutline; _preamble — текст до "
+                                            + "первого заголовка")
                     String sectionPath,
             @ToolParam(
                             description =
-                                    "Новый текст секции целиком, начиная с её markdown-заголовка "
-                                            + "(например '## Название'). Ссылки на другие "
-                                            + "документы оформляй как [Название](/?doc=ID).")
+                                    "Полный новый текст секции, начиная с её заголовка "
+                                            + "('## Название'). Ссылки на другие документы: "
+                                            + "[Название](/?doc=ID).")
                     String newContent,
-            @ToolParam(
-                            description =
-                                    "descriptionVersion из getDocumentOutline/getDocumentSection; "
-                                            + "при несовпадении с текущей версией правка "
-                                            + "отклоняется")
+            @ToolParam(description = "descriptionVersion из getDocumentOutline/getDocumentSection")
                     int expectedDescriptionVersion,
             @ToolParam(
-                            description =
-                                    "true — заменить секцию без предварительного чтения "
-                                            + "(пропускает проверку)",
+                            description = "true — заменить секцию без предварительного чтения",
                             required = false)
                     @Nullable Boolean forceOverwrite) {
 
