@@ -35,7 +35,9 @@ import { TOOLTIP_WIDTH, TOOLTIP_GAP, TOOLTIP_HEIGHT_ESTIMATE } from '../../const
 const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
   const [visible, setVisible] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0 });
-  const [fullscreenOpen, setFullscreenOpen] = useState(false);
+  // Снимок узла для fullscreen-превью: useDocPreview сбрасывает node, когда
+  // тултип прячется (enabled=false), а модалка живёт дольше тултипа.
+  const [fullscreenNode, setFullscreenNode] = useState(null);
   const [filePreviewOpen, setFilePreviewOpen] = useState(false);
   const enterTimer = useRef(null);
   const leaveTimer = useRef(null);
@@ -117,10 +119,30 @@ const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
   );
 
   // Файловая ссылка не уходит из чата — клик всегда открывает read-only
-  // модалку (FilePreviewModal), а не FilesPanel.
-  const handleFileClick = useCallback((e) => {
-    e.preventDefault();
+  // модалку (FilePreviewModal), а не FilesPanel. Тултип при этом прячем,
+  // иначе он остаётся смонтированным под оверлеем и «выглядывает» после
+  // закрытия модалки.
+  const openFilePreview = useCallback(() => {
+    clearTimeout(enterTimer.current);
+    setVisible(false);
     setFilePreviewOpen(true);
+  }, []);
+
+  const handleFileClick = useCallback(
+    (e) => {
+      e.preventDefault();
+      openFilePreview();
+    },
+    [openFilePreview],
+  );
+
+  // То же для fullscreen-превью документа, открываемого из тултипа. Узел
+  // снимается в отдельный стейт, потому что node из useDocPreview обнуляется
+  // вместе с visible.
+  const openFullscreen = useCallback((n) => {
+    clearTimeout(enterTimer.current);
+    setVisible(false);
+    setFullscreenNode(n);
   }, []);
 
   // ── In-document anchor (#heading) ──────────────────────────────────────────
@@ -191,7 +213,7 @@ const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
               pos={pos}
               onMouseEnter={keepOpen}
               onMouseLeave={handleMouseLeave}
-              onOpen={() => setFilePreviewOpen(true)}
+              onOpen={openFilePreview}
             />,
             document.body,
           )}
@@ -243,19 +265,19 @@ const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
             onMouseEnter={keepOpen}
             onMouseLeave={handleMouseLeave}
             onNavigate={navigateToDoc}
-            onExpand={() => setFullscreenOpen(true)}
+            onExpand={openFullscreen}
           />,
           document.body,
         )}
 
-      {fullscreenOpen && node && (
+      {fullscreenNode && (
         <FullscreenEditorModal
-          title={node.title}
-          value={node.description || ''}
+          title={fullscreenNode.title}
+          value={fullscreenNode.description || ''}
           previewOnly
           tree={tree}
           onNavigate={navigateToDoc}
-          onClose={() => setFullscreenOpen(false)}
+          onClose={() => setFullscreenNode(null)}
         />
       )}
     </>
@@ -301,7 +323,7 @@ const DocPreviewTooltip = React.forwardRef(
                 title={t('docLink.expand')}
                 onClick={(e) => {
                   e.stopPropagation();
-                  onExpand();
+                  onExpand(node);
                 }}
               >
                 <IconExpand size={12} />
@@ -354,74 +376,76 @@ DocPreviewTooltip.displayName = 'DocPreviewTooltip';
 
 // ── File tooltip card ────────────────────────────────────────────────────────
 
-const FilePreviewTooltip = React.forwardRef(({ file, loading, error, pos, onMouseEnter, onMouseLeave, onOpen }, ref) => {
-  const { t } = useTranslation('knowledgeBase');
-  const name = file?.path ? file.path.slice(file.path.lastIndexOf('/') + 1) : '';
+const FilePreviewTooltip = React.forwardRef(
+  ({ file, loading, error, pos, onMouseEnter, onMouseLeave, onOpen }, ref) => {
+    const { t } = useTranslation('knowledgeBase');
+    const name = file?.path ? file.path.slice(file.path.lastIndexOf('/') + 1) : '';
 
-  return (
-    <div
-      ref={ref}
-      className="doc-preview-tooltip"
-      style={{ top: pos.top, left: pos.left }}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-    >
-      {loading && (
-        <div className="doc-preview-tooltip__loading">
-          <span className="doc-preview-tooltip__spinner" />
-          <span>{t('docLink.loading')}</span>
-        </div>
-      )}
-
-      {error && !loading && <div className="doc-preview-tooltip__error">{t('docLink.notFound')}</div>}
-
-      {file && !loading && (
-        <>
-          <div className="doc-preview-tooltip__header">
-            <span className="doc-preview-tooltip__icon">
-              <IconFileText size={13} />
-            </span>
-            <span className="doc-preview-tooltip__title">{name}</span>
-            <span className="doc-preview-tooltip__badge">{t('docLink.file')}</span>
+    return (
+      <div
+        ref={ref}
+        className="doc-preview-tooltip"
+        style={{ top: pos.top, left: pos.left }}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+      >
+        {loading && (
+          <div className="doc-preview-tooltip__loading">
+            <span className="doc-preview-tooltip__spinner" />
+            <span>{t('docLink.loading')}</span>
           </div>
+        )}
 
-          <div className="doc-preview-tooltip__description">
-            <p className="doc-preview-tooltip__description-text doc-preview-tooltip__description-text--mono">
-              {file.path}
-            </p>
-          </div>
+        {error && !loading && <div className="doc-preview-tooltip__error">{t('files:file.loadError')}</div>}
 
-          {file.binary ? (
-            <p className="doc-preview-tooltip__empty">{t('docLink.binary')}</p>
-          ) : (
+        {file && !loading && (
+          <>
+            <div className="doc-preview-tooltip__header">
+              <span className="doc-preview-tooltip__icon">
+                <IconFileText size={13} />
+              </span>
+              <span className="doc-preview-tooltip__title">{name}</span>
+              <span className="doc-preview-tooltip__badge">{t('docLink.file')}</span>
+            </div>
+
             <div className="doc-preview-tooltip__description">
               <p className="doc-preview-tooltip__description-text doc-preview-tooltip__description-text--mono">
-                {snippetFromMarkdown(file.content, 200)}
+                {file.path}
               </p>
             </div>
-          )}
 
-          <div className="doc-preview-tooltip__footer">
-            <span className="doc-preview-tooltip__date">
-              {file.language || ''}
-              {file.language && ' · '}
-              {t('files:file.lines', { count: file.lineCount })}
-            </span>
-            <button
-              className="doc-preview-tooltip__open"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpen();
-              }}
-            >
-              {t('docLink.open')}
-            </button>
-          </div>
-        </>
-      )}
-    </div>
-  );
-});
+            {file.binary ? (
+              <p className="doc-preview-tooltip__empty">{t('docLink.binary')}</p>
+            ) : (
+              <div className="doc-preview-tooltip__description">
+                <p className="doc-preview-tooltip__description-text doc-preview-tooltip__description-text--mono">
+                  {snippetFromCode(file.content, 200)}
+                </p>
+              </div>
+            )}
+
+            <div className="doc-preview-tooltip__footer">
+              <span className="doc-preview-tooltip__date">
+                {file.language || ''}
+                {file.language && ' · '}
+                {t('files:file.lines', { count: file.lineCount })}
+              </span>
+              <button
+                className="doc-preview-tooltip__open"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpen();
+                }}
+              >
+                {t('docLink.open')}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  },
+);
 
 FilePreviewTooltip.displayName = 'FilePreviewTooltip';
 
@@ -519,6 +543,17 @@ function parseFileLink(href) {
   } catch {
     return null;
   }
+}
+
+/**
+ * Plain-text snippet of source code: collapse whitespace and cut to maxLen. Unlike
+ * snippetFromMarkdown, no markdown syntax is stripped — code isn't markdown, and those
+ * regexes would mangle legitimate code (backticks, brackets, list-like operators).
+ */
+function snippetFromCode(text, maxLen) {
+  if (!text) return '';
+  const plain = text.replace(/\s+/g, ' ').trim();
+  return plain.length > maxLen ? plain.slice(0, maxLen) + '…' : plain;
 }
 
 function snippetFromMarkdown(md, maxLen) {

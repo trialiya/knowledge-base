@@ -12,6 +12,13 @@ const cache = new Map();
 const listeners = new Map();
 const STALE_MS = 30_000;
 
+/**
+ * The tooltip only shows a short snippet, so fetch just the head of the file instead of the
+ * whole body (which can be up to 512 KB). lineCount/language in the response still describe
+ * the entire file, and GitService clamps the range safely (empty file → empty content).
+ */
+const PREVIEW_LINES = 20;
+
 function notify(path, value) {
   cache.set(path, { value, fetchedAt: Date.now() });
   listeners.get(path)?.forEach((cb) => cb(value));
@@ -94,7 +101,7 @@ export default function useFilePreview(path, enabled) {
     setLoading(true);
 
     gitApi
-      .getFileContent(path)
+      .getFileContent(path, 1, PREVIEW_LINES)
       .then((result) => {
         notify(path, result);
         if (cancelled) return;

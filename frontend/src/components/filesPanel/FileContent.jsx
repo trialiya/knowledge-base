@@ -4,7 +4,7 @@ import { IconFolder, IconDoc } from '../../icons';
 import { formatFileSize } from '../../utils/formatting';
 import Breadcrumb from './Breadcrumb';
 
-export const CodeView = ({ text, fromLine = 1, showLineNumbers = true }) => {
+const CodeView = ({ text, fromLine = 1, showLineNumbers = true }) => {
   const lines = text.split('\n');
   return (
     <div className="file-code">

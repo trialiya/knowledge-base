@@ -85,8 +85,8 @@ public class DocumentExportService {
 
     /**
      * Matches whole Markdown links pointing at a repo file, e.g. {@code [GitService.java](/files
-     * ?path=backend/.../GitService.java#L1-L10)}. Group 1 is the link text, group 2 the (URL-encoded)
-     * path; the optional {@code #Lx-Ly} line-range suffix is discarded on export.
+     * ?path=backend/.../GitService.java#L1-L10)}. Group 1 is the link text, group 2 the
+     * (URL-encoded) path; the optional {@code #Lx-Ly} line-range suffix is discarded on export.
      */
     private static final Pattern FILE_LINK_PATTERN =
             Pattern.compile("\\[([^\\]]+)]\\(/files\\?path=([^)#]+)(?:#L\\d+(?:-L\\d+)?)?\\)");
@@ -325,15 +325,18 @@ public class DocumentExportService {
 
     /**
      * Replaces every {@code [text](/files?path=PATH[#Lx-Ly])} link with plain, non-navigable text
-     * {@code text (PATH)} — the exported Markdown has no running app to serve {@code /files}, so the
-     * link is flattened to just the file's name and full repo-relative path.
+     * {@code text (PATH)} — the exported Markdown has no running app to serve {@code /files}, so
+     * the link is flattened to just the file's name and full repo-relative path.
      */
     private String rewriteFileLinks(String text) {
         Matcher m = FILE_LINK_PATTERN.matcher(text);
         StringBuilder out = new StringBuilder();
         while (m.find()) {
             String linkText = m.group(1);
-            String path = URLDecoder.decode(m.group(2), StandardCharsets.UTF_8);
+            // The LLM writes paths unencoded, so a literal '+' is part of the file name —
+            // shield it from URLDecoder's application/x-www-form-urlencoded '+'→space rule,
+            // while still decoding any %xx escapes.
+            String path = URLDecoder.decode(m.group(2).replace("+", "%2B"), StandardCharsets.UTF_8);
             m.appendReplacement(out, Matcher.quoteReplacement(linkText + " (" + path + ")"));
         }
         m.appendTail(out);
