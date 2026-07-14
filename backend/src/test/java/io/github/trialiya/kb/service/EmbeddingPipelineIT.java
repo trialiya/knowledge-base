@@ -195,16 +195,14 @@ class EmbeddingPipelineIT extends AbstractPostgresIntegrationTest {
         try {
             scheduler.poll();
 
+            // The worker persists the embedding first and marks the task done last, so awaiting
+            // "done" guarantees the embedding is already committed and visible.
             await().atMost(Duration.ofSeconds(5))
-                    .untilAsserted(
-                            () ->
-                                    assertThat(docEmbeddingRepo.findByDocumentId(doc.getId()))
-                                            .isPresent());
+                    .untilAsserted(() -> assertThat(taskStatus(doc.getId())).isEqualTo("done"));
 
             var stored = docEmbeddingRepo.findByDocumentId(doc.getId()).orElseThrow();
             assertThat(stored.getModel()).isEqualTo(MODEL_NAME);
             assertThat(stored.getEmbedding()).hasSize(1024);
-            assertThat(taskStatus(doc.getId())).isEqualTo("done");
 
             // the document's title+description text is now cached from indexing above
             verify(model, times(1)).call(any(EmbeddingRequest.class));
@@ -243,13 +241,12 @@ class EmbeddingPipelineIT extends AbstractPostgresIntegrationTest {
                     .untilAsserted(() -> assertThat(taskStatus(doc.getId())).isEqualTo("pending"));
 
             scheduler.poll(); // attempt 2/3 succeeds
+            // Await "done" (the worker's last write), not the embedding row, so the status
+            // assertion cannot race the worker between persisting the vector and markDone().
             await().atMost(Duration.ofSeconds(5))
-                    .untilAsserted(
-                            () ->
-                                    assertThat(docEmbeddingRepo.findByDocumentId(doc.getId()))
-                                            .isPresent());
+                    .untilAsserted(() -> assertThat(taskStatus(doc.getId())).isEqualTo("done"));
 
-            assertThat(taskStatus(doc.getId())).isEqualTo("done");
+            assertThat(docEmbeddingRepo.findByDocumentId(doc.getId())).isPresent();
             assertThat(callCount.get()).isEqualTo(2);
         } finally {
             cleanupDocument(doc.getId());
@@ -380,6 +377,9 @@ class EmbeddingPipelineIT extends AbstractPostgresIntegrationTest {
                 "DELETE FROM embedding_tasks WHERE entity_type = 'document' AND entity_id = ?",
                 documentId);
         documentRepo.deleteById(documentId);
+        // Successful indexing also commits embedding_cache rows; the Postgres container is
+        // shared JVM-wide, so drop everything this class's model name wrote.
+        jdbc.update("DELETE FROM embedding_cache WHERE model = ?", MODEL_NAME);
     }
 
     private static void awaitUninterruptibly(CountDownLatch latch) {
