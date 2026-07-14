@@ -7,6 +7,8 @@ import io.github.trialiya.kb.model.doc.entity.DocumentType;
 import io.github.trialiya.kb.repository.DocumentRepository;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -80,6 +82,14 @@ public class DocumentExportService {
 
     /** Matches internal KB doc links inside Markdown link targets: {@code (/?doc=123)}. */
     private static final Pattern DOC_LINK_PATTERN = Pattern.compile("\\(/\\?doc=(\\d+)\\)");
+
+    /**
+     * Matches whole Markdown links pointing at a repo file, e.g. {@code [GitService.java](/files
+     * ?path=backend/.../GitService.java#L1-L10)}. Group 1 is the link text, group 2 the (URL-encoded)
+     * path; the optional {@code #Lx-Ly} line-range suffix is discarded on export.
+     */
+    private static final Pattern FILE_LINK_PATTERN =
+            Pattern.compile("\\[([^\\]]+)]\\(/files\\?path=([^)#]+)(?:#L\\d+(?:-L\\d+)?)?\\)");
 
     private final DocumentRepository repo;
     private final DocumentsConfiguration config;
@@ -257,7 +267,8 @@ public class DocumentExportService {
         if (!hasContent(e.getDescription())) {
             return "";
         }
-        return rewriteDocLinks(e.getDescription().trim(), thisFile, idToPath) + "\n";
+        String text = rewriteDocLinks(e.getDescription().trim(), thisFile, idToPath);
+        return rewriteFileLinks(text) + "\n";
     }
 
     /**
@@ -307,6 +318,23 @@ public class DocumentExportService {
                         sourceFile.getParent().relativize(targetPath).toString().replace('\\', '/');
                 m.appendReplacement(out, Matcher.quoteReplacement("(" + rel + ")"));
             }
+        }
+        m.appendTail(out);
+        return out.toString();
+    }
+
+    /**
+     * Replaces every {@code [text](/files?path=PATH[#Lx-Ly])} link with plain, non-navigable text
+     * {@code text (PATH)} — the exported Markdown has no running app to serve {@code /files}, so the
+     * link is flattened to just the file's name and full repo-relative path.
+     */
+    private String rewriteFileLinks(String text) {
+        Matcher m = FILE_LINK_PATTERN.matcher(text);
+        StringBuilder out = new StringBuilder();
+        while (m.find()) {
+            String linkText = m.group(1);
+            String path = URLDecoder.decode(m.group(2), StandardCharsets.UTF_8);
+            m.appendReplacement(out, Matcher.quoteReplacement(linkText + " (" + path + ")"));
         }
         m.appendTail(out);
         return out.toString();

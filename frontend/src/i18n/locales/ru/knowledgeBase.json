@@ -108,10 +108,13 @@
     "notFound": "Документ не найден",
     "folder": "Folder",
     "document": "Document",
+    "file": "File",
     "aiSummary": "AI Summary",
     "stale": "устарел",
     "noDescription": "Нет описания",
-    "open": "Открыть →"
+    "open": "Открыть →",
+    "expand": "Развернуть",
+    "binary": "Бинарный файл — предпросмотр недоступен"
   },
   "search": {
     "title": "Результаты поиска",

@@ -21,5 +21,8 @@
     "binary": "Binary file — preview unavailable",
     "notFound": "File or directory not found",
     "loadError": "Failed to load content"
+  },
+  "preview": {
+    "close": "Close"
   }
 }

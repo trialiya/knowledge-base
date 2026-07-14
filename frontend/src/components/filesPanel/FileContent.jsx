@@ -4,7 +4,7 @@ import { IconFolder, IconDoc } from '../../icons';
 import { formatFileSize } from '../../utils/formatting';
 import Breadcrumb from './Breadcrumb';
 
-const CodeView = ({ text, fromLine = 1, showLineNumbers = true }) => {
+export const CodeView = ({ text, fromLine = 1, showLineNumbers = true }) => {
   const lines = text.split('\n');
   return (
     <div className="file-code">
@@ -47,7 +47,7 @@ const DirectoryListing = ({ nodes, onNavigate }) => {
   );
 };
 
-const FileView = ({ file }) => {
+export const FileView = ({ file }) => {
   const { t } = useTranslation('files');
   return (
     <div className="file-view">
