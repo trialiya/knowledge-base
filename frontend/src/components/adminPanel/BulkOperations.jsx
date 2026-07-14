@@ -68,7 +68,6 @@ const BulkOperations = () => {
               {exportState === 'running' ? t('admin.bulk.export.running') : t('admin.bulk.export.run')}
             </button>
           </div>
-
         </SettingsSection>
       </div>
     </>

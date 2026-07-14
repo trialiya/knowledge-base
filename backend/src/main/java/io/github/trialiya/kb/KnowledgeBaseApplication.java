@@ -8,6 +8,7 @@ import io.github.trialiya.kb.config.model.EmbeddingConfiguration;
 import io.github.trialiya.kb.config.model.SearchConfiguration;
 import io.github.trialiya.kb.config.model.SecurityProperties;
 import io.github.trialiya.kb.config.model.SubAgentConfig;
+import io.github.trialiya.kb.config.model.SummarizeProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -23,7 +24,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
     AtlassianConfiguration.class,
     ChatModelProperties.class,
     ChatTimeoutProperties.class,
-    SecurityProperties.class
+    SecurityProperties.class,
+    SummarizeProperties.class
 })
 public class KnowledgeBaseApplication {
 

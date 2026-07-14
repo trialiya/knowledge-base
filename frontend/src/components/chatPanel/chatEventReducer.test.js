@@ -99,7 +99,11 @@ describe('applyChatEvent', () => {
     let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
     chat = applyChatEvent(
       chat,
-      { type: 'TOOL_CALL', runId: 'r1', payload: { toolCall: { name: 'getDocument', arguments: { id: 5 }, status: 'STARTED' } } },
+      {
+        type: 'TOOL_CALL',
+        runId: 'r1',
+        payload: { toolCall: { name: 'getDocument', arguments: { id: 5 }, status: 'STARTED' } },
+      },
       ctx,
     );
     chat = applyChatEvent(

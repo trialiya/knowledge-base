@@ -88,10 +88,7 @@ const ChatHeader = ({
             }}
           />
         ) : (
-          <h3
-            title={t('window.renameHint')}
-            onClick={() => setEditing({ id: chat.id, draft: chat.title })}
-          >
+          <h3 title={t('window.renameHint')} onClick={() => setEditing({ id: chat.id, draft: chat.title })}>
             {chat.title}
           </h3>
         )}

@@ -3,6 +3,7 @@ package io.github.trialiya.kb.service;
 import static io.github.trialiya.kb.utils.ChatUtils.buildContext;
 
 import com.google.common.util.concurrent.Striped;
+import io.github.trialiya.kb.config.model.SummarizeProperties;
 import io.github.trialiya.kb.functions.MessageLookupFunction;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
@@ -27,35 +28,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class SummarizeService implements DisposableBean {
 
-    /**
-     * Approximate token budget for the "live" messages window. When the total estimated tokens
-     * across unsummarized messages exceeds this value, a new summarization round is triggered.
-     *
-     * <p>Rule of thumb: 1 token ≈ 4 characters (English/code mix). 4 000 tokens → ~16 000
-     * characters before we compress.
-     */
-    private static final int TOKEN_THRESHOLD = 3000;
-
-    private static final int MESSAGE_COUNT_THRESHOLD = 20;
-
-    /**
-     * Number of recent messages kept *outside* the summarized window so the model always has some
-     * live context to anchor against.
-     */
-    private static final int OVERLAP_MESSAGES = 10;
-
-    /**
-     * When the number of stored summary messages reaches this value, they are collapsed into a
-     * single meta-summary.
-     */
-    private static final int SUMMARY_COLLAPSE_THRESHOLD = 5;
-
-    /**
-     * How many characters we use per estimated token. Increase to 3 for mostly-code conversations,
-     * decrease to 5 for prose.
-     */
-    private static final int CHARS_PER_TOKEN = 4;
-
     private static final String COLLAPSE_HEADER =
             "The following are consecutive summaries of a long conversation:\n";
     private static final String CONTEXT_HEADER =
@@ -69,14 +41,16 @@ public class SummarizeService implements DisposableBean {
     private final ChatMessageRepository chatMessageRepository;
     private final ExecutorService executorService;
     private final TransactionTemplate transactionTemplate;
+    private final SummarizeProperties summarizeProperties;
 
-    private final Striped<Lock> locks = Striped.lock(1028);
+    private final Striped<Lock> locks = Striped.lock(1024);
 
     public SummarizeService(
             OpenAiChatModel openAiChatModel,
             ChatMessageRepository chatMessageRepository,
             @Value("classpath:prompt/summarizer.md") Resource summarizerPrompt,
-            PlatformTransactionManager transactionManager) {
+            PlatformTransactionManager transactionManager,
+            SummarizeProperties summarizeProperties) {
         this.chatClient =
                 ChatClient.builder(openAiChatModel)
                         .defaultSystem(summarizerPrompt)
@@ -85,6 +59,7 @@ public class SummarizeService implements DisposableBean {
         this.chatMessageRepository = chatMessageRepository;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.executorService = Executors.newVirtualThreadPerTaskExecutor();
+        this.summarizeProperties = summarizeProperties;
     }
 
     @Override
@@ -120,34 +95,37 @@ public class SummarizeService implements DisposableBean {
         // 1. Fetch all live (non-summarized) messages, excluding blanks and system msgs.
         final List<ChatMessageEntity> liveMessages =
                 chatMessageRepository
-                        .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAt(
+                        .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
                                 conversationId)
                         .stream()
                         .filter(m -> !m.isSummary())
                         .filter(m -> Strings.isNotBlank(m.getText()))
                         .toList();
 
-        // 2. Determine the slice to compress: everything except the last OVERLAP_MESSAGES.
-        final int cutoff = liveMessages.size() - OVERLAP_MESSAGES;
+        // 2. Determine the slice to compress: everything except the last overlapMessages.
+        final int overlapMessages = summarizeProperties.overlapMessages();
+        final int cutoff = liveMessages.size() - overlapMessages;
         if (cutoff <= 0) {
             log.info(
                     "[{}] Not enough messages to compress (live={}, overlap={})",
                     conversationId,
                     liveMessages.size(),
-                    OVERLAP_MESSAGES);
+                    overlapMessages);
             return;
         }
 
         // 3. Decide whether the token budget for the compressible slice is exceeded.
         final int estimatedTokens = estimateTokens(liveMessages, cutoff);
-        if (cutoff < MESSAGE_COUNT_THRESHOLD && estimatedTokens < TOKEN_THRESHOLD) {
+        final int messageCountThreshold = summarizeProperties.messageCountThreshold();
+        final int tokenThreshold = summarizeProperties.tokenThreshold();
+        if (cutoff < messageCountThreshold && estimatedTokens < tokenThreshold) {
             log.info(
                     "[{}] Skipping summarization. Messages: {} < threshold: {}. Estimated tokens: {} < threshold: {}",
                     conversationId,
                     cutoff,
-                    MESSAGE_COUNT_THRESHOLD,
+                    messageCountThreshold,
                     estimatedTokens,
-                    TOKEN_THRESHOLD);
+                    tokenThreshold);
             return;
         }
 
@@ -162,28 +140,38 @@ public class SummarizeService implements DisposableBean {
         // 4. Load existing summaries to give the LLM prior context.
         final List<ChatMessageEntity> existingSummaries =
                 chatMessageRepository
-                        .findChatMessageByConversationIdAndSummarizedFalseAndSummaryTrueOrderByCreatedAt(
+                        .findChatMessageByConversationIdAndSummarizedFalseAndSummaryTrueOrderByCreatedAtAscPositionAsc(
                                 conversationId);
 
-        // 5. Generate summary text via LLM.
+        // 5. Generate summary text via LLM. Collapse existing summaries into one meta-summary
+        // if this round's new summary would otherwise push the count to summaryCollapseThreshold.
         final boolean collapseSummaries =
-                existingSummaries.size() >= SUMMARY_COLLAPSE_THRESHOLD - 1;
+                existingSummaries.size() + 1 >= summarizeProperties.summaryCollapseThreshold();
         final String summaryContent =
                 generateSummary(
                         conversationId, existingSummaries, toCompress, cutoff, collapseSummaries);
+        if (Strings.isBlank(summaryContent)) {
+            log.error(
+                    "[{}] Summarization produced an empty result, skipping this round",
+                    conversationId);
+            return;
+        }
 
-        // 6. Build the summary message stored as SYSTEM context.
+        // 6. Build the summary message stored as ASSISTANT context.
         final String summaryText =
                 collapseSummaries
                         ? buildMetaSummaryText(summaryContent)
-                        : buildSummaryText(summaryContent, cutoff);
+                        : buildSummaryText(
+                                summaryContent,
+                                toCompress.getFirst().getPosition(),
+                                toCompress.getLast().getPosition());
 
         log.info(
                 "[{}] Summarization finished ({} messages ({} tokens) compressed) -> {} tokens",
                 conversationId,
                 cutoff,
                 estimatedTokens,
-                summaryText.length() / CHARS_PER_TOKEN);
+                summaryText.length() / summarizeProperties.charsPerToken());
 
         // 7. Persist: mark compressed messages as summarized, insert new summary row.
         persistSummary(
@@ -195,12 +183,12 @@ public class SummarizeService implements DisposableBean {
     // -------------------------------------------------------------------------
 
     /**
-     * Rough token estimate for the first {@code limit} messages: total characters /
-     * CHARS_PER_TOKEN. Good enough for a threshold check; no need for a full tokenizer here.
+     * Rough token estimate for the first {@code limit} messages: total characters / charsPerToken.
+     * Good enough for a threshold check; no need for a full tokenizer here.
      */
     private int estimateTokens(List<ChatMessageEntity> messages, int limit) {
         return messages.stream().limit(limit).mapToInt(m -> m.getText().length()).sum()
-                / CHARS_PER_TOKEN;
+                / summarizeProperties.charsPerToken();
     }
 
     private String generateSummary(
@@ -235,9 +223,9 @@ public class SummarizeService implements DisposableBean {
                                 .append(m.getPosition())
                                 .append("] ")
                                 .append(m.getMessageType())
-                                .append(": \"")
+                                .append(": <msg>\n")
                                 .append(m.getText())
-                                .append("\"\n"));
+                                .append("\n</msg>\n"));
         if (collapseSummaries) {
             prompt.append(COLLAPSE_FOOTER);
         }
@@ -249,15 +237,17 @@ public class SummarizeService implements DisposableBean {
                 .content();
     }
 
-    private String buildSummaryText(String content, int lastIndex) {
-        return "Earlier conversation summary (first "
-                + lastIndex
-                + " messages):\n"
+    private String buildSummaryText(String content, long firstPosition, long lastPosition) {
+        return "Earlier conversation summary (messages "
+                + firstPosition
+                + "-"
+                + lastPosition
+                + "):\n"
                 + "<summary>\n"
                 + content
                 + "\n</summary>\n"
                 + "Continue from message "
-                + (lastIndex + 1)
+                + (lastPosition + 1)
                 + " onward. "
                 + "Treat the summary as authoritative context.";
     }
@@ -268,13 +258,6 @@ public class SummarizeService implements DisposableBean {
                 + content
                 + "\n</summary>\n"
                 + "Treat this as authoritative context for the entire conversation so far.";
-    }
-
-    public record SummarizeConfig(
-            int tokenThreshold, int messageCountThreshold, int overlapMessages) {}
-
-    public static SummarizeConfig config() {
-        return new SummarizeConfig(TOKEN_THRESHOLD, MESSAGE_COUNT_THRESHOLD, OVERLAP_MESSAGES);
     }
 
     /** Marks old messages as summarized and inserts the new summary row, atomically. */
@@ -300,7 +283,7 @@ public class SummarizeService implements DisposableBean {
                                     0L,
                                     conversationId,
                                     metaSummaryText,
-                                    MessageType.SYSTEM,
+                                    MessageType.ASSISTANT,
                                     lastMsg.getPosition(),
                                     false,
                                     true,

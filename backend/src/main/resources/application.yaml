@@ -82,6 +82,17 @@ kb:
     timeout:
       # SseEmitter timeout per browser tab subscription (replay/reconnect window).
       sse: ${KB_CHAT_SSE_TIMEOUT:30m}
+    summarize:
+      # Estimated token budget for the "live" messages window before summarization kicks in.
+      token-threshold: ${KB_CHAT_SUMMARIZE_TOKEN_THRESHOLD:3000}
+      # Minimum number of compressible messages before summarization kicks in.
+      message-count-threshold: ${KB_CHAT_SUMMARIZE_MESSAGE_COUNT_THRESHOLD:20}
+      # Recent messages kept outside the summarized window as live context.
+      overlap-messages: ${KB_CHAT_SUMMARIZE_OVERLAP_MESSAGES:10}
+      # Number of stored summaries that triggers collapsing them into one meta-summary.
+      summary-collapse-threshold: ${KB_CHAT_SUMMARIZE_SUMMARY_COLLAPSE_THRESHOLD:5}
+      # Characters per estimated token (rough heuristic, no real tokenizer).
+      chars-per-token: ${KB_CHAT_SUMMARIZE_CHARS_PER_TOKEN:4}
   documents:
     export-path: ${DOCUMENTS_EXPORT_PATH}
     replace: true
