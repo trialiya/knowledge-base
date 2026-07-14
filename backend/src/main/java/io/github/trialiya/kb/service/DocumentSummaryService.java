@@ -7,7 +7,6 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
@@ -65,7 +64,6 @@ public class DocumentSummaryService {
      * @throws ResponseStatusException 422 if the document has no description to summarise
      * @throws ResponseStatusException 409 on optimistic lock conflict
      */
-    @Transactional
     @Nullable
     public String summarize(DocumentEntity entity) {
         String summaryText =

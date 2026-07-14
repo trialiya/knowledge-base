@@ -230,7 +230,6 @@ public class AttachmentService implements DisposableBean {
      * @param id attachment id
      * @return updated attachment DTO with summary populated
      */
-    @Transactional
     public Attachment summarize(Long id) {
         AttachmentEntity entity = findOrThrow(id);
         if (entity.getContent() == null || entity.getContent().isBlank()) {

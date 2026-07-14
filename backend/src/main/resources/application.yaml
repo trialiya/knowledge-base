@@ -93,6 +93,22 @@ kb:
     # Number of documents sent to embedBatch() per slice during reindexAll().
     # Keep below OpenAI's per-request limit (~2 048 inputs / ~300 k tokens).
     reindex-batch-size: 50
+    # Max concurrent OpenAI embedding API calls (semaphore on virtual-thread executor).
+    workers: 4
+    # How many embedding_tasks rows to claim per scheduler poll.
+    poll-batch-size: 20
+    # Delay between scheduler polls in milliseconds.
+    poll-interval-ms: 1000
+    # Maximum attempts before a task is permanently marked failed.
+    max-attempts: 3
+    # Linear retry backoff: a failed task waits attempts * this many seconds before re-claim.
+    retry-backoff-seconds: 30
+    # Minutes a task may stay in 'starting' before the stuck-task reaper resets it.
+    stuck-timeout-minutes: 10
+    # Delay between stuck-task reaper runs in milliseconds.
+    stuck-check-ms: 300000
+    # Days to keep done/failed/superseded rows before cleanup deletes them.
+    cleanup-retention-days: 7
     cache:
       # Set to false to bypass the Postgres cache entirely (e.g. in tests).
       enabled: true
