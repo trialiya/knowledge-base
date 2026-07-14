@@ -152,6 +152,8 @@ kb:
         - searchDocuments
         - findDocumentsByName
         - getDocument
+        - getDocumentOutline
+        - getDocumentSection
         - getTreeSkeleton
   atlassian:
     jira:

@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import lombok.extern.slf4j.Slf4j;
@@ -359,6 +360,47 @@ public class DocumentService {
 
         tryIndex(saved.getId(), saved.getTitle(), saved.getDescription());
         return toDto(saved);
+    }
+
+    /**
+     * Applies a server-side transformation to the document's description (e.g. replacing a single
+     * markdown section) after verifying the caller has seen the current content version.
+     *
+     * <p>{@code expectedDescriptionVersion} guards the read-modify-write cycle spread across tool
+     * calls: the model reads the outline/section (which carries {@code descriptionVersion}),
+     * computes a replacement, and passes the version back. If the description changed in between,
+     * 409 is returned and the caller must re-read. The patch itself then flows through {@link
+     * #update}, so history snapshot, optimistic locking, {@code descriptionVersion} increment,
+     * summary staleness and embedding-task enqueueing (transactional outbox) behave exactly as for
+     * a full update.
+     *
+     * @param id document id
+     * @param expectedDescriptionVersion the {@code descriptionVersion} the caller read the content
+     *     at
+     * @param patch pure transformation of the current description (never null — an absent
+     *     description is passed as an empty string); runs inside this transaction
+     * @throws ResponseStatusException 404 if the document does not exist
+     * @throws ResponseStatusException 409 if the content version does not match or on optimistic
+     *     lock conflict
+     */
+    @Transactional
+    public Document patchDescription(
+            long id, int expectedDescriptionVersion, UnaryOperator<String> patch) {
+        DocumentEntity existing = findOrThrow(id);
+        if (existing.getDescriptionVersion() != expectedDescriptionVersion) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Document content has changed (current descriptionVersion="
+                            + existing.getDescriptionVersion()
+                            + ", expected "
+                            + expectedDescriptionVersion
+                            + "). Re-read the document or its outline and retry.");
+        }
+        String current = existing.getDescription() == null ? "" : existing.getDescription();
+
+        UpdateDocumentRequest req = new UpdateDocumentRequest();
+        req.setDescription(patch.apply(current));
+        return update(id, req);
     }
 
     /**

@@ -28,7 +28,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Integration tests for {@link DocumentService#move}.
+ * Integration tests for {@link DocumentService#move} and {@link DocumentService#patchDescription}.
  *
  * <p>Runs against in-memory H2 in PostgreSQL mode with the real {@code db/migration-h2} Flyway
  * schema, so the windowed shift queries ({@code shiftWindowUp} / {@code shiftWindowDown} / {@code
@@ -384,6 +384,69 @@ class DocumentServiceUnitTest {
             assertThatThrownBy(() -> service.move(top.getId(), mid.getId(), null))
                     .isInstanceOf(ResponseStatusException.class)
                     .satisfies(t -> assertThat(statusOf(t)).isEqualTo(HttpStatus.BAD_REQUEST));
+        }
+    }
+
+    // ── patchDescription: guarded read-modify-write of the content ───────────
+
+    @Nested
+    class PatchDescription {
+
+        private DocumentEntity docWithText(String description) {
+            DocumentEntity entity = doc("patched", null, 0);
+            entity.setDescription(description);
+            return repo.save(entity);
+        }
+
+        @Test
+        void appliesPatchAndFlowsThroughRegularUpdate() {
+            DocumentEntity doc = docWithText("# A\nold\n# B\nkeep\n");
+
+            service.patchDescription(doc.getId(), 1, current -> current.replace("old", "patched"));
+
+            DocumentEntity reloaded = repo.findById(doc.getId()).orElseThrow();
+            assertThat(reloaded.getDescription()).isEqualTo("# A\npatched\n# B\nkeep\n");
+            // went through update(): content change bumps descriptionVersion (summary staleness)
+            assertThat(reloaded.getDescriptionVersion()).isEqualTo(2);
+        }
+
+        @Test
+        void identityPatchKeepsDescriptionVersion() {
+            DocumentEntity doc = docWithText("# A\ntext\n");
+
+            service.patchDescription(doc.getId(), 1, current -> current);
+
+            assertThat(repo.findById(doc.getId()).orElseThrow().getDescriptionVersion())
+                    .isEqualTo(1);
+        }
+
+        @Test
+        void nullDescriptionIsPassedToPatchAsEmptyString() {
+            DocumentEntity doc = doc("empty", null, 1); // description = null
+
+            service.patchDescription(doc.getId(), 1, current -> current + "# New\ntext\n");
+
+            assertThat(repo.findById(doc.getId()).orElseThrow().getDescription())
+                    .isEqualTo("# New\ntext\n");
+        }
+
+        @Test
+        void rejectsStaleDescriptionVersionWithConflict() {
+            DocumentEntity doc = docWithText("# A\ntext\n");
+
+            assertThatThrownBy(() -> service.patchDescription(doc.getId(), 999, current -> current))
+                    .isInstanceOf(ResponseStatusException.class)
+                    .satisfies(t -> assertThat(statusOf(t)).isEqualTo(HttpStatus.CONFLICT))
+                    .hasMessageContaining("Re-read");
+            assertThat(repo.findById(doc.getId()).orElseThrow().getDescription())
+                    .isEqualTo("# A\ntext\n");
+        }
+
+        @Test
+        void missingDocumentYields404() {
+            assertThatThrownBy(() -> service.patchDescription(999_999L, 1, current -> current))
+                    .isInstanceOf(ResponseStatusException.class)
+                    .satisfies(t -> assertThat(statusOf(t)).isEqualTo(HttpStatus.NOT_FOUND));
         }
     }
 }

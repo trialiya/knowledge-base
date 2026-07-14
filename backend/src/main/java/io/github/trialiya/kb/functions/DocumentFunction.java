@@ -4,6 +4,8 @@ import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
 
 import io.github.trialiya.kb.model.doc.dto.CreateDocumentRequest;
 import io.github.trialiya.kb.model.doc.dto.DocumentNode;
+import io.github.trialiya.kb.model.doc.dto.DocumentOutline;
+import io.github.trialiya.kb.model.doc.dto.DocumentSection;
 import io.github.trialiya.kb.model.doc.dto.DocumentShort;
 import io.github.trialiya.kb.model.doc.dto.SearchResult;
 import io.github.trialiya.kb.model.doc.dto.UpdateDocumentRequest;
@@ -11,7 +13,9 @@ import io.github.trialiya.kb.service.AttachmentService;
 import io.github.trialiya.kb.service.DocumentService;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
+import io.github.trialiya.kb.utils.MarkdownSections;
 import java.util.List;
+import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
@@ -29,6 +33,9 @@ import org.springframework.ai.tool.annotation.ToolParam;
  *   <li>{@link #findDocumentsByName} — lookup by title (exact or partial match).
  *   <li>{@link #getTreeSkeleton} — lightweight flat list of all nodes (id/title/type only).
  *   <li>{@link #getDocument} — full content of a single node by id.
+ *   <li>{@link #getDocumentOutline} — markdown section outline of a document (no content).
+ *   <li>{@link #getDocumentSection} — content of a single markdown section.
+ *   <li>{@link #updateDocumentSection} — replace a single markdown section.
  *   <li>{@link #createDocument} — create a new document or folder.
  *   <li>{@link #updateDocument} — edit title and/or content of an existing document.
  *   <li>{@link #deleteDocument} — delete a document (and its descendants).
@@ -156,6 +163,193 @@ public class DocumentFunction {
             @ToolParam(description = "ID документа или папки") String documentId) {
         log.info("getDocument called: documentId={}", documentId);
         return documentService.getById(Long.parseLong(documentId));
+    }
+
+    // ── Markdown sections ─────────────────────────────────────────────────────
+
+    /**
+     * Returns the markdown outline of a document: section paths, levels, titles and sizes without
+     * any content. Cheap navigation entry point for large documents — the model picks a section and
+     * fetches/updates only it via {@link #getDocumentSection} / {@link #updateDocumentSection}.
+     *
+     * @param documentId document id
+     * @return outline with the current descriptionVersion and a flat, document-ordered section list
+     */
+    @Tool(
+            description =
+                    "Получить оглавление markdown-документа (секции без содержимого) — для "
+                            + "чтения и правки отдельных секций вместо всего документа.",
+            resultConverter = CompactToolResultConverter.class)
+    public DocumentOutline getDocumentOutline(
+            @ToolParam(description = "ID документа") String documentId) {
+        log.info("getDocumentOutline called: documentId={}", documentId);
+        DocumentNode node = requireDocument(documentId);
+        List<MarkdownSections.Section> sections = MarkdownSections.parse(descriptionOf(node));
+        return new DocumentOutline(
+                node.id(),
+                node.title(),
+                node.descriptionVersion(),
+                sections.stream()
+                        .map(
+                                s ->
+                                        new DocumentOutline.OutlineSection(
+                                                s.path(),
+                                                s.level(),
+                                                s.title(),
+                                                s.chars(),
+                                                s.subsections()))
+                        .toList());
+    }
+
+    /**
+     * Fetches a single markdown section (heading + body + subsections) of a document.
+     *
+     * @param documentId document id
+     * @param sectionPath section address from {@link #getDocumentOutline}
+     * @return section content with the current descriptionVersion
+     */
+    @Tool(
+            description =
+                    "Прочитать одну секцию markdown-документа (заголовок + содержимое + "
+                            + "подсекции), не загружая весь документ.",
+            resultConverter = CompactToolResultConverter.class)
+    public DocumentSection getDocumentSection(
+            @ToolParam(description = "ID документа") String documentId,
+            @ToolParam(
+                            description =
+                                    "Путь секции из getDocumentOutline, например "
+                                            + "\"Установка > Docker\"")
+                    String sectionPath) {
+        log.info(
+                "getDocumentSection called: documentId={} sectionPath='{}'",
+                documentId,
+                sectionPath);
+        DocumentNode node = requireDocument(documentId);
+        String description = descriptionOf(node);
+        MarkdownSections.Section section = findSectionOrThrow(description, sectionPath);
+        return new DocumentSection(
+                node.id(),
+                section.path(),
+                node.descriptionVersion(),
+                description.substring(section.startOffset(), section.endOffset()));
+    }
+
+    /**
+     * Replaces a single markdown section (the whole subtree: heading + body + subsections) without
+     * transferring the rest of the document. The splice happens server-side inside one transaction.
+     *
+     * <p>Two safety checks:
+     *
+     * <ul>
+     *   <li>Read-before-write guard (same idea as {@link #updateDocument}): the section must have
+     *       been read via {@link #getDocumentSection} (same path) or {@link #getDocument} earlier
+     *       in the same chat-response session, unless {@code forceOverwrite=true}.
+     *   <li>{@code expectedDescriptionVersion} (from outline/section) is compared with the current
+     *       one inside the transaction — a concurrent edit yields a conflict error instead of
+     *       splicing against stale section boundaries.
+     * </ul>
+     *
+     * @param context tool context (provides the per-response tool invocation log)
+     * @param documentId document id
+     * @param sectionPath section address from {@link #getDocumentOutline}
+     * @param newContent full replacement text of the section, starting with its heading
+     * @param expectedDescriptionVersion descriptionVersion the section/outline was read at
+     * @param forceOverwrite skip the read-before-write check (intentional blind replace)
+     * @return updated document
+     */
+    @Tool(
+            description =
+                    "Заменить одну секцию markdown-документа (заголовок + содержимое + "
+                            + "подсекции), не передавая весь документ. Перед правкой прочитай "
+                            + "секцию (getDocumentSection) или документ (getDocument) в этом же "
+                            + "ответе.",
+            resultConverter = CompactToolResultConverter.class)
+    public DocumentShort updateDocumentSection(
+            ToolContext context,
+            @ToolParam(description = "ID документа") long documentId,
+            @ToolParam(
+                            description =
+                                    "Путь секции из getDocumentOutline; _preamble — текст до "
+                                            + "первого заголовка")
+                    String sectionPath,
+            @ToolParam(
+                            description =
+                                    "Полный новый текст секции, начиная с её заголовка "
+                                            + "('## Название'). Ссылки на другие документы: "
+                                            + "[Название](/?doc=ID).")
+                    String newContent,
+            @ToolParam(description = "descriptionVersion из getDocumentOutline/getDocumentSection")
+                    int expectedDescriptionVersion,
+            @ToolParam(
+                            description = "true — заменить секцию без предварительного чтения",
+                            required = false)
+                    @Nullable Boolean forceOverwrite) {
+
+        log.info(
+                "updateDocumentSection called: id={} sectionPath='{}' expectedDescVer={} "
+                        + "forceOverwrite={}",
+                documentId,
+                sectionPath,
+                expectedDescriptionVersion,
+                forceOverwrite);
+
+        if (!Boolean.TRUE.equals(forceOverwrite)) {
+            requireSectionReadInThisResponse(context, documentId, sectionPath);
+        }
+        if (newContent.isBlank()) {
+            throw new IllegalArgumentException(
+                    "newContent пуст. Передай полный новый текст секции, начиная с её заголовка.");
+        }
+        if (!MarkdownSections.PREAMBLE_PATH.equals(sectionPath)
+                && !newContent.strip().matches("(?s)#{1,6}[ \\t].*")) {
+            throw new IllegalArgumentException(
+                    "newContent должен начинаться с markdown-заголовка секции (например "
+                            + "'## Название') — заменяется вся секция вместе с заголовком.");
+        }
+
+        return documentService
+                .patchDescription(
+                        documentId,
+                        expectedDescriptionVersion,
+                        current ->
+                                MarkdownSections.replaceSection(
+                                        current,
+                                        findSectionOrThrow(current, sectionPath),
+                                        newContent))
+                .toDocumentShort();
+    }
+
+    /** Loads a node by id or fails with a model-readable error (getById returns null quietly). */
+    private DocumentNode requireDocument(String documentId) {
+        DocumentNode node = documentService.getById(Long.parseLong(documentId));
+        if (node == null) {
+            throw new IllegalArgumentException("Документ id=" + documentId + " не найден.");
+        }
+        return node;
+    }
+
+    private static String descriptionOf(DocumentNode node) {
+        return node.description() == null ? "" : node.description();
+    }
+
+    private static MarkdownSections.Section findSectionOrThrow(
+            String markdown, String sectionPath) {
+        List<MarkdownSections.Section> sections = MarkdownSections.parse(markdown);
+        return sections.stream()
+                .filter(s -> s.path().equals(sectionPath))
+                .findFirst()
+                .orElseThrow(
+                        () ->
+                                new IllegalArgumentException(
+                                        "Секция '"
+                                                + sectionPath
+                                                + "' не найдена. Доступные секции: "
+                                                + sections.stream()
+                                                        .map(MarkdownSections.Section::path)
+                                                        .limit(50)
+                                                        .collect(Collectors.joining(", "))
+                                                + ". Вызови getDocumentOutline для актуального "
+                                                + "оглавления."));
     }
 
     /**
@@ -293,6 +487,54 @@ public class DocumentFunction {
                             + "), чтобы увидеть текущее содержимое и не потерять данные, затем "
                             + "повтори updateDocument. Если нужно намеренно полностью переписать "
                             + "содержимое без чтения — повтори вызов с forceOverwrite=true.");
+        }
+    }
+
+    /**
+     * Section flavour of the read-before-write guard: the update is allowed after a successful
+     * {@link #getDocumentSection} of the same document+section or a successful {@link #getDocument}
+     * of the whole document within the same chat-response session. When no {@link
+     * ToolInvocationCollector} is present in the context (background jobs, tests), the check is
+     * skipped.
+     */
+    private static void requireSectionReadInThisResponse(
+            ToolContext context, long documentId, String sectionPath) {
+        final ToolInvocationCollector collector = ToolInvocationCollector.from(context);
+        if (collector == null) {
+            return;
+        }
+        final String id = String.valueOf(documentId);
+        final boolean wasRead =
+                collector.snapshot().stream()
+                        .filter(
+                                inv ->
+                                        ToolInvocationCollector.ToolInvocationStatus.OK
+                                                        == inv.status()
+                                                && id.equals(
+                                                        String.valueOf(
+                                                                inv.arguments().get("documentId"))))
+                        .anyMatch(
+                                inv ->
+                                        "getDocument".equals(inv.name())
+                                                || ("getDocumentSection".equals(inv.name())
+                                                        && sectionPath.equals(
+                                                                inv.arguments()
+                                                                        .get("sectionPath"))));
+        if (!wasRead) {
+            throw new IllegalStateException(
+                    "Секция '"
+                            + sectionPath
+                            + "' документа id="
+                            + documentId
+                            + " НЕ обновлена: её содержимое не было прочитано в этом ответе. "
+                            + "Сначала вызови getDocumentSection(documentId="
+                            + documentId
+                            + ", sectionPath=\""
+                            + sectionPath
+                            + "\") или getDocument(documentId="
+                            + documentId
+                            + "), затем повтори updateDocumentSection. Если нужно намеренно "
+                            + "заменить секцию без чтения — повтори вызов с forceOverwrite=true.");
         }
     }
 
