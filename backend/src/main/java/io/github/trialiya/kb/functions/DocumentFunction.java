@@ -243,7 +243,7 @@ public class DocumentFunction {
      * <ul>
      *   <li>Read-before-write guard (same idea as {@link #updateDocument}): the section must have
      *       been read via {@link #getDocumentSection} (same path) or {@link #getDocument} earlier
-     *       in the same chat-response session, unless {@code forceOverwrite=true}.
+     *       in the same chat-response session.
      *   <li>{@code expectedDescriptionVersion} (from outline/section) is compared with the current
      *       one inside the transaction — a concurrent edit yields a conflict error instead of
      *       splicing against stale section boundaries.
@@ -254,7 +254,6 @@ public class DocumentFunction {
      * @param sectionPath section address from {@link #getDocumentOutline}
      * @param newContent full replacement text of the section, starting with its heading
      * @param expectedDescriptionVersion descriptionVersion the section/outline was read at
-     * @param forceOverwrite skip the read-before-write check (intentional blind replace)
      * @return updated document
      */
     @Tool(
@@ -279,23 +278,15 @@ public class DocumentFunction {
                                             + "[Название](/?doc=ID).")
                     String newContent,
             @ToolParam(description = "descriptionVersion из getDocumentOutline/getDocumentSection")
-                    int expectedDescriptionVersion,
-            @ToolParam(
-                            description = "true — заменить секцию без предварительного чтения",
-                            required = false)
-                    @Nullable Boolean forceOverwrite) {
+                    int expectedDescriptionVersion) {
 
         log.info(
-                "updateDocumentSection called: id={} sectionPath='{}' expectedDescVer={} "
-                        + "forceOverwrite={}",
+                "updateDocumentSection called: id={} sectionPath='{}' expectedDescVer={}",
                 documentId,
                 sectionPath,
-                expectedDescriptionVersion,
-                forceOverwrite);
+                expectedDescriptionVersion);
 
-        if (!Boolean.TRUE.equals(forceOverwrite)) {
-            requireSectionReadInThisResponse(context, documentId, sectionPath);
-        }
+        requireSectionReadInThisResponse(context, documentId, sectionPath);
         if (newContent.isBlank()) {
             throw new IllegalArgumentException(
                     "newContent пуст. Передай полный новый текст секции, начиная с её заголовка.");
@@ -400,14 +391,12 @@ public class DocumentFunction {
      * <p>Guard: a content update ({@code description != null}) is rejected unless this document was
      * already read via {@link #getDocument} earlier in the same chat-response session (checked
      * against the request-scoped {@link ToolInvocationCollector}). This prevents the model from
-     * blindly overwriting content it has never seen. Pass {@code forceOverwrite=true} to skip the
-     * check when a full rewrite is intended.
+     * blindly overwriting content it has never seen.
      *
      * @param context tool context (provides the per-response tool invocation log)
      * @param documentId document id
      * @param title new title (null to keep current)
      * @param description new content (null to keep current)
-     * @param forceOverwrite skip the read-before-write check (intentional full rewrite)
      * @return updated document
      */
     @Tool(
@@ -415,8 +404,7 @@ public class DocumentFunction {
                     "Обновить существующий документ: изменить название и/или содержимое. "
                             + "Передай только те поля, которые нужно изменить. "
                             + "Перед изменением содержимого документ должен быть прочитан через "
-                            + "getDocument в этом же ответе. Если нужно намеренно полностью "
-                            + "переписать содержимое без чтения — передай forceOverwrite=true.",
+                            + "getDocument в этом же ответе.",
             resultConverter = CompactToolResultConverter.class)
     public DocumentShort updateDocument(
             ToolContext context,
@@ -430,21 +418,11 @@ public class DocumentFunction {
                                     "Новое содержимое (null чтобы оставить текущее). "
                                             + "Ссылки на другие документы базы знаний оформляй как [Название](/?doc=ID).",
                             required = false)
-                    @Nullable String description,
-            @ToolParam(
-                            description =
-                                    "true — намеренно переписать содержимое без предварительного "
-                                            + "чтения документа (пропускает проверку)",
-                            required = false)
-                    @Nullable Boolean forceOverwrite) {
+                    @Nullable String description) {
 
-        log.info(
-                "updateDocument called: id={} title='{}' forceOverwrite={}",
-                documentId,
-                title,
-                forceOverwrite);
+        log.info("updateDocument called: id={} title='{}'", documentId, title);
 
-        if (description != null && !Boolean.TRUE.equals(forceOverwrite)) {
+        if (description != null) {
             requireReadInThisResponse(context, documentId);
         }
 
@@ -485,8 +463,7 @@ public class DocumentFunction {
                             + "Сначала вызови getDocument(documentId="
                             + documentId
                             + "), чтобы увидеть текущее содержимое и не потерять данные, затем "
-                            + "повтори updateDocument. Если нужно намеренно полностью переписать "
-                            + "содержимое без чтения — повтори вызов с forceOverwrite=true.");
+                            + "повтори updateDocument.");
         }
     }
 
@@ -533,8 +510,7 @@ public class DocumentFunction {
                             + sectionPath
                             + "\") или getDocument(documentId="
                             + documentId
-                            + "), затем повтори updateDocumentSection. Если нужно намеренно "
-                            + "заменить секцию без чтения — повтори вызов с forceOverwrite=true.");
+                            + "), затем повтори updateDocumentSection.");
         }
     }
 

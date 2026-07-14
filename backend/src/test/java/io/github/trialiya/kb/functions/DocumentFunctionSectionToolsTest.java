@@ -138,8 +138,7 @@ class DocumentFunctionSectionToolsTest {
             assertThatThrownBy(() -> updateSection("## Установка\nnew"))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("НЕ обновлена")
-                    .hasMessageContaining("getDocumentSection")
-                    .hasMessageContaining("forceOverwrite");
+                    .hasMessageContaining("getDocumentSection");
             Mockito.verify(documentService, never()).patchDescription(anyLong(), anyInt(), any());
         }
 
@@ -185,22 +184,6 @@ class DocumentFunctionSectionToolsTest {
         }
 
         @Test
-        void forceOverwriteSkipsTheCheck() {
-            stubPatch();
-
-            assertThatCode(
-                            () ->
-                                    function.updateDocumentSection(
-                                            context,
-                                            DOC_ID,
-                                            "Гайд > Установка",
-                                            "## Установка\nnew",
-                                            3,
-                                            true))
-                    .doesNotThrowAnyException();
-        }
-
-        @Test
         void missingCollectorSkipsTheCheck() {
             stubPatch();
             ToolContext noCollector = new ToolContext(Map.of());
@@ -212,14 +195,12 @@ class DocumentFunctionSectionToolsTest {
                                             DOC_ID,
                                             "Гайд > Установка",
                                             "## Установка\nnew",
-                                            3,
-                                            null))
+                                            3))
                     .doesNotThrowAnyException();
         }
 
         private void updateSection(String newContent) {
-            function.updateDocumentSection(
-                    context, DOC_ID, "Гайд > Установка", newContent, 3, null);
+            function.updateDocumentSection(context, DOC_ID, "Гайд > Установка", newContent, 3);
         }
     }
 
@@ -236,7 +217,7 @@ class DocumentFunctionSectionToolsTest {
             AtomicReference<String> patched = stubPatch();
 
             function.updateDocumentSection(
-                    context, DOC_ID, "Гайд > Установка", "## Установка\nnew install", 3, null);
+                    context, DOC_ID, "Гайд > Установка", "## Установка\nnew install", 3);
 
             assertThat(patched.get())
                     .isEqualTo("# Гайд\nintro\n## Установка\nnew install\n\n## FAQ\nq&a\n");
@@ -249,7 +230,7 @@ class DocumentFunctionSectionToolsTest {
             assertThatThrownBy(
                             () ->
                                     function.updateDocumentSection(
-                                            context, DOC_ID, "Гайд > Нет", "## Нет\nx", 3, true))
+                                            context, DOC_ID, "Гайд > Нет", "## Нет\nx", 3))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("не найдена");
         }
@@ -259,7 +240,7 @@ class DocumentFunctionSectionToolsTest {
             assertThatThrownBy(
                             () ->
                                     function.updateDocumentSection(
-                                            context, DOC_ID, "Гайд > Установка", "  ", 3, null))
+                                            context, DOC_ID, "Гайд > Установка", "  ", 3))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("пуст");
         }
@@ -273,8 +254,7 @@ class DocumentFunctionSectionToolsTest {
                                             DOC_ID,
                                             "Гайд > Установка",
                                             "просто текст без заголовка",
-                                            3,
-                                            null))
+                                            3))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("заголовка");
         }
@@ -285,8 +265,7 @@ class DocumentFunctionSectionToolsTest {
             when(documentService.getById(DOC_ID)).thenReturn(node(md));
             AtomicReference<String> patched = stubPatch(md);
 
-            function.updateDocumentSection(
-                    context, DOC_ID, "_preamble", "новое вступление", 3, true);
+            function.updateDocumentSection(context, DOC_ID, "_preamble", "новое вступление", 3);
 
             assertThat(patched.get()).isEqualTo("новое вступление\n\n# Гайд\ntext\n");
         }
