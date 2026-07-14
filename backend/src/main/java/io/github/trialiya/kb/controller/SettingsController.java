@@ -5,7 +5,7 @@ import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.ChatModelProperties.ModelOption;
 import io.github.trialiya.kb.config.model.EmbeddingConfiguration;
 import io.github.trialiya.kb.config.model.SubAgentConfig;
-import io.github.trialiya.kb.service.SummarizeService;
+import io.github.trialiya.kb.config.model.SummarizeProperties;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.openai.OpenAiChatModel;
@@ -24,13 +24,15 @@ public class SettingsController {
     private final @Nullable Double chatTemperature;
     private final @Nullable Double chatTopP;
     private final AtlassianConfiguration atlassianConfiguration;
+    private final SummarizeProperties summarizeProperties;
 
     public SettingsController(
             ChatModelProperties chatModelProperties,
             EmbeddingConfiguration embeddingConfiguration,
             SubAgentConfig subAgentConfig,
             OpenAiChatModel openAiChatModel,
-            AtlassianConfiguration atlassianConfiguration) {
+            AtlassianConfiguration atlassianConfiguration,
+            SummarizeProperties summarizeProperties) {
         this.chatModelProperties = chatModelProperties;
         this.embeddingConfiguration = embeddingConfiguration;
         this.subAgentConfig = subAgentConfig;
@@ -38,6 +40,7 @@ public class SettingsController {
         this.chatTemperature = openAiChatModel.getDefaultOptions().getTemperature();
         this.chatTopP = openAiChatModel.getDefaultOptions().getTopP();
         this.atlassianConfiguration = atlassianConfiguration;
+        this.summarizeProperties = summarizeProperties;
     }
 
     /** Full AI configuration snapshot consumed by the Settings → Модели panel. */
@@ -62,14 +65,14 @@ public class SettingsController {
                         subAgentConfig.modelId(),
                         subAgentConfig.maxTokens(),
                         subAgentConfig.maxIterations()),
-                SummarizeService.config());
+                summarizeProperties);
     }
 
     public record AiConfigResponse(
             ChatSection chat,
             EmbeddingSection embedding,
             SearchCodebaseSection searchCodebase,
-            SummarizeService.SummarizeConfig summarize) {}
+            SummarizeProperties summarize) {}
 
     public record ChatSection(
             ModelOption defaultModel, List<ModelOption> models, ChatOptions options) {}
