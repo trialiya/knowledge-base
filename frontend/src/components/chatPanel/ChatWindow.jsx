@@ -476,7 +476,9 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   const handleRetryMessage = useCallback(
     (mid) => {
       const chat = chatsRef.current.find((c) => c.id === activeChatId);
-      if (!chat || chat.runId || pendingRunChatId) return; // во время генерации повтор недоступен
+      // Во время генерации/ожидания старта В ЭТОМ чате повтор недоступен;
+      // pending в другом чате повтору здесь не мешает (как и в isStreaming).
+      if (!chat || chat.runId || pendingRunChatId === activeChatId) return;
       const msgs = chat.messages || [];
       const index = msgs.findIndex((m) => m.mid === mid);
       const target = index >= 0 ? msgs[index] : null;
@@ -706,22 +708,24 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
 
       {/* ── Center: chat window ── */}
       <div className="chat-window">
-        <ChatHeader
-          chat={activeChat}
-          modelConfig={modelConfig}
-          modelOptions={modelOptions}
-          selectedModelId={selectedModelId}
-          isStreaming={isStreaming}
-          canSearch={canSearchChat}
-          searchOpen={inChatSearch.open}
-          onToggleSearch={() => (inChatSearch.open ? inChatSearch.close() : inChatSearch.openBar())}
-          attachPanelOpen={attachPanelOpen}
-          attachCount={attachCount}
-          onToggleAttach={() => setAttachPanelOpen((v) => !v)}
-          onRename={renameChat}
-          onDelete={handleDeleteChat}
-          onModelChange={handleModelChange}
-        />
+        {activeChat && (
+          <ChatHeader
+            chat={activeChat}
+            modelConfig={modelConfig}
+            modelOptions={modelOptions}
+            selectedModelId={selectedModelId}
+            isStreaming={isStreaming}
+            canSearch={canSearchChat}
+            searchOpen={inChatSearch.open}
+            onToggleSearch={() => (inChatSearch.open ? inChatSearch.close() : inChatSearch.openBar())}
+            attachPanelOpen={attachPanelOpen}
+            attachCount={attachCount}
+            onToggleAttach={() => setAttachPanelOpen((v) => !v)}
+            onRename={renameChat}
+            onDelete={handleDeleteChat}
+            onModelChange={handleModelChange}
+          />
+        )}
 
         {inChatSearch.open && canSearchChat && (
           <ChatSearchBar

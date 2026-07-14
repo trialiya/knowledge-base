@@ -17,6 +17,9 @@ const DocChangeBlock = ({ toolCalls, onNavigateToDoc }) => {
   const [target, setTarget] = useState(null); // { id, version, title, action } | null
 
   // Одна строка на документ: максимальная версия + первый непустой title.
+  // Вызовы со статусом ERROR пропускаются целиком: упавшая мутация не создала
+  // новой версии, и её пропуск НЕ трогает уже учтённые успешные правки того же
+  // документа — они остаются в byId со своей версией.
   const changes = useMemo(() => {
     const byId = new Map();
     for (const tc of toolCalls || []) {
@@ -27,6 +30,8 @@ const DocChangeBlock = ({ toolCalls, onNavigateToDoc }) => {
       if (!cur) {
         byId.set(ref.id, { ...ref, title });
       } else {
+        // cur — свежий объект, созданный спредом в ЭТОМ же проходе memo;
+        // мутация локальна и не задевает toolCalls/props.
         if ((ref.descriptionVersion ?? 0) > (cur.descriptionVersion ?? 0)) {
           cur.descriptionVersion = ref.descriptionVersion;
           cur.action = ref.action;

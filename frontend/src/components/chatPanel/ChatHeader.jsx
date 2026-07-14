@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import ModelSelector from './ModelSelector';
 import { IconPaperclip, IconTrash, IconSearch } from '../../icons';
@@ -9,8 +9,12 @@ import { IconPaperclip, IconTrash, IconSearch } from '../../icons';
  * состояние редактирования заголовка живёт здесь и не ре-рендерит оркестратор
  * на каждый keystroke.
  *
+ * `chat` обязателен (не null) — условие рендера держит вызывающая сторона
+ * (ChatWindow: activeChat && <ChatHeader …/>). Так внутри нет раннего return
+ * между хуками и JSX, о который легко споткнуться, добавляя хук ниже него.
+ *
  * props:
- *   chat            — активный чат (null → шапка не рендерится)
+ *   chat            — активный чат (обязателен)
  *   modelConfig, modelOptions, selectedModelId — конфиг селектора модели
  *   isStreaming     — идёт генерация (блокирует селектор модели)
  *   canSearch       — доступен ли find-бар для этого чата
@@ -40,38 +44,53 @@ const ChatHeader = ({
   onModelChange,
 }) => {
   const { t } = useTranslation('chat');
-  const [editingTitle, setEditingTitle] = useState(false);
-  const [titleDraft, setTitleDraft] = useState('');
+  // Черновик переименования. Храним ВМЕСТЕ с id чата, для которого оно началось:
+  // активный чат может смениться до blur (выбор в поиске, синхронизация из другой
+  // вкладки), и коммит по текущему chat.id переименовал бы другой чат текстом
+  // первого. Коммит проверяет, что редактируемый чат всё ещё активен.
+  const [editing, setEditing] = useState(null); // null | { id, draft }
+  // Отмена по Escape: blur после него приходит с уже устаревшим замыканием,
+  // поэтому флаг живёт в ref и гасится в самом обработчике blur.
+  const cancelRef = useRef(false);
 
-  if (!chat) return null;
+  // Смена активного чата сбрасывает незавершённое редактирование заголовка.
+  const chatId = chat.id;
+  useEffect(() => {
+    setEditing(null);
+    cancelRef.current = false;
+  }, [chatId]);
+
+  const commitRename = () => {
+    const cancelled = cancelRef.current;
+    cancelRef.current = false;
+    if (!cancelled && editing && editing.draft.trim() && editing.id === chat.id) {
+      onRename(editing.id, editing.draft.trim());
+    }
+    setEditing(null);
+  };
 
   return (
     <div className="chat-header">
       <div className="chat-header-title">
-        {editingTitle ? (
+        {editing ? (
           <input
             className="chat-header-edit"
-            value={titleDraft}
+            value={editing.draft}
             autoFocus
-            onChange={(e) => setTitleDraft(e.target.value)}
-            onBlur={() => {
-              if (titleDraft.trim()) onRename(chat.id, titleDraft.trim());
-              setEditingTitle(false);
-            }}
+            onChange={(e) => setEditing((ed) => (ed ? { ...ed, draft: e.target.value } : ed))}
+            onBlur={commitRename}
             onKeyDown={(e) => {
               if (e.key === 'Enter') e.target.blur();
               if (e.key === 'Escape') {
-                setEditingTitle(false);
+                cancelRef.current = true;
+                e.target.blur();
               }
             }}
           />
         ) : (
           <h3
             title={t('window.renameHint')}
-            onClick={() => {
-              setTitleDraft(chat.title);
-              setEditingTitle(true);
-            }}
+            onClick={() => setEditing({ id: chat.id, draft: chat.title })}
           >
             {chat.title}
           </h3>
