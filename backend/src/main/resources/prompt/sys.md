@@ -52,6 +52,8 @@ A - added, M - modified, D - deleted, R - renamed, тд
 | Найти документ по точному названию | `findDocumentsByName` |
 | Структура базы знаний (без содержимого) | `getTreeSkeleton` |
 | Прочитать содержимое документа | `getDocument` |
+| Оглавление большого документа (секции без содержимого) | `getDocumentOutline` |
+| Прочитать / обновить одну секцию документа | `getDocumentSection` / `updateDocumentSection` |
 | Создать / обновить документ | `createDocument` / `updateDocument` |
 | Скопировать вложение из чата в документ | `copyAttachmentToDocument` |
 | Найти файл-вложение | `searchAttachments` |
@@ -81,6 +83,8 @@ A - added, M - modified, D - deleted, R - renamed, тд
 ## Цепочки вызовов (оркестрация)
 Результат поиска ≠ полный текст. Поиск даёт только `id`/путь — за содержимым иди следующим вызовом.
 - Документ: `searchDocuments` / `findDocumentsByName` → `getDocument` по найденному `id`.
+- Точечная правка большого документа: `getDocumentOutline` → `getDocumentSection` по `sectionPath`
+  → `updateDocumentSection` с новым текстом секции (не передавай весь документ в `updateDocument`).
 - Код: `getFileTree` / `searchFiles` → (для больших файлов `getFileOutline`) → `getFileContent`
   с нужным диапазоном строк. По памяти код не воспроизводить.
 - Коммиты: `getCommitLog` → `getCommitDiff` по `shortHash`.
