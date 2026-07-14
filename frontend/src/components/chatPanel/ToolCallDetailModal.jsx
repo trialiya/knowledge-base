@@ -89,7 +89,7 @@ const ToolCallDetailModal = ({ conversationId, runId, callIndex, tc, onClose }) 
 
   return ReactDOM.createPortal(
     <div className="tcd-overlay" onClick={onClose}>
-      <div className="tcd-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="tcd-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="tcd-header">
           <span className="tcd-title">
             <span className="tcd-icon" aria-hidden="true">

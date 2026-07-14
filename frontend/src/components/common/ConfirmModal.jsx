@@ -20,7 +20,7 @@ const ConfirmModal = ({ open, icon = '⚠️', title, message, confirmLabel, can
 
   return (
     <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal confirm-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="modal confirm-modal" role="alertdialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="confirm-modal__header">
           <span className="confirm-modal__icon" aria-hidden="true">
             {icon}

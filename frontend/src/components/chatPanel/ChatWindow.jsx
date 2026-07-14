@@ -291,6 +291,10 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       // e.key даёт символ раскладки («а»), и проверка только по key ломает шорткат.
       if (e.key !== 'f' && e.key !== 'F' && e.code !== 'KeyF') return;
       if (!canSearchChat) return;
+      // Модалка поверх чата (детали tool-call, создание Jira-чата, подтверждения и
+      // т.п.) — не открываем find-бар чата под ней, иначе браузерный Ctrl+F внутри
+      // модалки не работает: наш бар всплывает и перехватывает фокус первым.
+      if (document.querySelector('[aria-modal="true"]')) return;
       e.preventDefault();
       if (inChatSearch.open) {
         inChatSearchInputRef.current?.focus();

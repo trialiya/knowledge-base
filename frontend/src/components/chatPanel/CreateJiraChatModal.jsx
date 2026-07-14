@@ -51,7 +51,7 @@ const CreateJiraChatModal = ({ open, onClose, onCreate, confluenceConfigured }) 
 
   return (
     <div className="jira-modal-backdrop" onClick={handleBackdrop}>
-      <div className="jira-modal">
+      <div className="jira-modal" role="dialog" aria-modal="true">
         <div className="jira-modal__header">
           <span className="jira-modal__title">{t('jiraModal.title')}</span>
           <button className="jira-modal__close" onClick={onClose} title={t('common:close')}>

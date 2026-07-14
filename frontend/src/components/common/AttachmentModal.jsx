@@ -46,7 +46,7 @@ const AttachmentModal = ({ attachment, mode, onClose }) => {
 
   return (
     <div className="attachment-viewer-overlay" onClick={onClose}>
-      <div className="attachment-viewer" onClick={(e) => e.stopPropagation()}>
+      <div className="attachment-viewer" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="attachment-viewer__header">
           <span className="attachment-viewer__name">{title}</span>
           <button className="detail-icon-btn" onClick={onClose} title={t('close')}>
