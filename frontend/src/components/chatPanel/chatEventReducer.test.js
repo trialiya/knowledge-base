@@ -74,4 +74,45 @@ describe('applyChatEvent', () => {
     );
     expect(after).toBe(before); // no change
   });
+
+  test('TOOL_CALLS metas with distinct callIndex stay separate even with identical args', () => {
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    const meta = { name: 'getDocument', arguments: { id: 5 }, status: 'OK' };
+    chat = applyChatEvent(
+      chat,
+      {
+        type: 'TOOL_CALLS',
+        runId: 'r1',
+        payload: {
+          toolCalls: [
+            { ...meta, callIndex: 0 },
+            { ...meta, callIndex: 1 },
+          ],
+        },
+      },
+      ctx,
+    );
+    expect(last(chat).toolCalls).toHaveLength(2);
+  });
+
+  test('final TOOL_CALLS meta merges into the live TOOL_CALL entry (no callIndex on the live one)', () => {
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(
+      chat,
+      { type: 'TOOL_CALL', runId: 'r1', payload: { toolCall: { name: 'getDocument', arguments: { id: 5 }, status: 'STARTED' } } },
+      ctx,
+    );
+    chat = applyChatEvent(
+      chat,
+      {
+        type: 'TOOL_CALLS',
+        runId: 'r1',
+        payload: { toolCalls: [{ name: 'getDocument', arguments: { id: 5 }, status: 'OK', callIndex: 0 }] },
+      },
+      ctx,
+    );
+    const calls = last(chat).toolCalls;
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ status: 'OK', callIndex: 0 });
+  });
 });

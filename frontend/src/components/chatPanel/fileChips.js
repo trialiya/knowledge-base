@@ -6,6 +6,9 @@
 
 import gitApi from '../../api/gitApi';
 import documentsApi from '../../api/documentsApi';
+// i18n-инстанс напрямую: модуль не компонент, useTranslation здесь недоступен.
+// Строки уходят в текст отправляемого сообщения и следуют языку интерфейса.
+import i18n from '../../i18n';
 
 const OPEN = '⟦'; // ⟦
 const CLOSE = '⟧'; // ⟧
@@ -119,7 +122,7 @@ export async function expandTokensForSend(text) {
     tokens.map(async (m) => {
       const docRefParsed = parseDocRefToken(m[0]);
       if (docRefParsed) {
-        return `Документ «${docRefParsed.title}» (#${docRefParsed.id})`;
+        return i18n.t('chat:fileChips.docRef', { title: docRefParsed.title, id: docRefParsed.id });
       }
 
       const docParsed = parseDocToken(m[0]);
@@ -128,9 +131,9 @@ export async function expandTokensForSend(text) {
           const doc = await documentsApi.fetchById(docParsed.id);
           const title = doc?.title ?? docParsed.title;
           const description = doc?.description ?? '';
-          return `\n\nДокумент «${title}» (#${docParsed.id}):\n${description}\n`;
+          return `\n\n${i18n.t('chat:fileChips.docHeader', { title, id: docParsed.id })}\n${description}\n`;
         } catch {
-          return `\n\n[Документ #${docParsed.id}: не удалось загрузить]\n`;
+          return `\n\n${i18n.t('chat:fileChips.docLoadFailed', { id: docParsed.id })}\n`;
         }
       }
 
@@ -143,13 +146,13 @@ export async function expandTokensForSend(text) {
       try {
         const data = await fetchContent(path, from, to);
         const range = from != null && to != null ? ` (${from}–${to})` : '';
-        if (data?.binary) return `\n\n\`${path}\`${range}: [бинарный файл]\n`;
+        if (data?.binary) return `\n\n\`${path}\`${range}: ${i18n.t('chat:fileChips.binaryFile')}\n`;
         const content = data?.content ?? '';
         const fence = fenceFor(content);
         const lang = data?.language || '';
         return `\n\n\`${path}\`${range}:\n${fence}${lang}\n${content}\n${fence}\n`;
       } catch {
-        return `\n\n\`${path}\`: [не удалось прочитать файл]\n`;
+        return `\n\n\`${path}\`: ${i18n.t('chat:fileChips.readFailed')}\n`;
       }
     }),
   );
