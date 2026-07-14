@@ -125,7 +125,7 @@ export async function expandTokensForSend(text) {
       const docParsed = parseDocToken(m[0]);
       if (docParsed) {
         try {
-          const doc = await documentsApi.getById(docParsed.id);
+          const doc = await documentsApi.fetchById(docParsed.id);
           const title = doc?.title ?? docParsed.title;
           const description = doc?.description ?? '';
           return `\n\nДокумент «${title}» (#${docParsed.id}):\n${description}\n`;

@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconTrash, IconDoc, IconEye, IconUpload, IconSummarize } from '../knowledgeBasePanel/icons';
-import attachmentApi, { formatFileSize } from './attachmentApi';
+import { IconTrash, IconDoc, IconEye, IconUpload, IconSummarize } from '../../icons';
+import attachmentApi from '../../api/attachmentApi';
+import { formatFileSize } from '../../utils/formatting';
 import AttachmentModal from './AttachmentModal';
 import ConfirmModal from './ConfirmModal';
 import ErrorModal from './ErrorModal';
+import './attachmentPanel.css';
 
 // ─── Main component ──────────────────────────────────────────────────────────
 

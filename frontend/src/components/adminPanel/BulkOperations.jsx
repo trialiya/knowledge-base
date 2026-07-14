@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SettingsContentHead, SettingsSection } from '../common/SettingsShell';
-import { IconDownload } from '../common/menuIcons';
-import api from '../knowledgeBasePanel/api';
+import { IconDownload } from '../../icons';
+import api from '../../api/documentsApi';
 
 // ─── Группа: массовые операции ────────────────────────────────────────────────
 // Экспорт/импорт и пакетная обработка документов. Экспорт вызывает текущий

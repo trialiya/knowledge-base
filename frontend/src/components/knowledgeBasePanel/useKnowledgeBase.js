@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import api from './api';
+import api from '../../api/documentsApi';
 import { getSiblings, applyReorder, parentTitle, isParentChange, updateNodeInTree, applyChildren } from './treeOps';
 import { findNodeById, findPath } from '../common/utils';
 import { isEditorDirty, clearEditorDirty } from './editorDirtyStore';
+import { invalidateDocPreviewCache } from '../common/useDocPreview';
 import { KB_PAGE_SIZE as PAGE_SIZE, KB_FULL_PAGE as FULL_PAGE } from '../../constants/pagination';
 
 const rootItems = (paged) => (Array.isArray(paged?.items) ? paged.items : []);
@@ -449,6 +450,10 @@ export default function useKnowledgeBase({
     try {
       const res = await api.update(id, patch);
       if (!res.ok) throw new Error('Update failed');
+      // Otherwise a hover on this doc's link elsewhere (chat, another KB tab)
+      // would keep showing the pre-edit description/summary from the module
+      // cache until a full page reload.
+      invalidateDocPreviewCache(id);
     } catch (err) {
       console.error('Update error:', err);
       // Do NOT roll back — keep the user's edits in the UI, surface an error
@@ -471,6 +476,7 @@ export default function useKnowledgeBase({
         };
         setSelectedNode((prev) => (prev && prev.id === id ? { ...prev, ...patch } : prev));
         setTree((prev) => updateNodeInTree(prev, id, patch));
+        invalidateDocPreviewCache(id);
       } catch (err) {
         setSaveError({ message: err.message || t('summary.generateError') });
       }

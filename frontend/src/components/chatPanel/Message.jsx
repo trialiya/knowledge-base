@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useTranslation } from 'react-i18next';
-import ChatDocLink from './ChatDocLink';
+import DocLinkTooltip from '../common/DocLinkTooltip';
 import './message.css';
 import CodeBlock from '../common/CodeBlock';
 import HistoryModal from '../knowledgeBasePanel/HistoryModal';
@@ -11,7 +11,6 @@ import ToolCallDetailModal from './ToolCallDetailModal';
 import { getToolIcon, toolLabelKey, humanizeTool, getDocChangeRef } from './toolMeta';
 import { IconCopySmall, IconCopied, IconStatusStarted, IconStatusOk, IconStatusError } from '../../icons';
 import { COPY_DONE_MS, GIST_PREVIEW_LEN } from '../../constants/ui';
-import './styles/tool-call-detail-modal.css';
 
 const StatusIcon = ({ status }) => {
   switch (status) {
@@ -423,9 +422,9 @@ const DocChangeBlock = ({ toolCalls, onNavigateToDoc }) => {
 function getMarkdownComponents(onNavigateToDoc) {
   return {
     a: ({ href, children, ...props }) => (
-      <ChatDocLink href={href} onNavigateToDoc={onNavigateToDoc} {...props}>
+      <DocLinkTooltip href={href} onNavigate={onNavigateToDoc} {...props}>
         {children}
-      </ChatDocLink>
+      </DocLinkTooltip>
     ),
     code({ inline, className, children, ...props }) {
       const raw = String(children).replace(/\n$/, '');

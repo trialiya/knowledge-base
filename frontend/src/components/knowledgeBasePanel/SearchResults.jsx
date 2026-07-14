@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconDoc, IconFolder, IconChevronRight, IconSparkle } from './icons';
+import { IconDoc, IconFolder, IconChevronRight, IconSparkle } from '../../icons';
 
 // URL вида ?view=knowledge&doc=N — её же строит useAppNavigation.buildSearch.
 // Нужна как реальный href, чтобы средняя кнопка / Ctrl+Cmd-клик открывали

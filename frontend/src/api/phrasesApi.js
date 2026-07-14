@@ -1,8 +1,10 @@
 // ─── Phrases API ────────────────────────────────────────────────────────────
 // Тонкая обёртка над REST-эндпоинтами библиотеки фраз.
 // Публичные ручки (для чата) — /api/phrases; админские — /api/admin/phrases.
+// Используется и chatPanel (Phrases.jsx), и settingsPanel (PhrasesSettings.jsx) —
+// поэтому живёт в общем src/api, а не в одной из панелей.
 
-import { request, json } from '../../api/client';
+import { request, json } from './client';
 
 // ── Публичные (чат) ──────────────────────────────────────────────────────────
 

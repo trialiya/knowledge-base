@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import chatApi from '../../api/chatApi';
-import attachmentApi from '../common/attachmentApi';
+import attachmentApi from '../../api/attachmentApi';
 import { STORAGE_KEY_ACTIVE_CHAT, STORAGE_KEY_LAST_MODEL, DRAFT_CHAT_ID } from '../../constants/storage';
 import { loadDrafts, saveDrafts, getDraft, setDraft } from './chatDrafts';
 import { nextMessageId } from './messageId';
@@ -17,13 +17,10 @@ import ChatList from './ChatList';
 import ChatSearchBar from './ChatSearchBar';
 import ModelSelector from './ModelSelector';
 import AttachmentPanel from '../common/AttachmentPanel';
-import { IconPaperclip, IconTrash, IconSearch } from '../knowledgeBasePanel/icons';
+import { IconPaperclip, IconTrash, IconSearch } from '../../icons';
 import './chatWindow.css';
-import '../common/attachmentPanel.css';
 import CreateJiraChatModal from './CreateJiraChatModal';
-import './createJiraChatModal.css';
 import JiraAttachmentPanel from './JiraAttachmentPanel';
-import './jiraAttachmentPanel.css';
 import ErrorModal from '../common/ErrorModal';
 import ConfirmModal from '../common/ConfirmModal';
 
@@ -91,6 +88,8 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   const [deletedNotice, setDeletedNotice] = useState(false);
   // Уведомление об ошибке загрузки файла (вместо нативного alert).
   const [uploadErrorNotice, setUploadErrorNotice] = useState(false);
+  // Уведомление об ошибке удаления чата на сервере: null | { status }.
+  const [deleteErrorNotice, setDeleteErrorNotice] = useState(null);
   // Bump → очистить текст в MessageInput («удаление» черновика).
   const [composerResetSignal, setComposerResetSignal] = useState(0);
   // Bump → сфокусировать MessageInput (при активации панели чата).
@@ -610,16 +609,30 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     [chats, clearDraft],
   );
 
-  // Реальное удаление — после подтверждения в модалке.
+  // Реальное удаление — после подтверждения в модалке. Помечаем как «наше»
+  // удаление ДО запроса — эхо CHAT_DELETED по потоку не покажет нам модалку
+  // «удалён в другой вкладке» — но снимаем метку обратно, если сервер отказал:
+  // иначе будущее реальное удаление этого чата (кем-то другим) молча
+  // проигнорируется, как будто это снова наше же эхо.
   const confirmDeleteChat = useCallback(async () => {
     const target = chatDeleteConfirm;
     setChatDeleteConfirm(null);
     if (!target) return;
     const { id } = target;
-    // Помечаем как «наше» удаление — эхо CHAT_DELETED по потоку не покажет нам модалку.
     locallyDeletingRef.current.add(id);
+    try {
+      const res = await chatApi.deleteChat(id);
+      if (!res.ok) {
+        locallyDeletingRef.current.delete(id);
+        setDeleteErrorNotice({ status: res.status });
+        return;
+      }
+    } catch {
+      locallyDeletingRef.current.delete(id);
+      setDeleteErrorNotice({ status: 'network' });
+      return;
+    }
     clearDraft(id); // черновик удалённого чата больше не нужен
-    await chatApi.deleteChat(id);
     setChats((prev) => prev.filter((chat) => chat.id !== id));
     if (activeChatId === id) {
       const remaining = chatsRef.current.filter((chat) => chat.id !== id);
@@ -943,6 +956,15 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         title={t('errorModal.uploadTitle')}
         message={t('window.uploadError')}
         onClose={() => setUploadErrorNotice(false)}
+      />
+      <ErrorModal
+        open={!!deleteErrorNotice}
+        icon="⚠️"
+        title={t('errorModal.deleteErrorTitle')}
+        message={t('errorModal.deleteErrorMessage', {
+          suffix: deleteErrorNotice && deleteErrorNotice.status !== 'network' ? ` (${deleteErrorNotice.status})` : '',
+        })}
+        onClose={() => setDeleteErrorNotice(null)}
       />
     </div>
   );

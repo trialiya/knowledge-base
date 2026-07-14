@@ -67,9 +67,11 @@ const chatApi = {
       body: title,
     }),
 
-  /** Удалить чат. Ошибки — только в консоль, UI не падает. */
-  deleteChat: (id) =>
-    requestRaw(`/api/chats/${enc(id)}`, { method: 'DELETE' }).catch((e) => console.error('deleteChat error:', e)),
+  /**
+   * Удалить чат. Возвращает сырой Response — вызывающий код обязан проверить
+   * res.ok перед тем, как убирать чат из UI (см. ChatWindow.confirmDeleteChat).
+   */
+  deleteChat: (id) => requestRaw(`/api/chats/${enc(id)}`, { method: 'DELETE' }),
 
   /** Сменить модель чата. Тело — plain string. */
   updateModel: (id, modelId) =>

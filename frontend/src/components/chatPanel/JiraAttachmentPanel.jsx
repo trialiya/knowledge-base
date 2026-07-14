@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import './jiraAttachmentPanel.css';
 import chatApi from '../../api/chatApi';
-import { formatFileSize } from '../common/attachmentApi';
+import { formatFileSize } from '../../utils/formatting';
 import { IconJira, IconConfluence, IconDoc, IconRefreshCw, IconEye, IconX, IconLink } from '../../icons';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

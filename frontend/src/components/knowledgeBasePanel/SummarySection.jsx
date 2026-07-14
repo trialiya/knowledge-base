@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import MarkdownEditor from './MarkdownEditor';
-import { IconEdit, IconChevronRight, IconExpand, IconCopy, IconCheck } from './icons';
+import { IconEdit, IconChevronRight, IconExpand, IconCopy, IconCheck } from '../../icons';
 import { COPY_DONE_MS } from '../../constants/ui';
 
 const MAX_LINES = 12;

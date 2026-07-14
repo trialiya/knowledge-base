@@ -35,7 +35,7 @@ async function searchDocsAsync(q, signal) {
       if (e.name === 'AbortError') throw e;
       return [];
     }),
-    documentsApi.getById(Number(q), signal).catch((e) => {
+    documentsApi.fetchById(Number(q), signal).catch((e) => {
       if (e.name === 'AbortError') throw e;
       return null;
     }),

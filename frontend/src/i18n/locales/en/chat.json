@@ -36,7 +36,9 @@
     "busyMessage": "A response is already being generated in this chat (possibly in another tab). Wait for it to finish or stop it before sending a new message.",
     "deletedTitle": "Chat deleted",
     "deletedMessage": "This chat was deleted in another tab or session.",
-    "uploadTitle": "Upload failed"
+    "uploadTitle": "Upload failed",
+    "deleteErrorTitle": "Failed to delete chat",
+    "deleteErrorMessage": "The server rejected the deletion{{suffix}}. Please try again."
   },
   "deleteModal": {
     "title": "Delete chat?",
@@ -140,15 +142,6 @@
     "categoryAll": "All",
     "categoryFavorites": "Favorites",
     "favoriteToggle": "Toggle favorite"
-  },
-  "docLink": {
-    "notFound": "Document not found",
-    "folder": "Folder",
-    "document": "Document",
-    "aiSummary": "AI Summary",
-    "stale": "stale",
-    "noDescription": "No description",
-    "open": "Open →"
   },
   "tools": {
     "searchDocuments": "Search documents",
