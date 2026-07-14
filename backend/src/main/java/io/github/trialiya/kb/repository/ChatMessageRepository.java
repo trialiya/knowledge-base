@@ -13,15 +13,17 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
 
     int deleteChatMessageByConversationId(String conversationId);
 
-    List<ChatMessageEntity> findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAt(
-            @Param("conversationId") String conversationId);
+    List<ChatMessageEntity>
+            findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAtAscPositionAsc(
+                    @Param("conversationId") String conversationId);
 
-    List<ChatMessageEntity> findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAt(
-            @Param("conversationId") String conversationId);
+    List<ChatMessageEntity>
+            findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
+                    @Param("conversationId") String conversationId);
 
     // findSummaries
     List<ChatMessageEntity>
-            findChatMessageByConversationIdAndSummarizedFalseAndSummaryTrueOrderByCreatedAt(
+            findChatMessageByConversationIdAndSummarizedFalseAndSummaryTrueOrderByCreatedAtAscPositionAsc(
                     @Param("conversationId") String conversationId);
 
     @Modifying

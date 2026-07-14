@@ -107,7 +107,8 @@ public class ChatMemoryService implements ChatMemoryRepository {
     @Override
     public List<Message> findByConversationId(String conversationId) {
         return chatMessageRepository
-                .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAt(conversationId)
+                .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
+                        conversationId)
                 .stream()
                 .map(ChatMessageEntity::getMessage)
                 .map(Message.class::cast)
@@ -120,8 +121,9 @@ public class ChatMemoryService implements ChatMemoryRepository {
     }
 
     public List<ChatMessageEntity> findChatMessageByConversationId(String conversationId) {
-        return chatMessageRepository.findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAt(
-                conversationId);
+        return chatMessageRepository
+                .findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAtAscPositionAsc(
+                        conversationId);
     }
 
     public Page findLatestPage(String conversationId, int limit) {

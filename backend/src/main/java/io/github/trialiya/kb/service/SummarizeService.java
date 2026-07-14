@@ -28,18 +28,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class SummarizeService implements DisposableBean {
 
-    /**
-     * When the number of stored summary messages reaches this value, they are collapsed into a
-     * single meta-summary.
-     */
-    private static final int SUMMARY_COLLAPSE_THRESHOLD = 5;
-
-    /**
-     * How many characters we use per estimated token. Increase to 3 for mostly-code conversations,
-     * decrease to 5 for prose.
-     */
-    private static final int CHARS_PER_TOKEN = 4;
-
     private static final String COLLAPSE_HEADER =
             "The following are consecutive summaries of a long conversation:\n";
     private static final String CONTEXT_HEADER =
@@ -55,7 +43,7 @@ public class SummarizeService implements DisposableBean {
     private final TransactionTemplate transactionTemplate;
     private final SummarizeProperties summarizeProperties;
 
-    private final Striped<Lock> locks = Striped.lock(1028);
+    private final Striped<Lock> locks = Striped.lock(1024);
 
     public SummarizeService(
             OpenAiChatModel openAiChatModel,
@@ -107,7 +95,7 @@ public class SummarizeService implements DisposableBean {
         // 1. Fetch all live (non-summarized) messages, excluding blanks and system msgs.
         final List<ChatMessageEntity> liveMessages =
                 chatMessageRepository
-                        .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAt(
+                        .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
                                 conversationId)
                         .stream()
                         .filter(m -> !m.isSummary())
@@ -152,15 +140,22 @@ public class SummarizeService implements DisposableBean {
         // 4. Load existing summaries to give the LLM prior context.
         final List<ChatMessageEntity> existingSummaries =
                 chatMessageRepository
-                        .findChatMessageByConversationIdAndSummarizedFalseAndSummaryTrueOrderByCreatedAt(
+                        .findChatMessageByConversationIdAndSummarizedFalseAndSummaryTrueOrderByCreatedAtAscPositionAsc(
                                 conversationId);
 
-        // 5. Generate summary text via LLM.
+        // 5. Generate summary text via LLM. Collapse existing summaries into one meta-summary
+        // if this round's new summary would otherwise push the count to summaryCollapseThreshold.
         final boolean collapseSummaries =
-                existingSummaries.size() >= SUMMARY_COLLAPSE_THRESHOLD - 1;
+                existingSummaries.size() + 1 >= summarizeProperties.summaryCollapseThreshold();
         final String summaryContent =
                 generateSummary(
                         conversationId, existingSummaries, toCompress, cutoff, collapseSummaries);
+        if (Strings.isBlank(summaryContent)) {
+            log.error(
+                    "[{}] Summarization produced an empty result, skipping this round",
+                    conversationId);
+            return;
+        }
 
         // 6. Build the summary message stored as ASSISTANT context.
         final String summaryText =
@@ -176,7 +171,7 @@ public class SummarizeService implements DisposableBean {
                 conversationId,
                 cutoff,
                 estimatedTokens,
-                summaryText.length() / CHARS_PER_TOKEN);
+                summaryText.length() / summarizeProperties.charsPerToken());
 
         // 7. Persist: mark compressed messages as summarized, insert new summary row.
         persistSummary(
@@ -188,12 +183,12 @@ public class SummarizeService implements DisposableBean {
     // -------------------------------------------------------------------------
 
     /**
-     * Rough token estimate for the first {@code limit} messages: total characters /
-     * CHARS_PER_TOKEN. Good enough for a threshold check; no need for a full tokenizer here.
+     * Rough token estimate for the first {@code limit} messages: total characters / charsPerToken.
+     * Good enough for a threshold check; no need for a full tokenizer here.
      */
     private int estimateTokens(List<ChatMessageEntity> messages, int limit) {
         return messages.stream().limit(limit).mapToInt(m -> m.getText().length()).sum()
-                / CHARS_PER_TOKEN;
+                / summarizeProperties.charsPerToken();
     }
 
     private String generateSummary(
@@ -228,9 +223,9 @@ public class SummarizeService implements DisposableBean {
                                 .append(m.getPosition())
                                 .append("] ")
                                 .append(m.getMessageType())
-                                .append(": \"")
+                                .append(": <msg>\n")
                                 .append(m.getText())
-                                .append("\"\n"));
+                                .append("\n</msg>\n"));
         if (collapseSummaries) {
             prompt.append(COLLAPSE_FOOTER);
         }
