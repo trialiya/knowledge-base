@@ -264,6 +264,66 @@ class GitServiceTest {
     }
 
     @Test
+    void windowsBackslashInSubPathIsNormalizedToForwardSlash() {
+        writeFile("src/main/Foo.java", "class Foo {}");
+        commitAll();
+
+        // Windows callers may pass "src\\main" — must be treated identically to "src/main".
+        List<GitFileNode> nodes = service.getFileTree("src\\main");
+        assertThat(nodes).hasSize(1);
+        assertThat(nodes.get(0).name()).isEqualTo("Foo.java");
+        assertThat(nodes.get(0).path()).isEqualTo("src/main/Foo.java");
+    }
+
+    @Test
+    void windowsBackslashInFilePathIsNormalizedForGetFileContent() {
+        writeFile("src/main/Foo.java", "class Foo {}\n");
+        commitAll();
+
+        // "src\\main\\Foo.java" must resolve to "src/main/Foo.java".
+        var content = service.getFileContent("src\\main\\Foo.java");
+        assertThat(content.path()).isEqualTo("src/main/Foo.java");
+        assertThat(content.content()).contains("Foo");
+    }
+
+    @Test
+    void windowsBackslashInCommitLogFilePathIsNormalized() {
+        writeFile("src/main/Bar.java", "class Bar {}\n");
+        commitAll();
+
+        // A backslash path must still find the commit that touched the file.
+        var log = service.getCommitLog(10, "src\\main\\Bar.java");
+        assertThat(log).hasSize(1);
+    }
+
+    @Test
+    void windowsBackslashInCommitDiffFilePathIsNormalized() {
+        writeFile("src/main/Baz.java", "class Baz {}\n");
+        commitAll();
+        String hash = service.getCommitLog(1, null).get(0).hash();
+
+        // A backslash path must resolve to the same file the diff's PathFilter expects.
+        var diff = service.getCommitDiff(hash, false, "src\\main\\Baz.java");
+        assertThat(diff).hasSize(1);
+        assertThat(diff.get(0).files()).hasSize(1);
+        assertThat(diff.get(0).files().get(0).path()).isEqualTo("src/main/Baz.java");
+    }
+
+    @Test
+    void crlfLineEndingsAreNormalizedInFileContent() throws IOException {
+        writeFile("crlf.txt", "line1\nline2\n");
+        commitAll();
+        // Overwrite the working-tree file with CRLF content (simulating Windows checkout).
+        Files.write(
+                repoDir.resolve("crlf.txt"), "line1\r\nline2\r\n".getBytes(StandardCharsets.UTF_8));
+
+        var content = service.getFileContent("crlf.txt");
+        // Returned content must use LF; no trailing \r should appear on any line.
+        assertThat(content.content()).doesNotContain("\r");
+        assertThat(content.lineCount()).isEqualTo(3); // "line1", "line2", "" (trailing empty)
+    }
+
+    @Test
     void conflictedFilesRemainVisibleInTreeContentAndUncommittedChanges() {
         writeFile("conflict.txt", "base\n");
         commitAll();
