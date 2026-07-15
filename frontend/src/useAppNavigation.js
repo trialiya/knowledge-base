@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { DOC_TAB } from './constants/docTabs';
+import { SEARCH_MODE } from './constants/searchMode';
 
 /**
  * ──────────────────────────────────────────────────────────────────────────
@@ -103,9 +105,9 @@ function readUrl() {
     view,
     chatId: p.get('chat') || null,
     docId: p.get('doc') || null,
-    docTab: p.get('tab') || 'summary',
+    docTab: p.get('tab') || DOC_TAB.SUMMARY,
     search: p.get('search') || '',
-    mode: p.get('mode') || 'hybrid',
+    mode: p.get('mode') || SEARCH_MODE.HYBRID,
     filePath: p.get('path') || '',
   };
 }
@@ -128,7 +130,7 @@ function buildUrl(nav) {
   if (nav.view === 'knowledge') {
     if (nav.docId) {
       p.set('doc', nav.docId);
-      if (nav.docTab && nav.docTab !== 'summary') p.set('tab', nav.docTab);
+      if (nav.docTab && nav.docTab !== DOC_TAB.SUMMARY) p.set('tab', nav.docTab);
     } else if (nav.search) {
       p.set('search', nav.search);
       if (nav.mode) p.set('mode', nav.mode);
@@ -179,11 +181,11 @@ export default function useAppNavigation() {
   // документ и его вкладку, чтобы switchView('knowledge') мог его восстановить.
   const lastKbRef = useRef({
     docId: nav.docId || null,
-    docTab: nav.docTab || 'summary',
+    docTab: nav.docTab || DOC_TAB.SUMMARY,
   });
   useEffect(() => {
     if (nav.docId) {
-      lastKbRef.current = { docId: nav.docId, docTab: nav.docTab || 'summary' };
+      lastKbRef.current = { docId: nav.docId, docTab: nav.docTab || DOC_TAB.SUMMARY };
     }
   }, [nav.docId, nav.docTab]);
 
@@ -258,7 +260,7 @@ export default function useAppNavigation() {
       if (view === 'knowledge' && !prev.docId && !prev.search) {
         const last = lastKbRef.current;
         if (last?.docId) {
-          return { ...prev, view, docId: last.docId, docTab: last.docTab || 'summary' };
+          return { ...prev, view, docId: last.docId, docTab: last.docTab || DOC_TAB.SUMMARY };
         }
       }
       return { ...prev, view };
@@ -266,7 +268,7 @@ export default function useAppNavigation() {
   }, []);
 
   /** Открыть документ в KB (из чата, doc-ссылки, дерева). */
-  const openDoc = useCallback((docId, docTab = 'summary') => {
+  const openDoc = useCallback((docId, docTab = DOC_TAB.SUMMARY) => {
     const id = docId == null ? null : String(docId);
     if (id) lastKbRef.current = { docId: id, docTab };
     setNav((prev) => ({ ...prev, view: 'knowledge', docId: id, docTab, search: '', mode: prev.mode }));

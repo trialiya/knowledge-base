@@ -60,7 +60,7 @@ class ToolCallRepositoryIT extends AbstractPostgresIntegrationTest {
                                 0,
                                 "getFileContent",
                                 "{\"path\":\"README.md\"}",
-                                "OK",
+                                ToolInvocationStatus.OK,
                                 null,
                                 "full file body here",
                                 "{\"lines\":42}"));
@@ -75,7 +75,7 @@ class ToolCallRepositoryIT extends AbstractPostgresIntegrationTest {
         assertThat(tc.getCreatedAt()).isNotNull();
         assertThat(tc.getName()).isEqualTo("getFileContent");
         assertThat(tc.getArgumentsRaw()).isEqualTo("{\"path\":\"README.md\"}");
-        assertThat(tc.getStatus()).isEqualTo("OK");
+        assertThat(tc.getStatus()).isEqualTo(ToolInvocationStatus.OK);
         assertThat(tc.getResultText()).isEqualTo("full file body here");
         assertThat(tc.getResultMeta()).isEqualTo("{\"lines\":42}");
         assertThat(tc.getError()).isNull();
@@ -88,11 +88,11 @@ class ToolCallRepositoryIT extends AbstractPostgresIntegrationTest {
 
         // вставляем не по порядку
         toolCallRepo.save(
-                new ToolCallEntity(conv, runId, 2, "third", null, "OK", null, null, null));
+                new ToolCallEntity(conv, runId, 2, "third", null, ToolInvocationStatus.OK, null, null, null));
         toolCallRepo.save(
-                new ToolCallEntity(conv, runId, 0, "first", null, "OK", null, null, null));
+                new ToolCallEntity(conv, runId, 0, "first", null, ToolInvocationStatus.OK, null, null, null));
         toolCallRepo.save(
-                new ToolCallEntity(conv, runId, 1, "second", null, "OK", null, null, null));
+                new ToolCallEntity(conv, runId, 1, "second", null, ToolInvocationStatus.OK, null, null, null));
 
         assertThat(toolCallRepo.findByConversationIdAndRunIdOrderByCallIndex(conv, runId))
                 .extracting(ToolCallEntity::getName)
@@ -105,8 +105,8 @@ class ToolCallRepositoryIT extends AbstractPostgresIntegrationTest {
         String runA = UUID.randomUUID().toString();
         String runB = UUID.randomUUID().toString();
 
-        toolCallRepo.save(new ToolCallEntity(conv, runA, 0, "a", null, "OK", null, null, null));
-        toolCallRepo.save(new ToolCallEntity(conv, runB, 0, "b", null, "OK", null, null, null));
+        toolCallRepo.save(new ToolCallEntity(conv, runA, 0, "a", null, ToolInvocationStatus.OK, null, null, null));
+        toolCallRepo.save(new ToolCallEntity(conv, runB, 0, "b", null, ToolInvocationStatus.OK, null, null, null));
 
         assertThat(toolCallRepo.findByConversationIdAndRunIdOrderByCallIndex(conv, runA))
                 .extracting(ToolCallEntity::getName)
@@ -140,7 +140,7 @@ class ToolCallRepositoryIT extends AbstractPostgresIntegrationTest {
         ToolCallEntity row = read.getFirst();
         assertThat(row.getArgumentsRaw()).isEqualTo("{\"id\":7,\"body\":\"long\"}");
         assertThat(row.getResultText()).isEqualTo("the full, untruncated tool result text");
-        assertThat(row.getStatus()).isEqualTo("OK");
+        assertThat(row.getStatus()).isEqualTo(ToolInvocationStatus.OK);
         // resultMeta сериализован в JSON
         assertThat(row.getResultMeta()).contains("\"descriptionVersion\":3").contains("\"id\":7");
     }
@@ -191,7 +191,7 @@ class ToolCallRepositoryIT extends AbstractPostgresIntegrationTest {
                 toolCallRepo.findByConversationIdAndRunIdOrderByCallIndex(conv, runId);
         assertThat(read).hasSize(1);
         ToolCallEntity row = read.getFirst();
-        assertThat(row.getStatus()).isEqualTo("ERROR");
+        assertThat(row.getStatus()).isEqualTo(ToolInvocationStatus.ERROR);
         assertThat(row.getError()).isEqualTo("boom: index unavailable");
         assertThat(row.getResultText()).isNull();
     }

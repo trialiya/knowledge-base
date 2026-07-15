@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.model.attachment.dto;
 
+import io.github.trialiya.kb.model.attachment.entity.AttachmentOwnerType;
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.tools.Compact;
 import java.time.OffsetDateTime;
@@ -9,7 +10,7 @@ import org.jspecify.annotations.Nullable;
  * Read-only DTO returned by the REST API and AI tools.
  *
  * @param id attachment id
- * @param ownerType {@code "document"} or {@code "chat"}
+ * @param ownerType {@link AttachmentOwnerType#DOCUMENT} or {@link AttachmentOwnerType#CHAT}
  * @param documentId owning document id (null for chat attachments)
  * @param conversationId owning conversation id (null for document attachments)
  * @param fileName original file name
@@ -22,7 +23,7 @@ import org.jspecify.annotations.Nullable;
  */
 public record Attachment(
         Long id,
-        String ownerType,
+        AttachmentOwnerType ownerType,
         @Nullable Long documentId,
         @Nullable String conversationId,
         String fileName,

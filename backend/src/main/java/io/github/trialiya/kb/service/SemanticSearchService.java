@@ -2,6 +2,7 @@ package io.github.trialiya.kb.service;
 
 import io.github.trialiya.kb.config.model.SearchConfiguration;
 import io.github.trialiya.kb.model.attachment.entity.AttachmentEmbeddingEntity;
+import io.github.trialiya.kb.model.embedding.EmbeddingEntityType;
 import io.github.trialiya.kb.model.attachment.entity.AttachmentEntity;
 import io.github.trialiya.kb.model.doc.entity.DocumentEmbeddingEntity;
 import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
@@ -91,7 +92,7 @@ public class SemanticSearchService {
         if (!enabled) {
             return;
         }
-        taskRepo.enqueueIfAbsent("document", documentId);
+        taskRepo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, documentId);
         log.debug("Queued embedding task for document id={}", documentId);
     }
 
@@ -171,14 +172,14 @@ public class SemanticSearchService {
     private int enqueueAllDocuments() {
         List<DocumentEntity> all = new ArrayList<>();
         documentRepo.findAll().forEach(all::add);
-        all.forEach(doc -> taskRepo.enqueueIfAbsent("document", doc.getId()));
+        all.forEach(doc -> taskRepo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, doc.getId()));
         return all.size();
     }
 
     private int enqueueAllAttachments() {
         List<AttachmentEntity> all = new ArrayList<>();
         attachmentRepo.findAll().forEach(all::add);
-        all.forEach(att -> taskRepo.enqueueIfAbsent("attachment", att.getId()));
+        all.forEach(att -> taskRepo.enqueueIfAbsent(EmbeddingEntityType.ATTACHMENT, att.getId()));
         return all.size();
     }
 

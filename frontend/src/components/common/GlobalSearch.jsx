@@ -1,9 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconSearch, IconSliders, IconCheck } from '../../icons';
+import { SEARCH_MODES } from '../../constants/searchMode';
 import './globalSearch.css';
-
-const MODES = ['hybrid', 'semantic', 'keyword'];
 
 /**
  * Глобальный поиск в шапке вкладок: единый визуальный контур
@@ -75,7 +74,7 @@ const GlobalSearch = ({ value, mode, onChange, onModeChange, onSubmit }) => {
         </button>
         {open && (
           <div className="global-search__pop" role="menu">
-            {MODES.map((m) => (
+            {SEARCH_MODES.map((m) => (
               <button
                 key={m}
                 role="menuitemradio"

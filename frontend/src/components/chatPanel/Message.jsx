@@ -9,6 +9,7 @@ import ToolCallNotifications from './ToolCallNotifications';
 import DocChangeBlock from './DocChangeBlock';
 import { IconCopySmall, IconCopied } from '../../icons';
 import { COPY_DONE_MS } from '../../constants/ui';
+import { SENDER } from '../../constants/messageSender';
 
 /** Кнопка «копировать всё сообщение» — копирует исходный текст сообщения. */
 const MessageCopyButton = ({ text }) => {
@@ -152,9 +153,9 @@ const Message = ({
 }) => {
   const { t, i18n } = useTranslation('chat');
   const [showSource, setShowSource] = useState(false);
-  const messageClass = `message ${sender}${error && sender === 'ai' ? ' message--error' : ''}`;
+  const messageClass = `message ${sender}${error && sender === SENDER.AI ? ' message--error' : ''}`;
   const hasToolCalls = toolCalls && toolCalls.length > 0;
-  const showPreparing = preparing && sender === 'ai';
+  const showPreparing = preparing && sender === SENDER.AI;
   const timeLabel = formatTimestamp(timestamp, i18n.language);
   const timeTitle = formatFullDatetime(timestamp, i18n.language);
 
@@ -170,7 +171,7 @@ const Message = ({
   // Пузырь — только контент сообщения, без футера
   const bubble = (
     <div className={messageClass}>
-      {sender === 'ai' ? (
+      {sender === SENDER.AI ? (
         showSource ? (
           <pre className="message-raw-source">{text}</pre>
         ) : (
@@ -189,7 +190,7 @@ const Message = ({
   // Футер под пузырём: AI — время слева, кнопки справа;
   // user — кнопка слева, время справа.
   const footer =
-    sender === 'ai' ? (
+    sender === SENDER.AI ? (
       <div className="message-footer message-footer--ai">
         {timeLabel && (
           <span className="message-footer-time" title={timeTitle ?? undefined}>
@@ -233,7 +234,7 @@ const Message = ({
     </div>
   );
 
-  if (hasToolCalls && sender === 'ai') {
+  if (hasToolCalls && sender === SENDER.AI) {
     return (
       <div className="message-row-with-tools">
         <div className="message-main-col">

@@ -8,11 +8,13 @@ import DetailTabs from './DetailTabs';
 import DetailModals from './DetailModals';
 import useDetailPanel from './useDetailPanel';
 import { IconSparkle, IconSparkleLoading } from '../../icons';
+import { DOC_TAB } from '../../constants/docTabs';
+import { OWNER_TYPE } from '../../constants/ownerType';
 
 const TABS = [
-  { key: 'summary', labelKey: 'tabs.summary' },
-  { key: 'content', labelKey: 'tabs.content' },
-  { key: 'attachments', labelKey: 'tabs.attachments' },
+  { key: DOC_TAB.SUMMARY, labelKey: 'tabs.summary' },
+  { key: DOC_TAB.CONTENT, labelKey: 'tabs.content' },
+  { key: DOC_TAB.ATTACHMENTS, labelKey: 'tabs.attachments' },
 ];
 
 // ─── AI Summary block ─────────────────────────────────────────────────────────
@@ -126,27 +128,27 @@ const DocumentDetail = ({
       <DetailTabs tabs={TABS} tab={tab} onTabChange={onTabChange} attachmentCount={attachmentCount} />
 
       <div className="detail-body">
-        {tab === 'summary' && (
+        {tab === DOC_TAB.SUMMARY && (
           <div className="summary-tab">
             <AISummarySection node={node} onSummarize={onSummarize} />
 
             <SummarySection
               label={t('detail.about')}
               description={node.description}
-              onEdit={() => onTabChange('content')}
+              onEdit={() => onTabChange(DOC_TAB.CONTENT)}
               onExpand={() => setFullscreen('about')}
               tree={tree}
               onNavigate={onNavigate}
               copyable
             />
 
-            <SummarySection label={t('detail.attachments')} showMoreBtn onMore={() => onTabChange('attachments')}>
-              <AttachmentPanel ownerType="document" ownerId={node.id} compact onCountChange={setAttachmentCount} />
+            <SummarySection label={t('detail.attachments')} showMoreBtn onMore={() => onTabChange(DOC_TAB.ATTACHMENTS)}>
+              <AttachmentPanel ownerType={OWNER_TYPE.DOCUMENT} ownerId={node.id} compact onCountChange={setAttachmentCount} />
             </SummarySection>
           </div>
         )}
 
-        {tab === 'content' && (
+        {tab === DOC_TAB.CONTENT && (
           <MarkdownEditor
             value={contentDraft}
             onChange={setContentDraft}
@@ -160,8 +162,8 @@ const DocumentDetail = ({
           />
         )}
 
-        {tab === 'attachments' && (
-          <AttachmentPanel ownerType="document" ownerId={node.id} onCountChange={setAttachmentCount} />
+        {tab === DOC_TAB.ATTACHMENTS && (
+          <AttachmentPanel ownerType={OWNER_TYPE.DOCUMENT} ownerId={node.id} onCountChange={setAttachmentCount} />
         )}
       </div>
 

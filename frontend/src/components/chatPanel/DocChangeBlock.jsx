@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import HistoryModal from '../knowledgeBasePanel/HistoryModal';
 import { getDocChangeRef } from './toolMeta';
+import { TOOL_STATUS } from '../../constants/toolStatus';
 import './styles/doc-changes.css';
 
 /**
@@ -24,7 +25,7 @@ const DocChangeBlock = ({ toolCalls, onNavigateToDoc }) => {
     const byId = new Map();
     for (const tc of toolCalls || []) {
       const ref = getDocChangeRef(tc);
-      if (!ref || ref.status === 'ERROR') continue;
+      if (!ref || ref.status === TOOL_STATUS.ERROR) continue;
       const title = ref.title || tc.arguments?.title || tc.arguments?.name || null;
       const cur = byId.get(ref.id);
       if (!cur) {

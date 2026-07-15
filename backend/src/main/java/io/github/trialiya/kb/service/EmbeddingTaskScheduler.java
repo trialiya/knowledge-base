@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.service;
 
 import io.github.trialiya.kb.config.model.EmbeddingConfiguration;
+import io.github.trialiya.kb.model.embedding.EmbeddingEntityType;
 import io.github.trialiya.kb.model.embedding.EmbeddingTaskEntity;
 import io.github.trialiya.kb.repository.EmbeddingTaskRepository;
 import java.util.List;
@@ -109,8 +110,8 @@ public class EmbeddingTaskScheduler {
         }
         try {
             switch (task.getEntityType()) {
-                case "document" -> searchService.indexDocumentById(task.getEntityId());
-                case "attachment" -> searchService.indexAttachmentById(task.getEntityId());
+                case DOCUMENT -> searchService.indexDocumentById(task.getEntityId());
+                case ATTACHMENT -> searchService.indexAttachmentById(task.getEntityId());
                 default ->
                         log.warn(
                                 "Unknown entity type in embedding task id={}: {}",

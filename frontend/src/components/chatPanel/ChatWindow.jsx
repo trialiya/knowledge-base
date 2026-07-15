@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import chatApi from '../../api/chatApi';
 import attachmentApi from '../../api/attachmentApi';
 import { STORAGE_KEY_ACTIVE_CHAT, STORAGE_KEY_LAST_MODEL, DRAFT_CHAT_ID } from '../../constants/storage';
+import { OWNER_TYPE } from '../../constants/ownerType';
 import { nextMessageId } from './messageId';
 import useModelConfig from './useModelConfig';
 import useIntegrationsConfig from './useIntegrationsConfig';
@@ -833,7 +834,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
                 // Обычный чат: стандартная таблица с загрузкой файлов
                 <AttachmentPanel
                   key={activeChatId}
-                  ownerType="chat"
+                  ownerType={OWNER_TYPE.CHAT}
                   ownerId={activeChatId}
                   onCountChange={setAttachCount}
                 />

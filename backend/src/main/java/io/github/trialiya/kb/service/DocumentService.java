@@ -264,8 +264,7 @@ public class DocumentService {
 
     @Transactional
     public Document create(CreateDocumentRequest req) {
-        DocumentType type =
-                "folder".equals(req.getType()) ? DocumentType.FOLDER : DocumentType.DOCUMENT;
+        DocumentType type = req.getType() != null ? req.getType() : DocumentType.DOCUMENT;
         int nextPos = nextSiblingPosition(req.getParentId());
 
         DocumentEntity entity =

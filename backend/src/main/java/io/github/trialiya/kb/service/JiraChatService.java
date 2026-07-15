@@ -3,6 +3,7 @@ package io.github.trialiya.kb.service;
 import static io.github.trialiya.kb.utils.ChatUtils.getUser;
 
 import io.github.trialiya.kb.model.attachment.entity.AttachmentEntity;
+import io.github.trialiya.kb.model.attachment.entity.AttachmentOwnerType;
 import io.github.trialiya.kb.model.chat.dto.Chat;
 import io.github.trialiya.kb.model.chat.dto.CreateJiraChatRequest;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
@@ -244,7 +245,7 @@ public class JiraChatService {
             String conversationId, String fileName, @Nullable String content, String sourceUrl) {
         OffsetDateTime now = OffsetDateTime.now();
         AttachmentEntity entity = new AttachmentEntity();
-        entity.setOwnerType("chat");
+        entity.setOwnerType(AttachmentOwnerType.CHAT);
         entity.setConversationId(conversationId);
         entity.setFileName(fileName);
         entity.setContentType("text/markdown");

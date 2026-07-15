@@ -15,8 +15,7 @@ public class EmbeddingTaskEntity {
 
     @Id private Long id;
 
-    /** {@code "document"} or {@code "attachment"}. */
-    private String entityType;
+    private EmbeddingEntityType entityType;
 
     private Long entityId;
 
@@ -26,7 +25,7 @@ public class EmbeddingTaskEntity {
      * same entity, enqueued while this one was in flight — the newer task re-embeds the entity, so
      * nothing is lost.
      */
-    private String status;
+    private EmbeddingTaskStatus status;
 
     private int attempts;
 

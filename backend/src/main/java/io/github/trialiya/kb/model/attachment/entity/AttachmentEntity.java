@@ -29,8 +29,8 @@ public class AttachmentEntity {
 
     @Id @Nullable private Long id;
 
-    /** Discriminator: {@code "document"} or {@code "chat"}. */
-    private String ownerType;
+    /** Discriminator: {@link AttachmentOwnerType#DOCUMENT} or {@link AttachmentOwnerType#CHAT}. */
+    private AttachmentOwnerType ownerType;
 
     /** FK → documents.id (non-null when ownerType = 'document'). */
     @Nullable private Long documentId;
