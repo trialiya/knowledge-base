@@ -178,6 +178,13 @@
   color: #c62828;
 }
 
+/* JSON syntax highlighting (used inside .tcd-pre) */
+.json-key     { color: #89b4fa; } /* blue  — object keys   */
+.json-string  { color: #a6e3a1; } /* green — string values */
+.json-number  { color: #fab387; } /* peach — numbers       */
+.json-boolean { color: #cba6f7; } /* mauve — true / false  */
+.json-null    { color: #f38ba8; } /* red   — null          */
+
 /* Detail expand button on ToolCallItem */
 .tool-call-detail-btn {
   flex-shrink: 0;
