@@ -244,7 +244,9 @@ public class GitFunction {
                     Содержимое tracked файла. Ответ: path, content, binary, sizeBytes, \
                     language (по расширению), lineCount, truncated, fromLine/toLine \
                     (фактический диапазон, null если весь файл). При binary=true content=null. \
-                    Для экономии токенов укажи fromLine/toLine (например, диапазон из getFileOutline).
+                    Для экономии токенов укажи fromLine/toLine (например, диапазон из getFileOutline). \
+                    При упоминании файла в ответе оформи ссылку [имя-файла](/files?path=PATH), \
+                    где PATH — это path из ответа; для диапазона строк добавь #Lfrom-Lto.
                     """,
             resultConverter = CompactToolResultConverter.class)
     public GitFileContent getFileContent(

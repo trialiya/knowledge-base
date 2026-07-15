@@ -47,7 +47,7 @@ const DirectoryListing = ({ nodes, onNavigate }) => {
   );
 };
 
-const FileView = ({ file }) => {
+export const FileView = ({ file }) => {
   const { t } = useTranslation('files');
   return (
     <div className="file-view">

@@ -102,6 +102,27 @@
   color: var(--kb-accent);
 }
 
+.doc-preview-tooltip__expand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--kb-muted);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.12s, color 0.12s;
+}
+
+.doc-preview-tooltip__expand:hover {
+  background: var(--kb-accent-light);
+  color: var(--kb-accent);
+}
+
 /* ── AI Summary block ── */
 
 .doc-preview-tooltip__summary {
@@ -161,6 +182,12 @@
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.doc-preview-tooltip__description-text--mono {
+  font-family: var(--kb-mono, monospace);
+  font-size: 0.76rem;
+  word-break: break-all;
 }
 
 .doc-preview-tooltip__empty {
