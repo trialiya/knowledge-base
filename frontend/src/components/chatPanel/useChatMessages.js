@@ -3,6 +3,7 @@ import chatApi from '../../api/chatApi';
 import { STORAGE_KEY_ACTIVE_CHAT, DRAFT_CHAT_ID } from '../../constants/storage';
 import { CHAT_PAGE_SIZE as PAGE_SIZE } from '../../constants/pagination';
 import { nextMessageId } from './messageId';
+import { SENDER } from '../../constants/messageSender';
 
 const metaToCall = (x) => ({
   name: x.name,
@@ -56,7 +57,7 @@ export const transformPage = (rawMsgs) => {
       // сопоставить хит бэкенда с пузырём и понять, догружена ли страница с совпадением.
       dbId: m.id ?? null,
       text: m.content,
-      sender: type === 'user' ? 'user' : 'ai',
+      sender: type === 'user' ? SENDER.USER : SENDER.AI,
       timestamp: m.timestamp || null,
     });
   }
@@ -69,7 +70,7 @@ export const transformPage = (rawMsgs) => {
 export const attachLeadingMetas = (bubbles, metas) => {
   if (!metas || !metas.length) return [];
   for (let i = bubbles.length - 1; i >= 0; i--) {
-    if (bubbles[i].sender === 'ai') {
+    if (bubbles[i].sender === SENDER.AI) {
       bubbles[i] = { ...bubbles[i], toolCalls: [...(bubbles[i].toolCalls || []), ...metas] };
       return [];
     }

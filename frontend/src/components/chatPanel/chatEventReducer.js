@@ -9,6 +9,8 @@
 // истории, не конфликтуя с ней.
 
 import { nextMessageId } from './messageId';
+import { CHAT_EVENT, FINISH_REASON } from '../../constants/chatEventTypes';
+import { SENDER } from '../../constants/messageSender';
 
 // Совпадение вызовов. Когда callIndex известен у обоих — он однозначен (имя +
 // порядковый номер в прогоне); иначе фолбэк на name+arguments. Фолбэк нужен для
@@ -62,7 +64,7 @@ const mergeToolCalls = (list, metas) => (metas || []).reduce((acc, tc) => mergeT
 // Индекс последнего AI-пузыря, принадлежащего прогону runId.
 const lastAiIndexForRun = (msgs, runId) => {
   for (let i = msgs.length - 1; i >= 0; i--) {
-    if (msgs[i].sender === 'ai' && msgs[i].runId === runId) return i;
+    if (msgs[i].sender === SENDER.AI && msgs[i].runId === runId) return i;
   }
   return -1;
 };
@@ -71,7 +73,7 @@ const pushAi = (msgs, runId) => {
   msgs.push({
     mid: nextMessageId(),
     text: '',
-    sender: 'ai',
+    sender: SENDER.AI,
     runId,
     toolCalls: [],
     timestamp: new Date().toISOString(),
@@ -84,7 +86,7 @@ const pushAi = (msgs, runId) => {
 // завершение прогона — индикатор «готовлю данные…» при этом исчезает.
 const clearPreparing = (msgs, runId) => {
   for (let i = 0; i < msgs.length; i++) {
-    if (msgs[i].sender === 'ai' && msgs[i].runId === runId && msgs[i].preparing) {
+    if (msgs[i].sender === SENDER.AI && msgs[i].runId === runId && msgs[i].preparing) {
       const { preparing: _drop, ...rest } = msgs[i];
       msgs[i] = rest;
     }
@@ -95,7 +97,7 @@ const clearPreparing = (msgs, runId) => {
 // (для загрузки деталей tool call после завершения прогона).
 const finalize = (msgs, runId) => {
   for (let i = 0; i < msgs.length; i++) {
-    if (msgs[i].sender === 'ai' && msgs[i].runId === runId) {
+    if (msgs[i].sender === SENDER.AI && msgs[i].runId === runId) {
       const { runId: _drop, preparing: _p, ...rest } = msgs[i];
       msgs[i] = { ...rest, text: (rest.text || '').trimEnd(), toolCallsRunId: runId };
     }
@@ -113,22 +115,22 @@ export function applyChatEvent(chat, ev, ctx) {
   const { type, runId, clientMsgId, payload } = ev;
 
   switch (type) {
-    case 'USER_MESSAGE': {
+    case CHAT_EVENT.USER_MESSAGE: {
       // Своё эхо — уже показано оптимистично.
       if (clientMsgId && ctx.isLocal?.(clientMsgId)) return chat;
       // Дубликат после reload: сообщение уже подгрузилось из БД (хвост истории).
       const last = msgs[msgs.length - 1];
-      if (last && last.sender === 'user' && last.text === payload?.text) return chat;
+      if (last && last.sender === SENDER.USER && last.text === payload?.text) return chat;
       msgs.push({
         mid: nextMessageId(),
         text: payload?.text || '',
-        sender: 'user',
+        sender: SENDER.USER,
         timestamp: new Date().toISOString(),
       });
       return { ...chat, messages: msgs };
     }
 
-    case 'RUN_STARTED': {
+    case CHAT_EVENT.RUN_STARTED: {
       // Идемпотентно: если пузырь прогона уже есть (оптимистично/из replay) — не дублируем.
       if (lastAiIndexForRun(msgs, runId) >= 0) return { ...chat, runId };
       pushAi(msgs, runId);
@@ -145,11 +147,11 @@ export function applyChatEvent(chat, ev, ctx) {
     // Альтернатива: детекция тишины на фронте (таймер после последнего STREAM-события).
     // Подробнее: docs/проект/диагностика-tool-preparing-стриминг.md
     // и docs/features/tool-preparing.md
-    case 'TOOL_PREPARING': {
+    case CHAT_EVENT.TOOL_PREPARING: {
       return { ...chat, runId };
     }
 
-    case 'STREAM': {
+    case CHAT_EVENT.STREAM: {
       const reason = (payload?.finishReason || '').trim();
       let idx = lastAiIndexForRun(msgs, runId);
       if (idx < 0) idx = pushAi(msgs, runId);
@@ -162,7 +164,7 @@ export function applyChatEvent(chat, ev, ctx) {
         if (piece) msgs[idx] = { ...msgs[idx], text: msgs[idx].text + piece };
       }
       // finishReason TOOL_CALLS делит ответ на сегменты: закрываем текущий, открываем новый.
-      if (reason === 'TOOL_CALLS' && msgs[idx].text.trim() !== '') {
+      if (reason === FINISH_REASON.TOOL_CALLS && msgs[idx].text.trim() !== '') {
         clearPreparing(msgs, runId);
         msgs[idx] = { ...msgs[idx], text: msgs[idx].text.trimEnd() };
         pushAi(msgs, runId);
@@ -170,7 +172,7 @@ export function applyChatEvent(chat, ev, ctx) {
       return { ...chat, messages: msgs, runId };
     }
 
-    case 'TOOL_CALL': {
+    case CHAT_EVENT.TOOL_CALL: {
       let idx = lastAiIndexForRun(msgs, runId);
       if (idx < 0) idx = pushAi(msgs, runId);
       // Инструмент стартовал — плашка заменяет индикатор подготовки.
@@ -179,7 +181,7 @@ export function applyChatEvent(chat, ev, ctx) {
       return { ...chat, messages: msgs, runId };
     }
 
-    case 'TOOL_CALLS': {
+    case CHAT_EVENT.TOOL_CALLS: {
       const idx = lastAiIndexForRun(msgs, runId);
       if (idx < 0) return { ...chat, runId };
       clearPreparing(msgs, runId);
@@ -187,12 +189,12 @@ export function applyChatEvent(chat, ev, ctx) {
       return { ...chat, messages: msgs, runId };
     }
 
-    case 'RUN_DONE': {
+    case CHAT_EVENT.RUN_DONE: {
       finalize(msgs, runId);
       return { ...chat, messages: msgs, runId: null };
     }
 
-    case 'RUN_STOPPED': {
+    case CHAT_EVENT.RUN_STOPPED: {
       const idx = lastAiIndexForRun(msgs, runId);
       if (idx >= 0) {
         const base = (msgs[idx].text || '').trimEnd();
@@ -202,7 +204,7 @@ export function applyChatEvent(chat, ev, ctx) {
       return { ...chat, messages: msgs, runId: null };
     }
 
-    case 'RUN_ERROR': {
+    case CHAT_EVENT.RUN_ERROR: {
       // Помечаем пузырь error:true — под ним покажем кнопку «Повторить» (см. Message.jsx).
       // Если ассистент ещё не появился (ошибка до первого чанка) — заводим пустой,
       // чтобы было к чему прицепить ошибку и повтор.

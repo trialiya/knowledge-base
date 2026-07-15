@@ -10,6 +10,7 @@ import HeaderMenu from './components/common/HeaderMenu';
 import GlobalSearch from './components/common/GlobalSearch';
 import AdminPanel from './components/adminPanel/AdminPanel';
 import SettingsPanel from './components/settingsPanel/SettingsPanel';
+import { SEARCH_MODE } from './constants/searchMode';
 import './App.css';
 
 function App() {
@@ -19,13 +20,13 @@ function App() {
 
   // ── Глобальная строка поиска (живёт в шапке вкладок, видна всегда) ──────────
   const [searchText, setSearchText] = useState(nav.search || '');
-  const [searchMode, setSearchMode] = useState(nav.mode || 'hybrid');
+  const [searchMode, setSearchMode] = useState(nav.mode || SEARCH_MODE.HYBRID);
 
   useEffect(() => {
     setSearchText(nav.search || '');
   }, [nav.search]);
   useEffect(() => {
-    setSearchMode(nav.mode || 'hybrid');
+    setSearchMode(nav.mode || SEARCH_MODE.HYBRID);
   }, [nav.mode]);
 
   // Поиск всегда уводит в базу знаний (setSearch выставляет view=knowledge),

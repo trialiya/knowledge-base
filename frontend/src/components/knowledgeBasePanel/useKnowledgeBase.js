@@ -7,6 +7,8 @@ import { findNodeById, findPath } from '../common/utils';
 import { isEditorDirty, clearEditorDirty } from './editorDirtyStore';
 import { invalidateDocPreviewCache } from '../common/useDocPreview';
 import { KB_PAGE_SIZE as PAGE_SIZE, KB_FULL_PAGE as FULL_PAGE } from '../../constants/pagination';
+import { DOC_TAB } from '../../constants/docTabs';
+import { SEARCH_MODE } from '../../constants/searchMode';
 
 const rootItems = (paged) => (Array.isArray(paged?.items) ? paged.items : []);
 
@@ -27,9 +29,9 @@ const rootItems = (paged) => (Array.isArray(paged?.items) ? paged.items : []);
  */
 export default function useKnowledgeBase({
   docId: navDocId = null,
-  docTab: navDocTab = 'summary',
+  docTab: navDocTab = DOC_TAB.SUMMARY,
   search: navSearch = '',
-  mode: navMode = 'hybrid',
+  mode: navMode = SEARCH_MODE.HYBRID,
   onOpenDoc,
   onSearch,
   onTabChange,
@@ -37,9 +39,9 @@ export default function useKnowledgeBase({
   const { t } = useTranslation('knowledgeBase');
   const [tree, setTree] = useState([]);
   const [selectedNode, setSelectedNode] = useState(null);
-  const [activeTab, setActiveTab] = useState(navDocTab || 'summary');
+  const [activeTab, setActiveTab] = useState(navDocTab || DOC_TAB.SUMMARY);
   const [searchQuery, setSearchQuery] = useState(navSearch || '');
-  const [searchMode, setSearchMode] = useState(navMode || 'hybrid');
+  const [searchMode, setSearchMode] = useState(navMode || SEARCH_MODE.HYBRID);
   const [searchResults, setSearchResults] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [notFoundDocId, setNotFoundDocId] = useState(null);
@@ -209,7 +211,7 @@ export default function useKnowledgeBase({
    * (which carries only a ≤150-char snippet).
    */
   const applySelectNode = useCallback(
-    (node, { notify = true, tab = 'summary' } = {}) => {
+    (node, { notify = true, tab = DOC_TAB.SUMMARY } = {}) => {
       setSelectedNode({ ...node, _full: true });
       // Вкладку берём из opts: при выборе из дерева/поиска это 'summary' (по
       // умолчанию), а при навигации по URL/«Назад» — вкладка из адреса. Раньше
@@ -375,7 +377,7 @@ export default function useKnowledgeBase({
 
   useEffect(() => {
     if (navDocId) {
-      const tab = navDocTab || 'summary';
+      const tab = navDocTab || DOC_TAB.SUMMARY;
       if (lastNavDocRef.current === navDocId) {
         // Тот же документ, но вкладка могла измениться — например, «Назад» на
         // запись истории doc=5&tab=content при уже открытом doc=5. Документ
@@ -392,8 +394,8 @@ export default function useKnowledgeBase({
       lastNavSearchRef.current = navSearch;
       setSelectedNode(null);
       setSearchQuery(navSearch);
-      setSearchMode(navMode || 'hybrid');
-      performSearch(navSearch, navMode || 'hybrid');
+      setSearchMode(navMode || SEARCH_MODE.HYBRID);
+      performSearch(navSearch, navMode || SEARCH_MODE.HYBRID);
     } else {
       // Уход в chat-view приходит сюда как docId=null/search='' (App обнуляет
       // их, пока активна вкладка чата). Если в редакторе есть несохранённые

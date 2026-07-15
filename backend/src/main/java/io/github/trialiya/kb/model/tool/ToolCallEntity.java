@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.model.tool;
 
+import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
 import java.time.LocalDateTime;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.annotation.Id;
@@ -16,7 +17,7 @@ public class ToolCallEntity implements Persistable<Long> {
     private final int callIndex;
     private final String name;
     @Nullable private final String argumentsRaw;
-    private final String status;
+    private final ToolInvocationStatus status;
     @Nullable private final String error;
     @Nullable private final String resultText;
     @Nullable private final String resultMeta;
@@ -31,7 +32,7 @@ public class ToolCallEntity implements Persistable<Long> {
             int callIndex,
             String name,
             @Nullable String argumentsRaw,
-            String status,
+            ToolInvocationStatus status,
             @Nullable String error,
             @Nullable String resultText,
             @Nullable String resultMeta,
@@ -56,7 +57,7 @@ public class ToolCallEntity implements Persistable<Long> {
             int callIndex,
             String name,
             @Nullable String argumentsRaw,
-            String status,
+            ToolInvocationStatus status,
             @Nullable String error,
             @Nullable String resultText,
             @Nullable String resultMeta) {
@@ -105,7 +106,7 @@ public class ToolCallEntity implements Persistable<Long> {
         return argumentsRaw;
     }
 
-    public String getStatus() {
+    public ToolInvocationStatus getStatus() {
         return status;
     }
 

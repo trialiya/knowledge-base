@@ -9,7 +9,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.config.model.EmbeddingConfiguration;
+import io.github.trialiya.kb.model.embedding.EmbeddingEntityType;
 import io.github.trialiya.kb.model.embedding.EmbeddingTaskEntity;
+import io.github.trialiya.kb.model.embedding.EmbeddingTaskStatus;
 import io.github.trialiya.kb.repository.EmbeddingTaskRepository;
 import java.util.List;
 import java.util.UUID;
@@ -50,12 +52,12 @@ class EmbeddingTaskSchedulerTest {
                                 null));
     }
 
-    private static EmbeddingTaskEntity task(String entityType, long entityId, int attempts) {
+    private static EmbeddingTaskEntity task(EmbeddingEntityType entityType, long entityId, int attempts) {
         EmbeddingTaskEntity t = new EmbeddingTaskEntity();
         t.setId(entityId * 10);
         t.setEntityType(entityType);
         t.setEntityId(entityId);
-        t.setStatus("starting");
+        t.setStatus(EmbeddingTaskStatus.STARTING);
         t.setAttempts(attempts);
         t.setClaimToken(UUID.randomUUID());
         return t;
@@ -94,7 +96,7 @@ class EmbeddingTaskSchedulerTest {
 
     @Test
     void pollReleasesClaimWhenExecutorRejects() {
-        EmbeddingTaskEntity t = task("document", 1L, 1);
+        EmbeddingTaskEntity t = task(EmbeddingEntityType.DOCUMENT, 1L, 1);
         when(executor.availablePermits()).thenReturn(4);
         when(taskRepo.claimPending(4, BACKOFF_SECONDS)).thenReturn(List.of(t));
         when(executor.submit(any())).thenReturn(false);
@@ -110,7 +112,7 @@ class EmbeddingTaskSchedulerTest {
 
     @Test
     void successfulTaskIsMarkedDone() {
-        EmbeddingTaskEntity t = task("document", 2L, 1);
+        EmbeddingTaskEntity t = task(EmbeddingEntityType.DOCUMENT, 2L, 1);
         when(executor.availablePermits()).thenReturn(4);
         when(taskRepo.claimPending(4, BACKOFF_SECONDS)).thenReturn(List.of(t));
         when(taskRepo.isMyClaimValid(t.getId(), t.getClaimToken())).thenReturn(true);
@@ -124,7 +126,7 @@ class EmbeddingTaskSchedulerTest {
 
     @Test
     void attachmentTaskRoutesToAttachmentIndexing() {
-        EmbeddingTaskEntity t = task("attachment", 3L, 1);
+        EmbeddingTaskEntity t = task(EmbeddingEntityType.ATTACHMENT, 3L, 1);
         when(executor.availablePermits()).thenReturn(4);
         when(taskRepo.claimPending(4, BACKOFF_SECONDS)).thenReturn(List.of(t));
         when(taskRepo.isMyClaimValid(t.getId(), t.getClaimToken())).thenReturn(true);
@@ -138,7 +140,7 @@ class EmbeddingTaskSchedulerTest {
 
     @Test
     void reclaimedTaskIsSkippedWithoutAiCall() {
-        EmbeddingTaskEntity t = task("document", 4L, 1);
+        EmbeddingTaskEntity t = task(EmbeddingEntityType.DOCUMENT, 4L, 1);
         when(executor.availablePermits()).thenReturn(4);
         when(taskRepo.claimPending(4, BACKOFF_SECONDS)).thenReturn(List.of(t));
         when(taskRepo.isMyClaimValid(t.getId(), t.getClaimToken())).thenReturn(false);
@@ -152,7 +154,7 @@ class EmbeddingTaskSchedulerTest {
 
     @Test
     void failureBelowMaxAttemptsResetsToPending() {
-        EmbeddingTaskEntity t = task("document", 5L, 1);
+        EmbeddingTaskEntity t = task(EmbeddingEntityType.DOCUMENT, 5L, 1);
         when(executor.availablePermits()).thenReturn(4);
         when(taskRepo.claimPending(4, BACKOFF_SECONDS)).thenReturn(List.of(t));
         when(taskRepo.isMyClaimValid(t.getId(), t.getClaimToken())).thenReturn(true);
@@ -167,7 +169,7 @@ class EmbeddingTaskSchedulerTest {
 
     @Test
     void failureAtMaxAttemptsMarksFailed() {
-        EmbeddingTaskEntity t = task("document", 6L, MAX_ATTEMPTS);
+        EmbeddingTaskEntity t = task(EmbeddingEntityType.DOCUMENT, 6L, MAX_ATTEMPTS);
         when(executor.availablePermits()).thenReturn(4);
         when(taskRepo.claimPending(4, BACKOFF_SECONDS)).thenReturn(List.of(t));
         when(taskRepo.isMyClaimValid(t.getId(), t.getClaimToken())).thenReturn(true);

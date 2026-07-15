@@ -5,7 +5,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.github.trialiya.kb.config.CommonConfig;
 import io.github.trialiya.kb.config.JdbcConfig;
 import io.github.trialiya.kb.config.PgVectorJdbcConfig;
+import io.github.trialiya.kb.model.embedding.EmbeddingEntityType;
 import io.github.trialiya.kb.model.embedding.EmbeddingTaskEntity;
+import io.github.trialiya.kb.model.embedding.EmbeddingTaskStatus;
 import io.github.trialiya.kb.repository.EmbeddingTaskRepository;
 import io.github.trialiya.kb.support.AbstractPostgresIntegrationTest;
 import java.util.List;
@@ -39,19 +41,19 @@ class EmbeddingTaskRepositoryIT extends AbstractPostgresIntegrationTest {
 
     @Test
     void enqueueIsIdempotentWhilePending() {
-        repo.enqueueIfAbsent("document", 101L);
-        repo.enqueueIfAbsent("document", 101L); // ON CONFLICT DO NOTHING, не исключение
+        repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 101L);
+        repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 101L); // ON CONFLICT DO NOTHING, не исключение
 
         assertThat(countByStatus("document", 101L, "pending")).isEqualTo(1);
     }
 
     @Test
     void enqueueAllowedWhileEntityIsStarting() {
-        repo.enqueueIfAbsent("document", 102L);
+        repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 102L);
         repo.claimPending(10, 0);
 
         // Документ обновили, пока старая задача в обработке — новая pending-строка разрешена.
-        repo.enqueueIfAbsent("document", 102L);
+        repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 102L);
 
         assertThat(countByStatus("document", 102L, "starting")).isEqualTo(1);
         assertThat(countByStatus("document", 102L, "pending")).isEqualTo(1);
@@ -62,7 +64,7 @@ class EmbeddingTaskRepositoryIT extends AbstractPostgresIntegrationTest {
     @Test
     void claimRespectsBatchSizeAndNeverDropsTheRest() {
         for (long id = 1; id <= 5; id++) {
-            repo.enqueueIfAbsent("document", 200 + id);
+            repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 200 + id);
         }
 
         List<EmbeddingTaskEntity> first = repo.claimPending(2, 0);
@@ -87,8 +89,8 @@ class EmbeddingTaskRepositoryIT extends AbstractPostgresIntegrationTest {
 
     @Test
     void claimIsFifoAndSetsClaimFields() {
-        repo.enqueueIfAbsent("document", 301L);
-        repo.enqueueIfAbsent("document", 302L);
+        repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 301L);
+        repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 302L);
         // Внутри одной транзакции NOW() не меняется — состариваем первую строку явно.
         jdbc.update(
                 "UPDATE embedding_tasks SET created_at = NOW() - interval '1 minute' WHERE entity_id = 301");
@@ -98,16 +100,16 @@ class EmbeddingTaskRepositoryIT extends AbstractPostgresIntegrationTest {
         assertThat(claimed).hasSize(1);
         EmbeddingTaskEntity task = claimed.getFirst();
         assertThat(task.getEntityId()).isEqualTo(301L); // старейшая — первой
-        assertThat(task.getStatus()).isEqualTo("starting");
+        assertThat(task.getStatus()).isEqualTo(EmbeddingTaskStatus.STARTING);
         assertThat(task.getAttempts()).isEqualTo(1);
         assertThat(task.getClaimToken()).isNotNull();
     }
 
     @Test
     void claimSkipsEntityAlreadyStarting() {
-        repo.enqueueIfAbsent("document", 303L);
+        repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 303L);
         repo.claimPending(10, 0);
-        repo.enqueueIfAbsent("document", 303L); // новая pending, пока старая в обработке
+        repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 303L); // новая pending, пока старая в обработке
 
         // Пока по сущности есть starting-задача, её новая pending-строка не выдаётся.
         assertThat(repo.claimPending(10, 0)).isEmpty();
@@ -115,7 +117,7 @@ class EmbeddingTaskRepositoryIT extends AbstractPostgresIntegrationTest {
 
     @Test
     void claimHonoursRetryBackoff() {
-        repo.enqueueIfAbsent("document", 304L);
+        repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 304L);
         EmbeddingTaskEntity task = repo.claimPending(10, 0).getFirst();
         repo.resetToPending(task.getId(), task.getClaimToken());
 
@@ -132,7 +134,7 @@ class EmbeddingTaskRepositoryIT extends AbstractPostgresIntegrationTest {
 
     @Test
     void markDoneIsNoOpWithForeignToken() {
-        repo.enqueueIfAbsent("document", 305L);
+        repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 305L);
         EmbeddingTaskEntity task = repo.claimPending(10, 0).getFirst();
 
         repo.markDone(task.getId(), UUID.randomUUID());
@@ -146,7 +148,7 @@ class EmbeddingTaskRepositoryIT extends AbstractPostgresIntegrationTest {
 
     @Test
     void resetToPendingReturnsTaskToQueue() {
-        repo.enqueueIfAbsent("document", 306L);
+        repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 306L);
         EmbeddingTaskEntity task = repo.claimPending(10, 0).getFirst();
 
         repo.resetToPending(task.getId(), task.getClaimToken());
@@ -157,10 +159,10 @@ class EmbeddingTaskRepositoryIT extends AbstractPostgresIntegrationTest {
 
     @Test
     void resetToPendingSupersedesWhenNewerPendingExists() {
-        repo.enqueueIfAbsent("document", 307L);
+        repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 307L);
         EmbeddingTaskEntity task = repo.claimPending(10, 0).getFirst();
         // Пока задача в полёте, сущность обновили — появилась новая pending-строка.
-        repo.enqueueIfAbsent("document", 307L);
+        repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 307L);
 
         // Возврат в pending нарушил бы embedding_tasks_pending_unique — строка схлопывается.
         repo.resetToPending(task.getId(), task.getClaimToken());
@@ -171,7 +173,7 @@ class EmbeddingTaskRepositoryIT extends AbstractPostgresIntegrationTest {
 
     @Test
     void releaseClaimDoesNotBurnAttempt() {
-        repo.enqueueIfAbsent("document", 308L);
+        repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 308L);
         EmbeddingTaskEntity task = repo.claimPending(10, 0).getFirst();
         assertThat(task.getAttempts()).isEqualTo(1);
 
@@ -190,8 +192,8 @@ class EmbeddingTaskRepositoryIT extends AbstractPostgresIntegrationTest {
 
     @Test
     void resetStuckSplitsByAttempts() {
-        repo.enqueueIfAbsent("document", 309L);
-        repo.enqueueIfAbsent("document", 310L);
+        repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 309L);
+        repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 310L);
         List<EmbeddingTaskEntity> claimed = repo.claimPending(10, 0);
         assertThat(claimed).hasSize(2);
         Long retryableId = idOfEntity(claimed, 309L);
@@ -213,7 +215,7 @@ class EmbeddingTaskRepositoryIT extends AbstractPostgresIntegrationTest {
 
     @Test
     void resetStuckIgnoresFreshStartingTasks() {
-        repo.enqueueIfAbsent("document", 311L);
+        repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 311L);
         EmbeddingTaskEntity task = repo.claimPending(10, 0).getFirst();
 
         assertThat(repo.resetStuck(10, 3)).isZero();
@@ -222,8 +224,8 @@ class EmbeddingTaskRepositoryIT extends AbstractPostgresIntegrationTest {
 
     @Test
     void cleanupDeletesOnlyOldTerminalRows() {
-        repo.enqueueIfAbsent("document", 312L); // останется pending — не трогать
-        repo.enqueueIfAbsent("document", 313L);
+        repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 312L); // останется pending — не трогать
+        repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 313L);
         EmbeddingTaskEntity done = repo.claimPending(1, 0).getFirst();
         long stillPending = done.getEntityId() == 312L ? 313L : 312L;
         repo.markDone(done.getId(), done.getClaimToken());

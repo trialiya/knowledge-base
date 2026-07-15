@@ -15,6 +15,7 @@ import io.github.trialiya.kb.config.model.EmbeddingConfiguration;
 import io.github.trialiya.kb.config.model.SearchConfiguration;
 import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
 import io.github.trialiya.kb.model.doc.entity.DocumentType;
+import io.github.trialiya.kb.model.embedding.EmbeddingEntityType;
 import io.github.trialiya.kb.repository.AttachmentEmbeddingRepository;
 import io.github.trialiya.kb.repository.AttachmentRepository;
 import io.github.trialiya.kb.repository.DocumentEmbeddingRepository;
@@ -184,7 +185,7 @@ class EmbeddingPipelineIT extends AbstractPostgresIntegrationTest {
     void schedulerIndexesDocumentEndToEndAndCachesTheEmbedding() {
         DocumentEntity doc =
                 saveDoc("pipeline-happy-doc", "Съешь ещё этих мягких французских булок");
-        taskRepo.enqueueIfAbsent("document", doc.getId());
+        taskRepo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, doc.getId());
 
         OpenAiEmbeddingModel model = deterministicModel();
         EmbeddingConfiguration config = embeddingConfig(2, 3, 512, 64);
@@ -217,7 +218,7 @@ class EmbeddingPipelineIT extends AbstractPostgresIntegrationTest {
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     void schedulerRetriesTransientFailureThenSucceeds() {
         DocumentEntity doc = saveDoc("pipeline-retry-doc", "первая попытка падает, вторая — нет");
-        taskRepo.enqueueIfAbsent("document", doc.getId());
+        taskRepo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, doc.getId());
 
         AtomicInteger callCount = new AtomicInteger();
         OpenAiEmbeddingModel model = mock(OpenAiEmbeddingModel.class);
@@ -257,7 +258,7 @@ class EmbeddingPipelineIT extends AbstractPostgresIntegrationTest {
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     void schedulerMarksTaskFailedAfterMaxAttemptsAndPersistsNothing() {
         DocumentEntity doc = saveDoc("pipeline-permafail-doc", "всегда падает");
-        taskRepo.enqueueIfAbsent("document", doc.getId());
+        taskRepo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, doc.getId());
 
         OpenAiEmbeddingModel model = mock(OpenAiEmbeddingModel.class);
         when(model.call(any(EmbeddingRequest.class))).thenThrow(new RuntimeException("AI down"));

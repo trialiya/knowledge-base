@@ -3,6 +3,7 @@ package io.github.trialiya.kb.service;
 import io.github.trialiya.kb.model.attachment.dto.Attachment;
 import io.github.trialiya.kb.model.attachment.entity.AttachmentEmbeddingEntity;
 import io.github.trialiya.kb.model.attachment.entity.AttachmentEntity;
+import io.github.trialiya.kb.model.attachment.entity.AttachmentOwnerType;
 import io.github.trialiya.kb.model.search.SemanticSearchResult;
 import io.github.trialiya.kb.repository.AttachmentEmbeddingRepository;
 import io.github.trialiya.kb.repository.AttachmentRepository;
@@ -51,6 +52,19 @@ import org.springframework.web.server.ResponseStatusException;
 public class AttachmentService implements DisposableBean {
 
     private static final int PROMPT_MAX_CHARS = 12_000;
+    private static final String DEFAULT_CONTENT_TYPE = "text/plain";
+    private static final java.util.Set<String> KNOWN_TEXT_MIME_TYPES =
+            java.util.Set.of(
+                    "application/json",
+                    "application/xml",
+                    "application/yaml",
+                    "application/x-yaml",
+                    "application/octet-stream",
+                    "application/javascript",
+                    "application/typescript",
+                    "application/sql",
+                    "application/x-sh",
+                    "application/xhtml+xml");
     private static final String SUMMARIZE_PROMPT =
             """
         Создай краткое описание содержимого файла "{fileName}".
@@ -98,7 +112,7 @@ public class AttachmentService implements DisposableBean {
      */
     @Transactional
     public Attachment uploadForDocument(Long documentId, MultipartFile file) {
-        return upload("document", documentId, null, file);
+        return upload(AttachmentOwnerType.DOCUMENT, documentId, null, file);
     }
 
     /**
@@ -110,7 +124,7 @@ public class AttachmentService implements DisposableBean {
      */
     @Transactional
     public Attachment uploadForChat(String conversationId, MultipartFile file) {
-        return upload("chat", null, conversationId, file);
+        return upload(AttachmentOwnerType.CHAT, null, conversationId, file);
     }
 
     /**
@@ -130,7 +144,7 @@ public class AttachmentService implements DisposableBean {
             @Nullable String contentType,
             @Nonnull String content) {
         return persistAttachment(
-                "chat",
+                AttachmentOwnerType.CHAT,
                 null,
                 conversationId,
                 fileName,
@@ -154,7 +168,7 @@ public class AttachmentService implements DisposableBean {
 
         OffsetDateTime now = OffsetDateTime.now();
         AttachmentEntity copy = new AttachmentEntity();
-        copy.setOwnerType("document");
+        copy.setOwnerType(AttachmentOwnerType.DOCUMENT);
         copy.setDocumentId(targetDocumentId);
         copy.setConversationId(null);
         copy.setFileName(source.getFileName());
@@ -293,7 +307,7 @@ public class AttachmentService implements DisposableBean {
     // ── Internal ──────────────────────────────────────────────────────────────
 
     private Attachment upload(
-            String ownerType, Long documentId, String conversationId, MultipartFile file) {
+            AttachmentOwnerType ownerType, Long documentId, String conversationId, MultipartFile file) {
         validateTextFile(file);
 
         String content;
@@ -319,7 +333,7 @@ public class AttachmentService implements DisposableBean {
      * and metadata.
      */
     private Attachment persistAttachment(
-            String ownerType,
+            AttachmentOwnerType ownerType,
             @Nullable Long documentId,
             @Nullable String conversationId,
             String fileName,
@@ -332,7 +346,7 @@ public class AttachmentService implements DisposableBean {
         entity.setDocumentId(documentId);
         entity.setConversationId(conversationId);
         entity.setFileName(fileName);
-        entity.setContentType(contentType != null ? contentType : "text/plain");
+        entity.setContentType(contentType != null ? contentType : DEFAULT_CONTENT_TYPE);
         entity.setFileSize(fileSize != null ? fileSize : content.length());
         entity.setContent(content);
         entity.setCreatedAt(now);
@@ -343,7 +357,7 @@ public class AttachmentService implements DisposableBean {
                 "Uploaded attachment id={} owner={}:{} fileName='{}' size={}",
                 saved.getId(),
                 ownerType,
-                ownerType.equals("document") ? documentId : conversationId,
+                ownerType == AttachmentOwnerType.DOCUMENT ? documentId : conversationId,
                 saved.getFileName(),
                 saved.getFileSize());
 
@@ -443,16 +457,7 @@ public class AttachmentService implements DisposableBean {
 
     /** Accept common text-ish MIME types that don't start with "text/". */
     private boolean isKnownTextType(String contentType) {
-        return contentType.equals("application/json")
-                || contentType.equals("application/xml")
-                || contentType.equals("application/yaml")
-                || contentType.equals("application/x-yaml")
-                || contentType.equals("application/octet-stream")
-                || contentType.equals("application/javascript")
-                || contentType.equals("application/typescript")
-                || contentType.equals("application/sql")
-                || contentType.equals("application/x-sh")
-                || contentType.equals("application/xhtml+xml");
+        return KNOWN_TEXT_MIME_TYPES.contains(contentType);
     }
 
     private AttachmentEntity findOrThrow(Long id) {

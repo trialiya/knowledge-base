@@ -1,6 +1,8 @@
 package io.github.trialiya.kb.repository;
 
+import io.github.trialiya.kb.model.embedding.EmbeddingEntityType;
 import io.github.trialiya.kb.model.embedding.EmbeddingTaskEntity;
+import io.github.trialiya.kb.model.embedding.EmbeddingTaskStatus;
 import java.sql.Timestamp;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -221,14 +223,14 @@ public class EmbeddingTaskRepository {
      * NOTHING}, so concurrent enqueues for the same entity never throw into the caller's
      * transaction.
      */
-    public void enqueueIfAbsent(String entityType, Long entityId) {
+    public void enqueueIfAbsent(EmbeddingEntityType entityType, Long entityId) {
         jdbc.update(
                 """
                 INSERT INTO embedding_tasks (entity_type, entity_id, status, attempts, created_at, updated_at)
                 VALUES (?, ?, 'pending', 0, NOW(), NOW())
                 ON CONFLICT (entity_type, entity_id) WHERE status = 'pending' DO NOTHING
                 """,
-                entityType,
+                entityType.getValue(),
                 entityId);
     }
 
@@ -236,9 +238,9 @@ public class EmbeddingTaskRepository {
             (rs, rowNum) -> {
                 EmbeddingTaskEntity e = new EmbeddingTaskEntity();
                 e.setId(rs.getLong("id"));
-                e.setEntityType(rs.getString("entity_type"));
+                e.setEntityType(EmbeddingEntityType.fromValue(rs.getString("entity_type")));
                 e.setEntityId(rs.getLong("entity_id"));
-                e.setStatus(rs.getString("status"));
+                e.setStatus(EmbeddingTaskStatus.fromValue(rs.getString("status")));
                 e.setAttempts(rs.getInt("attempts"));
                 Timestamp created = rs.getTimestamp("created_at");
                 if (created != null) {

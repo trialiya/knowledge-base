@@ -5,6 +5,7 @@ import ToolCallDetailModal from './ToolCallDetailModal';
 import { getToolIcon, toolLabelKey, humanizeTool } from './toolMeta';
 import { IconCopySmall, IconCopied, IconStatusStarted, IconStatusOk, IconStatusError } from '../../icons';
 import { COPY_DONE_MS, GIST_PREVIEW_LEN } from '../../constants/ui';
+import { TOOL_STATUS } from '../../constants/toolStatus';
 import './styles/tool-calls.css';
 
 // Правая колонка плашек вызовов инструментов под ответом ассистента.
@@ -13,11 +14,11 @@ import './styles/tool-calls.css';
 
 const StatusIcon = ({ status }) => {
   switch (status) {
-    case 'STARTED':
+    case TOOL_STATUS.STARTED:
       return <IconStatusStarted />;
-    case 'OK':
+    case TOOL_STATUS.OK:
       return <IconStatusOk />;
-    case 'ERROR':
+    case TOOL_STATUS.ERROR:
       return <IconStatusError />;
     default:
       return <IconStatusStarted />;
@@ -49,7 +50,7 @@ const buildCopyText = (tc, t) => {
   if (argsStr) parts.push(argsStr);
   if (tc.resultGist) parts.push(`${t('toolCall.result')}: ${tc.resultGist}`);
   parts.push(`${t('toolCall.status')}: ${tc.status || '—'}`);
-  if (tc.status === 'ERROR' && tc.error) parts.push(`${t('toolCall.error')}: ${tc.error}`);
+  if (tc.status === TOOL_STATUS.ERROR && tc.error) parts.push(`${t('toolCall.error')}: ${tc.error}`);
   return parts.join('\n');
 };
 
@@ -70,7 +71,7 @@ const ToolCallItem = ({ tc, conversationId, toolCallsRunId }) => {
   const [showDetail, setShowDetail] = useState(false);
 
   useEffect(() => () => clearTimeout(copyTimerRef.current), []);
-  const canShowDetail = !!(conversationId && toolCallsRunId && tc.status !== 'STARTED' && tc.hasDetails !== false);
+  const canShowDetail = !!(conversationId && toolCallsRunId && tc.status !== TOOL_STATUS.STARTED && tc.hasDetails !== false);
 
   const GAP = 8;
 
@@ -156,7 +157,7 @@ const ToolCallItem = ({ tc, conversationId, toolCallsRunId }) => {
         </span>
         {argsStr && <span className="tool-call-args">{argsStr}</span>}
         {gist && <span className="tool-call-gist">{gist}</span>}
-        {tc.status === 'ERROR' && tc.error && <span className="tool-call-error">{tc.error}</span>}
+        {tc.status === TOOL_STATUS.ERROR && tc.error && <span className="tool-call-error">{tc.error}</span>}
       </div>
       {canShowDetail && (
         <button
@@ -201,7 +202,7 @@ const ToolCallItem = ({ tc, conversationId, toolCallsRunId }) => {
               {t('toolCall.status')}: {tc.status || '—'}
             </div>
             {tc.resultGist && <div className="tool-call-tooltip-gist">{tc.resultGist}</div>}
-            {tc.status === 'ERROR' && tc.error && <div className="tool-call-tooltip-error">{tc.error}</div>}
+            {tc.status === TOOL_STATUS.ERROR && tc.error && <div className="tool-call-tooltip-error">{tc.error}</div>}
           </div>,
           document.body,
         )}
@@ -225,11 +226,11 @@ const ToolCallGroup = ({ name, items, conversationId, toolCallsRunId }) => {
   const label = t(toolLabelKey(name), { defaultValue: humanizeTool(name) });
   const icon = getToolIcon(name);
   const firstArgsStr = formatArgs(first.arguments);
-  const groupStatus = items.some((t2) => t2.status === 'ERROR')
-    ? 'ERROR'
-    : items.some((t2) => t2.status === 'STARTED')
-    ? 'STARTED'
-    : 'OK';
+  const groupStatus = items.some((t2) => t2.status === TOOL_STATUS.ERROR)
+    ? TOOL_STATUS.ERROR
+    : items.some((t2) => t2.status === TOOL_STATUS.STARTED)
+    ? TOOL_STATUS.STARTED
+    : TOOL_STATUS.OK;
 
   return (
     <div className="tool-call-group">

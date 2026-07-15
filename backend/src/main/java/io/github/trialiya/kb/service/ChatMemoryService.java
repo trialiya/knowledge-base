@@ -173,7 +173,7 @@ public class ChatMemoryService implements ChatMemoryRepository {
                             callIndex,
                             tc.name(),
                             tc.argumentsRaw(),
-                            tc.status().name(),
+                            tc.status(),
                             tc.error(),
                             tc.resultText(),
                             resultMetaJson));

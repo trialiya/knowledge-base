@@ -9,12 +9,14 @@ import DetailTabs from './DetailTabs';
 import DetailModals from './DetailModals';
 import useFolderChildren from './useFolderChildren';
 import useDetailPanel from './useDetailPanel';
+import { DOC_TAB } from '../../constants/docTabs';
+import { OWNER_TYPE } from '../../constants/ownerType';
 
 const TABS = [
-  { key: 'summary', labelKey: 'tabs.summary' },
-  { key: 'content', labelKey: 'tabs.content' },
-  { key: 'contents', labelKey: 'tabs.contents' },
-  { key: 'attachments', labelKey: 'tabs.attachments' },
+  { key: DOC_TAB.SUMMARY, labelKey: 'tabs.summary' },
+  { key: DOC_TAB.CONTENT, labelKey: 'tabs.content' },
+  { key: DOC_TAB.CONTENTS, labelKey: 'tabs.contents' },
+  { key: DOC_TAB.ATTACHMENTS, labelKey: 'tabs.attachments' },
 ];
 
 const FolderDetail = ({
@@ -49,29 +51,29 @@ const FolderDetail = ({
       <DetailTabs tabs={TABS} tab={tab} onTabChange={onTabChange} attachmentCount={attachmentCount} />
 
       <div className="detail-body">
-        {tab === 'summary' && (
+        {tab === DOC_TAB.SUMMARY && (
           <div className="summary-tab">
             <SummarySection
               label={t('detail.about')}
               description={node.description}
-              onEdit={() => onTabChange('content')}
+              onEdit={() => onTabChange(DOC_TAB.CONTENT)}
               onExpand={() => setFullscreen('about')}
               tree={tree}
               onNavigate={onNavigate}
               copyable
             />
             {children.length > 0 && (
-              <SummarySection label={t('detail.contents')} showMoreBtn onMore={() => onTabChange('contents')}>
+              <SummarySection label={t('detail.contents')} showMoreBtn onMore={() => onTabChange(DOC_TAB.CONTENTS)}>
                 <ContentsTable children={children} onNavigate={onNavigate} />
               </SummarySection>
             )}
-            <SummarySection label={t('detail.attachments')} showMoreBtn onMore={() => onTabChange('attachments')}>
-              <AttachmentPanel ownerType="document" ownerId={node.id} compact onCountChange={setAttachmentCount} />
+            <SummarySection label={t('detail.attachments')} showMoreBtn onMore={() => onTabChange(DOC_TAB.ATTACHMENTS)}>
+              <AttachmentPanel ownerType={OWNER_TYPE.DOCUMENT} ownerId={node.id} compact onCountChange={setAttachmentCount} />
             </SummarySection>
           </div>
         )}
 
-        {tab === 'content' && (
+        {tab === DOC_TAB.CONTENT && (
           <MarkdownEditor
             value={contentDraft}
             onChange={setContentDraft}
@@ -85,7 +87,7 @@ const FolderDetail = ({
           />
         )}
 
-        {tab === 'contents' && (
+        {tab === DOC_TAB.CONTENTS && (
           <div className="contents-tab">
             {childrenLoading && children.length === 0 ? (
               <p className="empty-tab">{t('detail.loading')}</p>
@@ -97,8 +99,8 @@ const FolderDetail = ({
           </div>
         )}
 
-        {tab === 'attachments' && (
-          <AttachmentPanel ownerType="document" ownerId={node.id} onCountChange={setAttachmentCount} />
+        {tab === DOC_TAB.ATTACHMENTS && (
+          <AttachmentPanel ownerType={OWNER_TYPE.DOCUMENT} ownerId={node.id} onCountChange={setAttachmentCount} />
         )}
       </div>
 
