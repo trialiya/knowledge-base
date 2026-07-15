@@ -16,6 +16,38 @@ const formatJson = (raw) => {
   }
 };
 
+const escapeHtml = (s) =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+const highlightJson = (text) => {
+  const escaped = escapeHtml(text);
+  return escaped.replace(
+    /("(?:\\u[0-9a-fA-F]{4}|\\[^u]|[^\\"])*"(\s*:)?|true|false|null|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g,
+    (match) => {
+      let cls;
+      if (match.startsWith('"')) {
+        cls = match.endsWith(':') ? 'json-key' : 'json-string';
+      } else if (match === 'true' || match === 'false') {
+        cls = 'json-boolean';
+      } else if (match === 'null') {
+        cls = 'json-null';
+      } else {
+        cls = 'json-number';
+      }
+      return `<span class="${cls}">${match}</span>`;
+    },
+  );
+};
+
+const tryFormatJson = (raw) => {
+  if (!raw) return null;
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2);
+  } catch {
+    return null;
+  }
+};
+
 /** Маленькая кнопка копирования содержимого секции (аргументы/результат). */
 const CopyButton = ({ value }) => {
   const { t } = useTranslation('chat');
@@ -86,6 +118,7 @@ const ToolCallDetailModal = ({ conversationId, runId, callIndex, tc, onClose }) 
   const icon = getToolIcon(tc.name);
   const statusClass = details ? `tcd-status--${details.status.toLowerCase()}` : '';
   const argsPretty = details ? formatJson(details.argumentsRaw) : null;
+  const resultPretty = details ? tryFormatJson(details.resultText) : null;
 
   return ReactDOM.createPortal(
     <div className="tcd-overlay" onClick={onClose}>
@@ -115,7 +148,14 @@ const ToolCallDetailModal = ({ conversationId, runId, callIndex, tc, onClose }) 
                 <div className="tcd-section-label">{t('toolCall.detail.arguments')}</div>
                 <CopyButton value={argsPretty} />
               </div>
-              <pre className="tcd-pre">{argsPretty || '—'}</pre>
+              {argsPretty ? (
+                <pre
+                  className="tcd-pre"
+                  dangerouslySetInnerHTML={{ __html: highlightJson(argsPretty) }}
+                />
+              ) : (
+                <pre className="tcd-pre">—</pre>
+              )}
             </section>
 
             <section className="tcd-section">
@@ -123,7 +163,14 @@ const ToolCallDetailModal = ({ conversationId, runId, callIndex, tc, onClose }) 
                 <div className="tcd-section-label">{t('toolCall.detail.result')}</div>
                 <CopyButton value={details.resultText} />
               </div>
-              <pre className="tcd-pre tcd-pre--result">{details.resultText || '—'}</pre>
+              {resultPretty ? (
+                <pre
+                  className="tcd-pre tcd-pre--result"
+                  dangerouslySetInnerHTML={{ __html: highlightJson(resultPretty) }}
+                />
+              ) : (
+                <pre className="tcd-pre tcd-pre--result">{details.resultText || '—'}</pre>
+              )}
             </section>
 
             {details.error && (
