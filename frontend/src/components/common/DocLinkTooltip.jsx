@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import useDocPreview from './useDocPreview';
 import useFilePreview from './useFilePreview';
 import FilePreviewModal from './FilePreviewModal';
+import gitApi from '../../api/gitApi';
 import FullscreenEditorModal from '../knowledgeBasePanel/FullscreenEditorModal';
 import { IconFolder, IconDoc, IconFileText, IconSparkle, IconExpand } from '../../icons';
 import { TOOLTIP_WIDTH, TOOLTIP_GAP, TOOLTIP_HEIGHT_ESTIMATE } from '../../constants/ui';
@@ -33,11 +34,14 @@ import { TOOLTIP_WIDTH, TOOLTIP_GAP, TOOLTIP_HEIGHT_ESTIMATE } from '../../const
  * selectNode, in chat it's openDoc from useAppNavigation) — both accept an id.
  */
 const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
+  const { t } = useTranslation();
   const [visible, setVisible] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0 });
   // Снимок узла для fullscreen-превью: useDocPreview сбрасывает node, когда
   // тултип прячется (enabled=false), а модалка живёт дольше тултипа.
   const [fullscreenNode, setFullscreenNode] = useState(null);
+  const [fileFullscreenNode, setFileFullscreenNode] = useState(null);
+  const [fileFullscreenLoading, setFileFullscreenLoading] = useState(false);
   const [filePreviewOpen, setFilePreviewOpen] = useState(false);
   const enterTimer = useRef(null);
   const leaveTimer = useRef(null);
@@ -145,6 +149,23 @@ const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
     setFullscreenNode(n);
   }, []);
 
+  const openFileFullscreen = useCallback((f) => {
+    clearTimeout(enterTimer.current);
+    setVisible(false);
+    setFileFullscreenLoading(true);
+    setFileFullscreenNode({ path: f.path, content: '' });
+    gitApi
+      .getFileContent(f.path)
+      .then((full) => {
+        setFileFullscreenNode(full);
+        setFileFullscreenLoading(false);
+      })
+      .catch(() => {
+        setFileFullscreenNode({ path: f.path, content: '', error: true });
+        setFileFullscreenLoading(false);
+      });
+  }, []);
+
   // ── In-document anchor (#heading) ──────────────────────────────────────────
   // Scroll to the slugged heading within THIS rendered-markdown container.
   // STRICT matching: the anchor must equal the generated heading id verbatim
@@ -214,6 +235,7 @@ const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
               onMouseEnter={keepOpen}
               onMouseLeave={handleMouseLeave}
               onOpen={openFilePreview}
+              onExpand={openFileFullscreen}
             />,
             document.body,
           )}
@@ -224,6 +246,32 @@ const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
             fromLine={fileLink.fromLine}
             toLine={fileLink.toLine}
             onClose={() => setFilePreviewOpen(false)}
+          />
+        )}
+
+        {fileFullscreenNode && !fileFullscreenLoading && (
+          <FullscreenEditorModal
+            title={
+              fileFullscreenNode.path ? fileFullscreenNode.path.slice(fileFullscreenNode.path.lastIndexOf('/') + 1) : ''
+            }
+            value={fileFullscreenNode.content || ''}
+            previewOnly
+            tree={tree}
+            onNavigate={navigateToDoc}
+            onClose={() => setFileFullscreenNode(null)}
+          />
+        )}
+
+        {fileFullscreenLoading && (
+          <FullscreenEditorModal
+            title={
+              fileFullscreenNode?.path ? fileFullscreenNode.path.slice(fileFullscreenNode.path.lastIndexOf('/') + 1) : ''
+            }
+            value={t('common.loading')}
+            previewOnly
+            tree={tree}
+            onNavigate={navigateToDoc}
+            onClose={() => { setFileFullscreenNode(null); setFileFullscreenLoading(false); }}
           />
         )}
       </>
@@ -377,7 +425,7 @@ DocPreviewTooltip.displayName = 'DocPreviewTooltip';
 // ── File tooltip card ────────────────────────────────────────────────────────
 
 const FilePreviewTooltip = React.forwardRef(
-  ({ file, loading, error, pos, onMouseEnter, onMouseLeave, onOpen }, ref) => {
+  ({ file, loading, error, pos, onMouseEnter, onMouseLeave, onOpen, onExpand }, ref) => {
     const { t } = useTranslation('knowledgeBase');
     const name = file?.path ? file.path.slice(file.path.lastIndexOf('/') + 1) : '';
 
@@ -406,6 +454,16 @@ const FilePreviewTooltip = React.forwardRef(
               </span>
               <span className="doc-preview-tooltip__title">{name}</span>
               <span className="doc-preview-tooltip__badge">{t('docLink.file')}</span>
+              <button
+                className="doc-preview-tooltip__expand"
+                title={t('docLink.expand')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onExpand(file);
+                }}
+              >
+                <IconExpand size={12} />
+              </button>
             </div>
 
             <div className="doc-preview-tooltip__description">
