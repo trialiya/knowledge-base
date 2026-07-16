@@ -56,7 +56,7 @@ jobs:
 
       # Только :backend:test — без bootJar/copyFrontend, поэтому фронт не собирается.
       - name: Run backend tests
-        run: ./gradlew :backend:test --no-daemon --stacktrace
+        run: ./gradlew :backend:test :backend:spotlessCheck --no-daemon --stacktrace
 
       - name: Upload test reports
         if: always()

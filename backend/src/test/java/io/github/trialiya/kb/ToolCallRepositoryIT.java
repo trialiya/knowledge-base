@@ -88,11 +88,14 @@ class ToolCallRepositoryIT extends AbstractPostgresIntegrationTest {
 
         // вставляем не по порядку
         toolCallRepo.save(
-                new ToolCallEntity(conv, runId, 2, "third", null, ToolInvocationStatus.OK, null, null, null));
+                new ToolCallEntity(
+                        conv, runId, 2, "third", null, ToolInvocationStatus.OK, null, null, null));
         toolCallRepo.save(
-                new ToolCallEntity(conv, runId, 0, "first", null, ToolInvocationStatus.OK, null, null, null));
+                new ToolCallEntity(
+                        conv, runId, 0, "first", null, ToolInvocationStatus.OK, null, null, null));
         toolCallRepo.save(
-                new ToolCallEntity(conv, runId, 1, "second", null, ToolInvocationStatus.OK, null, null, null));
+                new ToolCallEntity(
+                        conv, runId, 1, "second", null, ToolInvocationStatus.OK, null, null, null));
 
         assertThat(toolCallRepo.findByConversationIdAndRunIdOrderByCallIndex(conv, runId))
                 .extracting(ToolCallEntity::getName)
@@ -105,8 +108,12 @@ class ToolCallRepositoryIT extends AbstractPostgresIntegrationTest {
         String runA = UUID.randomUUID().toString();
         String runB = UUID.randomUUID().toString();
 
-        toolCallRepo.save(new ToolCallEntity(conv, runA, 0, "a", null, ToolInvocationStatus.OK, null, null, null));
-        toolCallRepo.save(new ToolCallEntity(conv, runB, 0, "b", null, ToolInvocationStatus.OK, null, null, null));
+        toolCallRepo.save(
+                new ToolCallEntity(
+                        conv, runA, 0, "a", null, ToolInvocationStatus.OK, null, null, null));
+        toolCallRepo.save(
+                new ToolCallEntity(
+                        conv, runB, 0, "b", null, ToolInvocationStatus.OK, null, null, null));
 
         assertThat(toolCallRepo.findByConversationIdAndRunIdOrderByCallIndex(conv, runA))
                 .extracting(ToolCallEntity::getName)

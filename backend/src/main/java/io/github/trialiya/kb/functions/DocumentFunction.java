@@ -4,12 +4,12 @@ import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
 
 import io.github.trialiya.kb.model.doc.dto.CreateDocumentRequest;
 import io.github.trialiya.kb.model.doc.dto.DocumentNode;
-import io.github.trialiya.kb.model.doc.entity.DocumentType;
 import io.github.trialiya.kb.model.doc.dto.DocumentOutline;
 import io.github.trialiya.kb.model.doc.dto.DocumentSection;
 import io.github.trialiya.kb.model.doc.dto.DocumentShort;
 import io.github.trialiya.kb.model.doc.dto.SearchResult;
 import io.github.trialiya.kb.model.doc.dto.UpdateDocumentRequest;
+import io.github.trialiya.kb.model.doc.entity.DocumentType;
 import io.github.trialiya.kb.service.AttachmentService;
 import io.github.trialiya.kb.service.DocumentService;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
@@ -379,7 +379,10 @@ public class DocumentFunction {
 
         CreateDocumentRequest req = new CreateDocumentRequest();
         req.setTitle(title);
-        req.setType(type != null && !type.isBlank() ? DocumentType.fromValue(type) : DocumentType.DOCUMENT);
+        req.setType(
+                type != null && !type.isBlank()
+                        ? DocumentType.fromValue(type)
+                        : DocumentType.DOCUMENT);
         req.setParentId(parentId);
         req.setDescription(description);
 

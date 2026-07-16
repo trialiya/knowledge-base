@@ -42,7 +42,8 @@ class EmbeddingTaskRepositoryIT extends AbstractPostgresIntegrationTest {
     @Test
     void enqueueIsIdempotentWhilePending() {
         repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 101L);
-        repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 101L); // ON CONFLICT DO NOTHING, не исключение
+        repo.enqueueIfAbsent(
+                EmbeddingEntityType.DOCUMENT, 101L); // ON CONFLICT DO NOTHING, не исключение
 
         assertThat(countByStatus("document", 101L, "pending")).isEqualTo(1);
     }
@@ -109,7 +110,8 @@ class EmbeddingTaskRepositoryIT extends AbstractPostgresIntegrationTest {
     void claimSkipsEntityAlreadyStarting() {
         repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 303L);
         repo.claimPending(10, 0);
-        repo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, 303L); // новая pending, пока старая в обработке
+        repo.enqueueIfAbsent(
+                EmbeddingEntityType.DOCUMENT, 303L); // новая pending, пока старая в обработке
 
         // Пока по сущности есть starting-задача, её новая pending-строка не выдаётся.
         assertThat(repo.claimPending(10, 0)).isEmpty();

@@ -1,7 +1,6 @@
 package io.github.trialiya.kb.service;
 
 import io.github.trialiya.kb.config.model.EmbeddingConfiguration;
-import io.github.trialiya.kb.model.embedding.EmbeddingEntityType;
 import io.github.trialiya.kb.model.embedding.EmbeddingTaskEntity;
 import io.github.trialiya.kb.repository.EmbeddingTaskRepository;
 import java.util.List;

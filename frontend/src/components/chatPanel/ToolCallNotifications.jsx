@@ -71,7 +71,12 @@ const ToolCallItem = ({ tc, conversationId, toolCallsRunId }) => {
   const [showDetail, setShowDetail] = useState(false);
 
   useEffect(() => () => clearTimeout(copyTimerRef.current), []);
-  const canShowDetail = !!(conversationId && toolCallsRunId && tc.status !== TOOL_STATUS.STARTED && tc.hasDetails !== false);
+  const canShowDetail = !!(
+    conversationId &&
+    toolCallsRunId &&
+    tc.status !== TOOL_STATUS.STARTED &&
+    tc.hasDetails !== false
+  );
 
   const GAP = 8;
 

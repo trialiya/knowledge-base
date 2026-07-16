@@ -307,7 +307,10 @@ public class AttachmentService implements DisposableBean {
     // ── Internal ──────────────────────────────────────────────────────────────
 
     private Attachment upload(
-            AttachmentOwnerType ownerType, Long documentId, String conversationId, MultipartFile file) {
+            AttachmentOwnerType ownerType,
+            Long documentId,
+            String conversationId,
+            MultipartFile file) {
         validateTextFile(file);
 
         String content;

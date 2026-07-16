@@ -52,7 +52,8 @@ class EmbeddingTaskSchedulerTest {
                                 null));
     }
 
-    private static EmbeddingTaskEntity task(EmbeddingEntityType entityType, long entityId, int attempts) {
+    private static EmbeddingTaskEntity task(
+            EmbeddingEntityType entityType, long entityId, int attempts) {
         EmbeddingTaskEntity t = new EmbeddingTaskEntity();
         t.setId(entityId * 10);
         t.setEntityType(entityType);

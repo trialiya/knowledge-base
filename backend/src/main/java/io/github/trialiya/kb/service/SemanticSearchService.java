@@ -2,10 +2,10 @@ package io.github.trialiya.kb.service;
 
 import io.github.trialiya.kb.config.model.SearchConfiguration;
 import io.github.trialiya.kb.model.attachment.entity.AttachmentEmbeddingEntity;
-import io.github.trialiya.kb.model.embedding.EmbeddingEntityType;
 import io.github.trialiya.kb.model.attachment.entity.AttachmentEntity;
 import io.github.trialiya.kb.model.doc.entity.DocumentEmbeddingEntity;
 import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
+import io.github.trialiya.kb.model.embedding.EmbeddingEntityType;
 import io.github.trialiya.kb.model.search.SemanticSearchResult;
 import io.github.trialiya.kb.repository.AttachmentEmbeddingRepository;
 import io.github.trialiya.kb.repository.AttachmentRepository;

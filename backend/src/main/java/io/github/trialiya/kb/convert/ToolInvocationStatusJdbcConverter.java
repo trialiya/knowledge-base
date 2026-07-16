@@ -5,7 +5,9 @@ import org.springframework.core.convert.converter.Converter;
 import org.springframework.data.convert.ReadingConverter;
 import org.springframework.data.convert.WritingConverter;
 
-/** Spring Data JDBC converters that map {@link ToolInvocationStatus} ↔ uppercase {@code VARCHAR}. */
+/**
+ * Spring Data JDBC converters that map {@link ToolInvocationStatus} ↔ uppercase {@code VARCHAR}.
+ */
 public final class ToolInvocationStatusJdbcConverter {
 
     private ToolInvocationStatusJdbcConverter() {}

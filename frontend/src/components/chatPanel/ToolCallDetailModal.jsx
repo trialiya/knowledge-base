@@ -16,8 +16,7 @@ const formatJson = (raw) => {
   }
 };
 
-const escapeHtml = (s) =>
-  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const escapeHtml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 const highlightJson = (text) => {
   const escaped = escapeHtml(text);
@@ -149,10 +148,7 @@ const ToolCallDetailModal = ({ conversationId, runId, callIndex, tc, onClose }) 
                 <CopyButton value={argsPretty} />
               </div>
               {argsPretty ? (
-                <pre
-                  className="tcd-pre"
-                  dangerouslySetInnerHTML={{ __html: highlightJson(argsPretty) }}
-                />
+                <pre className="tcd-pre" dangerouslySetInnerHTML={{ __html: highlightJson(argsPretty) }} />
               ) : (
                 <pre className="tcd-pre">—</pre>
               )}

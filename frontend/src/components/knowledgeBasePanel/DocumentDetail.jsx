@@ -143,7 +143,12 @@ const DocumentDetail = ({
             />
 
             <SummarySection label={t('detail.attachments')} showMoreBtn onMore={() => onTabChange(DOC_TAB.ATTACHMENTS)}>
-              <AttachmentPanel ownerType={OWNER_TYPE.DOCUMENT} ownerId={node.id} compact onCountChange={setAttachmentCount} />
+              <AttachmentPanel
+                ownerType={OWNER_TYPE.DOCUMENT}
+                ownerId={node.id}
+                compact
+                onCountChange={setAttachmentCount}
+              />
             </SummarySection>
           </div>
         )}
