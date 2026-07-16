@@ -1,5 +1,7 @@
 package io.github.trialiya.kb.functions;
 
+import static io.github.trialiya.kb.functions.DocumentFunction.InsertPosition.AFTER;
+import static io.github.trialiya.kb.functions.DocumentFunction.InsertPosition.BEFORE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -277,7 +279,7 @@ class DocumentFunctionSectionToolsTest {
 
         @Test
         void insertWithoutPriorStructureReadIsRejected() {
-            assertThatThrownBy(() -> insert("Гайд > FAQ", "before", "## Новая\nтекст"))
+            assertThatThrownBy(() -> insert("Гайд > FAQ", BEFORE, "## Новая\nтекст"))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("getDocumentOutline");
             Mockito.verify(documentService, never()).patchDescription(anyLong(), anyInt(), any());
@@ -291,7 +293,7 @@ class DocumentFunctionSectionToolsTest {
                     Map.of("documentId", String.valueOf(DOC_ID)),
                     ToolInvocationStatus.OK);
 
-            assertThatCode(() -> insert("Гайд > FAQ", "before", "## Новая\nтекст"))
+            assertThatCode(() -> insert("Гайд > FAQ", BEFORE, "## Новая\nтекст"))
                     .doesNotThrowAnyException();
         }
 
@@ -300,7 +302,7 @@ class DocumentFunctionSectionToolsTest {
             allowStructure();
             AtomicReference<String> patched = stubPatch();
 
-            insert("Гайд > FAQ", "before", "## Новая\nтекст");
+            insert("Гайд > FAQ", BEFORE, "## Новая\nтекст");
 
             assertThat(patched.get())
                     .isEqualTo(
@@ -313,7 +315,7 @@ class DocumentFunctionSectionToolsTest {
             allowStructure();
             AtomicReference<String> patched = stubPatch();
 
-            insert("Гайд > Установка", "after", "## Новая\nтекст");
+            insert("Гайд > Установка", AFTER, "## Новая\nтекст");
 
             assertThat(patched.get())
                     .isEqualTo(
@@ -322,19 +324,10 @@ class DocumentFunctionSectionToolsTest {
         }
 
         @Test
-        void invalidPositionIsRejected() {
-            allowStructure();
-
-            assertThatThrownBy(() -> insert("Гайд > FAQ", "above", "## Новая\nтекст"))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("before");
-        }
-
-        @Test
         void beforePreambleIsRejected() {
             allowStructure();
 
-            assertThatThrownBy(() -> insert("_preamble", "before", "## Новая\nтекст"))
+            assertThatThrownBy(() -> insert("_preamble", BEFORE, "## Новая\nтекст"))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("_preamble");
         }
@@ -343,7 +336,7 @@ class DocumentFunctionSectionToolsTest {
         void contentWithoutHeadingIsRejected() {
             allowStructure();
 
-            assertThatThrownBy(() -> insert("Гайд > FAQ", "before", "текст без заголовка"))
+            assertThatThrownBy(() -> insert("Гайд > FAQ", BEFORE, "текст без заголовка"))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("заголовка");
         }
@@ -352,7 +345,8 @@ class DocumentFunctionSectionToolsTest {
             record("getDocument", Map.of("documentId", DOC_ID), ToolInvocationStatus.OK);
         }
 
-        private void insert(String anchor, String position, String newContent) {
+        private void insert(
+                String anchor, DocumentFunction.InsertPosition position, String newContent) {
             function.insertDocumentSection(context, DOC_ID, anchor, position, newContent, 3);
         }
     }
