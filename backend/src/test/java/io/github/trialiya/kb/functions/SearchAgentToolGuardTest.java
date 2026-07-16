@@ -38,6 +38,9 @@ class SearchAgentToolGuardTest {
                     "createDocument",
                     "updateDocument",
                     "updateDocumentSection",
+                    "insertDocumentSection",
+                    "deleteDocumentSection",
+                    "renameDocumentSections",
                     "copyAttachmentToDocument",
                     "searchCodebase");
 

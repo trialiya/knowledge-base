@@ -201,5 +201,100 @@ class MarkdownSectionsTest {
             assertThat(contentOf(result, "A > A1")).isEqualTo("## A1\nизменено\n\n");
             assertThat(contentOf(result, "B")).isEqualTo("# B\ntext b\n");
         }
+
+        @Test
+        void emptyContentDeletesTheSection() {
+            String md = "# A\ntext a\n# B\nold b\n# C\ntext c\n";
+
+            String result = MarkdownSections.replaceSection(md, section(md, "B"), "");
+
+            assertThat(result).isEqualTo("# A\ntext a\n# C\ntext c\n");
+        }
+    }
+
+    @Nested
+    class Insert {
+
+        @Test
+        void insertsBeforeAnchorSection() {
+            String md = "# A\ntext a\n# B\ntext b\n";
+
+            String result =
+                    MarkdownSections.insertSection(md, section(md, "B"), "# New\nтекст", true);
+
+            assertThat(result).isEqualTo("# A\ntext a\n\n# New\nтекст\n\n# B\ntext b\n");
+        }
+
+        @Test
+        void insertsAfterAnchorSubtree() {
+            String md = "# A\n## A1\nsub\n# B\ntext b\n";
+
+            String result =
+                    MarkdownSections.insertSection(md, section(md, "A"), "# New\nтекст", false);
+
+            assertThat(result).isEqualTo("# A\n## A1\nsub\n\n# New\nтекст\n\n# B\ntext b\n");
+        }
+
+        @Test
+        void insertsAfterLastSectionWithSingleTrailingNewline() {
+            String md = "# A\ntext\n# B\nlast";
+
+            String result =
+                    MarkdownSections.insertSection(md, section(md, "B"), "# C\nновая", false);
+
+            assertThat(result).isEqualTo("# A\ntext\n# B\nlast\n\n# C\nновая\n");
+        }
+
+        @Test
+        void insertsBeforeFirstSectionAtDocumentStart() {
+            String md = "# A\ntext\n";
+
+            String result =
+                    MarkdownSections.insertSection(
+                            md, section(md, "A"), "# Intro\nвступление", true);
+
+            assertThat(result).isEqualTo("# Intro\nвступление\n\n# A\ntext\n");
+        }
+
+        @Test
+        void doesNotDoubleBlankLinesAroundInsertion() {
+            String md = "# A\ntext a\n\n# B\ntext b\n";
+
+            String result =
+                    MarkdownSections.insertSection(md, section(md, "B"), "# New\nтекст", true);
+
+            assertThat(result).isEqualTo("# A\ntext a\n\n# New\nтекст\n\n# B\ntext b\n");
+        }
+    }
+
+    @Nested
+    class Rename {
+
+        @Test
+        void renamesHeadingKeepingLevelAndBody() {
+            String md = "# A\ntext a\n## Старое\nтело\n# B\n";
+
+            String result = MarkdownSections.renameHeading(md, section(md, "A > Старое"), "Новое");
+
+            assertThat(result).isEqualTo("# A\ntext a\n## Новое\nтело\n# B\n");
+        }
+
+        @Test
+        void renamesHeadingOnTheLastLineWithoutNewline() {
+            String md = "# A\ntext\n## Старое";
+
+            String result = MarkdownSections.renameHeading(md, section(md, "A > Старое"), "Новое");
+
+            assertThat(result).isEqualTo("# A\ntext\n## Новое");
+        }
+
+        @Test
+        void stripsTrailingClosingHashesOfTheOldHeading() {
+            String md = "## Старое ###\nтело\n";
+
+            String result = MarkdownSections.renameHeading(md, section(md, "Старое"), "Новое");
+
+            assertThat(result).isEqualTo("## Новое\nтело\n");
+        }
     }
 }
