@@ -9,6 +9,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -153,6 +154,22 @@ class GitServiceEditTest {
 
         assertThat(Files.readAllBytes(repoDir.resolve("win.txt")))
                 .isEqualTo("one\r\nTWO\r\n".getBytes(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void editFilePreservesFilePermissions() throws IOException {
+        writeFile("script.sh", "#!/bin/sh\necho old\n");
+        Path script = repoDir.resolve("script.sh");
+        Files.setPosixFilePermissions(script, PosixFilePermissions.fromString("rwxr-xr-x"));
+        commitAll();
+
+        service.editFile("script.sh", "echo old", "echo new", false);
+
+        // Regression: the temp-file + atomic-move write used to replace the inode and reset
+        // the mode to the temp file's default (0600), dropping the executable bit.
+        assertThat(Files.getPosixFilePermissions(script))
+                .isEqualTo(PosixFilePermissions.fromString("rwxr-xr-x"));
+        assertThat(script).hasContent("#!/bin/sh\necho new\n");
     }
 
     @Test

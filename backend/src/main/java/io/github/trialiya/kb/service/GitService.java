@@ -999,6 +999,14 @@ public class GitService {
         try {
             tmp = Files.createTempFile(target.getParent(), ".kb-edit-", ".tmp");
             Files.writeString(tmp, content, StandardCharsets.UTF_8);
+            // The move replaces the target's inode, so without this the edited file would end up
+            // with the temp file's default mode (0600) — silently dropping e.g. the executable
+            // bit of a script. Copy the original permissions onto the temp file before the swap.
+            try {
+                Files.setPosixFilePermissions(tmp, Files.getPosixFilePermissions(target));
+            } catch (UnsupportedOperationException ignored) {
+                // Non-POSIX filesystem (e.g. Windows) — permissions are not inode-bound there.
+            }
             try {
                 Files.move(
                         tmp,
