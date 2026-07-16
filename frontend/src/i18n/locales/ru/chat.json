@@ -184,13 +184,23 @@
     "getFileContent": "Чтение файла",
     "getUncommittedChanges": "Незакоммиченные изменения",
     "grepContent": "Поиск по коду",
-    "searchCodebase": "Умный поиск"
+    "searchCodebase": "Умный поиск",
+    "createFile": "Создание файла",
+    "editFile": "Правка файла"
   },
   "docChange": {
     "viewChanges": "Посмотреть изменения",
     "created": "Документ создан",
     "updated": "Документ обновлён",
     "untitled": "Документ #{{id}}"
+  },
+  "fileChange": {
+    "viewChanges": "Посмотреть изменения",
+    "created": "Файл создан",
+    "edited": "Файл изменён",
+    "openFile": "Открыть файл",
+    "noDiff": "Diff недоступен",
+    "createdNoDiff": "Новый файл — содержимое доступно по ссылке «Открыть файл»"
   },
   "model": {
     "aria": "Модель",

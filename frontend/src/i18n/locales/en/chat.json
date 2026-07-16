@@ -183,13 +183,23 @@
     "getFileContent": "Read file",
     "getUncommittedChanges": "Uncommitted changes",
     "grepContent": "Search in code",
-    "searchCodebase": "Smart search"
+    "searchCodebase": "Smart search",
+    "createFile": "Create file",
+    "editFile": "Edit file"
   },
   "docChange": {
     "viewChanges": "View changes",
     "created": "Document created",
     "updated": "Document updated",
     "untitled": "Document #{{id}}"
+  },
+  "fileChange": {
+    "viewChanges": "View changes",
+    "created": "File created",
+    "edited": "File edited",
+    "openFile": "Open file",
+    "noDiff": "Diff not available",
+    "createdNoDiff": "New file — open it via the \"Open file\" link"
   },
   "model": {
     "aria": "Model",

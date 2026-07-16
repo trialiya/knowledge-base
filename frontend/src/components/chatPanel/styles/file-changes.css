@@ -1,0 +1,133 @@
+/* ═══════════════════════════════════════════════
+   Блок «изменённые файлы» под ответом ИИ
+   (createFile / editFile → diff-модалка).
+   Строки списка переиспользуют .doc-change-* из doc-changes.css.
+═══════════════════════════════════════════════ */
+
+.file-change-stats {
+  white-space: nowrap;
+}
+.file-change-add {
+  color: #188038;
+  font-weight: 600;
+}
+.file-change-del {
+  color: #d93025;
+  font-weight: 600;
+}
+
+/* ── Diff-модалка ── */
+
+.fcd-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fcd-modal {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.22);
+  width: 720px;
+  max-width: 95vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.fcd-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid #eee;
+  flex-shrink: 0;
+}
+
+.fcd-title {
+  flex: 1;
+  font-weight: 700;
+  font-size: 0.9rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: #222;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fcd-open-link {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--kb-accent, #1a73e8);
+  text-decoration: none;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.fcd-open-link:hover {
+  text-decoration: underline;
+}
+
+.fcd-close {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  color: #999;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.fcd-close:hover {
+  background: #f0f0f0;
+  color: #444;
+}
+
+.fcd-body {
+  padding: 12px 16px 16px;
+  overflow-y: auto;
+}
+
+.fcd-empty {
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #888;
+}
+
+.fcd-diff {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  background: #f8f9fa;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  overflow-x: auto;
+  white-space: pre;
+}
+.fcd-diff:last-child {
+  margin-bottom: 0;
+}
+
+.file-diff-line {
+  display: block;
+}
+.file-diff-line--add {
+  background: #e6f4ea;
+  color: #188038;
+}
+.file-diff-line--del {
+  background: #fce8e6;
+  color: #d93025;
+}
+.file-diff-line--hunk {
+  color: #6a737d;
+  background: #f1f8ff;
+}

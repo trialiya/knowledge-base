@@ -2,6 +2,7 @@ package io.github.trialiya.kb.service;
 
 import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
+import io.github.trialiya.kb.model.git.dto.GitEditResult;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
@@ -15,8 +16,10 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -30,9 +33,13 @@ import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.NoHeadException;
+import org.eclipse.jgit.diff.DiffAlgorithm;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.diff.Edit;
+import org.eclipse.jgit.diff.EditList;
+import org.eclipse.jgit.diff.RawText;
+import org.eclipse.jgit.diff.RawTextComparator;
 import org.eclipse.jgit.dircache.DirCache;
 import org.eclipse.jgit.errors.AmbiguousObjectException;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
@@ -57,7 +64,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 /**
- * Service for read-only Git repository operations.
+ * Service for Git repository operations: read-only browsing/search plus opt-in working-tree writes
+ * ({@link #createFile}/{@link #editFile}, exposed to the model only when {@code
+ * kb.git.edit-enabled=true} and the tree is writable — see {@code GitEditFunction}).
  *
  * <p>All operations run against the repository at {@code kb.project-path} via JGit, in-process — no
  * {@code git} subprocess, no argv, no output parsing — except {@link #grepContent}, which still
@@ -800,6 +809,257 @@ public class GitService {
             }
         }
         return false;
+    }
+
+    // ── Working-tree writes (createFile / editFile) ─────────────────────────
+
+    /**
+     * Whether the working tree can be written at all. Used at startup to decide if the edit tools
+     * ({@code GitEditFunction}) may be exposed to the model — a read-only mount (e.g. a ro Docker
+     * volume) must simply not offer them.
+     */
+    public boolean isRepoWritable() {
+        return Files.isWritable(repoPath);
+    }
+
+    /**
+     * Creates a new file in the working tree and stages it ({@code git add}), so it immediately
+     * becomes <em>tracked</em> and visible to every read tool of this service (which serve tracked
+     * files only).
+     *
+     * <p>Refused when: the path already exists on disk, the path is matched by {@code .gitignore}
+     * (staging would silently skip it, leaving an unreadable orphan — the file is removed again and
+     * the call fails), the name is an OS/IDE junk artefact, or the content exceeds {@value
+     * #MAX_FILE_SIZE} bytes.
+     */
+    public GitEditResult createFile(@NonNull String filePath, @NonNull String content) {
+        String normalized = validateWritablePath(filePath);
+        if (content.getBytes(StandardCharsets.UTF_8).length > MAX_FILE_SIZE) {
+            throw new IllegalArgumentException(
+                    "Content too large (max " + MAX_FILE_SIZE / 1024 + " KB): " + normalized);
+        }
+
+        // Only presence on disk blocks creation. A tracked-but-deleted file (removed from the
+        // working tree, still in the index) is deliberately allowed — editFile can't read it, so
+        // createFile is the only way to restore it; the staging below refreshes the index entry.
+        Path absolute = repoPath.resolve(normalized).normalize();
+        if (Files.exists(absolute)) {
+            throw new IllegalArgumentException(
+                    "File already exists: " + normalized + ". Use editFile to modify it.");
+        }
+
+        try {
+            Path parent = absolute.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            Files.writeString(absolute, content, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new IllegalStateException("Cannot create file: " + normalized, e);
+        }
+
+        // Stage the new file so it becomes tracked. JGit's AddCommand honours .gitignore: an
+        // ignored path is silently NOT added — detect that, roll the write back and fail loudly
+        // instead of leaving an untracked file no read tool can see.
+        try {
+            git.add().addFilepattern(normalized).call();
+        } catch (GitAPIException e) {
+            deleteQuietly(absolute);
+            throw new IllegalStateException("Failed to stage created file: " + normalized, e);
+        }
+        if (!isTracked(normalized)) {
+            deleteQuietly(absolute);
+            throw new IllegalArgumentException(
+                    "Path is ignored by .gitignore and cannot be created: " + normalized);
+        }
+
+        int lines = content.isEmpty() ? 0 : content.split("\n", -1).length;
+        log.info("createFile: '{}' created and staged ({} lines)", normalized, lines);
+        return new GitEditResult("create", normalized, lines, 0, lines, null);
+    }
+
+    /**
+     * Replaces an exact occurrence of {@code oldString} with {@code newString} in a tracked text
+     * file and stages the result (nothing is committed).
+     *
+     * <p>The match is exact and unique by default: zero occurrences or more than one (without
+     * {@code replaceAll}) fail with a model-readable error, so the model must quote real, current
+     * file content — this doubles as an optimistic concurrency check. Content is matched against
+     * the LF-normalised text (the same view {@code getFileContent} returns); original CRLF line
+     * endings are preserved on write. Binary files and files over {@value #MAX_FILE_SIZE} bytes are
+     * refused.
+     *
+     * @return counters plus a unified diff of exactly this edit (truncated to {@value
+     *     #MAX_DIFF_LINES} lines)
+     */
+    public GitEditResult editFile(
+            @NonNull String filePath,
+            @NonNull String oldString,
+            @NonNull String newString,
+            boolean replaceAll) {
+        if (oldString.isEmpty()) {
+            throw new IllegalArgumentException("oldString must not be empty");
+        }
+        if (oldString.equals(newString)) {
+            throw new IllegalArgumentException("oldString and newString are identical");
+        }
+
+        FileBytes fb = readTrackedFile(filePath);
+        if (fb.binary()) {
+            throw new IllegalArgumentException("Cannot edit a binary file: " + fb.path());
+        }
+        if (fb.size() > MAX_FILE_SIZE) {
+            throw new IllegalArgumentException(
+                    "File too large to edit (max " + MAX_FILE_SIZE / 1024 + " KB): " + fb.path());
+        }
+
+        String original = new String(fb.bytes(), StandardCharsets.UTF_8);
+        boolean crlf = original.contains("\r\n");
+        String text = crlf ? original.replace("\r\n", "\n") : original;
+        String oldLf = oldString.replace("\r\n", "\n");
+        String newLf = newString.replace("\r\n", "\n");
+
+        int occurrences = countOccurrences(text, oldLf);
+        if (occurrences == 0) {
+            throw new IllegalArgumentException(
+                    "oldString not found in "
+                            + fb.path()
+                            + ". Re-read the current content (getFileContent) and pass an exact,"
+                            + " character-for-character fragment including whitespace.");
+        }
+        if (occurrences > 1 && !replaceAll) {
+            throw new IllegalArgumentException(
+                    "oldString occurs "
+                            + occurrences
+                            + " times in "
+                            + fb.path()
+                            + ". Extend it with surrounding lines to make it unique, or pass"
+                            + " replaceAll=true to replace every occurrence.");
+        }
+
+        String updated = text.replace(oldLf, newLf);
+        DiffStats stats = diffStrings(text, updated);
+        writeAtomically(fb.path(), crlf ? updated.replace("\n", "\r\n") : updated);
+
+        // Stage the edit. Not just cosmetics: a same-size edit written within the same clock tick
+        // is "racily clean" and JGit's status (unlike native git) can miss it entirely — the index
+        // update makes the change deterministically visible to getUncommittedChanges. It also
+        // matches createFile: everything the model changed is staged, ready for user review.
+        try {
+            git.add().addFilepattern(fb.path()).call();
+        } catch (GitAPIException e) {
+            throw new IllegalStateException("Failed to stage edited file: " + fb.path(), e);
+        }
+
+        int lines = updated.isEmpty() ? 0 : updated.split("\n", -1).length;
+        log.info(
+                "editFile: '{}' — {} occurrence(s) replaced (+{}/-{})",
+                fb.path(),
+                occurrences,
+                stats.additions(),
+                stats.deletions());
+        return new GitEditResult(
+                "edit", fb.path(), stats.additions(), stats.deletions(), lines, stats.diff());
+    }
+
+    private record DiffStats(int additions, int deletions, String diff) {}
+
+    /** Unified diff + added/removed line counts between two in-memory revisions of one file. */
+    private static DiffStats diffStrings(String before, String after) {
+        RawText a = new RawText(before.getBytes(StandardCharsets.UTF_8));
+        RawText b = new RawText(after.getBytes(StandardCharsets.UTF_8));
+        EditList edits =
+                DiffAlgorithm.getAlgorithm(DiffAlgorithm.SupportedAlgorithm.HISTOGRAM)
+                        .diff(RawTextComparator.DEFAULT, a, b);
+        int add = 0;
+        int del = 0;
+        for (Edit edit : edits) {
+            add += edit.getEndB() - edit.getBeginB();
+            del += edit.getEndA() - edit.getBeginA();
+        }
+        var out = new ByteArrayOutputStream();
+        try (DiffFormatter formatter = new DiffFormatter(out)) {
+            formatter.format(edits, a, b);
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to format diff", e);
+        }
+        String diff = out.toString(StandardCharsets.UTF_8);
+        if (diff.lines().count() > MAX_DIFF_LINES) {
+            diff =
+                    diff.lines().limit(MAX_DIFF_LINES).collect(Collectors.joining("\n"))
+                            + "\n... (truncated)";
+        }
+        return new DiffStats(add, del, diff);
+    }
+
+    /** Writes via a temp file + atomic move so a crash never leaves a half-written file. */
+    private void writeAtomically(String relativePath, String content) {
+        Path target = repoPath.resolve(relativePath).normalize();
+        Path tmp = null;
+        try {
+            tmp = Files.createTempFile(target.getParent(), ".kb-edit-", ".tmp");
+            Files.writeString(tmp, content, StandardCharsets.UTF_8);
+            // The move replaces the target's inode, so without this the edited file would end up
+            // with the temp file's default mode (0600) — silently dropping e.g. the executable
+            // bit of a script. Copy the original permissions onto the temp file before the swap.
+            try {
+                Files.setPosixFilePermissions(tmp, Files.getPosixFilePermissions(target));
+            } catch (UnsupportedOperationException ignored) {
+                // Non-POSIX filesystem (e.g. Windows) — permissions are not inode-bound there.
+            }
+            try {
+                Files.move(
+                        tmp,
+                        target,
+                        StandardCopyOption.REPLACE_EXISTING,
+                        StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException e) {
+            if (tmp != null) {
+                deleteQuietly(tmp);
+            }
+            throw new IllegalStateException("Cannot write file: " + relativePath, e);
+        }
+    }
+
+    /**
+     * Path validation shared by write operations: same character/traversal rules as reads, plus
+     * {@code .git/} internals and junk artefacts are never writable.
+     */
+    private String validateWritablePath(String filePath) {
+        String normalized = toForwardSlashes(filePath.strip());
+        requireSafeGitRelativePath(normalized);
+        Path absolute = repoPath.resolve(normalized).normalize();
+        if (!absolute.startsWith(repoPath)) {
+            throw new IllegalArgumentException("Path traversal not allowed: " + normalized);
+        }
+        if (normalized.equals(".git") || normalized.startsWith(".git/")) {
+            throw new IllegalArgumentException("Writing into .git is not allowed");
+        }
+        if (isJunkFile(normalized)) {
+            throw new IllegalArgumentException("Refusing to create junk file: " + normalized);
+        }
+        return normalized;
+    }
+
+    private static int countOccurrences(String text, String needle) {
+        int count = 0;
+        int idx = 0;
+        while ((idx = text.indexOf(needle, idx)) >= 0) {
+            count++;
+            idx += needle.length();
+        }
+        return count;
+    }
+
+    private static void deleteQuietly(Path path) {
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException e) {
+            log.warn("Failed to clean up {}", path, e);
+        }
     }
 
     // ── Uncommitted changes ────────────────────────────────────────────────

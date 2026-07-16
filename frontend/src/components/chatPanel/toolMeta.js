@@ -45,6 +45,8 @@ export const TOOL_META = {
   getUncommittedChanges: { icon: '📝', category: 'git' },
   grepContent: { icon: '🔎', category: 'git' },
   searchCodebase: { icon: '🧭', category: 'git' },
+  createFile: { icon: '➕', category: 'git' },
+  editFile: { icon: '✏️', category: 'git' },
 };
 
 /** Иконка инструмента с дефолтом для незнакомых имён. */
@@ -86,6 +88,30 @@ export const DOC_MUTATION_TOOLS = new Set([
  * (история изменений описания нумеруется так же) — по нему HistoryModal наводится
  * на конкретную правку. `title` бэкенд кладёт в resultMeta для обоих инструментов.
  */
+// ── Файловые мутации (git) ────────────────────────────────────────────────────
+// Инструменты GitEditFunction, меняющие файлы рабочего дерева. resultMeta:
+// { path, operation, additions, deletions, lineCount, diff? }. Для них под ответом
+// ИИ показываем блок «изменённые файлы» (FileChangeBlock.jsx) с diff-модалкой.
+export const FILE_MUTATION_TOOLS = new Set(['createFile', 'editFile']);
+
+/**
+ * Если tc — файловая мутация с валидным resultMeta — вернуть
+ * { path, operation, additions, deletions, diff, status }, иначе null.
+ */
+export const getFileChangeRef = (tc) => {
+  if (!tc || !FILE_MUTATION_TOOLS.has(tc.name)) return null;
+  const meta = tc.resultMeta;
+  if (!meta || !meta.path) return null;
+  return {
+    path: String(meta.path),
+    operation: meta.operation === 'create' ? 'create' : 'edit',
+    additions: Number(meta.additions) || 0,
+    deletions: Number(meta.deletions) || 0,
+    diff: typeof meta.diff === 'string' && meta.diff ? meta.diff : null,
+    status: tc.status,
+  };
+};
+
 export const getDocChangeRef = (tc) => {
   if (!tc || !DOC_MUTATION_TOOLS.has(tc.name)) return null;
   const meta = tc.resultMeta;

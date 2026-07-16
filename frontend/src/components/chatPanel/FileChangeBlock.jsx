@@ -1,0 +1,135 @@
+import React, { useState, useMemo } from 'react';
+import ReactDOM from 'react-dom';
+import { useTranslation } from 'react-i18next';
+import { getFileChangeRef } from './toolMeta';
+import { TOOL_STATUS } from '../../constants/toolStatus';
+import './styles/doc-changes.css';
+import './styles/file-changes.css';
+
+/**
+ * Блок под ответом ИИ: файловые мутации (createFile/editFile) из toolCalls.
+ * Строка на файл: путь, операция, +N/−M; клик открывает модалку со всеми
+ * diff'ами правок этого файла из данного ответа (diff приходит в resultMeta —
+ * работает и в live-стриме, и после перезагрузки чата, как у DocChangeBlock).
+ */
+const FileChangeBlock = ({ toolCalls }) => {
+  const { t } = useTranslation('chat');
+  const [target, setTarget] = useState(null); // { path, operation, additions, deletions, diffs } | null
+
+  // Одна строка на файл: суммарные +/− по всем успешным правкам, diff'ы копятся
+  // в порядке выполнения. Упавшие вызовы (ERROR) пропускаются — они файл не меняли.
+  const changes = useMemo(() => {
+    const byPath = new Map();
+    for (const tc of toolCalls || []) {
+      const ref = getFileChangeRef(tc);
+      if (!ref || ref.status === TOOL_STATUS.ERROR) continue;
+      const cur = byPath.get(ref.path);
+      if (!cur) {
+        byPath.set(ref.path, { ...ref, diffs: ref.diff ? [ref.diff] : [] });
+      } else {
+        cur.additions += ref.additions;
+        cur.deletions += ref.deletions;
+        if (ref.operation === 'create') cur.operation = 'create';
+        if (ref.diff) cur.diffs.push(ref.diff);
+      }
+    }
+    return [...byPath.values()];
+  }, [toolCalls]);
+
+  if (changes.length === 0) return null;
+
+  return (
+    <div className="doc-change-block">
+      {changes.map((c) => (
+        <button
+          key={c.path}
+          type="button"
+          className="doc-change-item"
+          onClick={() => setTarget(c)}
+          title={t('fileChange.viewChanges')}
+        >
+          <span className="doc-change-icon" aria-hidden="true">
+            {c.operation === 'create' ? '🆕' : '✏️'}
+          </span>
+          <span className="doc-change-text">
+            <span className="doc-change-title">{c.path}</span>
+            <span className="doc-change-sub">
+              {c.operation === 'create' ? t('fileChange.created') : t('fileChange.edited')}
+              <span className="file-change-stats">
+                {' · '}
+                <span className="file-change-add">+{c.additions}</span>/
+                <span className="file-change-del">−{c.deletions}</span>
+              </span>
+            </span>
+          </span>
+          <span className="doc-change-cta">{t('fileChange.viewChanges')} ›</span>
+        </button>
+      ))}
+
+      {target && <FileDiffModal change={target} onClose={() => setTarget(null)} />}
+    </div>
+  );
+};
+
+/** Раскраска строк unified diff: добавленные/удалённые/заголовки хунков. */
+const diffLineClass = (line) => {
+  if (line.startsWith('+')) return 'file-diff-line file-diff-line--add';
+  if (line.startsWith('-')) return 'file-diff-line file-diff-line--del';
+  if (line.startsWith('@@')) return 'file-diff-line file-diff-line--hunk';
+  return 'file-diff-line';
+};
+
+const FileDiffModal = ({ change, onClose }) => {
+  const { t } = useTranslation('chat');
+  return ReactDOM.createPortal(
+    <div className="fcd-overlay" onClick={onClose}>
+      <div className="fcd-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <div className="fcd-header">
+          <span className="fcd-title" title={change.path}>
+            {change.path}
+            <span className="file-change-stats">
+              {' '}
+              <span className="file-change-add">+{change.additions}</span>/
+              <span className="file-change-del">−{change.deletions}</span>
+            </span>
+          </span>
+          <a
+            className="fcd-open-link"
+            href={`/files?path=${encodeURIComponent(change.path)}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {t('fileChange.openFile')}
+          </a>
+          <button className="fcd-close" onClick={onClose} title={t('common:close')} type="button">
+            ✕
+          </button>
+        </div>
+        <div className="fcd-body">
+          {change.diffs.length === 0 ? (
+            <div className="fcd-empty">
+              {change.operation === 'create' ? t('fileChange.createdNoDiff') : t('fileChange.noDiff')}
+            </div>
+          ) : (
+            change.diffs.map((diff, i) => (
+              // Индекс как key безопасен: список diff'ов иммутабелен в рамках открытой модалки.
+              // eslint-disable-next-line react/no-array-index-key
+              <pre key={i} className="fcd-diff">
+                {diff.split('\n').map((line, j) => (
+                  // eslint-disable-next-line react/no-array-index-key
+                  <span key={j} className={diffLineClass(line)}>
+                    {line}
+                    {'\n'}
+                  </span>
+                ))}
+              </pre>
+            ))
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+};
+
+export default FileChangeBlock;
