@@ -6,7 +6,9 @@ import useFilePreview from './useFilePreview';
 import FilePreviewModal from './FilePreviewModal';
 import gitApi from '../../api/gitApi';
 import FullscreenEditorModal from '../knowledgeBasePanel/FullscreenEditorModal';
-import { IconFolder, IconDoc, IconFileText, IconSparkle, IconExpand } from '../../icons';
+import { FileView } from '../filesPanel/FileContent';
+import useEscape from './useEscape';
+import { IconFolder, IconDoc, IconFileText, IconSparkle, IconExpand, IconX } from '../../icons';
 import { TOOLTIP_WIDTH, TOOLTIP_GAP, TOOLTIP_HEIGHT_ESTIMATE } from '../../constants/ui';
 
 /**
@@ -34,14 +36,16 @@ import { TOOLTIP_WIDTH, TOOLTIP_GAP, TOOLTIP_HEIGHT_ESTIMATE } from '../../const
  * selectNode, in chat it's openDoc from useAppNavigation) — both accept an id.
  */
 const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
-  const { t } = useTranslation();
   const [visible, setVisible] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0 });
   // Снимок узла для fullscreen-превью: useDocPreview сбрасывает node, когда
   // тултип прячется (enabled=false), а модалка живёт дольше тултипа.
   const [fullscreenNode, setFullscreenNode] = useState(null);
+  const [fileFullscreenOpen, setFileFullscreenOpen] = useState(false);
+  const [fileFullscreenPath, setFileFullscreenPath] = useState(null);
   const [fileFullscreenNode, setFileFullscreenNode] = useState(null);
   const [fileFullscreenLoading, setFileFullscreenLoading] = useState(false);
+  const [fileFullscreenError, setFileFullscreenError] = useState(false);
   const [filePreviewOpen, setFilePreviewOpen] = useState(false);
   const enterTimer = useRef(null);
   const leaveTimer = useRef(null);
@@ -152,8 +156,11 @@ const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
   const openFileFullscreen = useCallback((f) => {
     clearTimeout(enterTimer.current);
     setVisible(false);
+    setFileFullscreenOpen(true);
+    setFileFullscreenPath(f.path);
     setFileFullscreenLoading(true);
-    setFileFullscreenNode({ path: f.path, content: '' });
+    setFileFullscreenError(false);
+    setFileFullscreenNode(null);
     gitApi
       .getFileContent(f.path)
       .then((full) => {
@@ -161,7 +168,7 @@ const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
         setFileFullscreenLoading(false);
       })
       .catch(() => {
-        setFileFullscreenNode({ path: f.path, content: '', error: true });
+        setFileFullscreenError(true);
         setFileFullscreenLoading(false);
       });
   }, []);
@@ -249,29 +256,13 @@ const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
           />
         )}
 
-        {fileFullscreenNode && !fileFullscreenLoading && (
-          <FullscreenEditorModal
-            title={
-              fileFullscreenNode.path ? fileFullscreenNode.path.slice(fileFullscreenNode.path.lastIndexOf('/') + 1) : ''
-            }
-            value={fileFullscreenNode.content || ''}
-            previewOnly
-            tree={tree}
-            onNavigate={navigateToDoc}
-            onClose={() => setFileFullscreenNode(null)}
-          />
-        )}
-
-        {fileFullscreenLoading && (
-          <FullscreenEditorModal
-            title={
-              fileFullscreenNode?.path ? fileFullscreenNode.path.slice(fileFullscreenNode.path.lastIndexOf('/') + 1) : ''
-            }
-            value={t('common.loading')}
-            previewOnly
-            tree={tree}
-            onNavigate={navigateToDoc}
-            onClose={() => { setFileFullscreenNode(null); setFileFullscreenLoading(false); }}
+        {fileFullscreenOpen && (
+          <FileFullscreenModal
+            path={fileFullscreenPath}
+            file={fileFullscreenNode}
+            loading={fileFullscreenLoading}
+            error={fileFullscreenError}
+            onClose={() => setFileFullscreenOpen(false)}
           />
         )}
       </>
@@ -506,6 +497,42 @@ const FilePreviewTooltip = React.forwardRef(
 );
 
 FilePreviewTooltip.displayName = 'FilePreviewTooltip';
+
+// ── File fullscreen modal ────────────────────────────────────────────────────
+// Unlike the doc fullscreen path (FullscreenEditorModal → MarkdownEditor),
+// file content is source code, not markdown — rendering it through the
+// markdown pipeline would garble it. This reuses FileView (the same
+// syntax-highlighted, line-numbered renderer as FilePreviewModal / FilesPanel).
+
+const FileFullscreenModal = ({ path, file, loading, error, onClose }) => {
+  const { t } = useTranslation('files');
+  useEscape(onClose);
+  const name = path ? path.slice(path.lastIndexOf('/') + 1) : '';
+
+  return createPortal(
+    <div className="fs-editor-overlay" onMouseDown={onClose}>
+      <div className="fs-editor file-preview-modal" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="fs-editor__head">
+          <div className="file-preview-modal__title">
+            <span className="file-preview-modal__name">{name}</span>
+            <span className="file-preview-modal__path" title={path}>
+              {path}
+            </span>
+          </div>
+          <button className="fs-editor__close" title={t('preview.close')} onClick={onClose}>
+            <IconX />
+          </button>
+        </div>
+        <div className="fs-editor__body file-preview-modal__body">
+          {loading && <div className="file-preview-modal__msg">{t('tree.loading')}</div>}
+          {!loading && error && <div className="file-preview-modal__msg">{t('file.loadError')}</div>}
+          {!loading && !error && file && <FileView file={file} />}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+};
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
