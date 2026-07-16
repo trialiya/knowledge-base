@@ -4,6 +4,7 @@ import io.github.trialiya.kb.advisor.ToolPreparingAdvisor;
 import io.github.trialiya.kb.config.model.SubAgentConfig;
 import io.github.trialiya.kb.functions.AttachmentFunction;
 import io.github.trialiya.kb.functions.DocumentFunction;
+import io.github.trialiya.kb.functions.GitEditFunction;
 import io.github.trialiya.kb.functions.GitFunction;
 import io.github.trialiya.kb.functions.MessageLookupFunction;
 import io.github.trialiya.kb.functions.SearchAgentFunction;
@@ -23,6 +24,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.ToolCallingAdvisor;
@@ -72,6 +74,34 @@ public class ChatConfig {
         return new GitFunction(gitService);
     }
 
+    /**
+     * Working-tree edit tools ({@code createFile}/{@code editFile}). Two gates, both required:
+     *
+     * <ul>
+     *   <li>{@code kb.git.edit-enabled=true} — explicit opt-in, default off;
+     *   <li>the working tree is actually writable — with a read-only mount the bean method returns
+     *       {@code null} (Spring then registers no bean), so the model never sees tools that could
+     *       only fail with an I/O error.
+     * </ul>
+     *
+     * When absent, {@code chatClientBuilder} simply omits the tools — read-only mode needs no other
+     * configuration. The search sub-agent is unaffected either way: its {@code allowed-tools} list
+     * is an explicit allow-list of read-only tools.
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "kb.git", name = "edit-enabled", havingValue = "true")
+    @Nullable
+    public GitEditFunction gitEditFunction(GitService gitService) {
+        if (!gitService.isRepoWritable()) {
+            log.warn(
+                    "kb.git.edit-enabled=true, but the repository working tree is not writable "
+                            + "(read-only mount?) — file edit tools are NOT exposed to the model");
+            return null;
+        }
+        log.info("Git edit tools enabled (createFile/editFile)");
+        return new GitEditFunction(gitService);
+    }
+
     @Bean
     public DocumentFunction documentFunction(
             DocumentService documentService, AttachmentService attachmentService) {
@@ -119,6 +149,7 @@ public class ChatConfig {
             ChatTopicRepository chatTopicRepository,
             ChatMessageRepository chatMessageRepository,
             GitFunction gitFunction,
+            ObjectProvider<GitEditFunction> gitEditFunction,
             DocumentFunction documentFunction,
             AttachmentService attachmentService,
             ObjectProvider<SearchAgentService> searchAgentService,
@@ -135,6 +166,9 @@ public class ChatConfig {
                                 new AttachmentFunction(attachmentService)));
         // Present only when kb.search.subagent.enabled=true (see searchAgentService bean).
         searchAgentService.ifAvailable(svc -> functions.add(new SearchAgentFunction(svc)));
+        // Present only when kb.git.edit-enabled=true AND the tree is writable (see gitEditFunction
+        // bean) — in read-only mode the edit tools are not offered to the model at all.
+        gitEditFunction.ifAvailable(functions::add);
 
         ToolCallback[] callbacks =
                 Stream.of(ToolCallbacks.from(functions.toArray()))

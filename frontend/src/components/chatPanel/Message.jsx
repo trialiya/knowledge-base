@@ -7,6 +7,7 @@ import './message.css';
 import CodeBlock from '../common/CodeBlock';
 import ToolCallNotifications from './ToolCallNotifications';
 import DocChangeBlock from './DocChangeBlock';
+import FileChangeBlock from './FileChangeBlock';
 import { IconCopySmall, IconCopied } from '../../icons';
 import { COPY_DONE_MS } from '../../constants/ui';
 import { SENDER } from '../../constants/messageSender';
@@ -240,6 +241,7 @@ const Message = ({
         <div className="message-main-col">
           {messageBlock}
           <DocChangeBlock toolCalls={toolCalls} onNavigateToDoc={onNavigateToDoc} />
+          <FileChangeBlock toolCalls={toolCalls} />
           {showPreparing && <ToolPreparingIndicator />}
         </div>
         <ToolCallNotifications toolCalls={toolCalls} conversationId={conversationId} toolCallsRunId={toolCallsRunId} />

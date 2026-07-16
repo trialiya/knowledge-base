@@ -97,6 +97,10 @@ kb:
     export-path: ${DOCUMENTS_EXPORT_PATH}
     replace: true
   project-path: ${PROJECT_PATH}
+  git:
+    # Expose file edit tools (createFile/editFile) to the chat model. Default off — read-only.
+    # Even when true, the tools are withheld if the working tree is not writable (ro mount).
+    edit-enabled: ${KB_GIT_EDIT_ENABLED:false}
   embedding:
     # Must match spring.ai.openai.embedding.options.model.
     # Stored alongside every cached vector so that model upgrades invalidate old cache rows.
