@@ -8,6 +8,7 @@ import io.github.trialiya.kb.model.doc.dto.DocumentOutline;
 import io.github.trialiya.kb.model.doc.dto.DocumentSection;
 import io.github.trialiya.kb.model.doc.dto.DocumentShort;
 import io.github.trialiya.kb.model.doc.dto.SearchResult;
+import io.github.trialiya.kb.model.doc.dto.SectionRename;
 import io.github.trialiya.kb.model.doc.dto.UpdateDocumentRequest;
 import io.github.trialiya.kb.model.doc.entity.DocumentType;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
@@ -63,18 +64,9 @@ public class DocumentFunction {
     private static final String TOOL_GET_DOCUMENT_SECTION = "getDocumentSection";
 
     /** Where {@link #insertDocumentSection} places the new section relative to its anchor. */
-    private enum InsertPosition {
+    public enum InsertPosition {
         BEFORE,
         AFTER;
-
-        static InsertPosition parse(String value) {
-            try {
-                return valueOf(value.strip().toUpperCase());
-            } catch (IllegalArgumentException | NullPointerException e) {
-                throw new IllegalArgumentException(
-                        "position должен быть 'before' или 'after', получено: '" + value + "'.");
-            }
-        }
     }
 
     // ── Search ────────────────────────────────────────────────────────────────
@@ -369,7 +361,7 @@ public class DocumentFunction {
             @ToolParam(description = "Путь существующей секции-якоря из getDocumentOutline")
                     String anchorSectionPath,
             @ToolParam(description = "Куда вставить относительно якоря: before или after")
-                    String position,
+                    InsertPosition position,
             @ToolParam(
                             description =
                                     "Полный текст новой секции, начиная с её заголовка "
@@ -387,7 +379,7 @@ public class DocumentFunction {
                 expectedDescriptionVersion);
 
         requireStructureReadInThisResponse(context, documentId, anchorSectionPath);
-        boolean before = InsertPosition.parse(position) == InsertPosition.BEFORE;
+        boolean before = position == InsertPosition.BEFORE;
         if (before && MarkdownSections.PREAMBLE_PATH.equals(anchorSectionPath)) {
             throw new IllegalArgumentException(
                     "Вставка before _preamble невозможна — используй after.");
@@ -454,11 +446,6 @@ public class DocumentFunction {
                                         current, findSectionOrThrow(current, sectionPath), ""))
                 .toDocumentShort();
     }
-
-    /** One heading rename for {@link #renameDocumentSections}. */
-    public record SectionRename(
-            @ToolParam(description = "Путь секции из getDocumentOutline") String sectionPath,
-            @ToolParam(description = "Новый текст заголовка (без ведущих #)") String newTitle) {}
 
     /**
      * Renames several section headings in one atomic operation (levels and bodies untouched).

@@ -15,6 +15,7 @@ import io.github.trialiya.kb.model.doc.dto.DocumentNode;
 import io.github.trialiya.kb.model.doc.dto.DocumentOutline;
 import io.github.trialiya.kb.model.doc.dto.DocumentSection;
 import io.github.trialiya.kb.model.doc.dto.DocumentShort;
+import io.github.trialiya.kb.model.doc.dto.SectionRename;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.service.AttachmentService;
 import io.github.trialiya.kb.service.DocumentService;
@@ -509,8 +510,8 @@ class DocumentFunctionSectionToolsTest {
                     .hasMessageContaining("не найдена");
         }
 
-        private DocumentFunction.SectionRename rename(String path, String title) {
-            return new DocumentFunction.SectionRename(path, title);
+        private SectionRename rename(String path, String title) {
+            return new SectionRename(path, title);
         }
     }
 
