@@ -56,6 +56,27 @@ public class DocumentFunction {
     private final DocumentService documentService;
     private final AttachmentService attachmentService;
 
+    // Tool names referenced by the read-before-write guards below, kept in one place instead of
+    // repeated string literals scattered across the guard methods.
+    private static final String TOOL_GET_DOCUMENT = "getDocument";
+    private static final String TOOL_GET_DOCUMENT_OUTLINE = "getDocumentOutline";
+    private static final String TOOL_GET_DOCUMENT_SECTION = "getDocumentSection";
+
+    /** Where {@link #insertDocumentSection} places the new section relative to its anchor. */
+    private enum InsertPosition {
+        BEFORE,
+        AFTER;
+
+        static InsertPosition parse(String value) {
+            try {
+                return valueOf(value.strip().toUpperCase());
+            } catch (IllegalArgumentException | NullPointerException e) {
+                throw new IllegalArgumentException(
+                        "position должен быть 'before' или 'after', получено: '" + value + "'.");
+            }
+        }
+    }
+
     // ── Search ────────────────────────────────────────────────────────────────
 
     /**
@@ -366,16 +387,7 @@ public class DocumentFunction {
                 expectedDescriptionVersion);
 
         requireStructureReadInThisResponse(context, documentId, anchorSectionPath);
-        boolean before =
-                switch (position.strip().toLowerCase()) {
-                    case "before" -> true;
-                    case "after" -> false;
-                    default ->
-                            throw new IllegalArgumentException(
-                                    "position должен быть 'before' или 'after', получено: '"
-                                            + position
-                                            + "'.");
-                };
+        boolean before = InsertPosition.parse(position) == InsertPosition.BEFORE;
         if (before && MarkdownSections.PREAMBLE_PATH.equals(anchorSectionPath)) {
             throw new IllegalArgumentException(
                     "Вставка before _preamble невозможна — используй after.");
@@ -681,7 +693,7 @@ public class DocumentFunction {
                 collector.snapshot().stream()
                         .anyMatch(
                                 inv ->
-                                        "getDocument".equals(inv.name())
+                                        TOOL_GET_DOCUMENT.equals(inv.name())
                                                 && ToolInvocationCollector.ToolInvocationStatus.OK
                                                         == inv.status()
                                                 && id.equals(
@@ -714,8 +726,8 @@ public class DocumentFunction {
                         context,
                         documentId,
                         inv ->
-                                "getDocument".equals(inv.name())
-                                        || ("getDocumentSection".equals(inv.name())
+                                TOOL_GET_DOCUMENT.equals(inv.name())
+                                        || (TOOL_GET_DOCUMENT_SECTION.equals(inv.name())
                                                 && sectionPath.equals(
                                                         inv.arguments().get("sectionPath"))));
         if (!wasRead) {
@@ -750,10 +762,10 @@ public class DocumentFunction {
                         context,
                         documentId,
                         inv ->
-                                "getDocument".equals(inv.name())
-                                        || "getDocumentOutline".equals(inv.name())
+                                TOOL_GET_DOCUMENT.equals(inv.name())
+                                        || TOOL_GET_DOCUMENT_OUTLINE.equals(inv.name())
                                         || (anchorSectionPath != null
-                                                && "getDocumentSection".equals(inv.name())
+                                                && TOOL_GET_DOCUMENT_SECTION.equals(inv.name())
                                                 && anchorSectionPath.equals(
                                                         inv.arguments().get("sectionPath"))));
         if (!wasRead) {
