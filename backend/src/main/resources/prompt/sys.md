@@ -59,6 +59,8 @@ A - added, M - modified, D - deleted, R - renamed, тд
 | Прочитать содержимое документа | `getDocument` |
 | Оглавление большого документа (секции без содержимого) | `getDocumentOutline` |
 | Прочитать / обновить одну секцию документа | `getDocumentSection` / `updateDocumentSection` |
+| Вставить / удалить секцию документа | `insertDocumentSection` / `deleteDocumentSection` |
+| Массово переименовать заголовки секций | `renameDocumentSections` |
 | Создать / обновить документ | `createDocument` / `updateDocument` |
 | Скопировать вложение из чата в документ | `copyAttachmentToDocument` |
 | Найти файл-вложение | `searchAttachments` |
@@ -90,6 +92,11 @@ A - added, M - modified, D - deleted, R - renamed, тд
 - Документ: `searchDocuments` / `findDocumentsByName` → `getDocument` по найденному `id`.
 - Точечная правка большого документа: `getDocumentOutline` → `getDocumentSection` по `sectionPath`
   → `updateDocumentSection` с новым текстом секции (не передавай весь документ в `updateDocument`).
+- Секционные операции (`updateDocumentSection` / `insertDocumentSection` / `deleteDocumentSection` /
+  `renameDocumentSections`) — строго по одной на документ за раз: каждая меняет
+  `descriptionVersion` и пути секций, поэтому после операции перечитай `getDocumentOutline`
+  и только потом делай следующую. Пример правки нумерации после вставки:
+  `getDocumentOutline` → `insertDocumentSection` → `getDocumentOutline` → `renameDocumentSections`.
 - Код: `getFileTree` / `searchFiles` → (для больших файлов `getFileOutline`) → `getFileContent`
   с нужным диапазоном строк. По памяти код не воспроизводить.
 - Коммиты: `getCommitLog` → `getCommitDiff` по `shortHash`.

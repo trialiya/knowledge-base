@@ -137,7 +137,7 @@ class DocumentFunctionSectionToolsTest {
         void updateWithoutPriorReadIsRejected() {
             assertThatThrownBy(() -> updateSection("## Установка\nnew"))
                     .isInstanceOf(IllegalStateException.class)
-                    .hasMessageContaining("НЕ обновлена")
+                    .hasMessageContaining("НЕ изменена")
                     .hasMessageContaining("getDocumentSection");
             Mockito.verify(documentService, never()).patchDescription(anyLong(), anyInt(), any());
         }
@@ -268,6 +268,249 @@ class DocumentFunctionSectionToolsTest {
             function.updateDocumentSection(context, DOC_ID, "_preamble", "новое вступление", 3);
 
             assertThat(patched.get()).isEqualTo("новое вступление\n\n# Гайд\ntext\n");
+        }
+    }
+
+    @Nested
+    class InsertSection {
+
+        @Test
+        void insertWithoutPriorStructureReadIsRejected() {
+            assertThatThrownBy(() -> insert("Гайд > FAQ", "before", "## Новая\nтекст"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("getDocumentOutline");
+            Mockito.verify(documentService, never()).patchDescription(anyLong(), anyInt(), any());
+        }
+
+        @Test
+        void outlineReadSatisfiesTheGuard() {
+            stubPatch();
+            record(
+                    "getDocumentOutline",
+                    Map.of("documentId", String.valueOf(DOC_ID)),
+                    ToolInvocationStatus.OK);
+
+            assertThatCode(() -> insert("Гайд > FAQ", "before", "## Новая\nтекст"))
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        void insertsBeforeTheAnchor() {
+            allowStructure();
+            AtomicReference<String> patched = stubPatch();
+
+            insert("Гайд > FAQ", "before", "## Новая\nтекст");
+
+            assertThat(patched.get())
+                    .isEqualTo(
+                            "# Гайд\nintro\n## Установка\nold install\n\n"
+                                    + "## Новая\nтекст\n\n## FAQ\nq&a\n");
+        }
+
+        @Test
+        void insertsAfterTheAnchor() {
+            allowStructure();
+            AtomicReference<String> patched = stubPatch();
+
+            insert("Гайд > Установка", "after", "## Новая\nтекст");
+
+            assertThat(patched.get())
+                    .isEqualTo(
+                            "# Гайд\nintro\n## Установка\nold install\n\n"
+                                    + "## Новая\nтекст\n\n## FAQ\nq&a\n");
+        }
+
+        @Test
+        void invalidPositionIsRejected() {
+            allowStructure();
+
+            assertThatThrownBy(() -> insert("Гайд > FAQ", "above", "## Новая\nтекст"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("before");
+        }
+
+        @Test
+        void beforePreambleIsRejected() {
+            allowStructure();
+
+            assertThatThrownBy(() -> insert("_preamble", "before", "## Новая\nтекст"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("_preamble");
+        }
+
+        @Test
+        void contentWithoutHeadingIsRejected() {
+            allowStructure();
+
+            assertThatThrownBy(() -> insert("Гайд > FAQ", "before", "текст без заголовка"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("заголовка");
+        }
+
+        private void allowStructure() {
+            record("getDocument", Map.of("documentId", DOC_ID), ToolInvocationStatus.OK);
+        }
+
+        private void insert(String anchor, String position, String newContent) {
+            function.insertDocumentSection(context, DOC_ID, anchor, position, newContent, 3);
+        }
+    }
+
+    @Nested
+    class DeleteSection {
+
+        @Test
+        void deleteWithoutPriorReadIsRejected() {
+            assertThatThrownBy(
+                            () ->
+                                    function.deleteDocumentSection(
+                                            context, DOC_ID, "Гайд > Установка", 3))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("getDocumentSection");
+            Mockito.verify(documentService, never()).patchDescription(anyLong(), anyInt(), any());
+        }
+
+        @Test
+        void deletesTheSectionSubtreeAfterReadingIt() {
+            record(
+                    "getDocumentSection",
+                    Map.of("documentId", String.valueOf(DOC_ID), "sectionPath", "Гайд > Установка"),
+                    ToolInvocationStatus.OK);
+            AtomicReference<String> patched = stubPatch();
+
+            function.deleteDocumentSection(context, DOC_ID, "Гайд > Установка", 3);
+
+            assertThat(patched.get()).isEqualTo("# Гайд\nintro\n## FAQ\nq&a\n");
+        }
+
+        @Test
+        void outlineReadAloneDoesNotSatisfyTheGuard() {
+            record(
+                    "getDocumentOutline",
+                    Map.of("documentId", String.valueOf(DOC_ID)),
+                    ToolInvocationStatus.OK);
+
+            assertThatThrownBy(
+                            () ->
+                                    function.deleteDocumentSection(
+                                            context, DOC_ID, "Гайд > Установка", 3))
+                    .isInstanceOf(IllegalStateException.class);
+        }
+    }
+
+    @Nested
+    class RenameSections {
+
+        @BeforeEach
+        void allowStructure() {
+            record(
+                    "getDocumentOutline",
+                    Map.of("documentId", String.valueOf(DOC_ID)),
+                    ToolInvocationStatus.OK);
+        }
+
+        @Test
+        void renameWithoutPriorStructureReadIsRejected() {
+            ToolContext freshContext =
+                    new ToolContext(
+                            Map.of(ToolInvocationCollector.KEY, new ToolInvocationCollector()));
+
+            assertThatThrownBy(
+                            () ->
+                                    function.renameDocumentSections(
+                                            freshContext,
+                                            DOC_ID,
+                                            List.of(rename("Гайд > FAQ", "Вопросы")),
+                                            3))
+                    .isInstanceOf(IllegalStateException.class);
+        }
+
+        @Test
+        void renamesSeveralHeadingsAtomically() {
+            AtomicReference<String> patched = stubPatch();
+
+            function.renameDocumentSections(
+                    context,
+                    DOC_ID,
+                    List.of(
+                            rename("Гайд > Установка", "1. Установка"),
+                            rename("Гайд > FAQ", "2. FAQ")),
+                    3);
+
+            assertThat(patched.get())
+                    .isEqualTo("# Гайд\nintro\n## 1. Установка\nold install\n## 2. FAQ\nq&a\n");
+        }
+
+        @Test
+        void renamingParentAndChildUsesPathsOfTheCurrentOutline() {
+            String md = "# Гайд\n## Установка\n### Docker\nтекст\n";
+            when(documentService.getById(DOC_ID)).thenReturn(node(md));
+            AtomicReference<String> patched = stubPatch(md);
+
+            function.renameDocumentSections(
+                    context,
+                    DOC_ID,
+                    List.of(
+                            rename("Гайд > Установка", "Сетап"),
+                            rename("Гайд > Установка > Docker", "Podman")),
+                    3);
+
+            assertThat(patched.get()).isEqualTo("# Гайд\n## Сетап\n### Podman\nтекст\n");
+        }
+
+        @Test
+        void emptyRenamesAreRejected() {
+            assertThatThrownBy(() -> function.renameDocumentSections(context, DOC_ID, List.of(), 3))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("пуст");
+        }
+
+        @Test
+        void duplicatePathsAreRejected() {
+            assertThatThrownBy(
+                            () ->
+                                    function.renameDocumentSections(
+                                            context,
+                                            DOC_ID,
+                                            List.of(
+                                                    rename("Гайд > FAQ", "A"),
+                                                    rename("Гайд > FAQ", "B")),
+                                            3))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("уникальны");
+        }
+
+        @Test
+        void preambleAndInvalidTitlesAreRejected() {
+            assertThatThrownBy(
+                            () ->
+                                    function.renameDocumentSections(
+                                            context, DOC_ID, List.of(rename("_preamble", "X")), 3))
+                    .isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(
+                            () ->
+                                    function.renameDocumentSections(
+                                            context,
+                                            DOC_ID,
+                                            List.of(rename("Гайд > FAQ", "## Новое")),
+                                            3))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+
+        @Test
+        void unknownPathFailsAtPatchTime() {
+            stubPatch();
+
+            assertThatThrownBy(
+                            () ->
+                                    function.renameDocumentSections(
+                                            context, DOC_ID, List.of(rename("Гайд > Нет", "X")), 3))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("не найдена");
+        }
+
+        private DocumentFunction.SectionRename rename(String path, String title) {
+            return new DocumentFunction.SectionRename(path, title);
         }
     }
 

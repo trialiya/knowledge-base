@@ -126,6 +126,45 @@ public final class MarkdownSections {
         return prefix + body + (suffix.isEmpty() ? "\n" : "\n\n") + suffix;
     }
 
+    /**
+     * Inserts {@code newContent} (trimmed) before or after the {@code anchor} section subtree,
+     * keeping blank-line separators on both sides.
+     */
+    public static String insertSection(
+            String markdown, Section anchor, String newContent, boolean before) {
+        String body = newContent.strip();
+        int offset = before ? anchor.startOffset() : anchor.endOffset();
+        String prefix = markdown.substring(0, offset);
+        String suffix = markdown.substring(offset);
+
+        StringBuilder out = new StringBuilder(prefix);
+        if (!prefix.isEmpty() && !prefix.endsWith("\n\n")) {
+            out.append(prefix.endsWith("\n") ? "\n" : "\n\n");
+        }
+        out.append(body);
+        out.append(suffix.isEmpty() ? "\n" : "\n\n");
+        if (suffix.startsWith("\n")) {
+            suffix = suffix.substring(1);
+        }
+        return out.append(suffix).toString();
+    }
+
+    /**
+     * Replaces the title on the {@code section} heading line with {@code newTitle}, keeping the
+     * heading level and the section body untouched. Must not be called for the preamble.
+     */
+    public static String renameHeading(String markdown, Section section, String newTitle) {
+        int lineEnd = markdown.indexOf('\n', section.startOffset());
+        if (lineEnd == -1) {
+            lineEnd = markdown.length();
+        }
+        return markdown.substring(0, section.startOffset())
+                + "#".repeat(section.level())
+                + " "
+                + newTitle.strip()
+                + markdown.substring(lineEnd);
+    }
+
     private record RawHeading(int offset, int level, String title) {}
 
     /** Collects ATX headings with their offsets, skipping fenced code blocks. */
