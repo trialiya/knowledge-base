@@ -98,7 +98,8 @@ public class SummarizeService implements DisposableBean {
         // 1. Fetch all live (non-summarized) rows, excluding summary rows. This includes blank-text
         // TOOL rows and tool-calls-only ASSISTANT segments — their tool_calls/response payloads
         // still occupy the model's context window on every follow-up request, so they must count
-        // toward the token estimate below even though they're excluded from liveMessages/the prompt.
+        // toward the token estimate below even though they're excluded from liveMessages/the
+        // prompt.
         final List<ChatMessageEntity> allLive =
                 chatMessageRepository
                         .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
@@ -136,7 +137,9 @@ public class SummarizeService implements DisposableBean {
         // (in allLive, so including interleaved TOOL rows/blank tool-call segments) belongs to
         // this round. Reused both for the token estimate and, below, for marking rows summarized.
         final long cutoffPosition =
-                cutoff < liveMessages.size() ? liveMessages.get(cutoff).getPosition() : Long.MAX_VALUE;
+                cutoff < liveMessages.size()
+                        ? liveMessages.get(cutoff).getPosition()
+                        : Long.MAX_VALUE;
 
         // 3. Decide whether the token budget for the compressible slice is exceeded. Counts text
         // AND tool call arguments / tool response payloads — both are sent to the model as context
