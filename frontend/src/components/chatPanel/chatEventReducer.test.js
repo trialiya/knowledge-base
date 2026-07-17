@@ -257,6 +257,39 @@ describe('applyChatEvent', () => {
     expect(segments[1].text).toBe('ответ');
   });
 
+  test('segments split on TOOL_CALL alone — finishReason=TOOL_CALLS never reaches the client', () => {
+    // ToolCallingAdvisor отфильтровывает агрегированный tool-чанк (носитель finishReason),
+    // поэтому границу сегмента даёт само событие TOOL_CALL.
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'смотрю коммит' } }, ctx);
+    chat = applyChatEvent(
+      chat,
+      {
+        type: 'TOOL_CALL',
+        runId: 'r1',
+        payload: { toolCall: { name: 'getCommitDiff', arguments: { h: '1' }, status: 'STARTED' } },
+      },
+      ctx,
+    );
+    chat = applyChatEvent(
+      chat,
+      {
+        type: 'TOOL_CALL',
+        runId: 'r1',
+        payload: { toolCall: { name: 'getCommitDiff', arguments: { h: '1' }, status: 'OK' } },
+      },
+      ctx,
+    );
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'итоговый анализ' } }, ctx);
+    chat = applyChatEvent(chat, { type: 'RUN_DONE', runId: 'r1' }, ctx);
+
+    const segments = aiOfRun(chat, 'r1');
+    expect(segments.map((s) => s.text)).toEqual(['смотрю коммит', 'итоговый анализ']);
+    expect(segments[0].toolCalls).toHaveLength(1);
+    expect(segments[0].toolCalls[0].status).toBe('OK');
+    expect(segments[1].toolCalls || []).toHaveLength(0);
+  });
+
   test('RUN_DONE drops a trailing empty bubble without tool calls', () => {
     let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
     chat = applyChatEvent(chat, { type: 'RUN_DONE', runId: 'r1' }, ctx);

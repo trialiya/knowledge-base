@@ -171,9 +171,16 @@ public class ChatRunService {
             String clientMsgId) {
         final String conversationId = handle.conversationId();
         final String runId = handle.runId();
+        final StringBuffer buffer = new StringBuffer();
         final Consumer<Object> liveSink =
                 payload -> {
                     if (payload instanceof ToolCallMessage tcm) {
+                        // Инструмент пошёл — значит, итерация стрима завершилась и её сегмент
+                        // уже сохранён advisor-цепочкой. Сбрасываем буфер здесь: это надёжная
+                        // граница, в отличие от finishReason=TOOL_CALLS (агрегированный
+                        // tool-чанк с ним ToolCallingAdvisor отфильтровывает из потока и до
+                        // onNext он не доходит).
+                        buffer.setLength(0);
                         if (tcm.toolCall().status() != ToolInvocationStatus.STARTED) {
                             // DB write is best-effort bookkeeping; offload it so SSE goes out
                             // immediately without waiting for disk I/O.
@@ -187,7 +194,6 @@ public class ChatRunService {
                     events.publish(conversationId, eventType(payload), runId, null, payload);
                 };
         final ToolInvocationCollector toolCollector = new ToolInvocationCollector(liveSink);
-        final StringBuffer buffer = new StringBuffer();
 
         events.publish(
                 conversationId,

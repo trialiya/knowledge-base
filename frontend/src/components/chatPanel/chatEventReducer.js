@@ -185,11 +185,19 @@ export function applyChatEvent(chat, ev, ctx) {
     case CHAT_EVENT.TOOL_CALL: {
       let idx = lastAiIndexForRun(msgs, runId);
       if (idx < 0) idx = pushAi(msgs, runId);
-      // Инструмент стартовал — плашка заменяет индикатор подготовки. Прилипает к последнему
-      // пузырю прогона: сразу после границы сегмента это закрытый (sealed) сегмент, чей текст
-      // и вызвал инструмент.
+      // Инструмент стартовал — плашка заменяет индикатор подготовки. Само событие — надёжная
+      // граница сегмента: раз инструмент пошёл, текст текущей итерации закончен. Полагаться
+      // на finishReason=TOOL_CALLS нельзя — агрегированный tool-чанк, который его несёт,
+      // ToolCallingAdvisor отфильтровывает из downstream-потока, и STREAM-событие с этим
+      // finishReason до фронта не доходит. Печатаем (sealed) сегмент здесь; плашка прилипает
+      // к нему — под текстом, который и вызвал инструмент.
       clearPreparing(msgs, runId);
-      msgs[idx] = { ...msgs[idx], toolCalls: mergeToolCall(msgs[idx].toolCalls || [], payload?.toolCall) };
+      msgs[idx] = {
+        ...msgs[idx],
+        text: (msgs[idx].text || '').trimEnd(),
+        sealed: true,
+        toolCalls: mergeToolCall(msgs[idx].toolCalls || [], payload?.toolCall),
+      };
       return { ...chat, messages: msgs, runId };
     }
 
