@@ -402,6 +402,11 @@
 .file-view {
   display: flex;
   flex-direction: column;
+  /* Without this, the flex item refuses to shrink below its content's natural
+     width (default min-width:auto), so the wide code table pushes .file-view
+     itself past the modal's edge instead of letting .file-code's own
+     overflow-x:auto handle the horizontal scroll flush with the container. */
+  min-width: 0;
 }
 
 .file-view__meta {

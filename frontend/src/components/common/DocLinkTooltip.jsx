@@ -7,6 +7,7 @@ import FilePreviewModal from './FilePreviewModal';
 import gitApi from '../../api/gitApi';
 import FullscreenEditorModal from '../knowledgeBasePanel/FullscreenEditorModal';
 import { FileView } from '../filesPanel/FileContent';
+import { navigateToFile } from '../../fileNavigationBus';
 import useEscape from './useEscape';
 import { IconFolder, IconDoc, IconFileText, IconSparkle, IconExpand, IconX } from '../../icons';
 import { TOOLTIP_WIDTH, TOOLTIP_GAP, TOOLTIP_HEIGHT_ESTIMATE } from '../../constants/ui';
@@ -27,13 +28,17 @@ import { TOOLTIP_WIDTH, TOOLTIP_GAP, TOOLTIP_HEIGHT_ESTIMATE } from '../../const
  *      the slugs in `[Обзор](#обзор)` tables of contents.
  *   2. Internal KB doc links (`/?doc=N`) — hover preview + click navigation
  *      (or fullscreen preview via the tooltip's expand button).
- *   3. Internal repo file links (`/files?path=P[#Lx-Ly]`) — hover preview +
- *      click opens a read-only FilePreviewModal in place, without navigating
- *      to FilesPanel.
+ *   3. Internal repo file links (`/files?path=P[#Lx-Ly]`) — hover preview;
+ *      clicking the link itself opens a read-only FilePreviewModal in place
+ *      (doesn't navigate away from chat/KB), while the tooltip's "Open"
+ *      button navigates to the Files tab with that file selected.
  *   4. Everything else — plain external `<a target="_blank">`.
  *
  * Navigation for (2) goes through the `onNavigate` prop (in KB this is
  * selectNode, in chat it's openDoc from useAppNavigation) — both accept an id.
+ * Navigation for (3)'s "Open" button goes through fileNavigationBus instead,
+ * since DocLinkTooltip is too many prop layers away from App (the sole owner
+ * of Files-tab navigation state) to thread an equivalent prop through cleanly.
  */
 const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
   const [visible, setVisible] = useState(false);
@@ -144,6 +149,16 @@ const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
     [openFilePreview],
   );
 
+  // "Open" в тултипе — в отличие от клика по самой ссылке (который держит
+  // read-only модалку, не уводя из чата/KB) — ведёт себя как аналогичная
+  // кнопка у doc-ссылок: полноценный переход, здесь — во вкладку Files с
+  // выбранным файлом.
+  const openInFilesPanel = useCallback(() => {
+    clearTimeout(enterTimer.current);
+    setVisible(false);
+    navigateToFile(fileLink?.path);
+  }, [fileLink]);
+
   // То же для fullscreen-превью документа, открываемого из тултипа. Узел
   // снимается в отдельный стейт, потому что node из useDocPreview обнуляется
   // вместе с visible.
@@ -241,7 +256,7 @@ const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
               pos={pos}
               onMouseEnter={keepOpen}
               onMouseLeave={handleMouseLeave}
-              onOpen={openFilePreview}
+              onOpen={openInFilesPanel}
               onExpand={openFileFullscreen}
             />,
             document.body,
