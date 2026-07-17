@@ -7,6 +7,7 @@ import io.github.trialiya.kb.config.model.SummarizeProperties;
 import io.github.trialiya.kb.functions.MessageLookupFunction;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.tool.ToolData;
+import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import jakarta.annotation.Nonnull;
 import java.util.List;
@@ -15,6 +16,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.locks.Lock;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.util.Strings;
+import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.openai.OpenAiChatModel;
@@ -277,14 +279,16 @@ public class SummarizeService implements DisposableBean {
 
         prompt.append("Summarize the following ").append(count).append(" messages:\n");
         toCompress.forEach(
-                m ->
-                        prompt.append("[msg:")
-                                .append(m.getPosition())
-                                .append("] ")
-                                .append(m.getMessageType())
-                                .append(": <msg>\n")
-                                .append(m.getText())
-                                .append("\n</msg>\n"));
+                m -> {
+                    prompt.append("[msg:")
+                            .append(m.getPosition())
+                            .append("] ")
+                            .append(m.getMessageType())
+                            .append(": <msg>\n")
+                            .append(m.getText())
+                            .append("\n</msg>\n");
+                    appendToolCalls(prompt, m.getInvocations());
+                });
         if (collapseSummaries) {
             prompt.append(COLLAPSE_FOOTER);
         }
@@ -294,6 +298,35 @@ public class SummarizeService implements DisposableBean {
                 .toolContext(buildContext(conversationId))
                 .call()
                 .content();
+    }
+
+    /**
+     * Appends a compact "which tools ran here and what they returned" block for a segment, using
+     * {@code resultGist} (a short human-readable preview, not the full tool response) — the
+     * summarizer needs to know *what happened* during a tool call, not replay its raw payload.
+     * Without this the model only sees the assistant's prose and has no idea tools were even
+     * invoked, since tool_calls/tool responses live in {@code tool_data}, not in message text.
+     */
+    private static void appendToolCalls(
+            StringBuilder prompt, @Nullable List<ToolInvocationMeta> invocations) {
+        if (invocations == null || invocations.isEmpty()) {
+            return;
+        }
+        prompt.append("Tools called in this segment:\n");
+        for (ToolInvocationMeta invocation : invocations) {
+            prompt.append("  - ")
+                    .append(invocation.name())
+                    .append("(")
+                    .append(invocation.arguments())
+                    .append(") -> ")
+                    .append(invocation.status());
+            if (invocation.error() != null) {
+                prompt.append(", error: ").append(invocation.error());
+            } else if (invocation.resultGist() != null) {
+                prompt.append(": ").append(invocation.resultGist());
+            }
+            prompt.append("\n");
+        }
     }
 
     private String buildSummaryText(String content, long firstPosition, long lastPosition) {
