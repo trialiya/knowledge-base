@@ -8,7 +8,7 @@ import { COPY_DONE_MS, GIST_PREVIEW_LEN } from '../../constants/ui';
 import { TOOL_STATUS } from '../../constants/toolStatus';
 import './styles/tool-calls.css';
 
-// Правая колонка плашек вызовов инструментов под ответом ассистента.
+// Inline-блок плашек вызовов инструментов под пузырём ответа ассистента.
 // Вынесено из Message.jsx: сам пузырь сообщения не должен знать о деталях
 // tool-call UI (тултипы, группировка, модалка деталей).
 
@@ -107,15 +107,15 @@ const ToolCallItem = ({ tc, conversationId, toolCallsRunId }) => {
     const w = tip.width;
     const h = tip.height;
 
-    // Горизонтально: панель тулзов справа, поэтому сначала пробуем слева от плашки
-    // (там сообщение, обычно есть место), затем справа, затем — ближайший зажатый край.
+    // Горизонтально: плашки под пузырём, справа обычно свободно — пробуем туда,
+    // затем влево, затем — ближайший зажатый край.
     let left;
-    if (item.left - GAP - w >= GAP) {
-      left = item.left - GAP - w;
-    } else if (item.right + GAP + w <= vw - GAP) {
+    if (item.right + GAP + w <= vw - GAP) {
       left = item.right + GAP;
+    } else if (item.left - GAP - w >= GAP) {
+      left = item.left - GAP - w;
     } else {
-      left = item.left - GAP - w; // прижмём зажимом ниже
+      left = item.right + GAP; // прижмём зажимом ниже
     }
     left = Math.min(Math.max(left, GAP), Math.max(GAP, vw - w - GAP));
 
