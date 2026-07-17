@@ -16,9 +16,9 @@ spring:
         max-tokens: 30000
         temperature: 0.1
         top-p: 0.8
-        extra-body:
-          thinking:
-            type: disabled
+#        extra-body:
+#          thinking:
+#            type: disabled
       embedding:
         base-url: ${AI_EMBED_BASE_URL:${AI_BASE_URL}}
         api-key: ${AI_EMBED_API_KEY:${AI_API_KEY}}
@@ -84,11 +84,11 @@ kb:
       sse: ${KB_CHAT_SSE_TIMEOUT:30m}
     summarize:
       # Estimated token budget for the "live" messages window before summarization kicks in.
-      token-threshold: ${KB_CHAT_SUMMARIZE_TOKEN_THRESHOLD:3000}
+      token-threshold: ${KB_CHAT_SUMMARIZE_TOKEN_THRESHOLD:30000}
       # Minimum number of compressible messages before summarization kicks in.
-      message-count-threshold: ${KB_CHAT_SUMMARIZE_MESSAGE_COUNT_THRESHOLD:20}
+      message-count-threshold: ${KB_CHAT_SUMMARIZE_MESSAGE_COUNT_THRESHOLD:50}
       # Recent messages kept outside the summarized window as live context.
-      overlap-messages: ${KB_CHAT_SUMMARIZE_OVERLAP_MESSAGES:10}
+      overlap-messages: ${KB_CHAT_SUMMARIZE_OVERLAP_MESSAGES:30}
       # Number of stored summaries that triggers collapsing them into one meta-summary.
       summary-collapse-threshold: ${KB_CHAT_SUMMARIZE_SUMMARY_COLLAPSE_THRESHOLD:5}
       # Characters per estimated token (rough heuristic, no real tokenizer).
