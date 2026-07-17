@@ -118,11 +118,22 @@ public class SummarizeService implements DisposableBean {
         // kept TOOL row could lose its assistant counterpart (the model rejects orphaned tool
         // messages).
         final int overlapMessages = summarizeProperties.overlapMessages();
-        int cutoff = liveMessages.size() - overlapMessages;
+        final int rawCutoff = liveMessages.size() - overlapMessages;
+        int cutoff = rawCutoff;
         while (cutoff > 0
                 && cutoff < liveMessages.size()
                 && liveMessages.get(cutoff).getType() != MessageType.USER) {
             cutoff--;
+        }
+        if (cutoff <= 0 && rawCutoff > 0) {
+            // В окне нет ни одного USER (один вопрос → длинный tool-марафон): без запасного
+            // варианта сжатие не запустилось бы никогда, и контекст рос бы неограниченно.
+            // Резать по исходному cutoff безопасно: первым ОСТАВЛЕННЫМ окажется текстовый
+            // ASSISTANT-сегмент (протокольные TOOL-строки пусты и в liveMessages не входят),
+            // а пометка summarized идёт по позициям — парные TOOL-строки уходят в summary
+            // вместе со своими assistant-сегментами, ответ на tool_calls сегмента-границы
+            // остаётся живым вместе с ним.
+            cutoff = rawCutoff;
         }
         if (cutoff <= 0) {
             log.info(
@@ -206,10 +217,12 @@ public class SummarizeService implements DisposableBean {
         // 7. Persist: mark compressed messages as summarized, insert new summary row.
         // liveMessages excludes blank rows (TOOL responses, empty tool-call segments), so the
         // marked range must run up to (but not including) the first KEPT message — otherwise the
-        // trailing protocol rows of the last compressed turn would stay live and orphaned.
+        // trailing protocol rows of the last compressed turn would stay live and orphaned. When
+        // everything is compressed (no kept message), the range must cover trailing protocol rows
+        // too — allLive, not toCompress, holds the true last position.
         final long endPosition =
                 cutoffPosition == Long.MAX_VALUE
-                        ? toCompress.getLast().getPosition()
+                        ? allLive.getLast().getPosition()
                         : cutoffPosition - 1;
         persistSummary(
                 conversationId,

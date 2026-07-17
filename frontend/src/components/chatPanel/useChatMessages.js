@@ -182,8 +182,15 @@ export default function useChatMessages({ chats, chatsRef, setChats, activeChatI
       if (loadingOlderRef.current.has(chatId)) return false;
       loadingOlderRef.current.add(chatId);
       try {
-        const page = await chatApi.getMessages(chatId, PAGE_SIZE, chat.oldestCursor);
-        const { bubbles: olderBubbles, leadingMetas } = transformPage(page.messages);
+        let page = await chatApi.getMessages(chatId, PAGE_SIZE, chat.oldestCursor);
+        let { bubbles: olderBubbles, leadingMetas } = transformPage(page.messages);
+        // Страница может целиком состоять из протокольных строк (TOOL-ответы, пустые
+        // tool_calls-сегменты) — пузырей из неё не выйдет, но выше история продолжается.
+        // Листаем дальше, пока не встретим отображаемое или конец истории.
+        while (!olderBubbles.length && !leadingMetas.length && page.hasMore && page.oldestCursor) {
+          page = await chatApi.getMessages(chatId, PAGE_SIZE, page.oldestCursor);
+          ({ bubbles: olderBubbles, leadingMetas } = transformPage(page.messages));
+        }
         if (!olderBubbles.length && (!leadingMetas || !leadingMetas.length)) {
           // Пустая страница — больше грузить нечего.
           setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, hasMore: false } : c)));

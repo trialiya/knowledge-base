@@ -59,8 +59,6 @@ const mergeToolCall = (list, tc) => {
   ];
 };
 
-const mergeToolCalls = (list, metas) => (metas || []).reduce((acc, tc) => mergeToolCall(acc, tc), list);
-
 // Индекс последнего AI-пузыря, принадлежащего прогону runId.
 const lastAiIndexForRun = (msgs, runId) => {
   for (let i = msgs.length - 1; i >= 0; i--) {

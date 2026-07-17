@@ -339,6 +339,12 @@ public class ChatRunService {
         // advisor-цепочка уже сохранила по ходу прогона (см. onNext).
         final String partial = buffer.toString().strip();
         try {
+            // Прервали во время выполнения инструментов — хвостовой assistant.tool_calls
+            // остался без TOOL-ответа; достраиваем пару СТРОГО ДО записи частичного текста:
+            // repairDanglingToolCalls смотрит только на последнюю строку, и записанный первым
+            // partial навсегда спрятал бы от него оборванную пару (модель отвечала бы 400 на
+            // каждый следующий запрос этого чата).
+            chatMemoryService.repairDanglingToolCalls(conversationId);
             if (!partial.isBlank()) {
                 // Помечаем сохранённый ответ как оборванный — чтобы после reload было видно,
                 // что генерацию остановили/она упала, а не получился полный ответ.
@@ -347,9 +353,6 @@ public class ChatRunService {
             }
             chatMemoryService.attachRunMeta(
                     conversationId, handle.runId(), toolCollector.completedSnapshot());
-            // Прервали во время выполнения инструментов — хвостовой assistant.tool_calls
-            // остался без TOOL-ответа; достраиваем пару, чтобы следующий запрос не упал.
-            chatMemoryService.repairDanglingToolCalls(conversationId);
         } catch (Exception e) {
             log.warn("Failed to persist partial reply for {}", conversationId, e);
         }

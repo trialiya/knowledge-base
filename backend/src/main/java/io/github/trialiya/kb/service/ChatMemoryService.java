@@ -72,6 +72,9 @@ public class ChatMemoryService implements ChatMemoryRepository {
 
     @Override
     public void saveAll(String conversationId, List<Message> messages) {
+        // Сообщение + его протокольные tool-данные, извлечённые один раз (см. toolDataOf).
+        record Pending(Message message, @Nullable ToolData toolData) {}
+
         final AtomicLong lastPosition = new AtomicLong();
         final List<ChatMessageEntity> newMessagesToSave =
                 messages.stream()
@@ -86,26 +89,29 @@ public class ChatMemoryService implements ChatMemoryRepository {
                                     }
                                     return true;
                                 })
+                        .map(message -> new Pending(message, toolDataOf(message)))
                         // Протокольные tool-сообщения (assistant c tool_calls, ответы
                         // инструментов) сохраняем даже с пустым текстом — без них пара
                         // assistant.tool_calls ↔ tool.tool_call_id не восстановится.
                         .filter(
-                                message ->
-                                        Strings.isNotBlank(message.getText())
-                                                || toolDataOf(message) != null)
+                                pending ->
+                                        Strings.isNotBlank(pending.message().getText())
+                                                || pending.toolData() != null)
                         .map(
-                                message ->
+                                pending ->
                                         new ChatMessageEntity(
                                                 0,
                                                 conversationId,
-                                                message.getText() == null ? "" : message.getText(),
-                                                message.getMessageType(),
+                                                pending.message().getText() == null
+                                                        ? ""
+                                                        : pending.message().getText(),
+                                                pending.message().getMessageType(),
                                                 lastPosition.incrementAndGet(),
                                                 false,
                                                 false,
                                                 LocalDateTime.now(),
                                                 null,
-                                                toolDataOf(message)))
+                                                pending.toolData()))
                         .toList();
         chatMessageRepository.saveAll(newMessagesToSave);
     }
@@ -325,9 +331,9 @@ public class ChatMemoryService implements ChatMemoryRepository {
     private static final int SNIPPET_SUFFIX = 90;
 
     /**
-     * Сообщение видно пользователю и осмысленно для поиска: не служебное SYSTEM и не «крошка»
-     * вызовов инструментов (см. {@link #saveToolCalls}) — те же критерии, что и в отображении
-     * истории чата.
+     * Сообщение видно пользователю и осмысленно для поиска: не служебное SYSTEM и не
+     * legacy-«крошка» вызовов инструментов (meta.toolCalls=true у старых записей) — те же критерии,
+     * что и в отображении истории чата.
      */
     private static boolean isSearchable(ChatMessageEntity entity) {
         if (entity.getType() == MessageType.SYSTEM) {
