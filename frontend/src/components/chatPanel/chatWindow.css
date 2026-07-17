@@ -844,7 +844,8 @@
 }
 .file-preview-modal__body {
   padding: 0 !important; /* override fs-editor__body default padding */
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden; /* horizontal scroll is owned by .file-code, flush with the modal edges */
 }
 .file-preview-modal__msg {
   padding: 16px 20px;

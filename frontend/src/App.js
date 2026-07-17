@@ -6,6 +6,7 @@ import FilesPanel from './components/filesPanel/FilesPanel';
 import ConfirmModal from './components/common/ConfirmModal';
 import { isEditorDirty } from './components/knowledgeBasePanel/editorDirtyStore';
 import useAppNavigation from './useAppNavigation';
+import { registerFileNavigator } from './fileNavigationBus';
 import HeaderMenu from './components/common/HeaderMenu';
 import GlobalSearch from './components/common/GlobalSearch';
 import AdminPanel from './components/adminPanel/AdminPanel';
@@ -57,6 +58,18 @@ function App() {
     }
     switchView(target);
   };
+
+  // Регистрируем переход в Files для DocLinkTooltip (кнопка "Открыть" у
+  // файловой ссылки) — компонент смонтирован в чате/KB, на много уровней
+  // ниже App, поэтому проп сюда не прокинуть без прошивки всей цепочки
+  // (Message/ChatWindow, SummarySection/MarkdownEditor/DetailModals/...).
+  useEffect(() => {
+    registerFileNavigator((path) => {
+      goView('files');
+      openFilePath(path);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openFilePath]);
 
   return (
     <div className="App">
