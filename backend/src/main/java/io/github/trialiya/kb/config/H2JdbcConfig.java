@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.trialiya.kb.convert.AttachmentOwnerTypeJdbcConverter;
 import io.github.trialiya.kb.convert.ChatMessageMetaToJsonConverter;
 import io.github.trialiya.kb.convert.DocumentTypeJdbcConverter;
+import io.github.trialiya.kb.convert.ToolDataToJsonConverter;
 import io.github.trialiya.kb.convert.ToolInvocationStatusJdbcConverter;
 import java.util.List;
 import org.springframework.context.annotation.Configuration;
@@ -33,6 +34,8 @@ public class H2JdbcConfig extends AbstractJdbcConfiguration {
         return List.of(
                 new ChatMessageMetaToJsonConverter.Writer(objectMapper),
                 new ChatMessageMetaToJsonConverter.Reader(objectMapper),
+                new ToolDataToJsonConverter.Writer(objectMapper),
+                new ToolDataToJsonConverter.Reader(objectMapper),
                 new DocumentTypeJdbcConverter.Writer(),
                 new DocumentTypeJdbcConverter.Reader(),
                 new AttachmentOwnerTypeJdbcConverter.Writer(),

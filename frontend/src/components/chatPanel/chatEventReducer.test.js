@@ -119,4 +119,180 @@ describe('applyChatEvent', () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({ status: 'OK', callIndex: 0 });
   });
+
+  // ── Сегментация по границе tool-цикла ─────────────────────────────────────
+
+  const aiOfRun = (chat, runId) =>
+    chat.messages.filter((m) => m.sender === 'ai' && (m.runId === runId || m.toolCallsRunId === runId));
+
+  test('TOOL_CALL after a TOOL_CALLS boundary attaches to the sealed segment, not a new bubble', () => {
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'смотрю документ' } }, ctx);
+    chat = applyChatEvent(
+      chat,
+      { type: 'STREAM', runId: 'r1', payload: { message: '', finishReason: 'TOOL_CALLS' } },
+      ctx,
+    );
+    chat = applyChatEvent(
+      chat,
+      {
+        type: 'TOOL_CALL',
+        runId: 'r1',
+        payload: { toolCall: { name: 'getDocument', arguments: { id: 1 }, status: 'STARTED' } },
+      },
+      ctx,
+    );
+
+    const segments = aiOfRun(chat, 'r1');
+    expect(segments).toHaveLength(1); // новый пустой пузырь не открыт
+    expect(segments[0].text).toBe('смотрю документ');
+    expect(segments[0].toolCalls).toHaveLength(1);
+  });
+
+  test('text after the boundary opens a new bubble; each segment keeps its own tool calls', () => {
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'сегмент 1' } }, ctx);
+    chat = applyChatEvent(
+      chat,
+      { type: 'STREAM', runId: 'r1', payload: { message: '', finishReason: 'TOOL_CALLS' } },
+      ctx,
+    );
+    chat = applyChatEvent(
+      chat,
+      {
+        type: 'TOOL_CALL',
+        runId: 'r1',
+        payload: { toolCall: { name: 'getDocument', arguments: { id: 1 }, status: 'OK' } },
+      },
+      ctx,
+    );
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'сегмент 2' } }, ctx);
+    chat = applyChatEvent(
+      chat,
+      { type: 'STREAM', runId: 'r1', payload: { message: '', finishReason: 'TOOL_CALLS' } },
+      ctx,
+    );
+    chat = applyChatEvent(
+      chat,
+      {
+        type: 'TOOL_CALL',
+        runId: 'r1',
+        payload: { toolCall: { name: 'searchDocs', arguments: { q: 'x' }, status: 'OK' } },
+      },
+      ctx,
+    );
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'финал' } }, ctx);
+    chat = applyChatEvent(chat, { type: 'RUN_DONE', runId: 'r1' }, ctx);
+
+    const segments = aiOfRun(chat, 'r1');
+    expect(segments.map((s) => s.text)).toEqual(['сегмент 1', 'сегмент 2', 'финал']);
+    expect(segments[0].toolCalls.map((t) => t.name)).toEqual(['getDocument']);
+    expect(segments[1].toolCalls.map((t) => t.name)).toEqual(['searchDocs']);
+    expect(segments[2].toolCalls || []).toHaveLength(0);
+    expect(segments.every((s) => s.sealed === undefined)).toBe(true); // finalize снял флаг
+  });
+
+  test('final TOOL_CALLS metas are distributed to the segments holding the matching live calls', () => {
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'сегмент 1' } }, ctx);
+    chat = applyChatEvent(
+      chat,
+      { type: 'STREAM', runId: 'r1', payload: { message: '', finishReason: 'TOOL_CALLS' } },
+      ctx,
+    );
+    chat = applyChatEvent(
+      chat,
+      {
+        type: 'TOOL_CALL',
+        runId: 'r1',
+        payload: { toolCall: { name: 'getDocument', arguments: { id: 1 }, status: 'OK' } },
+      },
+      ctx,
+    );
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'финал' } }, ctx);
+    chat = applyChatEvent(
+      chat,
+      {
+        type: 'TOOL_CALLS',
+        runId: 'r1',
+        payload: {
+          toolCalls: [
+            { name: 'getDocument', arguments: { id: 1 }, status: 'OK', callIndex: 0, resultMeta: { doc: 1 } },
+          ],
+        },
+      },
+      ctx,
+    );
+
+    const segments = aiOfRun(chat, 'r1');
+    expect(segments).toHaveLength(2);
+    // Мета ушла в первый сегмент (где живой вызов), а не в последний пузырь.
+    expect(segments[0].toolCalls[0]).toMatchObject({ callIndex: 0, resultMeta: { doc: 1 } });
+    expect(segments[1].toolCalls || []).toHaveLength(0);
+  });
+
+  test('a tool-calls-only segment (no text before the call) keeps its plates on the empty bubble', () => {
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(
+      chat,
+      { type: 'STREAM', runId: 'r1', payload: { message: '', finishReason: 'TOOL_CALLS' } },
+      ctx,
+    );
+    chat = applyChatEvent(
+      chat,
+      {
+        type: 'TOOL_CALL',
+        runId: 'r1',
+        payload: { toolCall: { name: 'getDocument', arguments: { id: 1 }, status: 'OK' } },
+      },
+      ctx,
+    );
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'ответ' } }, ctx);
+    chat = applyChatEvent(chat, { type: 'RUN_DONE', runId: 'r1' }, ctx);
+
+    const segments = aiOfRun(chat, 'r1');
+    expect(segments).toHaveLength(2);
+    expect(segments[0].text).toBe('');
+    expect(segments[0].toolCalls).toHaveLength(1);
+    expect(segments[1].text).toBe('ответ');
+  });
+
+  test('segments split on TOOL_CALL alone — finishReason=TOOL_CALLS never reaches the client', () => {
+    // ToolCallingAdvisor отфильтровывает агрегированный tool-чанк (носитель finishReason),
+    // поэтому границу сегмента даёт само событие TOOL_CALL.
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'смотрю коммит' } }, ctx);
+    chat = applyChatEvent(
+      chat,
+      {
+        type: 'TOOL_CALL',
+        runId: 'r1',
+        payload: { toolCall: { name: 'getCommitDiff', arguments: { h: '1' }, status: 'STARTED' } },
+      },
+      ctx,
+    );
+    chat = applyChatEvent(
+      chat,
+      {
+        type: 'TOOL_CALL',
+        runId: 'r1',
+        payload: { toolCall: { name: 'getCommitDiff', arguments: { h: '1' }, status: 'OK' } },
+      },
+      ctx,
+    );
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'итоговый анализ' } }, ctx);
+    chat = applyChatEvent(chat, { type: 'RUN_DONE', runId: 'r1' }, ctx);
+
+    const segments = aiOfRun(chat, 'r1');
+    expect(segments.map((s) => s.text)).toEqual(['смотрю коммит', 'итоговый анализ']);
+    expect(segments[0].toolCalls).toHaveLength(1);
+    expect(segments[0].toolCalls[0].status).toBe('OK');
+    expect(segments[1].toolCalls || []).toHaveLength(0);
+  });
+
+  test('RUN_DONE drops a trailing empty bubble without tool calls', () => {
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(chat, { type: 'RUN_DONE', runId: 'r1' }, ctx);
+    expect(chat.messages.filter((m) => m.sender === 'ai')).toHaveLength(0);
+  });
 });

@@ -11,6 +11,7 @@ const metaToCall = (x) => ({
   status: x.status,
   error: x.error,
   resultMeta: x.resultMeta,
+  resultGist: x.resultGist,
   callIndex: x.callIndex,
   hasDetails: x.hasDetails,
 });
@@ -31,9 +32,9 @@ export const transformPage = (rawMsgs) => {
   let sawAi = false;
   for (const m of rawMsgs || []) {
     const type = m.type?.toLowerCase?.();
-    // Сообщения-«крошки» вызовов инструментов помечены флагом toolCalls. Раньше они приходили
-    // как system, теперь — как assistant (не все модели принимают system в середине диалога),
-    // поэтому распознаём их по флагу, а не по типу сообщения.
+    // Legacy: сообщения-«крошки» вызовов инструментов помечены флагом toolCalls (единый JSON
+    // со всеми вызовами прогона в конце). Новые чаты крошек не пишут — их вызовы приходят в
+    // toolInvocationMetas обычных assistant-сегментов (см. ниже), но старые чаты живут вечно.
     if (m.toolCalls) {
       const metas = m.toolInvocationMetas;
       const runId = extractRunId(m);
@@ -50,6 +51,12 @@ export const transformPage = (rawMsgs) => {
       continue; // преамбулу как сообщение не рендерим
     }
     if (type === 'system') continue; // прочие системные сообщения (напр. summary) не показываем
+    // Протокольные TOOL-сообщения (ответы инструментов) — не для показа: их содержимое
+    // видно через плашки/модалку деталей соответствующего сегмента.
+    if (type === 'tool') continue;
+    const metas = Array.isArray(m.toolInvocationMetas) ? m.toolInvocationMetas : [];
+    // Сегмент из одних tool_calls без текста и без сохранённых metas показывать нечем.
+    if (type !== 'user' && !(m.content || '').trim() && !metas.length) continue;
     if (type !== 'user') sawAi = true;
     bubbles.push({
       mid: nextMessageId(),
@@ -59,6 +66,10 @@ export const transformPage = (rawMsgs) => {
       text: m.content,
       sender: type === 'user' ? SENDER.USER : SENDER.AI,
       timestamp: m.timestamp || null,
+      // Вызовы инструментов этого сегмента (раздельное сохранение): плашки под пузырём.
+      ...(metas.length && type !== 'user'
+        ? { toolCalls: metas.map(metaToCall), ...(m.runId ? { toolCallsRunId: m.runId } : {}) }
+        : {}),
     });
   }
   return { bubbles, leadingMetas };
@@ -171,8 +182,15 @@ export default function useChatMessages({ chats, chatsRef, setChats, activeChatI
       if (loadingOlderRef.current.has(chatId)) return false;
       loadingOlderRef.current.add(chatId);
       try {
-        const page = await chatApi.getMessages(chatId, PAGE_SIZE, chat.oldestCursor);
-        const { bubbles: olderBubbles, leadingMetas } = transformPage(page.messages);
+        let page = await chatApi.getMessages(chatId, PAGE_SIZE, chat.oldestCursor);
+        let { bubbles: olderBubbles, leadingMetas } = transformPage(page.messages);
+        // Страница может целиком состоять из протокольных строк (TOOL-ответы, пустые
+        // tool_calls-сегменты) — пузырей из неё не выйдет, но выше история продолжается.
+        // Листаем дальше, пока не встретим отображаемое или конец истории.
+        while (!olderBubbles.length && !leadingMetas.length && page.hasMore && page.oldestCursor) {
+          page = await chatApi.getMessages(chatId, PAGE_SIZE, page.oldestCursor);
+          ({ bubbles: olderBubbles, leadingMetas } = transformPage(page.messages));
+        }
         if (!olderBubbles.length && (!leadingMetas || !leadingMetas.length)) {
           // Пустая страница — больше грузить нечего.
           setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, hasMore: false } : c)));

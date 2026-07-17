@@ -11,18 +11,23 @@ import io.github.trialiya.kb.model.chat.dto.MessageSearchHit;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
+import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.repository.ToolCallRepository;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.support.AbstractPostgresIntegrationTest;
+import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
+import org.springframework.ai.chat.messages.ToolResponseMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jdbc.test.autoconfigure.DataJdbcTest;
@@ -102,6 +107,239 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
         List<Message> reloaded = memory.findByConversationId(conv);
         assertThat(reloaded).hasSize(1);
         assertThat(reloaded.getFirst().getText()).isEqualTo("реальный ответ");
+    }
+
+    // ── Round-trip протокольных tool-сообщений (раздельное сохранение) ───────
+
+    @Test
+    void toolProtocolMessagesRoundTripThroughRepository() {
+        String conv = newConversation();
+        ChatMemoryService memory = memory();
+
+        AssistantMessage withCalls =
+                AssistantMessage.builder()
+                        .content("смотрю документ")
+                        .toolCalls(
+                                List.of(
+                                        new AssistantMessage.ToolCall(
+                                                "call-1", "function", "getDocument", "{\"id\":5}")))
+                        .build();
+        ToolResponseMessage response =
+                ToolResponseMessage.builder()
+                        .responses(
+                                List.of(
+                                        new ToolResponseMessage.ToolResponse(
+                                                "call-1", "getDocument", "содержимое документа")))
+                        .build();
+
+        memory.saveAll(conv, List.of(new UserMessage("покажи документ 5"), withCalls));
+        // Следующая итерация цикла: уже сохранённые приходят как IMessage-обёртки + новые.
+        List<Message> afterFirst = memory.findByConversationId(conv);
+        memory.saveAll(
+                conv,
+                Stream.concat(
+                                afterFirst.stream(),
+                                Stream.of(response, (Message) new AssistantMessage("готово")))
+                        .toList());
+
+        List<Message> reloaded = memory.findByConversationId(conv);
+        assertThat(reloaded).hasSize(4);
+
+        AssistantMessage reloadedCalls = (AssistantMessage) reloaded.get(1);
+        assertThat(reloadedCalls.getText()).isEqualTo("смотрю документ");
+        assertThat(reloadedCalls.getToolCalls())
+                .containsExactly(
+                        new AssistantMessage.ToolCall(
+                                "call-1", "function", "getDocument", "{\"id\":5}"));
+
+        ToolResponseMessage reloadedResponse = (ToolResponseMessage) reloaded.get(2);
+        assertThat(reloadedResponse.getResponses())
+                .containsExactly(
+                        new ToolResponseMessage.ToolResponse(
+                                "call-1", "getDocument", "содержимое документа"));
+
+        assertThat(reloaded.get(3).getText()).isEqualTo("готово");
+    }
+
+    @Test
+    void assistantSegmentWithoutTextButWithToolCallsIsPersisted() {
+        String conv = newConversation();
+        ChatMemoryService memory = memory();
+
+        AssistantMessage callsOnly =
+                AssistantMessage.builder()
+                        .content("")
+                        .toolCalls(
+                                List.of(
+                                        new AssistantMessage.ToolCall(
+                                                "call-9", "function", "searchDocs", "{}")))
+                        .build();
+
+        memory.saveAll(conv, List.of(new UserMessage("найди"), callsOnly));
+
+        List<Message> reloaded = memory.findByConversationId(conv);
+        assertThat(reloaded).hasSize(2);
+        assertThat(((AssistantMessage) reloaded.get(1)).getToolCalls()).hasSize(1);
+    }
+
+    // ── attachRunMeta: UI-метаданные вызовов по сегментам прогона ────────────
+
+    private static ToolInvocation invocation(String name, int callIndex) {
+        return new ToolInvocation(
+                name,
+                Map.of(),
+                ToolInvocationCollector.ToolInvocationStatus.OK,
+                null,
+                null,
+                "gist",
+                "{}",
+                "результат",
+                callIndex);
+    }
+
+    @Test
+    void attachRunMetaStampsSegmentsInOrderAndSkipsServiceTools() {
+        String conv = newConversation();
+        ChatMemoryService memory = memory();
+
+        AssistantMessage segment1 =
+                AssistantMessage.builder()
+                        .content("сегмент 1")
+                        .toolCalls(
+                                List.of(
+                                        new AssistantMessage.ToolCall(
+                                                "c1", "function", "getDocument", "{}"),
+                                        new AssistantMessage.ToolCall(
+                                                "c2", "function", "getCurrentDateTime", "{}")))
+                        .build();
+        AssistantMessage segment2 =
+                AssistantMessage.builder()
+                        .content("сегмент 2")
+                        .toolCalls(
+                                List.of(
+                                        new AssistantMessage.ToolCall(
+                                                "c3", "function", "searchDocs", "{}")))
+                        .build();
+
+        memory.saveAll(
+                conv,
+                List.of(
+                        new UserMessage("вопрос"),
+                        segment1,
+                        ToolResponseMessage.builder()
+                                .responses(
+                                        List.of(
+                                                new ToolResponseMessage.ToolResponse(
+                                                        "c1", "getDocument", "r1"),
+                                                new ToolResponseMessage.ToolResponse(
+                                                        "c2", "getCurrentDateTime", "r2")))
+                                .build(),
+                        segment2,
+                        new AssistantMessage("финальный ответ")));
+
+        memory.attachRunMeta(
+                conv,
+                "run-42",
+                List.of(
+                        invocation("getDocument", 0),
+                        invocation("getCurrentDateTime", 1),
+                        invocation("searchDocs", 2)));
+
+        List<ChatMessageEntity> rows = memory.findChatMessageByConversationId(conv);
+        List<ChatMessageEntity> stamped = rows.stream().filter(r -> r.getMeta() != null).toList();
+        assertThat(stamped).hasSize(2);
+
+        ChatMessageEntity first = stamped.get(0);
+        assertThat(first.getContent()).isEqualTo("сегмент 1");
+        assertThat(first.getMeta().runId()).isEqualTo("run-42");
+        assertThat(first.getMeta().toolCalls()).isFalse(); // не «крошка» — обычный сегмент
+        // getCurrentDateTime — служебный (SKIP_TOOLS): в UI-метаданные не попадает,
+        // но протокольные tool_calls сегмента остаются полными.
+        assertThat(first.getInvocations()).extracting("name").containsExactly("getDocument");
+        assertThat(first.getToolData().toolCalls()).hasSize(2);
+
+        ChatMessageEntity second = stamped.get(1);
+        assertThat(second.getContent()).isEqualTo("сегмент 2");
+        assertThat(second.getInvocations()).extracting("name").containsExactly("searchDocs");
+        assertThat(second.getInvocations().getFirst().callIndex()).isEqualTo(2);
+    }
+
+    @Test
+    void repairDanglingToolCallsAppendsSyntheticResponsesForTail() {
+        String conv = newConversation();
+        ChatMemoryService memory = memory();
+
+        AssistantMessage dangling =
+                AssistantMessage.builder()
+                        .content("зову инструмент")
+                        .toolCalls(
+                                List.of(
+                                        new AssistantMessage.ToolCall(
+                                                "c1", "function", "getDocument", "{}")))
+                        .build();
+        memory.saveAll(conv, List.of(new UserMessage("вопрос"), dangling));
+
+        memory.repairDanglingToolCalls(conv);
+
+        List<Message> reloaded = memory.findByConversationId(conv);
+        assertThat(reloaded).hasSize(3);
+        ToolResponseMessage synthetic = (ToolResponseMessage) reloaded.get(2);
+        assertThat(synthetic.getResponses()).hasSize(1);
+        assertThat(synthetic.getResponses().getFirst().id()).isEqualTo("c1");
+
+        // Идемпотентность: целый хвост повторно не «чинится».
+        memory.repairDanglingToolCalls(conv);
+        assertThat(memory.findByConversationId(conv)).hasSize(3);
+    }
+
+    @Test
+    void attachRunMetaIgnoresSegmentsOfPreviousTurns() {
+        String conv = newConversation();
+        ChatMemoryService memory = memory();
+
+        AssistantMessage oldSegment =
+                AssistantMessage.builder()
+                        .content("старый сегмент")
+                        .toolCalls(
+                                List.of(
+                                        new AssistantMessage.ToolCall(
+                                                "old", "function", "getDocument", "{}")))
+                        .build();
+        memory.saveAll(conv, List.of(new UserMessage("старый вопрос"), oldSegment));
+
+        // Новый ход: user + сегмент текущего прогона.
+        List<Message> existing = memory.findByConversationId(conv);
+        AssistantMessage newSegment =
+                AssistantMessage.builder()
+                        .content("новый сегмент")
+                        .toolCalls(
+                                List.of(
+                                        new AssistantMessage.ToolCall(
+                                                "new", "function", "searchDocs", "{}")))
+                        .build();
+        memory.saveAll(
+                conv,
+                Stream.concat(
+                                existing.stream(),
+                                Stream.of(new UserMessage("новый вопрос"), (Message) newSegment))
+                        .toList());
+
+        memory.attachRunMeta(conv, "run-7", List.of(invocation("searchDocs", 0)));
+
+        List<ChatMessageEntity> rows = memory.findChatMessageByConversationId(conv);
+        ChatMessageEntity old =
+                rows.stream()
+                        .filter(r -> r.getContent().equals("старый сегмент"))
+                        .findFirst()
+                        .orElseThrow();
+        assertThat(old.getMeta()).isNull(); // сегмент до последнего USER не тронут
+        ChatMessageEntity fresh =
+                rows.stream()
+                        .filter(r -> r.getContent().equals("новый сегмент"))
+                        .findFirst()
+                        .orElseThrow();
+        assertThat(fresh.getMeta()).isNotNull();
+        assertThat(fresh.getMeta().runId()).isEqualTo("run-7");
     }
 
     // ── Keyset-пагинация по (created_at, id) ─────────────────────────────────

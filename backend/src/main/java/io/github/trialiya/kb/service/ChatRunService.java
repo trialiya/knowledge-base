@@ -64,6 +64,10 @@ public class ChatRunService {
     public static final String _UNKNOWN_FINISH_REASON =
             ChatCompletion.Choice.FinishReason.Value._UNKNOWN.name();
 
+    /** finishReason чанка-границы tool-цикла (Spring AI отдаёт его в верхнем регистре). */
+    private static final String TOOL_CALLS_FINISH_REASON =
+            ChatCompletion.Choice.FinishReason.Value.TOOL_CALLS.name();
+
     private final ChatClient chatClient;
     private final ChatMemory chatMemory;
     private final ChatMemoryService chatMemoryService;
@@ -167,9 +171,16 @@ public class ChatRunService {
             String clientMsgId) {
         final String conversationId = handle.conversationId();
         final String runId = handle.runId();
+        final StringBuffer buffer = new StringBuffer();
         final Consumer<Object> liveSink =
                 payload -> {
                     if (payload instanceof ToolCallMessage tcm) {
+                        // Инструмент пошёл — значит, итерация стрима завершилась и её сегмент
+                        // уже сохранён advisor-цепочкой. Сбрасываем буфер здесь: это надёжная
+                        // граница, в отличие от finishReason=TOOL_CALLS (агрегированный
+                        // tool-чанк с ним ToolCallingAdvisor отфильтровывает из потока и до
+                        // onNext он не доходит).
+                        buffer.setLength(0);
                         if (tcm.toolCall().status() != ToolInvocationStatus.STARTED) {
                             // DB write is best-effort bookkeeping; offload it so SSE goes out
                             // immediately without waiting for disk I/O.
@@ -183,7 +194,6 @@ public class ChatRunService {
                     events.publish(conversationId, eventType(payload), runId, null, payload);
                 };
         final ToolInvocationCollector toolCollector = new ToolInvocationCollector(liveSink);
-        final StringBuffer buffer = new StringBuffer();
 
         events.publish(
                 conversationId,
@@ -194,6 +204,10 @@ public class ChatRunService {
         events.publish(conversationId, RUN_STARTED, runId, clientMsgId, null);
 
         try {
+            // Прошлый прогон могли оборвать во время выполнения инструментов (в т.ч. падением
+            // процесса) — тогда в хвосте истории висит assistant.tool_calls без TOOL-ответа,
+            // и модель отвергла бы такой диалог. Достраиваем пару до старта.
+            chatMemoryService.repairDanglingToolCalls(conversationId);
             ChatClient.ChatClientRequestSpec spec =
                     chatClient
                             .prompt()
@@ -254,6 +268,12 @@ public class ChatRunService {
         if (!chunk.isEmpty()) {
             buffer.append(chunk);
         }
+        // Граница сегмента: текст до вызова инструментов уже сохранён advisor-цепочкой
+        // (MessageChatMemoryAdvisor внутри tool-цикла), в буфере держим только хвост
+        // текущего сегмента — иначе persistPartial задублировал бы сохранённые сегменты.
+        if (TOOL_CALLS_FINISH_REASON.equals(finishReason)) {
+            buffer.setLength(0);
+        }
         liveSink.accept(new StreamMessage(chunk, finishReason));
         printUsageStatistics(conversationId, response, finishReason);
     }
@@ -266,7 +286,7 @@ public class ChatRunService {
                         toolCollector.completedSnapshot().stream()
                                 .map(tc -> tc.toMeta(chatMemoryService.hasDetails(tc.name())))
                                 .toList()));
-        chatMemoryService.saveToolCalls(
+        chatMemoryService.attachRunMeta(
                 handle.conversationId(), handle.runId(), toolCollector.completedSnapshot());
         events.publish(handle.conversationId(), RUN_DONE, handle.runId(), null, null);
         summarizeService.trySummarize(handle.conversationId());
@@ -315,18 +335,24 @@ public class ChatRunService {
             return;
         }
         final String conversationId = handle.conversationId();
+        // В буфере — только хвост текущего сегмента: завершённые сегменты (и их tool-сообщения)
+        // advisor-цепочка уже сохранила по ходу прогона (см. onNext).
         final String partial = buffer.toString().strip();
-        if (partial.isBlank()) {
-            return;
-        }
-        // Помечаем сохранённый ответ как оборванный — чтобы после reload было видно, что
-        // генерацию остановили/она упала, а не получился полный ответ.
-        final String text = partial + "\n\n" + marker;
         try {
-            chatMemory.add(conversationId, new AssistantMessage(text));
-            chatMemoryService.saveToolCalls(
+            // Прервали во время выполнения инструментов — хвостовой assistant.tool_calls
+            // остался без TOOL-ответа; достраиваем пару СТРОГО ДО записи частичного текста:
+            // repairDanglingToolCalls смотрит только на последнюю строку, и записанный первым
+            // partial навсегда спрятал бы от него оборванную пару (модель отвечала бы 400 на
+            // каждый следующий запрос этого чата).
+            chatMemoryService.repairDanglingToolCalls(conversationId);
+            if (!partial.isBlank()) {
+                // Помечаем сохранённый ответ как оборванный — чтобы после reload было видно,
+                // что генерацию остановили/она упала, а не получился полный ответ.
+                chatMemory.add(conversationId, new AssistantMessage(partial + "\n\n" + marker));
+                log.info("Saved partial reply for {} ({} chars)", conversationId, partial.length());
+            }
+            chatMemoryService.attachRunMeta(
                     conversationId, handle.runId(), toolCollector.completedSnapshot());
-            log.info("Saved partial reply for {} ({} chars)", conversationId, text.length());
         } catch (Exception e) {
             log.warn("Failed to persist partial reply for {}", conversationId, e);
         }

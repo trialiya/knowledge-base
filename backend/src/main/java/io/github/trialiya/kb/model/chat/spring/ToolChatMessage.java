@@ -10,7 +10,13 @@ public class ToolChatMessage extends ToolResponseMessage implements IMessage {
     private final ChatMessageEntity chatMessageEntity;
 
     public ToolChatMessage(ChatMessageEntity chatMessageEntity) {
-        super(List.of(), Map.of());
+        // Ответы инструментов — из tool_data; пустой список означает старую запись
+        // (до раздельного сохранения), такие строки в память не попадали.
+        super(
+                chatMessageEntity.getToolData() != null
+                        ? chatMessageEntity.getToolData().toToolResponses()
+                        : List.of(),
+                Map.of());
         this.chatMessageEntity = chatMessageEntity;
     }
 

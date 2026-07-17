@@ -225,13 +225,17 @@ const Message = ({
       </div>
     );
 
+  // Сегмент из одних вызовов инструментов (модель не написала текста перед tool_calls):
+  // пустой пузырь и футер не рисуем — остаются только плашки вызовов.
+  const toolCallsOnly = hasToolCalls && sender === SENDER.AI && !(text || '').trim();
+
   const messageBlock = (
     <div
       className={`message-block message-block--${sender}${searchActive ? ' message-block--search-hit' : ''}`}
       data-mid={mid ?? undefined}
     >
-      {bubble}
-      {footer}
+      {!toolCallsOnly && bubble}
+      {!toolCallsOnly && footer}
       {hasToolCalls && sender === SENDER.AI && (
         <ToolCallNotifications toolCalls={toolCalls} conversationId={conversationId} toolCallsRunId={toolCallsRunId} />
       )}
