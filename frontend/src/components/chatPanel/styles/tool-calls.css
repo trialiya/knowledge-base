@@ -1,36 +1,11 @@
 /* ── Tool call notifications ──
-   Панель справа от сообщения, прижата к его верхней кромке. */
-
-.message-row-with-tools {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  max-width: 92%;
-}
-
-/* Левая колонка: пузырь + блок «изменения документа» */
-.message-row-with-tools > .message-main-col {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Блок (пузырь + футер) заполняет колонку без вложенного max-width:75% */
-.message-row-with-tools .message-main-col > .message-block {
-  max-width: 100%;
-  width: 100%;
-  margin-bottom: 0;
-}
-.message-row-with-tools .message-main-col > .message-block > .message {
-  align-self: stretch;
-}
+   Блок вызовов инструментов — inline под пузырём ассистента. */
 
 .tool-call-notifications {
-  flex-shrink: 0;
-  width: 210px;
-  max-width: 210px;
-  min-width: 0;
+  width: 100%;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--kb-border);
   display: flex;
   flex-direction: column;
 }

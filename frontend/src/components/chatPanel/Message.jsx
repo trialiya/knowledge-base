@@ -232,20 +232,20 @@ const Message = ({
     >
       {bubble}
       {footer}
+      {hasToolCalls && sender === SENDER.AI && (
+        <ToolCallNotifications toolCalls={toolCalls} conversationId={conversationId} toolCallsRunId={toolCallsRunId} />
+      )}
     </div>
   );
 
   if (hasToolCalls && sender === SENDER.AI) {
     return (
-      <div className="message-row-with-tools">
-        <div className="message-main-col">
-          {messageBlock}
-          <DocChangeBlock toolCalls={toolCalls} onNavigateToDoc={onNavigateToDoc} />
-          <FileChangeBlock toolCalls={toolCalls} />
-          {showPreparing && <ToolPreparingIndicator />}
-        </div>
-        <ToolCallNotifications toolCalls={toolCalls} conversationId={conversationId} toolCallsRunId={toolCallsRunId} />
-      </div>
+      <>
+        {messageBlock}
+        <DocChangeBlock toolCalls={toolCalls} onNavigateToDoc={onNavigateToDoc} />
+        <FileChangeBlock toolCalls={toolCalls} />
+        {showPreparing && <ToolPreparingIndicator />}
+      </>
     );
   }
 
