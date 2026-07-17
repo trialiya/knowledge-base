@@ -5,6 +5,7 @@ import io.github.trialiya.kb.model.chat.spring.IMessage;
 import io.github.trialiya.kb.model.chat.spring.SystemChatMessage;
 import io.github.trialiya.kb.model.chat.spring.ToolChatMessage;
 import io.github.trialiya.kb.model.chat.spring.UserChatMessage;
+import io.github.trialiya.kb.model.tool.ToolData;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -31,6 +32,9 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
     @NonNull private final LocalDateTime createdAt;
     @Nullable private final ChatMessageMeta meta;
 
+    /** Протокольные tool-данные (tool_calls / responses) — см. {@link ToolData}. */
+    @Nullable private final ToolData toolData;
+
     @PersistenceCreator
     public ChatMessageEntity(
             long id,
@@ -41,7 +45,8 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
             boolean summarized,
             boolean summary,
             @NonNull LocalDateTime createdAt,
-            @Nullable ChatMessageMeta meta) {
+            @Nullable ChatMessageMeta meta,
+            @Nullable ToolData toolData) {
         this.id = id;
         this.conversationId = conversationId;
         this.content = content;
@@ -51,6 +56,45 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
         this.summary = summary;
         this.createdAt = createdAt;
         this.meta = meta;
+        this.toolData = toolData;
+    }
+
+    public ChatMessageEntity(
+            long id,
+            @NonNull String conversationId,
+            @NonNull String content,
+            @NonNull MessageType type,
+            long position,
+            boolean summarized,
+            boolean summary,
+            @NonNull LocalDateTime createdAt,
+            @Nullable ChatMessageMeta meta) {
+        this(
+                id,
+                conversationId,
+                content,
+                type,
+                position,
+                summarized,
+                summary,
+                createdAt,
+                meta,
+                null);
+    }
+
+    /** Копия с проставленными метаданными — для пост-обогащения сегментов прогона. */
+    public ChatMessageEntity withMeta(@Nullable ChatMessageMeta newMeta) {
+        return new ChatMessageEntity(
+                id,
+                conversationId,
+                content,
+                type,
+                position,
+                summarized,
+                summary,
+                createdAt,
+                newMeta,
+                toolData);
     }
 
     @Override
@@ -114,6 +158,11 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
     @Nullable
     public ChatMessageMeta getMeta() {
         return meta;
+    }
+
+    @Nullable
+    public ToolData getToolData() {
+        return toolData;
     }
 
     @Nullable

@@ -10,6 +10,7 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.chat.spring.IMessage;
 import io.github.trialiya.kb.model.tool.ToolCallEntity;
+import io.github.trialiya.kb.model.tool.ToolData;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
@@ -17,7 +18,6 @@ import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.repository.ToolCallRepository;
 import io.github.trialiya.kb.utils.ChatUtils;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -32,8 +32,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.util.Strings;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.memory.ChatMemoryRepository;
+import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
+import org.springframework.ai.chat.messages.ToolResponseMessage;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -58,12 +60,6 @@ public class ChatMemoryService implements ChatMemoryRepository {
         return !SKIP_TOOLS.contains(toolName);
     }
 
-    private static final String PREAMBLE =
-            """
-        Инструменты, уже вызванные ранее в этом чате (с урезанным результатом).
-        Служебные данные только для справки.
-        """;
-
     private final ChatTopicRepository chatTopicRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final ToolCallRepository toolCallRepository;
@@ -79,7 +75,9 @@ public class ChatMemoryService implements ChatMemoryRepository {
         final AtomicLong lastPosition = new AtomicLong();
         final List<ChatMessageEntity> newMessagesToSave =
                 messages.stream()
-                        .filter(message -> Strings.isNotBlank(message.getText()))
+                        // Уже сохранённые (IMessage) пропускаем, но фиксируем их позицию —
+                        // этот фильтр обязан идти ПЕРВЫМ: у TOOL-обёрток текст пустой, и
+                        // blank-фильтр ниже потерял бы их позицию.
                         .filter(
                                 message -> {
                                     if (message instanceof IMessage iMessage) {
@@ -88,20 +86,41 @@ public class ChatMemoryService implements ChatMemoryRepository {
                                     }
                                     return true;
                                 })
+                        // Протокольные tool-сообщения (assistant c tool_calls, ответы
+                        // инструментов) сохраняем даже с пустым текстом — без них пара
+                        // assistant.tool_calls ↔ tool.tool_call_id не восстановится.
+                        .filter(
+                                message ->
+                                        Strings.isNotBlank(message.getText())
+                                                || toolDataOf(message) != null)
                         .map(
                                 message ->
                                         new ChatMessageEntity(
                                                 0,
                                                 conversationId,
-                                                message.getText(),
+                                                message.getText() == null ? "" : message.getText(),
                                                 message.getMessageType(),
                                                 lastPosition.incrementAndGet(),
                                                 false,
                                                 false,
                                                 LocalDateTime.now(),
-                                                null))
+                                                null,
+                                                toolDataOf(message)))
                         .toList();
         chatMessageRepository.saveAll(newMessagesToSave);
+    }
+
+    /** Протокольные tool-данные сообщения, если они есть (иначе {@code null}). */
+    private static @Nullable ToolData toolDataOf(Message message) {
+        if (message instanceof AssistantMessage assistantMessage
+                && assistantMessage.hasToolCalls()) {
+            return ToolData.from(assistantMessage);
+        }
+        if (message instanceof ToolResponseMessage toolResponseMessage
+                && !toolResponseMessage.getResponses().isEmpty()) {
+            return ToolData.from(toolResponseMessage);
+        }
+        return null;
     }
 
     @Override
@@ -186,54 +205,60 @@ public class ChatMemoryService implements ChatMemoryRepository {
         }
     }
 
+    /**
+     * Прикрепляет UI-метаданные вызовов инструментов к ASSISTANT-сегментам прогона, которые
+     * advisor-цепочка уже сохранила с протокольными tool_calls (см. {@link #saveAll}). Сегменты
+     * идут в порядке позиций, каждый потребляет из общего списка вызовов столько, сколько у него
+     * tool_calls — список вызовов прогона хронологический, поэтому сопоставление однозначно.
+     *
+     * <p>Рассматриваются только сегменты после последнего USER-сообщения: прогоны на чат строго
+     * последовательны, значит всё, что после последнего вопроса, относится к текущему прогону, а
+     * необогащённые сегменты старых аварийных прогонов не перехватят чужие вызовы.
+     *
+     * <p>{@code SKIP_TOOLS} вырезаются только из UI-метаданных — протокольные tool_calls сегмента
+     * остаются полными, иначе модель получила бы рассинхронизированную пару tool-сообщений.
+     */
     @Transactional
-    public void saveToolCalls(
+    public void attachRunMeta(
             String conversationId, String runId, @Nullable List<ToolInvocation> toolCalls) {
         if (toolCalls == null || toolCalls.isEmpty()) {
             return;
         }
-        final List<ToolInvocation> filtered =
-                toolCalls.stream().filter(tc -> !SKIP_TOOLS.contains(tc.name())).toList();
-        if (filtered.isEmpty()) {
-            return;
+        final List<ChatMessageEntity> all =
+                chatMessageRepository
+                        .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
+                                conversationId);
+        int lastUser = -1;
+        for (int i = 0; i < all.size(); i++) {
+            if (all.get(i).getType() == MessageType.USER) {
+                lastUser = i;
+            }
         }
-
-        final String json;
-        try {
-            json = objectMapper.writeValueAsString(filtered);
-        } catch (JsonProcessingException e) {
-            // крошки некритичны — логируем и не ломаем ход
-            log.warn("Failed to serialize tool calls for {}", conversationId, e);
-            return;
+        final List<ChatMessageEntity> segments =
+                all.subList(lastUser + 1, all.size()).stream()
+                        .filter(e -> e.getType() == MessageType.ASSISTANT)
+                        .filter(e -> e.getMeta() == null)
+                        .filter(
+                                e ->
+                                        e.getToolData() != null
+                                                && e.getToolData().toolCalls() != null
+                                                && !e.getToolData().toolCalls().isEmpty())
+                        .toList();
+        int cursor = 0;
+        for (ChatMessageEntity segment : segments) {
+            final int end =
+                    Math.min(cursor + segment.getToolData().toolCalls().size(), toolCalls.size());
+            if (cursor >= end) {
+                break;
+            }
+            final List<ToolInvocationMeta> metas =
+                    toolCalls.subList(cursor, end).stream()
+                            .filter(tc -> !SKIP_TOOLS.contains(tc.name()))
+                            .map(tc -> tc.toMeta(hasDetails(tc.name())))
+                            .toList();
+            cursor = end;
+            chatMessageRepository.save(segment.withMeta(new ChatMessageMeta(runId, false, metas)));
         }
-
-        final List<ToolInvocationMeta> meta = new ArrayList<>(filtered.size());
-        for (ToolInvocation toolCall : filtered) {
-            meta.add(toolCall.toMeta(true));
-        }
-        // Сохраняем «крошки» как ASSISTANT, а не SYSTEM: не все модели принимают системные
-        // сообщения в середине диалога. Пользователю это сообщение по-прежнему не показываем —
-        // его помечает флаг meta.toolCalls=true, по которому контроллер вырезает JSON
-        // (см. toChatMessage), а фронт прячет пузырь (см. transformPage).
-        chatMessageRepository.save(
-                new ChatMessageEntity(
-                        0L,
-                        conversationId,
-                        PREAMBLE + "\n" + json,
-                        MessageType.ASSISTANT,
-                        nextPosition(conversationId),
-                        false,
-                        false,
-                        LocalDateTime.now(),
-                        new ChatMessageMeta(runId, true, meta)));
-    }
-
-    private long nextPosition(String conversationId) {
-        return chatMessageRepository
-                        .findFirstByConversationIdOrderByPositionDesc(conversationId)
-                        .map(ChatMessageEntity::getPosition)
-                        .orElse(0L)
-                + 1;
     }
 
     // ── Search ────────────────────────────────────────────────────────────────

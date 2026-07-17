@@ -64,6 +64,10 @@ public class ChatRunService {
     public static final String _UNKNOWN_FINISH_REASON =
             ChatCompletion.Choice.FinishReason.Value._UNKNOWN.name();
 
+    /** finishReason чанка-границы tool-цикла (Spring AI отдаёт его в верхнем регистре). */
+    private static final String TOOL_CALLS_FINISH_REASON =
+            ChatCompletion.Choice.FinishReason.Value.TOOL_CALLS.name();
+
     private final ChatClient chatClient;
     private final ChatMemory chatMemory;
     private final ChatMemoryService chatMemoryService;
@@ -254,6 +258,12 @@ public class ChatRunService {
         if (!chunk.isEmpty()) {
             buffer.append(chunk);
         }
+        // Граница сегмента: текст до вызова инструментов уже сохранён advisor-цепочкой
+        // (MessageChatMemoryAdvisor внутри tool-цикла), в буфере держим только хвост
+        // текущего сегмента — иначе persistPartial задублировал бы сохранённые сегменты.
+        if (TOOL_CALLS_FINISH_REASON.equals(finishReason)) {
+            buffer.setLength(0);
+        }
         liveSink.accept(new StreamMessage(chunk, finishReason));
         printUsageStatistics(conversationId, response, finishReason);
     }
@@ -266,7 +276,7 @@ public class ChatRunService {
                         toolCollector.completedSnapshot().stream()
                                 .map(tc -> tc.toMeta(chatMemoryService.hasDetails(tc.name())))
                                 .toList()));
-        chatMemoryService.saveToolCalls(
+        chatMemoryService.attachRunMeta(
                 handle.conversationId(), handle.runId(), toolCollector.completedSnapshot());
         events.publish(handle.conversationId(), RUN_DONE, handle.runId(), null, null);
         summarizeService.trySummarize(handle.conversationId());
@@ -315,18 +325,18 @@ public class ChatRunService {
             return;
         }
         final String conversationId = handle.conversationId();
+        // В буфере — только хвост текущего сегмента: завершённые сегменты (и их tool-сообщения)
+        // advisor-цепочка уже сохранила по ходу прогона (см. onNext).
         final String partial = buffer.toString().strip();
-        if (partial.isBlank()) {
-            return;
-        }
-        // Помечаем сохранённый ответ как оборванный — чтобы после reload было видно, что
-        // генерацию остановили/она упала, а не получился полный ответ.
-        final String text = partial + "\n\n" + marker;
         try {
-            chatMemory.add(conversationId, new AssistantMessage(text));
-            chatMemoryService.saveToolCalls(
+            if (!partial.isBlank()) {
+                // Помечаем сохранённый ответ как оборванный — чтобы после reload было видно,
+                // что генерацию остановили/она упала, а не получился полный ответ.
+                chatMemory.add(conversationId, new AssistantMessage(partial + "\n\n" + marker));
+                log.info("Saved partial reply for {} ({} chars)", conversationId, partial.length());
+            }
+            chatMemoryService.attachRunMeta(
                     conversationId, handle.runId(), toolCollector.completedSnapshot());
-            log.info("Saved partial reply for {} ({} chars)", conversationId, text.length());
         } catch (Exception e) {
             log.warn("Failed to persist partial reply for {}", conversationId, e);
         }

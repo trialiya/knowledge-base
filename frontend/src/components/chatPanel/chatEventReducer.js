@@ -93,13 +93,19 @@ const clearPreparing = (msgs, runId) => {
   }
 };
 
-// Снимает метку runId (для live-tracking) и сохраняет её как toolCallsRunId
-// (для загрузки деталей tool call после завершения прогона).
+// Снимает метку runId (для live-tracking) и транзиентный флаг sealed, сохраняет runId
+// как toolCallsRunId (для загрузки деталей tool call после завершения прогона).
+// Пустые пузыри без вызовов (например, хвостовой после границы сегмента) выбрасывает.
 const finalize = (msgs, runId) => {
-  for (let i = 0; i < msgs.length; i++) {
+  for (let i = msgs.length - 1; i >= 0; i--) {
     if (msgs[i].sender === SENDER.AI && msgs[i].runId === runId) {
-      const { runId: _drop, preparing: _p, ...rest } = msgs[i];
-      msgs[i] = { ...rest, text: (rest.text || '').trimEnd(), toolCallsRunId: runId };
+      const { runId: _drop, preparing: _p, sealed: _s, ...rest } = msgs[i];
+      const text = (rest.text || '').trimEnd();
+      if (text === '' && !(rest.toolCalls || []).length && !rest.error) {
+        msgs.splice(i, 1);
+      } else {
+        msgs[i] = { ...rest, text, toolCallsRunId: runId };
+      }
     }
   }
 };
@@ -158,16 +164,20 @@ export function applyChatEvent(chat, ev, ctx) {
       if (payload?.message) {
         // Пошёл видимый текст — снимаем индикатор подготовки вызова.
         clearPreparing(msgs, runId);
+        // Закрытый сегмент не дописываем: текст следующей итерации tool-цикла — новый пузырь.
+        if (msgs[idx].sealed) idx = pushAi(msgs, runId);
         // Срезаем ведущие переносы в самом начале ответа.
         const isFirst = msgs[idx].text === '';
         const piece = isFirst ? payload.message.replace(/^\n+/, '') : payload.message;
         if (piece) msgs[idx] = { ...msgs[idx], text: msgs[idx].text + piece };
       }
-      // finishReason TOOL_CALLS делит ответ на сегменты: закрываем текущий, открываем новый.
-      if (reason === FINISH_REASON.TOOL_CALLS && msgs[idx].text.trim() !== '') {
+      // finishReason TOOL_CALLS делит ответ на сегменты: помечаем текущий закрытым (sealed).
+      // Новый пузырь НЕ открываем — плашки стартующих инструментов должны прилипнуть к этому
+      // сегменту (под текстом, который их вызвал), а следующий пузырь создаст первый текст
+      // новой итерации (см. выше).
+      if (reason === FINISH_REASON.TOOL_CALLS && !msgs[idx].sealed) {
         clearPreparing(msgs, runId);
-        msgs[idx] = { ...msgs[idx], text: msgs[idx].text.trimEnd() };
-        pushAi(msgs, runId);
+        msgs[idx] = { ...msgs[idx], text: msgs[idx].text.trimEnd(), sealed: true };
       }
       return { ...chat, messages: msgs, runId };
     }
@@ -175,17 +185,31 @@ export function applyChatEvent(chat, ev, ctx) {
     case CHAT_EVENT.TOOL_CALL: {
       let idx = lastAiIndexForRun(msgs, runId);
       if (idx < 0) idx = pushAi(msgs, runId);
-      // Инструмент стартовал — плашка заменяет индикатор подготовки.
+      // Инструмент стартовал — плашка заменяет индикатор подготовки. Прилипает к последнему
+      // пузырю прогона: сразу после границы сегмента это закрытый (sealed) сегмент, чей текст
+      // и вызвал инструмент.
       clearPreparing(msgs, runId);
       msgs[idx] = { ...msgs[idx], toolCalls: mergeToolCall(msgs[idx].toolCalls || [], payload?.toolCall) };
       return { ...chat, messages: msgs, runId };
     }
 
     case CHAT_EVENT.TOOL_CALLS: {
-      const idx = lastAiIndexForRun(msgs, runId);
-      if (idx < 0) return { ...chat, runId };
+      // Итоговые metas прогона: раскладываем по сегментам, где уже есть совпавший живой
+      // вызов (name+callIndex/arguments); не совпавшие — в последний пузырь прогона.
+      const idxLast = lastAiIndexForRun(msgs, runId);
+      if (idxLast < 0) return { ...chat, runId };
       clearPreparing(msgs, runId);
-      msgs[idx] = { ...msgs[idx], toolCalls: mergeToolCalls(msgs[idx].toolCalls || [], payload?.toolCalls) };
+      for (const meta of payload?.toolCalls || []) {
+        let target = idxLast;
+        for (let i = 0; i < msgs.length; i++) {
+          const m = msgs[i];
+          if (m.sender === SENDER.AI && m.runId === runId && (m.toolCalls || []).some((t) => sameCall(t, meta))) {
+            target = i;
+            break;
+          }
+        }
+        msgs[target] = { ...msgs[target], toolCalls: mergeToolCall(msgs[target].toolCalls || [], meta) };
+      }
       return { ...chat, messages: msgs, runId };
     }
 

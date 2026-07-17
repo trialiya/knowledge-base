@@ -177,22 +177,30 @@ public class ChatConfig {
 
         // Advisor chain — outermost to innermost (ascending getOrder()):
         //
-        //   MessageChatMemoryAdvisor  (HIGHEST_PRECEDENCE+200 = MIN+200)  — OUTSIDE the loop:
-        //       loads conversation history once before the loop starts and saves only the user
-        //       message + final assistant reply. Tool request/response messages are NOT written to
-        //       the store. This is intentional — our JDBC ChatMemoryRepository does not support
-        //       ToolResponseMessage / tool-call serialization. Matches Spring AI 1.x behaviour.
+        //   ToolCallingAdvisor        (DEFAULT_ORDER     = MIN+300)  — drives the tool loop.
+        //       Internal conversation history is DISABLED: each iteration's prompt carries only
+        //       [system, last tool response]; the rest of the context is re-read from ChatMemory
+        //       by the memory advisor below. This is the Spring AI mode for persisting every
+        //       segment (assistant text + tool_calls, tool responses) as a separate message.
         //
-        //   ToolCallingAdvisor        (DEFAULT_ORDER      = MIN+300)       — drives the tool loop.
-        //       Because MessageChatMemoryAdvisor is OUTSIDE the loop (order < DEFAULT_ORDER),
-        //       ToolCallingAdvisor manages its own internal conversation accumulation across
-        //       iterations and no call to .disableInternalConversationHistory() is needed.
+        //   MessageChatMemoryAdvisor  (MIN+400)                      — INSIDE the loop:
+        //       before(): prepends the stored history and appends the new user/tool-response
+        //       message to the store; after(): saves each iteration's assistant message —
+        //       including intermediate segments with tool_calls. Requires a ChatMemoryRepository
+        //       that round-trips tool messages (ChatMemoryService: chat_message.tool_data).
         //
-        //   ToolPreparingAdvisor      (LOWEST_PRECEDENCE  = MAX)           — INSIDE the loop:
+        //   ToolPreparingAdvisor      (LOWEST_PRECEDENCE = MAX)      — INSIDE the loop:
         //       called on every iteration; emits TOOL_PREPARING before each tool execution round.
         List<Advisor> advisors = new ArrayList<>();
-        advisors.add(MessageChatMemoryAdvisor.builder(chatMemory).build());
-        advisors.add(ToolCallingAdvisor.builder().toolCallingManager(toolCallingManager).build());
+        advisors.add(
+                ToolCallingAdvisor.builder()
+                        .toolCallingManager(toolCallingManager)
+                        .disableInternalConversationHistory()
+                        .build());
+        advisors.add(
+                MessageChatMemoryAdvisor.builder(chatMemory)
+                        .order(ToolCallingAdvisor.DEFAULT_ORDER + 100)
+                        .build());
         advisors.add(new ToolPreparingAdvisor(chatEventService));
 
         return ChatClient.builder(chatModel)

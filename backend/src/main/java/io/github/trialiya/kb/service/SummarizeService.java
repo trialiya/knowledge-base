@@ -103,8 +103,17 @@ public class SummarizeService implements DisposableBean {
                         .toList();
 
         // 2. Determine the slice to compress: everything except the last overlapMessages.
+        // The first KEPT message must be a USER message: assistant tool-call segments and their
+        // TOOL responses form indivisible pairs, so we only compress whole turns. Otherwise a
+        // kept TOOL row could lose its assistant counterpart (the model rejects orphaned tool
+        // messages).
         final int overlapMessages = summarizeProperties.overlapMessages();
-        final int cutoff = liveMessages.size() - overlapMessages;
+        int cutoff = liveMessages.size() - overlapMessages;
+        while (cutoff > 0
+                && cutoff < liveMessages.size()
+                && liveMessages.get(cutoff).getType() != MessageType.USER) {
+            cutoff--;
+        }
         if (cutoff <= 0) {
             log.info(
                     "[{}] Not enough messages to compress (live={}, overlap={})",
@@ -174,8 +183,20 @@ public class SummarizeService implements DisposableBean {
                 summaryText.length() / summarizeProperties.charsPerToken());
 
         // 7. Persist: mark compressed messages as summarized, insert new summary row.
+        // liveMessages excludes blank rows (TOOL responses, empty tool-call segments), so the
+        // marked range must run up to (but not including) the first KEPT message — otherwise the
+        // trailing protocol rows of the last compressed turn would stay live and orphaned.
+        final long endPosition =
+                cutoff < liveMessages.size()
+                        ? liveMessages.get(cutoff).getPosition() - 1
+                        : toCompress.getLast().getPosition();
         persistSummary(
-                conversationId, toCompress, existingSummaries, collapseSummaries, summaryText);
+                conversationId,
+                toCompress,
+                existingSummaries,
+                collapseSummaries,
+                summaryText,
+                endPosition);
     }
 
     // -------------------------------------------------------------------------
@@ -266,7 +287,8 @@ public class SummarizeService implements DisposableBean {
             List<ChatMessageEntity> oldMessages,
             List<ChatMessageEntity> existingSummaries,
             boolean collapseSummaries,
-            String metaSummaryText) {
+            String metaSummaryText,
+            long endPosition) {
         if (oldMessages.isEmpty()) {
             return;
         }
@@ -277,7 +299,7 @@ public class SummarizeService implements DisposableBean {
         transactionTemplate.executeWithoutResult(
                 s -> {
                     chatMessageRepository.updateSummarized(
-                            conversationId, firstMsg.getPosition(), lastMsg.getPosition());
+                            conversationId, firstMsg.getPosition(), endPosition);
                     chatMessageRepository.save(
                             new ChatMessageEntity(
                                     0L,

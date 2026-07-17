@@ -15,6 +15,13 @@
   max-height: 360px;
 }
 
+/* Сегмент из одних вызовов (без текста): пузыря сверху нет — разделитель не нужен */
+.tool-call-notifications:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
 .tool-call-scroll {
   flex: 1;
   min-height: 0;
