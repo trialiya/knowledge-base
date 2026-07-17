@@ -4,8 +4,11 @@ import { useTranslation } from 'react-i18next';
 import useDocPreview from './useDocPreview';
 import useFilePreview from './useFilePreview';
 import FilePreviewModal from './FilePreviewModal';
+import gitApi from '../../api/gitApi';
 import FullscreenEditorModal from '../knowledgeBasePanel/FullscreenEditorModal';
-import { IconFolder, IconDoc, IconFileText, IconSparkle, IconExpand } from '../../icons';
+import { FileView } from '../filesPanel/FileContent';
+import useEscape from './useEscape';
+import { IconFolder, IconDoc, IconFileText, IconSparkle, IconExpand, IconX } from '../../icons';
 import { TOOLTIP_WIDTH, TOOLTIP_GAP, TOOLTIP_HEIGHT_ESTIMATE } from '../../constants/ui';
 
 /**
@@ -38,6 +41,11 @@ const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
   // Снимок узла для fullscreen-превью: useDocPreview сбрасывает node, когда
   // тултип прячется (enabled=false), а модалка живёт дольше тултипа.
   const [fullscreenNode, setFullscreenNode] = useState(null);
+  const [fileFullscreenOpen, setFileFullscreenOpen] = useState(false);
+  const [fileFullscreenPath, setFileFullscreenPath] = useState(null);
+  const [fileFullscreenNode, setFileFullscreenNode] = useState(null);
+  const [fileFullscreenLoading, setFileFullscreenLoading] = useState(false);
+  const [fileFullscreenError, setFileFullscreenError] = useState(false);
   const [filePreviewOpen, setFilePreviewOpen] = useState(false);
   const enterTimer = useRef(null);
   const leaveTimer = useRef(null);
@@ -145,6 +153,26 @@ const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
     setFullscreenNode(n);
   }, []);
 
+  const openFileFullscreen = useCallback((f) => {
+    clearTimeout(enterTimer.current);
+    setVisible(false);
+    setFileFullscreenOpen(true);
+    setFileFullscreenPath(f.path);
+    setFileFullscreenLoading(true);
+    setFileFullscreenError(false);
+    setFileFullscreenNode(null);
+    gitApi
+      .getFileContent(f.path)
+      .then((full) => {
+        setFileFullscreenNode(full);
+        setFileFullscreenLoading(false);
+      })
+      .catch(() => {
+        setFileFullscreenError(true);
+        setFileFullscreenLoading(false);
+      });
+  }, []);
+
   // ── In-document anchor (#heading) ──────────────────────────────────────────
   // Scroll to the slugged heading within THIS rendered-markdown container.
   // STRICT matching: the anchor must equal the generated heading id verbatim
@@ -214,6 +242,7 @@ const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
               onMouseEnter={keepOpen}
               onMouseLeave={handleMouseLeave}
               onOpen={openFilePreview}
+              onExpand={openFileFullscreen}
             />,
             document.body,
           )}
@@ -224,6 +253,16 @@ const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
             fromLine={fileLink.fromLine}
             toLine={fileLink.toLine}
             onClose={() => setFilePreviewOpen(false)}
+          />
+        )}
+
+        {fileFullscreenOpen && (
+          <FileFullscreenModal
+            path={fileFullscreenPath}
+            file={fileFullscreenNode}
+            loading={fileFullscreenLoading}
+            error={fileFullscreenError}
+            onClose={() => setFileFullscreenOpen(false)}
           />
         )}
       </>
@@ -377,7 +416,7 @@ DocPreviewTooltip.displayName = 'DocPreviewTooltip';
 // ── File tooltip card ────────────────────────────────────────────────────────
 
 const FilePreviewTooltip = React.forwardRef(
-  ({ file, loading, error, pos, onMouseEnter, onMouseLeave, onOpen }, ref) => {
+  ({ file, loading, error, pos, onMouseEnter, onMouseLeave, onOpen, onExpand }, ref) => {
     const { t } = useTranslation('knowledgeBase');
     const name = file?.path ? file.path.slice(file.path.lastIndexOf('/') + 1) : '';
 
@@ -406,6 +445,16 @@ const FilePreviewTooltip = React.forwardRef(
               </span>
               <span className="doc-preview-tooltip__title">{name}</span>
               <span className="doc-preview-tooltip__badge">{t('docLink.file')}</span>
+              <button
+                className="doc-preview-tooltip__expand"
+                title={t('docLink.expand')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onExpand(file);
+                }}
+              >
+                <IconExpand size={12} />
+              </button>
             </div>
 
             <div className="doc-preview-tooltip__description">
@@ -448,6 +497,42 @@ const FilePreviewTooltip = React.forwardRef(
 );
 
 FilePreviewTooltip.displayName = 'FilePreviewTooltip';
+
+// ── File fullscreen modal ────────────────────────────────────────────────────
+// Unlike the doc fullscreen path (FullscreenEditorModal → MarkdownEditor),
+// file content is source code, not markdown — rendering it through the
+// markdown pipeline would garble it. This reuses FileView (the same
+// syntax-highlighted, line-numbered renderer as FilePreviewModal / FilesPanel).
+
+const FileFullscreenModal = ({ path, file, loading, error, onClose }) => {
+  const { t } = useTranslation('files');
+  useEscape(onClose);
+  const name = path ? path.slice(path.lastIndexOf('/') + 1) : '';
+
+  return createPortal(
+    <div className="fs-editor-overlay" onMouseDown={onClose}>
+      <div className="fs-editor file-preview-modal" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="fs-editor__head">
+          <div className="file-preview-modal__title">
+            <span className="file-preview-modal__name">{name}</span>
+            <span className="file-preview-modal__path" title={path}>
+              {path}
+            </span>
+          </div>
+          <button className="fs-editor__close" title={t('preview.close')} onClick={onClose}>
+            <IconX />
+          </button>
+        </div>
+        <div className="fs-editor__body file-preview-modal__body">
+          {loading && <div className="file-preview-modal__msg">{t('tree.loading')}</div>}
+          {!loading && error && <div className="file-preview-modal__msg">{t('file.loadError')}</div>}
+          {!loading && !error && file && <FileView file={file} />}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+};
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
