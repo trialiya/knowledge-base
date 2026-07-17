@@ -265,6 +265,34 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
     }
 
     @Test
+    void repairDanglingToolCallsAppendsSyntheticResponsesForTail() {
+        String conv = newConversation();
+        ChatMemoryService memory = memory();
+
+        AssistantMessage dangling =
+                AssistantMessage.builder()
+                        .content("зову инструмент")
+                        .toolCalls(
+                                List.of(
+                                        new AssistantMessage.ToolCall(
+                                                "c1", "function", "getDocument", "{}")))
+                        .build();
+        memory.saveAll(conv, List.of(new UserMessage("вопрос"), dangling));
+
+        memory.repairDanglingToolCalls(conv);
+
+        List<Message> reloaded = memory.findByConversationId(conv);
+        assertThat(reloaded).hasSize(3);
+        ToolResponseMessage synthetic = (ToolResponseMessage) reloaded.get(2);
+        assertThat(synthetic.getResponses()).hasSize(1);
+        assertThat(synthetic.getResponses().getFirst().id()).isEqualTo("c1");
+
+        // Идемпотентность: целый хвост повторно не «чинится».
+        memory.repairDanglingToolCalls(conv);
+        assertThat(memory.findByConversationId(conv)).hasSize(3);
+    }
+
+    @Test
     void attachRunMetaIgnoresSegmentsOfPreviousTurns() {
         String conv = newConversation();
         ChatMemoryService memory = memory();

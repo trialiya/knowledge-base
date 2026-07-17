@@ -198,6 +198,10 @@ public class ChatRunService {
         events.publish(conversationId, RUN_STARTED, runId, clientMsgId, null);
 
         try {
+            // Прошлый прогон могли оборвать во время выполнения инструментов (в т.ч. падением
+            // процесса) — тогда в хвосте истории висит assistant.tool_calls без TOOL-ответа,
+            // и модель отвергла бы такой диалог. Достраиваем пару до старта.
+            chatMemoryService.repairDanglingToolCalls(conversationId);
             ChatClient.ChatClientRequestSpec spec =
                     chatClient
                             .prompt()
@@ -337,6 +341,9 @@ public class ChatRunService {
             }
             chatMemoryService.attachRunMeta(
                     conversationId, handle.runId(), toolCollector.completedSnapshot());
+            // Прервали во время выполнения инструментов — хвостовой assistant.tool_calls
+            // остался без TOOL-ответа; достраиваем пару, чтобы следующий запрос не упал.
+            chatMemoryService.repairDanglingToolCalls(conversationId);
         } catch (Exception e) {
             log.warn("Failed to persist partial reply for {}", conversationId, e);
         }

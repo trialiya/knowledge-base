@@ -11,6 +11,7 @@ const metaToCall = (x) => ({
   status: x.status,
   error: x.error,
   resultMeta: x.resultMeta,
+  resultGist: x.resultGist,
   callIndex: x.callIndex,
   hasDetails: x.hasDetails,
 });

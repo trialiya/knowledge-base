@@ -110,6 +110,55 @@ public class ChatMemoryService implements ChatMemoryRepository {
         chatMessageRepository.saveAll(newMessagesToSave);
     }
 
+    /**
+     * Чинит оборванную пару tool-сообщений в хвосте диалога. Если прогон прервали (stop, ошибка,
+     * падение процесса) во время выполнения инструментов, последняя строка — ASSISTANT с tool_calls
+     * без парной TOOL-строки; следующий запрос к модели с таким хвостом получил бы 400
+     * (assistant.tool_calls без tool-ответов). Достраиваем синтетический TOOL-ответ.
+     *
+     * <p>Оборванной может быть только последняя пара: цикл строго чередует assistant(tool_calls) →
+     * tool, и всё, что раньше хвоста, уже сохранено парами.
+     */
+    @Transactional
+    public void repairDanglingToolCalls(String conversationId) {
+        chatMessageRepository
+                .findFirstByConversationIdOrderByPositionDesc(conversationId)
+                .filter(last -> last.getType() == MessageType.ASSISTANT)
+                .filter(
+                        last ->
+                                last.getToolData() != null
+                                        && last.getToolData().toolCalls() != null
+                                        && !last.getToolData().toolCalls().isEmpty())
+                .ifPresent(
+                        last -> {
+                            final List<ToolData.Response> responses =
+                                    last.getToolData().toolCalls().stream()
+                                            .map(
+                                                    c ->
+                                                            new ToolData.Response(
+                                                                    c.id(),
+                                                                    c.name(),
+                                                                    "[interrupted — no result]"))
+                                            .toList();
+                            log.info(
+                                    "Repairing dangling tool_calls tail for {} ({} synthetic responses)",
+                                    conversationId,
+                                    responses.size());
+                            chatMessageRepository.save(
+                                    new ChatMessageEntity(
+                                            0L,
+                                            conversationId,
+                                            "",
+                                            MessageType.TOOL,
+                                            last.getPosition() + 1,
+                                            false,
+                                            false,
+                                            LocalDateTime.now(),
+                                            null,
+                                            new ToolData(null, responses)));
+                        });
+    }
+
     /** Протокольные tool-данные сообщения, если они есть (иначе {@code null}). */
     private static @Nullable ToolData toolDataOf(Message message) {
         if (message instanceof AssistantMessage assistantMessage
