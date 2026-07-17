@@ -6,6 +6,7 @@ import com.google.common.util.concurrent.Striped;
 import io.github.trialiya.kb.config.model.SummarizeProperties;
 import io.github.trialiya.kb.functions.MessageLookupFunction;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
+import io.github.trialiya.kb.model.tool.ToolData;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import jakarta.annotation.Nonnull;
 import java.util.List;
@@ -92,15 +93,21 @@ public class SummarizeService implements DisposableBean {
     // -------------------------------------------------------------------------
 
     public void doSummarize(@Nonnull final String conversationId) {
-        // 1. Fetch all live (non-summarized) messages, excluding blanks and system msgs.
-        final List<ChatMessageEntity> liveMessages =
+        // 1. Fetch all live (non-summarized) rows, excluding summary rows. This includes blank-text
+        // TOOL rows and tool-calls-only ASSISTANT segments — their tool_calls/response payloads
+        // still occupy the model's context window on every follow-up request, so they must count
+        // toward the token estimate below even though they're excluded from liveMessages/the prompt.
+        final List<ChatMessageEntity> allLive =
                 chatMessageRepository
                         .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
                                 conversationId)
                         .stream()
                         .filter(m -> !m.isSummary())
-                        .filter(m -> Strings.isNotBlank(m.getText()))
                         .toList();
+
+        // liveMessages: the text-bearing subset used to pick the cutoff and build the LLM prompt.
+        final List<ChatMessageEntity> liveMessages =
+                allLive.stream().filter(m -> Strings.isNotBlank(m.getText())).toList();
 
         // 2. Determine the slice to compress: everything except the last overlapMessages.
         // The first KEPT message must be a USER message: assistant tool-call segments and their
@@ -123,8 +130,17 @@ public class SummarizeService implements DisposableBean {
             return;
         }
 
-        // 3. Decide whether the token budget for the compressible slice is exceeded.
-        final int estimatedTokens = estimateTokens(liveMessages, cutoff);
+        // Position boundary of the compressible slice: everything with position < cutoffPosition
+        // (in allLive, so including interleaved TOOL rows/blank tool-call segments) belongs to
+        // this round. Reused both for the token estimate and, below, for marking rows summarized.
+        final long cutoffPosition =
+                cutoff < liveMessages.size() ? liveMessages.get(cutoff).getPosition() : Long.MAX_VALUE;
+
+        // 3. Decide whether the token budget for the compressible slice is exceeded. Counts text
+        // AND tool call arguments / tool response payloads — both are sent to the model as context
+        // on every follow-up request, so a large tool result must weigh into the decision just like
+        // a large assistant reply would.
+        final int estimatedTokens = estimateTokens(allLive, cutoffPosition);
         final int messageCountThreshold = summarizeProperties.messageCountThreshold();
         final int tokenThreshold = summarizeProperties.tokenThreshold();
         if (cutoff < messageCountThreshold && estimatedTokens < tokenThreshold) {
@@ -187,9 +203,9 @@ public class SummarizeService implements DisposableBean {
         // marked range must run up to (but not including) the first KEPT message — otherwise the
         // trailing protocol rows of the last compressed turn would stay live and orphaned.
         final long endPosition =
-                cutoff < liveMessages.size()
-                        ? liveMessages.get(cutoff).getPosition() - 1
-                        : toCompress.getLast().getPosition();
+                cutoffPosition == Long.MAX_VALUE
+                        ? toCompress.getLast().getPosition()
+                        : cutoffPosition - 1;
         persistSummary(
                 conversationId,
                 toCompress,
@@ -204,12 +220,34 @@ public class SummarizeService implements DisposableBean {
     // -------------------------------------------------------------------------
 
     /**
-     * Rough token estimate for the first {@code limit} messages: total characters / charsPerToken.
-     * Good enough for a threshold check; no need for a full tokenizer here.
+     * Rough token estimate for messages positioned before {@code beforePosition}: total characters
+     * (text + tool_calls arguments + tool response payloads) / charsPerToken. Good enough for a
+     * threshold check; no need for a full tokenizer here.
      */
-    private int estimateTokens(List<ChatMessageEntity> messages, int limit) {
-        return messages.stream().limit(limit).mapToInt(m -> m.getText().length()).sum()
+    private int estimateTokens(List<ChatMessageEntity> messages, long beforePosition) {
+        return messages.stream()
+                        .filter(m -> m.getPosition() < beforePosition)
+                        .mapToInt(SummarizeService::messageChars)
+                        .sum()
                 / summarizeProperties.charsPerToken();
+    }
+
+    private static int messageChars(ChatMessageEntity message) {
+        int chars = message.getText() == null ? 0 : message.getText().length();
+        final ToolData toolData = message.getToolData();
+        if (toolData != null) {
+            if (toolData.toolCalls() != null) {
+                for (ToolData.Call call : toolData.toolCalls()) {
+                    chars += call.arguments() == null ? 0 : call.arguments().length();
+                }
+            }
+            if (toolData.responses() != null) {
+                for (ToolData.Response response : toolData.responses()) {
+                    chars += response.responseData() == null ? 0 : response.responseData().length();
+                }
+            }
+        }
+        return chars;
     }
 
     private String generateSummary(
