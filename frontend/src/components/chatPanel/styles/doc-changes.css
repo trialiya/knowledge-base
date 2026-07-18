@@ -8,9 +8,11 @@
   flex-direction: column;
   gap: 6px;
   margin-top: 2px;
-  align-self: stretch;
-  width: 100%;
-  max-width: 100%;
+  align-self: flex-start;
+  /* Тот же лимит ширины, что у пузыря ИИ-сообщения (.message-block--ai) — блок
+     не должен ни сжиматься под текст заголовка, ни растягиваться на весь чат. */
+  width: 75%;
+  max-width: 75%;
 }
 
 .doc-change-item {
