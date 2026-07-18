@@ -407,6 +407,14 @@
      itself past the modal's edge instead of letting .file-code's own
      overflow-x:auto handle the horizontal scroll flush with the container. */
   min-width: 0;
+  /* Same story on the vertical axis: .file-view is itself a flex container
+     (column), so its default min-height:auto refuses to shrink below its
+     content's (the code table's) natural height. That traps the overflow
+     instead of letting it bubble up to the nearest scrollable ancestor
+     (.file-preview-modal__body, overflow-y:auto) — the body's scrollHeight
+     stays stuck at its own clientHeight and the scrollbar ends up sized/
+     positioned for a box that never actually grew to fit the content. */
+  min-height: 0;
 }
 
 .file-view__meta {
@@ -434,6 +442,15 @@
 
 .file-code {
   overflow-x: auto;
+  /* .file-view (flex column) is itself stretched to a fixed height by its
+     parent (.file-preview-modal__body, overflow-y:auto). Without this,
+     .file-code's default flex-shrink:1 lets it get squeezed down to
+     whatever's left after .file-view__meta instead of keeping its full
+     content height — the code then gets clipped inside that box instead of
+     overflowing it, so .file-preview-modal__body never sees the real
+     content height and its scrollbar/scrollHeight stay stuck at "no
+     overflow" even though most of the file is invisible below the fold. */
+  flex-shrink: 0;
 }
 
 .file-code__table {
