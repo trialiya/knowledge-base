@@ -1,10 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { diffLines } from 'diff';
 import MarkdownEditor from './MarkdownEditor';
 import api from '../../api/documentsApi';
-import useEscape from '../common/useEscape';
+import ModalShell from '../common/ModalShell';
 import { IconX } from '../../icons';
 
 /**
@@ -241,9 +240,6 @@ const HistoryModal = ({ documentId, documentTitle, initialVersion, tree = [], on
     [documentId],
   );
 
-  // Esc закрывает
-  useEscape(onClose);
-
   // Загрузка списка версий (только метаданные)
   useEffect(() => {
     let alive = true;
@@ -366,107 +362,104 @@ const HistoryModal = ({ documentId, documentTitle, initialVersion, tree = [], on
     return <DiffView base={baseDesc} compare={compareDesc} />;
   };
 
-  return createPortal(
-    <div className="fs-editor-overlay" onMouseDown={onClose}>
-      <div className="fs-editor" role="dialog" aria-modal="true" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="fs-editor__head">
-          <span className="fs-editor__title">{t('history.title', { title: documentTitle })}</span>
-          <button className="fs-editor__close" title={t('history.close')} onClick={onClose}>
-            <IconX />
-          </button>
-        </div>
+  return (
+    <ModalShell onClose={onClose} variant="fullscreen">
+      <div className="fs-editor__head">
+        <span className="fs-editor__title">{t('history.title', { title: documentTitle })}</span>
+        <button className="fs-editor__close" title={t('history.close')} onClick={onClose}>
+          <IconX />
+        </button>
+      </div>
 
-        <div className="fs-editor__body">
-          <div className="history-layout">
-            {/* ── Список версий ── */}
-            <div className="history-list">
-              <div className="history-list__head">
-                <span>{t('history.colVersion')}</span>
-                <span title={t('history.colBaseHint')}>{t('history.colBase')}</span>
-                <span title={t('history.colCompareHint')}>{t('history.colCompare')}</span>
-              </div>
-
-              {entries === null && <p className="history-empty">{t('history.loading')}</p>}
-              {entries &&
-                entries.map((e, i) => (
-                  <div key={`${e.version}-${i}`} className="history-item">
-                    <div className="history-item__meta">
-                      <div className="history-item__date">{fmtDate(e.updatedAt, i18n.language)}</div>
-                      <div className="history-item__sub">
-                        {t('history.edit', { n: e.descriptionVersion })}
-                        {i === 0 ? ` · ${t('history.current')}` : ''}
-                      </div>
-                    </div>
-                    <input
-                      type="radio"
-                      name="history-base"
-                      checked={baseIdx === i}
-                      disabled={single || i === 0 /* новейшая не может быть базой */}
-                      onChange={() => selectBase(i)}
-                    />
-                    <input
-                      type="radio"
-                      name="history-compare"
-                      checked={compareIdx === i}
-                      disabled={single || i === lastIdx /* старейшая не может быть изменённой */}
-                      onChange={() => selectCompare(i)}
-                    />
-                  </div>
-                ))}
+      <div className="fs-editor__body">
+        <div className="history-layout">
+          {/* ── Список версий ── */}
+          <div className="history-list">
+            <div className="history-list__head">
+              <span>{t('history.colVersion')}</span>
+              <span title={t('history.colBaseHint')}>{t('history.colBase')}</span>
+              <span title={t('history.colCompareHint')}>{t('history.colCompare')}</span>
             </div>
 
-            {/* ── Основная область ── */}
-            <div className="history-main">
-              <div className="history-toolbar">
-                <div className="history-seg">
+            {entries === null && <p className="history-empty">{t('history.loading')}</p>}
+            {entries &&
+              entries.map((e, i) => (
+                <div key={`${e.version}-${i}`} className="history-item">
+                  <div className="history-item__meta">
+                    <div className="history-item__date">{fmtDate(e.updatedAt, i18n.language)}</div>
+                    <div className="history-item__sub">
+                      {t('history.edit', { n: e.descriptionVersion })}
+                      {i === 0 ? ` · ${t('history.current')}` : ''}
+                    </div>
+                  </div>
+                  <input
+                    type="radio"
+                    name="history-base"
+                    checked={baseIdx === i}
+                    disabled={single || i === 0 /* новейшая не может быть базой */}
+                    onChange={() => selectBase(i)}
+                  />
+                  <input
+                    type="radio"
+                    name="history-compare"
+                    checked={compareIdx === i}
+                    disabled={single || i === lastIdx /* старейшая не может быть изменённой */}
+                    onChange={() => selectCompare(i)}
+                  />
+                </div>
+              ))}
+          </div>
+
+          {/* ── Основная область ── */}
+          <div className="history-main">
+            <div className="history-toolbar">
+              <div className="history-seg">
+                <button
+                  className={mode === 'diff' ? 'is-active' : ''}
+                  disabled={single}
+                  onClick={() => setMode('diff')}
+                >
+                  {t('history.modeDiff')}
+                </button>
+                <button
+                  className={mode === 'base' ? 'is-active' : ''}
+                  disabled={single}
+                  onClick={() => setMode('base')}
+                >
+                  {t('history.modeBase')}
+                </button>
+                <button className={mode === 'compare' ? 'is-active' : ''} onClick={() => setMode('compare')}>
+                  {t('history.modeCompare')}
+                </button>
+              </div>
+
+              {onRestore && (
+                <div className="history-restore-group">
                   <button
-                    className={mode === 'diff' ? 'is-active' : ''}
-                    disabled={single}
-                    onClick={() => setMode('diff')}
+                    className="history-restore"
+                    disabled={!canRestoreBase}
+                    title={t('history.restoreBaseTitle')}
+                    onClick={() => handleRestore(base)}
                   >
-                    {t('history.modeDiff')}
+                    {t('history.restoreBase')}
                   </button>
                   <button
-                    className={mode === 'base' ? 'is-active' : ''}
-                    disabled={single}
-                    onClick={() => setMode('base')}
+                    className="history-restore"
+                    disabled={!canRestoreCompare}
+                    title={canRestoreCompare ? t('history.restoreCompareTitle') : t('history.restoreCurrentTitle')}
+                    onClick={() => handleRestore(compare)}
                   >
-                    {t('history.modeBase')}
-                  </button>
-                  <button className={mode === 'compare' ? 'is-active' : ''} onClick={() => setMode('compare')}>
-                    {t('history.modeCompare')}
+                    {t('history.restoreCompare')}
                   </button>
                 </div>
-
-                {onRestore && (
-                  <div className="history-restore-group">
-                    <button
-                      className="history-restore"
-                      disabled={!canRestoreBase}
-                      title={t('history.restoreBaseTitle')}
-                      onClick={() => handleRestore(base)}
-                    >
-                      {t('history.restoreBase')}
-                    </button>
-                    <button
-                      className="history-restore"
-                      disabled={!canRestoreCompare}
-                      title={canRestoreCompare ? t('history.restoreCompareTitle') : t('history.restoreCurrentTitle')}
-                      onClick={() => handleRestore(compare)}
-                    >
-                      {t('history.restoreCompare')}
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div className="history-body">{renderBody()}</div>
+              )}
             </div>
+
+            <div className="history-body">{renderBody()}</div>
           </div>
         </div>
       </div>
-    </div>,
-    document.body,
+    </ModalShell>
   );
 };
 

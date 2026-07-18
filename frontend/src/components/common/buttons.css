@@ -1,0 +1,79 @@
+/* ═══════════════════════════════════════════════
+   BUTTONS — shared classes, modeled on settings' set-btn/set-icon-btn family
+═══════════════════════════════════════════════ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 20px;
+  padding: 7px 18px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.btn--sm {
+  padding: 5px 12px;
+  font-size: 0.78rem;
+}
+
+.btn--primary {
+  background: var(--kb-accent);
+  color: #fff;
+}
+.btn--primary:hover:not(:disabled) {
+  background: var(--kb-accent-hover);
+}
+
+.btn--ghost {
+  background: var(--kb-white);
+  border-color: var(--kb-border);
+  color: var(--kb-muted);
+}
+.btn--ghost:hover:not(:disabled) {
+  border-color: var(--kb-accent);
+  background: var(--kb-accent-light);
+  color: var(--kb-accent);
+}
+
+.btn--danger {
+  background: var(--kb-white);
+  border-color: var(--kb-border);
+  color: var(--kb-error);
+}
+.btn--danger:hover:not(:disabled) {
+  border-color: var(--kb-error);
+  background: var(--kb-error-bg);
+}
+
+/* Small icon-only button (close / edit / delete, etc.) */
+.icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--kb-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+.icon-btn:hover {
+  background: var(--kb-accent-bg);
+  color: var(--kb-accent);
+}
+.icon-btn--danger:hover {
+  background: var(--kb-error-bg);
+  color: var(--kb-error);
+}

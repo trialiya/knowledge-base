@@ -1,5 +1,4 @@
 import React, { useRef, useEffect, useCallback, useState, useImperativeHandle, forwardRef } from 'react';
-import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -18,7 +17,7 @@ import {
   TOKEN_RE,
 } from './fileChips';
 import FilePickerDropdown from './FilePickerDropdown';
-import useEscape from '../common/useEscape';
+import ModalShell from '../common/ModalShell';
 import { IconX } from '../../icons';
 
 const DEBOUNCE_MS = 200;
@@ -579,68 +578,64 @@ function FileChipPreview({
 }) {
   const { path, from, to, refOnly, loading, data, error } = preview;
   const { t } = useTranslation('chat');
-  useEscape(onClose);
   const name = baseName(path);
   const range = from != null ? ` (${from}–${to})` : '';
   const isMd = /\.mdx?$/i.test(path || '');
   const [mdView, setMdView] = useState(false);
 
-  return createPortal(
-    <div className="fs-editor-overlay" onMouseDown={onClose}>
-      <div className="fs-editor file-preview-modal" role="dialog" aria-modal="true" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="fs-editor__head">
-          <div className="file-preview-modal__title">
-            <span className="file-preview-modal__name">
-              {name}
-              {range}
-            </span>
-            <span className="file-preview-modal__path" title={path}>
-              {path}
-            </span>
-          </div>
-          {isMd && !refOnly && (
-            <button
-              type="button"
-              className={'file-preview-modal__toggle' + (mdView ? ' file-preview-modal__toggle--active' : '')}
-              onClick={() => setMdView((v) => !v)}
-              title={t('fileChange.toggleMarkdown', { defaultValue: 'Markdown preview' })}
-            >
-              {mdView ? '{ }' : '👁'}
-            </button>
-          )}
+  return (
+    <ModalShell onClose={onClose} variant="fullscreen" className="file-preview-modal">
+      <div className="fs-editor__head">
+        <div className="file-preview-modal__title">
+          <span className="file-preview-modal__name">
+            {name}
+            {range}
+          </span>
+          <span className="file-preview-modal__path" title={path}>
+            {path}
+          </span>
+        </div>
+        {isMd && !refOnly && (
           <button
             type="button"
-            className={'file-preview-modal__toggle' + (refOnly ? ' file-preview-modal__toggle--active' : '')}
-            onClick={onToggleRef}
-            title={refOnly ? useFullContentLabel : usePathOnlyLabel}
+            className={'file-preview-modal__toggle' + (mdView ? ' file-preview-modal__toggle--active' : '')}
+            onClick={() => setMdView((v) => !v)}
+            title={t('fileChange.toggleMarkdown', { defaultValue: 'Markdown preview' })}
           >
-            {refOnly ? '📄' : '📎'}
+            {mdView ? '{ }' : '👁'}
           </button>
-          <button className="fs-editor__close" title={closeLabel} onClick={onClose}>
-            <IconX />
-          </button>
-        </div>
-        <div className="fs-editor__body file-preview-modal__body">
-          {!refOnly && (
-            <>
-              {loading && <div className="file-preview-modal__msg">{loadingLabel}</div>}
-              {error && <div className="file-preview-modal__msg">{errorLabel}</div>}
-              {!loading && !error && data?.binary && <div className="file-preview-modal__msg">{binaryLabel}</div>}
-              {!loading && !error && !data?.binary && mdView && (
-                <div className="file-preview-modal__md">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{data?.content ?? ''}</ReactMarkdown>
-                </div>
-              )}
-              {!loading && !error && !data?.binary && !mdView && (
-                <pre className="file-preview-modal__code">{data?.content ?? ''}</pre>
-              )}
-            </>
-          )}
-          {refOnly && <div className="file-preview-modal__ref-note">{path}</div>}
-        </div>
+        )}
+        <button
+          type="button"
+          className={'file-preview-modal__toggle' + (refOnly ? ' file-preview-modal__toggle--active' : '')}
+          onClick={onToggleRef}
+          title={refOnly ? useFullContentLabel : usePathOnlyLabel}
+        >
+          {refOnly ? '📄' : '📎'}
+        </button>
+        <button className="fs-editor__close" title={closeLabel} onClick={onClose}>
+          <IconX />
+        </button>
       </div>
-    </div>,
-    document.body,
+      <div className="fs-editor__body file-preview-modal__body">
+        {!refOnly && (
+          <>
+            {loading && <div className="file-preview-modal__msg">{loadingLabel}</div>}
+            {error && <div className="file-preview-modal__msg">{errorLabel}</div>}
+            {!loading && !error && data?.binary && <div className="file-preview-modal__msg">{binaryLabel}</div>}
+            {!loading && !error && !data?.binary && mdView && (
+              <div className="file-preview-modal__md">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{data?.content ?? ''}</ReactMarkdown>
+              </div>
+            )}
+            {!loading && !error && !data?.binary && !mdView && (
+              <pre className="file-preview-modal__code">{data?.content ?? ''}</pre>
+            )}
+          </>
+        )}
+        {refOnly && <div className="file-preview-modal__ref-note">{path}</div>}
+      </div>
+    </ModalShell>
   );
 }
 

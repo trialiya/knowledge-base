@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import gitApi from '../../api/gitApi';
 import { FileView } from '../filesPanel/FileContent';
-import useEscape from './useEscape';
+import ModalShell from './ModalShell';
 import { IconX } from '../../icons';
 
 /**
@@ -23,7 +22,6 @@ const FilePreviewModal = ({ path, fromLine, toLine, onClose }) => {
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  useEscape(onClose);
 
   useEffect(() => {
     let cancelled = false;
@@ -48,28 +46,25 @@ const FilePreviewModal = ({ path, fromLine, toLine, onClose }) => {
 
   const name = path.slice(path.lastIndexOf('/') + 1);
 
-  return createPortal(
-    <div className="fs-editor-overlay" onMouseDown={onClose}>
-      <div className="fs-editor file-preview-modal" role="dialog" aria-modal="true" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="fs-editor__head">
-          <div className="file-preview-modal__title">
-            <span className="file-preview-modal__name">{name}</span>
-            <span className="file-preview-modal__path" title={path}>
-              {path}
-            </span>
-          </div>
-          <button className="fs-editor__close" title={t('preview.close')} onClick={onClose}>
-            <IconX />
-          </button>
+  return (
+    <ModalShell onClose={onClose} variant="fullscreen" className="file-preview-modal">
+      <div className="fs-editor__head">
+        <div className="file-preview-modal__title">
+          <span className="file-preview-modal__name">{name}</span>
+          <span className="file-preview-modal__path" title={path}>
+            {path}
+          </span>
         </div>
-        <div className="fs-editor__body file-preview-modal__body">
-          {loading && <div className="file-preview-modal__msg">{t('tree.loading')}</div>}
-          {!loading && error && <div className="file-preview-modal__msg">{t('file.loadError')}</div>}
-          {!loading && !error && file && <FileView file={file} />}
-        </div>
+        <button className="fs-editor__close" title={t('preview.close')} onClick={onClose}>
+          <IconX />
+        </button>
       </div>
-    </div>,
-    document.body,
+      <div className="fs-editor__body file-preview-modal__body">
+        {loading && <div className="file-preview-modal__msg">{t('tree.loading')}</div>}
+        {!loading && error && <div className="file-preview-modal__msg">{t('file.loadError')}</div>}
+        {!loading && !error && file && <FileView file={file} />}
+      </div>
+    </ModalShell>
   );
 };
 

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import ModalShell from '../common/ModalShell';
+import '../common/buttons.css';
 import './createJiraChatModal.css';
 
 /**
@@ -17,8 +19,6 @@ const CreateJiraChatModal = ({ open, onClose, onCreate, confluenceConfigured }) 
   const [title, setTitle] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  if (!open) return null;
 
   const handleSubmit = async () => {
     if (!jiraUrl.trim()) {
@@ -45,75 +45,69 @@ const CreateJiraChatModal = ({ open, onClose, onCreate, confluenceConfigured }) 
     }
   };
 
-  const handleBackdrop = (e) => {
-    if (e.target === e.currentTarget) onClose();
-  };
-
   return (
-    <div className="jira-modal-backdrop" onClick={handleBackdrop}>
-      <div className="jira-modal" role="dialog" aria-modal="true">
-        <div className="jira-modal__header">
-          <span className="jira-modal__title">{t('jiraModal.title')}</span>
-          <button className="jira-modal__close" onClick={onClose} title={t('common:close')}>
-            ✕
-          </button>
-        </div>
+    <ModalShell open={open} onClose={onClose} variant="wide" className="jira-modal">
+      <div className="jira-modal__header">
+        <span className="jira-modal__title">{t('jiraModal.title')}</span>
+        <button className="jira-modal__close" onClick={onClose} title={t('common:close')}>
+          ✕
+        </button>
+      </div>
 
-        <div className="jira-modal__body">
+      <div className="jira-modal__body">
+        <label className="jira-modal__label">
+          <span>
+            {t('jiraModal.jiraLabel')} <span className="jira-modal__required">*</span>
+          </span>
+          <input
+            type="url"
+            className="jira-modal__input"
+            placeholder="https://instance.atlassian.net/browse/PROJ-123"
+            value={jiraUrl}
+            onChange={(e) => setJiraUrl(e.target.value)}
+            autoFocus
+            disabled={loading}
+          />
+        </label>
+
+        {confluenceConfigured && (
           <label className="jira-modal__label">
-            <span>
-              {t('jiraModal.jiraLabel')} <span className="jira-modal__required">*</span>
-            </span>
+            <span>{t('jiraModal.confluenceLabel')}</span>
             <input
               type="url"
               className="jira-modal__input"
-              placeholder="https://instance.atlassian.net/browse/PROJ-123"
-              value={jiraUrl}
-              onChange={(e) => setJiraUrl(e.target.value)}
-              autoFocus
+              placeholder="https://instance.atlassian.net/wiki/spaces/..."
+              value={confluenceUrl}
+              onChange={(e) => setConfluenceUrl(e.target.value)}
               disabled={loading}
             />
           </label>
+        )}
 
-          {confluenceConfigured && (
-            <label className="jira-modal__label">
-              <span>{t('jiraModal.confluenceLabel')}</span>
-              <input
-                type="url"
-                className="jira-modal__input"
-                placeholder="https://instance.atlassian.net/wiki/spaces/..."
-                value={confluenceUrl}
-                onChange={(e) => setConfluenceUrl(e.target.value)}
-                disabled={loading}
-              />
-            </label>
-          )}
+        <label className="jira-modal__label">
+          <span>{t('jiraModal.titleLabel')}</span>
+          <input
+            type="text"
+            className="jira-modal__input"
+            placeholder={t('jiraModal.titlePlaceholder')}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            disabled={loading}
+          />
+        </label>
 
-          <label className="jira-modal__label">
-            <span>{t('jiraModal.titleLabel')}</span>
-            <input
-              type="text"
-              className="jira-modal__input"
-              placeholder={t('jiraModal.titlePlaceholder')}
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              disabled={loading}
-            />
-          </label>
-
-          {error && <div className="jira-modal__error">{error}</div>}
-        </div>
-
-        <div className="jira-modal__footer">
-          <button className="jira-modal__btn jira-modal__btn--cancel" onClick={onClose} disabled={loading}>
-            {t('common:cancel')}
-          </button>
-          <button className="jira-modal__btn jira-modal__btn--create" onClick={handleSubmit} disabled={loading}>
-            {loading ? t('jiraModal.creating') : t('jiraModal.create')}
-          </button>
-        </div>
+        {error && <div className="jira-modal__error">{error}</div>}
       </div>
-    </div>
+
+      <div className="jira-modal__footer modal-shell__footer">
+        <button className="btn btn--ghost" onClick={onClose} disabled={loading}>
+          {t('common:cancel')}
+        </button>
+        <button className="btn btn--primary" onClick={handleSubmit} disabled={loading}>
+          {loading ? t('jiraModal.creating') : t('jiraModal.create')}
+        </button>
+      </div>
+    </ModalShell>
   );
 };
 

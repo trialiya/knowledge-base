@@ -50,12 +50,7 @@ const DocChangeBlock = ({ toolCalls, onNavigateToDoc }) => {
 
   return (
     <div className="doc-change-block">
-      <button
-        type="button"
-        className="change-block-summary"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-      >
+      <button type="button" className="change-block-summary" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
         <span className="change-block-summary-icon" aria-hidden="true">
           📄
         </span>

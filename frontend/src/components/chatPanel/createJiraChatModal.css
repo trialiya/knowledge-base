@@ -2,48 +2,13 @@
    CreateJiraChatModal.css
    ══════════════════════════════════════════════════════════════════════════════ */
 
-.jira-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  background: rgba(0, 0, 0, 0.35);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: jira-fade-in 0.15s ease;
-}
-
-@keyframes jira-fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-.jira-modal {
-  background: var(--kb-white, #fff);
-  border-radius: 14px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
-  width: 460px;
-  max-width: 92vw;
+/* Box chrome (overlay/portal/escape/sizing) now owned by ModalShell (variant="wide");
+   this only resets the shell's default padding/gap since the header/body/footer
+   sections below own their own spacing, and caps the dialog's height. */
+.modal-shell.jira-modal {
+  padding: 0;
+  gap: 0;
   max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  animation: jira-slide-up 0.2s ease;
-}
-
-@keyframes jira-slide-up {
-  from {
-    transform: translateY(16px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
 }
 
 .jira-modal__header {
@@ -127,41 +92,8 @@
 }
 
 .jira-modal__footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
   padding: 0.85rem 1.25rem;
   border-top: 1px solid var(--kb-border, #e4e7ec);
-}
-
-.jira-modal__btn {
-  padding: 8px 18px;
-  border-radius: 8px;
-  font-size: 0.84rem;
-  font-weight: 600;
-  cursor: pointer;
-  border: none;
-  transition: background 0.15s, opacity 0.15s;
-}
-.jira-modal__btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.jira-modal__btn--cancel {
-  background: var(--kb-bg, #f0f1f4);
-  color: var(--kb-muted, #8b95a5);
-}
-.jira-modal__btn--cancel:hover:not(:disabled) {
-  background: #e4e7ec;
-}
-
-.jira-modal__btn--create {
-  background: var(--kb-accent, #5b6abf);
-  color: #fff;
-}
-.jira-modal__btn--create:hover:not(:disabled) {
-  background: #4a59a8;
 }
 
 /* Кнопка «JIRA чат» — вторичная, контурная */
