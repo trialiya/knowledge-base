@@ -1,13 +1,41 @@
--- H2 sample/test dataset — see CLAUDE.md ('Тестовые данные для H2') for usage.
--- Generated from a real captured chat conversation (backend/build.gradle history
--- lookup + document creation via AI tools), trimmed of repetitive multi-KB tool
--- JSON payloads (kept representative, not byte-exact), plus hand-added fixture
--- rows (marked below) covering functionality the conversation doesn't touch:
--- file/doc links in a document body, chat + document attachments, and a
--- standalone tool_call row and embedding_tasks row.
+-- H2 sample/test dataset — see CLAUDE.md ('Тестовые данные для H2') for a pointer
+-- to this file and to SampleDataFixtureTest, the worked usage example. Full
+-- rationale lives here, next to the data it describes:
 --
 -- Schema target: db/migration-h2 (H2 in PostgreSQL mode). NOT valid against the
 -- real db/migration (Postgres) schema as-is (vector/array column types differ).
+--
+-- Contents:
+--  * chat_topic + chat_message (16 rows) — a real captured conversation asking the
+--    AI to summarize backend/build.gradle's commit history and create documents for
+--    it (documents 75/76 below). Exercises USER/ASSISTANT/TOOL message types, the
+--    meta column (ChatMessageMeta: runId/toolCalls/invocations) and the tool_data
+--    column (ToolData: tool call args / tool responses) with realistic JSON. Large
+--    repeated tool-response JSON (multi-KB diffs, full tree listings) was trimmed to
+--    representative examples — shape preserved, not byte-exact.
+--  * tool_call (7 rows) — the dedicated tool-call audit table (separate from
+--    chat_message.tool_data); rows 500-505 are captured getCommitLog/getCommitDiff/
+--    getTreeSkeleton/createDocument calls, row 506 is a hand-added getFileContent
+--    example.
+--  * documents/document_history — folder 75 ('анализ') and document 76 (the
+--    AI-authored chronology, full markdown content) from the captured conversation,
+--    plus a hand-added document 77 exercising file links (/files?path=...), doc
+--    links (/?doc=76), a doc link with an anchor (/?doc=76#...) and an external
+--    link — the cases DocLinkTooltip/ChatDocLink branch on.
+--  * attachments — one hand-added chat attachment (owner_type='chat', a build error
+--    log) and one document attachment (owner_type='document', on doc 77), covering
+--    both FK branches of the chk_attachment_owner constraint.
+--  * embedding_tasks — one hand-added 'pending' row for document 77.
+--
+-- All explicit IDs are followed by ALTER TABLE ... ALTER COLUMN id RESTART WITH n,
+-- so inserting further rows afterwards (in a test or via the app) won't collide.
+--
+-- Manual/local QA: point the H2 file-based profile at it and run the statements
+-- once via the H2 console (enabled in application-h2.yaml,
+-- http://localhost:8080/h2-console, JDBC URL jdbc:h2:./local-db/h2;MODE=PostgreSQL)
+-- or org.h2.tools.RunScript. Plain SQL, not templated/generated at build time —
+-- extend it in place; keep new large text blobs trimmed to what the test actually
+-- needs, matching the existing rows.
 
 -- ── chat_topic ────────────────────────────────────────────────────────────
 INSERT INTO chat_topic (conversation_id, "user", is_user, topic, model, created_at, updated_at) VALUES
