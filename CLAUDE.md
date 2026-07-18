@@ -106,6 +106,67 @@ path (e.g. `GitService` reading `docs/проект/*.md`) throws "Malformed inpu
 input contains unmappable characters". `C.utf8` is glibc's built-in UTF-8 locale
 — no `locale-gen` needed.
 
+## Тестовые данные для H2 (`db/sample-data.sql`)
+
+`backend/src/test/resources/db/sample-data.sql` is a ready-made H2 dataset for manual
+QA and as a `@Sql`-loadable fixture in tests. It targets the `db/migration-h2` schema
+only (H2 in PostgreSQL mode) — do **not** run it against real Postgres, the array/vector
+column types differ.
+
+Contents:
+
+- `chat_topic` + `chat_message` (16 rows) — a real captured conversation asking the AI
+  to summarize `backend/build.gradle`'s commit history and create documents for it
+  (`documents` 75/76 below). Exercises `USER`/`ASSISTANT`/`TOOL` message types, the
+  `meta` column (`ChatMessageMeta`: `runId`/`toolCalls`/`invocations`) and the
+  `tool_data` column (`ToolData`: tool call args / tool responses) with realistic JSON.
+  Large repeated tool-response JSON (multi-KB diffs, full tree listings) was trimmed to
+  representative examples — shape preserved, not byte-exact.
+- `tool_call` (7 rows) — the dedicated tool-call audit table (separate from
+  `chat_message.tool_data`); rows 500–505 are captured `getCommitLog`/`getCommitDiff`/
+  `getTreeSkeleton`/`createDocument` calls, row 506 is a hand-added `getFileContent`
+  example.
+- `documents`/`document_history` — folder 75 (`анализ`) and document 76 (the AI-authored
+  chronology, full markdown content) from the captured conversation, plus a hand-added
+  document 77 exercising **file links** (`/files?path=...`), **doc links**
+  (`/?doc=76`), a **doc link with an anchor** (`/?doc=76#...`) and an **external link**
+  — the three cases `DocLinkTooltip`/`ChatDocLink` branch on.
+- `attachments` — one hand-added chat attachment (`owner_type='chat'`, a build error
+  log) and one document attachment (`owner_type='document'`, on doc 77), covering both
+  FK branches of the `chk_attachment_owner` constraint.
+- `embedding_tasks` — one hand-added `pending` row for document 77.
+
+All explicit IDs are followed by `ALTER TABLE ... ALTER COLUMN id RESTART WITH n`, so
+inserting further rows afterwards (in a test or via the app) won't collide.
+
+**Using it in a test** — load it with `@Sql` on an H2 `@DataJdbcTest`, same pattern as
+`DocumentServiceUnitTest`:
+
+```java
+@ActiveProfiles("h2")
+@DataJdbcTest(properties = {
+    "spring.datasource.driver-class-name=org.h2.Driver",
+    "spring.datasource.url=jdbc:h2:mem:my-test;MODE=PostgreSQL;"
+        + "DEFAULT_NULL_ORDERING=HIGH;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
+    "spring.flyway.locations=classpath:db/migration-h2",
+    "spring.data.jdbc.dialect=postgresql",
+})
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@ImportAutoConfiguration(FlywayAutoConfiguration.class) // SB4 dropped it from the slice
+@Sql("/db/sample-data.sql")
+class MyTest { ... }
+```
+
+See `SampleDataFixtureTest` for a full worked example (also the regression test that
+keeps this file in sync with `db/migration-h2` — run it after touching either).
+
+**Using it for manual/local QA** — point the H2 file-based profile at it and run the
+statements once via the H2 console (enabled in `application-h2.yaml`,
+`http://localhost:8080/h2-console`, JDBC URL `jdbc:h2:./local-db/h2;MODE=PostgreSQL`)
+or `org.h2.tools.RunScript`. The file is plain SQL — extend it in place (it's not
+templated/generated at build time); keep new large text blobs (JSON, file content)
+trimmed to what the test actually needs, matching the existing rows.
+
 ## Frontend conventions (`frontend/src`)
 
 Target state and rules for anyone touching frontend code. The codebase is
