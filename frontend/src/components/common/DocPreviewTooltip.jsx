@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import PreviewTooltipShell from './PreviewTooltipShell';
 import { IconFolder, IconDoc, IconSparkle, IconExpand } from '../../icons';
 
 /** Nested preview card for DocLinkTooltip's internal KB doc-link branch. */
@@ -9,23 +10,17 @@ const DocPreviewTooltip = React.forwardRef(
     const isFolder = node?.type === 'folder';
 
     return (
-      <div
+      <PreviewTooltipShell
         ref={ref}
-        className="doc-preview-tooltip"
-        style={{ top: pos.top, left: pos.left }}
+        loading={loading}
+        error={error}
+        errorLabel={t('docLink.notFound')}
+        hasContent={!!node}
+        pos={pos}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
       >
-        {loading && (
-          <div className="doc-preview-tooltip__loading">
-            <span className="doc-preview-tooltip__spinner" />
-            <span>{t('docLink.loading')}</span>
-          </div>
-        )}
-
-        {error && !loading && <div className="doc-preview-tooltip__error">{t('docLink.notFound')}</div>}
-
-        {node && !loading && (
+        {node && (
           <>
             <div className="doc-preview-tooltip__header">
               <span className={`doc-preview-tooltip__icon${isFolder ? ' doc-preview-tooltip__icon--folder' : ''}`}>
@@ -84,7 +79,7 @@ const DocPreviewTooltip = React.forwardRef(
             </div>
           </>
         )}
-      </div>
+      </PreviewTooltipShell>
     );
   },
 );

@@ -2,6 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import ModalShell from './ModalShell';
 import { FileView } from '../filesPanel/FileContent';
+import { baseName } from './utils';
 import { IconX } from '../../icons';
 
 // Unlike the doc fullscreen path (FullscreenEditorModal → MarkdownEditor),
@@ -10,7 +11,7 @@ import { IconX } from '../../icons';
 // syntax-highlighted, line-numbered renderer as FilePreviewModal / FilesPanel).
 const FileFullscreenModal = ({ path, file, loading, error, onClose }) => {
   const { t } = useTranslation('files');
-  const name = path ? path.slice(path.lastIndexOf('/') + 1) : '';
+  const name = baseName(path);
 
   return (
     <ModalShell onClose={onClose} variant="fullscreen" className="file-preview-modal">

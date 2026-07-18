@@ -23,6 +23,15 @@ export function findPath(nodes, targetId, path = []) {
   return null;
 }
 
+// ─── Path helpers ───────────────────────────────────────────────────────────
+
+/** Short file name from a repo-relative path (last path segment). */
+export function baseName(path) {
+  if (!path) return '';
+  const i = path.lastIndexOf('/');
+  return i >= 0 ? path.slice(i + 1) : path;
+}
+
 // ─── Content helpers ──────────────────────────────────────────────────────────
 
 /** Strip markdown syntax and return first non-empty line, capped at maxLen chars */

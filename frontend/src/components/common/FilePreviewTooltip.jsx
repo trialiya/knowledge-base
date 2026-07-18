@@ -1,31 +1,27 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import PreviewTooltipShell from './PreviewTooltipShell';
+import { baseName } from './utils';
 import { IconFileText, IconExpand } from '../../icons';
 
 /** Nested preview card for DocLinkTooltip's internal repo file-link branch. */
 const FilePreviewTooltip = React.forwardRef(
   ({ file, loading, error, pos, onMouseEnter, onMouseLeave, onOpen, onExpand }, ref) => {
     const { t } = useTranslation('knowledgeBase');
-    const name = file?.path ? file.path.slice(file.path.lastIndexOf('/') + 1) : '';
+    const name = baseName(file?.path);
 
     return (
-      <div
+      <PreviewTooltipShell
         ref={ref}
-        className="doc-preview-tooltip"
-        style={{ top: pos.top, left: pos.left }}
+        loading={loading}
+        error={error}
+        errorLabel={t('files:file.loadError')}
+        hasContent={!!file}
+        pos={pos}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
       >
-        {loading && (
-          <div className="doc-preview-tooltip__loading">
-            <span className="doc-preview-tooltip__spinner" />
-            <span>{t('docLink.loading')}</span>
-          </div>
-        )}
-
-        {error && !loading && <div className="doc-preview-tooltip__error">{t('files:file.loadError')}</div>}
-
-        {file && !loading && (
+        {file && (
           <>
             <div className="doc-preview-tooltip__header">
               <span className="doc-preview-tooltip__icon">
@@ -79,7 +75,7 @@ const FilePreviewTooltip = React.forwardRef(
             </div>
           </>
         )}
-      </div>
+      </PreviewTooltipShell>
     );
   },
 );

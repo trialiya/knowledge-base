@@ -31,15 +31,14 @@ export function createPreviewStore() {
 }
 
 /**
- * ttlMs omitted → eternal cache: an entry is fresh as long as it isn't still
- * 'loading'. ttlMs set → entry expires after ttlMs regardless of its value
- * (matches useFilePreview's original semantics, including 'loading' entries
- * counting as fresh while recent — a fast-enough in-flight fetch is treated
- * the same either way since the loading branch below would run next).
+ * A 'loading' entry is never "fresh" — it must always fall through to the
+ * in-flight-subscribe branch below, regardless of ttlMs. Otherwise a second
+ * hook instance landing inside the TTL window while the first fetch is still
+ * in flight would read the literal string 'loading' as the resolved value.
  */
 function isFresh(entry, ttlMs) {
-  if (!entry) return false;
-  if (ttlMs == null) return entry.value !== 'loading';
+  if (!entry || entry.value === 'loading') return false;
+  if (ttlMs == null) return true; // eternal cache: resolved entries never expire
   return Date.now() - entry.fetchedAt < ttlMs;
 }
 
@@ -49,7 +48,7 @@ function isFresh(entry, ttlMs) {
  * and useFilePreview.
  *
  * @param {object}   store    – createPreviewStore() instance
- * @param {*}        key      – cache key (null/undefined = disabled)
+ * @param {*}        key      – cache key (falsy = disabled, matches useDocPreview/useFilePreview's original id/path guards)
  * @param {boolean}  enabled  – only fetch when true
  * @param {(key: *) => Promise<*>} fetcher – resolves the value for key
  * @param {object}   [options]
@@ -69,7 +68,7 @@ export default function usePreviewCache(store, key, enabled, fetcher, options = 
   instantLookupRef.current = instantLookup;
 
   useEffect(() => {
-    if (key == null || !enabled) {
+    if (!key || !enabled) {
       setValue(null);
       setLoading(false);
       setError(false);

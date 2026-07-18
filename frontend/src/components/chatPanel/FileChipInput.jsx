@@ -1,5 +1,4 @@
 import React, { useRef, useEffect, useCallback, useState, useImperativeHandle, forwardRef } from 'react';
-import { useTranslation } from 'react-i18next';
 import gitApi from '../../api/gitApi';
 import documentsApi from '../../api/documentsApi';
 import {
@@ -51,7 +50,6 @@ const FileChipInput = forwardRef(function FileChipInput(
   { value, onChange, onSend, disabled, placeholder, chatId },
   ref,
 ) {
-  const { t } = useTranslation('chat');
   const editorRef = useRef(null);
   const internalRef = useRef(value);
   const triggerRef = useRef(null);
@@ -426,19 +424,7 @@ const FileChipInput = forwardRef(function FileChipInput(
         />
       )}
 
-      {preview && (
-        <FileChipPreview
-          preview={preview}
-          onClose={() => setPreview(null)}
-          onToggleRef={handleToggleRef}
-          closeLabel={t('fileInput.closePreview')}
-          loadingLabel={t('fileInput.searching')}
-          errorLabel={t('fileInput.previewError')}
-          binaryLabel={t('fileChips.binaryFile')}
-          usePathOnlyLabel={t('fileInput.usePathOnly')}
-          useFullContentLabel={t('fileInput.useFullContent')}
-        />
-      )}
+      {preview && <FileChipPreview preview={preview} onClose={() => setPreview(null)} onToggleRef={handleToggleRef} />}
     </>
   );
 });

@@ -8,17 +8,7 @@ import { IconX } from '../../icons';
 
 // ── Превью содержимого файла — полноэкранная модалка ─────────────────────────
 
-function FileChipPreview({
-  preview,
-  onClose,
-  onToggleRef,
-  closeLabel,
-  loadingLabel,
-  errorLabel,
-  binaryLabel,
-  usePathOnlyLabel,
-  useFullContentLabel,
-}) {
+function FileChipPreview({ preview, onClose, onToggleRef }) {
   const { path, from, to, refOnly, loading, data, error } = preview;
   const { t } = useTranslation('chat');
   const name = baseName(path);
@@ -52,20 +42,22 @@ function FileChipPreview({
           type="button"
           className={'file-preview-modal__toggle' + (refOnly ? ' file-preview-modal__toggle--active' : '')}
           onClick={onToggleRef}
-          title={refOnly ? useFullContentLabel : usePathOnlyLabel}
+          title={refOnly ? t('fileInput.useFullContent') : t('fileInput.usePathOnly')}
         >
           {refOnly ? '📄' : '📎'}
         </button>
-        <button className="fs-editor__close" title={closeLabel} onClick={onClose}>
+        <button className="fs-editor__close" title={t('fileInput.closePreview')} onClick={onClose}>
           <IconX />
         </button>
       </div>
       <div className="fs-editor__body file-preview-modal__body">
         {!refOnly && (
           <>
-            {loading && <div className="file-preview-modal__msg">{loadingLabel}</div>}
-            {error && <div className="file-preview-modal__msg">{errorLabel}</div>}
-            {!loading && !error && data?.binary && <div className="file-preview-modal__msg">{binaryLabel}</div>}
+            {loading && <div className="file-preview-modal__msg">{t('fileInput.searching')}</div>}
+            {error && <div className="file-preview-modal__msg">{t('fileInput.previewError')}</div>}
+            {!loading && !error && data?.binary && (
+              <div className="file-preview-modal__msg">{t('fileChips.binaryFile')}</div>
+            )}
             {!loading && !error && !data?.binary && mdView && (
               <div className="file-preview-modal__md">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{data?.content ?? ''}</ReactMarkdown>

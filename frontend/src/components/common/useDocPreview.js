@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import api from '../../api/documentsApi';
 import usePreviewCache, { createPreviewStore } from './usePreviewCache';
 
@@ -33,12 +33,13 @@ export default function useDocPreview(id, tree, enabled) {
   const treeRef = useRef(tree);
   treeRef.current = tree; // всегда последний tree, но НЕ триггер эффекта
 
-  const { value, loading, error } = usePreviewCache(store, id, enabled, api.fetchById, {
-    instantLookup: () => {
-      const fromTree = findInTree(treeRef.current, id);
-      return fromTree && fromTree.description !== undefined ? fromTree : undefined;
-    },
-  });
+  const instantLookup = useCallback(() => {
+    const fromTree = findInTree(treeRef.current, id);
+    return fromTree && fromTree.description !== undefined ? fromTree : undefined;
+  }, [id]);
+  const options = useMemo(() => ({ instantLookup }), [instantLookup]);
+
+  const { value, loading, error } = usePreviewCache(store, id, enabled, api.fetchById, options);
 
   return { node: value, loading, error };
 }
