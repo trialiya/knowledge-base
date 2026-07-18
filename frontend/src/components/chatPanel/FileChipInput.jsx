@@ -587,7 +587,7 @@ function FileChipPreview({
 
   return createPortal(
     <div className="fs-editor-overlay" onMouseDown={onClose}>
-      <div className="fs-editor file-preview-modal" onMouseDown={(e) => e.stopPropagation()}>
+      <div className="fs-editor file-preview-modal" role="dialog" aria-modal="true" onMouseDown={(e) => e.stopPropagation()}>
         <div className="fs-editor__head">
           <div className="file-preview-modal__title">
             <span className="file-preview-modal__name">

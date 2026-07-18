@@ -368,7 +368,7 @@ const HistoryModal = ({ documentId, documentTitle, initialVersion, tree = [], on
 
   return createPortal(
     <div className="fs-editor-overlay" onMouseDown={onClose}>
-      <div className="fs-editor" onMouseDown={(e) => e.stopPropagation()}>
+      <div className="fs-editor" role="dialog" aria-modal="true" onMouseDown={(e) => e.stopPropagation()}>
         <div className="fs-editor__head">
           <span className="fs-editor__title">{t('history.title', { title: documentTitle })}</span>
           <button className="fs-editor__close" title={t('history.close')} onClick={onClose}>
