@@ -41,18 +41,15 @@ public class MessageLoggingAdvisor implements StreamAdvisor {
     @Override
     public Flux<ChatClientResponse> adviseStream(
             ChatClientRequest request, StreamAdvisorChain chain) {
-        if (log.isDebugEnabled()) {
-            final String conversationId =
-                    String.valueOf(request.context().getOrDefault(ChatMemory.CONVERSATION_ID, "?"));
-            final String runId =
-                    String.valueOf(
-                            request.context().getOrDefault(ToolPreparingAdvisor.RUN_ID_PARAM, "?"));
-            log.debug(
-                    "LLM request conversationId={} runId={} messages=[\n{}\n]",
-                    conversationId,
-                    runId,
-                    describe(request.prompt().getInstructions()));
-        }
+        log.atDebug()
+                .setMessage("LLM request conversationId={} runId={} messages=[\n{}\n]")
+                .addArgument(() -> request.context().getOrDefault(ChatMemory.CONVERSATION_ID, "?"))
+                .addArgument(
+                        () ->
+                                request.context()
+                                        .getOrDefault(ToolPreparingAdvisor.RUN_ID_PARAM, "?"))
+                .addArgument(() -> describe(request.prompt().getInstructions()))
+                .log();
         return chain.nextStream(request);
     }
 
