@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.config;
 
+import io.github.trialiya.kb.advisor.MessageLoggingAdvisor;
 import io.github.trialiya.kb.advisor.ToolPreparingAdvisor;
 import io.github.trialiya.kb.config.model.SubAgentConfig;
 import io.github.trialiya.kb.functions.AttachmentFunction;
@@ -191,6 +192,11 @@ public class ChatConfig {
         //
         //   ToolPreparingAdvisor      (LOWEST_PRECEDENCE = MAX)      — INSIDE the loop:
         //       called on every iteration; emits TOOL_PREPARING before each tool execution round.
+        //
+        //   MessageLoggingAdvisor     (LOWEST_PRECEDENCE = MAX)      — INSIDE the loop, innermost:
+        //       DEBUG-only, logs the exact message list about to be sent to the model on each
+        //       iteration (post memory-prepend, post history-window trim). Off by default — enable
+        //       via logging.level.io.github.trialiya.kb.advisor.MessageLoggingAdvisor=DEBUG.
         List<Advisor> advisors = new ArrayList<>();
         advisors.add(
                 ToolCallingAdvisor.builder()
@@ -202,6 +208,7 @@ public class ChatConfig {
                         .order(ToolCallingAdvisor.DEFAULT_ORDER + 100)
                         .build());
         advisors.add(new ToolPreparingAdvisor(chatEventService));
+        advisors.add(new MessageLoggingAdvisor());
 
         return ChatClient.builder(chatModel)
                 .defaultAdvisors(advisors)

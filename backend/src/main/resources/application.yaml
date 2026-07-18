@@ -186,3 +186,9 @@ logging:
 #        jdbc:
 #          core:
 #            JdbcTemplate: DEBUG
+#    io:
+#      github:
+#        trialiya:
+#          kb:
+#            advisor:
+#              MessageLoggingAdvisor: DEBUG # logs the exact message list sent to the LLM on every request
