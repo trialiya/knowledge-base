@@ -189,7 +189,9 @@
    default sizing/padding since the header/body below own their own spacing. */
 .modal-shell.attachment-viewer {
   width: 100%;
-  max-width: 720px;
+  /* min() keeps the shell's calc(100% - 3rem) narrow-viewport gutter, since this
+     overrides its max-width and the overlay itself has no padding to fall back on. */
+  max-width: min(720px, calc(100% - 3rem));
   max-height: 80vh;
   padding: 0;
   gap: 0;
