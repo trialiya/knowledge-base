@@ -119,8 +119,18 @@ const ToolCallDetailModal = ({ conversationId, runId, callIndex, tc, onClose }) 
   const argsPretty = details ? formatJson(details.argumentsRaw) : null;
   const resultPretty = details ? tryFormatJson(details.resultText) : null;
 
+  // stopPropagation здесь обязателен: ToolCallDetailModal рендерится через портал,
+  // но остаётся ребёнком кликабельной плашки ToolCallItem в React-дереве — синтетический
+  // клик по оверлею иначе всплывает не по DOM (оверлей в document.body), а по React-дереву
+  // до onClick плашки, который тут же снова открывает модалку (setShowDetail(true)),
+  // затирая onClose из этого же события. Из-за этого клик вне модалки её не закрывал.
+  const handleOverlayClick = (e) => {
+    e.stopPropagation();
+    onClose();
+  };
+
   return ReactDOM.createPortal(
-    <div className="tcd-overlay" onClick={onClose}>
+    <div className="tcd-overlay" onClick={handleOverlayClick}>
       <div className="tcd-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="tcd-header">
           <span className="tcd-title">
