@@ -1,0 +1,124 @@
+/* ── (legacy form styles removed — see message-input-wrapper below) ── */
+
+/* ── Compact message input wrapper ── */
+.message-input-wrapper {
+  display: flex;
+  align-items: flex-end;
+  gap: 0;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--kb-border);
+  background: var(--kb-bg);
+  flex-shrink: 0;
+  position: relative;
+}
+
+.message-input-wrapper .message-input {
+  flex: 1;
+  border: 1.5px solid var(--kb-border);
+  border-radius: 20px;
+  padding: 0.6rem 2.8rem 0.6rem 2.6rem; /* space for attach left, send right */
+  font-size: 0.9rem;
+  line-height: 1.5;
+  min-height: 100px;
+  max-height: 260px;
+  outline: none;
+  color: var(--kb-text);
+  background: var(--kb-white);
+  transition: border-color 0.15s;
+  resize: none;
+  font-family: inherit;
+}
+.message-input-wrapper .message-input:focus {
+  border-color: var(--kb-accent);
+}
+
+.message-input-attach-btn {
+  position: absolute;
+  left: 1.6rem;
+  bottom: 1.25rem;
+  background: none;
+  border: none;
+  color: var(--kb-muted);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  border-radius: 50%;
+  transition: color 0.15s, background 0.15s;
+  z-index: 1;
+}
+.message-input-attach-btn:hover {
+  color: var(--kb-accent);
+  background: var(--kb-accent-light);
+}
+
+.message-action-btn {
+  position: absolute;
+  right: 1.35rem;
+  bottom: 1.2rem;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, transform 0.1s, opacity 0.15s;
+  flex-shrink: 0;
+  z-index: 1;
+}
+.message-action-btn--send {
+  background: var(--kb-accent);
+  color: white;
+  box-shadow: 0 2px 6px rgba(91, 79, 207, 0.3);
+}
+.message-action-btn--send:hover:not(:disabled) {
+  background: var(--kb-accent-hover);
+  transform: scale(1.08);
+}
+.message-action-btn--send:disabled {
+  background: var(--kb-accent-bg);
+  color: var(--kb-muted);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+.message-action-btn--stop {
+  background: #e84d6a;
+  color: white;
+  box-shadow: 0 2px 6px rgba(232, 77, 106, 0.3);
+}
+.message-action-btn--stop:hover {
+  background: #c73057;
+  transform: scale(1.08);
+}
+
+/* ── Disabled input state (chat unavailable) ── */
+.message-input-wrapper--disabled {
+  justify-content: center;
+  align-items: center;
+  min-height: 42px;
+}
+.message-input-disabled-note {
+  color: var(--kb-muted);
+  font-size: 0.85rem;
+  font-style: italic;
+  text-align: center;
+}
+
+/* ── Rich-композер с чипами файлов (FileChipInput) ── */
+.message-input-wrapper .message-input--rich {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-y: auto;
+  cursor: text;
+}
+.message-input--rich.is-empty::before {
+  content: attr(data-placeholder);
+  color: var(--kb-muted);
+  pointer-events: none;
+}
+.message-input--rich[contenteditable='false'] {
+  opacity: 0.6;
+  cursor: default;
+}

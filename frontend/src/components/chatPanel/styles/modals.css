@@ -1,0 +1,84 @@
+/* ── Полноэкранная модалка просмотра файла ── */
+/* Использует ModalShell (variant="fullscreen") + .fs-editor__head / .fs-editor__close
+   из knowledgeBasePanel/styles/detail.css. Здесь только специфика контента. */
+
+.file-preview-modal__title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.file-preview-modal__name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--kb-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file-preview-modal__path {
+  font-size: 0.72rem;
+  color: var(--kb-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file-preview-modal__toggle {
+  border: 1px solid var(--kb-border);
+  background: none;
+  cursor: pointer;
+  color: var(--kb-muted);
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 3px 8px;
+  border-radius: 4px;
+  transition: background 0.12s, color 0.12s;
+  flex-shrink: 0;
+}
+.file-preview-modal__toggle:hover {
+  background: var(--kb-accent-light);
+  color: var(--kb-accent);
+}
+.file-preview-modal__toggle--active {
+  background: var(--kb-accent-light);
+  color: var(--kb-accent);
+  border-color: var(--kb-accent);
+}
+.file-preview-modal__body {
+  padding: 0 !important; /* override fs-editor__body default padding */
+  overflow-y: auto;
+  overflow-x: hidden; /* horizontal scroll is owned by .file-code, flush with the modal edges */
+}
+.file-preview-modal__msg {
+  padding: 16px 20px;
+  font-size: 0.85rem;
+  color: var(--kb-muted);
+  font-style: italic;
+}
+.file-preview-modal__code {
+  margin: 0;
+  padding: 16px 20px;
+  font-family: var(--kb-mono, monospace);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  white-space: pre;
+  color: var(--kb-text);
+  min-width: max-content;
+}
+.file-preview-modal__md {
+  padding: 16px 20px;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--kb-text);
+}
+.file-preview-modal__md pre {
+  overflow-x: auto;
+}
+.file-preview-modal__ref-note {
+  padding: 20px;
+  font-size: 0.9rem;
+  font-family: var(--kb-mono, monospace);
+  color: var(--kb-accent);
+  word-break: break-all;
+}

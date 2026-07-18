@@ -9,6 +9,7 @@ import documentsApi from '../../api/documentsApi';
 // i18n-инстанс напрямую: модуль не компонент, useTranslation здесь недоступен.
 // Строки уходят в текст отправляемого сообщения и следуют языку интерфейса.
 import i18n from '../../i18n';
+export { baseName } from '../common/utils';
 
 const OPEN = '⟦'; // ⟦
 const CLOSE = '⟧'; // ⟧
@@ -41,12 +42,6 @@ export function parseToken(token) {
   const rm = token.match(refRe);
   if (rm) return { path: rm[1], from: null, to: null, refOnly: true };
   return null;
-}
-
-/** Короткое имя файла из пути. */
-export function baseName(path) {
-  const i = path.lastIndexOf('/');
-  return i >= 0 ? path.slice(i + 1) : path;
 }
 
 // ── Doc-токены ────────────────────────────────────────────────────────────────

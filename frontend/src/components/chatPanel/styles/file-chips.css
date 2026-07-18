@@ -1,0 +1,180 @@
+/* Чип вставленного файла */
+.file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 1px;
+  padding: 1px 3px 1px 6px;
+  border-radius: 6px;
+  background: var(--kb-accent-light);
+  border: 1px solid var(--kb-border);
+  color: var(--kb-accent);
+  font-size: 0.82em;
+  line-height: 1.5;
+  white-space: nowrap;
+  user-select: none;
+  vertical-align: baseline;
+  cursor: pointer;
+  max-width: 360px;
+}
+.file-chip--ref {
+  background: rgba(91, 79, 207, 0.06);
+  border-style: dashed;
+}
+.file-chip__icon {
+  font-size: 0.9em;
+  flex-shrink: 0;
+}
+.file-chip__label {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.file-chip__remove {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--kb-muted);
+  font-size: 1.05em;
+  line-height: 1;
+  padding: 0 2px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.file-chip__remove:hover {
+  color: #e84d6a;
+  background: rgba(232, 77, 106, 0.12);
+}
+
+/* Дропдаун поиска файлов (открывается вверх) */
+.file-picker-dropdown {
+  width: 500px;
+  max-width: calc(100vw - 24px);
+  background: var(--kb-white);
+  border: 1.5px solid var(--kb-border);
+  border-radius: var(--kb-radius);
+  box-shadow: 0 8px 32px rgba(91, 79, 207, 0.18);
+  overflow: hidden;
+  animation: kb-fade-in-down 0.1s ease;
+}
+.file-picker-dropdown__header {
+  padding: 6px 12px 5px;
+  background: var(--kb-bg);
+  border-bottom: 1px solid var(--kb-border);
+}
+.file-picker-dropdown__hint {
+  font-size: 0.74rem;
+  color: var(--kb-muted);
+  font-style: italic;
+}
+.file-picker-dropdown__loading,
+.file-picker-dropdown__empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  color: var(--kb-muted);
+  font-style: italic;
+}
+.file-picker-dropdown__spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--kb-border);
+  border-top-color: var(--kb-accent);
+  border-radius: 50%;
+  animation: kb-spin 0.65s linear infinite;
+  flex-shrink: 0;
+}
+.file-picker-dropdown__list {
+  max-height: 240px;
+  overflow-y: auto;
+}
+.file-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--kb-border-light);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.file-picker-item:last-child {
+  border-bottom: none;
+}
+.file-picker-item:hover,
+.file-picker-item--selected {
+  background: var(--kb-accent-light);
+}
+.file-picker-item__icon {
+  color: var(--kb-accent);
+  flex-shrink: 0;
+  display: flex;
+}
+.file-picker-item__body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.file-picker-item__actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.file-picker-item__content-btn {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border: 1px solid var(--kb-border);
+  background: var(--kb-white);
+  border-radius: 3px;
+  font-size: 0.7rem;
+  color: var(--kb-muted);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.1s, color 0.1s, border-color 0.1s, background 0.1s;
+  white-space: nowrap;
+}
+.file-picker-item:hover .file-picker-item__content-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+.file-picker-item__content-btn:hover {
+  color: var(--kb-accent);
+  border-color: var(--kb-accent);
+  background: var(--kb-accent-light);
+}
+.file-picker-item__name {
+  font-size: 0.84rem;
+  color: var(--kb-text);
+  font-weight: 500;
+}
+.file-picker-item__path {
+  font-size: 0.72rem;
+  color: var(--kb-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl; /* начало пути видно справа → имя файла всегда читаемо */
+  text-align: left;
+}
+.file-picker-dropdown__footer {
+  padding: 6px 12px;
+  background: var(--kb-bg);
+  border-top: 1px solid var(--kb-border);
+  font-size: 0.7rem;
+  color: var(--kb-muted);
+}
+.file-picker-dropdown__footer kbd {
+  background: var(--kb-white);
+  border: 1px solid var(--kb-border);
+  border-radius: 3px;
+  padding: 0 3px;
+  font-size: 0.68rem;
+}
