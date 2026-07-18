@@ -1,0 +1,91 @@
+/* ═══════════════════════════════════════════════
+   MODAL SHELL — shared chrome for every dialog (see ModalShell.jsx)
+═══════════════════════════════════════════════ */
+
+.modal-shell-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(45, 43, 85, 0.32);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  animation: modal-shell-fade 0.15s ease;
+}
+
+@keyframes modal-shell-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-shell {
+  background: var(--kb-white);
+  padding: 1.5rem;
+  border-radius: var(--kb-radius);
+  width: 380px;
+  max-width: calc(100% - 3rem);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(91, 79, 207, 0.18);
+  animation: modal-shell-pop 0.16s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+
+@keyframes modal-shell-pop {
+  from {
+    transform: scale(0.97);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.modal-shell h3 {
+  margin: 0;
+  color: var(--kb-text);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.modal-shell__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+/* ── sm: compact centered dialogs (confirm / error) ── */
+.modal-shell--sm {
+  width: 360px;
+  padding: 1.75rem 1.5rem 1.25rem;
+  text-align: center;
+}
+
+/* ── wide: forms with more content (add / create dialogs) ── */
+.modal-shell--wide {
+  width: 460px;
+  max-width: 92vw;
+}
+
+/* ── fullscreen: editor / preview surfaces ── */
+.modal-shell-overlay--fullscreen {
+  z-index: 9200;
+  padding: 3vh 3vw;
+}
+
+.modal-shell--fullscreen {
+  width: 100%;
+  max-width: 1100px;
+  height: 100%;
+  padding: 0;
+  gap: 0;
+  border: 1.5px solid var(--kb-border);
+  box-shadow: 0 16px 48px rgba(91, 79, 207, 0.22);
+}

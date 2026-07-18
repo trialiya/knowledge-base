@@ -1,37 +1,10 @@
 /* ═══════════════════════════════════════════════
    MODAL
+   Overlay/portal/escape/aria/box owned by ModalShell; only AddModal's own
+   content styling (name input) lives here.
 ═══════════════════════════════════════════════ */
 
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(45, 43, 85, 0.32);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-.modal {
-  background: var(--kb-white);
-  padding: 1.5rem;
-  border-radius: var(--kb-radius);
-  width: 380px;
-  display: flex;
-  flex-direction: column;
-  gap: 0.9rem;
-  box-shadow: 0 8px 32px rgba(91, 79, 207, 0.18);
-}
-.modal--wide {
-  width: 460px;
-}
-
-.modal h3 {
-  margin: 0;
-  color: var(--kb-text);
-  font-size: 1rem;
-  font-weight: 700;
-}
-.modal input {
+.add-modal__input {
   padding: 8px 12px;
   border: 1.5px solid var(--kb-border);
   border-radius: 10px;
@@ -40,7 +13,7 @@
   outline: none;
   transition: border-color 0.15s;
 }
-.modal input:focus {
+.add-modal__input:focus {
   border-color: var(--kb-accent);
 }
 
@@ -165,60 +138,4 @@
 }
 .fp-row--root.fp-row--selected {
   color: var(--kb-accent);
-}
-
-.modal-buttons {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-}
-.modal-buttons button {
-  padding: 7px 18px;
-  border-radius: 20px;
-  border: none;
-  cursor: pointer;
-  font-size: 0.84rem;
-  font-weight: 600;
-  transition: background 0.15s;
-}
-.modal-buttons button:first-child {
-  background: var(--kb-accent);
-  color: white;
-}
-.modal-buttons button:first-child:hover {
-  background: var(--kb-accent-hover);
-}
-.modal-buttons button:last-child {
-  background: var(--kb-bg);
-  color: var(--kb-muted);
-}
-.modal-buttons button:last-child:hover {
-  background: var(--kb-border);
-}
-
-/* ── Generic confirm modal (shares MoveConfirmModal's look) ── */
-.confirm-modal {
-  gap: 1rem;
-}
-.confirm-modal__header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.confirm-modal__icon {
-  font-size: 1.3rem;
-  line-height: 1;
-  flex-shrink: 0;
-}
-.confirm-modal__header h3 {
-  margin: 0;
-  color: var(--kb-text);
-  font-size: 1rem;
-  font-weight: 700;
-}
-.confirm-modal__body {
-  margin: 0;
-  font-size: 0.87rem;
-  color: var(--kb-muted);
-  line-height: 1.55;
 }

@@ -1,5 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import ModalShell from '../common/ModalShell';
+import '../common/buttons.css';
 
 /**
  * Modal shown when a drag-and-drop would move a node to a different parent.
@@ -15,37 +17,39 @@ const MoveConfirmModal = ({ draggedTitle, fromTitle, toTitle, onConfirm, onCance
   const { t } = useTranslation('knowledgeBase');
 
   return (
-    <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal move-confirm-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="move-confirm-modal__header">
-          <span className="move-confirm-modal__icon" aria-hidden="true">
-            📂
-          </span>
-          <h3>{t('move.title')}</h3>
+    <ModalShell onClose={onCancel} role="alertdialog" className="move-confirm-modal">
+      <div className="move-confirm-modal__header">
+        <span className="move-confirm-modal__icon" aria-hidden="true">
+          📂
+        </span>
+        <h3>{t('move.title')}</h3>
+      </div>
+
+      <p className="move-confirm-modal__body">{t('move.body', { title: draggedTitle })}</p>
+
+      <div className="move-confirm-modal__path">
+        <div className="move-confirm-modal__path-row">
+          <span className="move-confirm-modal__path-icon">📁</span>
+          <span className="move-confirm-modal__path-label">{t('move.from')}</span>
+          <span className="move-confirm-modal__path-name">{fromTitle}</span>
         </div>
-
-        <p className="move-confirm-modal__body">{t('move.body', { title: draggedTitle })}</p>
-
-        <div className="move-confirm-modal__path">
-          <div className="move-confirm-modal__path-row">
-            <span className="move-confirm-modal__path-icon">📁</span>
-            <span className="move-confirm-modal__path-label">{t('move.from')}</span>
-            <span className="move-confirm-modal__path-name">{fromTitle}</span>
-          </div>
-          <div className="move-confirm-modal__path-arrow">↓</div>
-          <div className="move-confirm-modal__path-row">
-            <span className="move-confirm-modal__path-icon">📁</span>
-            <span className="move-confirm-modal__path-label">{t('move.to')}</span>
-            <span className="move-confirm-modal__path-name">{toTitle}</span>
-          </div>
-        </div>
-
-        <div className="modal-buttons">
-          <button onClick={onConfirm}>{t('move.confirm')}</button>
-          <button onClick={onCancel}>{t('move.cancel')}</button>
+        <div className="move-confirm-modal__path-arrow">↓</div>
+        <div className="move-confirm-modal__path-row">
+          <span className="move-confirm-modal__path-icon">📁</span>
+          <span className="move-confirm-modal__path-label">{t('move.to')}</span>
+          <span className="move-confirm-modal__path-name">{toTitle}</span>
         </div>
       </div>
-    </div>
+
+      <div className="modal-shell__footer">
+        <button className="btn btn--primary" onClick={onConfirm}>
+          {t('move.confirm')}
+        </button>
+        <button className="btn btn--ghost" onClick={onCancel}>
+          {t('move.cancel')}
+        </button>
+      </div>
+    </ModalShell>
   );
 };
 

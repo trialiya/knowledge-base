@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import attachmentApi from '../../api/attachmentApi';
+import ModalShell from './ModalShell';
+import './buttons.css';
 
 /**
  * Single modal for viewing an attachment's content or its summary.
@@ -45,23 +47,21 @@ const AttachmentModal = ({ attachment, mode, onClose }) => {
   const body = isContent ? content : attachment.summary || t('attachments.noDescription');
 
   return (
-    <div className="attachment-viewer-overlay" onClick={onClose}>
-      <div className="attachment-viewer" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-        <div className="attachment-viewer__header">
-          <span className="attachment-viewer__name">{title}</span>
-          <button className="detail-icon-btn" onClick={onClose} title={t('close')}>
-            ✕
-          </button>
-        </div>
-        <div className="attachment-viewer__body">
-          {loading ? (
-            <p className="attachment-viewer__loading">{t('loading')}</p>
-          ) : (
-            <pre className="attachment-viewer__content">{body}</pre>
-          )}
-        </div>
+    <ModalShell onClose={onClose} className="attachment-viewer">
+      <div className="attachment-viewer__header">
+        <span className="attachment-viewer__name">{title}</span>
+        <button className="icon-btn" onClick={onClose} title={t('close')}>
+          ✕
+        </button>
       </div>
-    </div>
+      <div className="attachment-viewer__body">
+        {loading ? (
+          <p className="attachment-viewer__loading">{t('loading')}</p>
+        ) : (
+          <pre className="attachment-viewer__content">{body}</pre>
+        )}
+      </div>
+    </ModalShell>
   );
 };
 

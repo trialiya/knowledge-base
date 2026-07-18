@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import ReactDOM from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import chatApi from '../../api/chatApi';
 import { getToolIcon, humanizeTool, toolLabelKey } from './toolMeta';
 import { IconCopySmall, IconCopied } from '../../icons';
 import { COPY_DONE_MS } from '../../constants/ui';
+import ModalShell from '../common/ModalShell';
 import './styles/tool-call-detail-modal.css';
 
 const formatJson = (raw) => {
@@ -119,77 +119,64 @@ const ToolCallDetailModal = ({ conversationId, runId, callIndex, tc, onClose }) 
   const argsPretty = details ? formatJson(details.argumentsRaw) : null;
   const resultPretty = details ? tryFormatJson(details.resultText) : null;
 
-  // stopPropagation здесь обязателен: ToolCallDetailModal рендерится через портал,
-  // но остаётся ребёнком кликабельной плашки ToolCallItem в React-дереве — синтетический
-  // клик по оверлею иначе всплывает не по DOM (оверлей в document.body), а по React-дереву
-  // до onClick плашки, который тут же снова открывает модалку (setShowDetail(true)),
-  // затирая onClose из этого же события. Из-за этого клик вне модалки её не закрывал.
-  const handleOverlayClick = (e) => {
-    e.stopPropagation();
-    onClose();
-  };
-
-  return ReactDOM.createPortal(
-    <div className="tcd-overlay" onClick={handleOverlayClick}>
-      <div className="tcd-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-        <div className="tcd-header">
-          <span className="tcd-title">
-            <span className="tcd-icon" aria-hidden="true">
-              {icon}
-            </span>
-            {label}
+  return (
+    <ModalShell onClose={onClose} className="tcd-modal">
+      <div className="tcd-header">
+        <span className="tcd-title">
+          <span className="tcd-icon" aria-hidden="true">
+            {icon}
           </span>
-          <button className="tcd-close" onClick={onClose} title={t('close')}>
-            ✕
-          </button>
-        </div>
-
-        {loading && <div className="tcd-loading">{t('loading')}</div>}
-        {error && <div className="tcd-error">{error}</div>}
-        {!loading && !error && !details && <div className="tcd-error">{t('toolCall.detail.notFound')}</div>}
-
-        {details && !loading && (
-          <div className="tcd-body">
-            <div className={`tcd-status-badge ${statusClass}`}>{details.status}</div>
-
-            <section className="tcd-section">
-              <div className="tcd-section-header">
-                <div className="tcd-section-label">{t('toolCall.detail.arguments')}</div>
-                <CopyButton value={argsPretty} />
-              </div>
-              {argsPretty ? (
-                <pre className="tcd-pre" dangerouslySetInnerHTML={{ __html: highlightJson(argsPretty) }} />
-              ) : (
-                <pre className="tcd-pre">—</pre>
-              )}
-            </section>
-
-            <section className="tcd-section">
-              <div className="tcd-section-header">
-                <div className="tcd-section-label">{t('toolCall.detail.result')}</div>
-                <CopyButton value={details.resultText} />
-              </div>
-              {resultPretty ? (
-                <pre
-                  className="tcd-pre tcd-pre--result"
-                  dangerouslySetInnerHTML={{ __html: highlightJson(resultPretty) }}
-                />
-              ) : (
-                <pre className="tcd-pre tcd-pre--result">{details.resultText || '—'}</pre>
-              )}
-            </section>
-
-            {details.error && (
-              <section className="tcd-section">
-                <div className="tcd-section-label tcd-section-label--error">{t('toolCall.error')}</div>
-                <pre className="tcd-pre tcd-pre--error">{details.error}</pre>
-              </section>
-            )}
-          </div>
-        )}
+          {label}
+        </span>
+        <button className="tcd-close" onClick={onClose} title={t('close')}>
+          ✕
+        </button>
       </div>
-    </div>,
-    document.body,
+
+      {loading && <div className="tcd-loading">{t('loading')}</div>}
+      {error && <div className="tcd-error">{error}</div>}
+      {!loading && !error && !details && <div className="tcd-error">{t('toolCall.detail.notFound')}</div>}
+
+      {details && !loading && (
+        <div className="tcd-body">
+          <div className={`tcd-status-badge ${statusClass}`}>{details.status}</div>
+
+          <section className="tcd-section">
+            <div className="tcd-section-header">
+              <div className="tcd-section-label">{t('toolCall.detail.arguments')}</div>
+              <CopyButton value={argsPretty} />
+            </div>
+            {argsPretty ? (
+              <pre className="tcd-pre" dangerouslySetInnerHTML={{ __html: highlightJson(argsPretty) }} />
+            ) : (
+              <pre className="tcd-pre">—</pre>
+            )}
+          </section>
+
+          <section className="tcd-section">
+            <div className="tcd-section-header">
+              <div className="tcd-section-label">{t('toolCall.detail.result')}</div>
+              <CopyButton value={details.resultText} />
+            </div>
+            {resultPretty ? (
+              <pre
+                className="tcd-pre tcd-pre--result"
+                dangerouslySetInnerHTML={{ __html: highlightJson(resultPretty) }}
+              />
+            ) : (
+              <pre className="tcd-pre tcd-pre--result">{details.resultText || '—'}</pre>
+            )}
+          </section>
+
+          {details.error && (
+            <section className="tcd-section">
+              <div className="tcd-section-label tcd-section-label--error">{t('toolCall.error')}</div>
+              <pre className="tcd-pre tcd-pre--error">{details.error}</pre>
+            </section>
+          )}
+        </div>
+      )}
+    </ModalShell>
   );
 };
 

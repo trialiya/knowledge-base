@@ -1,16 +1,8 @@
-/* ── ToolCallDetailModal ── */
+/* ── ToolCallDetailModal ──
+   Overlay/portal/escape/aria owned by ModalShell; this overrides the shell's
+   default sizing/padding since tcd-header/tcd-body own their own spacing. */
 
-.tcd-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1100;
-  background: rgba(0, 0, 0, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.tcd-modal {
+.modal-shell.tcd-modal {
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.22);
@@ -18,10 +10,8 @@
   max-width: 95vw;
   height: 85vh;
   max-height: 85vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  box-sizing: border-box;
+  padding: 0;
+  gap: 0;
 }
 
 .tcd-header {

@@ -1,5 +1,8 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import ModalShell from './ModalShell';
+import './buttons.css';
+import './confirmModal.css';
 
 /**
  * Lightweight confirmation dialog, styled to match MoveConfirmModal.
@@ -16,26 +19,27 @@ import { useTranslation } from 'react-i18next';
  */
 const ConfirmModal = ({ open, icon = '⚠️', title, message, confirmLabel, cancelLabel, onConfirm, onCancel }) => {
   const { t } = useTranslation();
-  if (!open) return null;
 
   return (
-    <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal confirm-modal" role="alertdialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-        <div className="confirm-modal__header">
-          <span className="confirm-modal__icon" aria-hidden="true">
-            {icon}
-          </span>
-          <h3>{title}</h3>
-        </div>
-
-        {message && <p className="confirm-modal__body">{message}</p>}
-
-        <div className="modal-buttons">
-          <button onClick={onConfirm}>{confirmLabel ?? t('confirm')}</button>
-          <button onClick={onCancel}>{cancelLabel ?? t('cancel')}</button>
-        </div>
+    <ModalShell open={open} onClose={onCancel} role="alertdialog" className="confirm-modal">
+      <div className="confirm-modal__header">
+        <span className="confirm-modal__icon" aria-hidden="true">
+          {icon}
+        </span>
+        <h3>{title}</h3>
       </div>
-    </div>
+
+      {message && <p className="confirm-modal__body">{message}</p>}
+
+      <div className="modal-shell__footer">
+        <button className="btn btn--primary" onClick={onConfirm}>
+          {confirmLabel ?? t('confirm')}
+        </button>
+        <button className="btn btn--ghost" onClick={onCancel}>
+          {cancelLabel ?? t('cancel')}
+        </button>
+      </div>
+    </ModalShell>
   );
 };
 

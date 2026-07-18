@@ -1,8 +1,7 @@
 import React from 'react';
-import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import MarkdownEditor from './MarkdownEditor';
-import useEscape from '../common/useEscape';
+import ModalShell from '../common/ModalShell';
 import { IconX } from '../../icons';
 
 /**
@@ -29,31 +28,27 @@ const FullscreenEditorModal = ({
   onNavigate,
 }) => {
   const { t } = useTranslation('knowledgeBase');
-  useEscape(onClose);
 
-  return createPortal(
-    <div className="fs-editor-overlay" onMouseDown={onClose}>
-      <div className="fs-editor" role="dialog" aria-modal="true" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="fs-editor__head">
-          <span className="fs-editor__title">{title}</span>
-          <button className="fs-editor__close" title={t('fullscreen.close')} onClick={onClose}>
-            <IconX />
-          </button>
-        </div>
-        <div className="fs-editor__body">
-          <MarkdownEditor
-            value={value}
-            onChange={onChange}
-            savedValue={savedValue}
-            previewOnly={previewOnly}
-            onSave={onSave || (() => {})}
-            tree={tree}
-            onNavigate={onNavigate}
-          />
-        </div>
+  return (
+    <ModalShell onClose={onClose} variant="fullscreen">
+      <div className="fs-editor__head">
+        <span className="fs-editor__title">{title}</span>
+        <button className="fs-editor__close" title={t('fullscreen.close')} onClick={onClose}>
+          <IconX />
+        </button>
       </div>
-    </div>,
-    document.body,
+      <div className="fs-editor__body">
+        <MarkdownEditor
+          value={value}
+          onChange={onChange}
+          savedValue={savedValue}
+          previewOnly={previewOnly}
+          onSave={onSave || (() => {})}
+          tree={tree}
+          onNavigate={onNavigate}
+        />
+      </div>
+    </ModalShell>
   );
 };
 

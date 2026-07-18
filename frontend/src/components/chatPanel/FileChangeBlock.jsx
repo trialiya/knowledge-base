@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import ReactDOM from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -7,6 +6,7 @@ import { getFileChangeRef } from './toolMeta';
 import { TOOL_STATUS } from '../../constants/toolStatus';
 import { fetchContent } from './fileChips';
 import { IconChevronDown } from '../../icons';
+import ModalShell from '../common/ModalShell';
 import './styles/doc-changes.css';
 import './styles/file-changes.css';
 
@@ -45,12 +45,7 @@ const FileChangeBlock = ({ toolCalls }) => {
 
   return (
     <div className="doc-change-block">
-      <button
-        type="button"
-        className="change-block-summary"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-      >
+      <button type="button" className="change-block-summary" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
         <span className="change-block-summary-icon" aria-hidden="true">
           📝
         </span>
@@ -136,79 +131,74 @@ const FileDiffModal = ({ change, onClose }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [change.path, showsContent]);
 
-  return ReactDOM.createPortal(
-    <div className="fcd-overlay" onClick={onClose}>
-      <div className="fcd-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-        <div className="fcd-header">
-          <span className="fcd-title" title={change.path}>
-            {change.path}
-            <span className="file-change-stats">
-              {' '}
-              <span className="file-change-add">+{change.additions}</span>/
-              <span className="file-change-del">−{change.deletions}</span>
-            </span>
+  return (
+    <ModalShell onClose={onClose} className="fcd-modal">
+      <div className="fcd-header">
+        <span className="fcd-title" title={change.path}>
+          {change.path}
+          <span className="file-change-stats">
+            {' '}
+            <span className="file-change-add">+{change.additions}</span>/
+            <span className="file-change-del">−{change.deletions}</span>
           </span>
-          {isMd && (
-            <button
-              type="button"
-              className={`fcd-md-toggle${mdView ? ' fcd-md-toggle--active' : ''}`}
-              onClick={() => setMdView((v) => !v)}
-              title={t('fileChange.toggleMarkdown', { defaultValue: 'Markdown preview' })}
-            >
-              {mdView ? '{ }' : '👁'}
-            </button>
-          )}
-          <a
-            className="fcd-open-link"
-            href={`/files?path=${encodeURIComponent(change.path)}`}
-            target="_blank"
-            rel="noreferrer"
+        </span>
+        {isMd && (
+          <button
+            type="button"
+            className={`fcd-md-toggle${mdView ? ' fcd-md-toggle--active' : ''}`}
+            onClick={() => setMdView((v) => !v)}
+            title={t('fileChange.toggleMarkdown', { defaultValue: 'Markdown preview' })}
           >
-            {t('fileChange.openFile')}
-          </a>
-          <button className="fcd-close" onClick={onClose} title={t('common:close')} type="button">
-            ✕
+            {mdView ? '{ }' : '👁'}
           </button>
-        </div>
-        <div className="fcd-body">
-          {change.diffs.length === 0 ? (
-            <>
-              {loading && <div className="fcd-empty">{t('loading')}</div>}
-              {!loading && error && <div className="fcd-empty">{t('fileChange.loadError')}</div>}
-              {!loading && !error && content?.binary && (
-                <div className="fcd-empty">{t('fileChips.binaryFile')}</div>
-              )}
-              {!loading && !error && content && !content.binary && (
-                <>
-                  {mdView ? (
-                    <div className="fcd-md-preview">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content.content || ''}</ReactMarkdown>
-                    </div>
-                  ) : (
-                    <pre className="fcd-diff fcd-content">{content.content || ''}</pre>
-                  )}
-                </>
-              )}
-            </>
-          ) : (
-            change.diffs.map((diff, i) => (
-              // Индекс как key безопасен: список diff'ов иммутабелен в рамках открытой модалки.
-              // eslint-disable-next-line react/no-array-index-key
-              <pre key={i} className="fcd-diff">
-                {diff.split('\n').map((line, j) => (
-                  // eslint-disable-next-line react/no-array-index-key
-                  <span key={j} className={diffLineClass(line)}>
-                    {line}
-                    {'\n'}
-                  </span>
-                ))}
-              </pre>
-            ))
-          )}
-        </div>
+        )}
+        <a
+          className="fcd-open-link"
+          href={`/files?path=${encodeURIComponent(change.path)}`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {t('fileChange.openFile')}
+        </a>
+        <button className="fcd-close" onClick={onClose} title={t('common:close')} type="button">
+          ✕
+        </button>
       </div>
-    </div>,
-    document.body,
+      <div className="fcd-body">
+        {change.diffs.length === 0 ? (
+          <>
+            {loading && <div className="fcd-empty">{t('loading')}</div>}
+            {!loading && error && <div className="fcd-empty">{t('fileChange.loadError')}</div>}
+            {!loading && !error && content?.binary && <div className="fcd-empty">{t('fileChips.binaryFile')}</div>}
+            {!loading && !error && content && !content.binary && (
+              <>
+                {mdView ? (
+                  <div className="fcd-md-preview">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{content.content || ''}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <pre className="fcd-diff fcd-content">{content.content || ''}</pre>
+                )}
+              </>
+            )}
+          </>
+        ) : (
+          change.diffs.map((diff, i) => (
+            // Индекс как key безопасен: список diff'ов иммутабелен в рамках открытой модалки.
+            // eslint-disable-next-line react/no-array-index-key
+            <pre key={i} className="fcd-diff">
+              {diff.split('\n').map((line, j) => (
+                // eslint-disable-next-line react/no-array-index-key
+                <span key={j} className={diffLineClass(line)}>
+                  {line}
+                  {'\n'}
+                </span>
+              ))}
+            </pre>
+          ))
+        )}
+      </div>
+    </ModalShell>
   );
 };
 

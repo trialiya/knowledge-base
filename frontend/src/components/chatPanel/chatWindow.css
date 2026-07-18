@@ -796,7 +796,7 @@
 }
 
 /* ── Полноэкранная модалка просмотра файла ── */
-/* Использует .fs-editor-overlay / .fs-editor / .fs-editor__head / .fs-editor__close
+/* Использует ModalShell (variant="fullscreen") + .fs-editor__head / .fs-editor__close
    из knowledgeBasePanel/styles/detail.css. Здесь только специфика контента. */
 
 .file-preview-modal__title {

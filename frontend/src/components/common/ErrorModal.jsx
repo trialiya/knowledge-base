@@ -1,5 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import ModalShell from './ModalShell';
+import './buttons.css';
 import './errorModal.css';
 
 /**
@@ -15,19 +17,16 @@ import './errorModal.css';
  */
 const ErrorModal = ({ open, icon = '⚠️', title, message, confirmLabel, onClose }) => {
   const { t } = useTranslation();
-  if (!open) return null;
 
   return (
-    <div className="error-modal-overlay" onClick={onClose}>
-      <div className="error-modal" role="alertdialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-        <div className="error-modal__icon">{icon}</div>
-        {title && <h3 className="error-modal__title">{title}</h3>}
-        {message && <p className="error-modal__message">{message}</p>}
-        <button className="error-modal__btn" onClick={onClose} autoFocus>
-          {confirmLabel ?? t('gotIt')}
-        </button>
-      </div>
-    </div>
+    <ModalShell open={open} onClose={onClose} variant="sm" role="alertdialog" className="error-modal">
+      <div className="error-modal__icon">{icon}</div>
+      {title && <h3 className="error-modal__title">{title}</h3>}
+      {message && <p className="error-modal__message">{message}</p>}
+      <button className="btn btn--primary error-modal__btn" onClick={onClose} autoFocus>
+        {confirmLabel ?? t('gotIt')}
+      </button>
+    </ModalShell>
   );
 };
 

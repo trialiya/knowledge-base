@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconFolder, IconChevron } from '../../icons';
 import { findNodeById } from '../common/utils';
+import ModalShell from '../common/ModalShell';
+import '../common/buttons.css';
 
 // ─── Folder tree picker ───────────────────────────────────────────────────────
 
@@ -92,70 +94,69 @@ const AddModal = ({ tree, defaultParentId, onClose, onCreate }) => {
   const locationLabel = selectedFolder ? selectedFolder.title : t('add.root');
 
   return (
-    <div className="modal-overlay" onClick={handleClose}>
-      <div className="modal modal--wide" onClick={(e) => e.stopPropagation()}>
-        <h3>{t('add.title')}</h3>
+    <ModalShell onClose={handleClose} variant="wide" className="add-modal">
+      <h3>{t('add.title')}</h3>
 
-        {/* Name */}
-        <input
-          ref={inputRef}
-          type="text"
-          placeholder={t('add.namePlaceholder')}
-          value={name}
-          disabled={submitting}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
-        />
+      {/* Name */}
+      <input
+        ref={inputRef}
+        className="add-modal__input"
+        type="text"
+        placeholder={t('add.namePlaceholder')}
+        value={name}
+        disabled={submitting}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+      />
 
-        {/* Type toggle */}
-        <div className="modal-type-row">
-          {['document', 'folder'].map((tp) => (
-            <button
-              key={tp}
-              className={`modal-type-btn ${type === tp ? 'modal-type-btn--active' : ''}`}
-              disabled={submitting}
-              onClick={() => setType(tp)}
-            >
-              {tp === 'document' ? t('add.typeDocument') : t('add.typeFolder')}
-            </button>
-          ))}
-        </div>
-
-        {/* Folder tree picker */}
-        <div className="fp-wrap">
-          <div className="fp-header">
-            <span className="fp-header__label">{t('add.location')}</span>
-            <span className="fp-header__selected">{locationLabel}</span>
-          </div>
-          <div className="fp-tree">
-            {/* Root option */}
-            <div
-              className={`fp-row fp-row--root ${parentId === null ? 'fp-row--selected' : ''}`}
-              style={{ '--depth': 0 }}
-              onClick={() => setParentId(null)}
-            >
-              <span style={{ display: 'inline-block', width: 12 }} />
-              <span className="fp-row__icon fp-row__icon--root">⊘</span>
-              <span className="fp-row__label">{t('add.root')}</span>
-            </div>
-            {tree
-              .filter((n) => n.type === 'folder')
-              .map((node) => (
-                <FolderTreeItem key={node.id} node={node} level={0} selectedId={parentId} onSelect={setParentId} />
-              ))}
-          </div>
-        </div>
-
-        <div className="modal-buttons">
-          <button onClick={handleCreate} disabled={submitting || !name.trim()}>
-            {submitting ? t('add.creating') : t('add.create')}
+      {/* Type toggle */}
+      <div className="modal-type-row">
+        {['document', 'folder'].map((tp) => (
+          <button
+            key={tp}
+            className={`modal-type-btn ${type === tp ? 'modal-type-btn--active' : ''}`}
+            disabled={submitting}
+            onClick={() => setType(tp)}
+          >
+            {tp === 'document' ? t('add.typeDocument') : t('add.typeFolder')}
           </button>
-          <button onClick={handleClose} disabled={submitting}>
-            {t('add.cancel')}
-          </button>
+        ))}
+      </div>
+
+      {/* Folder tree picker */}
+      <div className="fp-wrap">
+        <div className="fp-header">
+          <span className="fp-header__label">{t('add.location')}</span>
+          <span className="fp-header__selected">{locationLabel}</span>
+        </div>
+        <div className="fp-tree">
+          {/* Root option */}
+          <div
+            className={`fp-row fp-row--root ${parentId === null ? 'fp-row--selected' : ''}`}
+            style={{ '--depth': 0 }}
+            onClick={() => setParentId(null)}
+          >
+            <span style={{ display: 'inline-block', width: 12 }} />
+            <span className="fp-row__icon fp-row__icon--root">⊘</span>
+            <span className="fp-row__label">{t('add.root')}</span>
+          </div>
+          {tree
+            .filter((n) => n.type === 'folder')
+            .map((node) => (
+              <FolderTreeItem key={node.id} node={node} level={0} selectedId={parentId} onSelect={setParentId} />
+            ))}
         </div>
       </div>
-    </div>
+
+      <div className="modal-shell__footer">
+        <button className="btn btn--primary" onClick={handleCreate} disabled={submitting || !name.trim()}>
+          {submitting ? t('add.creating') : t('add.create')}
+        </button>
+        <button className="btn btn--ghost" onClick={handleClose} disabled={submitting}>
+          {t('add.cancel')}
+        </button>
+      </div>
+    </ModalShell>
   );
 };
 
