@@ -440,6 +440,38 @@
   color: #a15c00;
 }
 
+.file-view__md-toggle {
+  margin-left: auto;
+  border: 1px solid var(--kb-border);
+  background: none;
+  cursor: pointer;
+  color: var(--kb-muted);
+  font-size: 0.85rem;
+  padding: 2px 8px;
+  border-radius: 6px;
+  line-height: 1.2;
+}
+.file-view__md-toggle:hover {
+  background: var(--kb-accent-light);
+  color: var(--kb-accent);
+}
+.file-view__md-toggle--active {
+  background: var(--kb-accent-light);
+  color: var(--kb-accent);
+  border-color: var(--kb-accent);
+}
+
+.file-view__md {
+  padding: 16px 20px;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--kb-text);
+  overflow: auto;
+}
+.file-view__md pre {
+  overflow-x: auto;
+}
+
 .file-code {
   overflow-x: auto;
   /* .file-view (flex column) is itself stretched to a fixed height by its

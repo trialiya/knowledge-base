@@ -1,6 +1,8 @@
 import React, { useRef, useEffect, useCallback, useState, useImperativeHandle, forwardRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import gitApi from '../../api/gitApi';
 import documentsApi from '../../api/documentsApi';
 import {
@@ -576,13 +578,16 @@ function FileChipPreview({
   useFullContentLabel,
 }) {
   const { path, from, to, refOnly, loading, data, error } = preview;
+  const { t } = useTranslation('chat');
   useEscape(onClose);
   const name = baseName(path);
   const range = from != null ? ` (${from}–${to})` : '';
+  const isMd = /\.mdx?$/i.test(path || '');
+  const [mdView, setMdView] = useState(false);
 
   return createPortal(
     <div className="fs-editor-overlay" onMouseDown={onClose}>
-      <div className="fs-editor file-preview-modal" onMouseDown={(e) => e.stopPropagation()}>
+      <div className="fs-editor file-preview-modal" role="dialog" aria-modal="true" onMouseDown={(e) => e.stopPropagation()}>
         <div className="fs-editor__head">
           <div className="file-preview-modal__title">
             <span className="file-preview-modal__name">
@@ -593,6 +598,16 @@ function FileChipPreview({
               {path}
             </span>
           </div>
+          {isMd && !refOnly && (
+            <button
+              type="button"
+              className={'file-preview-modal__toggle' + (mdView ? ' file-preview-modal__toggle--active' : '')}
+              onClick={() => setMdView((v) => !v)}
+              title={t('fileChange.toggleMarkdown', { defaultValue: 'Markdown preview' })}
+            >
+              {mdView ? '{ }' : '👁'}
+            </button>
+          )}
           <button
             type="button"
             className={'file-preview-modal__toggle' + (refOnly ? ' file-preview-modal__toggle--active' : '')}
@@ -611,7 +626,12 @@ function FileChipPreview({
               {loading && <div className="file-preview-modal__msg">{loadingLabel}</div>}
               {error && <div className="file-preview-modal__msg">{errorLabel}</div>}
               {!loading && !error && data?.binary && <div className="file-preview-modal__msg">{binaryLabel}</div>}
-              {!loading && !error && !data?.binary && (
+              {!loading && !error && !data?.binary && mdView && (
+                <div className="file-preview-modal__md">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{data?.content ?? ''}</ReactMarkdown>
+                </div>
+              )}
+              {!loading && !error && !data?.binary && !mdView && (
                 <pre className="file-preview-modal__code">{data?.content ?? ''}</pre>
               )}
             </>

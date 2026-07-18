@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import HistoryModal from '../knowledgeBasePanel/HistoryModal';
 import { getDocChangeRef } from './toolMeta';
 import { TOOL_STATUS } from '../../constants/toolStatus';
+import { IconChevronDown } from '../../icons';
 import './styles/doc-changes.css';
 
 /**
@@ -17,6 +18,7 @@ import './styles/doc-changes.css';
 const DocChangeBlock = ({ toolCalls, onNavigateToDoc }) => {
   const { t } = useTranslation('chat');
   const [target, setTarget] = useState(null); // { id, version, title, action } | null
+  const [open, setOpen] = useState(false);
 
   // Одна строка на документ: максимальная версия + первый непустой title.
   // Вызовы со статусом ERROR пропускаются целиком: упавшая мутация не создала
@@ -48,27 +50,45 @@ const DocChangeBlock = ({ toolCalls, onNavigateToDoc }) => {
 
   return (
     <div className="doc-change-block">
-      {changes.map((c) => (
-        <button
-          key={c.id}
-          type="button"
-          className="doc-change-item"
-          onClick={() => setTarget(c)}
-          title={t('docChange.viewChanges')}
-        >
-          <span className="doc-change-icon" aria-hidden="true">
-            📄
-          </span>
-          <span className="doc-change-text">
-            <span className="doc-change-title">{c.title || t('docChange.untitled', { id: c.id })}</span>
-            <span className="doc-change-sub">
-              {c.action === 'createDocument' ? t('docChange.created') : t('docChange.updated')}
-              {c.descriptionVersion != null ? ` · v${c.descriptionVersion}` : ''}
+      <button
+        type="button"
+        className="change-block-summary"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
+        <span className="change-block-summary-icon" aria-hidden="true">
+          📄
+        </span>
+        <span className="change-block-summary-text">
+          {t('docChange.summary', { count: changes.length, defaultValue: `Documents changed (${changes.length})` })}
+        </span>
+        <span className={`change-block-chevron ${open ? 'change-block-chevron--open' : ''}`}>
+          <IconChevronDown />
+        </span>
+      </button>
+
+      {open &&
+        changes.map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            className="doc-change-item"
+            onClick={() => setTarget(c)}
+            title={t('docChange.viewChanges')}
+          >
+            <span className="doc-change-icon" aria-hidden="true">
+              📄
             </span>
-          </span>
-          <span className="doc-change-cta">{t('docChange.viewChanges')} ›</span>
-        </button>
-      ))}
+            <span className="doc-change-text">
+              <span className="doc-change-title">{c.title || t('docChange.untitled', { id: c.id })}</span>
+              <span className="doc-change-sub">
+                {c.action === 'createDocument' ? t('docChange.created') : t('docChange.updated')}
+                {c.descriptionVersion != null ? ` · v${c.descriptionVersion}` : ''}
+              </span>
+            </span>
+            <span className="doc-change-cta">{t('docChange.viewChanges')} ›</span>
+          </button>
+        ))}
 
       {target && (
         <HistoryModal

@@ -14,12 +14,14 @@
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.22);
-  width: 560px;
+  width: 960px;
   max-width: 95vw;
-  max-height: 80vh;
+  height: 85vh;
+  max-height: 85vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .tcd-header {
@@ -79,11 +81,14 @@
 .tcd-body {
   padding: 12px 16px 16px;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 12px;
   flex: 1;
   min-height: 0;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .tcd-status-badge {
@@ -114,6 +119,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
 .tcd-section-header {
@@ -155,6 +161,9 @@
   color: #ea4335;
 }
 
+/* Один общий скролл на всю модалку (.tcd-body) — у отдельных блоков Arguments/
+   Result нет собственных max-height/overflow-y, иначе при большом контенте
+   получались вложенные независимые скроллы внутри общего. */
 .tcd-pre {
   margin: 0;
   padding: 8px 10px;
@@ -165,13 +174,11 @@
   font-family: 'Fira Mono', 'Cascadia Code', 'Consolas', monospace;
   line-height: 1.5;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   word-break: break-word;
-  overflow-x: auto;
-  max-height: 260px;
-  overflow-y: auto;
-}
-.tcd-pre--result {
-  max-height: 320px;
+  overflow-x: hidden;
+  box-sizing: border-box;
+  width: 100%;
 }
 .tcd-pre--error {
   background: #fff0ef;
@@ -195,27 +202,6 @@
   color: #f38ba8;
 } /* red   — null          */
 
-/* Detail expand button on ToolCallItem */
-.tool-call-detail-btn {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  padding: 2px;
+.tool-call-item--clickable {
   cursor: pointer;
-  color: #bbb;
-  border-radius: 4px;
-  opacity: 0;
-  transition: opacity 0.15s, color 0.15s, background 0.15s;
-  font-size: 0.75rem;
-  line-height: 1;
-}
-.tool-call-item:hover .tool-call-detail-btn {
-  opacity: 1;
-}
-.tool-call-detail-btn:hover {
-  color: #666;
-  background: rgba(0, 0, 0, 0.06);
 }

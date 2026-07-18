@@ -863,6 +863,15 @@
   color: var(--kb-text);
   min-width: max-content;
 }
+.file-preview-modal__md {
+  padding: 16px 20px;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--kb-text);
+}
+.file-preview-modal__md pre {
+  overflow-x: auto;
+}
 .file-preview-modal__ref-note {
   padding: 20px;
   font-size: 0.9rem;

@@ -143,9 +143,17 @@ const ToolCallItem = ({ tc, conversationId, toolCallsRunId }) => {
   return (
     <div
       ref={itemRef}
-      className={`tool-call-item tool-call-item--${(tc.status || 'STARTED').toLowerCase()}`}
+      className={`tool-call-item tool-call-item--${(tc.status || 'STARTED').toLowerCase()}${
+        canShowDetail ? ' tool-call-item--clickable' : ''
+      }`}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => {
+        setHover(false);
+        setPos(null);
+      }}
+      onClick={() => {
+        if (!canShowDetail) return;
+        setShowDetail(true);
         setHover(false);
         setPos(null);
       }}
@@ -164,20 +172,6 @@ const ToolCallItem = ({ tc, conversationId, toolCallsRunId }) => {
         {gist && <span className="tool-call-gist">{gist}</span>}
         {tc.status === TOOL_STATUS.ERROR && tc.error && <span className="tool-call-error">{tc.error}</span>}
       </div>
-      {canShowDetail && (
-        <button
-          className="tool-call-detail-btn"
-          onClick={(e) => {
-            e.stopPropagation();
-            setShowDetail(true);
-            setHover(false);
-            setPos(null);
-          }}
-          title={t('toolCall.detail.open')}
-        >
-          ⊞
-        </button>
-      )}
       <button className="tool-call-copy-btn" onClick={handleCopy} title={t('toolCall.copy')}>
         {copied ? <IconCopied /> : <IconCopySmall />}
       </button>

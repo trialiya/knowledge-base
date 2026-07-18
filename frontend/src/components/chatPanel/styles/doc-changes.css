@@ -9,7 +9,10 @@
   gap: 6px;
   margin-top: 2px;
   align-self: flex-start;
-  max-width: 100%;
+  /* Тот же лимит ширины, что у пузыря ИИ-сообщения (.message-block--ai) — блок
+     не должен ни сжиматься под текст заголовка, ни растягиваться на весь чат. */
+  width: 75%;
+  max-width: 75%;
 }
 
 .doc-change-item {
@@ -64,4 +67,47 @@
   color: var(--kb-accent);
   flex-shrink: 0;
   white-space: nowrap;
+}
+
+/* ── Свёрнутый по умолчанию заголовок блока ── */
+
+.change-block-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--kb-border);
+  border-radius: 10px;
+  background: var(--kb-bg-secondary, #f6f7f9);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--kb-text);
+  transition: border-color 0.15s, background 0.15s;
+}
+.change-block-summary:hover {
+  border-color: var(--kb-accent);
+}
+
+.change-block-summary-icon {
+  font-size: 1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.change-block-summary-text {
+  flex: 1;
+  text-align: left;
+}
+
+.change-block-chevron {
+  display: flex;
+  align-items: center;
+  transform: rotate(-90deg);
+  transition: transform 0.15s;
+  color: var(--kb-muted);
+}
+.change-block-chevron--open {
+  transform: rotate(0deg);
 }

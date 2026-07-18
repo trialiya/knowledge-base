@@ -32,9 +32,10 @@
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.22);
-  width: 720px;
+  width: 960px;
   max-width: 95vw;
-  max-height: 80vh;
+  height: 85vh;
+  max-height: 85vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -130,4 +131,38 @@
 .file-diff-line--hunk {
   color: #6a737d;
   background: #f1f8ff;
+}
+
+.fcd-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.fcd-md-toggle {
+  background: none;
+  border: 1px solid var(--kb-border);
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: #666;
+  padding: 3px 8px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  line-height: 1.2;
+}
+.fcd-md-toggle:hover {
+  background: #f0f0f0;
+}
+.fcd-md-toggle--active {
+  background: var(--kb-accent-light);
+  border-color: var(--kb-accent);
+  color: var(--kb-accent);
+}
+
+.fcd-md-preview {
+  padding: 4px 2px;
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+.fcd-md-preview pre {
+  overflow-x: auto;
 }
