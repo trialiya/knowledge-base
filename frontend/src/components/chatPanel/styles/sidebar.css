@@ -1,0 +1,106 @@
+/* ── Левая панель: список чатов ── */
+.chat-list {
+  width: 260px;
+  flex-shrink: 0;
+  background: var(--kb-bg);
+  border-right: 1px solid var(--kb-border);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* Кнопка «Новый чат» */
+.new-chat-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 1rem 1rem 0.5rem;
+  padding: 8px 14px;
+  background: var(--kb-accent);
+  color: white;
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 600;
+  transition: background 0.15s, transform 0.1s;
+  box-shadow: 0 2px 8px rgba(91, 79, 207, 0.25);
+}
+.new-chat-button:hover {
+  background: var(--kb-accent-hover);
+  transform: scale(1.02);
+}
+
+/* Список чатов с прокруткой */
+.chat-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Элемент списка — как узел дерева в KB */
+.chat-list-item {
+  display: flex;
+  align-items: center;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--kb-border);
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: var(--kb-accent);
+  font-weight: 500;
+  transition: background 0.1s;
+}
+.chat-list-item:hover {
+  background: var(--kb-accent-light);
+}
+.chat-list-item.active {
+  background: var(--kb-accent-bg);
+  font-weight: 700;
+}
+
+.chat-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  margin-right: 6px;
+}
+
+.chat-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.delete-chat-button,
+.rename-chat-button {
+  background: none;
+  border: none;
+  color: var(--kb-muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0 3px;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+.delete-chat-button:hover,
+.rename-chat-button:hover {
+  opacity: 1;
+}
+
+.chat-edit-input {
+  flex: 1;
+  background: var(--kb-white);
+  border: 1.5px solid var(--kb-accent);
+  border-radius: 6px;
+  padding: 3px 7px;
+  font-size: 0.85rem;
+  outline: none;
+  color: var(--kb-text);
+  margin-right: 6px;
+}

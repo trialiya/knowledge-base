@@ -1,7 +1,5 @@
 import React, { useRef, useEffect, useCallback, useState, useImperativeHandle, forwardRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import gitApi from '../../api/gitApi';
 import documentsApi from '../../api/documentsApi';
 import {
@@ -14,11 +12,10 @@ import {
   parseDocRefToken,
   baseName,
   fetchContent,
-  TOKEN_RE,
 } from './fileChips';
+import { serialize, makeChipEl, renderValue, placeCaretEnd } from './fileChipEditorDom';
 import FilePickerDropdown from './FilePickerDropdown';
-import ModalShell from '../common/ModalShell';
-import { IconX } from '../../icons';
+import FileChipPreview from './FileChipPreview';
 
 const DEBOUNCE_MS = 200;
 const FILE_TRIGGER = '/file';
@@ -46,123 +43,6 @@ async function searchDocsAsync(q, signal) {
     results.unshift(idRes);
   }
   return results;
-}
-
-// ── Сериализация DOM ⇄ плоская строка с токенами ───────────────────────────────
-
-function serializeNode(node) {
-  if (node.nodeType === Node.TEXT_NODE) return node.nodeValue;
-  if (node.nodeType !== Node.ELEMENT_NODE) return '';
-  if (node.classList?.contains('file-chip')) return node.dataset.token || '';
-  if (node.tagName === 'BR') return node.dataset?.sentinel ? '' : '\n';
-  let inner = '';
-  node.childNodes.forEach((c) => (inner += serializeNode(c)));
-  return /^(DIV|P)$/.test(node.tagName) ? '\n' + inner : inner;
-}
-
-function serialize(root) {
-  let out = '';
-  root.childNodes.forEach((c) => (out += serializeNode(c)));
-  return out.replace(/^\n/, '');
-}
-
-function makeDocChipEl(token, { id, title }, refOnly) {
-  const chip = document.createElement('span');
-  chip.className = 'file-chip file-chip--doc' + (refOnly ? ' file-chip--ref' : '');
-  chip.contentEditable = 'false';
-  chip.dataset.token = token;
-  chip.title = `${title} (#${id})`;
-
-  const icon = document.createElement('span');
-  icon.className = 'file-chip__icon';
-  icon.textContent = refOnly ? '📎' : '📋';
-
-  const label = document.createElement('span');
-  label.className = 'file-chip__label';
-  label.textContent = title;
-
-  const remove = document.createElement('button');
-  remove.type = 'button';
-  remove.className = 'file-chip__remove';
-  remove.textContent = '×';
-  remove.tabIndex = -1;
-
-  chip.append(icon, label, remove);
-  return chip;
-}
-
-/** Построить DOM-элемент чипа из строки-токена. */
-function makeChipEl(token) {
-  const docRefParsed = parseDocRefToken(token);
-  if (docRefParsed) return makeDocChipEl(token, docRefParsed, true);
-
-  const docParsed = parseDocToken(token);
-  if (docParsed) return makeDocChipEl(token, docParsed, false);
-
-  const parsed = parseToken(token);
-  const path = parsed?.path ?? token;
-  const range = parsed?.from != null ? `:${parsed.from}-${parsed.to}` : '';
-  const refOnly = parsed?.refOnly ?? false;
-
-  const chip = document.createElement('span');
-  chip.className = 'file-chip' + (refOnly ? ' file-chip--ref' : '');
-  chip.contentEditable = 'false';
-  chip.dataset.token = token;
-  chip.dataset.path = path;
-  chip.title = path + range;
-
-  const icon = document.createElement('span');
-  icon.className = 'file-chip__icon';
-  icon.textContent = refOnly ? '📎' : '📄';
-
-  const label = document.createElement('span');
-  label.className = 'file-chip__label';
-  label.textContent = baseName(path) + range;
-
-  const remove = document.createElement('button');
-  remove.type = 'button';
-  remove.className = 'file-chip__remove';
-  remove.textContent = '×';
-  remove.tabIndex = -1;
-
-  chip.append(icon, label, remove);
-  return chip;
-}
-
-/** Вставить текст с переносами как чередование text-нодов и &lt;br&gt;. */
-function appendWithBreaks(parent, text) {
-  const parts = text.split('\n');
-  for (let i = 0; i < parts.length; i++) {
-    if (parts[i]) parent.appendChild(document.createTextNode(parts[i]));
-    if (i < parts.length - 1) parent.appendChild(document.createElement('br'));
-  }
-}
-
-/** Отрисовать плоскую строку value в DOM editor (текстовые узлы + чипы). */
-function renderValue(root, value) {
-  root.textContent = '';
-  let last = 0;
-  for (const m of value.matchAll(TOKEN_RE)) {
-    if (m.index > last) appendWithBreaks(root, value.slice(last, m.index));
-    root.appendChild(makeChipEl(m[0]));
-    last = m.index + m[0].length;
-  }
-  if (last < value.length) appendWithBreaks(root, value.slice(last));
-  // Trailing \n needs a sentinel <br> so the cursor sits visibly on the new line.
-  if (value.endsWith('\n')) {
-    const sentinel = document.createElement('br');
-    sentinel.dataset.sentinel = '1';
-    root.appendChild(sentinel);
-  }
-}
-
-function placeCaretEnd(root) {
-  const sel = window.getSelection();
-  const range = document.createRange();
-  range.selectNodeContents(root);
-  range.collapse(false);
-  sel.removeAllRanges();
-  sel.addRange(range);
 }
 
 // ── Компонент ─────────────────────────────────────────────────────────────────
@@ -562,81 +442,5 @@ const FileChipInput = forwardRef(function FileChipInput(
     </>
   );
 });
-
-// ── Превью содержимого файла — полноэкранная модалка ─────────────────────────
-
-function FileChipPreview({
-  preview,
-  onClose,
-  onToggleRef,
-  closeLabel,
-  loadingLabel,
-  errorLabel,
-  binaryLabel,
-  usePathOnlyLabel,
-  useFullContentLabel,
-}) {
-  const { path, from, to, refOnly, loading, data, error } = preview;
-  const { t } = useTranslation('chat');
-  const name = baseName(path);
-  const range = from != null ? ` (${from}–${to})` : '';
-  const isMd = /\.mdx?$/i.test(path || '');
-  const [mdView, setMdView] = useState(false);
-
-  return (
-    <ModalShell onClose={onClose} variant="fullscreen" className="file-preview-modal">
-      <div className="fs-editor__head">
-        <div className="file-preview-modal__title">
-          <span className="file-preview-modal__name">
-            {name}
-            {range}
-          </span>
-          <span className="file-preview-modal__path" title={path}>
-            {path}
-          </span>
-        </div>
-        {isMd && !refOnly && (
-          <button
-            type="button"
-            className={'file-preview-modal__toggle' + (mdView ? ' file-preview-modal__toggle--active' : '')}
-            onClick={() => setMdView((v) => !v)}
-            title={t('fileChange.toggleMarkdown', { defaultValue: 'Markdown preview' })}
-          >
-            {mdView ? '{ }' : '👁'}
-          </button>
-        )}
-        <button
-          type="button"
-          className={'file-preview-modal__toggle' + (refOnly ? ' file-preview-modal__toggle--active' : '')}
-          onClick={onToggleRef}
-          title={refOnly ? useFullContentLabel : usePathOnlyLabel}
-        >
-          {refOnly ? '📄' : '📎'}
-        </button>
-        <button className="fs-editor__close" title={closeLabel} onClick={onClose}>
-          <IconX />
-        </button>
-      </div>
-      <div className="fs-editor__body file-preview-modal__body">
-        {!refOnly && (
-          <>
-            {loading && <div className="file-preview-modal__msg">{loadingLabel}</div>}
-            {error && <div className="file-preview-modal__msg">{errorLabel}</div>}
-            {!loading && !error && data?.binary && <div className="file-preview-modal__msg">{binaryLabel}</div>}
-            {!loading && !error && !data?.binary && mdView && (
-              <div className="file-preview-modal__md">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{data?.content ?? ''}</ReactMarkdown>
-              </div>
-            )}
-            {!loading && !error && !data?.binary && !mdView && (
-              <pre className="file-preview-modal__code">{data?.content ?? ''}</pre>
-            )}
-          </>
-        )}
-        {refOnly && <div className="file-preview-modal__ref-note">{path}</div>}
-      </div>
-    </ModalShell>
-  );
-}
 
 export default FileChipInput;
