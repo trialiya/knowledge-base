@@ -96,10 +96,9 @@ public class SummarizeService implements DisposableBean {
 
     public void doSummarize(@Nonnull final String conversationId) {
         // 1. Fetch all live (non-summarized) rows, excluding summary rows. This includes blank-text
-        // TOOL rows and tool-calls-only ASSISTANT segments — their tool_calls/response payloads
-        // still occupy the model's context window on every follow-up request, so they must count
-        // toward the token estimate below even though they're excluded from liveMessages/the
-        // prompt.
+        // TOOL protocol rows with no invocations — their payloads still occupy the model's context
+        // window on every follow-up request, so they must count toward the token estimate below
+        // even though they're excluded from liveMessages/the prompt.
         final List<ChatMessageEntity> allLive =
                 chatMessageRepository
                         .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
@@ -108,9 +107,18 @@ public class SummarizeService implements DisposableBean {
                         .filter(m -> !m.isSummary())
                         .toList();
 
-        // liveMessages: the text-bearing subset used to pick the cutoff and build the LLM prompt.
+        // liveMessages: the subset used to pick the cutoff and build the LLM prompt — anything
+        // with text, or a tool-calls-only ASSISTANT segment (blank text but non-empty invocations).
+        // Only truly-empty TOOL protocol rows are excluded: their info is already exposed via the
+        // owning ASSISTANT segment's invocations/resultGist.
         final List<ChatMessageEntity> liveMessages =
-                allLive.stream().filter(m -> Strings.isNotBlank(m.getText())).toList();
+                allLive.stream()
+                        .filter(
+                                m ->
+                                        Strings.isNotBlank(m.getText())
+                                                || (m.getInvocations() != null
+                                                        && !m.getInvocations().isEmpty()))
+                        .toList();
 
         // 2. Determine the slice to compress: everything except the last overlapMessages.
         // The first KEPT message must be a USER message: assistant tool-call segments and their
@@ -170,20 +178,7 @@ public class SummarizeService implements DisposableBean {
             return;
         }
 
-        // toCompress is built from allLive (not liveMessages) so that tool-calls-only ASSISTANT
-        // segments (blank text, but carrying invocations) aren't silently dropped from the
-        // summarizer prompt — liveMessages only exists to pick the cutoff/position boundary above.
-        // Blank TOOL protocol rows with no invocations are still excluded: they duplicate
-        // information already exposed via the owning ASSISTANT segment's invocations.
-        final List<ChatMessageEntity> toCompress =
-                allLive.stream()
-                        .filter(m -> m.getPosition() < cutoffPosition)
-                        .filter(
-                                m ->
-                                        Strings.isNotBlank(m.getText())
-                                                || (m.getInvocations() != null
-                                                        && !m.getInvocations().isEmpty()))
-                        .toList();
+        final List<ChatMessageEntity> toCompress = liveMessages.subList(0, cutoff);
 
         log.info(
                 "[{}] Compressing: {} - {}",
@@ -203,11 +198,7 @@ public class SummarizeService implements DisposableBean {
                 existingSummaries.size() + 1 >= summarizeProperties.summaryCollapseThreshold();
         final String summaryContent =
                 generateSummary(
-                        conversationId,
-                        existingSummaries,
-                        toCompress,
-                        toCompress.size(),
-                        collapseSummaries);
+                        conversationId, existingSummaries, toCompress, cutoff, collapseSummaries);
         if (Strings.isBlank(summaryContent)) {
             log.error(
                     "[{}] Summarization produced an empty result, skipping this round",
@@ -232,11 +223,12 @@ public class SummarizeService implements DisposableBean {
                 summaryText.length() / summarizeProperties.charsPerToken());
 
         // 7. Persist: mark compressed messages as summarized, insert new summary row.
-        // liveMessages excludes blank rows (TOOL responses, empty tool-call segments), so the
-        // marked range must run up to (but not including) the first KEPT message — otherwise the
-        // trailing protocol rows of the last compressed turn would stay live and orphaned. When
-        // everything is compressed (no kept message), the range must cover trailing protocol rows
-        // too — allLive, not toCompress, holds the true last position.
+        // liveMessages still excludes empty TOOL protocol rows, so the marked range must run up to
+        // (but not including) the first KEPT message — otherwise the trailing protocol rows of the
+        // last compressed turn would stay live and orphaned. When everything is compressed (no kept
+        // message), the range must cover trailing protocol rows too — allLive, not toCompress,
+        // holds
+        // the true last position.
         final long endPosition =
                 cutoffPosition == Long.MAX_VALUE
                         ? allLive.getLast().getPosition()
