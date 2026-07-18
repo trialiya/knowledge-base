@@ -68,43 +68,41 @@ Gradle distribution download is blocked.
 
 ## Visually validating the frontend in the web sandbox (Playwright)
 
-Chromium is pre-installed and Playwright is global (no `playwright install`):
+Chromium and Playwright are pre-installed (no `playwright install`). Don't use
+`yarn start` — the dev server doesn't work here; boot the backend jar (H2
+profile, dummy AI env vars) and drive it with Chromium instead.
 
-```bash
-NODE_PATH=/opt/node22/lib/node_modules node script.js
-```
-
-```js
-const { chromium } = require('playwright');
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium', // stable symlink to the versioned binary
-  args: ['--no-sandbox'],
-});
-```
-
-Run the app like this, not `yarn start` (yarn's dev server doesn't work here):
+`scripts/playwright-smoke.js` is a working, runnable example — boots the jar,
+polls `/actuator/health`, logs in via HTTP Basic (`admin`/`admin`), waits for
+the SPA to mount, and screenshots it. By default it also seeds `db/sample-data.sql`
+into a disposable `local-db/h2-smoke` file first (never your real `local-db/h2`),
+so the screenshot shows real chat/document content instead of an empty app — pass
+`--no-seed` to skip that. See its header comment for the details (incl. the
+`LANG=C.utf8` locale gotcha — the sandbox has no locale configured, so a bare JVM
+defaults to ASCII and `GitService` throws on non-ASCII repo paths). Build the jar
+first, then run it:
 
 ```bash
 /opt/gradle/bin/gradle :backend:bootJar -x :frontend:yarnTest \
   --init-script gradle/java21.gradle --no-configuration-cache
 
-LANG=C.utf8 LC_ALL=C.utf8 \
-SPRING_PROFILES_ACTIVE=h2 AI_BASE_URL=http://localhost:9999/v1 AI_API_KEY=dummy \
-AI_MODEL=dummy-model PROJECT_PATH=. \
-java --enable-preview -jar backend/build/libs/backend-1.0-SNAPSHOT.jar
+NODE_PATH=/opt/node22/lib/node_modules node scripts/playwright-smoke.js
 ```
 
-`:backend:bootRun` also works with the same env vars plus the init script
-(it injects `--enable-preview` into JavaExec tasks); the jar route above is
-closer to prod and easier to background.
+Copy its `chromium.launch()`/env-var setup for ad hoc checks beyond a screenshot.
 
-Auth: HTTP Basic `admin`/`admin`. Poll the port before driving with Playwright.
+## Тестовые данные для H2 (`db/sample-data.sql`)
 
-`LANG=C.utf8` matters: the sandbox has no locale configured, so the JVM defaults
-to `sun.jnu.encoding=ANSI_X3.4-1968` (ASCII), and any code touching a non-ASCII
-path (e.g. `GitService` reading `docs/проект/*.md`) throws "Malformed input or
-input contains unmappable characters". `C.utf8` is glibc's built-in UTF-8 locale
-— no `locale-gen` needed.
+`backend/src/test/resources/db/sample-data.sql` is a ready-made H2 dataset (a real
+captured chat conversation plus documents, attachments and tool calls) for manual
+QA and as a `@Sql`-loadable fixture in tests. Targets the `db/migration-h2` schema
+only — do **not** run it against real Postgres, the array/vector column types
+differ. Full contents and rationale are in the file's own header comment.
+
+`SampleDataFixtureTest` is the worked usage example (`@Sql` on an H2
+`@DataJdbcTest`, same pattern as `DocumentServiceUnitTest`) and also the
+regression test keeping the fixture in sync with `db/migration-h2` — run it
+after touching either.
 
 ## Frontend conventions (`frontend/src`)
 
