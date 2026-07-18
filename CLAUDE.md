@@ -74,10 +74,13 @@ profile, dummy AI env vars) and drive it with Chromium instead.
 
 `scripts/playwright-smoke.js` is a working, runnable example — boots the jar,
 polls `/actuator/health`, logs in via HTTP Basic (`admin`/`admin`), waits for
-the SPA to mount, and screenshots it. See its header comment for the details
-(incl. the `LANG=C.utf8` locale gotcha — the sandbox has no locale configured,
-so a bare JVM defaults to ASCII and `GitService` throws on non-ASCII repo
-paths). Build the jar first, then run it:
+the SPA to mount, and screenshots it. By default it also seeds `db/sample-data.sql`
+into a disposable `local-db/h2-smoke` file first (never your real `local-db/h2`),
+so the screenshot shows real chat/document content instead of an empty app — pass
+`--no-seed` to skip that. See its header comment for the details (incl. the
+`LANG=C.utf8` locale gotcha — the sandbox has no locale configured, so a bare JVM
+defaults to ASCII and `GitService` throws on non-ASCII repo paths). Build the jar
+first, then run it:
 
 ```bash
 /opt/gradle/bin/gradle :backend:bootJar -x :frontend:yarnTest \
