@@ -144,6 +144,14 @@ async function main() {
       const page = await context.newPage();
       await page.goto(BASE_URL);
       await page.waitForSelector('#root > *', { timeout: 15000 }); // React mounted
+      if (seed) {
+        // Both the sidebar's chat list (GET /api/chats) and the active chat's
+        // messages (GET /{id}/messages) are fetched async after mount — #root
+        // having children only proves the shell rendered, not that the seeded
+        // chat and its messages have actually shown up yet.
+        await page.waitForSelector('.chat-list-item', { timeout: 15000 });
+        await page.waitForSelector('.message', { timeout: 15000 });
+      }
       await page.screenshot({ path: screenshotPath, fullPage: true });
       console.log(`Screenshot saved to ${screenshotPath}`);
     } finally {
