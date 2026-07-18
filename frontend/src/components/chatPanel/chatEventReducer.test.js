@@ -290,6 +290,57 @@ describe('applyChatEvent', () => {
     expect(segments[1].toolCalls || []).toHaveLength(0);
   });
 
+  test('whitespace-only chunk after a sealed segment does not open an empty bubble', () => {
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'сегмент 1' } }, ctx);
+    chat = applyChatEvent(
+      chat,
+      {
+        type: 'TOOL_CALL',
+        runId: 'r1',
+        payload: { toolCall: { name: 'getDocument', arguments: { id: 1 }, status: 'OK' } },
+      },
+      ctx,
+    );
+    // Модель прислала «пустое сообщение» (одни переносы) между tool-циклами.
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: '\n\n' } }, ctx);
+    chat = applyChatEvent(
+      chat,
+      {
+        type: 'TOOL_CALL',
+        runId: 'r1',
+        payload: { toolCall: { name: 'searchDocs', arguments: { q: 'x' }, status: 'OK' } },
+      },
+      ctx,
+    );
+
+    const segments = aiOfRun(chat, 'r1');
+    expect(segments).toHaveLength(1); // плашки не разорваны пустым пузырём
+    expect(segments[0].toolCalls.map((t) => t.name)).toEqual(['getDocument', 'searchDocs']);
+  });
+
+  test('live TOOL_CALL carries resultMeta so doc-change refs are available mid-run', () => {
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(
+      chat,
+      {
+        type: 'TOOL_CALL',
+        runId: 'r1',
+        payload: {
+          toolCall: {
+            name: 'updateDocument',
+            arguments: { id: 5 },
+            status: 'OK',
+            callIndex: 0,
+            resultMeta: { id: 5, descriptionVersion: 3 },
+          },
+        },
+      },
+      ctx,
+    );
+    expect(last(chat).toolCalls[0].resultMeta).toEqual({ id: 5, descriptionVersion: 3 });
+  });
+
   test('RUN_DONE drops a trailing empty bubble without tool calls', () => {
     let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
     chat = applyChatEvent(chat, { type: 'RUN_DONE', runId: 'r1' }, ctx);

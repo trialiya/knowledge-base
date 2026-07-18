@@ -173,27 +173,36 @@ public class ChatRunService {
         final String runId = handle.runId();
         final StringBuffer buffer = new StringBuffer();
         final Consumer<Object> liveSink =
-                payload -> {
-                    if (payload instanceof ToolCallMessage tcm) {
-                        // Инструмент пошёл — значит, итерация стрима завершилась и её сегмент
-                        // уже сохранён advisor-цепочкой. Сбрасываем буфер здесь: это надёжная
-                        // граница, в отличие от finishReason=TOOL_CALLS (агрегированный
-                        // tool-чанк с ним ToolCallingAdvisor отфильтровывает из потока и до
-                        // onNext он не доходит).
-                        buffer.setLength(0);
-                        if (tcm.toolCall().status() != ToolInvocationStatus.STARTED) {
-                            // DB write is best-effort bookkeeping; offload it so SSE goes out
-                            // immediately without waiting for disk I/O.
-                            final var tc = tcm.toolCall();
-                            executor.execute(
-                                    () ->
-                                            chatMemoryService.saveToolCallIncremental(
-                                                    conversationId, runId, tc.callIndex(), tc));
-                        }
-                    }
-                    events.publish(conversationId, eventType(payload), runId, null, payload);
-                };
-        final ToolInvocationCollector toolCollector = new ToolInvocationCollector(liveSink);
+                payload -> events.publish(conversationId, eventType(payload), runId, null, payload);
+        final ToolInvocationCollector toolCollector =
+                new ToolInvocationCollector(
+                        invocation -> {
+                            // Инструмент пошёл — значит, итерация стрима завершилась и её сегмент
+                            // уже сохранён advisor-цепочкой. Сбрасываем буфер здесь: это надёжная
+                            // граница, в отличие от finishReason=TOOL_CALLS (агрегированный
+                            // tool-чанк с ним ToolCallingAdvisor отфильтровывает из потока и до
+                            // onNext он не доходит).
+                            buffer.setLength(0);
+                            if (invocation.status() != ToolInvocationStatus.STARTED) {
+                                // DB write is best-effort bookkeeping; offload it so SSE goes out
+                                // immediately without waiting for disk I/O.
+                                executor.execute(
+                                        () ->
+                                                chatMemoryService.saveToolCallIncremental(
+                                                        conversationId,
+                                                        runId,
+                                                        invocation.callIndex(),
+                                                        invocation));
+                            }
+                            // В live-событие кладём мету (resultMeta/hasDetails), а не сырой
+                            // ToolInvocation: фронт открывает изменения документов/файлов и
+                            // детали вызова по ходу прогона, не дожидаясь финального TOOL_CALLS.
+                            liveSink.accept(
+                                    new ToolCallMessage(
+                                            invocation.toMeta(
+                                                    chatMemoryService.hasDetails(
+                                                            invocation.name()))));
+                        });
 
         events.publish(
                 conversationId,

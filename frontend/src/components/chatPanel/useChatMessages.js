@@ -58,6 +58,17 @@ export const transformPage = (rawMsgs) => {
     // Сегмент из одних tool_calls без текста и без сохранённых metas показывать нечем.
     if (type !== 'user' && !(m.content || '').trim() && !metas.length) continue;
     if (type !== 'user') sawAi = true;
+    // Сегмент из одних tool_calls без текста: отдельный «пустой» пузырь визуально разрывает
+    // ленту плашек, поэтому его вызовы приклеиваем к предыдущему AI-сегменту того же ответа.
+    // Прикрепляем только при совместимых runId — callIndex уникален лишь в рамках прогона.
+    if (type !== 'user' && !(m.content || '').trim()) {
+      const prev = bubbles[bubbles.length - 1];
+      if (prev?.sender === SENDER.AI && (!prev.toolCallsRunId || !m.runId || prev.toolCallsRunId === m.runId)) {
+        prev.toolCalls = [...(prev.toolCalls || []), ...metas.map(metaToCall)];
+        if (m.runId && !prev.toolCallsRunId) prev.toolCallsRunId = m.runId;
+        continue;
+      }
+    }
     bubbles.push({
       mid: nextMessageId(),
       // id сообщения в БД — якорь для поиска по чату (find-бар, Ctrl+F): позволяет

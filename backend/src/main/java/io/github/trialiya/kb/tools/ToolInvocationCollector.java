@@ -2,7 +2,6 @@ package io.github.trialiya.kb.tools;
 
 import static io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus.STARTED;
 
-import io.github.trialiya.kb.model.chat.dto.ToolCallMessage;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -24,11 +23,8 @@ public final class ToolInvocationCollector {
         this(null);
     }
 
-    public ToolInvocationCollector(@Nullable final Consumer<Object> liveSink) {
-        this.liveSink =
-                liveSink != null
-                        ? invocation -> liveSink.accept(new ToolCallMessage(invocation))
-                        : null;
+    public ToolInvocationCollector(@Nullable final Consumer<ToolInvocation> liveSink) {
+        this.liveSink = liveSink;
     }
 
     /** Достаёт коллектор из {@link ToolContext}; {@code null}, если его там нет. */

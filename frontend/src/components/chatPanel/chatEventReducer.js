@@ -162,12 +162,16 @@ export function applyChatEvent(chat, ev, ctx) {
       if (payload?.message) {
         // Пошёл видимый текст — снимаем индикатор подготовки вызова.
         clearPreparing(msgs, runId);
+        // Срезаем ведущие переносы в начале ответа и в начале нового сегмента.
+        const startsBubble = msgs[idx].sealed || msgs[idx].text === '';
+        const piece = startsBubble ? payload.message.replace(/^\n+/, '') : payload.message;
         // Закрытый сегмент не дописываем: текст следующей итерации tool-цикла — новый пузырь.
-        if (msgs[idx].sealed) idx = pushAi(msgs, runId);
-        // Срезаем ведущие переносы в самом начале ответа.
-        const isFirst = msgs[idx].text === '';
-        const piece = isFirst ? payload.message.replace(/^\n+/, '') : payload.message;
-        if (piece) msgs[idx] = { ...msgs[idx], text: msgs[idx].text + piece };
+        // Но открываем его только под непустой текст: whitespace-чанк между вызовами
+        // инструментов не должен порождать пустой пузырь, разрывающий ленту плашек.
+        if (piece) {
+          if (msgs[idx].sealed) idx = pushAi(msgs, runId);
+          msgs[idx] = { ...msgs[idx], text: msgs[idx].text + piece };
+        }
       }
       // finishReason TOOL_CALLS делит ответ на сегменты: помечаем текущий закрытым (sealed).
       // Новый пузырь НЕ открываем — плашки стартующих инструментов должны прилипнуть к этому

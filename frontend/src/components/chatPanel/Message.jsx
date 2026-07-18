@@ -6,8 +6,6 @@ import DocLinkTooltip from '../common/DocLinkTooltip';
 import './message.css';
 import CodeBlock from '../common/CodeBlock';
 import ToolCallNotifications from './ToolCallNotifications';
-import DocChangeBlock from './DocChangeBlock';
-import FileChangeBlock from './FileChangeBlock';
 import { IconCopySmall, IconCopied } from '../../icons';
 import { COPY_DONE_MS } from '../../constants/ui';
 import { SENDER } from '../../constants/messageSender';
@@ -242,17 +240,8 @@ const Message = ({
     </div>
   );
 
-  if (hasToolCalls && sender === SENDER.AI) {
-    return (
-      <>
-        {messageBlock}
-        <DocChangeBlock toolCalls={toolCalls} onNavigateToDoc={onNavigateToDoc} />
-        <FileChangeBlock toolCalls={toolCalls} />
-        {showPreparing && <ToolPreparingIndicator />}
-      </>
-    );
-  }
-
+  // Блоки «изменения документов/файлов» рендерит MessageList — одним блоком
+  // в конце всего ответа (после последнего сегмента), а не под каждым сегментом.
   if (showPreparing) {
     return (
       <>
