@@ -191,7 +191,8 @@
     "viewChanges": "View changes",
     "created": "Document created",
     "updated": "Document updated",
-    "untitled": "Document #{{id}}"
+    "untitled": "Document #{{id}}",
+    "summary": "Documents changed ({{count}})"
   },
   "fileChange": {
     "viewChanges": "View changes",
@@ -199,7 +200,10 @@
     "edited": "File edited",
     "openFile": "Open file",
     "noDiff": "Diff not available",
-    "createdNoDiff": "New file — open it via the \"Open file\" link"
+    "createdNoDiff": "New file — open it via the \"Open file\" link",
+    "summary": "Files changed ({{count}})",
+    "toggleMarkdown": "Toggle markdown preview",
+    "loadError": "Failed to load file content"
   },
   "model": {
     "aria": "Model",

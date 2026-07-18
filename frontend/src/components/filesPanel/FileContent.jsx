@@ -1,8 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { IconFolder, IconDoc } from '../../icons';
 import { formatFileSize } from '../../utils/formatting';
 import Breadcrumb from './Breadcrumb';
+
+const isMarkdownPath = (path) => /\.mdx?$/i.test(path || '');
 
 const CodeView = ({ text, fromLine = 1, showLineNumbers = true }) => {
   const lines = text.split('\n');
@@ -47,8 +51,10 @@ const DirectoryListing = ({ nodes, onNavigate }) => {
   );
 };
 
-export const FileView = ({ file }) => {
+export const FileView = ({ file, path }) => {
   const { t } = useTranslation('files');
+  const isMd = isMarkdownPath(path ?? file?.path);
+  const [mdView, setMdView] = useState(false);
   return (
     <div className="file-view">
       <div className="file-view__meta">
@@ -56,9 +62,23 @@ export const FileView = ({ file }) => {
         <span>{t('file.lines', { count: file.lineCount })}</span>
         <span>{formatFileSize(file.sizeBytes)}</span>
         {file.truncated && <span className="file-view__badge file-view__badge--warn">{t('file.truncated')}</span>}
+        {isMd && !file.binary && (
+          <button
+            type="button"
+            className={`file-view__md-toggle${mdView ? ' file-view__md-toggle--active' : ''}`}
+            onClick={() => setMdView((v) => !v)}
+            title={t('file.toggleMarkdown', { defaultValue: 'Markdown preview' })}
+          >
+            {mdView ? '{ }' : '👁'}
+          </button>
+        )}
       </div>
       {file.binary ? (
         <div className="file-content__empty">{t('file.binary')}</div>
+      ) : mdView ? (
+        <div className="file-view__md">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{file.content ?? ''}</ReactMarkdown>
+        </div>
       ) : (
         // truncated + fromLine == null — это head+tail-вырезка большого файла
         // (см. GitService.headTailExcerpt): хвост идёт не сразу за головой,
@@ -87,7 +107,7 @@ const FileContent = ({ content, loading, onNavigate }) => {
         {!loading && content?.type === 'directory' && (
           <DirectoryListing nodes={content.nodes} onNavigate={onNavigate} />
         )}
-        {!loading && content?.type === 'file' && <FileView file={content.file} />}
+        {!loading && content?.type === 'file' && <FileView file={content.file} path={content.path} />}
         {!loading && content?.type === 'not-found' && <div className="file-content__empty">{t('file.notFound')}</div>}
         {!loading && content?.type === 'error' && <div className="file-content__empty">{t('file.loadError')}</div>}
       </div>

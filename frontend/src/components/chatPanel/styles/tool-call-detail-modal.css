@@ -14,9 +14,10 @@
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.22);
-  width: 560px;
+  width: 960px;
   max-width: 95vw;
-  max-height: 80vh;
+  height: 85vh;
+  max-height: 85vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -167,11 +168,11 @@
   white-space: pre-wrap;
   word-break: break-word;
   overflow-x: auto;
-  max-height: 260px;
+  max-height: 40vh;
   overflow-y: auto;
 }
 .tcd-pre--result {
-  max-height: 320px;
+  max-height: 50vh;
 }
 .tcd-pre--error {
   background: #fff0ef;
@@ -195,27 +196,6 @@
   color: #f38ba8;
 } /* red   — null          */
 
-/* Detail expand button on ToolCallItem */
-.tool-call-detail-btn {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  padding: 2px;
+.tool-call-item--clickable {
   cursor: pointer;
-  color: #bbb;
-  border-radius: 4px;
-  opacity: 0;
-  transition: opacity 0.15s, color 0.15s, background 0.15s;
-  font-size: 0.75rem;
-  line-height: 1;
-}
-.tool-call-item:hover .tool-call-detail-btn {
-  opacity: 1;
-}
-.tool-call-detail-btn:hover {
-  color: #666;
-  background: rgba(0, 0, 0, 0.06);
 }
