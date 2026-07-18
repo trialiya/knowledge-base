@@ -1,7 +1,5 @@
 package io.github.trialiya.kb.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.trialiya.kb.model.chat.dto.ChatSearchResult;
 import io.github.trialiya.kb.model.chat.dto.MessageCursor;
 import io.github.trialiya.kb.model.chat.dto.MessageSearchHit;
@@ -9,13 +7,12 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.chat.spring.IMessage;
-import io.github.trialiya.kb.model.tool.ToolCallEntity;
+import io.github.trialiya.kb.model.tool.ToolCallDetail;
 import io.github.trialiya.kb.model.tool.ToolData;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
-import io.github.trialiya.kb.repository.ToolCallRepository;
 import io.github.trialiya.kb.utils.ChatUtils;
 import java.time.LocalDateTime;
 import java.util.Comparator;
@@ -25,6 +22,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.AllArgsConstructor;
@@ -62,8 +60,6 @@ public class ChatMemoryService implements ChatMemoryRepository {
 
     private final ChatTopicRepository chatTopicRepository;
     private final ChatMessageRepository chatMessageRepository;
-    private final ToolCallRepository toolCallRepository;
-    private final ObjectMapper objectMapper;
 
     @Override
     public void deleteByConversationId(String conversationId) {
@@ -229,35 +225,75 @@ public class ChatMemoryService implements ChatMemoryRepository {
             boolean hasMore,
             @Nullable MessageCursor oldestCursor) {}
 
-    @Transactional
-    public void saveToolCallIncremental(
-            String conversationId, String runId, int callIndex, ToolInvocation tc) {
-        if (SKIP_TOOLS.contains(tc.name())) {
-            return;
-        }
-        try {
-            String resultMetaJson =
-                    tc.resultMeta() != null && !tc.resultMeta().isEmpty()
-                            ? objectMapper.writeValueAsString(tc.resultMeta())
-                            : null;
-            toolCallRepository.save(
-                    new ToolCallEntity(
-                            conversationId,
-                            runId,
+    /**
+     * Полные детали одного вызова инструмента, собранные из {@code chat_message}: UI-мета
+     * (name/status/error/resultMeta) — из {@code meta.invocations} ASSISTANT-сегмента прогона,
+     * полные аргументы — из его {@code tool_data.toolCalls}, полный результат — из {@code
+     * tool_data.responses} последующего TOOL-сообщения по {@code tool_call_id}.
+     *
+     * <p>Сопоставление callIndex → позиция в {@code toolCalls} сегмента: callIndex сквозной по
+     * прогону и совпадает с хронологическим номером вызова, а сегменты потребляют вызовы прогона
+     * подряд (см. {@link #attachRunMeta}) — значит, позиция внутри сегмента равна {@code callIndex
+     * − Σ toolCalls предыдущих сегментов прогона}. {@code SKIP_TOOLS} вырезаны только из
+     * invocations, в {@code toolCalls} они остаются, поэтому смещение считается по toolCalls.
+     */
+    public Optional<ToolCallDetail> findToolCallDetail(
+            String conversationId, String runId, int callIndex) {
+        final List<ChatMessageEntity> all = findChatMessageByConversationId(conversationId);
+        int offset = 0;
+        for (int i = 0; i < all.size(); i++) {
+            final ChatMessageEntity segment = all.get(i);
+            if (segment.getType() != MessageType.ASSISTANT
+                    || segment.getMeta() == null
+                    || !runId.equals(segment.getMeta().runId())) {
+                continue;
+            }
+            final List<ToolData.Call> calls =
+                    segment.getToolData() != null && segment.getToolData().toolCalls() != null
+                            ? segment.getToolData().toolCalls()
+                            : List.of();
+            final Optional<ToolInvocationMeta> invocation =
+                    segment.getMeta().invocations().stream()
+                            .filter(inv -> Objects.equals(inv.callIndex(), callIndex))
+                            .findFirst();
+            if (invocation.isEmpty()) {
+                offset += calls.size();
+                continue;
+            }
+            final int position = callIndex - offset;
+            final ToolData.Call call =
+                    position >= 0 && position < calls.size() ? calls.get(position) : null;
+            return Optional.of(
+                    new ToolCallDetail(
                             callIndex,
-                            tc.name(),
-                            tc.argumentsRaw(),
-                            tc.status(),
-                            tc.error(),
-                            tc.resultText(),
-                            resultMetaJson));
-        } catch (JsonProcessingException e) {
-            log.warn(
-                    "Failed to serialize result meta for tool call {} in {}",
-                    tc.name(),
-                    conversationId,
-                    e);
+                            invocation.get().name(),
+                            call != null ? call.arguments() : null,
+                            invocation.get().status(),
+                            invocation.get().error(),
+                            call != null ? findResponseData(all, i, call.id()) : null,
+                            invocation.get().resultMeta(),
+                            segment.getCreatedAt()));
         }
+        return Optional.empty();
+    }
+
+    /** Результат вызова из первого TOOL-сообщения после сегмента с ответом на {@code callId}. */
+    private static @Nullable String findResponseData(
+            List<ChatMessageEntity> all, int segmentIndex, String callId) {
+        for (int j = segmentIndex + 1; j < all.size(); j++) {
+            final ChatMessageEntity message = all.get(j);
+            if (message.getType() != MessageType.TOOL
+                    || message.getToolData() == null
+                    || message.getToolData().responses() == null) {
+                continue;
+            }
+            for (ToolData.Response response : message.getToolData().responses()) {
+                if (Objects.equals(response.id(), callId)) {
+                    return response.responseData();
+                }
+            }
+        }
+        return null;
     }
 
     /**

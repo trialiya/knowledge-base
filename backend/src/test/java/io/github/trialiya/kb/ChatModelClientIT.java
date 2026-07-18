@@ -6,13 +6,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.trialiya.kb.config.CommonConfig;
 import io.github.trialiya.kb.config.JdbcConfig;
 import io.github.trialiya.kb.config.PgVectorJdbcConfig;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
-import io.github.trialiya.kb.repository.ToolCallRepository;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.support.AbstractPostgresIntegrationTest;
 import java.util.List;
@@ -61,16 +59,13 @@ class ChatModelClientIT extends AbstractPostgresIntegrationTest {
 
     @Autowired private ChatTopicRepository topicRepo;
     @Autowired private ChatMessageRepository messageRepo;
-    @Autowired private ObjectMapper objectMapper;
 
     @Test
     void selectedModelReachesModelLayerAndReplyIsPersisted() {
         String conversationId = UUID.randomUUID().toString();
 
         // ── настоящая память поверх Postgres ────────────────────────────────
-        ChatMemoryService memoryService =
-                new ChatMemoryService(
-                        topicRepo, messageRepo, mock(ToolCallRepository.class), objectMapper);
+        ChatMemoryService memoryService = new ChatMemoryService(topicRepo, messageRepo);
         ChatMemory chatMemory =
                 MessageWindowChatMemory.builder()
                         .chatMemoryRepository(memoryService)

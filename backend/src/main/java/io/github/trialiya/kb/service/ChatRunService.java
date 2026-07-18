@@ -17,7 +17,6 @@ import io.github.trialiya.kb.model.chat.dto.ToolCallMessage;
 import io.github.trialiya.kb.model.chat.dto.ToolCallsMessage;
 import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
-import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
 import io.github.trialiya.kb.utils.ChatUtils;
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -183,17 +182,6 @@ public class ChatRunService {
                             // tool-чанк с ним ToolCallingAdvisor отфильтровывает из потока и до
                             // onNext он не доходит).
                             buffer.setLength(0);
-                            if (invocation.status() != ToolInvocationStatus.STARTED) {
-                                // DB write is best-effort bookkeeping; offload it so SSE goes out
-                                // immediately without waiting for disk I/O.
-                                executor.execute(
-                                        () ->
-                                                chatMemoryService.saveToolCallIncremental(
-                                                        conversationId,
-                                                        runId,
-                                                        invocation.callIndex(),
-                                                        invocation));
-                            }
                             // В live-событие кладём мету (resultMeta/hasDetails), а не сырой
                             // ToolInvocation: фронт открывает изменения документов/файлов и
                             // детали вызова по ходу прогона, не дожидаясь финального TOOL_CALLS.
