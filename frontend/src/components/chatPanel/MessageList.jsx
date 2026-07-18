@@ -2,7 +2,10 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Message from './Message';
+import DocChangeBlock from './DocChangeBlock';
+import FileChangeBlock from './FileChangeBlock';
 import { IconArrowDown } from '../../icons';
+import { SENDER } from '../../constants/messageSender';
 import {
   SCROLL_STICK_THRESHOLD as STICK_THRESHOLD,
   SCROLL_LOAD_THRESHOLD as LOAD_MORE_THRESHOLD,
@@ -225,23 +228,43 @@ const MessageList = ({
       {loadingMore && <div className="message-list-loading-older">{t('window.loadingMessages')}</div>}
 
       <div className="message-list" ref={containerRef} onScroll={handleScroll}>
-        {messages.map((msg, index) => (
-          <Message
-            key={msg.mid ?? index}
-            text={msg.text}
-            sender={msg.sender}
-            toolCalls={msg.toolCalls}
-            timestamp={msg.timestamp}
-            toolCallsRunId={msg.toolCallsRunId}
-            preparing={msg.preparing}
-            error={msg.error}
-            onRetry={onRetry && msg.error ? () => onRetry(msg.mid) : undefined}
-            conversationId={conversationId}
-            onNavigateToDoc={onNavigateToDoc}
-            mid={msg.mid}
-            searchActive={msg.mid != null && msg.mid === activeSearchMid}
-          />
-        ))}
+        {messages.map((msg, index) => {
+          // Блоки «изменения документов/файлов» — одним списком в конце всего ответа:
+          // после последнего AI-пузыря непрерывной цепочки сегментов, по вызовам всей
+          // цепочки. Так их не приходится искать по длинному ответу между плашками.
+          const next = messages[index + 1];
+          const groupEnd = msg.sender === SENDER.AI && (!next || next.sender !== SENDER.AI);
+          let groupToolCalls = [];
+          if (groupEnd) {
+            for (let j = index; j >= 0 && messages[j].sender === SENDER.AI; j--) {
+              if (messages[j].toolCalls?.length) groupToolCalls = [...messages[j].toolCalls, ...groupToolCalls];
+            }
+          }
+          return (
+            <React.Fragment key={msg.mid ?? index}>
+              <Message
+                text={msg.text}
+                sender={msg.sender}
+                toolCalls={msg.toolCalls}
+                timestamp={msg.timestamp}
+                toolCallsRunId={msg.toolCallsRunId ?? msg.runId}
+                preparing={msg.preparing}
+                error={msg.error}
+                onRetry={onRetry && msg.error ? () => onRetry(msg.mid) : undefined}
+                conversationId={conversationId}
+                onNavigateToDoc={onNavigateToDoc}
+                mid={msg.mid}
+                searchActive={msg.mid != null && msg.mid === activeSearchMid}
+              />
+              {groupEnd && groupToolCalls.length > 0 && (
+                <>
+                  <DocChangeBlock toolCalls={groupToolCalls} onNavigateToDoc={onNavigateToDoc} />
+                  <FileChangeBlock toolCalls={groupToolCalls} />
+                </>
+              )}
+            </React.Fragment>
+          );
+        })}
       </div>
 
       {showScrollButton && (

@@ -6,12 +6,13 @@ import { TOOL_STATUS } from '../../constants/toolStatus';
 import './styles/doc-changes.css';
 
 /**
- * Блок под ответом ИИ: документные мутации (createDocument/updateDocument)
- * из toolCalls. Клик открывает HistoryModal прямо в чате — модалка сама
- * рендерится в портал и грузит историю через api. id/version берём из resultMeta.
+ * Блок в конце ответа ИИ (рендерит MessageList по вызовам всех сегментов ответа):
+ * документные мутации (createDocument/updateDocument) из toolCalls. Клик открывает
+ * HistoryModal прямо в чате — модалка сама рендерится в портал и грузит историю
+ * через api. id/version берём из resultMeta.
  *
  * Работает и в live-стриме, и после перезагрузки чата (в обоих случаях resultMeta
- * прокинут в toolCalls — см. ChatWindow.jsx).
+ * прокинут в toolCalls — live-события TOOL_CALL несут мету с бэка).
  */
 const DocChangeBlock = ({ toolCalls, onNavigateToDoc }) => {
   const { t } = useTranslation('chat');

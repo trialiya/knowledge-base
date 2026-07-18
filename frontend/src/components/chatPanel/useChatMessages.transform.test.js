@@ -28,6 +28,27 @@ describe('transformPage', () => {
     expect(bubbles[0].toolCalls).toHaveLength(1);
   });
 
+  test('merges a tool-calls-only segment into the previous AI bubble of the same run', () => {
+    const { bubbles } = transformPage([
+      { id: 1, content: 'смотрю', type: 'ASSISTANT', runId: 'r1', toolInvocationMetas: [meta('getDocument', 0)] },
+      { id: 2, content: '', type: 'ASSISTANT', runId: 'r1', toolInvocationMetas: [meta('searchDocs', 1)] },
+      { id: 3, content: 'ответ', type: 'ASSISTANT', runId: 'r1' },
+    ]);
+    expect(bubbles).toHaveLength(2); // пустой сегмент не стал отдельным пузырём
+    expect(bubbles[0].toolCalls.map((t) => t.name)).toEqual(['getDocument', 'searchDocs']);
+    expect(bubbles[0].toolCallsRunId).toBe('r1');
+  });
+
+  test('does not merge a tool-calls-only segment into a bubble of a different run', () => {
+    const { bubbles } = transformPage([
+      { id: 1, content: 'старый ответ', type: 'ASSISTANT', runId: 'r0', toolInvocationMetas: [meta('getDocument', 0)] },
+      { id: 2, content: '', type: 'ASSISTANT', runId: 'r1', toolInvocationMetas: [meta('searchDocs', 0)] },
+    ]);
+    expect(bubbles).toHaveLength(2);
+    expect(bubbles[1].toolCalls.map((t) => t.name)).toEqual(['searchDocs']);
+    expect(bubbles[1].toolCallsRunId).toBe('r1');
+  });
+
   test('skips empty assistant rows without metas and protocol TOOL rows', () => {
     const { bubbles } = transformPage([
       { id: 1, content: '', type: 'ASSISTANT' },
