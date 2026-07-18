@@ -170,7 +170,20 @@ public class SummarizeService implements DisposableBean {
             return;
         }
 
-        final List<ChatMessageEntity> toCompress = liveMessages.subList(0, cutoff);
+        // toCompress is built from allLive (not liveMessages) so that tool-calls-only ASSISTANT
+        // segments (blank text, but carrying invocations) aren't silently dropped from the
+        // summarizer prompt — liveMessages only exists to pick the cutoff/position boundary above.
+        // Blank TOOL protocol rows with no invocations are still excluded: they duplicate
+        // information already exposed via the owning ASSISTANT segment's invocations.
+        final List<ChatMessageEntity> toCompress =
+                allLive.stream()
+                        .filter(m -> m.getPosition() < cutoffPosition)
+                        .filter(
+                                m ->
+                                        Strings.isNotBlank(m.getText())
+                                                || (m.getInvocations() != null
+                                                        && !m.getInvocations().isEmpty()))
+                        .toList();
 
         log.info(
                 "[{}] Compressing: {} - {}",
@@ -190,7 +203,11 @@ public class SummarizeService implements DisposableBean {
                 existingSummaries.size() + 1 >= summarizeProperties.summaryCollapseThreshold();
         final String summaryContent =
                 generateSummary(
-                        conversationId, existingSummaries, toCompress, cutoff, collapseSummaries);
+                        conversationId,
+                        existingSummaries,
+                        toCompress,
+                        toCompress.size(),
+                        collapseSummaries);
         if (Strings.isBlank(summaryContent)) {
             log.error(
                     "[{}] Summarization produced an empty result, skipping this round",
