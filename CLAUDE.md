@@ -106,6 +106,72 @@ path (e.g. `GitService` reading `docs/проект/*.md`) throws "Malformed inpu
 input contains unmappable characters". `C.utf8` is glibc's built-in UTF-8 locale
 — no `locale-gen` needed.
 
+## Frontend conventions (`frontend/src`)
+
+Target state and rules for anyone touching frontend code. The codebase is
+mid-migration — follow these for all new code, and migrate existing code
+**incrementally, as files are touched** (see below), not in big-bang rewrites.
+
+### Migrate-on-touch policy
+
+When editing a file that still uses a legacy pattern (own modal chrome, own
+button classes, panel-local copy of a shared concern), migrate that file to the
+shared pattern as part of the change — but do not fan out into files the task
+doesn't touch. One PR = the task + migration of the files it touched.
+
+### Modals
+
+- Use the shared `<ModalShell>` from `components/common/` for every dialog
+  (once it exists — until then, copy `ConfirmModal`'s structure). It owns:
+  `createPortal` to `document.body`, overlay + backdrop-close, Escape via
+  `useEscape`, `role="dialog"`/`"alertdialog"` + `aria-modal`, and the shared
+  modal CSS. Components supply only header/body/footer content.
+- Do not introduce new `*-overlay` classes or per-modal overlay divs
+  (`modal-overlay`, `error-modal-overlay`, `tcd-overlay`, `fcd-overlay`,
+  `fs-editor-overlay`, … are legacy — fold into ModalShell when touched).
+- Backdrop close is `onMouseDown` (not `onClick`), so text selection that ends
+  outside the modal doesn't dismiss it.
+
+### Buttons
+
+- Use the shared button classes from `components/common/`: `btn`,
+  `btn--primary`, `btn--ghost`, `btn--danger`, `btn--sm`, and `icon-btn` for
+  icon-only buttons (modeled on settings' `set-btn` family). Don't add new
+  panel-local button classes (`set-btn`, `jira-modal__btn`, `detail-icon-btn`,
+  `new-chat-button`, … are legacy).
+
+### CSS
+
+- One naming scheme: BEM (`block__element--modifier`), lowercase-hyphenated
+  block names. No new abbreviated prefixes (`tcd-`, `fcd-`, `set-`).
+- File layout: shared styles live next to their component in `common/`;
+  panel styles go in `<panel>/styles/<topic>.css` (one topic per file, like
+  `chatPanel/styles/` and `knowledgeBasePanel/styles/`) — don't grow
+  monolithic per-panel files (`chatWindow.css` at 1100+ lines is the
+  anti-example, being split).
+- CSS is plain (no modules/preprocessor); classes are global — prefix with the
+  block name to avoid collisions, and never reference another panel's classes
+  (shared chrome belongs in `common/`).
+
+### Components & hooks
+
+- Components render; hooks own state/API orchestration; pure logic goes in
+  plain `.js` modules next to the feature (`treeOps.js`, `fileChips.js`).
+- Keep files focused: a file approaching ~300 lines or holding 2+ exported
+  components is due for a split. Big-file precedents being dismantled:
+  `ChatWindow.jsx`, `useKnowledgeBase.js`, `DocLinkTooltip.jsx`,
+  `FileChipInput.jsx`.
+- Reuse the shared hooks before writing new plumbing: `useSearchDropdown`
+  (search-button → dropdown widgets), `useEscape`, `useDocPreview`/
+  `useFilePreview` (module-cache preview pattern).
+- Async effects must be cancellation-aware (`cancelled` flag or AbortSignal in
+  cleanup), matching the existing preview hooks.
+- The two trees are intentionally separate: `knowledgeBasePanel/TreeNode`
+  (editable: drag-drop, pagination) vs `filesPanel/FileTreeNode` (read-only).
+  Do not unify them.
+- New user-facing strings go through i18n (`en` + `ru` locale files), never
+  hardcoded.
+
 ## Before a PR
 
 `./gradlew spotlessCheck` · `./gradlew :backend:test` · `./gradlew build`
