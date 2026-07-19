@@ -1,8 +1,10 @@
 package io.github.trialiya.kb.service;
 
+import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.ChatSearchResult;
 import io.github.trialiya.kb.model.chat.dto.MessageCursor;
 import io.github.trialiya.kb.model.chat.dto.MessageSearchHit;
+import io.github.trialiya.kb.model.chat.dto.ToolCallMessage;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
@@ -13,6 +15,9 @@ import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
+import io.github.trialiya.kb.tools.Compact;
+import io.github.trialiya.kb.tools.RecordingToolCallback;
+import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
 import io.github.trialiya.kb.utils.ChatUtils;
 import java.time.LocalDateTime;
 import java.util.Comparator;
@@ -58,8 +63,12 @@ public class ChatMemoryService implements ChatMemoryRepository {
         return !SKIP_TOOLS.contains(toolName);
     }
 
+    /** Гист результата в live-событии — как у строкового результата в RecordingToolCallback. */
+    private static final int RESULT_GIST_MAX = 50;
+
     private final ChatTopicRepository chatTopicRepository;
     private final ChatMessageRepository chatMessageRepository;
+    private final ChatEventService events;
 
     @Override
     public void deleteByConversationId(String conversationId) {
@@ -110,6 +119,91 @@ public class ChatMemoryService implements ChatMemoryRepository {
                                                 pending.toolData()))
                         .toList();
         chatMessageRepository.saveAll(newMessagesToSave);
+        publishToolCallEvents(conversationId, messages);
+    }
+
+    /**
+     * Live-события TOOL_CALL текущего прогона — из только что сохранённых tool-данных: STARTED — по
+     * tool_calls нового ASSISTANT-сегмента (имя и аргументы уже известны), OK — по responses нового
+     * TOOL-сообщения. Событие уходит только после персиста, т.е. фронт не увидит вызов, которого
+     * нет в БД. Ошибки и resultMeta здесь недоступны (в {@link ToolData} только сырой текст) — их
+     * доносит финальное TOOL_CALLS-событие прогона (см. ChatRunService.onComplete).
+     *
+     * <p>callIndex сквозной по прогону и равен позиции вызова среди tool_calls всех
+     * ASSISTANT-сегментов после последнего USER-сообщения — те же допущения, что в {@link
+     * #attachRunMeta} и {@link #findToolCallDetail}. Без активного прогона (синхронный путь, ремонт
+     * хвоста) события не шлём.
+     */
+    private void publishToolCallEvents(String conversationId, List<Message> messages) {
+        final Optional<String> runId = events.activeRunId(conversationId);
+        if (runId.isEmpty()) {
+            return;
+        }
+        int lastUser = -1;
+        for (int i = 0; i < messages.size(); i++) {
+            if (messages.get(i).getMessageType() == MessageType.USER) {
+                lastUser = i;
+            }
+        }
+        int callIndex = 0;
+        final Map<String, Integer> indexById = new HashMap<>();
+        final Map<String, ToolData.Call> callById = new HashMap<>();
+        for (int i = lastUser + 1; i < messages.size(); i++) {
+            final Message message = messages.get(i);
+            final boolean alreadySaved = message instanceof IMessage;
+            final ToolData toolData =
+                    alreadySaved
+                            ? ((IMessage) message).chatMessage().getToolData()
+                            : toolDataOf(message);
+            if (toolData == null) {
+                continue;
+            }
+            if (toolData.toolCalls() != null) {
+                for (ToolData.Call call : toolData.toolCalls()) {
+                    indexById.put(call.id(), callIndex);
+                    callById.put(call.id(), call);
+                    if (!alreadySaved) {
+                        publishToolCall(
+                                conversationId,
+                                runId.get(),
+                                new ToolInvocationMeta(
+                                        call.name(),
+                                        RecordingToolCallback.parseToolInput(call.arguments()),
+                                        ToolInvocationStatus.STARTED,
+                                        null,
+                                        null,
+                                        hasDetails(call.name()),
+                                        callIndex,
+                                        null));
+                    }
+                    callIndex++;
+                }
+            }
+            if (!alreadySaved && toolData.responses() != null) {
+                for (ToolData.Response response : toolData.responses()) {
+                    final ToolData.Call call = callById.get(response.id());
+                    publishToolCall(
+                            conversationId,
+                            runId.get(),
+                            new ToolInvocationMeta(
+                                    response.name(),
+                                    call != null
+                                            ? RecordingToolCallback.parseToolInput(call.arguments())
+                                            : Map.of(),
+                                    ToolInvocationStatus.OK,
+                                    null,
+                                    null,
+                                    hasDetails(response.name()),
+                                    indexById.get(response.id()),
+                                    Compact.truncate(response.responseData(), RESULT_GIST_MAX)));
+                }
+            }
+        }
+    }
+
+    private void publishToolCall(String conversationId, String runId, ToolInvocationMeta meta) {
+        events.publish(
+                conversationId, ChatEventType.TOOL_CALL, runId, null, new ToolCallMessage(meta));
     }
 
     /**
@@ -275,6 +369,53 @@ public class ChatMemoryService implements ChatMemoryRepository {
                             segment.getCreatedAt()));
         }
         return Optional.empty();
+    }
+
+    /**
+     * Метаданные плашек вызовов для сегмента: сохранённые {@code meta.invocations}, а если их нет
+     * (прогон оборвался до {@link #attachRunMeta}, старые данные) — синтезированные из {@code
+     * tool_data}: имя и усечённые аргументы из toolCalls сегмента, гист — из ответа в
+     * TOOL-сообщениях среди {@code context} (строк той же страницы). Статус всегда OK (история =
+     * завершённые вызовы), hasDetails=false — без runId модалке деталей нечего запросить, callIndex
+     * не проставляется по той же причине. {@code SKIP_TOOLS} вырезаны, как и в {@link
+     * #attachRunMeta}.
+     */
+    public @Nullable List<ToolInvocationMeta> invocationsFor(
+            ChatMessageEntity entity, List<ChatMessageEntity> context) {
+        if (entity.getInvocations() != null) {
+            return entity.getInvocations();
+        }
+        if (entity.getMeta() != null
+                || entity.getType() != MessageType.ASSISTANT
+                || entity.getToolData() == null
+                || entity.getToolData().toolCalls() == null) {
+            return null;
+        }
+        final Map<String, String> responseById = new HashMap<>();
+        for (ChatMessageEntity row : context) {
+            if (row.getType() == MessageType.TOOL
+                    && row.getToolData() != null
+                    && row.getToolData().responses() != null) {
+                for (ToolData.Response response : row.getToolData().responses()) {
+                    responseById.put(response.id(), response.responseData());
+                }
+            }
+        }
+        return entity.getToolData().toolCalls().stream()
+                .filter(call -> !SKIP_TOOLS.contains(call.name()))
+                .map(
+                        call ->
+                                new ToolInvocationMeta(
+                                        call.name(),
+                                        RecordingToolCallback.parseToolInput(call.arguments()),
+                                        ToolInvocationStatus.OK,
+                                        null,
+                                        null,
+                                        false,
+                                        null,
+                                        Compact.truncate(
+                                                responseById.get(call.id()), RESULT_GIST_MAX)))
+                .toList();
     }
 
     /** Результат вызова из первого TOOL-сообщения после сегмента с ответом на {@code callId}. */

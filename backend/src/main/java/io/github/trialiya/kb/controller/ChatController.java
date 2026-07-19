@@ -174,7 +174,10 @@ public class ChatController {
                                                 e.getContent(),
                                                 e.getType().name(),
                                                 e.getCreatedAt(),
-                                                e.getInvocations(),
+                                                // синтезирует меты из tool_data для сегментов
+                                                // без meta.invocations (оборванные/старые прогоны)
+                                                chatMemoryService.invocationsFor(
+                                                        e, page.messages()),
                                                 e.getMeta() != null ? e.getMeta().runId() : null,
                                                 isToolCalls(e)))
                         .toList();

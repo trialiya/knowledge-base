@@ -6,14 +6,12 @@ import static io.github.trialiya.kb.model.chat.dto.ChatEventType.RUN_ERROR;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.RUN_STARTED;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.RUN_STOPPED;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.STREAM;
-import static io.github.trialiya.kb.model.chat.dto.ChatEventType.TOOL_CALL;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.TOOL_CALLS;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.USER_MESSAGE;
 
 import com.openai.models.chat.completions.ChatCompletion;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.StreamMessage;
-import io.github.trialiya.kb.model.chat.dto.ToolCallMessage;
 import io.github.trialiya.kb.model.chat.dto.ToolCallsMessage;
 import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
@@ -173,24 +171,13 @@ public class ChatRunService {
         final StringBuffer buffer = new StringBuffer();
         final Consumer<Object> liveSink =
                 payload -> events.publish(conversationId, eventType(payload), runId, null, payload);
+        // Инструмент пошёл — значит, итерация стрима завершилась и её сегмент уже сохранён
+        // advisor-цепочкой. Сбрасываем буфер здесь: это надёжная граница, в отличие от
+        // finishReason=TOOL_CALLS (агрегированный tool-чанк с ним ToolCallingAdvisor
+        // отфильтровывает из потока и до onNext он не доходит). Сами live-события TOOL_CALL
+        // публикует ChatMemoryService.saveAll при сохранении tool-данных сегмента.
         final ToolInvocationCollector toolCollector =
-                new ToolInvocationCollector(
-                        invocation -> {
-                            // Инструмент пошёл — значит, итерация стрима завершилась и её сегмент
-                            // уже сохранён advisor-цепочкой. Сбрасываем буфер здесь: это надёжная
-                            // граница, в отличие от finishReason=TOOL_CALLS (агрегированный
-                            // tool-чанк с ним ToolCallingAdvisor отфильтровывает из потока и до
-                            // onNext он не доходит).
-                            buffer.setLength(0);
-                            // В live-событие кладём мету (resultMeta/hasDetails), а не сырой
-                            // ToolInvocation: фронт открывает изменения документов/файлов и
-                            // детали вызова по ходу прогона, не дожидаясь финального TOOL_CALLS.
-                            liveSink.accept(
-                                    new ToolCallMessage(
-                                            invocation.toMeta(
-                                                    chatMemoryService.hasDetails(
-                                                            invocation.name()))));
-                        });
+                new ToolInvocationCollector(() -> buffer.setLength(0));
 
         events.publish(
                 conversationId,
@@ -379,7 +366,6 @@ public class ChatRunService {
 
     private static ChatEventType eventType(Object payload) {
         return switch (payload) {
-            case ToolCallMessage _ -> TOOL_CALL;
             case ToolCallsMessage _ -> TOOL_CALLS;
             default -> STREAM;
         };

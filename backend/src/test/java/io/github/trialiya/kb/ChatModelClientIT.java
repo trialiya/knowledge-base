@@ -9,10 +9,13 @@ import static org.mockito.Mockito.when;
 import io.github.trialiya.kb.config.CommonConfig;
 import io.github.trialiya.kb.config.JdbcConfig;
 import io.github.trialiya.kb.config.PgVectorJdbcConfig;
+import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
+import io.github.trialiya.kb.service.ChatEventService;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.support.AbstractPostgresIntegrationTest;
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -65,7 +68,11 @@ class ChatModelClientIT extends AbstractPostgresIntegrationTest {
         String conversationId = UUID.randomUUID().toString();
 
         // ── настоящая память поверх Postgres ────────────────────────────────
-        ChatMemoryService memoryService = new ChatMemoryService(topicRepo, messageRepo);
+        ChatMemoryService memoryService =
+                new ChatMemoryService(
+                        topicRepo,
+                        messageRepo,
+                        new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))));
         ChatMemory chatMemory =
                 MessageWindowChatMemory.builder()
                         .chatMemoryRepository(memoryService)

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.github.trialiya.kb.config.CommonConfig;
 import io.github.trialiya.kb.config.JdbcConfig;
 import io.github.trialiya.kb.config.PgVectorJdbcConfig;
+import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.tool.ToolCallDetail;
@@ -12,9 +13,11 @@ import io.github.trialiya.kb.model.tool.ToolData;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
+import io.github.trialiya.kb.service.ChatEventService;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.support.AbstractPostgresIntegrationTest;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -44,7 +47,10 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
     @Autowired private ChatMessageRepository messageRepo;
 
     private ChatMemoryService memory() {
-        return new ChatMemoryService(topicRepo, messageRepo);
+        return new ChatMemoryService(
+                topicRepo,
+                messageRepo,
+                new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))));
     }
 
     private long position = 0;
