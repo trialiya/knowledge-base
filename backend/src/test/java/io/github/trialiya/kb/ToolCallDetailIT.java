@@ -351,4 +351,41 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
         assertThat(memory().findToolCallDetail(conv, "call_missing")).isEmpty();
         assertThat(memory().findToolCallDetail(UUID.randomUUID().toString(), "call_0")).isEmpty();
     }
+
+    /**
+     * {@code tool_call_index} rows reference {@code chat_message} by FK ({@code ON DELETE CASCADE},
+     * see {@code V2026.07.19_02__tool_call_index_cascade.sql}) — deleting a conversation's messages
+     * must not fail with a FK violation, and must leave no orphaned index rows behind.
+     */
+    @Test
+    void deletingConversationCascadesToolCallIndexRows() {
+        String conv = UUID.randomUUID().toString();
+        ChatMessageEntity segment =
+                save(
+                        conv,
+                        MessageType.ASSISTANT,
+                        null,
+                        new ToolData(
+                                List.of(new ToolData.Call("call_0", "function", "first", "{}")),
+                                null));
+        ChatMessageEntity toolRow =
+                save(
+                        conv,
+                        MessageType.TOOL,
+                        null,
+                        new ToolData(
+                                null, List.of(new ToolData.Response("call_0", "first", "ok"))));
+        index(conv, "call_0", segment.getId(), toolRow.getId());
+
+        assertThat(toolCallIndexRepo.findAllByConversationId(conv)).hasSize(1);
+
+        memory().deleteByConversationId(conv);
+
+        assertThat(toolCallIndexRepo.findAllByConversationId(conv)).isEmpty();
+        assertThat(
+                        messageRepo
+                                .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
+                                        conv))
+                .isEmpty();
+    }
 }
