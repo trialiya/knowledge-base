@@ -14,9 +14,11 @@ import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.StreamMessage;
 import io.github.trialiya.kb.model.chat.dto.ToolCallsMessage;
 import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
+import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import io.github.trialiya.kb.utils.ChatUtils;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -265,16 +267,13 @@ public class ChatRunService {
     private void onComplete(
             RunHandle handle, ToolInvocationCollector toolCollector, Consumer<Object> liveSink) {
         handle.persisted().set(true);
-        // SKIP_TOOLS вырезаны и здесь: после перезагрузки их не будет (attachRunMeta их не
-        // сохраняет), значит и live они не показываются — поведение одинаковое.
-        liveSink.accept(
-                new ToolCallsMessage(
-                        toolCollector.completedSnapshot().stream()
-                                .filter(tc -> chatMemoryService.hasDetails(tc.name()))
-                                .map(tc -> tc.toMeta(true))
-                                .toList()));
-        chatMemoryService.attachRunMeta(
-                handle.conversationId(), handle.runId(), toolCollector.completedSnapshot());
+        // Персист сначала, затем live-событие с уже персистнутыми metas (messageId/callId/
+        // responseMessageId в них есть только после attachRunMeta — она же вырезает SKIP_TOOLS,
+        // так что после перезагрузки они не покажутся, а тут — так же, одним и тем же списком).
+        final List<ToolInvocationMeta> metas =
+                chatMemoryService.attachRunMeta(
+                        handle.conversationId(), handle.runId(), toolCollector.completedSnapshot());
+        liveSink.accept(new ToolCallsMessage(metas));
         events.publish(handle.conversationId(), RUN_DONE, handle.runId(), null, null);
         summarizeService.trySummarize(handle.conversationId());
     }

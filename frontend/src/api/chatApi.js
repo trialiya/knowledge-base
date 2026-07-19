@@ -46,9 +46,15 @@ const chatApi = {
     return request(`/api/chats/search?${params}`, signal ? { signal } : undefined);
   },
 
-  /** Полные детали одного вызова инструмента по runId + callIndex. */
-  getToolCallDetails: (chatId, runId, callIndex) =>
-    request(`/api/chats/${enc(chatId)}/tool-calls?runId=${enc(runId)}&callIndex=${callIndex}`),
+  /**
+   * Полные детали одного вызова инструмента — точечно по id сообщения-сегмента и протокольному id
+   * вызова; responseMessageId опционален (вызов мог ещё не завершиться).
+   */
+  getToolCallDetails: (chatId, messageId, callId, responseMessageId) => {
+    const params = new URLSearchParams({ messageId: String(messageId), callId });
+    if (responseMessageId != null) params.set('responseMessageId', String(responseMessageId));
+    return request(`/api/chats/${enc(chatId)}/tool-calls?${params}`);
+  },
 
   /** Количество вложений активного чата (для бейджа). */
   getAttachmentCount: (id) => request(`/api/chats/${enc(id)}/attachments/count`),

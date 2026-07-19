@@ -319,15 +319,20 @@ public class ChatController {
         return chatEventService.subscribe(conversationId, fromSeq);
     }
 
-    /** Полные детали одного вызова инструмента по runId + callIndex. */
+    /**
+     * Полные детали одного вызова инструмента — точечно по id сообщения-сегмента и протокольному id
+     * вызова (см. {@link ChatMemoryService#findToolCallDetail}); {@code responseMessageId}
+     * опционален (например, вызов ещё не завершился).
+     */
     @GetMapping("/{conversationId}/tool-calls")
     public ResponseEntity<ToolCallDetail> getToolCallDetails(
             @PathVariable String conversationId,
-            @RequestParam String runId,
-            @RequestParam int callIndex) {
+            @RequestParam long messageId,
+            @RequestParam(required = false) Long responseMessageId,
+            @RequestParam String callId) {
         verifyOwnerIfPresent(conversationId);
         return chatMemoryService
-                .findToolCallDetail(conversationId, runId, callIndex)
+                .findToolCallDetail(conversationId, messageId, responseMessageId, callId)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }

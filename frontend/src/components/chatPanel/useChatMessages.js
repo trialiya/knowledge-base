@@ -14,6 +14,9 @@ const metaToCall = (x) => ({
   resultGist: x.resultGist,
   callIndex: x.callIndex,
   hasDetails: x.hasDetails,
+  messageId: x.messageId,
+  callId: x.callId,
+  responseMessageId: x.responseMessageId,
 });
 
 // Extracts runId from a system message that carries tool call breadcrumbs.

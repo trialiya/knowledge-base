@@ -140,7 +140,6 @@ const Message = ({
   text,
   sender,
   toolCalls,
-  toolCallsRunId,
   preparing,
   error,
   onRetry,
@@ -235,7 +234,7 @@ const Message = ({
       {!toolCallsOnly && bubble}
       {!toolCallsOnly && footer}
       {hasToolCalls && sender === SENDER.AI && (
-        <ToolCallNotifications toolCalls={toolCalls} conversationId={conversationId} toolCallsRunId={toolCallsRunId} />
+        <ToolCallNotifications toolCalls={toolCalls} conversationId={conversationId} />
       )}
     </div>
   );

@@ -40,6 +40,9 @@ const mergeToolCall = (list, tc) => {
             resultMeta: tc.resultMeta ?? t.resultMeta,
             callIndex: tc.callIndex ?? t.callIndex,
             hasDetails: tc.hasDetails ?? t.hasDetails,
+            messageId: tc.messageId ?? t.messageId,
+            callId: tc.callId ?? t.callId,
+            responseMessageId: tc.responseMessageId ?? t.responseMessageId,
           }
         : t,
     );
@@ -55,6 +58,9 @@ const mergeToolCall = (list, tc) => {
       resultMeta: tc.resultMeta,
       callIndex: tc.callIndex,
       hasDetails: tc.hasDetails,
+      messageId: tc.messageId,
+      callId: tc.callId,
+      responseMessageId: tc.responseMessageId,
     },
   ];
 };

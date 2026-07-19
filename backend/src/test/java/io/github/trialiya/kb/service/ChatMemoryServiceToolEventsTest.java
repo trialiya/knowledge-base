@@ -52,6 +52,31 @@ class ChatMemoryServiceToolEventsTest {
         messageRepo = mock(ChatMessageRepository.class);
         events = mock(ChatEventService.class);
         service = new ChatMemoryService(topicRepo, messageRepo, events);
+        // saveAll в БД возвращает сущности с проставленными id — saveAll сервиса на этом строит
+        // messageId/responseMessageId live-событий (см. ChatMemoryService#saveAll).
+        final java.util.concurrent.atomic.AtomicLong nextId =
+                new java.util.concurrent.atomic.AtomicLong(100);
+        when(messageRepo.saveAll(any()))
+                .thenAnswer(
+                        inv -> {
+                            final Iterable<ChatMessageEntity> entities = inv.getArgument(0);
+                            final List<ChatMessageEntity> saved = new java.util.ArrayList<>();
+                            for (ChatMessageEntity e : entities) {
+                                saved.add(
+                                        new ChatMessageEntity(
+                                                nextId.incrementAndGet(),
+                                                e.getConversationId(),
+                                                e.getContent(),
+                                                e.getType(),
+                                                e.getPosition(),
+                                                e.isSummarized(),
+                                                e.isSummary(),
+                                                e.getCreatedAt(),
+                                                e.getMeta(),
+                                                e.getToolData()));
+                            }
+                            return saved;
+                        });
     }
 
     private static AssistantMessage assistantWithCalls(AssistantMessage.ToolCall... calls) {
@@ -215,6 +240,9 @@ class ChatMemoryServiceToolEventsTest {
                         null,
                         true,
                         0,
+                        null,
+                        null,
+                        null,
                         null);
         final ChatMessageEntity segment =
                 entity(
