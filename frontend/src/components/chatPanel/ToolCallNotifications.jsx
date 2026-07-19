@@ -55,7 +55,7 @@ const buildCopyText = (tc, t) => {
 };
 
 /** Одиночная плашка вызова — hover-тултип + кнопка копирования + кнопка деталей */
-const ToolCallItem = ({ tc, conversationId, toolCallsRunId }) => {
+const ToolCallItem = ({ tc, conversationId }) => {
   const { t } = useTranslation('chat');
   const label = t(toolLabelKey(tc.name), { defaultValue: humanizeTool(tc.name) });
   const icon = getToolIcon(tc.name);
@@ -71,9 +71,12 @@ const ToolCallItem = ({ tc, conversationId, toolCallsRunId }) => {
   const [showDetail, setShowDetail] = useState(false);
 
   useEffect(() => () => clearTimeout(copyTimerRef.current), []);
+  // messageId/callId приходят вместе с плашкой (SSE TOOL_CALL/TOOL_CALLS или GET /messages) —
+  // без них (старые записи до этого поля) модалке деталей нечего запросить.
   const canShowDetail = !!(
     conversationId &&
-    toolCallsRunId &&
+    tc.messageId &&
+    tc.callId &&
     tc.status !== TOOL_STATUS.STARTED &&
     tc.hasDetails !== false
   );
@@ -178,8 +181,9 @@ const ToolCallItem = ({ tc, conversationId, toolCallsRunId }) => {
       {showDetail && canShowDetail && (
         <ToolCallDetailModal
           conversationId={conversationId}
-          runId={toolCallsRunId}
-          callIndex={tc.callIndex}
+          messageId={tc.messageId}
+          callId={tc.callId}
+          responseMessageId={tc.responseMessageId}
           tc={tc}
           onClose={() => setShowDetail(false)}
         />
@@ -210,13 +214,13 @@ const ToolCallItem = ({ tc, conversationId, toolCallsRunId }) => {
 };
 
 /** Группа одноимённых последовательных вызовов — сворачиваемая */
-const ToolCallGroup = ({ name, items, conversationId, toolCallsRunId }) => {
+const ToolCallGroup = ({ name, items, conversationId }) => {
   const { t } = useTranslation('chat');
   const [open, setOpen] = useState(false);
 
   // Одиночный вызов — рендерим как обычную плашку, без шеврона/бейджа
   if (items.length === 1) {
-    return <ToolCallItem tc={items[0]} conversationId={conversationId} toolCallsRunId={toolCallsRunId} />;
+    return <ToolCallItem tc={items[0]} conversationId={conversationId} />;
   }
 
   // Группа ≥2: заголовок показывает аргументы первого вызова (чтобы высота
@@ -255,7 +259,7 @@ const ToolCallGroup = ({ name, items, conversationId, toolCallsRunId }) => {
       {open && (
         <div className="tool-call-group-children">
           {items.map((tc, i) => (
-            <ToolCallItem key={i} tc={tc} conversationId={conversationId} toolCallsRunId={toolCallsRunId} />
+            <ToolCallItem key={i} tc={tc} conversationId={conversationId} />
           ))}
         </div>
       )}
@@ -263,7 +267,7 @@ const ToolCallGroup = ({ name, items, conversationId, toolCallsRunId }) => {
   );
 };
 
-const ToolCallNotifications = ({ toolCalls, conversationId, toolCallsRunId }) => {
+const ToolCallNotifications = ({ toolCalls, conversationId }) => {
   if (!toolCalls || toolCalls.length === 0) return null;
 
   // Группируем последовательные вызовы с одним именем
@@ -281,13 +285,7 @@ const ToolCallNotifications = ({ toolCalls, conversationId, toolCallsRunId }) =>
     <div className="tool-call-notifications">
       <div className="tool-call-scroll">
         {groups.map((g, i) => (
-          <ToolCallGroup
-            key={`${g.name}-${i}`}
-            name={g.name}
-            items={g.items}
-            conversationId={conversationId}
-            toolCallsRunId={toolCallsRunId}
-          />
+          <ToolCallGroup key={`${g.name}-${i}`} name={g.name} items={g.items} conversationId={conversationId} />
         ))}
       </div>
     </div>

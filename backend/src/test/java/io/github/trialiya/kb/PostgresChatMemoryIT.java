@@ -2,10 +2,10 @@ package io.github.trialiya.kb;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.trialiya.kb.config.CommonConfig;
 import io.github.trialiya.kb.config.JdbcConfig;
 import io.github.trialiya.kb.config.PgVectorJdbcConfig;
+import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.model.chat.dto.ChatSearchResult;
 import io.github.trialiya.kb.model.chat.dto.MessageSearchHit;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
@@ -14,10 +14,11 @@ import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
-import io.github.trialiya.kb.repository.ToolCallRepository;
+import io.github.trialiya.kb.service.ChatEventService;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.support.AbstractPostgresIntegrationTest;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -49,11 +50,12 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
 
     @Autowired private ChatTopicRepository topicRepo;
     @Autowired private ChatMessageRepository messageRepo;
-    @Autowired private ToolCallRepository toolCallRepo;
-    @Autowired private ObjectMapper objectMapper;
 
     private ChatMemoryService memory() {
-        return new ChatMemoryService(topicRepo, messageRepo, toolCallRepo, objectMapper);
+        return new ChatMemoryService(
+                topicRepo,
+                messageRepo,
+                new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))));
     }
 
     private static String newConversation() {

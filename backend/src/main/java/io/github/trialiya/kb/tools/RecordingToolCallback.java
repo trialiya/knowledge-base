@@ -110,7 +110,8 @@ public class RecordingToolCallback implements ToolCallback {
         return ToolInvocationCollector.from(toolContext);
     }
 
-    private Map<Object, Object> parseToolInput(@Nullable String toolInput) {
+    /** JSON-аргументы вызова → map с усечёнными значениями (для UI-меты плашек). */
+    public static Map<Object, Object> parseToolInput(@Nullable String toolInput) {
         if (StringUtils.isBlank(toolInput)) {
             return Map.of();
         }

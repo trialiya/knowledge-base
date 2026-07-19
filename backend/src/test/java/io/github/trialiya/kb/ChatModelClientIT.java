@@ -6,15 +6,16 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.trialiya.kb.config.CommonConfig;
 import io.github.trialiya.kb.config.JdbcConfig;
 import io.github.trialiya.kb.config.PgVectorJdbcConfig;
+import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
-import io.github.trialiya.kb.repository.ToolCallRepository;
+import io.github.trialiya.kb.service.ChatEventService;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.support.AbstractPostgresIntegrationTest;
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -61,7 +62,6 @@ class ChatModelClientIT extends AbstractPostgresIntegrationTest {
 
     @Autowired private ChatTopicRepository topicRepo;
     @Autowired private ChatMessageRepository messageRepo;
-    @Autowired private ObjectMapper objectMapper;
 
     @Test
     void selectedModelReachesModelLayerAndReplyIsPersisted() {
@@ -70,7 +70,9 @@ class ChatModelClientIT extends AbstractPostgresIntegrationTest {
         // ── настоящая память поверх Postgres ────────────────────────────────
         ChatMemoryService memoryService =
                 new ChatMemoryService(
-                        topicRepo, messageRepo, mock(ToolCallRepository.class), objectMapper);
+                        topicRepo,
+                        messageRepo,
+                        new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))));
         ChatMemory chatMemory =
                 MessageWindowChatMemory.builder()
                         .chatMemoryRepository(memoryService)

@@ -6,7 +6,6 @@ import io.github.trialiya.kb.model.tool.ToolInvocation;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.model.ToolContext;
 
@@ -17,14 +16,19 @@ public final class ToolInvocationCollector {
     private final List<ToolInvocation> invocations = new CopyOnWriteArrayList<>();
     private final AtomicInteger callIndex = new AtomicInteger(0);
 
-    @Nullable private final Consumer<ToolInvocation> liveSink;
+    /**
+     * Хук на каждую запись — надёжная граница «инструмент пошёл» для владельца прогона (сброс
+     * буфера сегмента в ChatRunService). Live-события TOOL_CALL отсюда не шлются — их публикует
+     * ChatMemoryService.saveAll при сохранении сегмента.
+     */
+    @Nullable private final Runnable onRecord;
 
     public ToolInvocationCollector() {
         this(null);
     }
 
-    public ToolInvocationCollector(@Nullable final Consumer<ToolInvocation> liveSink) {
-        this.liveSink = liveSink;
+    public ToolInvocationCollector(@Nullable final Runnable onRecord) {
+        this.onRecord = onRecord;
     }
 
     /** Достаёт коллектор из {@link ToolContext}; {@code null}, если его там нет. */
@@ -44,8 +48,8 @@ public final class ToolInvocationCollector {
 
     public void record(ToolInvocation invocation) {
         invocations.add(invocation);
-        if (liveSink != null) {
-            liveSink.accept(invocation);
+        if (onRecord != null) {
+            onRecord.run();
         }
     }
 

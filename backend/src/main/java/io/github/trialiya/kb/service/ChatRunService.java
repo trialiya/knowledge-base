@@ -6,20 +6,19 @@ import static io.github.trialiya.kb.model.chat.dto.ChatEventType.RUN_ERROR;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.RUN_STARTED;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.RUN_STOPPED;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.STREAM;
-import static io.github.trialiya.kb.model.chat.dto.ChatEventType.TOOL_CALL;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.TOOL_CALLS;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.USER_MESSAGE;
 
 import com.openai.models.chat.completions.ChatCompletion;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.StreamMessage;
-import io.github.trialiya.kb.model.chat.dto.ToolCallMessage;
 import io.github.trialiya.kb.model.chat.dto.ToolCallsMessage;
 import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
+import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
-import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
 import io.github.trialiya.kb.utils.ChatUtils;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -174,35 +173,13 @@ public class ChatRunService {
         final StringBuffer buffer = new StringBuffer();
         final Consumer<Object> liveSink =
                 payload -> events.publish(conversationId, eventType(payload), runId, null, payload);
+        // Инструмент пошёл — значит, итерация стрима завершилась и её сегмент уже сохранён
+        // advisor-цепочкой. Сбрасываем буфер здесь: это надёжная граница, в отличие от
+        // finishReason=TOOL_CALLS (агрегированный tool-чанк с ним ToolCallingAdvisor
+        // отфильтровывает из потока и до onNext он не доходит). Сами live-события TOOL_CALL
+        // публикует ChatMemoryService.saveAll при сохранении tool-данных сегмента.
         final ToolInvocationCollector toolCollector =
-                new ToolInvocationCollector(
-                        invocation -> {
-                            // Инструмент пошёл — значит, итерация стрима завершилась и её сегмент
-                            // уже сохранён advisor-цепочкой. Сбрасываем буфер здесь: это надёжная
-                            // граница, в отличие от finishReason=TOOL_CALLS (агрегированный
-                            // tool-чанк с ним ToolCallingAdvisor отфильтровывает из потока и до
-                            // onNext он не доходит).
-                            buffer.setLength(0);
-                            if (invocation.status() != ToolInvocationStatus.STARTED) {
-                                // DB write is best-effort bookkeeping; offload it so SSE goes out
-                                // immediately without waiting for disk I/O.
-                                executor.execute(
-                                        () ->
-                                                chatMemoryService.saveToolCallIncremental(
-                                                        conversationId,
-                                                        runId,
-                                                        invocation.callIndex(),
-                                                        invocation));
-                            }
-                            // В live-событие кладём мету (resultMeta/hasDetails), а не сырой
-                            // ToolInvocation: фронт открывает изменения документов/файлов и
-                            // детали вызова по ходу прогона, не дожидаясь финального TOOL_CALLS.
-                            liveSink.accept(
-                                    new ToolCallMessage(
-                                            invocation.toMeta(
-                                                    chatMemoryService.hasDetails(
-                                                            invocation.name()))));
-                        });
+                new ToolInvocationCollector(() -> buffer.setLength(0));
 
         events.publish(
                 conversationId,
@@ -290,13 +267,13 @@ public class ChatRunService {
     private void onComplete(
             RunHandle handle, ToolInvocationCollector toolCollector, Consumer<Object> liveSink) {
         handle.persisted().set(true);
-        liveSink.accept(
-                new ToolCallsMessage(
-                        toolCollector.completedSnapshot().stream()
-                                .map(tc -> tc.toMeta(chatMemoryService.hasDetails(tc.name())))
-                                .toList()));
-        chatMemoryService.attachRunMeta(
-                handle.conversationId(), handle.runId(), toolCollector.completedSnapshot());
+        // Персист сначала, затем live-событие с уже персистнутыми metas (messageId/callId/
+        // responseMessageId в них есть только после attachRunMeta — она же вырезает SKIP_TOOLS,
+        // так что после перезагрузки они не покажутся, а тут — так же, одним и тем же списком).
+        final List<ToolInvocationMeta> metas =
+                chatMemoryService.attachRunMeta(
+                        handle.conversationId(), handle.runId(), toolCollector.completedSnapshot());
+        liveSink.accept(new ToolCallsMessage(metas));
         events.publish(handle.conversationId(), RUN_DONE, handle.runId(), null, null);
         summarizeService.trySummarize(handle.conversationId());
     }
@@ -391,7 +368,6 @@ public class ChatRunService {
 
     private static ChatEventType eventType(Object payload) {
         return switch (payload) {
-            case ToolCallMessage _ -> TOOL_CALL;
             case ToolCallsMessage _ -> TOOL_CALLS;
             default -> STREAM;
         };

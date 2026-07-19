@@ -6,8 +6,6 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.model.chat.dto.Chat;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
@@ -20,7 +18,6 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.tool.ToolCallDetail;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
-import io.github.trialiya.kb.repository.ToolCallRepository;
 import io.github.trialiya.kb.service.ChatEventService;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.service.ChatRunService;
@@ -67,8 +64,6 @@ public class ChatController {
     private final JiraChatService jiraChatService;
     private final ChatRunService chatRunService;
     private final ChatEventService chatEventService;
-    private final ToolCallRepository toolCallRepository;
-    private final ObjectMapper objectMapper;
 
     public ChatController(
             ChatModelProperties chatModelProperties,
@@ -78,9 +73,7 @@ public class ChatController {
             ChatMemoryService chatMemoryService,
             JiraChatService jiraChatService,
             ChatRunService chatRunService,
-            ChatEventService chatEventService,
-            ToolCallRepository toolCallRepository,
-            ObjectMapper objectMapper) {
+            ChatEventService chatEventService) {
         this.chatModelProperties = chatModelProperties;
         this.chatClient = chatClient;
         this.chatMemory = chatMemory;
@@ -89,8 +82,6 @@ public class ChatController {
         this.jiraChatService = jiraChatService;
         this.chatRunService = chatRunService;
         this.chatEventService = chatEventService;
-        this.toolCallRepository = toolCallRepository;
-        this.objectMapper = objectMapper;
     }
 
     /** Список выбираемых моделей и какая из них дефолтная. */
@@ -183,7 +174,10 @@ public class ChatController {
                                                 e.getContent(),
                                                 e.getType().name(),
                                                 e.getCreatedAt(),
-                                                e.getInvocations(),
+                                                // синтезирует меты из tool_data для сегментов
+                                                // без meta.invocations (оборванные/старые прогоны)
+                                                chatMemoryService.invocationsFor(
+                                                        e, page.messages()),
                                                 e.getMeta() != null ? e.getMeta().runId() : null,
                                                 isToolCalls(e)))
                         .toList();
@@ -325,27 +319,21 @@ public class ChatController {
         return chatEventService.subscribe(conversationId, fromSeq);
     }
 
-    /** Полные детали одного вызова инструмента по runId + callIndex. */
+    /**
+     * Полные детали одного вызова инструмента — точечно по id сообщения-сегмента и протокольному id
+     * вызова (см. {@link ChatMemoryService#findToolCallDetail}); {@code responseMessageId}
+     * опционален (например, вызов ещё не завершился).
+     */
     @GetMapping("/{conversationId}/tool-calls")
     public ResponseEntity<ToolCallDetail> getToolCallDetails(
             @PathVariable String conversationId,
-            @RequestParam String runId,
-            @RequestParam int callIndex) {
+            @RequestParam long messageId,
+            @RequestParam(required = false) Long responseMessageId,
+            @RequestParam String callId) {
         verifyOwnerIfPresent(conversationId);
-        return toolCallRepository
-                .findByConversationIdAndRunIdAndCallIndex(conversationId, runId, callIndex)
-                .map(
-                        e ->
-                                ResponseEntity.ok(
-                                        new ToolCallDetail(
-                                                e.getCallIndex(),
-                                                e.getName(),
-                                                e.getArgumentsRaw(),
-                                                e.getStatus(),
-                                                e.getError(),
-                                                e.getResultText(),
-                                                parseJsonSafe(e.getResultMeta()),
-                                                e.getCreatedAt())))
+        return chatMemoryService
+                .findToolCallDetail(conversationId, messageId, responseMessageId, callId)
+                .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -464,17 +452,6 @@ public class ChatController {
                                                 null,
                                                 null,
                                                 true)));
-    }
-
-    private Object parseJsonSafe(String json) {
-        if (json == null || json.isBlank()) {
-            return null;
-        }
-        try {
-            return objectMapper.readValue(json, Object.class);
-        } catch (JsonProcessingException e) {
-            return null;
-        }
     }
 
     private Chat toChat(ChatTopicEntity entity, List<ChatMessage> messages) {

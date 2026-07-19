@@ -14,6 +14,10 @@ public interface ChatTopicRepository extends CrudRepository<ChatTopicEntity, Str
 
     List<String> findIdsByUserOrderByUpdatedAtDesc(String user);
 
+    /** Все id разговоров — для одноразовых админ-задач (напр. бэкафилл), не для обычного UI. */
+    @Query("SELECT conversation_id FROM chat_topic")
+    List<String> findAllConversationIds();
+
     @Modifying
     @Query("UPDATE chat_topic SET updated_at = CURRENT_TIMESTAMP WHERE conversation_id = :convId")
     void updateUpdatedAt(@Param("convId") String convId);
