@@ -14,6 +14,7 @@ import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
+import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.service.ChatEventService;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.support.AbstractPostgresIntegrationTest;
@@ -50,12 +51,14 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
 
     @Autowired private ChatTopicRepository topicRepo;
     @Autowired private ChatMessageRepository messageRepo;
+    @Autowired private ToolCallIndexRepository toolCallIndexRepo;
 
     private ChatMemoryService memory() {
         return new ChatMemoryService(
                 topicRepo,
                 messageRepo,
-                new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))));
+                new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))),
+                toolCallIndexRepo);
     }
 
     private static String newConversation() {

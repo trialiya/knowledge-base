@@ -10,11 +10,13 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.chat.spring.IMessage;
 import io.github.trialiya.kb.model.tool.ToolCallDetail;
+import io.github.trialiya.kb.model.tool.ToolCallIndexEntity;
 import io.github.trialiya.kb.model.tool.ToolData;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
+import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.tools.Compact;
 import io.github.trialiya.kb.tools.RecordingToolCallback;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
@@ -23,7 +25,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.IdentityHashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -71,6 +73,10 @@ public class ChatMemoryService implements ChatMemoryRepository {
     private final ChatTopicRepository chatTopicRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final ChatEventService events;
+    private final ToolCallIndexRepository toolCallIndexRepository;
+
+    /** Сообщение + его протокольные tool-данные, извлечённые один раз (см. toolDataOf). */
+    private record Pending(Message message, @Nullable ToolData toolData) {}
 
     @Override
     public void deleteByConversationId(String conversationId) {
@@ -78,10 +84,8 @@ public class ChatMemoryService implements ChatMemoryRepository {
     }
 
     @Override
+    @Transactional
     public void saveAll(String conversationId, List<Message> messages) {
-        // Сообщение + его протокольные tool-данные, извлечённые один раз (см. toolDataOf).
-        record Pending(Message message, @Nullable ToolData toolData) {}
-
         final AtomicLong lastPosition = new AtomicLong();
         final List<Pending> pending =
                 messages.stream()
@@ -123,17 +127,52 @@ public class ChatMemoryService implements ChatMemoryRepository {
                                                 null,
                                                 p.toolData()))
                         .toList();
-        // saveAll генерирует id в БД и возвращает их в том же порядке, что и на входе (JDBC
-        // сохраняет по одной сущности за раз) — используем это, чтобы разнести live-события
-        // TOOL_CALL с messageId/responseMessageId сразу, без похода за ними позже (см.
-        // publishToolCallEvents / findToolCallDetail).
         final List<ChatMessageEntity> saved = new ArrayList<>();
         chatMessageRepository.saveAll(newMessagesToSave).forEach(saved::add);
-        final Map<Message, Long> savedIdByMessage = new IdentityHashMap<>();
+        indexToolCalls(conversationId, pending, saved);
+        publishToolCallEvents(conversationId, messages);
+    }
+
+    /**
+     * Наполняет {@code tool_call_index} сразу при персисте нового сегмента: id вызова уже лежит в
+     * {@code tool_data} (в отличие от UI-меты — status/error/resultMeta, — для этого не нужно
+     * позиционное сопоставление с коллектором, см. {@link #attachRunMeta}). Два прохода по {@code
+     * pending}: сперва вставляем строки по tool_calls новых ASSISTANT-сегментов (messageId уже
+     * известен из {@code saved}), затем проставляем {@code responseMessageId} по responses новых
+     * TOOL-сообщений — так пара «вызов в этом же saveAll, ответ в этом же saveAll» тоже
+     * отрабатывает корректно (вставка гарантированно раньше обновления).
+     */
+    private void indexToolCalls(
+            String conversationId, List<Pending> pending, List<ChatMessageEntity> saved) {
+        final List<ToolCallIndexEntity> newRows = new ArrayList<>();
         for (int i = 0; i < pending.size(); i++) {
-            savedIdByMessage.put(pending.get(i).message(), saved.get(i).getId());
+            final ToolData toolData = pending.get(i).toolData();
+            if (toolData == null || toolData.toolCalls() == null) {
+                continue;
+            }
+            final long messageId = saved.get(i).getId();
+            for (ToolData.Call call : toolData.toolCalls()) {
+                final ToolCallIndexEntity row = new ToolCallIndexEntity();
+                row.setConversationId(conversationId);
+                row.setCallId(call.id());
+                row.setMessageId(messageId);
+                newRows.add(row);
+            }
         }
-        publishToolCallEvents(conversationId, messages, savedIdByMessage);
+        if (!newRows.isEmpty()) {
+            toolCallIndexRepository.saveAll(newRows);
+        }
+        for (int i = 0; i < pending.size(); i++) {
+            final ToolData toolData = pending.get(i).toolData();
+            if (toolData == null || toolData.responses() == null) {
+                continue;
+            }
+            final long messageId = saved.get(i).getId();
+            for (ToolData.Response response : toolData.responses()) {
+                toolCallIndexRepository.setResponseMessageId(
+                        conversationId, response.id(), messageId);
+            }
+        }
     }
 
     /**
@@ -145,14 +184,12 @@ public class ChatMemoryService implements ChatMemoryRepository {
      *
      * <p>callIndex сквозной по прогону и равен позиции вызова среди tool_calls всех
      * ASSISTANT-сегментов после последнего USER-сообщения — те же допущения, что в {@link
-     * #attachRunMeta}. messageId/callId/responseMessageId (id сегмента, протокольный id вызова, id
-     * TOOL-строки с ответом) идут вместе с событием, чтобы модалка деталей могла достать их
-     * точечным запросом по id, а не сканом истории (см. {@link #findToolCallDetail}); id сегмента и
-     * TOOL-строки берём из {@code savedIdByMessage} — их сгенерировала БД в этом же {@code saveAll}
-     * (см. вызывающий код). Без активного прогона (синхронный путь, ремонт хвоста) события не шлём.
+     * #attachRunMeta}. Событие несёт только протокольный {@code callId} — модалка деталей находит
+     * messageId/responseMessageId сама через {@code tool_call_index} (см. {@link
+     * #findToolCallDetail}), точечным запросом по id вместо скана истории. Без активного прогона
+     * (синхронный путь, ремонт хвоста) события не шлём.
      */
-    private void publishToolCallEvents(
-            String conversationId, List<Message> messages, Map<Message, Long> savedIdByMessage) {
+    private void publishToolCallEvents(String conversationId, List<Message> messages) {
         final Optional<String> runId = events.activeRunId(conversationId);
         if (runId.isEmpty()) {
             return;
@@ -166,7 +203,6 @@ public class ChatMemoryService implements ChatMemoryRepository {
         int callIndex = 0;
         final Map<String, Integer> indexById = new HashMap<>();
         final Map<String, ToolData.Call> callById = new HashMap<>();
-        final Map<String, Long> segmentIdByCallId = new HashMap<>();
         for (int i = lastUser + 1; i < messages.size(); i++) {
             final Message message = messages.get(i);
             final boolean alreadySaved = message instanceof IMessage;
@@ -177,15 +213,10 @@ public class ChatMemoryService implements ChatMemoryRepository {
             if (toolData == null) {
                 continue;
             }
-            final Long messageId =
-                    alreadySaved
-                            ? ((IMessage) message).chatMessage().getId()
-                            : savedIdByMessage.get(message);
             if (toolData.toolCalls() != null) {
                 for (ToolData.Call call : toolData.toolCalls()) {
                     indexById.put(call.id(), callIndex);
                     callById.put(call.id(), call);
-                    segmentIdByCallId.put(call.id(), messageId);
                     // SKIP_TOOLS не показываем нигде: ни live, ни после перезагрузки
                     // (attachRunMeta их тоже вырезает); callIndex при этом считает их —
                     // он должен совпадать с позицией в toolCalls.
@@ -202,9 +233,7 @@ public class ChatMemoryService implements ChatMemoryRepository {
                                         hasDetails(call.name()),
                                         callIndex,
                                         null,
-                                        messageId,
-                                        call.id(),
-                                        null));
+                                        call.id()));
                     }
                     callIndex++;
                 }
@@ -229,9 +258,7 @@ public class ChatMemoryService implements ChatMemoryRepository {
                                     hasDetails(response.name()),
                                     indexById.get(response.id()),
                                     Compact.truncate(response.responseData(), RESULT_GIST_MAX),
-                                    segmentIdByCallId.get(response.id()),
-                                    response.id(),
-                                    messageId));
+                                    response.id()));
                 }
             }
         }
@@ -356,24 +383,23 @@ public class ChatMemoryService implements ChatMemoryRepository {
             @Nullable MessageCursor oldestCursor) {}
 
     /**
-     * Полные детали одного вызова инструмента — точечно по id, без скана истории чата: сегмент
-     * ({@code messageId}) и, если уже пришёл ответ, TOOL-строка с результатом ({@code
-     * responseMessageId}) достаются одним {@code findAllById} по первичному ключу; {@code callId} —
-     * протокольный id вызова — выбирает нужную запись из {@code tool_data.toolCalls}/{@code
-     * .responses} каждой строки (в сегменте/TOOL-строке их может быть несколько). UI-мета
-     * (status/error/resultMeta) берётся из {@code meta.invocations} сегмента по тому же {@code
-     * callId}. {@code conversationId} сверяется у обеих строк — защита от подстановки чужого id.
-     *
-     * <p>{@code messageId}/{@code callId}/{@code responseMessageId} приходят с фронта из {@link
-     * ToolInvocationMeta}, которую он уже получил в составе плашки (SSE TOOL_CALL/TOOL_CALLS или
-     * {@code GET /messages}) — у записей до этого изменения их нет ({@code null}), для них деталей
-     * и не покажем (см. {@code hasDetails} на фронте).
+     * Полные детали одного вызова инструмента — точечно по {@code callId}, без скана истории чата:
+     * {@code tool_call_index} даёт messageId сегмента и (если уже пришёл ответ) responseMessageId
+     * TOOL-строки одним запросом, дальше обе строки достаются одним {@code findAllById} по
+     * первичному ключу. {@code callId} — протокольный id вызова — выбирает нужную запись из {@code
+     * tool_data.toolCalls}/{@code .responses} каждой строки (в сегменте/TOOL-строке их может быть
+     * несколько). UI-мета (status/error/resultMeta) берётся из {@code meta.invocations} сегмента по
+     * тому же {@code callId}. {@code conversationId} сверяется у обеих строк — защита от
+     * подстановки чужого id.
      */
-    public Optional<ToolCallDetail> findToolCallDetail(
-            String conversationId,
-            long messageId,
-            @Nullable Long responseMessageId,
-            String callId) {
+    public Optional<ToolCallDetail> findToolCallDetail(String conversationId, String callId) {
+        final Optional<ToolCallIndexEntity> indexed =
+                toolCallIndexRepository.findByConversationIdAndCallId(conversationId, callId);
+        if (indexed.isEmpty()) {
+            return Optional.empty();
+        }
+        final long messageId = indexed.get().getMessageId();
+        final Long responseMessageId = indexed.get().getResponseMessageId();
         final List<Long> ids =
                 responseMessageId == null
                         ? List.of(messageId)
@@ -436,8 +462,9 @@ public class ChatMemoryService implements ChatMemoryRepository {
      * (прогон оборвался до {@link #attachRunMeta}, старые данные) — синтезированные из {@code
      * tool_data}: имя и усечённые аргументы из toolCalls сегмента, гист — из ответа в
      * TOOL-сообщениях среди {@code context} (строк той же страницы). Статус всегда OK (история =
-     * завершённые вызовы), hasDetails=false — без messageId/callId модалке деталей нечего
-     * запросить. {@code SKIP_TOOLS} вырезаны, как и в {@link #attachRunMeta}.
+     * завершённые вызовы), hasDetails=false — намеренно не предлагаем детали для этого
+     * синтезированного (не через {@link #attachRunMeta}) пути. {@code SKIP_TOOLS} вырезаны, как и в
+     * {@link #attachRunMeta}.
      */
     public @Nullable List<ToolInvocationMeta> invocationsFor(
             ChatMessageEntity entity, List<ChatMessageEntity> context) {
@@ -474,8 +501,6 @@ public class ChatMemoryService implements ChatMemoryRepository {
                                         null,
                                         Compact.truncate(
                                                 responseById.get(call.id()), RESULT_GIST_MAX),
-                                        null,
-                                        null,
                                         null))
                 .toList();
     }
@@ -485,13 +510,14 @@ public class ChatMemoryService implements ChatMemoryRepository {
      * advisor-цепочка уже сохранила с протокольными tool_calls (см. {@link #saveAll}). Сегменты
      * идут в порядке позиций, каждый потребляет из общего списка вызовов столько, сколько у него
      * tool_calls — список вызовов прогона хронологический, поэтому сопоставление однозначно; та же
-     * позиционная связь даёт messageId/callId каждого вызова (у {@link ToolInvocation} самого
-     * протокольного id нет — {@code RecordingToolCallback} его не видит).
+     * позиционная связь даёт callId каждого вызова (у {@link ToolInvocation} самого протокольного
+     * id нет — {@code RecordingToolCallback} его не видит). messageId/responseMessageId сюда уже не
+     * тянем — {@link #saveAll} наполняет ими {@code tool_call_index} напрямую по callId, без
+     * позиционной арифметики.
      *
      * <p>Рассматриваются только сегменты после последнего USER-сообщения: прогоны на чат строго
      * последовательны, значит всё, что после последнего вопроса, относится к текущему прогону, а
-     * необогащённые сегменты старых аварийных прогонов не перехватят чужие вызовы. По тем же
-     * строкам разово строится {@code callId → id TOOL-строки с ответом} — для responseMessageId.
+     * необогащённые сегменты старых аварийных прогонов не перехватят чужие вызовы.
      *
      * <p>{@code SKIP_TOOLS} вырезаются только из UI-метаданных — протокольные tool_calls сегмента
      * остаются полными, иначе модель получила бы рассинхронизированную пару tool-сообщений.
@@ -517,16 +543,6 @@ public class ChatMemoryService implements ChatMemoryRepository {
             }
         }
         final List<ChatMessageEntity> tail = all.subList(lastUser + 1, all.size());
-        final Map<String, Long> responseMessageIdByCallId = new HashMap<>();
-        for (ChatMessageEntity row : tail) {
-            if (row.getType() == MessageType.TOOL
-                    && row.getToolData() != null
-                    && row.getToolData().responses() != null) {
-                for (ToolData.Response response : row.getToolData().responses()) {
-                    responseMessageIdByCallId.put(response.id(), row.getId());
-                }
-            }
-        }
         final List<ChatMessageEntity> segments =
                 tail.stream()
                         .filter(e -> e.getType() == MessageType.ASSISTANT)
@@ -552,12 +568,7 @@ public class ChatMemoryService implements ChatMemoryRepository {
                     continue;
                 }
                 final ToolData.Call call = segmentCalls.get(i - cursor);
-                metas.add(
-                        tc.toMeta(
-                                hasDetails(tc.name()),
-                                segment.getId(),
-                                call.id(),
-                                responseMessageIdByCallId.get(call.id())));
+                metas.add(tc.toMeta(hasDetails(tc.name()), call.id()));
             }
             cursor = end;
             chatMessageRepository.save(segment.withMeta(new ChatMessageMeta(runId, false, metas)));
@@ -567,25 +578,24 @@ public class ChatMemoryService implements ChatMemoryRepository {
     }
 
     /**
-     * Одноразовый бэкафилл messageId/callId/responseMessageId для {@code meta.invocations},
-     * сохранённых до появления этих полей (см. {@link ToolInvocationMeta}). Запускается вручную
-     * ({@code kb.backfill.tool-call-ids=true}, см. {@code ToolCallIdBackfillRunner}), а не
-     * миграцией: логика идентична {@link #findToolCallDetail} доотчётной версии — сырым SQL (тем
-     * более одинаковым для Postgres и H2) её было бы неоправданно хрупко выражать.
+     * Одноразовый бэкафилл для данных, сохранённых до появления {@code tool_call_index}/{@code
+     * ToolInvocationMeta#callId}. Запускается вручную ({@code kb.backfill.tool-call-ids=true}, см.
+     * {@code ToolCallIdBackfillRunner}). Две независимые части:
      *
-     * <p>Затрагивает только сегменты с непустым {@code tool_data.toolCalls} — это отсекает старые
-     * чаты дотуловдатовой эпохи (таблица {@code tool_call}, ещё раньше введённая, но с этого PR не
-     * читаемая): у них нет протокольного id вызова вообще, восстанавливать нечего, они остаются
-     * некликабельными, как и сейчас.
+     * <ol>
+     *   <li>{@code tool_call_index} наполняется по всем {@code chat_message.tool_data} разговора —
+     *       без какой-либо позиционной арифметики: протокольный id вызова уже лежит в самих данных
+     *       (см. {@link #indexToolCallsFromHistory}), в отличие от того, что раньше делал этот
+     *       метод.
+     *   <li>Старые {@code meta.invocations} без {@code callId} дозаполняются им же — единственное
+     *       место, где позиционное сопоставление всё ещё нужно: у {@link ToolInvocation} из
+     *       коллектора протокольного id никогда не было, только порядковый {@code callIndex}.
+     *       Позиция вызова в {@code tool_data.toolCalls} сегмента = {@code callIndex} записи минус
+     *       offset — сумма {@code toolCalls.size()} по более ранним сегментам ТОГО ЖЕ прогона.
+     * </ol>
      *
-     * <p>Позиция вызова в {@code tool_data.toolCalls} сегмента = {@code callIndex} записи минус
-     * offset — сумма {@code toolCalls.size()} по более ранним сегментам ТОГО ЖЕ прогона (тот же
-     * расчёт, что раньше делал {@code findToolCallDetail} на каждый клик, здесь — по одному разу на
-     * запись). responseMessageId ищем один раз на разговор — по всем TOOL-строкам сразу, как в
-     * {@link #attachRunMeta}, а не пересканируя хвост на каждый вызов.
-     *
-     * <p>Идемпотентно: записи с уже проставленным {@code messageId} не трогаются, так что повторный
-     * прогон — дешёвый no-op.
+     * <p>Идемпотентно: и вставка в {@code tool_call_index}, и заполнение {@code callId} пропускают
+     * уже заполненные записи, так что повторный прогон — дешёвый no-op.
      */
     @Transactional
     public BackfillResult backfillToolCallIds() {
@@ -596,20 +606,10 @@ public class ChatMemoryService implements ChatMemoryRepository {
                     chatMessageRepository
                             .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
                                     conversationId);
-            final Map<String, Long> responseMessageIdByCallId = new HashMap<>();
-            for (ChatMessageEntity row : all) {
-                if (row.getType() == MessageType.TOOL
-                        && row.getToolData() != null
-                        && row.getToolData().responses() != null) {
-                    for (ToolData.Response response : row.getToolData().responses()) {
-                        responseMessageIdByCallId.put(response.id(), row.getId());
-                    }
-                }
-            }
-            // offset — по прогону (runId): сегменты чужих прогонов вклад в него не дают, ровно
-            // как в дособытийной версии findToolCallDetail.
+            boolean touchedThisConversation = indexToolCallsFromHistory(conversationId, all);
+
+            // offset — по прогону (runId): сегменты чужих прогонов вклад в него не дают.
             final Map<String, Integer> offsetByRunId = new HashMap<>();
-            boolean touchedThisConversation = false;
             for (ChatMessageEntity segment : all) {
                 if (segment.getType() != MessageType.ASSISTANT
                         || segment.getMeta() == null
@@ -622,13 +622,13 @@ public class ChatMemoryService implements ChatMemoryRepository {
                 final int offset = offsetByRunId.getOrDefault(runId, 0);
                 offsetByRunId.put(runId, offset + calls.size());
                 if (segment.getMeta().invocations().stream()
-                        .noneMatch(inv -> inv.messageId() == null)) {
+                        .noneMatch(inv -> inv.callId() == null)) {
                     continue; // уже заполнено (или пустой список) — идемпотентность
                 }
                 final List<ToolInvocationMeta> updated = new ArrayList<>();
                 boolean touchedThisSegment = false;
                 for (ToolInvocationMeta inv : segment.getMeta().invocations()) {
-                    if (inv.messageId() != null || inv.callIndex() == null) {
+                    if (inv.callId() != null || inv.callIndex() == null) {
                         updated.add(inv);
                         continue;
                     }
@@ -637,7 +637,6 @@ public class ChatMemoryService implements ChatMemoryRepository {
                         updated.add(inv); // смещение не сошлось — не портим данные, пропускаем
                         continue;
                     }
-                    final ToolData.Call call = calls.get(position);
                     updated.add(
                             new ToolInvocationMeta(
                                     inv.name(),
@@ -648,9 +647,7 @@ public class ChatMemoryService implements ChatMemoryRepository {
                                     inv.hasDetails(),
                                     inv.callIndex(),
                                     inv.resultGist(),
-                                    segment.getId(),
-                                    call.id(),
-                                    responseMessageIdByCallId.get(call.id())));
+                                    calls.get(position).id()));
                     invocationsFilled++;
                     touchedThisSegment = true;
                 }
@@ -667,6 +664,58 @@ public class ChatMemoryService implements ChatMemoryRepository {
             }
         }
         return new BackfillResult(conversationsTouched, invocationsFilled);
+    }
+
+    /**
+     * Наполняет {@code tool_call_index} по всей истории разговора: вставляет строки по {@code
+     * tool_data.toolCalls} ASSISTANT-сегментов, которых там ещё нет, и проставляет {@code
+     * responseMessageId} по {@code tool_data.responses} TOOL-сообщений. Идемпотентно — новые строки
+     * определяются по уже присутствующим {@code callId}, обновление ответа само по себе не
+     * затрагивает строки с уже верным значением (см. {@link
+     * ToolCallIndexRepository#setResponseMessageId}).
+     *
+     * @return {@code true}, если что-то реально изменилось (для {@link BackfillResult})
+     */
+    private boolean indexToolCallsFromHistory(String conversationId, List<ChatMessageEntity> all) {
+        final Set<String> existingCallIds = new HashSet<>();
+        toolCallIndexRepository
+                .findAllByConversationId(conversationId)
+                .forEach(e -> existingCallIds.add(e.getCallId()));
+        final List<ToolCallIndexEntity> newRows = new ArrayList<>();
+        for (ChatMessageEntity row : all) {
+            if (row.getType() != MessageType.ASSISTANT
+                    || row.getToolData() == null
+                    || row.getToolData().toolCalls() == null) {
+                continue;
+            }
+            for (ToolData.Call call : row.getToolData().toolCalls()) {
+                if (existingCallIds.add(call.id())) {
+                    final ToolCallIndexEntity entity = new ToolCallIndexEntity();
+                    entity.setConversationId(conversationId);
+                    entity.setCallId(call.id());
+                    entity.setMessageId(row.getId());
+                    newRows.add(entity);
+                }
+            }
+        }
+        if (!newRows.isEmpty()) {
+            toolCallIndexRepository.saveAll(newRows);
+        }
+        boolean touched = !newRows.isEmpty();
+        for (ChatMessageEntity row : all) {
+            if (row.getType() != MessageType.TOOL
+                    || row.getToolData() == null
+                    || row.getToolData().responses() == null) {
+                continue;
+            }
+            for (ToolData.Response response : row.getToolData().responses()) {
+                final int rows =
+                        toolCallIndexRepository.setResponseMessageId(
+                                conversationId, response.id(), row.getId());
+                touched = touched || rows > 0;
+            }
+        }
+        return touched;
     }
 
     public record BackfillResult(int conversationsTouched, int invocationsFilled) {}

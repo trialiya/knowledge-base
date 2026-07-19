@@ -46,13 +46,9 @@ const chatApi = {
     return request(`/api/chats/search?${params}`, signal ? { signal } : undefined);
   },
 
-  /**
-   * Полные детали одного вызова инструмента — точечно по id сообщения-сегмента и протокольному id
-   * вызова; responseMessageId опционален (вызов мог ещё не завершиться).
-   */
-  getToolCallDetails: (chatId, messageId, callId, responseMessageId) => {
-    const params = new URLSearchParams({ messageId: String(messageId), callId });
-    if (responseMessageId != null) params.set('responseMessageId', String(responseMessageId));
+  /** Полные детали одного вызова инструмента — точечно по протокольному id вызова. */
+  getToolCallDetails: (chatId, callId) => {
+    const params = new URLSearchParams({ callId });
     return request(`/api/chats/${enc(chatId)}/tool-calls?${params}`);
   },
 

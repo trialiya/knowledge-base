@@ -2,6 +2,7 @@ package io.github.trialiya.kb.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -12,10 +13,12 @@ import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.ToolCallMessage;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
+import io.github.trialiya.kb.model.tool.ToolCallIndexEntity;
 import io.github.trialiya.kb.model.tool.ToolData;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
+import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -44,6 +47,7 @@ class ChatMemoryServiceToolEventsTest {
     private ChatTopicRepository topicRepo;
     private ChatMessageRepository messageRepo;
     private ChatEventService events;
+    private ToolCallIndexRepository toolCallIndexRepo;
     private ChatMemoryService service;
 
     @BeforeEach
@@ -51,9 +55,10 @@ class ChatMemoryServiceToolEventsTest {
         topicRepo = mock(ChatTopicRepository.class);
         messageRepo = mock(ChatMessageRepository.class);
         events = mock(ChatEventService.class);
-        service = new ChatMemoryService(topicRepo, messageRepo, events);
+        toolCallIndexRepo = mock(ToolCallIndexRepository.class);
+        service = new ChatMemoryService(topicRepo, messageRepo, events, toolCallIndexRepo);
         // saveAll в БД возвращает сущности с проставленными id — saveAll сервиса на этом строит
-        // messageId/responseMessageId live-событий (см. ChatMemoryService#saveAll).
+        // messageId строк tool_call_index (см. ChatMemoryService#indexToolCalls).
         final java.util.concurrent.atomic.AtomicLong nextId =
                 new java.util.concurrent.atomic.AtomicLong(100);
         when(messageRepo.saveAll(any()))
@@ -133,6 +138,33 @@ class ChatMemoryServiceToolEventsTest {
         assertThat(metas.get(1).name()).isEqualTo("searchDocuments");
         assertThat(metas.get(1).callIndex()).isEqualTo(0);
         assertThat(metas.get(1).resultGist()).contains("found 3 docs");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void indexesToolCallsOnSave() {
+        when(events.activeRunId(CONV)).thenReturn(Optional.of(RUN));
+
+        service.saveAll(
+                CONV,
+                List.of(
+                        new UserMessage("hi"),
+                        assistantWithCalls(call("id-0", "searchDocuments", "{}")),
+                        new ToolResponseMessage(
+                                List.<ToolResponseMessage.ToolResponse>of(
+                                        new ToolResponseMessage.ToolResponse(
+                                                "id-0", "searchDocuments", "\"found 3 docs\"")),
+                                Map.of()) {}));
+
+        final ArgumentCaptor<List<ToolCallIndexEntity>> rows = ArgumentCaptor.forClass(List.class);
+        verify(toolCallIndexRepo).saveAll(rows.capture());
+        assertThat(rows.getValue()).hasSize(1);
+        assertThat(rows.getValue().get(0).getCallId()).isEqualTo("id-0");
+        assertThat(rows.getValue().get(0).getConversationId()).isEqualTo(CONV);
+
+        // responseMessageId проставляется отдельно, по id только что сохранённой TOOL-строки —
+        // без похода за messageId сегмента и без позиционной арифметики.
+        verify(toolCallIndexRepo).setResponseMessageId(eq(CONV), eq("id-0"), anyLong());
     }
 
     @Test
@@ -240,8 +272,6 @@ class ChatMemoryServiceToolEventsTest {
                         null,
                         true,
                         0,
-                        null,
-                        null,
                         null,
                         null);
         final ChatMessageEntity segment =

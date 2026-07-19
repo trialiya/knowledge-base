@@ -9,10 +9,12 @@ import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
+import io.github.trialiya.kb.model.tool.ToolCallDetail;
 import io.github.trialiya.kb.model.tool.ToolData;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
+import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.service.ChatEventService;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.support.AbstractPostgresIntegrationTest;
@@ -31,10 +33,13 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.context.annotation.Import;
 
 /**
- * {@link ChatMemoryService#backfillToolCallIds()} на данных в старом формате (meta.invocations без
- * messageId/callId/responseMessageId, ровно как их писала версия до этого PR) — проверяет, что
- * бэкафилл восстанавливает id так же, как их сейчас пишет {@link ChatMemoryService#attachRunMeta},
- * что он идемпотентен, и что чаты без {@code tool_data} (дотуловдатовая эпоха) не трогает.
+ * {@link ChatMemoryService#backfillToolCallIds()} на данных в старом формате: {@code
+ * tool_call_index} ещё не наполнен, а {@code meta.invocations} — без {@code callId} (ровно как их
+ * писала версия до появления этой таблицы). Проверяет, что бэкафилл наполняет индекс из {@code
+ * tool_data} напрямую (без учёта прогонов/позиций — они там ни при чём), дозаполняет {@code callId}
+ * в старых invocations той же позиционной логикой, что раньше делал {@code findToolCallDetail} на
+ * каждый клик, что он идемпотентен, и что чаты без {@code tool_data} (дотуловдатовая эпоха) не
+ * трогает.
  */
 @DataJdbcTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -43,12 +48,14 @@ class ToolCallIdBackfillIT extends AbstractPostgresIntegrationTest {
 
     @Autowired private ChatTopicRepository topicRepo;
     @Autowired private ChatMessageRepository messageRepo;
+    @Autowired private ToolCallIndexRepository toolCallIndexRepo;
 
     private ChatMemoryService memory() {
         return new ChatMemoryService(
                 topicRepo,
                 messageRepo,
-                new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))));
+                new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))),
+                toolCallIndexRepo);
     }
 
     private long position = 0;
@@ -85,25 +92,15 @@ class ToolCallIdBackfillIT extends AbstractPostgresIntegrationTest {
                         toolData));
     }
 
-    /** Мета в старом формате — как её писала версия attachRunMeta до этого PR. */
+    /** Мета в старом формате — как её писала версия attachRunMeta до появления {@code callId}. */
     private static ToolInvocationMeta oldMeta(
             String name, ToolInvocationStatus status, int callIndex) {
         return new ToolInvocationMeta(
-                name,
-                java.util.Map.of(),
-                status,
-                null,
-                null,
-                true,
-                callIndex,
-                null,
-                null,
-                null,
-                null);
+                name, java.util.Map.of(), status, null, null, true, callIndex, null, null);
     }
 
     @Test
-    void fillsIdsFromToolDataAndMatchesFindToolCallDetail() {
+    void fillsIndexAndCallIdFromToolDataAndMatchesFindToolCallDetail() {
         String conv = UUID.randomUUID().toString();
         String runId = UUID.randomUUID().toString();
         newConversation(conv);
@@ -143,8 +140,14 @@ class ToolCallIdBackfillIT extends AbstractPostgresIntegrationTest {
         assertThat(result.conversationsTouched()).isEqualTo(1);
         assertThat(result.invocationsFilled()).isEqualTo(1);
 
-        Optional<DetailSnapshot> detail =
-                findDetail(conv, segment.getId(), toolRow.getId(), "call_1");
+        assertThat(toolCallIndexRepo.findByConversationIdAndCallId(conv, "call_1"))
+                .hasValueSatisfying(
+                        row -> {
+                            assertThat(row.getMessageId()).isEqualTo(segment.getId());
+                            assertThat(row.getResponseMessageId()).isEqualTo(toolRow.getId());
+                        });
+
+        Optional<ToolCallDetail> detail = memory().findToolCallDetail(conv, "call_1");
         assertThat(detail).isPresent();
         assertThat(detail.get().name()).isEqualTo("updateDocument");
         assertThat(detail.get().argumentsRaw()).isEqualTo("{\"id\":7,\"body\":\"long\"}");
@@ -198,13 +201,5 @@ class ToolCallIdBackfillIT extends AbstractPostgresIntegrationTest {
 
         assertThat(result.conversationsTouched()).isZero();
         assertThat(result.invocationsFilled()).isZero();
-    }
-
-    private record DetailSnapshot(String name, String argumentsRaw, String resultText) {}
-
-    private Optional<DetailSnapshot> findDetail(
-            String conv, long messageId, @Nullable Long responseMessageId, String callId) {
-        return memory().findToolCallDetail(conv, messageId, responseMessageId, callId)
-                .map(d -> new DetailSnapshot(d.name(), d.argumentsRaw(), d.resultText()));
     }
 }

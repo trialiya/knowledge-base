@@ -71,15 +71,9 @@ const ToolCallItem = ({ tc, conversationId }) => {
   const [showDetail, setShowDetail] = useState(false);
 
   useEffect(() => () => clearTimeout(copyTimerRef.current), []);
-  // messageId/callId приходят вместе с плашкой (SSE TOOL_CALL/TOOL_CALLS или GET /messages) —
-  // без них (старые записи до этого поля) модалке деталей нечего запросить.
-  const canShowDetail = !!(
-    conversationId &&
-    tc.messageId &&
-    tc.callId &&
-    tc.status !== TOOL_STATUS.STARTED &&
-    tc.hasDetails !== false
-  );
+  // callId приходит вместе с плашкой (SSE TOOL_CALL/TOOL_CALLS или GET /messages) — без него
+  // (старые записи до этого поля) модалке деталей нечего запросить.
+  const canShowDetail = !!(conversationId && tc.callId && tc.status !== TOOL_STATUS.STARTED && tc.hasDetails !== false);
 
   const GAP = 8;
 
@@ -181,9 +175,7 @@ const ToolCallItem = ({ tc, conversationId }) => {
       {showDetail && canShowDetail && (
         <ToolCallDetailModal
           conversationId={conversationId}
-          messageId={tc.messageId}
           callId={tc.callId}
-          responseMessageId={tc.responseMessageId}
           tc={tc}
           onClose={() => setShowDetail(false)}
         />
