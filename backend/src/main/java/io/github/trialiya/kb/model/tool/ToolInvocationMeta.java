@@ -1,10 +1,12 @@
 package io.github.trialiya.kb.model.tool;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record ToolInvocationMeta(
         String name,
         Map<Object, Object> arguments,
@@ -18,18 +20,10 @@ public record ToolInvocationMeta(
         /** Короткое превью результата для плашки; null у старых записей. */
         @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String resultGist,
         /**
-         * id ASSISTANT-сообщения ({@code chat_message.id}), сохранившего этот вызов в {@code
-         * tool_data.toolCalls} — вместе с {@link #callId} и {@link #responseMessageId} позволяет
-         * достать полные детали вызова (сырые аргументы, полный результат) точечным {@code
-         * findAllById} по двум строкам, без сканирования истории чата. null у старых записей.
-         */
-        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Long messageId,
-        /**
-         * Протокольный id вызова ({@code tool_call.id} / {@code ToolData.Call#id}); null у старых
+         * Протокольный id вызова ({@code tool_call.id} / {@code ToolData.Call#id}) — единственный
+         * ключ, нужный модалке деталей: {@code GET /tool-calls} находит messageId/responseMessageId
+         * сам, через {@code tool_call_index} (см. {@link
+         * io.github.trialiya.kb.service.ChatMemoryService#findToolCallDetail}). null у старых
          * записей.
          */
-        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String callId,
-        /**
-         * id TOOL-сообщения с ответом на этот вызов; null пока результата нет или у старых записей.
-         */
-        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) Long responseMessageId) {}
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String callId) {}

@@ -7,9 +7,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
- * Одноразовый бэкафилл messageId/callId/responseMessageId в {@code chat_message.meta} для чатов,
- * записанных до появления этих полей (см. {@link ChatMemoryService#backfillToolCallIds}). Выключен
- * по умолчанию — включается на один прогон переменной {@code KB_BACKFILL_TOOL_CALL_IDS=true} (или
+ * Одноразовый бэкафилл для чатов, записанных до появления {@code tool_call_index}/{@code
+ * ToolInvocationMeta#callId} (см. {@link ChatMemoryService#backfillToolCallIds}). Выключен по
+ * умолчанию — включается на один прогон переменной {@code KB_BACKFILL_TOOL_CALL_IDS=true} (или
  * {@code kb.backfill.tool-call-ids: true}), после чего флаг снова выключают: повторный запуск
  * безопасен (идемпотентно), но бессмыслен.
  */

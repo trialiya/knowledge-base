@@ -49,8 +49,8 @@ class SampleDataFixtureTest {
                 .isEqualTo(1);
         assertThat(jdbc.queryForObject("select count(*) from chat_message", Integer.class))
                 .isEqualTo(16);
-        assertThat(jdbc.queryForObject("select count(*) from tool_call", Integer.class))
-                .isEqualTo(7);
+        assertThat(jdbc.queryForObject("select count(*) from tool_call_index", Integer.class))
+                .isEqualTo(6);
         assertThat(jdbc.queryForObject("select count(*) from documents", Integer.class))
                 .isEqualTo(3);
         assertThat(jdbc.queryForObject("select count(*) from document_history", Integer.class))

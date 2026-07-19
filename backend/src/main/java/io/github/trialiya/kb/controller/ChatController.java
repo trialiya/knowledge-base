@@ -320,19 +320,16 @@ public class ChatController {
     }
 
     /**
-     * Полные детали одного вызова инструмента — точечно по id сообщения-сегмента и протокольному id
-     * вызова (см. {@link ChatMemoryService#findToolCallDetail}); {@code responseMessageId}
-     * опционален (например, вызов ещё не завершился).
+     * Полные детали одного вызова инструмента — точечно по протокольному {@code callId} (см. {@link
+     * ChatMemoryService#findToolCallDetail}); messageId/responseMessageId бэк находит сам через
+     * {@code tool_call_index}.
      */
     @GetMapping("/{conversationId}/tool-calls")
     public ResponseEntity<ToolCallDetail> getToolCallDetails(
-            @PathVariable String conversationId,
-            @RequestParam long messageId,
-            @RequestParam(required = false) Long responseMessageId,
-            @RequestParam String callId) {
+            @PathVariable String conversationId, @RequestParam String callId) {
         verifyOwnerIfPresent(conversationId);
         return chatMemoryService
-                .findToolCallDetail(conversationId, messageId, responseMessageId, callId)
+                .findToolCallDetail(conversationId, callId)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
