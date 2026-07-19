@@ -9,7 +9,7 @@ import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.data.repository.query.Param;
 
-public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity, String> {
+public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity, Long> {
 
     int deleteChatMessageByConversationId(String conversationId);
 

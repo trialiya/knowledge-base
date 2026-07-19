@@ -374,13 +374,10 @@ public class ChatMemoryService implements ChatMemoryRepository {
             long messageId,
             @Nullable Long responseMessageId,
             String callId) {
-        // ChatMessageRepository объявлен как CrudRepository<ChatMessageEntity, String> (наследие),
-        // хотя реальный @Id — long; findAllById(Iterable<String>) конвертируется в long на уровне
-        // JDBC-стратегии, поэтому id передаём строками.
-        final List<String> ids =
+        final List<Long> ids =
                 responseMessageId == null
-                        ? List.of(String.valueOf(messageId))
-                        : List.of(String.valueOf(messageId), String.valueOf(responseMessageId));
+                        ? List.of(messageId)
+                        : List.of(messageId, responseMessageId);
         final Map<Long, ChatMessageEntity> byId = new HashMap<>();
         chatMessageRepository
                 .findAllById(ids)
