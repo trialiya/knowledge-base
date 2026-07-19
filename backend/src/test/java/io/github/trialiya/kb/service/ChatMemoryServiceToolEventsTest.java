@@ -95,22 +95,19 @@ class ChatMemoryServiceToolEventsTest {
                                                 "\"2026-07-19T12:00\"")),
                                 Map.of()) {}));
 
+        // SKIP_TOOLS (getCurrentDateTime) не публикуется вовсе — ни STARTED, ни OK,
+        // но callIndex остальных вызовов считает его (позиция в toolCalls).
         final List<ToolInvocationMeta> metas = publishedMetas();
-        assertThat(metas).hasSize(4);
+        assertThat(metas).hasSize(2);
         assertThat(metas.get(0).status()).isEqualTo(ToolInvocationStatus.STARTED);
         assertThat(metas.get(0).name()).isEqualTo("searchDocuments");
         assertThat(metas.get(0).callIndex()).isEqualTo(0);
         assertThat(metas.get(0).arguments()).containsEntry("q", "a");
         assertThat(metas.get(0).hasDetails()).isTrue();
-        // SKIP_TOOLS: событие уходит, но hasDetails=false
-        assertThat(metas.get(1).status()).isEqualTo(ToolInvocationStatus.STARTED);
-        assertThat(metas.get(1).callIndex()).isEqualTo(1);
-        assertThat(metas.get(1).hasDetails()).isFalse();
-        assertThat(metas.get(2).status()).isEqualTo(ToolInvocationStatus.OK);
-        assertThat(metas.get(2).callIndex()).isEqualTo(0);
-        assertThat(metas.get(2).resultGist()).contains("found 3 docs");
-        assertThat(metas.get(3).status()).isEqualTo(ToolInvocationStatus.OK);
-        assertThat(metas.get(3).callIndex()).isEqualTo(1);
+        assertThat(metas.get(1).status()).isEqualTo(ToolInvocationStatus.OK);
+        assertThat(metas.get(1).name()).isEqualTo("searchDocuments");
+        assertThat(metas.get(1).callIndex()).isEqualTo(0);
+        assertThat(metas.get(1).resultGist()).contains("found 3 docs");
     }
 
     @Test

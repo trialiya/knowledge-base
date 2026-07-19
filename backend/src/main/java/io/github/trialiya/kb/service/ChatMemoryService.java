@@ -162,7 +162,10 @@ public class ChatMemoryService implements ChatMemoryRepository {
                 for (ToolData.Call call : toolData.toolCalls()) {
                     indexById.put(call.id(), callIndex);
                     callById.put(call.id(), call);
-                    if (!alreadySaved) {
+                    // SKIP_TOOLS не показываем нигде: ни live, ни после перезагрузки
+                    // (attachRunMeta их тоже вырезает); callIndex при этом считает их —
+                    // он должен совпадать с позицией в toolCalls.
+                    if (!alreadySaved && hasDetails(call.name())) {
                         publishToolCall(
                                 conversationId,
                                 runId.get(),
@@ -181,6 +184,9 @@ public class ChatMemoryService implements ChatMemoryRepository {
             }
             if (!alreadySaved && toolData.responses() != null) {
                 for (ToolData.Response response : toolData.responses()) {
+                    if (!hasDetails(response.name())) {
+                        continue;
+                    }
                     final ToolData.Call call = callById.get(response.id());
                     publishToolCall(
                             conversationId,

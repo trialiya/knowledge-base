@@ -265,10 +265,13 @@ public class ChatRunService {
     private void onComplete(
             RunHandle handle, ToolInvocationCollector toolCollector, Consumer<Object> liveSink) {
         handle.persisted().set(true);
+        // SKIP_TOOLS вырезаны и здесь: после перезагрузки их не будет (attachRunMeta их не
+        // сохраняет), значит и live они не показываются — поведение одинаковое.
         liveSink.accept(
                 new ToolCallsMessage(
                         toolCollector.completedSnapshot().stream()
-                                .map(tc -> tc.toMeta(chatMemoryService.hasDetails(tc.name())))
+                                .filter(tc -> chatMemoryService.hasDetails(tc.name()))
+                                .map(tc -> tc.toMeta(true))
                                 .toList()));
         chatMemoryService.attachRunMeta(
                 handle.conversationId(), handle.runId(), toolCollector.completedSnapshot());
