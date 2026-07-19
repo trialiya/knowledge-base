@@ -569,6 +569,111 @@ public class ChatMemoryService implements ChatMemoryRepository {
         return allMetas;
     }
 
+    /**
+     * Одноразовый бэкафилл messageId/callId/responseMessageId для {@code meta.invocations},
+     * сохранённых до появления этих полей (см. {@link ToolInvocationMeta}). Запускается вручную
+     * ({@code kb.backfill.tool-call-ids=true}, см. {@code ToolCallIdBackfillRunner}), а не
+     * миграцией: логика идентична {@link #findToolCallDetail} доотчётной версии — сырым SQL (тем
+     * более одинаковым для Postgres и H2) её было бы неоправданно хрупко выражать.
+     *
+     * <p>Затрагивает только сегменты с непустым {@code tool_data.toolCalls} — это отсекает старые
+     * чаты дотуловдатовой эпохи (таблица {@code tool_call}, ещё раньше введённая, но с этого PR не
+     * читаемая): у них нет протокольного id вызова вообще, восстанавливать нечего, они остаются
+     * некликабельными, как и сейчас.
+     *
+     * <p>Позиция вызова в {@code tool_data.toolCalls} сегмента = {@code callIndex} записи минус
+     * offset — сумма {@code toolCalls.size()} по более ранним сегментам ТОГО ЖЕ прогона (тот же
+     * расчёт, что раньше делал {@code findToolCallDetail} на каждый клик, здесь — по одному разу на
+     * запись). responseMessageId ищем один раз на разговор — по всем TOOL-строкам сразу, как в
+     * {@link #attachRunMeta}, а не пересканируя хвост на каждый вызов.
+     *
+     * <p>Идемпотентно: записи с уже проставленным {@code messageId} не трогаются, так что повторный
+     * прогон — дешёвый no-op.
+     */
+    @Transactional
+    public BackfillResult backfillToolCallIds() {
+        int conversationsTouched = 0;
+        int invocationsFilled = 0;
+        for (String conversationId : chatTopicRepository.findAllConversationIds()) {
+            final List<ChatMessageEntity> all =
+                    chatMessageRepository
+                            .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
+                                    conversationId);
+            final Map<String, Long> responseMessageIdByCallId = new HashMap<>();
+            for (ChatMessageEntity row : all) {
+                if (row.getType() == MessageType.TOOL
+                        && row.getToolData() != null
+                        && row.getToolData().responses() != null) {
+                    for (ToolData.Response response : row.getToolData().responses()) {
+                        responseMessageIdByCallId.put(response.id(), row.getId());
+                    }
+                }
+            }
+            // offset — по прогону (runId): сегменты чужих прогонов вклад в него не дают, ровно
+            // как в дособытийной версии findToolCallDetail.
+            final Map<String, Integer> offsetByRunId = new HashMap<>();
+            boolean touchedThisConversation = false;
+            for (ChatMessageEntity segment : all) {
+                if (segment.getType() != MessageType.ASSISTANT
+                        || segment.getMeta() == null
+                        || segment.getToolData() == null
+                        || segment.getToolData().toolCalls() == null) {
+                    continue;
+                }
+                final String runId = segment.getMeta().runId();
+                final List<ToolData.Call> calls = segment.getToolData().toolCalls();
+                final int offset = offsetByRunId.getOrDefault(runId, 0);
+                offsetByRunId.put(runId, offset + calls.size());
+                if (segment.getMeta().invocations().stream()
+                        .noneMatch(inv -> inv.messageId() == null)) {
+                    continue; // уже заполнено (или пустой список) — идемпотентность
+                }
+                final List<ToolInvocationMeta> updated = new ArrayList<>();
+                boolean touchedThisSegment = false;
+                for (ToolInvocationMeta inv : segment.getMeta().invocations()) {
+                    if (inv.messageId() != null || inv.callIndex() == null) {
+                        updated.add(inv);
+                        continue;
+                    }
+                    final int position = inv.callIndex() - offset;
+                    if (position < 0 || position >= calls.size()) {
+                        updated.add(inv); // смещение не сошлось — не портим данные, пропускаем
+                        continue;
+                    }
+                    final ToolData.Call call = calls.get(position);
+                    updated.add(
+                            new ToolInvocationMeta(
+                                    inv.name(),
+                                    inv.arguments(),
+                                    inv.status(),
+                                    inv.error(),
+                                    inv.resultMeta(),
+                                    inv.hasDetails(),
+                                    inv.callIndex(),
+                                    inv.resultGist(),
+                                    segment.getId(),
+                                    call.id(),
+                                    responseMessageIdByCallId.get(call.id())));
+                    invocationsFilled++;
+                    touchedThisSegment = true;
+                }
+                if (touchedThisSegment) {
+                    chatMessageRepository.save(
+                            segment.withMeta(
+                                    new ChatMessageMeta(
+                                            runId, segment.getMeta().toolCalls(), updated)));
+                    touchedThisConversation = true;
+                }
+            }
+            if (touchedThisConversation) {
+                conversationsTouched++;
+            }
+        }
+        return new BackfillResult(conversationsTouched, invocationsFilled);
+    }
+
+    public record BackfillResult(int conversationsTouched, int invocationsFilled) {}
+
     // ── Search ────────────────────────────────────────────────────────────────
 
     /** Сколько сырых совпадений сообщений просматриваем при поиске по всем чатам пользователя. */
