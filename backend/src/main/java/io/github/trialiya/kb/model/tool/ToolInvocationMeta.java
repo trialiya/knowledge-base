@@ -1,10 +1,12 @@
 package io.github.trialiya.kb.model.tool;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record ToolInvocationMeta(
         String name,
         Map<Object, Object> arguments,
