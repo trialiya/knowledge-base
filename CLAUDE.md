@@ -42,6 +42,11 @@ in 22–25):
 **`./gradlew` does not work here** (the gradle-9.6.1 download is blocked) —
 use the system Gradle at `/opt/gradle/bin/gradle`.
 
+A SessionStart hook (`.claude/hooks/session-start.sh`, web-only) already sets
+`LANG=C.utf8`, exports `GRADLE=/opt/gradle/bin/gradle`, and pre-compiles
+backend main+test classes with the JDK 21 init script — so the dependency
+cache is warm and `spotlessCheck`/unit tests start fast without extra setup.
+
 **For `*IT` tests start `dockerd` first:**
 
 ```bash
@@ -104,6 +109,35 @@ differ. Full contents and rationale are in the file's own header comment.
 regression test keeping the fixture in sync with `db/migration-h2` — run it
 after touching either.
 
+## Tool-call storage architecture (backend)
+
+The most non-obvious part of the backend — read this before touching
+`ChatMemoryService`, chat persistence, or tool-call UI endpoints.
+
+- **No dedicated tool-call table.** Protocol tool data (the assistant's tool
+  calls and the TOOL responses) lives in `chat_message.tool_data` (JSON, see
+  `ToolData`/`ToolDataToJsonConverter`), alongside the message it belongs to.
+  UI-only metadata (names, arg gists, statuses shown in chat) lives in the
+  message `meta` as `ToolInvocationMeta`/`ToolInvocation` — never mix the two:
+  `tool_data` is what the LLM protocol needs to replay history, `meta` is what
+  the frontend renders.
+- **`callId` is the join key.** Every call/response carries the protocol
+  `callId`. `tool_call_index` (see `ToolCallIndexEntity`) maps
+  `conversationId + callId` → the `chat_message` ids holding the full details
+  (issuing ASSISTANT segment, and the TOOL response row once it arrives).
+  `ChatMemoryService.findToolCallDetail` is a plain lookup through it — do not
+  reintroduce positional/offset arithmetic over message history.
+- **The index is filled at persist time** (`ChatMemoryService.saveAll`), not by
+  a background job. Keep it in sync when changing how messages are saved.
+- **`ToolCallIdBackfillRunner` is one-shot legacy support** for data recorded
+  before `tool_call_index`/`callId` existed. Off by default
+  (`kb.backfill.tool-call-ids=true` enables one run; idempotent). Once all
+  environments have been backfilled it — and
+  `ChatMemoryService.backfillToolCallIds` — should be deleted, not extended.
+- Migrations for this live in both `db/migration` (Postgres) and
+  `db/migration-h2`; schema changes must update both, plus
+  `db/sample-data.sql` + `SampleDataFixtureTest`.
+
 ## Frontend conventions (`frontend/src`)
 
 Target state and rules for anyone touching frontend code. The codebase is
@@ -155,9 +189,11 @@ doesn't touch. One PR = the task + migration of the files it touched.
 - Components render; hooks own state/API orchestration; pure logic goes in
   plain `.js` modules next to the feature (`treeOps.js`, `fileChips.js`).
 - Keep files focused: a file approaching ~300 lines or holding 2+ exported
-  components is due for a split. Big-file precedents being dismantled:
-  `ChatWindow.jsx`, `useKnowledgeBase.js`, `DocLinkTooltip.jsx`,
-  `FileChipInput.jsx`.
+  components is due for a split. Big-file precedents still being dismantled
+  (keep this list current as they shrink): `ChatWindow.jsx` (~900 lines, worst
+  offender — untouched), `useKnowledgeBase.js` (~700), `icons/index.jsx`
+  (~640), and — partially decomposed in #120 but still over the threshold —
+  `FileChipInput.jsx` (~430) and `DocLinkTooltip.jsx` (~340).
 - Reuse the shared hooks before writing new plumbing: `useSearchDropdown`
   (search-button → dropdown widgets), `useEscape`, `useDocPreview`/
   `useFilePreview` (both built on `usePreviewCache` — the module-cache preview
