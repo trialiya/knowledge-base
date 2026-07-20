@@ -19,10 +19,7 @@ export const NO_MODE = '';
 const ModeSelector = ({ value, options, onChange, disabled = false }) => {
   const { t } = useTranslation('chat');
 
-  const withNone = useMemo(
-    () => [{ id: NO_MODE, label: t('mode.none') }, ...(options || [])],
-    [options, t],
-  );
+  const withNone = useMemo(() => [{ id: NO_MODE, label: t('mode.none') }, ...(options || [])], [options, t]);
 
   return (
     <ListboxSelect

@@ -5,6 +5,7 @@ import io.github.trialiya.kb.config.model.ChatModeProperties.Mode;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
@@ -20,12 +21,14 @@ import org.springframework.util.StreamUtils;
 @Service
 public class ChatModeService {
 
-    private final Map<String, String> instructionsById = new LinkedHashMap<>();
+    private final Map<String, String> instructionsById;
 
     public ChatModeService(ChatModeProperties modeProperties) {
+        final LinkedHashMap<String, String> map = new LinkedHashMap<>();
         for (Mode mode : modeProperties.modes()) {
-            instructionsById.put(mode.id(), read(mode));
+            map.put(mode.id(), read(mode));
         }
+        this.instructionsById = Collections.unmodifiableMap(map);
     }
 
     /** Фрагмент инструкций для режима (или {@code ""} для {@code null}/неизвестного id). */

@@ -34,12 +34,7 @@ const ComposerToolbar = ({ model, mode, disabled, sendDisabled, onAttach, onStop
           />
         )}
         {mode && mode.options?.length > 0 && (
-          <ModeSelector
-            value={mode.selected}
-            options={mode.options}
-            onChange={mode.onChange}
-            disabled={disabled}
-          />
+          <ModeSelector value={mode.selected} options={mode.options} onChange={mode.onChange} disabled={disabled} />
         )}
       </div>
 
@@ -58,9 +53,7 @@ const ComposerToolbar = ({ model, mode, disabled, sendDisabled, onAttach, onStop
         <button
           type="button"
           className={
-            disabled
-              ? 'message-action-btn message-action-btn--stop'
-              : 'message-action-btn message-action-btn--send'
+            disabled ? 'message-action-btn message-action-btn--stop' : 'message-action-btn message-action-btn--send'
           }
           onClick={disabled ? onStop : onSend}
           disabled={!disabled && sendDisabled}

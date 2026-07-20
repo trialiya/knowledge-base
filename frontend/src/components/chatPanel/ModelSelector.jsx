@@ -17,10 +17,7 @@ const ModelSelector = ({ value, defaultId, options, onChange, disabled = false }
   const { t } = useTranslation('chat');
 
   const decorated = useMemo(
-    () =>
-      (options || []).map((m) =>
-        m.id === defaultId ? { ...m, note: `(${t('model.default')})` } : m,
-      ),
+    () => (options || []).map((m) => (m.id === defaultId ? { ...m, note: `(${t('model.default')})` } : m)),
     [options, defaultId, t],
   );
 
