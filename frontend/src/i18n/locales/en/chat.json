@@ -208,5 +208,9 @@
   "model": {
     "aria": "Model",
     "default": "default"
+  },
+  "mode": {
+    "aria": "Mode",
+    "none": "No mode"
   }
 }

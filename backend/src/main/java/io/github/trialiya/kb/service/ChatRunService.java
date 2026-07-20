@@ -109,6 +109,7 @@ public class ChatRunService {
             String user,
             String userMessage,
             @Nullable String resolvedModel,
+            String modeInstructions,
             String clientMsgId) {
         final String runId = UUID.randomUUID().toString();
         // Атомарная заявка на чат: если генерация уже идёт (в т.ч. из другой вкладки) — 409,
@@ -127,7 +128,8 @@ public class ChatRunService {
         // куда thread-local контекст не доезжает, поэтому пользователя для инструментов передаём
         // ещё и явно — через toolContext (см. buildContext ниже).
         try {
-            executor.execute(() -> run(handle, userMessage, resolvedModel, clientMsgId));
+            executor.execute(
+                    () -> run(handle, userMessage, resolvedModel, modeInstructions, clientMsgId));
         } catch (RuntimeException e) {
             // например, RejectedExecutionException при остановке пула — не оставляем чат «занятым».
             cleanup(handle);
@@ -167,6 +169,7 @@ public class ChatRunService {
             RunHandle handle,
             String userMessage,
             @Nullable String resolvedModel,
+            String modeInstructions,
             String clientMsgId) {
         final String conversationId = handle.conversationId();
         final String runId = handle.runId();
@@ -197,6 +200,7 @@ public class ChatRunService {
             ChatClient.ChatClientRequestSpec spec =
                     chatClient
                             .prompt()
+                            .system(sp -> sp.param("mode_instructions", modeInstructions))
                             .user(userMessage)
                             .toolContext(
                                     ChatUtils.buildContext(

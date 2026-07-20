@@ -79,6 +79,18 @@ kb:
 #    models:
 #      - id: ${KB_CHAT_MODELS_0_ID}
 #        label: ${KB_CHAT_MODELS_0_LABEL}
+    # Готовые «режимы» ассистента: подставляют свой фрагмент инструкций в системный
+    # промпт (плейсхолдер {mode_instructions} в prompt/sys.md). «Без режима» — пусто.
+    modes:
+      - id: analytic
+        label: Аналитик
+        prompt: classpath:prompt/mode-analytic.md
+      - id: developer
+        label: Разработчик
+        prompt: classpath:prompt/mode-developer.md
+      - id: tester
+        label: Тестировщик
+        prompt: classpath:prompt/mode-tester.md
     timeout:
       # SseEmitter timeout per browser tab subscription (replay/reconnect window).
       sse: ${KB_CHAT_SSE_TIMEOUT:30m}

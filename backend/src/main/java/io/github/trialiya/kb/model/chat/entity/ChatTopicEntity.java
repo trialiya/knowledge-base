@@ -18,6 +18,7 @@ public class ChatTopicEntity implements Persistable<String> {
     private final boolean isUser;
     private final String topic;
     @Nullable private final String model;
+    @Nullable private final String mode;
     @CreatedDate private final LocalDateTime createdAt;
     @LastModifiedDate private final LocalDateTime updatedAt;
     @Transient private final boolean isNew;
@@ -29,6 +30,7 @@ public class ChatTopicEntity implements Persistable<String> {
             boolean isUser,
             String topic,
             @Nullable String model,
+            @Nullable String mode,
             LocalDateTime createdAt,
             LocalDateTime updatedAt,
             boolean isNew) {
@@ -37,6 +39,7 @@ public class ChatTopicEntity implements Persistable<String> {
         this.isUser = isUser;
         this.topic = topic;
         this.model = model;
+        this.mode = mode;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
         this.isNew = isNew;
@@ -50,9 +53,10 @@ public class ChatTopicEntity implements Persistable<String> {
             boolean isUser,
             String topic,
             @Nullable String model,
+            @Nullable String mode,
             LocalDateTime createdAt,
             LocalDateTime updatedAt) {
-        this(conversationId, user, isUser, topic, model, createdAt, updatedAt, false);
+        this(conversationId, user, isUser, topic, model, mode, createdAt, updatedAt, false);
     }
 
     public ChatTopicEntity(
@@ -62,7 +66,7 @@ public class ChatTopicEntity implements Persistable<String> {
             String topic,
             @Nullable String model,
             boolean isNew) {
-        this(conversationId, user, isUser, topic, model, null, null, isNew);
+        this(conversationId, user, isUser, topic, model, null, null, null, isNew);
     }
 
     public String getConversationId() {
@@ -84,6 +88,11 @@ public class ChatTopicEntity implements Persistable<String> {
     @Nullable
     public String getModel() {
         return model;
+    }
+
+    @Nullable
+    public String getMode() {
+        return mode;
     }
 
     public LocalDateTime getUpdatedAt() {

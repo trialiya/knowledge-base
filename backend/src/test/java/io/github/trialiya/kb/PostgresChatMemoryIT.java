@@ -413,6 +413,20 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
     }
 
     @Test
+    void persistsSelectedModeOnTopic() {
+        String conv = newConversation();
+        topicRepo.save(new ChatTopicEntity(conv, "alice", true, "тема", null, true));
+
+        topicRepo.updateMode(conv, "developer");
+
+        assertThat(topicRepo.findById(conv).orElseThrow().getMode()).isEqualTo("developer");
+
+        // сброс к «без режима»
+        topicRepo.updateMode(conv, null);
+        assertThat(topicRepo.findById(conv).orElseThrow().getMode()).isNull();
+    }
+
+    @Test
     void listsUserTopicsMostRecentlyUpdatedFirst() {
         String user = "bob-" + UUID.randomUUID();
         String older = newConversation();

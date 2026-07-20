@@ -1,13 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import ModelSelector from './ModelSelector';
 import { IconPaperclip, IconTrash, IconSearch } from '../../icons';
 
 /**
- * Шапка активного чата: заголовок с инлайн-переименованием, селектор модели,
- * дата создания и кнопки поиска/вложений/удаления. Вынесено из ChatWindow —
- * состояние редактирования заголовка живёт здесь и не ре-рендерит оркестратор
- * на каждый keystroke.
+ * Шапка активного чата: заголовок с инлайн-переименованием, дата создания и
+ * кнопки поиска/вложений/удаления. Вынесено из ChatWindow — состояние
+ * редактирования заголовка живёт здесь и не ре-рендерит оркестратор на каждый
+ * keystroke. Селекторы модели/режима переехали под поле ввода (ComposerToolbar).
  *
  * `chat` обязателен (не null) — условие рендера держит вызывающая сторона
  * (ChatWindow: activeChat && <ChatHeader …/>). Так внутри нет раннего return
@@ -15,8 +14,6 @@ import { IconPaperclip, IconTrash, IconSearch } from '../../icons';
  *
  * props:
  *   chat            — активный чат (обязателен)
- *   modelConfig, modelOptions, selectedModelId — конфиг селектора модели
- *   isStreaming     — идёт генерация (блокирует селектор модели)
  *   canSearch       — доступен ли find-бар для этого чата
  *   searchOpen      — find-бар открыт (подсветка кнопки)
  *   onToggleSearch  — () => void
@@ -25,14 +22,9 @@ import { IconPaperclip, IconTrash, IconSearch } from '../../icons';
  *   onToggleAttach  — () => void
  *   onRename        — (chatId, title) => void
  *   onDelete        — (chatId) => void
- *   onModelChange   — (modelId) => void
  */
 const ChatHeader = ({
   chat,
-  modelConfig,
-  modelOptions,
-  selectedModelId,
-  isStreaming,
   canSearch,
   searchOpen,
   onToggleSearch,
@@ -41,7 +33,6 @@ const ChatHeader = ({
   onToggleAttach,
   onRename,
   onDelete,
-  onModelChange,
 }) => {
   const { t } = useTranslation('chat');
   // Черновик переименования. Храним ВМЕСТЕ с id чата, для которого оно началось:
@@ -91,15 +82,6 @@ const ChatHeader = ({
           <h3 title={t('window.renameHint')} onClick={() => setEditing({ id: chat.id, draft: chat.title })}>
             {chat.title}
           </h3>
-        )}
-        {!chat.notFound && !chat.loadError && modelOptions.length > 0 && (
-          <ModelSelector
-            value={selectedModelId}
-            defaultId={modelConfig.defaultModel.id}
-            options={modelOptions}
-            disabled={isStreaming}
-            onChange={onModelChange}
-          />
         )}
         {chat.createdAt && (
           <div className="chat-meta">{t('window.createdAt', { date: new Date(chat.createdAt).toLocaleString() })}</div>
