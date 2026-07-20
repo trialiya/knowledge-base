@@ -2,10 +2,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import Phrases from './Phrases';
 import FileChipInput from './FileChipInput';
+import ComposerToolbar from './ComposerToolbar';
 import { expandTokensForSend } from './fileChips';
-import { IconSend, IconStop, IconPaperclip } from '../../icons';
 
-// isEmpty — true когда в чате ещё нет сообщений; тогда показываем git-подсказки
+// isEmpty — true когда в чате ещё нет сообщений; тогда показываем git-подсказки.
+// Кнопки (отправить/остановить, прикрепить) и селекторы модели/режима вынесены
+// под поле ввода в ComposerToolbar; здесь остаётся только само поле + подсказки.
 const MessageInput = ({
   onSend,
   onStop,
@@ -17,6 +19,8 @@ const MessageInput = ({
   chatId = null,
   initialText = '',
   onTextChange,
+  model,
+  mode,
 }) => {
   const { t } = useTranslation('chat');
   // Текст инициализируем из сохранённого черновика активного чата.
@@ -81,17 +85,6 @@ const MessageInput = ({
       {isEmpty && <Phrases onSelect={handleSelectPhrase} />}
 
       <div className="message-input-wrapper">
-        {onAttach && (
-          <button
-            type="button"
-            className="message-input-attach-btn"
-            onClick={onAttach}
-            title={t('input.attach')}
-            tabIndex={-1}
-          >
-            <IconPaperclip />
-          </button>
-        )}
         <FileChipInput
           ref={inputRef}
           value={text}
@@ -104,18 +97,17 @@ const MessageInput = ({
           placeholder={t('input.placeholder')}
           chatId={chatId}
         />
-        <button
-          type="button"
-          className={
-            disabled ? 'message-action-btn message-action-btn--stop' : 'message-action-btn message-action-btn--send'
-          }
-          onClick={disabled ? onStop : handleSubmit}
-          disabled={!disabled && sendDisabled}
-          title={disabled ? t('input.stop') : t('input.send')}
-        >
-          {disabled ? <IconStop /> : <IconSend />}
-        </button>
       </div>
+
+      <ComposerToolbar
+        model={model}
+        mode={mode}
+        disabled={disabled}
+        sendDisabled={sendDisabled}
+        onAttach={onAttach}
+        onStop={onStop}
+        onSend={handleSubmit}
+      />
     </div>
   );
 };

@@ -1,6 +1,7 @@
 package io.github.trialiya.kb;
 
 import io.github.trialiya.kb.config.model.AtlassianConfiguration;
+import io.github.trialiya.kb.config.model.ChatModeProperties;
 import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.config.model.DocumentsConfiguration;
@@ -23,6 +24,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
     SubAgentConfig.class,
     AtlassianConfiguration.class,
     ChatModelProperties.class,
+    ChatModeProperties.class,
     ChatTimeoutProperties.class,
     SecurityProperties.class,
     SummarizeProperties.class

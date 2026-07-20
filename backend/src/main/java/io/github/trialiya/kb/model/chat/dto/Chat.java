@@ -8,6 +8,7 @@ public record Chat(
         String user,
         String topic,
         String model,
+        String mode,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
         List<ChatMessage> messages) {}

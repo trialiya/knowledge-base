@@ -58,6 +58,7 @@ public class TopicFunction {
                             false,
                             topic,
                             chatTopicOptional.map(ChatTopicEntity::getModel).orElse(null),
+                            chatTopicOptional.map(ChatTopicEntity::getMode).orElse(null),
                             chatTopicOptional.map(ChatTopicEntity::getCreatedAt).orElse(null),
                             chatTopicOptional.map(ChatTopicEntity::getUpdatedAt).orElse(null),
                             chatTopicOptional.isEmpty()));

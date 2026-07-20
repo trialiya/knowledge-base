@@ -11,6 +11,9 @@ const chatApi = {
   /** Доступные модели и дефолтная: { defaultModel, models }. */
   getModels: () => request('/api/chats/models'),
 
+  /** Готовые режимы ассистента: [{ id, label }]. «Без режима» на фронте — синтетический пункт. */
+  getModes: () => request('/api/chats/modes'),
+
   /** Список всех чатов. */
   listChats: () => request('/api/chats'),
 
@@ -83,6 +86,14 @@ const chatApi = {
       body: modelId,
     }),
 
+  /** Сменить режим чата. Тело — plain string ('' → без режима). */
+  updateMode: (id, modeId) =>
+    request(`/api/chats/${enc(id)}/mode`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+      body: modeId || '',
+    }),
+
   /**
    * Создать Jira-чат. При ошибке бросает Error с телом ответа в message
    * (бэк отдаёт человекочитаемый текст), чтобы UI мог показать его пользователю.
@@ -111,9 +122,10 @@ const chatApi = {
    * Сам ответ приходит не здесь, а потоком событий (chatEvents.js).
    * clientMsgId — чтобы не задвоить свой оптимистичный пузырь при получении эха.
    */
-  startRun: (id, text, { model, clientMsgId } = {}) => {
+  startRun: (id, text, { model, mode, clientMsgId } = {}) => {
     const params = new URLSearchParams();
     if (model) params.set('model', model);
+    if (mode) params.set('mode', mode);
     if (clientMsgId) params.set('clientMsgId', clientMsgId);
     const qs = params.toString();
     return request(`/api/chats/${enc(id)}/runs${qs ? `?${qs}` : ''}`, {

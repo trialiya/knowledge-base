@@ -2,10 +2,16 @@ import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next';
 import chatApi from '../../api/chatApi';
 import attachmentApi from '../../api/attachmentApi';
-import { STORAGE_KEY_ACTIVE_CHAT, STORAGE_KEY_LAST_MODEL, DRAFT_CHAT_ID } from '../../constants/storage';
+import {
+  STORAGE_KEY_ACTIVE_CHAT,
+  STORAGE_KEY_LAST_MODEL,
+  STORAGE_KEY_LAST_MODE,
+  DRAFT_CHAT_ID,
+} from '../../constants/storage';
 import { OWNER_TYPE } from '../../constants/ownerType';
 import { nextMessageId } from './messageId';
 import useModelConfig from './useModelConfig';
+import useModeConfig from './useModeConfig';
 import useIntegrationsConfig from './useIntegrationsConfig';
 import useChatMessages from './useChatMessages';
 import useChatEventStream from './useChatEventStream';
@@ -64,6 +70,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       title: tRef.current('window.defaultTitle'),
       messages: [],
       model: lastModelRef.current || null,
+      mode: lastModeRef.current || null,
       draft: true,
     }),
     [],
@@ -73,9 +80,12 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   const [jiraModalOpen, setJiraModalOpen] = useState(false);
   // Конфиг моделей и интеграций грузятся один раз — вынесено в отдельные хуки.
   const { modelConfig, modelOptions } = useModelConfig();
+  const { modeOptions } = useModeConfig();
   const { jiraConfigured, confluenceConfigured } = useIntegrationsConfig();
   // Последняя модель, с которой отправляли сообщение (живёт между перезагрузками).
   const lastModelRef = useRef(localStorage.getItem(STORAGE_KEY_LAST_MODEL) || null);
+  // Последний выбранный режим ('' — без режима).
+  const lastModeRef = useRef(localStorage.getItem(STORAGE_KEY_LAST_MODE) || '');
   // Модалка ошибки загрузки чата: null | { notFound: bool, status }
   const [chatErrorModal, setChatErrorModal] = useState(null);
   // Модалка подтверждения удаления чата: null | { id, title }
@@ -156,6 +166,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
           messages: null,
           createdAt: chat.createdAt || null,
           model: chat.model || null,
+          mode: chat.mode || null,
         }));
 
         const currentId = initialActiveChatIdRef.current;
@@ -225,6 +236,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
                 ...chat,
                 ...(newTitle ? { title: newTitle } : {}),
                 model: data.model ?? chat.model ?? null,
+                mode: data.mode ?? chat.mode ?? null,
                 // не затираем уже имеющийся createdAt, иначе берём из ответа
                 createdAt: chat.createdAt ?? data.createdAt ?? null,
               }
@@ -322,6 +334,12 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     return m && modelOptions.some((o) => o.id === m) ? m : def;
   }, [activeChat, modelOptions, modelConfig]);
 
+  // Выбранный режим чата. Нет режима / режим убран из конфига → «без режима» ('').
+  const selectedModeId = useMemo(() => {
+    const m = activeChat?.mode;
+    return m && modeOptions.some((o) => o.id === m) ? m : '';
+  }, [activeChat, modeOptions]);
+
   // Чат считается пустым ТОЛЬКО когда сообщения уже загружены (messages !== null)
   // и среди них нет ни одного реального (с полем sender). Пока messages === null
   // (идёт загрузка старого чата), блок не показываем — иначе он мелькает.
@@ -342,10 +360,22 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     [modelOptions, modelConfig],
   );
 
+  // Режим для отправки: выбранный у чата → последний → без режима (''). Значение
+  // валидируем по конфигу (режим мог исчезнуть).
+  const resolveModeForSend = useCallback(
+    (chat) => {
+      const selected = chat?.mode;
+      if (selected && modeOptions.some((o) => o.id === selected)) return selected;
+      if (lastModeRef.current && modeOptions.some((o) => o.id === lastModeRef.current)) return lastModeRef.current;
+      return '';
+    },
+    [modeOptions],
+  );
+
   // Старт фонового прогона для уже показанного вопроса. Общий код для первой отправки
   // и для «Повторить»: бьёт POST /runs и обрабатывает исход — runId (идёт генерация),
   // 409 (занято) или ошибку (помечаем пузырь error+retryText, чтобы можно было повторить).
-  const runConversation = useCallback(async (conversationId, text, clientMsgId, modelForSend) => {
+  const runConversation = useCallback(async (conversationId, text, clientMsgId, modelForSend, modeForSend) => {
     // Запоминаем как «последнюю» — новый чат стартует именно с неё.
     if (modelForSend) {
       lastModelRef.current = modelForSend;
@@ -355,12 +385,23 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         /* ignore quota errors */
       }
     }
+    // Режим запоминаем всегда (в т.ч. '' — сознательный сброс к «без режима»).
+    lastModeRef.current = modeForSend || '';
+    try {
+      localStorage.setItem(STORAGE_KEY_LAST_MODE, modeForSend || '');
+    } catch {
+      /* ignore quota errors */
+    }
     // Блокируем ввод сразу, не дожидаясь runId от сервера. Снимается в finally:
     // при успехе к этому моменту у чата уже стоит runId (isStreaming не мигает),
     // при 409/ошибке ввод разблокируется — отправку можно повторить.
     setPendingRunChatId(conversationId);
     try {
-      const res = await chatApi.startRun(conversationId, text, { model: modelForSend, clientMsgId });
+      const res = await chatApi.startRun(conversationId, text, {
+        model: modelForSend,
+        mode: modeForSend,
+        clientMsgId,
+      });
       const runId = res?.runId;
       // Помечаем чат активным прогоном → кнопка «остановить», блокировка ввода.
       // (RUN_STARTED из потока проставит то же самое, если опередит.)
@@ -437,6 +478,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       const clientMsgId = generateUUID();
       localClientIdsRef.current.add(clientMsgId);
       const modelForSend = resolveModelForSend(chatForSend);
+      const modeForSend = resolveModeForSend(chatForSend);
 
       // Оптимистично: промоутим черновик и показываем пузырь пользователя.
       // AI-пузырь не добавляем — его создаст событие RUN_STARTED.
@@ -452,6 +494,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
           id: conversationId,
           draft: false,
           model: modelForSend ?? found.model ?? null,
+          mode: modeForSend || found.mode || null,
           messages: newMessages,
         };
         const otherChats = prev.filter((c) => c.id !== activeChatId);
@@ -465,9 +508,9 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       // Сообщение ушло — черновик этого чата больше не нужен.
       clearDraft(activeChatId);
 
-      await runConversation(conversationId, text, clientMsgId, modelForSend);
+      await runConversation(conversationId, text, clientMsgId, modelForSend, modeForSend);
     },
-    [activeChatId, selectChat, resolveModelForSend, runConversation, clearDraft],
+    [activeChatId, selectChat, resolveModelForSend, resolveModeForSend, runConversation, clearDraft],
   );
 
   // Переотправить вопрос после ошибки: убираем ошибочный AI-пузырь и заново запускаем
@@ -507,9 +550,9 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
           c.id === activeChatId ? { ...c, messages: (c.messages || []).filter((m) => m.mid !== mid) } : c,
         ),
       );
-      runConversation(activeChatId, text, clientMsgId, resolveModelForSend(chat));
+      runConversation(activeChatId, text, clientMsgId, resolveModelForSend(chat), resolveModeForSend(chat));
     },
-    [activeChatId, pendingRunChatId, resolveModelForSend, runConversation],
+    [activeChatId, pendingRunChatId, resolveModelForSend, resolveModeForSend, runConversation],
   );
 
   const handleStopGeneration = useCallback(() => {
@@ -577,6 +620,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         messages: null,
         createdAt: chat.createdAt || null,
         model: chat.model || null,
+        mode: chat.mode || null,
         jiraUrl: request.jiraUrl,
       };
       setChats((prev) => [newChat, ...prev]);
@@ -677,6 +721,22 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     [activeChatId],
   );
 
+  // Смена режима активного чата. Пустой id ('') → «без режима». Для черновика на бэке
+  // чата ещё нет — PUT откладываем, режим уедет с первым сообщением.
+  const handleModeChange = useCallback(
+    async (newId) => {
+      if (!activeChatId) return;
+      setChats((prev) => prev.map((c) => (c.id === activeChatId ? { ...c, mode: newId || null } : c)));
+      if (activeChatId === DRAFT_CHAT_ID) return;
+      try {
+        await chatApi.updateMode(activeChatId, newId);
+      } catch (err) {
+        console.error('Ошибка смены режима чата:', err);
+      }
+    },
+    [activeChatId],
+  );
+
   // Quick file upload from message input area
   const handleAttachFile = useCallback(
     async (file) => {
@@ -716,10 +776,6 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         {activeChat && (
           <ChatHeader
             chat={activeChat}
-            modelConfig={modelConfig}
-            modelOptions={modelOptions}
-            selectedModelId={selectedModelId}
-            isStreaming={isStreaming}
             canSearch={canSearchChat}
             searchOpen={inChatSearch.open}
             onToggleSearch={() => (inChatSearch.open ? inChatSearch.close() : inChatSearch.openBar())}
@@ -728,7 +784,6 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
             onToggleAttach={() => setAttachPanelOpen((v) => !v)}
             onRename={renameChat}
             onDelete={handleDeleteChat}
-            onModelChange={handleModelChange}
           />
         )}
 
@@ -803,6 +858,17 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
             chatId={activeChatId}
             initialText={getDraftFor(activeChatId)}
             onTextChange={(v) => handleComposerTextChange(activeChatId, v)}
+            model={{
+              config: modelConfig,
+              options: modelOptions,
+              selected: selectedModelId,
+              onChange: handleModelChange,
+            }}
+            mode={{
+              options: modeOptions,
+              selected: selectedModeId,
+              onChange: handleModeChange,
+            }}
           />
         )}
       </div>

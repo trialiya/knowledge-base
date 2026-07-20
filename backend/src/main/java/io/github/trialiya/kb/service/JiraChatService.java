@@ -144,6 +144,7 @@ public class JiraChatService {
                 saved.getUser(),
                 saved.getTopic(),
                 saved.getModel(),
+                saved.getMode(),
                 saved.getCreatedAt(),
                 saved.getUpdatedAt(),
                 List.of());
@@ -194,6 +195,7 @@ public class JiraChatService {
                 saved.getUser(),
                 saved.getTopic(),
                 saved.getModel(),
+                saved.getMode(),
                 saved.getCreatedAt(),
                 saved.getUpdatedAt(),
                 List.of());

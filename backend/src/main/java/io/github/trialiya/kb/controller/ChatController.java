@@ -6,6 +6,7 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
+import io.github.trialiya.kb.config.model.ChatModeProperties;
 import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.model.chat.dto.Chat;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
@@ -20,6 +21,7 @@ import io.github.trialiya.kb.model.tool.ToolCallDetail;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.ChatEventService;
 import io.github.trialiya.kb.service.ChatMemoryService;
+import io.github.trialiya.kb.service.ChatModeService;
 import io.github.trialiya.kb.service.ChatRunService;
 import io.github.trialiya.kb.service.JiraChatService;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
@@ -57,6 +59,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 public class ChatController {
 
     private final ChatModelProperties chatModelProperties;
+    private final ChatModeProperties chatModeProperties;
+    private final ChatModeService chatModeService;
     private final ChatClient chatClient;
     private final ChatMemory chatMemory;
     private final ChatTopicRepository chatTopicRepository;
@@ -67,6 +71,8 @@ public class ChatController {
 
     public ChatController(
             ChatModelProperties chatModelProperties,
+            ChatModeProperties chatModeProperties,
+            ChatModeService chatModeService,
             ChatClient chatClient,
             ChatMemory chatMemory,
             ChatTopicRepository chatTopicRepository,
@@ -75,6 +81,8 @@ public class ChatController {
             ChatRunService chatRunService,
             ChatEventService chatEventService) {
         this.chatModelProperties = chatModelProperties;
+        this.chatModeProperties = chatModeProperties;
+        this.chatModeService = chatModeService;
         this.chatClient = chatClient;
         this.chatMemory = chatMemory;
         this.chatTopicRepository = chatTopicRepository;
@@ -101,6 +109,25 @@ public class ChatController {
             throw new ResponseStatusException(BAD_REQUEST, "Unknown model: " + trimmed);
         }
         chatTopicRepository.updateModel(conversationId, trimmed.isEmpty() ? null : trimmed);
+    }
+
+    /** Готовые режимы ассистента (id/label). Дефолт — «без режима» (пустой выбор на фронте). */
+    @GetMapping("/modes")
+    public List<ChatModeProperties.ModeView> getModes() {
+        return chatModeProperties.views();
+    }
+
+    /** Задать (или сбросить) режим чата. Пустое тело → «без режима». */
+    @PutMapping("/{conversationId}/mode")
+    public void updateChatMode(
+            @PathVariable final String conversationId,
+            @RequestBody(required = false) final String mode) {
+        getChatTopic(conversationId); // 404/403 + проверка владельца
+        final String trimmed = mode == null ? "" : mode.trim();
+        if (!trimmed.isEmpty() && !chatModeProperties.isAllowed(trimmed)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Unknown mode: " + trimmed);
+        }
+        chatTopicRepository.updateMode(conversationId, trimmed.isEmpty() ? null : trimmed);
     }
 
     /** Lists the current user's chats (metadata only, no messages). */
@@ -225,6 +252,7 @@ public class ChatController {
                                             true,
                                             topic,
                                             chatTopicEntity.getModel(),
+                                            chatTopicEntity.getMode(),
                                             chatTopicEntity.getCreatedAt(),
                                             chatTopicEntity.getUpdatedAt(),
                                             false));
@@ -236,6 +264,7 @@ public class ChatController {
                                                 getUser(),
                                                 true,
                                                 topic,
+                                                null,
                                                 null,
                                                 null,
                                                 null,
@@ -254,14 +283,18 @@ public class ChatController {
     public List<String> createMessage(
             @PathVariable final String conversationId,
             @RequestParam(name = "model", required = false) final String model,
+            @RequestParam(name = "mode", required = false) final String mode,
             @RequestBody final String userMessage) {
         checkChat(conversationId, true);
         final String resolvedModel = resolveModel(conversationId, model);
+        final String modeInstructions =
+                chatModeService.instructionsFor(resolveMode(conversationId, mode));
         final ToolInvocationCollector toolCollector = new ToolInvocationCollector();
 
         ChatClient.ChatClientRequestSpec spec =
                 chatClient
                         .prompt()
+                        .system(sp -> sp.param("mode_instructions", modeInstructions))
                         .user(userMessage)
                         .toolContext(buildContext(conversationId, toolCollector))
                         .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId));
@@ -293,13 +326,21 @@ public class ChatController {
     public Map<String, String> startRun(
             @PathVariable final String conversationId,
             @RequestParam(name = "model", required = false) final String model,
+            @RequestParam(name = "mode", required = false) final String mode,
             @RequestParam(name = "clientMsgId", required = false) final String clientMsgId,
             @RequestBody final String userMessage) {
         checkChat(conversationId, true);
         final String resolvedModel = resolveModel(conversationId, model);
+        final String modeInstructions =
+                chatModeService.instructionsFor(resolveMode(conversationId, mode));
         final String runId =
                 chatRunService.start(
-                        conversationId, getUser(), userMessage, resolvedModel, clientMsgId);
+                        conversationId,
+                        getUser(),
+                        userMessage,
+                        resolvedModel,
+                        modeInstructions,
+                        clientMsgId);
         return Map.of("runId", runId);
     }
 
@@ -448,6 +489,7 @@ public class ChatController {
                                                 null,
                                                 null,
                                                 null,
+                                                null,
                                                 true)));
     }
 
@@ -457,6 +499,7 @@ public class ChatController {
                 entity.getUser(),
                 entity.getTopic(),
                 entity.getModel(),
+                entity.getMode(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt(),
                 messages);
@@ -509,6 +552,27 @@ public class ChatController {
                 .map(ChatTopicEntity::getModel)
                 .filter(StringUtils::hasText)
                 .filter(chatModelProperties::isAllowed) // на случай, если модель убрали из конфига
+                .orElse(null);
+    }
+
+    /**
+     * Параметр запроса → сохранённый режим чата → null. {@code null} означает «без режима»
+     * (плейсхолдер {@code mode_instructions} заполняется пустой строкой). Параллель {@link
+     * #resolveModel}.
+     */
+    private String resolveMode(final String conversationId, final String requested) {
+        if (StringUtils.hasText(requested)) {
+            if (!chatModeProperties.isAllowed(requested)) {
+                throw new ResponseStatusException(BAD_REQUEST, "Unknown mode: " + requested);
+            }
+            chatTopicRepository.updateMode(conversationId, requested); // запоминаем как «последний»
+            return requested;
+        }
+        return chatTopicRepository
+                .findById(conversationId)
+                .map(ChatTopicEntity::getMode)
+                .filter(StringUtils::hasText)
+                .filter(chatModeProperties::isAllowed) // на случай, если режим убрали из конфига
                 .orElse(null);
     }
 }

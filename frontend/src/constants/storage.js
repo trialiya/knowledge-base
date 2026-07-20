@@ -4,6 +4,9 @@ export const STORAGE_KEY_ACTIVE_CHAT = 'chat_activeId';
 /** localStorage: модель последнего отправленного сообщения. */
 export const STORAGE_KEY_LAST_MODEL = 'chat_lastModel';
 
+/** localStorage: режим последнего отправленного сообщения ('' — без режима). */
+export const STORAGE_KEY_LAST_MODE = 'chat_lastMode';
+
 /**
  * localStorage: неотправленные черновики ввода по чатам — JSON-объект
  * `{ [chatId]: text }`. Позволяет свободно переключаться между чатами, не теряя
