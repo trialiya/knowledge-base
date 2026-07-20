@@ -119,14 +119,13 @@ doesn't touch. One PR = the task + migration of the files it touched.
 
 ### Modals
 
-- Use the shared `<ModalShell>` from `components/common/` for every dialog
-  (once it exists — until then, copy `ConfirmModal`'s structure). It owns:
+- Use the shared `<ModalShell>` from `components/common/` for every dialog. It owns:
   `createPortal` to `document.body`, overlay + backdrop-close, Escape via
   `useEscape`, `role="dialog"`/`"alertdialog"` + `aria-modal`, and the shared
   modal CSS. Components supply only header/body/footer content.
-- Do not introduce new `*-overlay` classes or per-modal overlay divs
-  (`modal-overlay`, `error-modal-overlay`, `tcd-overlay`, `fcd-overlay`,
-  `fs-editor-overlay`, … are legacy — fold into ModalShell when touched).
+- Do not introduce new `*-overlay` classes or per-modal overlay divs — the
+  legacy ones (`modal-overlay`, `tcd-overlay`, …) have been folded into
+  ModalShell; keep it that way.
 - Backdrop close is `onMouseDown` (not `onClick`), so text selection that ends
   outside the modal doesn't dismiss it.
 
@@ -161,7 +160,8 @@ doesn't touch. One PR = the task + migration of the files it touched.
   `FileChipInput.jsx`.
 - Reuse the shared hooks before writing new plumbing: `useSearchDropdown`
   (search-button → dropdown widgets), `useEscape`, `useDocPreview`/
-  `useFilePreview` (module-cache preview pattern).
+  `useFilePreview` (both built on `usePreviewCache` — the module-cache preview
+  pattern; new preview kinds should reuse it too).
 - Async effects must be cancellation-aware (`cancelled` flag or AbortSignal in
   cleanup), matching the existing preview hooks.
 - The two trees are intentionally separate: `knowledgeBasePanel/TreeNode`
