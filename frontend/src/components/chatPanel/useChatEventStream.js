@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { openChatEventStream } from '../../api/chatEvents';
 import { applyChatEvent } from './chatEventReducer';
 import { DRAFT_CHAT_ID } from '../../constants/storage';
@@ -34,6 +34,14 @@ export default function useChatEventStream({
   onRunSettled,
   reloadMessages,
 }) {
+  // Курсор последнего виденного seq по КАЖДОМУ чату. Живёт всё время, пока смонтирован
+  // компонент (переживает переключения чатов), но не переживает перезагрузку страницы —
+  // то есть ровно тогда, когда нужно продолжить, а не реплеить заново. Без него каждое
+  // возвращение в чат открывало бы поток с fromSeq=0, хаб реплеил бы весь текущий прогон
+  // с начала, а редьюсер дописал бы этот реплей поверх уже собранного пузыря — ответ
+  // задваивался бы (и выглядел бы как «данные другого чата», когда вопрос в чатах похож).
+  const seqByChatRef = useRef(new Map());
+
   useEffect(() => {
     const chatId = activeChatId;
     if (!chatId || chatId === DRAFT_CHAT_ID) return undefined;
@@ -47,13 +55,20 @@ export default function useChatEventStream({
       interruptedNote: `\n\n_**${tRef.current('message.interrupted')}**_`,
     };
     return openChatEventStream(chatId, {
+      fromSeq: seqByChatRef.current.get(chatId) || 0,
+      onSeq: (seq) => seqByChatRef.current.set(chatId, seq),
       onEvent: (ev) => {
         if (ev.type === 'CHAT_DELETED') {
+          seqByChatRef.current.delete(chatId);
           onChatDeleted(chatId);
           return;
         }
         setChats((prev) => prev.map((c) => (c.id === chatId ? applyChatEvent(c, ev, ctx) : c)));
         if (ev.type === 'RUN_DONE' || ev.type === 'RUN_STOPPED' || ev.type === 'RUN_ERROR') {
+          // Прогон завершён: хаб очистит свой лог, а следующий прогон в этом чате начнёт
+          // seq заново (в т.ч. с нового хаба после выгрузки простаивающего). Сбрасываем
+          // курсор, чтобы переподписка снова сделала полный реплей нового прогона.
+          seqByChatRef.current.delete(chatId);
           onRunSettled(chatId);
         }
       },

@@ -30,11 +30,17 @@ const parseBlock = (block) => {
  * @param {(event:object)=>void} cb.onEvent — на каждое разобранное событие
  * @param {(status:'open'|'reconnecting'|'closed')=>void} [cb.onStatus]
  * @param {()=>void} [cb.onReconnect] — при восстановлении после обрыва (не при первом подключении)
+ * @param {number} [cb.fromSeq] — с какого seq начинать (пропущенное дозагрузится). По умолчанию 0
+ *   (полный реплей). Позволяет продолжить с места, на котором остановились в прошлой подписке на
+ *   ЭТОТ же чат (переключение чатов), не реплея заново уже применённые события — иначе редьюсер
+ *   дописал бы реплей поверх уже собранного пузыря и удвоил бы текст ответа.
+ * @param {(seq:number)=>void} [cb.onSeq] — последний виденный seq (чтобы вызывающий запомнил
+ *   курсор чата и передал его в fromSeq при переподписке)
  */
-export function openChatEventStream(chatId, { onEvent, onStatus, onReconnect } = {}) {
+export function openChatEventStream(chatId, { onEvent, onStatus, onReconnect, fromSeq = 0, onSeq } = {}) {
   let closed = false;
   let controller = null;
-  let lastSeq = 0;
+  let lastSeq = fromSeq;
   let attempt = 0;
 
   const connect = async () => {
@@ -66,7 +72,10 @@ export function openChatEventStream(chatId, { onEvent, onStatus, onReconnect } =
           if (!data) continue;
           try {
             const ev = JSON.parse(data);
-            if (typeof ev.seq === 'number') lastSeq = Math.max(lastSeq, ev.seq);
+            if (typeof ev.seq === 'number') {
+              lastSeq = Math.max(lastSeq, ev.seq);
+              onSeq?.(lastSeq);
+            }
             onEvent?.(ev);
           } catch {
             /* битый кадр — пропускаем */
