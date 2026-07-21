@@ -34,10 +34,20 @@ export async function searchDocsAsync(q, signal) {
   return results;
 }
 
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Строит regex-матч у каретки для набора синонимов команды: (?:^|\s)(/cmd1|/cmd2)\s*(query)$ */
+function buildTriggerRegex(triggers) {
+  const alts = triggers.map(escapeRegExp).join('|');
+  return new RegExp(`(?:^|\\s)(${alts})\\s*(\\S*)$`);
+}
+
 /**
  * Описание типов триггеров. Каждый объект самодостаточен:
- *   trigger      — команда-префикс в тексте
- *   regex        — матч у каретки: (?:^|\s)/cmd\s*(query)$, группа 1 = query
+ *   triggers     — команды-синонимы (первая — каноническая, для UI/тестов)
+ *   regex        — матч у каретки: (?:^|\s)(cmd1|cmd2)\s*(query)$, группа 1 = команда, группа 2 = query
  *   search       — (query, signal) → Promise<node[]>
  *   refToken     — item → строка-токен «только ссылка»
  *   contentToken — item → строка-токен «с содержимым»
@@ -45,16 +55,16 @@ export async function searchDocsAsync(q, signal) {
 export const TRIGGER_TYPES = {
   file: {
     type: 'file',
-    trigger: '/file',
-    regex: /(?:^|\s)\/file\s*(\S*)$/,
+    triggers: ['/file', '/файл'],
+    regex: buildTriggerRegex(['/file', '/файл']),
     search: (q, signal) => gitApi.searchFiles(q, 10, signal),
     refToken: (item) => makeRefToken(item.path),
     contentToken: (item) => makeToken(item.path),
   },
   doc: {
     type: 'doc',
-    trigger: '/doc',
-    regex: /(?:^|\s)\/doc\s*(\S*)$/,
+    triggers: ['/doc', '/док'],
+    regex: buildTriggerRegex(['/doc', '/док']),
     search: (q, signal) => searchDocsAsync(q, signal),
     refToken: (item) => makeDocRefToken(item.id, item.title),
     contentToken: (item) => makeDocToken(item.id, item.title),
@@ -76,7 +86,7 @@ export function detectTriggerInText(before) {
     const spec = TRIGGER_TYPES[key];
     const m = before.match(spec.regex);
     if (m) {
-      return { type: spec.type, query: m[1], start: before.lastIndexOf(spec.trigger) };
+      return { type: spec.type, query: m[2], start: before.lastIndexOf(m[1]) };
     }
   }
   return null;

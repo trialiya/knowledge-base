@@ -35,6 +35,18 @@ describe('detectTriggerInText', () => {
     // No leading whitespace/start-of-string before /file → not a trigger.
     expect(detectTriggerInText('x/file')).toBeNull();
   });
+
+  it('detects the /файл synonym for the file trigger', () => {
+    expect(detectTriggerInText('/файл')).toEqual({ type: 'file', query: '', start: 0 });
+    expect(detectTriggerInText('/файл src/App')).toEqual({ type: 'file', query: 'src/App', start: 0 });
+    const before = 'hello world /файл utils';
+    expect(detectTriggerInText(before)).toEqual({ type: 'file', query: 'utils', start: before.indexOf('/файл') });
+  });
+
+  it('detects the /док synonym for the doc trigger', () => {
+    expect(detectTriggerInText('/док')).toEqual({ type: 'doc', query: '', start: 0 });
+    expect(detectTriggerInText('/док 42')).toEqual({ type: 'doc', query: '42', start: 0 });
+  });
 });
 
 describe('tokenForItem', () => {
@@ -56,7 +68,7 @@ describe('TRIGGER_TYPES', () => {
     for (const key of ['file', 'doc']) {
       const spec = TRIGGER_TYPES[key];
       expect(spec.type).toBe(key);
-      expect(spec.trigger).toBe(`/${key}`);
+      expect(spec.triggers[0]).toBe(`/${key}`);
       expect(typeof spec.search).toBe('function');
       expect(typeof spec.refToken).toBe('function');
       expect(typeof spec.contentToken).toBe('function');
