@@ -192,8 +192,9 @@ doesn't touch. One PR = the task + migration of the files it touched.
   components is due for a split. Big-file precedents still being dismantled
   (keep this list current as they shrink): `ChatWindow.jsx` (~900 lines, worst
   offender — untouched), `useKnowledgeBase.js` (~700), `icons/index.jsx`
-  (~640), and — partially decomposed in #120 but still over the threshold —
-  `FileChipInput.jsx` (~430) and `DocLinkTooltip.jsx` (~340).
+  (~640), and `DocLinkTooltip.jsx` (~340). `FileChipInput.jsx` was decomposed
+  into `ChipEditor.jsx` + `RichTextEditor.jsx`/`useChipPicker.js`/
+  `useChipPreview.js`/`chipTriggers.js` and is off this list.
 - Reuse the shared hooks before writing new plumbing: `useSearchDropdown`
   (search-button → dropdown widgets), `useEscape`, `useDocPreview`/
   `useFilePreview` (both built on `usePreviewCache` — the module-cache preview

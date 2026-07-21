@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import Phrases from './Phrases';
-import FileChipInput from './FileChipInput';
+import ChipEditor from './ChipEditor';
 import ComposerToolbar from './ComposerToolbar';
 import { expandTokensForSend } from './fileChips';
 
@@ -85,7 +85,7 @@ const MessageInput = ({
       {isEmpty && <Phrases onSelect={handleSelectPhrase} />}
 
       <div className="message-input-wrapper">
-        <FileChipInput
+        <ChipEditor
           ref={inputRef}
           value={text}
           onChange={(v) => {
