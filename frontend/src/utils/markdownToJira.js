@@ -73,10 +73,13 @@ const TOKEN_RE = new RegExp(`${TOKEN_OPEN}(\\d+)${TOKEN_CLOSE}`, 'g');
 //   brace of the code reads as part of the delimiter instead of content.
 // - `(`/`)` can trigger Jira's emoticon parsing (e.g. `(.` inside a value
 //   like `urn:li:dataset:(...)`), turning part of the code into a smiley.
-// Backslash-escaping just these characters (not the {{ }} wrapper) keeps
-// the code's own content literal.
+// `\` itself must be escaped too (and in the same pass as the rest, not a
+// separate one done first or after) — otherwise a code span containing a
+// literal backslash right before one of these characters, e.g. `\{`, ends
+// up as `\{` -> `\\{`, which an escape-aware reader unescapes back down to
+// a bare, unescaped `{`, undoing the very escaping this function exists for.
 function escapeJiraBraces(text) {
-  return text.replace(/[{}()]/g, '\\$&');
+  return text.replace(/[\\{}()]/g, '\\$&');
 }
 
 // Converts inline spans (code, images, links, bold, strike, italic) within a

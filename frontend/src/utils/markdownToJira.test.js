@@ -36,6 +36,15 @@ describe('markdownToJira', () => {
     expect(markdownToJira(md)).toBe('||URN||\n|{{urn:li:dataset:\\(...\\)}}|');
   });
 
+  it('обратный слэш перед скобкой в коде тоже экранируется (иначе он "съедает" экранирование скобки)', () => {
+    // code content is literally backslash + "{" (2 chars). If we only escaped
+    // "{" and left the backslash alone, the result would be "\\{" (backslash,
+    // backslash, brace), which an escape-aware reader would parse as an
+    // escaped backslash followed by a bare, unescaped "{" -- reintroducing
+    // the delimiter-ambiguity bug. Escaping the backslash too keeps it literal.
+    expect(markdownToJira('`\\{`')).toBe('{{' + '\\'.repeat(3) + '{}}');
+  });
+
   it('ссылки и изображения', () => {
     expect(markdownToJira('[docs](https://example.com)')).toBe('[docs|https://example.com]');
     expect(markdownToJira('![alt text](https://example.com/img.png)')).toBe(
@@ -58,8 +67,8 @@ describe('markdownToJira', () => {
   });
 
   it('внешние ссылки, даже содержащие "doc=" не по внутреннему пути, остаются гиперссылками', () => {
-    expect(markdownToJira('[external](https://other.example.com/?doc=42)')).toBe(
-      '[external|https://other.example.com/?doc=42]',
+    expect(markdownToJira('[external](https://external-site/?doc=42)')).toBe(
+      '[external|https://external-site/?doc=42]',
     );
   });
 
