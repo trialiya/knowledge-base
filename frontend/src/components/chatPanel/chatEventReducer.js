@@ -124,12 +124,27 @@ export function applyChatEvent(chat, ev, ctx) {
     case CHAT_EVENT.USER_MESSAGE: {
       // Своё эхо — уже показано оптимистично.
       if (clientMsgId && ctx.isLocal?.(clientMsgId)) return chat;
-      // Дубликат после reload: сообщение уже подгрузилось из БД (хвост истории).
-      const last = msgs[msgs.length - 1];
-      if (last && last.sender === SENDER.USER && last.text === payload?.text) return chat;
+      const text = payload?.text || '';
+      // Дубликат после перезагрузки: наш вопрос уже в истории (подгружен из БД). Ищем
+      // ПОСЛЕДНЕЕ USER-сообщение — если оно совпало по тексту, это оно и есть, а всё,
+      // что идёт после него, — частично сохранённые сегменты текущего (ещё идущего)
+      // прогона. Реплей событий пересоберёт этот хвост, поэтому срезаем его: иначе и
+      // вопрос, и данные инструментов задвоились бы (reload посреди генерации). Раньше
+      // сверяли только самый последний пузырь, но после reload за вопросом уже стоят
+      // сохранённые ASSISTANT/TOOL-сегменты, и проверка не срабатывала.
+      // (В обычном лайв-потоке своё эхо гасится выше по clientMsgId; сюда попадают лишь
+      // реплей после reload и эхо чужих вкладок.)
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        if (msgs[i].sender === SENDER.USER) {
+          if (msgs[i].text === text) {
+            return i === msgs.length - 1 ? chat : { ...chat, messages: msgs.slice(0, i + 1) };
+          }
+          break; // последний вопрос не совпал — это действительно новое сообщение
+        }
+      }
       msgs.push({
         mid: nextMessageId(),
-        text: payload?.text || '',
+        text,
         sender: SENDER.USER,
         timestamp: new Date().toISOString(),
       });

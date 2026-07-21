@@ -64,6 +64,58 @@ describe('applyChatEvent', () => {
     expect(last(chat).mid).toBe(mid);
   });
 
+  test('USER_MESSAGE replay after a mid-run reload drops the persisted run tail (no dup)', () => {
+    // Перезагрузка посреди генерации: из БД уже пришли вопрос + сохранённый сегмент
+    // прогона (плашки инструментов). Реплей начинается с USER_MESSAGE того же вопроса.
+    const chat = {
+      id: 'c',
+      runId: null,
+      messages: [
+        { mid: 1, text: 'как работает tool_calls?', sender: 'user' },
+        { mid: 2, text: '', sender: 'ai', toolCalls: [{ name: 'searchDocuments', status: 'OK' }] },
+      ],
+    };
+    // 1) USER_MESSAGE (не local — после reload localClientIds пуст) срезает хвост прогона.
+    let next = applyChatEvent(
+      chat,
+      { type: 'USER_MESSAGE', clientMsgId: 'x', payload: { text: 'как работает tool_calls?' } },
+      ctx,
+    );
+    expect(next.messages).toHaveLength(1);
+    expect(next.messages[0]).toMatchObject({ sender: 'user', text: 'как работает tool_calls?' });
+    // 2) реплей пересобирает прогон один раз.
+    next = applyChatEvent(next, { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    next = applyChatEvent(
+      next,
+      { type: 'TOOL_CALL', runId: 'r1', payload: { toolCall: { name: 'searchDocuments', status: 'OK' } } },
+      ctx,
+    );
+    const ai = next.messages.filter((m) => m.sender === 'ai');
+    expect(next.messages.filter((m) => m.sender === 'user')).toHaveLength(1); // вопрос не задвоился
+    expect(ai).toHaveLength(1); // и сегмент прогона не задвоился
+    expect(ai[0].toolCalls.map((t) => t.name)).toEqual(['searchDocuments']);
+  });
+
+  test('USER_MESSAGE with a genuinely new question is appended (last question differs)', () => {
+    const chat = {
+      id: 'c',
+      runId: null,
+      messages: [
+        { mid: 1, text: 'первый вопрос', sender: 'user' },
+        { mid: 2, text: 'ответ', sender: 'ai' },
+      ],
+    };
+    const next = applyChatEvent(
+      chat,
+      { type: 'USER_MESSAGE', clientMsgId: 'other-tab', payload: { text: 'второй вопрос' } },
+      ctx,
+    );
+    expect(next.messages.filter((m) => m.sender === 'user').map((m) => m.text)).toEqual([
+      'первый вопрос',
+      'второй вопрос',
+    ]);
+  });
+
   test('local USER_MESSAGE echo is ignored (already shown optimistically)', () => {
     const localCtx = { ...ctx, isLocal: (id) => id === 'mine' };
     const before = userChat();
