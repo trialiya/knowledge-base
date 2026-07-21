@@ -12,7 +12,6 @@ import { OWNER_TYPE } from '../../constants/ownerType';
 import { nextMessageId } from './messageId';
 import useModelConfig from './useModelConfig';
 import useModeConfig from './useModeConfig';
-import useIntegrationsConfig from './useIntegrationsConfig';
 import useChatMessages from './useChatMessages';
 import useChatEventStream from './useChatEventStream';
 import useInChatSearch from './useInChatSearch';
@@ -25,8 +24,6 @@ import ChatHeader from './ChatHeader';
 import ChatSearchBar from './ChatSearchBar';
 import AttachmentPanel from '../common/AttachmentPanel';
 import './chatWindow.css';
-import CreateJiraChatModal from './CreateJiraChatModal';
-import JiraAttachmentPanel from './JiraAttachmentPanel';
 import ErrorModal from '../common/ErrorModal';
 import ConfirmModal from '../common/ConfirmModal';
 
@@ -77,11 +74,9 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   );
   const [attachPanelOpen, setAttachPanelOpen] = useState(false);
   const [attachCount, setAttachCount] = useState(0);
-  const [jiraModalOpen, setJiraModalOpen] = useState(false);
-  // Конфиг моделей и интеграций грузятся один раз — вынесено в отдельные хуки.
+  // Конфиг моделей и режимов грузится один раз — вынесено в отдельные хуки.
   const { modelConfig, modelOptions } = useModelConfig();
   const { modeOptions } = useModeConfig();
-  const { jiraConfigured, confluenceConfigured } = useIntegrationsConfig();
   // Последняя модель, с которой отправляли сообщение (живёт между перезагрузками).
   const lastModelRef = useRef(localStorage.getItem(STORAGE_KEY_LAST_MODEL) || null);
   // Последний выбранный режим ('' — без режима).
@@ -304,9 +299,9 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       // e.key даёт символ раскладки («а»), и проверка только по key ломает шорткат.
       if (e.key !== 'f' && e.key !== 'F' && e.code !== 'KeyF') return;
       if (!canSearchChat) return;
-      // Модалка поверх чата (детали tool-call, создание Jira-чата, подтверждения и
-      // т.п.) — не открываем find-бар чата под ней, иначе браузерный Ctrl+F внутри
-      // модалки не работает: наш бар всплывает и перехватывает фокус первым.
+      // Модалка поверх чата (детали tool-call, подтверждения и т.п.) — не открываем
+      // find-бар чата под ней, иначе браузерный Ctrl+F внутри модалки не работает:
+      // наш бар всплывает и перехватывает фокус первым.
       if (document.querySelector('[aria-modal="true"]')) return;
       e.preventDefault();
       if (inChatSearch.open) {
@@ -606,30 +601,6 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     // (attachment panel stays as-is on new chat)
   }, [selectChat, makeDraft]);
 
-  const handleCreateJiraChat = useCallback(
-    async (request) => {
-      let chat;
-      try {
-        chat = await chatApi.createJiraChat(request);
-      } catch (err) {
-        throw new Error(err.body || tRef.current('window.jiraCreateError'));
-      }
-      const newChat = {
-        id: chat.conversationId,
-        title: chat.topic || tRef.current('window.jiraTitle'),
-        messages: null,
-        createdAt: chat.createdAt || null,
-        model: chat.model || null,
-        mode: chat.mode || null,
-        jiraUrl: request.jiraUrl,
-      };
-      setChats((prev) => [newChat, ...prev]);
-      selectChat(newChat.id);
-      setAttachPanelOpen(true); // Show attachments with fetched content
-    },
-    [selectChat],
-  );
-
   const handleDeleteChat = useCallback(
     (id) => {
       if (id === DRAFT_CHAT_ID) {
@@ -767,7 +738,6 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         onNewChat={handleNewChat}
         onDeleteChat={handleDeleteChat}
         onRenameChat={renameChat}
-        onNewJiraChat={jiraConfigured ? () => setJiraModalOpen(true) : undefined}
         onSearchSelect={handleChatSearchSelect}
       />
 
@@ -888,35 +858,18 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
           </div>
           <div className="chat-attachment-panel__body">
             {activeChatId ? (
-              activeChat?.jiraUrl ? (
-                // JIRA-чат: компактные карточки + кнопка обновления
-                <JiraAttachmentPanel
-                  key={activeChatId}
-                  conversationId={activeChatId}
-                  jiraUrl={activeChat.jiraUrl}
-                  onCountChange={setAttachCount}
-                />
-              ) : (
-                // Обычный чат: стандартная таблица с загрузкой файлов
-                <AttachmentPanel
-                  key={activeChatId}
-                  ownerType={OWNER_TYPE.CHAT}
-                  ownerId={activeChatId}
-                  onCountChange={setAttachCount}
-                />
-              )
+              <AttachmentPanel
+                key={activeChatId}
+                ownerType={OWNER_TYPE.CHAT}
+                ownerId={activeChatId}
+                onCountChange={setAttachCount}
+              />
             ) : (
               <p className="chat-attachment-panel__empty">{t('window.selectChat')}</p>
             )}
           </div>
         </div>
       )}
-      <CreateJiraChatModal
-        open={jiraModalOpen}
-        onClose={() => setJiraModalOpen(false)}
-        onCreate={handleCreateJiraChat}
-        confluenceConfigured={confluenceConfigured}
-      />
       <ErrorModal
         open={!!chatErrorModal}
         icon={chatErrorModal?.notFound ? '🔍' : '⚠️'}

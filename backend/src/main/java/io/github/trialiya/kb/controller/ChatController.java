@@ -12,7 +12,6 @@ import io.github.trialiya.kb.model.chat.dto.Chat;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.ChatMessage;
 import io.github.trialiya.kb.model.chat.dto.ChatSearchResult;
-import io.github.trialiya.kb.model.chat.dto.CreateJiraChatRequest;
 import io.github.trialiya.kb.model.chat.dto.MessagePage;
 import io.github.trialiya.kb.model.chat.dto.MessageSearchHit;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
@@ -23,7 +22,6 @@ import io.github.trialiya.kb.service.ChatEventService;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.service.ChatModeService;
 import io.github.trialiya.kb.service.ChatRunService;
-import io.github.trialiya.kb.service.JiraChatService;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import jakarta.annotation.Nonnull;
 import java.time.LocalDateTime;
@@ -65,7 +63,6 @@ public class ChatController {
     private final ChatMemory chatMemory;
     private final ChatTopicRepository chatTopicRepository;
     private final ChatMemoryService chatMemoryService;
-    private final JiraChatService jiraChatService;
     private final ChatRunService chatRunService;
     private final ChatEventService chatEventService;
 
@@ -77,7 +74,6 @@ public class ChatController {
             ChatMemory chatMemory,
             ChatTopicRepository chatTopicRepository,
             ChatMemoryService chatMemoryService,
-            JiraChatService jiraChatService,
             ChatRunService chatRunService,
             ChatEventService chatEventService) {
         this.chatModelProperties = chatModelProperties;
@@ -87,7 +83,6 @@ public class ChatController {
         this.chatMemory = chatMemory;
         this.chatTopicRepository = chatTopicRepository;
         this.chatMemoryService = chatMemoryService;
-        this.jiraChatService = jiraChatService;
         this.chatRunService = chatRunService;
         this.chatEventService = chatEventService;
     }
@@ -393,45 +388,6 @@ public class ChatController {
                 .activeRun(conversationId)
                 .map(runId -> Map.of("runId", runId))
                 .orElseGet(Map::of);
-    }
-
-    // ---------------------------------------------------------------------
-    //  JIRA-backed chats
-    // ---------------------------------------------------------------------
-
-    /**
-     * Creates a new "JIRA chat" — a conversation pre-loaded with context from a JIRA issue and
-     * optionally a Confluence page.
-     *
-     * <pre>
-     * POST /api/chats/jira
-     * {
-     *   "jiraUrl": "https://instance.atlassian.net/browse/PROJ-123",
-     *   "confluenceUrl": "https://instance.atlassian.net/wiki/spaces/.../pages/12345",
-     *   "title": "Optional custom title"
-     * }
-     * </pre>
-     *
-     * @return the created Chat (with empty messages list)
-     */
-    @PostMapping("/jira")
-    public Chat createJiraChat(@RequestBody CreateJiraChatRequest request) {
-        return jiraChatService.createJiraChat(request);
-    }
-
-    /**
-     * Refreshes a JIRA chat by re-fetching issue data and replacing attachments.
-     *
-     * <pre>
-     * POST /api/chats/{conversationId}/refresh
-     * Body: "https://instance.atlassian.net/browse/PROJ-123"   (raw JIRA URL string)
-     * </pre>
-     *
-     * @return updated Chat metadata
-     */
-    @PostMapping("/{conversationId}/refresh")
-    public Chat refreshJiraChat(@PathVariable String conversationId, @RequestBody String jiraUrl) {
-        return jiraChatService.refreshJiraChat(conversationId, jiraUrl.trim());
     }
 
     // ---------------------------------------------------------------------

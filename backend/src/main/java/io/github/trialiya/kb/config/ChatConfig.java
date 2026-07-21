@@ -2,6 +2,7 @@ package io.github.trialiya.kb.config;
 
 import io.github.trialiya.kb.advisor.MessageLoggingAdvisor;
 import io.github.trialiya.kb.advisor.ToolPreparingAdvisor;
+import io.github.trialiya.kb.config.model.McpProperties;
 import io.github.trialiya.kb.config.model.SubAgentConfig;
 import io.github.trialiya.kb.functions.AttachmentFunction;
 import io.github.trialiya.kb.functions.DocumentFunction;
@@ -156,7 +157,7 @@ public class ChatConfig {
             AttachmentService attachmentService,
             ObjectProvider<SearchAgentService> searchAgentService,
             ChatEventService chatEventService,
-            @Value("${kb.mcp.enabled:false}") boolean mcpToolsEnabled,
+            McpProperties mcpProperties,
             ObjectProvider<ToolCallbackProvider> mcpToolCallbackProvider) {
         log.info("Model: {}", chatModel.getDefaultOptions());
 
@@ -178,12 +179,12 @@ public class ChatConfig {
         // kb.mcp.enabled=true — external MCP servers run arbitrary local commands or call
         // arbitrary URLs, so this stays an explicit opt-in even once servers are configured.
         ToolCallback[] mcpCallbacks =
-                mcpToolsEnabled
+                mcpProperties.enabled()
                         ? mcpToolCallbackProvider.stream()
                                 .flatMap(provider -> Stream.of(provider.getToolCallbacks()))
                                 .toArray(ToolCallback[]::new)
                         : new ToolCallback[0];
-        if (mcpToolsEnabled) {
+        if (mcpProperties.enabled()) {
             log.info("MCP tools enabled: {} tool(s) exposed to the model", mcpCallbacks.length);
         }
         ToolCallback[] callbacks =

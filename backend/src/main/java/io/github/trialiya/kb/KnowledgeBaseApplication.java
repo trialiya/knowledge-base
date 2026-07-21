@@ -1,11 +1,11 @@
 package io.github.trialiya.kb;
 
-import io.github.trialiya.kb.config.model.AtlassianConfiguration;
 import io.github.trialiya.kb.config.model.ChatModeProperties;
 import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.config.model.DocumentsConfiguration;
 import io.github.trialiya.kb.config.model.EmbeddingConfiguration;
+import io.github.trialiya.kb.config.model.McpProperties;
 import io.github.trialiya.kb.config.model.SearchConfiguration;
 import io.github.trialiya.kb.config.model.SecurityProperties;
 import io.github.trialiya.kb.config.model.SubAgentConfig;
@@ -22,7 +22,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
     EmbeddingConfiguration.class,
     SearchConfiguration.class,
     SubAgentConfig.class,
-    AtlassianConfiguration.class,
+    McpProperties.class,
     ChatModelProperties.class,
     ChatModeProperties.class,
     ChatTimeoutProperties.class,

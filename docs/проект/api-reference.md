@@ -306,30 +306,6 @@ runId активного прогона чата (или пустой объек
 
 ---
 
-### POST `/api/chats/jira`
-Создать JIRA-чат с предзагруженным контекстом.
-
-**Body:** `CreateJiraChatRequest`
-```json
-{
-  "jiraUrl": "https://instance.atlassian.net/browse/PROJ-123",
-  "confluenceUrl": "https://instance.atlassian.net/wiki/spaces/.../pages/12345",
-  "title": "Optional custom title"
-}
-```
-**Response:** `Chat` (с пустым списком сообщений)
-
----
-
-### POST `/api/chats/{conversationId}/refresh`
-Обновить JIRA-чат — перезагрузить данные issue и заменить вложения.
-
-**Body:** JIRA URL (raw text)
-
-**Response:** `Chat`
-
----
-
 ### GET `/api/chats/models`
 Список доступных AI-моделей и модель по умолчанию.
 

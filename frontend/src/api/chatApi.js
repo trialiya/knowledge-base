@@ -3,7 +3,7 @@
 // Поток событий (GET /events) живёт отдельно в chatEvents.js — там нужен прямой
 // доступ к response.body для побайтового SSE-чтения.
 
-import { request, requestRaw, json } from './client';
+import { request, requestRaw } from './client';
 
 const enc = (id) => encodeURIComponent(id);
 
@@ -92,29 +92,6 @@ const chatApi = {
       method: 'PUT',
       headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
       body: modeId || '',
-    }),
-
-  /**
-   * Создать Jira-чат. При ошибке бросает Error с телом ответа в message
-   * (бэк отдаёт человекочитаемый текст), чтобы UI мог показать его пользователю.
-   */
-  createJiraChat: async (body) => {
-    const res = await requestRaw('/api/chats/jira', { method: 'POST', ...json(body) });
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      const err = new Error(text || `HTTP ${res.status}`);
-      err.status = res.status;
-      err.body = text;
-      throw err;
-    }
-    return res.json();
-  },
-
-  /** Обновить вложения Jira-чата (pull из Jira). jiraUrl — тело запроса. */
-  refreshJira: (id, jiraUrl) =>
-    requestRaw(`/api/chats/${enc(id)}/refresh`, {
-      method: 'POST',
-      ...(jiraUrl !== undefined ? { headers: { 'Content-Type': 'application/json' }, body: jiraUrl } : {}),
     }),
 
   /**
