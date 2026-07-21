@@ -8,18 +8,17 @@ import {
 } from './fileChipEditorDom';
 import FilePickerDropdown from './FilePickerDropdown';
 import FileChipPreview from './FileChipPreview';
+import RichTextEditor from './RichTextEditor';
 import useChipPicker from './useChipPicker';
 import useChipPreview from './useChipPreview';
 
 // ── Компонент ─────────────────────────────────────────────────────────────────
-// Отвечает только за сам contentEditable-редактор: переходы value ⇄ DOM, ввод,
-// клавиатуру, вставку plain-text и вставку чипа в DOM. Логику выпадающего списка
-// и превью чипа держат хуки useChipPicker / useChipPreview.
+// Композер чата: rich-text редактор с чипами файлов и документов (/file, /doc).
+// Владеет переходами value ⇄ DOM, вводом, клавиатурой, вставкой plain-text и
+// вставкой чипа в DOM; сам div рендерит RichTextEditor. Логику выпадающего
+// списка и превью чипа держат хуки useChipPicker / useChipPreview.
 
-const FileChipInput = forwardRef(function FileChipInput(
-  { value, onChange, onSend, disabled, placeholder, chatId },
-  ref,
-) {
+const ChipEditor = forwardRef(function ChipEditor({ value, onChange, onSend, disabled, placeholder, chatId }, ref) {
   const editorRef = useRef(null);
   const internalRef = useRef(value);
 
@@ -234,14 +233,11 @@ const FileChipInput = forwardRef(function FileChipInput(
 
   return (
     <>
-      <div
+      <RichTextEditor
         ref={editorRef}
-        className={`message-input message-input--rich${isEmpty ? ' is-empty' : ''}`}
-        contentEditable={!disabled}
-        suppressContentEditableWarning
-        role="textbox"
-        aria-multiline="true"
-        data-placeholder={placeholder}
+        isEmpty={isEmpty}
+        disabled={disabled}
+        placeholder={placeholder}
         onInput={handleInput}
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
@@ -268,4 +264,4 @@ const FileChipInput = forwardRef(function FileChipInput(
   );
 });
 
-export default FileChipInput;
+export default ChipEditor;

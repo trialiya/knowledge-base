@@ -8,7 +8,7 @@ import { IconX } from '../../icons';
 /**
  * Read-only file preview modal opened from a chat file link (`/files?path=...`) — shows the
  * file's content without leaving the chat / navigating to FilesPanel. Reuses the
- * `.file-preview-modal`/`.fs-editor*` chrome already styled for FileChipInput's chip preview
+ * `.file-preview-modal`/`.fs-editor*` chrome already styled for ChipEditor's chip preview
  * (chatWindow.css), but renders FileView (language badge, size, line count, binary placeholder,
  * line-numbered code) instead of a plain `<pre>`, since this modal has no path-only mode toggle.
  *

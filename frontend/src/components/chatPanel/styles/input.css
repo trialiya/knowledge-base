@@ -106,7 +106,7 @@
   text-align: center;
 }
 
-/* ── Rich-композер с чипами файлов (FileChipInput) ── */
+/* ── Rich-композер с чипами файлов и документов (ChipEditor) ── */
 .message-input-wrapper .message-input--rich {
   white-space: pre-wrap;
   overflow-wrap: anywhere;

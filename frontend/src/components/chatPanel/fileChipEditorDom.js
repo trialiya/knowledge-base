@@ -119,7 +119,7 @@ function appendWithBreaks(parent, text) {
  *
  * Пустой редактор с одиноким <br> (заглушка браузера после удаления всего
  * текста) тоже получит sentinel, но его убирает очистка пустого поля в
- * FileChipInput.handleInput — она срабатывает только на реальный input, тогда
+ * ChipEditor.handleInput — она срабатывает только на реальный input, тогда
  * как Shift+Enter (input не порождает) оставляет sentinel и первый перенос
  * строки виден сразу.
  */
