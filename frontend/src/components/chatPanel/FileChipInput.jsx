@@ -12,7 +12,13 @@ import {
   baseName,
   fetchContent,
 } from './fileChips';
-import { serialize, makeChipEl, renderValue, placeCaretEnd } from './fileChipEditorDom';
+import {
+  serialize,
+  makeChipEl,
+  renderValue,
+  placeCaretEnd,
+  normalizeTrailingSentinel,
+} from './fileChipEditorDom';
 import FilePickerDropdown from './FilePickerDropdown';
 import FileChipPreview from './FileChipPreview';
 
@@ -148,7 +154,13 @@ const FileChipInput = forwardRef(function FileChipInput(
   }, [dismissPicker, runSearch]);
 
   const emitChange = useCallback(() => {
-    const v = serialize(editorRef.current);
+    const root = editorRef.current;
+    if (!root) return;
+    // Приводим хвостовой sentinel-<br> в порядок на каждом изменении: он нужен
+    // ровно тогда, когда контент заканчивается переносом. Так живой DOM всегда
+    // совпадает с тем, что нарисует renderValue из сохранённого значения.
+    normalizeTrailingSentinel(root);
+    const v = serialize(root);
     internalRef.current = v;
     onChange(v);
   }, [onChange]);
@@ -270,30 +282,23 @@ const FileChipInput = forwardRef(function FileChipInput(
         e.preventDefault();
         const sel2 = window.getSelection();
         if (sel2?.rangeCount) {
-          const root = editorRef.current;
           const r2 = sel2.getRangeAt(0);
           r2.deleteContents();
-
-          // Remove any existing sentinel so there is never more than one.
-          root.querySelectorAll('br[data-sentinel]').forEach((s) => s.remove());
 
           const br = document.createElement('br');
           r2.insertNode(br);
 
-          // Always add a sentinel <br> after the real one.  Without it, a
-          // trailing <br> at the end of a block has no "line" for the cursor
-          // to sit on and the browser doesn't visually advance to the new row.
-          // The sentinel is invisible in serialisation (dataset.sentinel skips it).
-          const sentinel = document.createElement('br');
-          sentinel.dataset.sentinel = '1';
-          br.after(sentinel);
-
-          // Place cursor between real br and sentinel (= on the new blank line).
+          // Ставим курсор сразу после нового <br>. Sentinel (filler для видимой
+          // пустой строки) добавит emitChange → normalizeTrailingSentinel, но
+          // только если <br> оказался хвостовым; если за ним есть контент, он сам
+          // рисует новую строку и лишний sentinel не создаёт второй пустой строки.
           const newRange = document.createRange();
           newRange.setStartAfter(br);
           newRange.collapse(true);
           sel2.removeAllRanges();
           sel2.addRange(newRange);
+
+          emitChange();
 
           // Scroll the editor so the cursor line is visible.
           // A collapsed range after a <br> returns zero rects, so we measure
@@ -302,7 +307,7 @@ const FileChipInput = forwardRef(function FileChipInput(
             const editorEl = editorRef.current;
             if (!editorEl) return;
             const tmp = document.createElement('span');
-            sentinel.before(tmp);
+            br.after(tmp);
             const tmpRect = tmp.getBoundingClientRect();
             tmp.remove();
             const editorRect = editorEl.getBoundingClientRect();
@@ -310,8 +315,9 @@ const FileChipInput = forwardRef(function FileChipInput(
               editorEl.scrollTop += tmpRect.bottom - editorRect.bottom + 10;
             }
           });
+        } else {
+          emitChange();
         }
-        emitChange();
       }
     },
     [picker.open, picker.results, picker.idx, insertItem, dismissPicker, disabled, onSend, emitChange],

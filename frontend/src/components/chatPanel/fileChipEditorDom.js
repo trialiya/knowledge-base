@@ -109,6 +109,27 @@ function appendWithBreaks(parent, text) {
   }
 }
 
+/**
+ * Держим ровно один хвостовой sentinel-<br> — и только если контент реально
+ * заканчивается переносом строки (последний узел — обычный <br>, и перед ним
+ * что-то есть). Хвостовой <br> сам по себе не создаёт видимой пустой строки:
+ * браузеру нужен следующий узел, на котором «стоит» новая строка. Для <br> в
+ * середине (за ним есть контент) filler не нужен — иначе он рисует лишнюю
+ * пустую строку (например, Shift+Enter в начале второй строки давал две).
+ * Одинокий <br> в пустом редакторе — заглушка браузера, не перенос: sentinel
+ * не добавляем (guard по previousSibling), иначе не сработает очистка пустого
+ * поля в FileChipInput.
+ */
+export function normalizeTrailingSentinel(root) {
+  root.querySelectorAll('br[data-sentinel]').forEach((s) => s.remove());
+  const last = root.lastChild;
+  if (last && last.nodeName === 'BR' && last.previousSibling) {
+    const sentinel = document.createElement('br');
+    sentinel.dataset.sentinel = '1';
+    root.appendChild(sentinel);
+  }
+}
+
 /** Отрисовать плоскую строку value в DOM editor (текстовые узлы + чипы). */
 export function renderValue(root, value) {
   root.textContent = '';
@@ -120,11 +141,7 @@ export function renderValue(root, value) {
   }
   if (last < value.length) appendWithBreaks(root, value.slice(last));
   // Trailing \n needs a sentinel <br> so the cursor sits visibly on the new line.
-  if (value.endsWith('\n')) {
-    const sentinel = document.createElement('br');
-    sentinel.dataset.sentinel = '1';
-    root.appendChild(sentinel);
-  }
+  normalizeTrailingSentinel(root);
 }
 
 export function placeCaretEnd(root) {
