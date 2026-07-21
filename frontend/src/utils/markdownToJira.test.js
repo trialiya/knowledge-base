@@ -32,6 +32,25 @@ describe('markdownToJira', () => {
     expect(markdownToJira('![](https://example.com/img.png)')).toBe('!https://example.com/img.png!');
   });
 
+  it('внутренние ссылки на файлы репозитория заменяются на "имя (путь)", а не на гиперссылку', () => {
+    expect(markdownToJira('[`backend/build.gradle`](/files?path=backend/build.gradle)')).toBe(
+      'build.gradle (backend/build.gradle)',
+    );
+    expect(markdownToJira('[GitService.java](/files?path=backend/src/main/java/GitService.java)')).toBe(
+      'GitService.java (backend/src/main/java/GitService.java)',
+    );
+  });
+
+  it('внутренние ссылки на документы базы знаний заменяются на обычный текст', () => {
+    expect(markdownToJira('[Модели данных](/?doc=42)')).toBe('Модели данных');
+  });
+
+  it('внешние ссылки, даже содержащие "doc=" не по внутреннему пути, остаются гиперссылками', () => {
+    expect(markdownToJira('[external](https://other.example.com/?doc=42)')).toBe(
+      '[external|https://other.example.com/?doc=42]',
+    );
+  });
+
   it('маркированный и нумерованный списки, включая вложенность', () => {
     expect(markdownToJira('- one\n- two\n  - nested')).toBe('* one\n* two\n** nested');
     expect(markdownToJira('1. one\n2. two')).toBe('# one\n# two');

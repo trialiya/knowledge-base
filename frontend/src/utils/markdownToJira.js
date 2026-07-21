@@ -27,6 +27,18 @@ function normalizeLang(lang) {
   return CODE_LANG_ALIASES[key] || key;
 }
 
+// Internal KB links (see docLinkParsing.js parseFileLink/parseDocId for the
+// canonical, DOM-based parser used elsewhere): these point at in-app routes,
+// not real hyperlinks, so a Jira `[text|url]` link would be dead once pasted
+// into an issue. File links become "name (full/path)"; doc links become
+// plain text (just the link label).
+const FILE_LINK_RE = /^\/files\?path=([^&#\s]+)/;
+const DOC_LINK_RE = /(?:^|[?&])doc=\d+(?:&|$|#)/;
+
+function isRelativeInternalUrl(url) {
+  return !/^[a-z][a-z0-9+.-]*:\/\//i.test(url) && !url.startsWith('//');
+}
+
 const HEADING_RE = /^(#{1,6})\s+(.*)$/;
 const HR_RE = /^ {0,3}([-*_])(?:\s*\1){2,}\s*$/;
 const UL_RE = /^(\s*)[-*+]\s+(.*)$/;
@@ -69,7 +81,18 @@ function convertInline(text) {
   out = out.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (_, alt, url) =>
     stash(alt ? `!${url}|alt=${alt}!` : `!${url}!`),
   );
-  out = out.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (_, label, url) => stash(`[${label}|${url}]`));
+  out = out.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (_, label, url) => {
+    const fileMatch = url.match(FILE_LINK_RE);
+    if (fileMatch) {
+      const filePath = decodeURIComponent(fileMatch[1]);
+      const fileName = filePath.split('/').pop();
+      return stash(`${fileName} (${filePath})`);
+    }
+    if (isRelativeInternalUrl(url) && DOC_LINK_RE.test(url)) {
+      return stash(label);
+    }
+    return stash(`[${label}|${url}]`);
+  });
   out = out.replace(/\*\*([^*]+)\*\*/g, (_, inner) => stash(`*${inner}*`));
   out = out.replace(/__([^_]+)__/g, (_, inner) => stash(`*${inner}*`));
   out = out.replace(/~~([^~]+)~~/g, '-$1-');
