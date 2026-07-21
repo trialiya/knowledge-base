@@ -41,8 +41,9 @@ import org.springframework.core.io.Resource;
  *   <li><b>No chat memory.</b> The only input is the {@code task} string; nothing leaks in or out
  *       of the parent conversation window.
  *   <li><b>Manual loop with a cap.</b> When the cap is hit we do NOT dump the last raw tool output;
- *       instead we issue a final, tool-less call asking the model to summarize what it has
- *       gathered.
+ *       instead we issue a final summarization call with {@code tool_choice=none} — the tool set
+ *       stays declared (so the gathered evidence remains a cache-eligible prefix) but the model
+ *       cannot invoke anything — asking it to summarize what it has gathered.
  *   <li><b>Self-correcting tool errors.</b> Spring AI's default tool-execution exception processor
  *       feeds a failed call's error back to the model as the tool result, so a model that emitted
  *       malformed arguments is asked (by the prompt) to fix them and retry within the loop. If an
@@ -239,7 +240,16 @@ public class SearchAgentService {
                         .model(config.modelId())
                         .maxTokens(config.maxTokens())
                         .temperature(0.0)
-                        .build(); // no tools offered -> the model cannot request more
+                        // Keep the SAME tool set as the loop calls, then forbid their use with
+                        // tool_choice=none. Dropping the tools here would change the request's
+                        // `tools` array, and OpenAI prompt caching only reuses a prefix when that
+                        // array is identical across requests — so a tool-less final call would
+                        // force a full cache miss on the whole accumulated conversation (up to
+                        // maxIterations rounds of tool output). tool_choice=none preserves the
+                        // "the model cannot request more" guarantee without busting the cache.
+                        .toolCallbacks(toolCallbacks)
+                        .toolChoice("none")
+                        .build();
 
         try {
             final ChatResponse summary = chatModel.call(new Prompt(messages, finalOptions));
