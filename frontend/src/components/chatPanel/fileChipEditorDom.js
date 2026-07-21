@@ -18,11 +18,7 @@ function serializeNode(node) {
     // <br> — filler, который браузер вставляет для видимости строки (так, например,
     // execCommand('insertText') оформляет хвостовой/пустой перенос). Без этой ветки
     // и блок, и вложенный <br> дали бы по '\n' → двойной перевод строки.
-    if (
-      node.childNodes.length === 1 &&
-      node.firstChild.nodeName === 'BR' &&
-      !node.firstChild.dataset?.sentinel
-    ) {
+    if (node.childNodes.length === 1 && node.firstChild.nodeName === 'BR' && !node.firstChild.dataset?.sentinel) {
       return '\n';
     }
     return '\n' + inner;

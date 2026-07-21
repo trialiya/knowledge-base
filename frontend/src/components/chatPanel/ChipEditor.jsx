@@ -1,11 +1,5 @@
 import React, { useRef, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
-import {
-  serialize,
-  makeChipEl,
-  renderValue,
-  placeCaretEnd,
-  normalizeTrailingSentinel,
-} from './fileChipEditorDom';
+import { serialize, makeChipEl, renderValue, placeCaretEnd, normalizeTrailingSentinel } from './fileChipEditorDom';
 import FilePickerDropdown from './FilePickerDropdown';
 import FileChipPreview from './FileChipPreview';
 import RichTextEditor from './RichTextEditor';
@@ -54,7 +48,13 @@ const ChipEditor = forwardRef(function ChipEditor({ value, onChange, onSend, dis
     onChange(v);
   }, [onChange]);
 
-  const { preview, openFromChip, toggleRef, close: closePreview, clear: clearPreview } = useChipPreview({
+  const {
+    preview,
+    openFromChip,
+    toggleRef,
+    close: closePreview,
+    clear: clearPreview,
+  } = useChipPreview({
     chatId,
     onAfterToggle: emitChange,
   });
@@ -206,7 +206,18 @@ const ChipEditor = forwardRef(function ChipEditor({ value, onChange, onSend, dis
         }
       }
     },
-    [picker.open, picker.results, picker.idx, moveSelection, insertItem, dismissPicker, disabled, onSend, emitChange, closePreview],
+    [
+      picker.open,
+      picker.results,
+      picker.idx,
+      moveSelection,
+      insertItem,
+      dismissPicker,
+      disabled,
+      onSend,
+      emitChange,
+      closePreview,
+    ],
   );
 
   const handleClick = useCallback(
