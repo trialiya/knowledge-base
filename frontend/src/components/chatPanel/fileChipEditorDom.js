@@ -13,7 +13,21 @@ function serializeNode(node) {
   if (node.tagName === 'BR') return node.dataset?.sentinel ? '' : '\n';
   let inner = '';
   node.childNodes.forEach((c) => (inner += serializeNode(c)));
-  return /^(DIV|P)$/.test(node.tagName) ? '\n' + inner : inner;
+  if (/^(DIV|P)$/.test(node.tagName)) {
+    // Блок с единственным <br> = пустая строка: ведущий '\n' её уже задаёт, а сам
+    // <br> — filler, который браузер вставляет для видимости строки (так, например,
+    // execCommand('insertText') оформляет хвостовой/пустой перенос). Без этой ветки
+    // и блок, и вложенный <br> дали бы по '\n' → двойной перевод строки.
+    if (
+      node.childNodes.length === 1 &&
+      node.firstChild.nodeName === 'BR' &&
+      !node.firstChild.dataset?.sentinel
+    ) {
+      return '\n';
+    }
+    return '\n' + inner;
+  }
+  return inner;
 }
 
 /** Плоская строка-значение (с токенами) из DOM редактора. */
@@ -95,6 +109,37 @@ function appendWithBreaks(parent, text) {
   }
 }
 
+/**
+ * Держим ровно один хвостовой sentinel-<br> — когда последний узел редактора
+ * это обычный <br>. Хвостовой <br> сам по себе не создаёт видимой пустой
+ * строки: браузеру нужен следующий узел, на котором «стоит» новая строка;
+ * sentinel и есть этот filler (в сериализации он игнорируется). Для <br> в
+ * середине (за ним есть контент) filler не нужен — иначе он рисует лишнюю
+ * пустую строку (например, Shift+Enter в начале второй строки давал две).
+ *
+ * Пустой редактор с одиноким <br> (заглушка браузера после удаления всего
+ * текста) тоже получит sentinel, но его убирает очистка пустого поля в
+ * FileChipInput.handleInput — она срабатывает только на реальный input, тогда
+ * как Shift+Enter (input не порождает) оставляет sentinel и первый перенос
+ * строки виден сразу.
+ */
+export function normalizeTrailingSentinel(root) {
+  root.querySelectorAll('br[data-sentinel]').forEach((s) => s.remove());
+  // Пропускаем хвостовые пустые текстовые узлы: Range#insertNode при каретке
+  // внутри текста расщепляет его, оставляя после вставленного <br> пустой
+  // #text — при реальной печати каретка всегда внутри текста, и без пропуска
+  // хвостовой <br> оставался без sentinel (невидимым).
+  let last = root.lastChild;
+  while (last && last.nodeType === Node.TEXT_NODE && !last.nodeValue) {
+    last = last.previousSibling;
+  }
+  if (last && last.nodeName === 'BR') {
+    const sentinel = document.createElement('br');
+    sentinel.dataset.sentinel = '1';
+    root.appendChild(sentinel);
+  }
+}
+
 /** Отрисовать плоскую строку value в DOM editor (текстовые узлы + чипы). */
 export function renderValue(root, value) {
   root.textContent = '';
@@ -106,11 +151,7 @@ export function renderValue(root, value) {
   }
   if (last < value.length) appendWithBreaks(root, value.slice(last));
   // Trailing \n needs a sentinel <br> so the cursor sits visibly on the new line.
-  if (value.endsWith('\n')) {
-    const sentinel = document.createElement('br');
-    sentinel.dataset.sentinel = '1';
-    root.appendChild(sentinel);
-  }
+  normalizeTrailingSentinel(root);
 }
 
 export function placeCaretEnd(root) {

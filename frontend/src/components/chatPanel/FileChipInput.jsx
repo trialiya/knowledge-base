@@ -12,7 +12,13 @@ import {
   baseName,
   fetchContent,
 } from './fileChips';
-import { serialize, makeChipEl, renderValue, placeCaretEnd } from './fileChipEditorDom';
+import {
+  serialize,
+  makeChipEl,
+  renderValue,
+  placeCaretEnd,
+  normalizeTrailingSentinel,
+} from './fileChipEditorDom';
 import FilePickerDropdown from './FilePickerDropdown';
 import FileChipPreview from './FileChipPreview';
 
@@ -148,7 +154,13 @@ const FileChipInput = forwardRef(function FileChipInput(
   }, [dismissPicker, runSearch]);
 
   const emitChange = useCallback(() => {
-    const v = serialize(editorRef.current);
+    const root = editorRef.current;
+    if (!root) return;
+    // Приводим хвостовой sentinel-<br> в порядок на каждом изменении: он нужен
+    // ровно тогда, когда контент заканчивается переносом. Так живой DOM всегда
+    // совпадает с тем, что нарисует renderValue из сохранённого значения.
+    normalizeTrailingSentinel(root);
+    const v = serialize(root);
     internalRef.current = v;
     onChange(v);
   }, [onChange]);
@@ -156,12 +168,16 @@ const FileChipInput = forwardRef(function FileChipInput(
   const handleInput = useCallback(() => {
     emitChange();
     // Chrome auto-inserts a bare <br> when all content is deleted. serialize()
-    // strips the leading \n so value becomes "" — but the <br> stays in the DOM
-    // and the cursor ends up after it, appearing at the end of the placeholder.
-    // Remove any bare <br> nodes (no data-sentinel = not ours) when editor is empty.
+    // strips the leading \n so value becomes "" — but the <br> (плюс sentinel,
+    // который навесил emitChange) остаётся в DOM, и курсор оказывается на пустой
+    // строке поверх placeholder. Если значение пустое, а в редакторе остались
+    // только <br> (обычные и/или sentinel) — очищаем. Это путь именно input:
+    // Shift+Enter сюда не заходит (не порождает input), поэтому осознанный первый
+    // перенос строки sentinel сохраняет и он виден сразу.
     if (!internalRef.current && editorRef.current) {
       const root = editorRef.current;
-      if ([...root.childNodes].every((n) => n.nodeName === 'BR' && !n.dataset?.sentinel)) {
+      const ignorable = (n) => n.nodeName === 'BR' || (n.nodeType === Node.TEXT_NODE && !n.nodeValue);
+      if ([...root.childNodes].every(ignorable)) {
         root.textContent = '';
       }
     }
@@ -216,44 +232,23 @@ const FileChipInput = forwardRef(function FileChipInput(
     [doInsert],
   );
 
-  const insertTextAtCaret = useCallback((text) => {
-    const sel = window.getSelection();
-    if (!sel.rangeCount) return;
-    const range = sel.getRangeAt(0);
-    range.deleteContents();
-    // Build a fragment so multi-line text uses <br> elements (trailing \n in text nodes is invisible).
-    const frag = document.createDocumentFragment();
-    const lines = text.split('\n');
-    let lastNode = null;
-    for (let i = 0; i < lines.length; i++) {
-      if (i > 0) {
-        lastNode = document.createElement('br');
-        frag.appendChild(lastNode);
-      }
-      if (lines[i]) {
-        lastNode = document.createTextNode(lines[i]);
-        frag.appendChild(lastNode);
-      }
-    }
-    range.insertNode(frag);
-    if (lastNode) {
-      range.setStartAfter(lastNode);
-      range.collapse(true);
-      sel.removeAllRanges();
-      sel.addRange(range);
-    }
-  }, []);
-
   // Сбрасываем форматирование при вставке — вставляем только plain text.
+  // Используем execCommand('insertText') (а не ручную вставку через Range), чтобы:
+  //  1) вставка попадала в нативный стек отмены — Ctrl+Z отменяет вставленный текст;
+  //  2) браузер сам оформлял переносы строк, включая filler для последней/пустой
+  //     строки — она отображается сразу после вставки. При ручной вставке хвостовой
+  //     <br> был невидимым, и следующий Shift+Enter «проявлял» его, что выглядело
+  //     как двойной перевод строки. serialize() уже понимает такой DOM (блок с
+  //     единственным <br> → один '\n').
   const handlePaste = useCallback(
     (e) => {
       e.preventDefault();
       const text = (e.clipboardData || window.clipboardData).getData('text/plain');
       if (!text) return;
-      insertTextAtCaret(text);
+      document.execCommand('insertText', false, text);
       emitChange();
     },
-    [insertTextAtCaret, emitChange],
+    [emitChange],
   );
 
   const handleKeyDown = useCallback(
@@ -291,30 +286,23 @@ const FileChipInput = forwardRef(function FileChipInput(
         e.preventDefault();
         const sel2 = window.getSelection();
         if (sel2?.rangeCount) {
-          const root = editorRef.current;
           const r2 = sel2.getRangeAt(0);
           r2.deleteContents();
-
-          // Remove any existing sentinel so there is never more than one.
-          root.querySelectorAll('br[data-sentinel]').forEach((s) => s.remove());
 
           const br = document.createElement('br');
           r2.insertNode(br);
 
-          // Always add a sentinel <br> after the real one.  Without it, a
-          // trailing <br> at the end of a block has no "line" for the cursor
-          // to sit on and the browser doesn't visually advance to the new row.
-          // The sentinel is invisible in serialisation (dataset.sentinel skips it).
-          const sentinel = document.createElement('br');
-          sentinel.dataset.sentinel = '1';
-          br.after(sentinel);
-
-          // Place cursor between real br and sentinel (= on the new blank line).
+          // Ставим курсор сразу после нового <br>. Sentinel (filler для видимой
+          // пустой строки) добавит emitChange → normalizeTrailingSentinel, но
+          // только если <br> оказался хвостовым; если за ним есть контент, он сам
+          // рисует новую строку и лишний sentinel не создаёт второй пустой строки.
           const newRange = document.createRange();
           newRange.setStartAfter(br);
           newRange.collapse(true);
           sel2.removeAllRanges();
           sel2.addRange(newRange);
+
+          emitChange();
 
           // Scroll the editor so the cursor line is visible.
           // A collapsed range after a <br> returns zero rects, so we measure
@@ -323,7 +311,7 @@ const FileChipInput = forwardRef(function FileChipInput(
             const editorEl = editorRef.current;
             if (!editorEl) return;
             const tmp = document.createElement('span');
-            sentinel.before(tmp);
+            br.after(tmp);
             const tmpRect = tmp.getBoundingClientRect();
             tmp.remove();
             const editorRect = editorEl.getBoundingClientRect();
@@ -331,8 +319,9 @@ const FileChipInput = forwardRef(function FileChipInput(
               editorEl.scrollTop += tmpRect.bottom - editorRect.bottom + 10;
             }
           });
+        } else {
+          emitChange();
         }
-        emitChange();
       }
     },
     [picker.open, picker.results, picker.idx, insertItem, dismissPicker, disabled, onSend, emitChange],
