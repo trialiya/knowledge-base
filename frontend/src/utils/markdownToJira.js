@@ -67,6 +67,15 @@ const TOKEN_OPEN = 'JMDTOK';
 const TOKEN_CLOSE = 'KOTDMJ';
 const TOKEN_RE = new RegExp(`${TOKEN_OPEN}(\\d+)${TOKEN_CLOSE}`, 'g');
 
+// A literal `{` or `}` inside {{monospace}} is ambiguous to Jira's parser —
+// e.g. code containing `{"a": 1}` would produce `{{{"a": 1}}}`, where the
+// first/last brace of the code reads as part of the `{{`/`}}` delimiter
+// instead of code content. Backslash-escaping the braces themselves (not
+// the wrapper) keeps them literal.
+function escapeJiraBraces(text) {
+  return text.replace(/[{}]/g, '\\$&');
+}
+
 // Converts inline spans (code, images, links, bold, strike, italic) within a
 // single line.
 function convertInline(text) {
@@ -77,7 +86,7 @@ function convertInline(text) {
   };
 
   let out = text;
-  out = out.replace(/`([^`]+)`/g, (_, code) => stash(`{{${code}}}`));
+  out = out.replace(/`([^`]+)`/g, (_, code) => stash(`{{${escapeJiraBraces(code)}}}`));
   out = out.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (_, alt, url) =>
     stash(alt ? `!${url}|alt=${alt}!` : `!${url}!`),
   );

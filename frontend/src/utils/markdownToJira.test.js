@@ -24,6 +24,13 @@ describe('markdownToJira', () => {
     expect(markdownToJira('**`code`** and **bold**')).toBe('*{{code}}* and *bold*');
   });
 
+  it('фигурные скобки внутри инлайн-кода экранируются, чтобы не сливаться с {{ }}', () => {
+    expect(markdownToJira('чистые значения без обёртки `{"string": ...}`')).toBe(
+      'чистые значения без обёртки {{\\{"string": ...\\}}}',
+    );
+    expect(markdownToJira('`{}`')).toBe('{{\\{\\}}}');
+  });
+
   it('ссылки и изображения', () => {
     expect(markdownToJira('[docs](https://example.com)')).toBe('[docs|https://example.com]');
     expect(markdownToJira('![alt text](https://example.com/img.png)')).toBe(
