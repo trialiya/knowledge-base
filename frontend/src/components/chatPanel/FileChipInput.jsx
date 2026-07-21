@@ -216,44 +216,23 @@ const FileChipInput = forwardRef(function FileChipInput(
     [doInsert],
   );
 
-  const insertTextAtCaret = useCallback((text) => {
-    const sel = window.getSelection();
-    if (!sel.rangeCount) return;
-    const range = sel.getRangeAt(0);
-    range.deleteContents();
-    // Build a fragment so multi-line text uses <br> elements (trailing \n in text nodes is invisible).
-    const frag = document.createDocumentFragment();
-    const lines = text.split('\n');
-    let lastNode = null;
-    for (let i = 0; i < lines.length; i++) {
-      if (i > 0) {
-        lastNode = document.createElement('br');
-        frag.appendChild(lastNode);
-      }
-      if (lines[i]) {
-        lastNode = document.createTextNode(lines[i]);
-        frag.appendChild(lastNode);
-      }
-    }
-    range.insertNode(frag);
-    if (lastNode) {
-      range.setStartAfter(lastNode);
-      range.collapse(true);
-      sel.removeAllRanges();
-      sel.addRange(range);
-    }
-  }, []);
-
   // Сбрасываем форматирование при вставке — вставляем только plain text.
+  // Используем execCommand('insertText') (а не ручную вставку через Range), чтобы:
+  //  1) вставка попадала в нативный стек отмены — Ctrl+Z отменяет вставленный текст;
+  //  2) браузер сам оформлял переносы строк, включая filler для последней/пустой
+  //     строки — она отображается сразу после вставки. При ручной вставке хвостовой
+  //     <br> был невидимым, и следующий Shift+Enter «проявлял» его, что выглядело
+  //     как двойной перевод строки. serialize() уже понимает такой DOM (блок с
+  //     единственным <br> → один '\n').
   const handlePaste = useCallback(
     (e) => {
       e.preventDefault();
       const text = (e.clipboardData || window.clipboardData).getData('text/plain');
       if (!text) return;
-      insertTextAtCaret(text);
+      document.execCommand('insertText', false, text);
       emitChange();
     },
-    [insertTextAtCaret, emitChange],
+    [emitChange],
   );
 
   const handleKeyDown = useCallback(

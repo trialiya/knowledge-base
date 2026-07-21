@@ -13,7 +13,21 @@ function serializeNode(node) {
   if (node.tagName === 'BR') return node.dataset?.sentinel ? '' : '\n';
   let inner = '';
   node.childNodes.forEach((c) => (inner += serializeNode(c)));
-  return /^(DIV|P)$/.test(node.tagName) ? '\n' + inner : inner;
+  if (/^(DIV|P)$/.test(node.tagName)) {
+    // Блок с единственным <br> = пустая строка: ведущий '\n' её уже задаёт, а сам
+    // <br> — filler, который браузер вставляет для видимости строки (так, например,
+    // execCommand('insertText') оформляет хвостовой/пустой перенос). Без этой ветки
+    // и блок, и вложенный <br> дали бы по '\n' → двойной перевод строки.
+    if (
+      node.childNodes.length === 1 &&
+      node.firstChild.nodeName === 'BR' &&
+      !node.firstChild.dataset?.sentinel
+    ) {
+      return '\n';
+    }
+    return '\n' + inner;
+  }
+  return inner;
 }
 
 /** Плоская строка-значение (с токенами) из DOM редактора. */
