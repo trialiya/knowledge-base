@@ -87,6 +87,26 @@ export const transformPage = (rawMsgs) => {
   return { bubbles, leadingMetas };
 };
 
+// Обрезает хвостовые сегменты ассистента после последнего USER-сообщения. При
+// активном прогоне это его частично сохранённые сегменты (преамбулы + плашки уже
+// завершённых tool-циклов) — SSE-реплей текущего прогона пришлёт их заново, поэтому
+// из загруженной истории их убираем: иначе перезагрузка страницы ПОСРЕДИ генерации
+// показала бы ответ дважды (из БД + из реплея), пока прогон не завершится. Реплей
+// начинается с RUN_STARTED, т.е. ровно с хода последнего USER-сообщения, так что
+// пересоберёт этот хвост один раз. Если USER-сообщения на странице нет (очень длинный
+// прогон вытеснил его на более старую страницу) — не трогаем: обрезать было бы нечем
+// однозначно, а такой кейс редок.
+export const trimActiveRunTail = (bubbles) => {
+  let lastUser = -1;
+  for (let i = bubbles.length - 1; i >= 0; i--) {
+    if (bubbles[i].sender === SENDER.USER) {
+      lastUser = i;
+      break;
+    }
+  }
+  return lastUser < 0 ? bubbles : bubbles.slice(0, lastUser + 1);
+};
+
 // Прицепляет «висячие» metas (крошки без ассистента в своей странице) к последнему
 // AI-пузырю переданного набора. Возвращает остаток, который не удалось прицепить
 // (если в наборе вообще нет ассистента) — его несём дальше вверх.
@@ -145,8 +165,17 @@ export default function useChatMessages({ chats, chatsRef, setChats, activeChatI
       loadingMessagesRef.current.add(chatId);
       setLoadingMessages(true);
       try {
-        const [meta, page] = await Promise.all([chatApi.getChatMeta(chatId), chatApi.getMessages(chatId, PAGE_SIZE)]);
+        // getActiveRun — восстановление состояния прогона после перезагрузки: если в чате
+        // прямо сейчас идёт генерация, её частично сохранённые сегменты убираем из
+        // загруженной истории (их пересоберёт SSE-реплей), а runId ставим сразу, чтобы UI
+        // показал «идёт ответ» без мигания до прихода RUN_STARTED из потока.
+        const [meta, page, activeRun] = await Promise.all([
+          chatApi.getChatMeta(chatId),
+          chatApi.getMessages(chatId, PAGE_SIZE),
+          chatApi.getActiveRun(chatId).catch(() => ({})),
+        ]);
         const { bubbles, leadingMetas } = transformPage(page.messages);
+        const activeRunId = activeRun?.runId || null;
 
         failedChatIdsRef.current.delete(chatId);
         setChats((prev) =>
@@ -154,7 +183,8 @@ export default function useChatMessages({ chats, chatsRef, setChats, activeChatI
             chat.id === chatId
               ? {
                   ...chat,
-                  messages: bubbles,
+                  messages: activeRunId ? trimActiveRunTail(bubbles) : bubbles,
+                  runId: activeRunId,
                   hasMore: !!page.hasMore,
                   oldestCursor: page.oldestCursor || null,
                   // metas, чей ассистент в ещё не загруженной более старой странице

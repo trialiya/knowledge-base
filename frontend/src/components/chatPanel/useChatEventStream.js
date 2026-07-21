@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { openChatEventStream } from '../../api/chatEvents';
 import { applyChatEvent } from './chatEventReducer';
+import chatApi from '../../api/chatApi';
 import { DRAFT_CHAT_ID } from '../../constants/storage';
 
 /**
@@ -73,15 +74,23 @@ export default function useChatEventStream({
         }
       },
       onReconnect: () => {
-        // Перезагружаем только если UI думает что идёт прогон — в этом случае либо
-        // бэк перезапустился (прогон мёртв, нужно показать ответ из БД и разблокировать
-        // ввод), либо прогон завершился пока соединение было сломано. При обычном сетевом
-        // сбое без потери прогона runId === null и мы ничего лишнего не делаем.
+        // Соединение восстановилось. Что-то делаем только если UI думает, что идёт прогон.
         const cur = chatsRef.current.find((c) => c.id === chatId);
-        if (cur?.runId) {
-          setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, runId: null } : c)));
-          reloadMessages(chatId);
-        }
+        if (!cur?.runId) return;
+        // Жив ли прогон на самом деле? Если ДА — переподключившийся поток сам догонит
+        // пропущенное (fromSeq = курсор чата) и допишет в уже собранный пузырь; трогать
+        // историю нельзя, иначе перезагрузка из БД обрезала бы начало ответа. Если НЕТ
+        // (бэк перезапустился / прогон завершился, пока рвалось соединение) — показываем
+        // ответ из БД и разблокируем ввод.
+        chatApi
+          .getActiveRun(chatId)
+          .then((r) => {
+            if (r?.runId) return; // прогон жив — поток продолжает сам
+            seqByChatRef.current.delete(chatId);
+            setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, runId: null } : c)));
+            reloadMessages(chatId);
+          })
+          .catch(() => {});
       },
     });
   }, [activeChatId, activeMessagesReady, onRunSettled, onChatDeleted, reloadMessages]); // eslint-disable-line react-hooks/exhaustive-deps

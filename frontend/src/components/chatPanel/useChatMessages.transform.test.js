@@ -1,4 +1,4 @@
-import { transformPage, attachLeadingMetas } from './useChatMessages';
+import { transformPage, attachLeadingMetas, trimActiveRunTail } from './useChatMessages';
 
 // Тесты маппинга «сырых» сообщений бэка в пузыри: раздельное сохранение сегментов
 // (assistant с toolInvocationMetas, протокольные TOOL-строки) + legacy-крошки.
@@ -86,5 +86,26 @@ describe('transformPage', () => {
     expect(rest).toHaveLength(0);
     expect(older[0].toolCalls.map((t) => t.name)).toEqual(['searchDocs']);
     expect(bubbles).toHaveLength(1);
+  });
+});
+
+describe('trimActiveRunTail', () => {
+  const u = (text) => ({ mid: 1, sender: 'user', text });
+  const a = (text) => ({ mid: 2, sender: 'ai', text });
+
+  test('drops the assistant tail after the last user message (the in-flight run partials)', () => {
+    // Перезагрузка посреди генерации: у последнего хода уже сохранены сегменты в БД.
+    const bubbles = [u('q1'), a('a1'), u('q2'), a('преамбула'), a('ещё сегмент')];
+    expect(trimActiveRunTail(bubbles)).toEqual([u('q1'), a('a1'), u('q2')]);
+  });
+
+  test('keeps history intact when the last user message has no assistant tail yet', () => {
+    const bubbles = [u('q1'), a('a1'), u('q2')];
+    expect(trimActiveRunTail(bubbles)).toEqual(bubbles);
+  });
+
+  test('leaves the page untouched when it contains no user message (older-page run)', () => {
+    const bubbles = [a('хвост старого ответа'), a('ещё')];
+    expect(trimActiveRunTail(bubbles)).toEqual(bubbles);
   });
 });
