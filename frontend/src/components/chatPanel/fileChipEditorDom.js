@@ -110,20 +110,23 @@ function appendWithBreaks(parent, text) {
 }
 
 /**
- * Держим ровно один хвостовой sentinel-<br> — и только если контент реально
- * заканчивается переносом строки (последний узел — обычный <br>, и перед ним
- * что-то есть). Хвостовой <br> сам по себе не создаёт видимой пустой строки:
- * браузеру нужен следующий узел, на котором «стоит» новая строка. Для <br> в
+ * Держим ровно один хвостовой sentinel-<br> — когда последний узел редактора
+ * это обычный <br>. Хвостовой <br> сам по себе не создаёт видимой пустой
+ * строки: браузеру нужен следующий узел, на котором «стоит» новая строка;
+ * sentinel и есть этот filler (в сериализации он игнорируется). Для <br> в
  * середине (за ним есть контент) filler не нужен — иначе он рисует лишнюю
  * пустую строку (например, Shift+Enter в начале второй строки давал две).
- * Одинокий <br> в пустом редакторе — заглушка браузера, не перенос: sentinel
- * не добавляем (guard по previousSibling), иначе не сработает очистка пустого
- * поля в FileChipInput.
+ *
+ * Пустой редактор с одиноким <br> (заглушка браузера после удаления всего
+ * текста) тоже получит sentinel, но его убирает очистка пустого поля в
+ * FileChipInput.handleInput — она срабатывает только на реальный input, тогда
+ * как Shift+Enter (input не порождает) оставляет sentinel и первый перенос
+ * строки виден сразу.
  */
 export function normalizeTrailingSentinel(root) {
   root.querySelectorAll('br[data-sentinel]').forEach((s) => s.remove());
   const last = root.lastChild;
-  if (last && last.nodeName === 'BR' && last.previousSibling) {
+  if (last && last.nodeName === 'BR') {
     const sentinel = document.createElement('br');
     sentinel.dataset.sentinel = '1';
     root.appendChild(sentinel);

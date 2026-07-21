@@ -168,12 +168,15 @@ const FileChipInput = forwardRef(function FileChipInput(
   const handleInput = useCallback(() => {
     emitChange();
     // Chrome auto-inserts a bare <br> when all content is deleted. serialize()
-    // strips the leading \n so value becomes "" — but the <br> stays in the DOM
-    // and the cursor ends up after it, appearing at the end of the placeholder.
-    // Remove any bare <br> nodes (no data-sentinel = not ours) when editor is empty.
+    // strips the leading \n so value becomes "" — but the <br> (плюс sentinel,
+    // который навесил emitChange) остаётся в DOM, и курсор оказывается на пустой
+    // строке поверх placeholder. Если значение пустое, а в редакторе остались
+    // только <br> (обычные и/или sentinel) — очищаем. Это путь именно input:
+    // Shift+Enter сюда не заходит (не порождает input), поэтому осознанный первый
+    // перенос строки sentinel сохраняет и он виден сразу.
     if (!internalRef.current && editorRef.current) {
       const root = editorRef.current;
-      if ([...root.childNodes].every((n) => n.nodeName === 'BR' && !n.dataset?.sentinel)) {
+      if ([...root.childNodes].every((n) => n.nodeName === 'BR')) {
         root.textContent = '';
       }
     }
