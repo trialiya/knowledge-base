@@ -176,7 +176,8 @@ const FileChipInput = forwardRef(function FileChipInput(
     // перенос строки sentinel сохраняет и он виден сразу.
     if (!internalRef.current && editorRef.current) {
       const root = editorRef.current;
-      if ([...root.childNodes].every((n) => n.nodeName === 'BR')) {
+      const ignorable = (n) => n.nodeName === 'BR' || (n.nodeType === Node.TEXT_NODE && !n.nodeValue);
+      if ([...root.childNodes].every(ignorable)) {
         root.textContent = '';
       }
     }

@@ -125,7 +125,14 @@ function appendWithBreaks(parent, text) {
  */
 export function normalizeTrailingSentinel(root) {
   root.querySelectorAll('br[data-sentinel]').forEach((s) => s.remove());
-  const last = root.lastChild;
+  // Пропускаем хвостовые пустые текстовые узлы: Range#insertNode при каретке
+  // внутри текста расщепляет его, оставляя после вставленного <br> пустой
+  // #text — при реальной печати каретка всегда внутри текста, и без пропуска
+  // хвостовой <br> оставался без sentinel (невидимым).
+  let last = root.lastChild;
+  while (last && last.nodeType === Node.TEXT_NODE && !last.nodeValue) {
+    last = last.previousSibling;
+  }
   if (last && last.nodeName === 'BR') {
     const sentinel = document.createElement('br');
     sentinel.dataset.sentinel = '1';
