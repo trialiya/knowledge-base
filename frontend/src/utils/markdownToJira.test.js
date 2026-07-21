@@ -31,6 +31,11 @@ describe('markdownToJira', () => {
     expect(markdownToJira('`{}`')).toBe('{{\\{\\}}}');
   });
 
+  it('круглые скобки внутри инлайн-кода в таблице экранируются (иначе Jira видит смайлик)', () => {
+    const md = '| URN |\n| --- |\n| `urn:li:dataset:(...)` |';
+    expect(markdownToJira(md)).toBe('||URN||\n|{{urn:li:dataset:\\(...\\)}}|');
+  });
+
   it('ссылки и изображения', () => {
     expect(markdownToJira('[docs](https://example.com)')).toBe('[docs|https://example.com]');
     expect(markdownToJira('![alt text](https://example.com/img.png)')).toBe(

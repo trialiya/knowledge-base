@@ -67,13 +67,16 @@ const TOKEN_OPEN = 'JMDTOK';
 const TOKEN_CLOSE = 'KOTDMJ';
 const TOKEN_RE = new RegExp(`${TOKEN_OPEN}(\\d+)${TOKEN_CLOSE}`, 'g');
 
-// A literal `{` or `}` inside {{monospace}} is ambiguous to Jira's parser —
-// e.g. code containing `{"a": 1}` would produce `{{{"a": 1}}}`, where the
-// first/last brace of the code reads as part of the `{{`/`}}` delimiter
-// instead of code content. Backslash-escaping the braces themselves (not
-// the wrapper) keeps them literal.
+// Characters that are unsafe to leave literal inside {{monospace}} content:
+// - `{`/`}` are ambiguous against the `{{`/`}}` delimiter itself, e.g. code
+//   containing `{"a": 1}` would produce `{{{"a": 1}}}`, where the first/last
+//   brace of the code reads as part of the delimiter instead of content.
+// - `(`/`)` can trigger Jira's emoticon parsing (e.g. `(.` inside a value
+//   like `urn:li:dataset:(...)`), turning part of the code into a smiley.
+// Backslash-escaping just these characters (not the {{ }} wrapper) keeps
+// the code's own content literal.
 function escapeJiraBraces(text) {
-  return text.replace(/[{}]/g, '\\$&');
+  return text.replace(/[{}()]/g, '\\$&');
 }
 
 // Converts inline spans (code, images, links, bold, strike, italic) within a
