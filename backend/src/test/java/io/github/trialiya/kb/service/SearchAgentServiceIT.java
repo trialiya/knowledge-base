@@ -139,10 +139,14 @@ class SearchAgentServiceIT {
         verify(chatModel, times(4)).call(prompts.capture());
 
         Prompt finalCall = prompts.getAllValues().get(3);
-        // The summarization call offers no tools (model cannot ask for more) and carries the
-        // budget-reached instruction as its last user message. Spring AI 2.0.0 leaves an unset
-        // tool-callback list as null (1.x returned an empty list); both mean "no tools".
-        assertThat(((OpenAiChatOptions) finalCall.getOptions()).getToolCallbacks()).isNullOrEmpty();
+        // The summarization call still forbids more tool use, but does so via tool_choice=none
+        // rather than by dropping the tools: the tool set stays declared so the accumulated
+        // conversation remains a cache-eligible prefix (OpenAI prompt caching requires an identical
+        // `tools` array between requests). It carries the budget-reached instruction as its last
+        // user message.
+        OpenAiChatOptions finalOptions = (OpenAiChatOptions) finalCall.getOptions();
+        assertThat(finalOptions.getToolCallbacks()).hasSize(readOnlyTools.length);
+        assertThat(finalOptions.getToolChoice()).isEqualTo("none");
         assertThat(lastUserText(finalCall)).contains("Лимит шагов поиска исчерпан");
     }
 
