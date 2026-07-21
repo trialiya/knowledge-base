@@ -47,6 +47,11 @@ dependencies {
 
     implementation 'org.springframework.ai:spring-ai-starter-model-openai'
     implementation 'org.springframework.ai:spring-ai-starter-model-chat-memory-repository-jdbc'
+    // MCP (Model Context Protocol) client — lets the chat model call tools exposed by external MCP
+    // servers (stdio subprocess or SSE/streamable-HTTP), on top of the built-in git/document tools.
+    // httpclient-based variant (not -webflux) to match the servlet stack. See ChatConfig.chatClientBuilder
+    // and kb.mcp.enabled.
+    implementation 'org.springframework.ai:spring-ai-starter-mcp-client'
 
     // Spring Boot 4 makes Jackson 3 (tools.jackson) the auto-configured JSON mapper and demotes
     // the retained Jackson 2 modules to runtime-only. Our internal serialization (ChatMemoryService,

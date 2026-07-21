@@ -37,6 +37,7 @@ import org.springframework.ai.model.tool.ToolCallingManager;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.ai.tool.ToolCallback;
+import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -154,7 +155,9 @@ public class ChatConfig {
             DocumentFunction documentFunction,
             AttachmentService attachmentService,
             ObjectProvider<SearchAgentService> searchAgentService,
-            ChatEventService chatEventService) {
+            ChatEventService chatEventService,
+            @Value("${kb.mcp.enabled:false}") boolean mcpToolsEnabled,
+            ObjectProvider<ToolCallbackProvider> mcpToolCallbackProvider) {
         log.info("Model: {}", chatModel.getDefaultOptions());
 
         List<Object> functions =
@@ -171,8 +174,22 @@ public class ChatConfig {
         // bean) — in read-only mode the edit tools are not offered to the model at all.
         gitEditFunction.ifAvailable(functions::add);
 
+        // MCP-derived tools (see spring.ai.mcp.client.* connections) are merged in only when
+        // kb.mcp.enabled=true — external MCP servers run arbitrary local commands or call
+        // arbitrary URLs, so this stays an explicit opt-in even once servers are configured.
+        ToolCallback[] mcpCallbacks =
+                mcpToolsEnabled
+                        ? mcpToolCallbackProvider.stream()
+                                .flatMap(provider -> Stream.of(provider.getToolCallbacks()))
+                                .toArray(ToolCallback[]::new)
+                        : new ToolCallback[0];
+        if (mcpToolsEnabled) {
+            log.info("MCP tools enabled: {} tool(s) exposed to the model", mcpCallbacks.length);
+        }
         ToolCallback[] callbacks =
-                Stream.of(ToolCallbacks.from(functions.toArray()))
+                Stream.concat(
+                                Stream.of(ToolCallbacks.from(functions.toArray())),
+                                Stream.of(mcpCallbacks))
                         .map(RecordingToolCallback::new)
                         .toArray(ToolCallback[]::new);
 
