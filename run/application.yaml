@@ -18,22 +18,29 @@ spring:
         base-url: https://api.openai.com/
         api-key: sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
-    # ── External MCP servers (optional) ──────────────────────────────────────
-    # Uncomment and configure to connect tool servers over SSE or stdio.
-    # mcp:
-    #   client:
-    #     sse:
-    #       connections:
-    #         jira:
-    #           url: https://your-jira-mcp-server/
-    #           sse-endpoint: /sse
-    #     stdio:
-    #       connections:
-    #         filesystem:
-    #           command: npx
-    #           args: ["-y", "@modelcontextprotocol/server-filesystem", "/data"]
+     # ── External MCP servers (optional) ──────────────────────────────────────
+     # Uncomment and configure to connect tool servers over SSE or stdio.
+     # mcp:
+     #   client:
+     #     streamable-http:
+     #       connections:
+     #         jira:
+     #           url: https://your-jira-mcp-server/
+     #           sse-endpoint: /sse
+     #     stdio:
+     #       connections:
+     #         filesystem:
+     #           command: npx
+     #           args: ["-y", "@modelcontextprotocol/server-filesystem", "/data"]
 
 kb:
+  # ── MCP tool exposure ─────────────────────────────────────────────────────────
+  mcp:
+    enabled: false
+    # Bearer tokens for authenticated remote MCP connections, keyed by connection name:
+    # bearer-tokens:
+    #   jira: your-jira-bearer-token
+
   # ── Chat model ──────────────────────────────────────────────────────────────
   chat:
     default-model:
@@ -48,6 +55,9 @@ kb:
   # Must match spring.ai.openai.embedding.model set in the active profile.
   embedding:
     model: text-embedding-3-large
+  search:
+    subagent:
+      model-id: ${KB_SEARCH_SUBAGENT_MODEL:${kb.chat.default-model.id}}
 
   # ── Project path ─────────────────────────────────────────────────────────────
   # Absolute path to the repository root that will be indexed.
@@ -58,24 +68,18 @@ kb:
   #   project-path: /home/user/my-repo
   #   project-path: C:/projects/my-repo
   project-path: ..
-
+  # ── Git write tools ───────────────────────────────────────────────────────────
+  # Set to true to expose createFile/editFile tools to the chat model.
+  git:
+    edit-enabled: false
   # ── Document export ───────────────────────────────────────────────────────────
   documents:
     export-path: ../doc-export
-
-  # ── MCP tool exposure ─────────────────────────────────────────────────────────
-  mcp:
-    enabled: false
-    # Bearer tokens for authenticated remote MCP connections, keyed by connection name:
-    # bearer-tokens:
-    #   jira: your-jira-bearer-token
 
   # ── Security (HTTP Basic) ─────────────────────────────────────────────────────
   security:
     username: admin
     password: admin
 
-  # ── Git write tools ───────────────────────────────────────────────────────────
-  # Set to true to expose createFile/editFile tools to the chat model.
-  git:
-    edit-enabled: false
+server:
+  port: 8080

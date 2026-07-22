@@ -36,12 +36,13 @@ fi
 export LANG="${LANG:-C.utf8}"
 export LC_ALL="${LC_ALL:-C.utf8}"
 
-JAVA_OPTS="${JAVA_OPTS:--Xmx512m}"
+JAVA_OPTS="${JAVA_OPTS:--Xmx150m}"
 
 echo "Starting Knowledge Base..."
 echo "  Profile: $PROFILE"
 echo "  Config:  $SCRIPT_DIR/application.yaml + application-$PROFILE.yaml"
 echo "  JAR:     $JAR"
+echo "  JAVA:    $JAVA_BIN"
 echo ""
 
 cd "$SCRIPT_DIR"
@@ -49,5 +50,4 @@ cd "$SCRIPT_DIR"
 # shellcheck disable=SC2086
 exec "$JAVA_BIN" --enable-preview $JAVA_OPTS \
   -jar "$JAR" \
-  --spring.profiles.active="$PROFILE" \
-  --spring.config.additional-location="file:$SCRIPT_DIR/"
+  --spring.profiles.active="$PROFILE"
