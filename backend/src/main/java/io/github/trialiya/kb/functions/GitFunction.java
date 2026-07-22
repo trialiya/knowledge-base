@@ -17,7 +17,7 @@ import org.springframework.ai.tool.annotation.ToolParam;
 
 /**
  * Spring AI tools that give the chat model read-only access to the Git repository configured via
- * {@code kb.project-path}.
+ * {@code kb.git.project-path}.
  *
  * <p>Seven capabilities are exposed:
  *

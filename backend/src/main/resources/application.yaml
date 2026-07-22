@@ -127,12 +127,13 @@ kb:
   documents:
     export-path: ${DOCUMENTS_EXPORT_PATH}
     replace: true
-  project-path: ${PROJECT_PATH}
   backfill:
     # One-off: backfills messageId/callId/responseMessageId into old chat_message.meta rows on
     # startup (see ToolCallIdBackfillRunner). Off by default — flip on for one deploy, then off.
     tool-call-ids: ${KB_BACKFILL_TOOL_CALL_IDS:false}
   git:
+    # Path to the Git repository indexed and served to the chat model (GitFunction/GitEditFunction).
+    project-path: ${PROJECT_PATH}
     # Expose file edit tools (createFile/editFile) to the chat model. Default off — read-only.
     # Even when true, the tools are withheld if the working tree is not writable (ro mount).
     edit-enabled: ${KB_GIT_EDIT_ENABLED:false}

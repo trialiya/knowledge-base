@@ -68,7 +68,7 @@ import org.springframework.stereotype.Service;
  * ({@link #createFile}/{@link #editFile}, exposed to the model only when {@code
  * kb.git.edit-enabled=true} and the tree is writable — see {@code GitEditFunction}).
  *
- * <p>All operations run against the repository at {@code kb.project-path} via JGit, in-process — no
+ * <p>All operations run against the repository at {@code kb.git.project-path} via JGit, in-process — no
  * {@code git} subprocess, no argv, no output parsing — except {@link #grepContent}, which still
  * shells out to {@code git grep} (JGit has no equivalent). Files matched by {@code .gitignore} are
  * excluded from tree/search/status results the same way native git excludes them.
@@ -114,7 +114,7 @@ public class GitService {
     private final OutlineService outlineService;
 
     public GitService(
-            @Value("${kb.project-path}") String projectPath, OutlineService outlineService) {
+            @Value("${kb.git.project-path}") String projectPath, OutlineService outlineService) {
         this.repoPath = Path.of(projectPath).toAbsolutePath().normalize();
         this.outlineService = outlineService;
         try {
@@ -123,7 +123,7 @@ public class GitService {
             throw new IllegalStateException("Failed to open Git repository at " + repoPath, e);
         }
         // FileRepositoryBuilder.build() never touches disk to verify a .git dir exists — without
-        // this check a bad kb.project-path would silently produce empty results from every
+        // this check a bad kb.git.project-path would silently produce empty results from every
         // tool (readDirCache() on a missing index just returns 0 entries) instead of failing
         // Spring bean creation with an actionable error.
         if (!repository.getDirectory().isDirectory()) {
