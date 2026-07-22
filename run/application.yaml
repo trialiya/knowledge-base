@@ -63,18 +63,17 @@ kb:
     subagent:
       model-id: ${KB_SEARCH_SUBAGENT_MODEL:${kb.chat.default-model.id}}
 
-  # ── Project path ─────────────────────────────────────────────────────────────
-  # Absolute path to the repository root that will be indexed.
-  # Relative paths are resolved from the working directory of the JVM process,
-  # which is the run/ folder when started by the bundled scripts.
-  # Examples:
-  #   project-path: ..                   # parent of run/ (repo root)
-  #   project-path: /home/user/my-repo
-  #   project-path: C:/projects/my-repo
-  project-path: ..
-  # ── Git write tools ───────────────────────────────────────────────────────────
-  # Set to true to expose createFile/editFile tools to the chat model.
+  # ── Git project ──────────────────────────────────────────────────────────────
   git:
+    # Absolute path to the repository root that will be indexed.
+    # Relative paths are resolved from the working directory of the JVM process,
+    # which is the run/ folder when started by the bundled scripts.
+    # Examples:
+    #   project-path: ..                   # parent of run/ (repo root)
+    #   project-path: /home/user/my-repo
+    #   project-path: C:/projects/my-repo
+    project-path: ..
+    # Set to true to expose createFile/editFile tools to the chat model.
     edit-enabled: false
   # ── Document export ───────────────────────────────────────────────────────────
   documents:
