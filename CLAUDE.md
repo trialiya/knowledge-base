@@ -168,7 +168,7 @@ doesn't touch. One PR = the task + migration of the files it touched.
 - Use the shared button classes from `components/common/`: `btn`,
   `btn--primary`, `btn--ghost`, `btn--danger`, `btn--sm`, and `icon-btn` for
   icon-only buttons (modeled on settings' `set-btn` family). Don't add new
-  panel-local button classes (`set-btn`, `jira-modal__btn`, `detail-icon-btn`,
+  panel-local button classes (`set-btn`, `detail-icon-btn`,
   `new-chat-button`, … are legacy).
 
 ### CSS

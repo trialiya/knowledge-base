@@ -10,7 +10,6 @@
   },
   "window": {
     "defaultTitle": "Новый чат",
-    "jiraTitle": "JIRA чат",
     "renameHint": "Нажмите чтобы переименовать",
     "createdAt": "Создан: {{date}}",
     "attachments": "Вложения",
@@ -24,8 +23,7 @@
     "loadErrorInputNote": "Чат не загружен. Выберите другой чат или попробуйте позже.",
     "stopped": "[остановлено]",
     "genericError": "Произошла ошибка. Попробуйте ещё раз.",
-    "uploadError": "Ошибка загрузки файла",
-    "jiraCreateError": "Ошибка создания JIRA чата"
+    "uploadError": "Ошибка загрузки файла"
   },
   "errorModal": {
     "notFoundTitle": "Чат не найден",
@@ -101,7 +99,6 @@
   },
   "list": {
     "newChat": "Новый чат",
-    "newJiraChat": "JIRA чат",
     "rename": "Переименовать",
     "delete": "Удалить"
   },
@@ -119,30 +116,6 @@
     "searching": "Поиск…",
     "empty": "Ничего не найдено",
     "hint": "Поиск по названию чата или тексту сообщений"
-  },
-  "jira": {
-    "attachments": "Вложения",
-    "attachmentCount_one": "{{count}} вложение",
-    "attachmentCount_few": "{{count}} вложения",
-    "attachmentCount_many": "{{count}} вложений",
-    "empty": "Нет вложений",
-    "viewContent": "Просмотреть содержимое",
-    "openSource": "Открыть источник",
-    "refresh": "Обновить",
-    "refreshing": "Обновление…",
-    "refreshTitle": "Перезагрузить данные из JIRA",
-    "refreshError": "Ошибка обновления"
-  },
-  "jiraModal": {
-    "title": "Создать JIRA чат",
-    "jiraLabel": "JIRA задача",
-    "confluenceLabel": "Confluence страница",
-    "titleLabel": "Название чата",
-    "titlePlaceholder": "Авто (ключ задачи)",
-    "urlRequired": "Укажите ссылку на JIRA задачу",
-    "create": "Создать",
-    "creating": "Создание…",
-    "createError": "Ошибка создания чата"
   },
   "phrases": {
     "title": "Готовые фразы",

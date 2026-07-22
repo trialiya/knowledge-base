@@ -10,7 +10,6 @@
   },
   "window": {
     "defaultTitle": "New chat",
-    "jiraTitle": "JIRA chat",
     "renameHint": "Click to rename",
     "createdAt": "Created: {{date}}",
     "attachments": "Attachments",
@@ -24,8 +23,7 @@
     "loadErrorInputNote": "Chat not loaded. Pick another chat or try again later.",
     "stopped": "[stopped]",
     "genericError": "An error occurred. Please try again.",
-    "uploadError": "Failed to upload file",
-    "jiraCreateError": "Failed to create JIRA chat"
+    "uploadError": "Failed to upload file"
   },
   "errorModal": {
     "notFoundTitle": "Chat not found",
@@ -101,7 +99,6 @@
   },
   "list": {
     "newChat": "New chat",
-    "newJiraChat": "JIRA chat",
     "rename": "Rename",
     "delete": "Delete"
   },
@@ -119,29 +116,6 @@
     "searching": "Searching…",
     "empty": "Nothing found",
     "hint": "Search by chat title or message content"
-  },
-  "jira": {
-    "attachments": "Attachments",
-    "attachmentCount_one": "{{count}} attachment",
-    "attachmentCount_other": "{{count}} attachments",
-    "empty": "No attachments",
-    "viewContent": "View content",
-    "openSource": "Open source",
-    "refresh": "Refresh",
-    "refreshing": "Refreshing…",
-    "refreshTitle": "Reload data from JIRA",
-    "refreshError": "Failed to refresh"
-  },
-  "jiraModal": {
-    "title": "Create JIRA chat",
-    "jiraLabel": "JIRA issue",
-    "confluenceLabel": "Confluence page",
-    "titleLabel": "Chat title",
-    "titlePlaceholder": "Auto (issue key)",
-    "urlRequired": "Provide a link to the JIRA issue",
-    "create": "Create",
-    "creating": "Creating…",
-    "createError": "Failed to create chat"
   },
   "phrases": {
     "title": "Quick phrases",

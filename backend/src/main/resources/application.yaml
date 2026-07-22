@@ -32,6 +32,26 @@ spring:
         enabled: off
     retry:
       max-attempts: 2
+    # External MCP (Model Context Protocol) tool servers — see kb.mcp.enabled above, which gates
+    # whether the tools these connections expose are actually merged into the chat model's tool
+    # list. With no connections configured here, spring-ai-starter-mcp-client contributes zero
+    # tools regardless of kb.mcp.enabled, so leaving this commented out is always safe.
+    #
+    # Example: a remote Jira/Confluence MCP server reachable over SSE with Bearer-token auth (the
+    # connection name — "jira" here — must match the key under kb.mcp.bearer-tokens below, which
+    # is what actually attaches the Authorization header; see McpClientConfig).
+    # mcp:
+    #   client:
+    #     sse:
+    #       connections:
+    #         jira:
+    #           url: ${JIRA_MCP_URL}
+    #           sse-endpoint: /sse
+    #     stdio:
+    #       connections:
+    #         filesystem:
+    #           command: npx
+    #           args: [ "-y", "@modelcontextprotocol/server-filesystem", "/data" ]
   datasource:
     driver-class-name: org.postgresql.Driver
     url: ${DATASOURCE_URL:jdbc:postgresql://localhost:5432/knowledgebase}
@@ -117,6 +137,18 @@ kb:
     # Expose file edit tools (createFile/editFile) to the chat model. Default off — read-only.
     # Even when true, the tools are withheld if the working tree is not writable (ro mount).
     edit-enabled: ${KB_GIT_EDIT_ENABLED:false}
+  mcp:
+    # Expose tools from external MCP (Model Context Protocol) servers to the chat model, in
+    # addition to the built-in git/document tools. Default off — external MCP servers run
+    # arbitrary local commands (stdio transport) or call arbitrary URLs (SSE/streamable-HTTP
+    # transport), so this is an explicit opt-in even once servers are configured below.
+    enabled: ${KB_MCP_ENABLED:false}
+    # Bearer tokens for authenticated remote MCP servers, keyed by connection name (must match a
+    # key under spring.ai.mcp.client.sse.connections / .streamable-http.connections above) —
+    # applied as "Authorization: Bearer <token>" on every request to that connection. See
+    # McpClientConfig. A connection with no entry here is left unauthenticated.
+    # bearer-tokens:
+    #   jira: ${JIRA_MCP_TOKEN:}
   embedding:
     # Must match spring.ai.openai.embedding.options.model.
     # Stored alongside every cached vector so that model upgrades invalidate old cache rows.
@@ -186,13 +218,6 @@ kb:
         - getDocumentOutline
         - getDocumentSection
         - getTreeSkeleton
-  atlassian:
-    jira:
-      base-url: ${JIRA_BASE_URL:}
-      api-token: ${JIRA_TOKEN:}
-    confluence:
-      base-url: ${CONFLUENCE_BASE_URL:}
-      api-token: ${CONFLUENCE_TOKEN:}
 
 logging:
   level:
