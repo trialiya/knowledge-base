@@ -5,6 +5,11 @@
 #   Windows CMD : run.bat h2
 #   PowerShell  : .\run.ps1 h2
 # "h2" is the bundled zero-setup profile (application-h2.yaml, ships in the JAR).
+#
+# Want a separate saved config (e.g. to switch between setups without editing
+# this file each time)? Copy this file to application-<name>.yaml (e.g.
+# application-internal.yaml), edit it with your own values, then run with
+# that profile name, e.g. ./run.sh internal.
 # ─────────────────────────────────────────────────────────────────────────────
 
 spring:

@@ -6,6 +6,8 @@
 # Examples:
 #   .\run.ps1 h2          # bundled H2 profile, zero external DB setup (default)
 #   .\run.ps1 external    # PostgreSQL — provide your own application-external.yaml
+#   .\run.ps1 internal    # copy application.yaml to application-internal.yaml,
+#                         # edit it with your own values, then run with this profile
 #
 # Edit application.yaml and application-<profile>.yaml before running.
 #Requires -Version 5.1

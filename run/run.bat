@@ -7,6 +7,8 @@ rem
 rem Examples:
 rem   run.bat h2          (bundled H2 profile, zero external DB setup, default)
 rem   run.bat external    (PostgreSQL — provide your own application-external.yaml)
+rem   run.bat internal    (copy application.yaml to application-internal.yaml,
+rem                        edit it with your own values, then run with this profile)
 rem
 rem Edit application.yaml and application-<profile>.yaml before running.
 setlocal EnableDelayedExpansion

@@ -7,6 +7,8 @@
 # Examples:
 #   ./run.sh h2          # bundled H2 profile, zero external DB setup (default)
 #   ./run.sh external    # PostgreSQL — provide your own application-external.yaml
+#   ./run.sh internal    # copy application.yaml to application-internal.yaml,
+#                         # edit it with your own values, then run with this profile
 #
 # Edit application.yaml (and, for a custom profile, the matching
 # application-<profile>.yaml) before running.  The JVM is started from this
