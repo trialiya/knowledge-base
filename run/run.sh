@@ -5,17 +5,18 @@
 #   ./run.sh [profile]
 #
 # Examples:
-#   ./run.sh internal    # H2 in-memory DB (default)
-#   ./run.sh external    # PostgreSQL
+#   ./run.sh h2          # bundled H2 profile, zero external DB setup (default)
+#   ./run.sh external    # PostgreSQL — provide your own application-external.yaml
 #
-# Edit application.yaml (and the matching application-<profile>.yaml) before
-# running.  The JVM is started from this directory so relative paths in
-# application.yaml (e.g. project-path: ..) resolve against it.
+# Edit application.yaml (and, for a custom profile, the matching
+# application-<profile>.yaml) before running.  The JVM is started from this
+# directory so relative paths in application.yaml (e.g. project-path: ..)
+# resolve against it.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 JAR="$SCRIPT_DIR/../backend/build/libs/backend-1.0-SNAPSHOT.jar"
-PROFILE="${1:-internal}"
+PROFILE="${1:-h2}"
 
 if [ ! -f "$JAR" ]; then
   echo "ERROR: JAR not found: $JAR" >&2

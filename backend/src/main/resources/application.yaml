@@ -32,25 +32,25 @@ spring:
         enabled: off
     retry:
       max-attempts: 2
-   # External MCP (Model Context Protocol) tool servers — see kb.mcp.enabled above, which gates
-   # whether the tools these connections expose are actually merged into the chat model's tool
-   # list. With no connections configured here, spring-ai-starter-mcp-client contributes zero
-   # tools regardless of kb.mcp.enabled, so leaving this commented out is always safe.
-   #
-   # Example: a remote Jira/Confluence MCP server reachable over SSE with Bearer-token auth (the
-   # connection name — "jira" here — must match the key under kb.mcp.bearer-tokens below, which
-   # is what actually attaches the Authorization header; see McpClientConfig).
-   # mcp:
-   #   client:
-   #     streamable-http:
-   #       connections:
-   #         atlassian:
-   #           url: ${JIRA_MCP_URL}
-   #     stdio:
-   #       connections:
-   #         filesystem:
-   #           command: npx
-   #           args: [ "-y", "@modelcontextprotocol/server-filesystem", "/data" ]
+    # External MCP (Model Context Protocol) tool servers — see kb.mcp.enabled above, which gates
+    # whether the tools these connections expose are actually merged into the chat model's tool
+    # list. With no connections configured here, spring-ai-starter-mcp-client contributes zero
+    # tools regardless of kb.mcp.enabled, so leaving this commented out is always safe.
+    #
+    # Example: a remote Jira/Confluence MCP server reachable over SSE with Bearer-token auth (the
+    # connection name — "jira" here — must match the key under kb.mcp.bearer-tokens below, which
+    # is what actually attaches the Authorization header; see McpClientConfig).
+    # mcp:
+    #   client:
+    #     streamable-http:
+    #       connections:
+    #         atlassian:
+    #           url: ${JIRA_MCP_URL}
+    #     stdio:
+    #       connections:
+    #         filesystem:
+    #           command: npx
+    #           args: [ "-y", "@modelcontextprotocol/server-filesystem", "/data" ]
   datasource:
     driver-class-name: org.postgresql.Driver
     url: ${DATASOURCE_URL:jdbc:postgresql://localhost:5432/knowledgebase}

@@ -4,21 +4,20 @@
 #   .\run.ps1 [profile]
 #
 # Examples:
-#   .\run.ps1 internal    # H2 in-memory DB (default)
-#   .\run.ps1 external    # PostgreSQL
+#   .\run.ps1 h2          # bundled H2 profile, zero external DB setup (default)
+#   .\run.ps1 external    # PostgreSQL — provide your own application-external.yaml
 #
 # Edit application.yaml and application-<profile>.yaml before running.
 #Requires -Version 5.1
 
 param(
-    [string]$Profile = 'internal'
+    [string]$Profile = 'h2'
 )
 
 $ErrorActionPreference = 'Stop'
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Jar       = [IO.Path]::GetFullPath((Join-Path $ScriptDir '..\backend\build\libs\backend-1.0-SNAPSHOT.jar'))
-$ConfigDir = $ScriptDir + '\'
 
 if (-not (Test-Path $Jar)) {
     Write-Error "JAR not found: $Jar`nBuild first:  .\gradlew.bat :backend:bootJar"
@@ -31,7 +30,7 @@ if (-not (Test-Path (Join-Path $ScriptDir 'application.yaml'))) {
 }
 
 $JavaBin  = if ($env:JAVA_HOME) { Join-Path $env:JAVA_HOME 'bin\java.exe' } else { 'java' }
-$JavaOpts = if ($env:JAVA_OPTS)  { $env:JAVA_OPTS -split '\s+' } else { @('-Xmx512m') }
+$JavaOpts = if ($env:JAVA_OPTS)  { $env:JAVA_OPTS -split '\s+' } else { @('-Xmx150m') }
 
 Write-Host "Starting Knowledge Base..."
 Write-Host "  Profile: $Profile"
@@ -43,5 +42,4 @@ Set-Location $ScriptDir
 
 & $JavaBin --enable-preview @JavaOpts `
   -jar $Jar `
-  "--spring.profiles.active=$Profile" `
-  "--spring.config.additional-location=file:$ConfigDir"
+  "--spring.profiles.active=$Profile"

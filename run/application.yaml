@@ -1,10 +1,10 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Knowledge Base — local run config
-# Copy this file alongside application-internal.yaml / application-external.yaml,
-# fill in your values and run:
-#   Linux/macOS : ./run.sh internal      (or external)
-#   Windows CMD : run.bat internal
-#   PowerShell  : .\run.ps1 internal
+# Fill in your values and run:
+#   Linux/macOS : ./run.sh h2      (or external, with your own application-external.yaml)
+#   Windows CMD : run.bat h2
+#   PowerShell  : .\run.ps1 h2
+# "h2" is the bundled zero-setup profile (application-h2.yaml, ships in the JAR).
 # ─────────────────────────────────────────────────────────────────────────────
 
 spring:
@@ -18,20 +18,19 @@ spring:
         base-url: https://api.openai.com/
         api-key: sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
-     # ── External MCP servers (optional) ──────────────────────────────────────
-     # Uncomment and configure to connect tool servers over SSE or stdio.
-     # mcp:
-     #   client:
-     #     streamable-http:
-     #       connections:
-     #         jira:
-     #           url: https://your-jira-mcp-server/
-     #           sse-endpoint: /sse
-     #     stdio:
-     #       connections:
-     #         filesystem:
-     #           command: npx
-     #           args: ["-y", "@modelcontextprotocol/server-filesystem", "/data"]
+      # ── External MCP servers (optional) ──────────────────────────────────────
+      # Uncomment and configure to connect tool servers over SSE or stdio.
+      # mcp:
+      #   client:
+      #     streamable-http:
+      #       connections:
+      #         atlassian:
+      #           url: https://your-jira-mcp-server/
+      #     stdio:
+      #       connections:
+      #         filesystem:
+      #           command: npx
+      #           args: ["-y", "@modelcontextprotocol/server-filesystem", "/data"]
 
 kb:
   # ── MCP tool exposure ─────────────────────────────────────────────────────────
@@ -39,7 +38,7 @@ kb:
     enabled: false
     # Bearer tokens for authenticated remote MCP connections, keyed by connection name:
     # bearer-tokens:
-    #   jira: your-jira-bearer-token
+    #   atlassian: your-jira-bearer-token
 
   # ── Chat model ──────────────────────────────────────────────────────────────
   chat:
