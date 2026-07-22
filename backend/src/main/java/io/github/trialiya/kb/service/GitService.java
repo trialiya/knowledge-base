@@ -68,10 +68,10 @@ import org.springframework.stereotype.Service;
  * ({@link #createFile}/{@link #editFile}, exposed to the model only when {@code
  * kb.git.edit-enabled=true} and the tree is writable — see {@code GitEditFunction}).
  *
- * <p>All operations run against the repository at {@code kb.git.project-path} via JGit, in-process — no
- * {@code git} subprocess, no argv, no output parsing — except {@link #grepContent}, which still
- * shells out to {@code git grep} (JGit has no equivalent). Files matched by {@code .gitignore} are
- * excluded from tree/search/status results the same way native git excludes them.
+ * <p>All operations run against the repository at {@code kb.git.project-path} via JGit, in-process
+ * — no {@code git} subprocess, no argv, no output parsing — except {@link #grepContent}, which
+ * still shells out to {@code git grep} (JGit has no equivalent). Files matched by {@code
+ * .gitignore} are excluded from tree/search/status results the same way native git excludes them.
  */
 @Slf4j
 @Service

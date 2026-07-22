@@ -14,8 +14,8 @@ import org.springframework.ai.tool.annotation.ToolParam;
 
 /**
  * Spring AI tools that let the chat model <b>modify</b> the working tree of the repository at
- * {@code kb.git.project-path}: {@link #createFile} and {@link #editFile}. Nothing is ever committed —
- * changes stay uncommitted for the user to review ({@code getUncommittedChanges}) and commit.
+ * {@code kb.git.project-path}: {@link #createFile} and {@link #editFile}. Nothing is ever committed
+ * — changes stay uncommitted for the user to review ({@code getUncommittedChanges}) and commit.
  *
  * <p>Registered as a bean only when {@code kb.git.edit-enabled=true} <em>and</em> the working tree
  * is actually writable (see {@code ChatConfig#gitEditFunction}); in read-only mode (e.g. a ro
