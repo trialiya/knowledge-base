@@ -42,11 +42,10 @@ spring:
     # is what actually attaches the Authorization header; see McpClientConfig).
     # mcp:
     #   client:
-    #     sse:
+    #     streamable-http:
     #       connections:
-    #         jira:
+    #         atlassian:
     #           url: ${JIRA_MCP_URL}
-    #           sse-endpoint: /sse
     #     stdio:
     #       connections:
     #         filesystem:
@@ -148,7 +147,7 @@ kb:
     # applied as "Authorization: Bearer <token>" on every request to that connection. See
     # McpClientConfig. A connection with no entry here is left unauthenticated.
     # bearer-tokens:
-    #   jira: ${JIRA_MCP_TOKEN:}
+    #   atlassian: ${JIRA_MCP_TOKEN:}
   embedding:
     # Must match spring.ai.openai.embedding.options.model.
     # Stored alongside every cached vector so that model upgrades invalidate old cache rows.

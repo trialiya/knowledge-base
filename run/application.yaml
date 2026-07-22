@@ -1,0 +1,89 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Knowledge Base — local run config
+# Fill in your values and run:
+#   Linux/macOS : ./run.sh h2      (or external, with your own application-external.yaml)
+#   Windows CMD : run.bat h2
+#   PowerShell  : .\run.ps1 h2
+# "h2" is the bundled zero-setup profile (application-h2.yaml, ships in the JAR).
+#
+# Want a separate saved config (e.g. to switch between setups without editing
+# this file each time)? Copy this file to application-<name>.yaml (e.g.
+# application-internal.yaml), edit it with your own values, then run with
+# that profile name, e.g. ./run.sh internal.
+# ─────────────────────────────────────────────────────────────────────────────
+
+spring:
+  ai:
+    openai:
+      # ── Chat AI (OpenAI-compatible) ─────────────────────────────────────────
+      base-url: https://api.openai.com/
+      api-key: sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      embedding:
+        # ── Embeddings (may point to a different provider) ──────────────────
+        base-url: https://api.openai.com/
+        api-key: sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+      # ── External MCP servers (optional) ──────────────────────────────────────
+      # Uncomment and configure to connect tool servers over SSE or stdio.
+      # mcp:
+      #   client:
+      #     streamable-http:
+      #       connections:
+      #         atlassian:
+      #           url: https://your-jira-mcp-server/
+      #     stdio:
+      #       connections:
+      #         filesystem:
+      #           command: npx
+      #           args: ["-y", "@modelcontextprotocol/server-filesystem", "/data"]
+
+kb:
+  # ── MCP tool exposure ─────────────────────────────────────────────────────────
+  mcp:
+    enabled: false
+    # Bearer tokens for authenticated remote MCP connections, keyed by connection name:
+    # bearer-tokens:
+    #   atlassian: your-jira-bearer-token
+
+  # ── Chat model ──────────────────────────────────────────────────────────────
+  chat:
+    default-model:
+      id: gpt-4o-mini
+      label: GPT-4o mini
+    # Uncomment to add more selectable models in the UI:
+    # models:
+    #   - id: gpt-4o
+    #     label: GPT-4o
+
+  # ── Embedding model ──────────────────────────────────────────────────────────
+  # Must match spring.ai.openai.embedding.model set in the active profile.
+  embedding:
+    model: text-embedding-3-large
+  search:
+    subagent:
+      model-id: ${KB_SEARCH_SUBAGENT_MODEL:${kb.chat.default-model.id}}
+
+  # ── Project path ─────────────────────────────────────────────────────────────
+  # Absolute path to the repository root that will be indexed.
+  # Relative paths are resolved from the working directory of the JVM process,
+  # which is the run/ folder when started by the bundled scripts.
+  # Examples:
+  #   project-path: ..                   # parent of run/ (repo root)
+  #   project-path: /home/user/my-repo
+  #   project-path: C:/projects/my-repo
+  project-path: ..
+  # ── Git write tools ───────────────────────────────────────────────────────────
+  # Set to true to expose createFile/editFile tools to the chat model.
+  git:
+    edit-enabled: false
+  # ── Document export ───────────────────────────────────────────────────────────
+  documents:
+    export-path: ../doc-export
+
+  # ── Security (HTTP Basic) ─────────────────────────────────────────────────────
+  security:
+    username: admin
+    password: admin
+
+server:
+  port: 8080
