@@ -1,0 +1,21 @@
+# Profile: external
+# PostgreSQL 17 + pgvector — full feature set including semantic search.
+# Requires a running PostgreSQL instance with the pgvector extension enabled.
+# Quick start with Docker:
+#   docker compose -f ../docker/docker-compose.yaml up postgres -d
+#
+# Usage: ./run.sh external
+
+spring:
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5432/knowledgebase
+    username: knowledgebase
+    password: knowledgebase
+  flyway:
+    locations: classpath:db/migration
+
+kb:
+  search:
+    semantic:
+      enabled: true

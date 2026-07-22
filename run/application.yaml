@@ -1,0 +1,81 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Knowledge Base — local run config
+# Copy this file alongside application-internal.yaml / application-external.yaml,
+# fill in your values and run:
+#   Linux/macOS : ./run.sh internal      (or external)
+#   Windows CMD : run.bat internal
+#   PowerShell  : .\run.ps1 internal
+# ─────────────────────────────────────────────────────────────────────────────
+
+spring:
+  ai:
+    openai:
+      # ── Chat AI (OpenAI-compatible) ─────────────────────────────────────────
+      base-url: https://api.openai.com/
+      api-key: sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      embedding:
+        # ── Embeddings (may point to a different provider) ──────────────────
+        base-url: https://api.openai.com/
+        api-key: sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+    # ── External MCP servers (optional) ──────────────────────────────────────
+    # Uncomment and configure to connect tool servers over SSE or stdio.
+    # mcp:
+    #   client:
+    #     sse:
+    #       connections:
+    #         jira:
+    #           url: https://your-jira-mcp-server/
+    #           sse-endpoint: /sse
+    #     stdio:
+    #       connections:
+    #         filesystem:
+    #           command: npx
+    #           args: ["-y", "@modelcontextprotocol/server-filesystem", "/data"]
+
+kb:
+  # ── Chat model ──────────────────────────────────────────────────────────────
+  chat:
+    default-model:
+      id: gpt-4o-mini
+      label: GPT-4o mini
+    # Uncomment to add more selectable models in the UI:
+    # models:
+    #   - id: gpt-4o
+    #     label: GPT-4o
+
+  # ── Embedding model ──────────────────────────────────────────────────────────
+  # Must match spring.ai.openai.embedding.model set in the active profile.
+  embedding:
+    model: text-embedding-3-large
+
+  # ── Project path ─────────────────────────────────────────────────────────────
+  # Absolute path to the repository root that will be indexed.
+  # Relative paths are resolved from the working directory of the JVM process,
+  # which is the run/ folder when started by the bundled scripts.
+  # Examples:
+  #   project-path: ..                   # parent of run/ (repo root)
+  #   project-path: /home/user/my-repo
+  #   project-path: C:/projects/my-repo
+  project-path: ..
+
+  # ── Document export ───────────────────────────────────────────────────────────
+  documents:
+    export-path: ../doc-export
+
+  # ── MCP tool exposure ─────────────────────────────────────────────────────────
+  mcp:
+    enabled: false
+    # Bearer tokens for authenticated remote MCP connections, keyed by connection name:
+    # bearer-tokens:
+    #   jira: your-jira-bearer-token
+
+  # ── Security (HTTP Basic) ─────────────────────────────────────────────────────
+  security:
+    username: admin
+    password: admin
+
+  # ── Git write tools ───────────────────────────────────────────────────────────
+  # Set to true to expose createFile/editFile tools to the chat model.
+  git:
+    edit-enabled: false

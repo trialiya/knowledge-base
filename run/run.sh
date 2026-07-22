@@ -1,16 +1,21 @@
 #!/usr/bin/env bash
 # Launch the Knowledge Base backend JAR on Linux or macOS.
-# Edit app.env before running.
+#
+# Usage:
+#   ./run.sh [profile]
+#
+# Examples:
+#   ./run.sh internal    # H2 in-memory DB (default)
+#   ./run.sh external    # PostgreSQL
+#
+# Edit application.yaml (and the matching application-<profile>.yaml) before
+# running.  The JVM is started from this directory so relative paths in
+# application.yaml (e.g. project-path: ..) resolve against it.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="$SCRIPT_DIR/app.env"
 JAR="$SCRIPT_DIR/../backend/build/libs/backend-1.0-SNAPSHOT.jar"
-
-if [ ! -f "$ENV_FILE" ]; then
-  echo "ERROR: config file not found: $ENV_FILE" >&2
-  exit 1
-fi
+PROFILE="${1:-internal}"
 
 if [ ! -f "$JAR" ]; then
   echo "ERROR: JAR not found: $JAR" >&2
@@ -18,25 +23,31 @@ if [ ! -f "$JAR" ]; then
   exit 1
 fi
 
-# Load env file (skip comments and blank lines)
-set -a
-# shellcheck disable=SC1090
-source <(grep -v '^\s*#' "$ENV_FILE" | grep -v '^\s*$')
-set +a
-
-export LANG="${LANG:-C.utf8}"
-export LC_ALL="${LC_ALL:-C.utf8}"
+if [ ! -f "$SCRIPT_DIR/application.yaml" ]; then
+  echo "ERROR: $SCRIPT_DIR/application.yaml not found — fill in your settings." >&2
+  exit 1
+fi
 
 JAVA_BIN="java"
 if [ -n "${JAVA_HOME:-}" ]; then
   JAVA_BIN="$JAVA_HOME/bin/java"
 fi
 
+export LANG="${LANG:-C.utf8}"
+export LC_ALL="${LC_ALL:-C.utf8}"
+
+JAVA_OPTS="${JAVA_OPTS:--Xmx512m}"
+
 echo "Starting Knowledge Base..."
+echo "  Profile: $PROFILE"
+echo "  Config:  $SCRIPT_DIR/application.yaml + application-$PROFILE.yaml"
 echo "  JAR:     $JAR"
-echo "  Profile: ${SPRING_PROFILES_ACTIVE:-default}"
-echo "  Project: ${PROJECT_PATH:-.}"
 echo ""
 
+cd "$SCRIPT_DIR"
+
 # shellcheck disable=SC2086
-exec "$JAVA_BIN" --enable-preview ${JAVA_OPTS:-} -jar "$JAR"
+exec "$JAVA_BIN" --enable-preview $JAVA_OPTS \
+  -jar "$JAR" \
+  --spring.profiles.active="$PROFILE" \
+  --spring.config.additional-location="file:$SCRIPT_DIR/"

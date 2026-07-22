@@ -1,15 +1,26 @@
 @echo off
 rem Launch the Knowledge Base backend JAR on Windows (cmd.exe).
-rem Edit app.env before running.
+rem
+rem Usage:
+rem   run.bat [profile]
+rem
+rem Examples:
+rem   run.bat internal    (H2 in-memory DB, default)
+rem   run.bat external    (PostgreSQL)
+rem
+rem Edit application.yaml and application-<profile>.yaml before running.
 setlocal EnableDelayedExpansion
 
 set "SCRIPT_DIR=%~dp0"
-set "ENV_FILE=%SCRIPT_DIR%app.env"
-set "JAR=%SCRIPT_DIR%..\backend\build\libs\backend-1.0-SNAPSHOT.jar"
+rem Remove trailing backslash
+if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
 
-if not exist "%ENV_FILE%" (
-    echo ERROR: config file not found: %ENV_FILE%
-    exit /b 1
+set "JAR=%SCRIPT_DIR%\..\backend\build\libs\backend-1.0-SNAPSHOT.jar"
+
+if "%~1"=="" (
+    set "PROFILE=internal"
+) else (
+    set "PROFILE=%~1"
 )
 
 if not exist "%JAR%" (
@@ -18,17 +29,9 @@ if not exist "%JAR%" (
     exit /b 1
 )
 
-rem Load app.env — skip comment and blank lines
-for /f "usebackq tokens=1,* delims==" %%A in ("%ENV_FILE%") do (
-    set "LINE=%%A"
-    rem Skip lines starting with # or empty
-    if not "!LINE:~0,1!"=="#" (
-        if not "%%A"=="" (
-            if not "%%B"=="" (
-                set "%%A=%%B"
-            )
-        )
-    )
+if not exist "%SCRIPT_DIR%\application.yaml" (
+    echo ERROR: %SCRIPT_DIR%\application.yaml not found — fill in your settings.
+    exit /b 1
 )
 
 if "%JAVA_HOME%"=="" (
@@ -37,11 +40,19 @@ if "%JAVA_HOME%"=="" (
     set "JAVA_BIN=%JAVA_HOME%\bin\java"
 )
 
+if "%JAVA_OPTS%"=="" set "JAVA_OPTS=-Xmx512m"
+
 echo Starting Knowledge Base...
+echo   Profile: %PROFILE%
+echo   Config:  %SCRIPT_DIR%\application.yaml + application-%PROFILE%.yaml
 echo   JAR:     %JAR%
-echo   Profile: %SPRING_PROFILES_ACTIVE%
-echo   Project: %PROJECT_PATH%
 echo.
 
-"%JAVA_BIN%" --enable-preview %JAVA_OPTS% -jar "%JAR%"
+cd /d "%SCRIPT_DIR%"
+
+"%JAVA_BIN%" --enable-preview %JAVA_OPTS% ^
+  -jar "%JAR%" ^
+  --spring.profiles.active="%PROFILE%" ^
+  --spring.config.additional-location="file:%SCRIPT_DIR%/"
+
 endlocal
