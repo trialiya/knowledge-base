@@ -1,11 +1,18 @@
 name: Frontend PR
 
-# Тесты фронта на каждый PR, который трогает фронтовые файлы.
+# Тесты и spotlessCheck фронта на каждый PR, который трогает фронтовые файлы
+# или сборочные файлы — через gradle (:frontend:check), по аналогии с
+# backend-pr.yml, чтобы PR гейтились теми же проверками, что и `./gradlew build`.
 on:
   pull_request:
     branches: [main]
     paths:
       - 'frontend/**'
+      - 'build.gradle'
+      - 'settings.gradle'
+      - 'gradle.properties'
+      - 'gradle/**'
+      - 'gradlew'
       - '.github/workflows/frontend-pr.yml'
 
 permissions:
@@ -18,29 +25,38 @@ concurrency:
 
 env:
   FRONTEND_DIR: frontend
+  FRONTEND_MODULE: ':frontend'
   # Держим в синхроне с build.gradle → node { version = '22.22.3' }
   NODE_VERSION: '22.22.3'
 
 jobs:
   test:
-    name: Frontend tests
+    name: Frontend tests & spotlessCheck
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
-      - name: Setup Node
-        uses: actions/setup-node@v7
+      - name: Setup JDK
+        uses: actions/setup-java@v5
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: yarn
-          cache-dependency-path: ${{ env.FRONTEND_DIR }}/yarn.lock
+          distribution: temurin
+          java-version: '25'
 
-      - name: Install deps
-        working-directory: ${{ env.FRONTEND_DIR }}
-        run: yarn install --frozen-lockfile
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
 
-      - name: Run tests
-        working-directory: ${{ env.FRONTEND_DIR }}
-        env:
-          CI: 'true' # react-scripts: один прогон без watch
-        run: yarn test --watchAll=false --passWithNoTests
+      - name: Cache node toolchain & modules
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ env.FRONTEND_DIR }}/node_modules
+            ${{ env.FRONTEND_DIR }}/.gradle/nodejs
+            ${{ env.FRONTEND_DIR }}/.gradle/yarn
+          key: ${{ runner.os }}-frontend-node-${{ env.NODE_VERSION }}-${{ hashFiles(format('{0}/yarn.lock', env.FRONTEND_DIR)) }}
+          restore-keys: |
+            ${{ runner.os }}-frontend-node-${{ env.NODE_VERSION }}-
+
+      # :frontend:check прогоняет и yarnTest, и spotlessCheck (prettier) — см.
+      # frontend/build.gradle (tasks.matching { it.name == 'check' }).
+      - name: Run frontend tests & spotlessCheck
+        run: ./gradlew "${FRONTEND_MODULE}:check" --no-daemon --stacktrace
