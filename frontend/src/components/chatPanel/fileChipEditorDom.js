@@ -158,3 +158,79 @@ export function placeCaretEnd(root) {
   sel.removeAllRanges();
   sel.addRange(range);
 }
+
+/**
+ * Смещение каретки в терминах serialize()-значения: сколько символов
+ * итоговой value-строки лежит перед текущей позицией курсора. Используется
+ * ДО перерисовки DOM (см. handlePaste в ChipEditor) — поэтому фрагмент может
+ * содержать блочные <div>, которые оставляет execCommand('insertText'), и мы
+ * переиспользуем serialize() (она их уже умеет читать), а не пишем отдельный
+ * плоский обход.
+ */
+export function getCaretOffset(root) {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return null;
+  const range = sel.getRangeAt(0);
+  if (!root.contains(range.endContainer)) return null;
+
+  const preRange = document.createRange();
+  preRange.selectNodeContents(root);
+  preRange.setEnd(range.endContainer, range.endOffset);
+
+  const tmp = document.createElement('div');
+  tmp.appendChild(preRange.cloneContents());
+  return serialize(tmp).length;
+}
+
+/**
+ * Поставить каретку в позицию, соответствующую смещению в serialize()-значении,
+ * ПОСЛЕ renderValue — то есть в заведомо плоском DOM (текстовые узлы, <br>,
+ * чип-спаны прямо под root, без блочных обёрток). Пара к getCaretOffset:
+ * снимаем смещение на «грязном» DOM, рисуем плоский DOM из value, ставим
+ * курсор обратно по тому же смещению.
+ */
+export function placeCaretAtOffset(root, offset) {
+  const sel = window.getSelection();
+  const range = document.createRange();
+  let remaining = offset;
+
+  for (const node of root.childNodes) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const len = node.nodeValue.length;
+      if (remaining <= len) {
+        range.setStart(node, remaining);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        return;
+      }
+      remaining -= len;
+      continue;
+    }
+    if (node.nodeType === Node.ELEMENT_NODE && node.classList?.contains('file-chip')) {
+      const len = (node.dataset.token || '').length;
+      if (remaining <= len) {
+        range.setStartAfter(node);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        return;
+      }
+      remaining -= len;
+      continue;
+    }
+    if (node.nodeName === 'BR') {
+      if (node.dataset?.sentinel) continue; // не считается символом value
+      if (remaining <= 0) {
+        range.setStartBefore(node);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        return;
+      }
+      remaining -= 1; // '\n'
+      continue;
+    }
+  }
+  placeCaretEnd(root);
+}

@@ -1,5 +1,13 @@
 import React, { useRef, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
-import { serialize, makeChipEl, renderValue, placeCaretEnd, normalizeTrailingSentinel } from './fileChipEditorDom';
+import {
+  serialize,
+  makeChipEl,
+  renderValue,
+  placeCaretEnd,
+  normalizeTrailingSentinel,
+  getCaretOffset,
+  placeCaretAtOffset,
+} from './fileChipEditorDom';
 import FilePickerDropdown from './FilePickerDropdown';
 import FileChipPreview from './FileChipPreview';
 import RichTextEditor from './RichTextEditor';
@@ -115,22 +123,32 @@ const ChipEditor = forwardRef(function ChipEditor({ value, onChange, onSend, dis
   const insertItemWithContent = useCallback((item) => doInsert(tokenFor(item, true)), [doInsert, tokenFor]);
 
   // Сбрасываем форматирование при вставке — вставляем только plain text.
-  // Используем execCommand('insertText') (а не ручную вставку через Range), чтобы:
-  //  1) вставка попадала в нативный стек отмены — Ctrl+Z отменяет вставленный текст;
-  //  2) браузер сам оформлял переносы строк, включая filler для последней/пустой
-  //     строки — она отображается сразу после вставки. При ручной вставке хвостовой
-  //     <br> был невидимым, и следующий Shift+Enter «проявлял» его, что выглядело
-  //     как двойной перевод строки. serialize() уже понимает такой DOM (блок с
-  //     единственным <br> → один '\n').
+  // Используем execCommand('insertText') (а не ручную вставку через Range), чтобы
+  // вставка попадала в нативный стек отмены — Ctrl+Z отменяет вставленный текст.
+  // Побочный эффект: для многострочного текста Chrome оформляет переносы через
+  // блочные <div>-обёртки, а не плоские text+<br> — это ломает
+  // normalizeTrailingSentinel и Shift+Enter-обработчик ниже, которые смотрят
+  // только на прямых детей root (плоский DOM). Поэтому сразу после вставки
+  // пересобираем DOM в плоский вид из того же value: снимаем смещение каретки
+  // в терминах value ДО перерисовки (пока ещё виден "грязный" DOM с <div>),
+  // рисуем плоский DOM через renderValue и ставим курсор обратно по тому же
+  // смещению.
   const handlePaste = useCallback(
     (e) => {
       e.preventDefault();
       const text = (e.clipboardData || window.clipboardData).getData('text/plain');
       if (!text) return;
+      const root = editorRef.current;
+      if (!root) return;
       document.execCommand('insertText', false, text);
-      emitChange();
+      const offset = getCaretOffset(root);
+      const v = serialize(root);
+      renderValue(root, v);
+      if (offset != null) placeCaretAtOffset(root, offset);
+      internalRef.current = v;
+      onChange(v);
     },
-    [emitChange],
+    [onChange],
   );
 
   const handleKeyDown = useCallback(

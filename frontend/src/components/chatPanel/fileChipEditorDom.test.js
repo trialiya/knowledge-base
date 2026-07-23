@@ -1,4 +1,11 @@
-import { serialize, renderValue, normalizeTrailingSentinel, makeChipEl } from './fileChipEditorDom';
+import {
+  serialize,
+  renderValue,
+  normalizeTrailingSentinel,
+  makeChipEl,
+  getCaretOffset,
+  placeCaretAtOffset,
+} from './fileChipEditorDom';
 
 function makeRoot() {
   return document.createElement('div');
@@ -118,5 +125,71 @@ describe('renderValue + serialize round-trip', () => {
     const value = 'see ⟦file:src/App.js⟧ please';
     renderValue(root, value);
     expect(serialize(root)).toBe(value);
+  });
+});
+
+function setCaret(node, offset) {
+  const sel = window.getSelection();
+  const range = document.createRange();
+  range.setStart(node, offset);
+  range.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+describe('getCaretOffset + placeCaretAtOffset (paste normalization round-trip)', () => {
+  it('measures the caret at the end of a <div>-wrapped multi-line paste (execCommand shape)', () => {
+    const root = makeRoot();
+    root.innerHTML = 'a<div>b</div>';
+    document.body.appendChild(root);
+    setCaret(root.querySelector('div').firstChild, 1); // caret right after "b"
+    expect(getCaretOffset(root)).toBe(serialize(root).length); // "a\nb" → offset 3
+    root.remove();
+  });
+
+  it('after re-flattening via renderValue, restores the caret at the same value offset', () => {
+    const root = makeRoot();
+    root.innerHTML = 'a<div>b</div>';
+    document.body.appendChild(root);
+    setCaret(root.querySelector('div').firstChild, 1);
+
+    const offset = getCaretOffset(root);
+    const v = serialize(root);
+    renderValue(root, v);
+    placeCaretAtOffset(root, offset);
+
+    const sel = window.getSelection();
+    const range = sel.getRangeAt(0);
+    const pre = document.createRange();
+    pre.selectNodeContents(root);
+    pre.setEnd(range.endContainer, range.endOffset);
+    // Range#toString() drops the <br> itself (no text content), so the text
+    // before the caret is "a" + "b" — the caret sits right after "b", same as
+    // before flattening.
+    expect(pre.toString()).toBe('ab');
+    root.remove();
+  });
+
+  it('a Shift+Enter right after such a paste now produces a visible line on the flattened DOM', () => {
+    // Regression for the reported bug: pasting "a\nb" via execCommand('insertText')
+    // leaves the caret inside a <div>b</div> block. normalizeTrailingSentinel only
+    // inspects root's direct children, so a <br> inserted inside that block was
+    // invisible until a second Shift+Enter. Simulating the paste-then-normalize
+    // flow (getCaretOffset → serialize → renderValue → placeCaretAtOffset) must
+    // leave the caret as root's own trailing text node, not inside a nested <div>.
+    const root = makeRoot();
+    root.innerHTML = 'a<div>b</div>';
+    document.body.appendChild(root);
+    setCaret(root.querySelector('div').firstChild, 1);
+
+    const offset = getCaretOffset(root);
+    const v = serialize(root);
+    renderValue(root, v);
+    placeCaretAtOffset(root, offset);
+
+    const sel = window.getSelection();
+    const range = sel.getRangeAt(0);
+    expect(range.endContainer.parentNode).toBe(root); // no nested <div> left
+    root.remove();
   });
 });
