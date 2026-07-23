@@ -191,6 +191,7 @@ export function getCaretOffset(root) {
  */
 export function placeCaretAtOffset(root, offset) {
   const sel = window.getSelection();
+  if (!sel) return;
   const range = document.createRange();
   let remaining = offset;
 
