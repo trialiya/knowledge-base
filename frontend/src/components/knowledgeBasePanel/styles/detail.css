@@ -342,26 +342,9 @@
   color: var(--kb-accent);
 }
 
-/* Regenerate button (shown when summary exists) */
-.ai-summary-regenerate {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: none;
-  border: 1.5px solid var(--kb-accent-bg);
-  border-radius: 20px;
-  padding: 3px 10px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--kb-accent);
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-}
-.ai-summary-regenerate:hover {
-  background: var(--kb-accent);
-  border-color: var(--kb-accent);
-  color: #fff;
-}
+/* Regenerate button (shown when summary exists) — chrome is the shared
+   btn/btn--sm/btn--ghost; only the "needs update" amber tint is specific to
+   this feature (no shared modifier has an analogue for it). */
 .ai-summary-regenerate--stale {
   border-color: #f59e0b;
   color: #d97706;
@@ -372,12 +355,8 @@
   border-color: #f59e0b;
   color: #fff;
 }
-.ai-summary-regenerate--loading {
-  opacity: 0.65;
-  cursor: not-allowed;
-}
 
-/* Empty state — no summary yet */
+/* Empty state — no summary yet. Generate button is the shared btn/btn--primary. */
 .ai-summary-empty {
   display: flex;
   flex-direction: column;
@@ -386,48 +365,12 @@
   padding: 28px 24px 24px;
   color: var(--kb-accent);
 }
-.ai-summary-empty__text {
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--kb-muted);
-  text-align: center;
-  max-width: 280px;
-}
 .ai-summary-empty__hint {
   margin: 0;
   font-size: 0.75rem;
   color: var(--kb-muted);
   opacity: 0.7;
   text-align: center;
-}
-
-/* Generate button */
-.ai-summary-generate-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--kb-accent);
-  color: #fff;
-  border: none;
-  border-radius: 20px;
-  padding: 7px 18px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.15s, transform 0.1s;
-}
-.ai-summary-generate-btn:hover:not(:disabled) {
-  opacity: 0.88;
-  transform: translateY(-1px);
-}
-.ai-summary-generate-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  transform: none;
-}
-.ai-summary-generate-btn--loading {
-  opacity: 0.7;
-  cursor: not-allowed;
 }
 
 /* Stale badge */

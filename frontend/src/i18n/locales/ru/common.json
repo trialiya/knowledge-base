@@ -20,13 +20,7 @@
   "panels": {
     "collapseLeft": "Свернуть панель",
     "expandLeft": "Развернуть панель",
-    "collapseRight": "Свернуть панель",
-    "chats": "Чаты",
-    "documents": "Документы",
-    "files": "Файлы",
-    "attachments": "Вложения",
-    "summary": "Описание",
-    "info": "Инфо"
+    "collapseRight": "Свернуть панель"
   },
   "search": {
     "placeholder": "Поиск по базе знаний…",

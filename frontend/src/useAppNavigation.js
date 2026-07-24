@@ -392,14 +392,26 @@ export default function useAppNavigation() {
    * /files/<путь> или /knowledge/doc/<id> на /chat сразу после старта — ссылкой
    * на файл или документ нельзя было бы поделиться. Выбор при этом запоминается
    * (memoryRef) и попадает в адрес, как только пользователь вернётся в чат.
+   *
+   * Если открыт именно чат (просто /chat без id) — фоновый выбор всё же должен
+   * попасть в адрес, иначе открытый чат нельзя скопировать ссылкой. Но это не
+   * ПЕРЕХОД пользователя, поэтому пишем через replaceNav: иначе автовыбор при
+   * каждой свежей загрузке /chat плодил бы лишнюю запись истории (/chat →
+   * /chat/<id>), которую «Назад» не отличить от настоящего перехода — экран
+   * при возврате на /chat визуально не меняется (ChatWindow держит свой выбор
+   * в локальном стейте), и кнопка выглядит нерабочей.
    */
   const openChat = useCallback(
     (chatId, { navigate = true } = {}) => {
       const id = chatId == null ? null : String(chatId);
       if (id) memoryRef.current.chatId = id;
-      pushNav((prev) => (!navigate && prev.view !== 'chat' ? prev : { ...prev, view: 'chat', chatId: id }));
+      if (!navigate) {
+        replaceNav((prev) => (prev.view !== 'chat' ? prev : { ...prev, chatId: id }));
+        return;
+      }
+      pushNav((prev) => ({ ...prev, view: 'chat', chatId: id }));
     },
-    [pushNav],
+    [pushNav, replaceNav],
   );
 
   // ── Раскладка панелей (replaceState: это не переход) ────────────────────────

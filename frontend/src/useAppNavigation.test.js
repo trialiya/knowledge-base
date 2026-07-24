@@ -129,10 +129,15 @@ describe('фоновый выбор чата', () => {
     expect(url()).toBe('/chat/auto-picked');
   });
 
-  it('находясь в чате, фоновый выбор всё же попадает в адрес', () => {
+  it('находясь в чате, фоновый выбор всё же попадает в адрес, но не как переход', () => {
+    // Автовыбор при свежей загрузке /chat не должен плодить запись истории —
+    // иначе «Назад» приводил бы на визуально неотличимый /chat (ChatWindow уже
+    // держит выбор в своём стейте) и выглядел бы нерабочим.
     const { result } = renderHook(() => useAppNavigation());
+    const before = window.history.length;
     act(() => result.current.openChat('auto-picked', { navigate: false }));
     expect(url()).toBe('/chat/auto-picked');
+    expect(window.history.length).toBe(before);
   });
 });
 

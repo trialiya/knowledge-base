@@ -65,7 +65,7 @@ export function buildDetailTabs({
         folderChildren.length === 0 ? (
           <p className="empty-tab">{t('detail.folderEmpty')}</p>
         ) : (
-          <ContentsTable children={folderChildren} onNavigate={onNavigate} />
+          <ContentsTable items={folderChildren} onNavigate={onNavigate} />
         ),
     });
   }

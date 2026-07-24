@@ -44,7 +44,7 @@ const AiSummarySection = ({ node, onSummarize }) => {
         <div className="summary-section__head">
           <span className="summary-section__label">{label}</span>
           <button
-            className={`ai-summary-regenerate${summarizing ? ' ai-summary-regenerate--loading' : ''}${
+            className={`btn btn--sm btn--ghost ai-summary-regenerate${
               node.summaryStale ? ' ai-summary-regenerate--stale' : ''
             }`}
             onClick={handleSummarize}
@@ -69,7 +69,7 @@ const AiSummarySection = ({ node, onSummarize }) => {
       </div>
       <div className="ai-summary-empty">
         <button
-          className={`ai-summary-generate-btn${summarizing ? ' ai-summary-generate-btn--loading' : ''}`}
+          className="btn btn--primary"
           onClick={handleSummarize}
           disabled={summarizing || !node.description}
           title={!node.description ? t('summary.generateDisabledHint') : undefined}

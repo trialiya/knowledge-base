@@ -20,17 +20,7 @@ import useAttachmentCount from '../common/useAttachmentCount';
 import useFolderChildren from './useFolderChildren';
 import { buildDetailTabs } from './detailSidebar';
 
-const KnowledgeBase = ({
-  isActive,
-  docId,
-  search,
-  mode,
-  refreshSignal,
-  onRefreshingChange,
-  onOpenDoc,
-  onSearch,
-  panels,
-}) => {
+const KnowledgeBase = ({ docId, search, mode, refreshSignal, onRefreshingChange, onOpenDoc, onSearch, panels }) => {
   const { t } = useTranslation('knowledgeBase');
 
   const {

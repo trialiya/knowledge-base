@@ -20,13 +20,7 @@
   "panels": {
     "collapseLeft": "Collapse panel",
     "expandLeft": "Expand panel",
-    "collapseRight": "Collapse panel",
-    "chats": "Chats",
-    "documents": "Documents",
-    "files": "Files",
-    "attachments": "Attachments",
-    "summary": "Summary",
-    "info": "Info"
+    "collapseRight": "Collapse panel"
   },
   "search": {
     "placeholder": "Search the knowledge base…",
