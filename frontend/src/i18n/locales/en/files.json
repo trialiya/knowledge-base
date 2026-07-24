@@ -1,4 +1,7 @@
 {
+  "panel": {
+    "tree": "Repository"
+  },
   "tree": {
     "loading": "Loading…",
     "empty": "Empty"

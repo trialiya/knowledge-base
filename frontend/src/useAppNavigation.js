@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { DOC_TAB } from './constants/docTabs';
 import { SEARCH_MODE } from './constants/searchMode';
+import { readPanelState, savePanelState } from './panelState';
 
 /**
  * ──────────────────────────────────────────────────────────────────────────
@@ -11,77 +12,80 @@ import { SEARCH_MODE } from './constants/searchMode';
  *   • ВЕСЬ URL-стейт живёт здесь, в одном объекте `nav`.
  *   • Только этот хук пишет в window.history и слушает popstate.
  *     Никакие другие компоненты историю не трогают.
- *   • Каждый осознанный переход = ровно один pushState.
+ *   • Каждый осознанный ПЕРЕХОД = ровно один pushState.
+ *     Смена раскладки панелей — replaceState (см. ниже).
  *   • popstate просто читает URL обратно в состояние — UI перерисовывается.
  *
- * URL-схема (view — это ПУТЬ, остальное — query):
- *   /chat                                   → (+ ?chat=<id>)
- *   /knowledge?doc=<id>&tab=<docTab>        → документ
- *   /knowledge?search=<q>&mode=<m>          → поиск (взаимоисключающе с doc)
- *   /files?path=<relativePath>              → выбранный файл/каталог репозитория
- *   /admin                                  → (+ ?chat=<id>)
- *   /settings                               → (+ ?chat=<id>)
+ * ── URL-схема ───────────────────────────────────────────────────────────────
+ * ПУТЬ — это «что открыто» (идентичность ресурса), QUERY — «как показано»
+ * (состояние экрана):
  *
- *   • chat=<id> сохраняется во всех view, чтобы возврат в чат помнил активный.
- *   • doc/tab/search/mode пишутся ТОЛЬКО для /knowledge.
- *   • path пишется ТОЛЬКО для /files.
+ *   /chat                                  чат, конкретный не выбран
+ *   /chat/<chatId>                         конкретный чат ('new' — черновик)
+ *   /knowledge                             база знаний, ничего не выбрано
+ *   /knowledge/doc/<docId>                 документ или папка
+ *   /knowledge/search?q=<q>&mode=<m>       результаты поиска
+ *   /files                                 корень репозитория
+ *   /files/<path/to/file>                  файл или каталог (путь — в самом пути)
+ *   /admin
+ *   /settings
  *
- * Состояние:
- *   {
- *     view:     'chat' | 'knowledge' | 'files' | 'admin' | 'settings'   ← путь
- *     chatId:   string | null      — последний открытый чат (живёт во всех view)
- *     docId:    string | null      — документ, активный для ТЕКУЩЕЙ записи истории
- *     docTab:   'summary' | 'content' | ...
- *     search:   string             — поисковый запрос KB
- *     mode:     'hybrid' | ...      — режим поиска KB
- *     filePath: string             — выбранный путь в файловом браузере ('' = корень)
- *   }
+ * Query-параметры (пишутся только когда отличаются от дефолта, чтобы адреса
+ * оставались короткими и читаемыми):
  *
- * Почему docId в состоянии берётся строго из URL (а «последний документ» хранится
- * отдельно в lastKbRef):
- *   docId в nav обязан соответствовать адресу — иначе экран рассинхронизируется
- *   с URL при «Назад»/«Вперёд». Но chat/admin/settings-адреса по схеме НЕ содержат
- *   doc, поэтому любой «Назад» на такую запись обнулил бы docId. Чтобы клик по
- *   вкладке «База знаний» всё равно открывал последний читанный документ, мы
- *   держим его в lastKbRef (вне URL) и подставляем в switchView, когда для
- *   текущей записи документ/поиск не активны.
+ *   ?tab=<docTab>   вкладка центра у документа KB (дефолт summary)
+ *   ?q=, ?mode=     запрос и режим поиска KB (дефолт режима — hybrid)
+ *   ?left=0         левая панель свёрнута (дефолт — раскрыта)
+ *   ?right=<tab>    правая панель раскрыта на вкладке (дефолт — свёрнута)
  *
- * admin / settings — полноценные верхнеуровневые view со своими путями
- * (/admin, /settings), поэтому браузерные «Назад/Вперёд» работают штатно, а
- * ссылку можно скопировать. doc/search в их адрес не попадают, но в состоянии
- * могут «пережить» переход — это не утекает в URL и помогает вернуть документ KB.
+ * ── Почему chat/doc/path больше НЕ висят в query всех разделов ──────────────
+ * Раньше `?chat=<id>` дублировался в каждый адрес, чтобы возврат в чат помнил
+ * активный чат. Теперь адрес описывает ровно то, что открыто, а «последнее
+ * открытое» каждого раздела помнит memoryRef (вне URL) и подставляет switchView.
+ * Тот же приём давно работал для документа KB, теперь он единый для всех
+ * разделов: URL — состояние ЭТОЙ записи истории, memoryRef — «куда вернуться».
  *
- * ⚠️ Деплой: путь-роутинг требует, чтобы сервер отдавал index.html на /chat,
- * /knowledge, /admin, /settings (SPA-fallback). См. примечание в конце файла.
- * Базовый путь приложения предполагается «/» (CRA по умолчанию). Если фронт
- * раздаётся из подпапки — задайте homepage и учтите basename в *_PATH.
+ * Строго из URL берутся и docId/chatId/filePath: подмешивать сюда память нельзя,
+ * иначе «Назад» на запись без ресурса вернул бы устаревший экран, разъехавшийся
+ * с адресом.
+ *
+ * ── Панели и история ────────────────────────────────────────────────────────
+ * Сворачивание панели — это НЕ переход: пять кликов по тумблеру не должны
+ * требовать пяти нажатий «Назад». Поэтому раскладка пишется через replaceState
+ * (адрес остаётся копируемым), а сама раскладка каждого раздела запоминается в
+ * localStorage (panelState.js) и восстанавливается при возврате в раздел.
+ *
+ * ── Обратная совместимость ──────────────────────────────────────────────────
+ * Старые ссылки (`/knowledge?doc=5&tab=content`, `?view=settings&chat=…`,
+ * `/files?path=…`) продолжают открываться: readUrl понимает и старую форму, а
+ * канонизирующий replaceState на старте переписывает адрес в новую схему.
+ *
+ * ⚠️ Деплой: путь-роутинг требует SPA-fallback на index.html, включая ВЛОЖЕННЫЕ
+ * пути (/chat/<id>, /knowledge/doc/<id>, /files/<path…>). См. примечание в конце
+ * файла и SpaForwardController на бэкенде.
  */
 
-// Допустимые верхнеуровневые view.
+// Допустимые верхнеуровневые view (первый сегмент пути).
 const TOP_VIEWS = ['chat', 'knowledge', 'files', 'admin', 'settings'];
-
-// view ⇄ путь (первый сегмент URL).
-const VIEW_TO_PATH = {
-  chat: '/chat',
-  knowledge: '/knowledge',
-  files: '/files',
-  admin: '/admin',
-  settings: '/settings',
-};
-const PATH_TO_VIEW = {
-  '/chat': 'chat',
-  '/knowledge': 'knowledge',
-  '/files': 'files',
-  '/admin': 'admin',
-  '/settings': 'settings',
-};
 
 // ── URL <-> state ───────────────────────────────────────────────────────────
 
-/** view из первого сегмента пути ('/knowledge/foo' → knowledge), иначе null. */
-function viewFromPathname(pathname) {
-  const seg = '/' + (pathname.split('/')[1] || '');
-  return PATH_TO_VIEW[seg] || null;
+/** Декодировать сегмент пути, не падая на битом percent-encoding. */
+function decodeSegment(seg) {
+  try {
+    return decodeURIComponent(seg);
+  } catch {
+    return seg;
+  }
+}
+
+/** Путь файла → сегменты URL ('a/b c.md' → 'a/b%20c.md'). */
+function encodeFilePath(path) {
+  return String(path || '')
+    .split('/')
+    .filter(Boolean)
+    .map(encodeURIComponent)
+    .join('/');
 }
 
 /** Текущий адрес целиком (путь + query) — для сравнения с целевым. */
@@ -89,69 +93,117 @@ function currentUrl() {
   return window.location.pathname + window.location.search;
 }
 
+/**
+ * Разобрать текущий адрес. Понимает и новую схему (ресурс в пути), и старую
+ * (ресурс в query) — вторая нужна, чтобы ранее сохранённые ссылки открывались.
+ */
 function readUrl() {
   const p = new URLSearchParams(window.location.search);
+  const segs = window.location.pathname.split('/').filter(Boolean).map(decodeSegment);
 
-  // view берём из ПУТИ. Legacy-фолбэк на старый ?view= — чтобы ранее сохранённые
-  // ссылки (?view=settings&…) продолжали открываться; на старте они будут
-  // канонизированы в путь через replaceState.
-  let view = viewFromPathname(window.location.pathname);
+  let view = TOP_VIEWS.includes(segs[0]) ? segs[0] : null;
   if (!view) {
+    // Legacy: view жил в query (?view=settings).
     const legacy = p.get('view');
     if (TOP_VIEWS.includes(legacy)) view = legacy;
   }
 
-  return {
-    view,
-    chatId: p.get('chat') || null,
-    docId: p.get('doc') || null,
-    docTab: p.get('tab') || DOC_TAB.SUMMARY,
-    search: p.get('search') || '',
-    mode: p.get('mode') || SEARCH_MODE.HYBRID,
-    filePath: p.get('path') || '',
-  };
-}
+  // Чат: /chat/<id> (legacy: ?chat=<id>).
+  let chatId = null;
+  if (view === 'chat') chatId = segs[1] || p.get('chat') || null;
 
-/**
- * Строит адрес (путь + query) из состояния. В query попадают ТОЛЬКО параметры,
- * релевантные текущему view:
- *   • /chat                  → ?chat
- *   • /knowledge             → ?chat & (doc[&tab] | search[&mode])  (взаимоисключающе)
- *   • /files                 → ?chat & path
- *   • /admin | /settings     → ?chat
- */
-function buildUrl(nav) {
-  const p = new URLSearchParams();
-
-  // chatId сохраняем во всех view, чтобы возврат в чат помнил активный чат.
-  if (nav.chatId) p.set('chat', nav.chatId);
-
-  // Только база знаний кладёт в URL документ/поиск.
-  if (nav.view === 'knowledge') {
-    if (nav.docId) {
-      p.set('doc', nav.docId);
-      if (nav.docTab && nav.docTab !== DOC_TAB.SUMMARY) p.set('tab', nav.docTab);
-    } else if (nav.search) {
-      p.set('search', nav.search);
-      if (nav.mode) p.set('mode', nav.mode);
+  // База знаний: /knowledge/doc/<id> | /knowledge/search?q= (legacy: ?doc= | ?search=).
+  let docId = null;
+  let search = '';
+  if (view === 'knowledge') {
+    if (segs[1] === 'doc' && segs[2]) {
+      docId = segs[2];
+    } else if (segs[1] === 'search') {
+      search = p.get('q') || '';
+    } else {
+      docId = p.get('doc') || null;
+      if (!docId) search = p.get('search') || '';
     }
   }
 
-  // Файловый браузер кладёт в URL выбранный путь (пусто — корень репозитория).
-  if (nav.view === 'files' && nav.filePath) {
-    p.set('path', nav.filePath);
+  // Файлы: /files/<path…> (legacy: ?path=).
+  let filePath = '';
+  if (view === 'files') {
+    filePath = segs.length > 1 ? segs.slice(1).join('/') : p.get('path') || '';
   }
 
+  return {
+    view,
+    chatId,
+    docId,
+    docTab: p.get('tab') || DOC_TAB.SUMMARY,
+    search,
+    mode: p.get('mode') || SEARCH_MODE.HYBRID,
+    filePath,
+    leftCollapsed: p.get('left') === '0',
+    rightTab: p.get('right') || null,
+    // Есть ли в адресе явная раскладка панелей. Если нет — берём запомненную
+    // для этого раздела (иначе ссылка без параметров всегда сбрасывала бы её).
+    hasPanelParams: p.has('left') || p.has('right'),
+    // Legacy ?chat= в адресе НЕ чат-раздела: в новую схему не попадает, но как
+    // «последний чат» пригодится — иначе старая ссылка теряла бы его.
+    legacyChatId: view !== 'chat' ? p.get('chat') || null : null,
+  };
+}
+
+/** Построить адрес (путь + query) из состояния. */
+function buildUrl(nav) {
+  const p = new URLSearchParams();
+  let path;
+
+  switch (nav.view) {
+    case 'knowledge':
+      if (nav.docId) {
+        path = `/knowledge/doc/${encodeURIComponent(nav.docId)}`;
+        if (nav.docTab && nav.docTab !== DOC_TAB.SUMMARY) p.set('tab', nav.docTab);
+      } else if (nav.search) {
+        path = '/knowledge/search';
+        p.set('q', nav.search);
+        if (nav.mode && nav.mode !== SEARCH_MODE.HYBRID) p.set('mode', nav.mode);
+      } else {
+        path = '/knowledge';
+      }
+      break;
+    case 'files': {
+      const encoded = encodeFilePath(nav.filePath);
+      path = encoded ? `/files/${encoded}` : '/files';
+      break;
+    }
+    case 'chat':
+      path = nav.chatId ? `/chat/${encodeURIComponent(nav.chatId)}` : '/chat';
+      break;
+    case 'admin':
+      path = '/admin';
+      break;
+    case 'settings':
+      path = '/settings';
+      break;
+    default:
+      path = '/chat';
+  }
+
+  // Раскладка панелей — одинаково во всех разделах, только не-дефолтная.
+  if (nav.leftCollapsed) p.set('left', '0');
+  if (nav.rightTab) p.set('right', nav.rightTab);
+
   const qs = p.toString();
-  return (VIEW_TO_PATH[nav.view] || '/chat') + (qs ? `?${qs}` : '');
+  return path + (qs ? `?${qs}` : '');
 }
 
 /** Начальное состояние: из URL, с разумными дефолтами. */
 function initialNav() {
   const u = readUrl();
-  // view из пути приоритетен (включая admin/settings). Если его нет — инферим из
-  // наличия doc/search (это всегда про базу знаний), иначе чат.
+  // view из пути приоритетен. Если его нет — инферим из наличия doc/search
+  // (это всегда про базу знаний), иначе чат.
   const view = u.view || (u.docId || u.search ? 'knowledge' : 'chat');
+  // Раскладка панелей: явная из адреса, иначе — запомненная для этого раздела.
+  const panels = u.hasPanelParams ? { leftCollapsed: u.leftCollapsed, rightTab: u.rightTab } : readPanelState(view);
+
   return {
     view,
     chatId: u.chatId,
@@ -160,6 +212,8 @@ function initialNav() {
     search: u.search,
     mode: u.mode,
     filePath: u.filePath,
+    leftCollapsed: panels.leftCollapsed,
+    rightTab: panels.rightTab,
   };
 }
 
@@ -168,32 +222,49 @@ function initialNav() {
 export default function useAppNavigation() {
   const [nav, setNav] = useState(initialNav);
 
-  // Источник правды для записи URL — храним в ref, чтобы writeUrl был стабильным
-  // и не пересоздавал колбэки на каждый рендер.
+  // Источник правды для записи URL — храним в ref, чтобы колбэки были стабильными
+  // и не пересоздавались на каждый рендер.
   const navRef = useRef(nav);
   useEffect(() => {
     navRef.current = nav;
   }, [nav]);
 
-  // ── Память «последнего документа KB» (вне URL) ──────────────────────────────
-  // Нужна, потому что docId в nav обнуляется при «Назад» на запись без doc в URL
-  // (chat / admin / settings). Здесь же мы помним последний реально открытый
-  // документ и его вкладку, чтобы switchView('knowledge') мог его восстановить.
-  const lastKbRef = useRef({
+  // ── Память «последнего открытого» в каждом разделе (вне URL) ────────────────
+  // Адрес описывает только текущую запись истории, поэтому «Назад» на /chat
+  // обнуляет docId, а /knowledge — chatId. Чтобы клик по вкладке возвращал туда
+  // же, где пользователь был, помним последний ресурс каждого раздела здесь.
+  const memoryRef = useRef({
+    chatId: nav.chatId || readUrl().legacyChatId || null,
     docId: nav.docId || null,
     docTab: nav.docTab || DOC_TAB.SUMMARY,
+    filePath: nav.filePath || '',
   });
   useEffect(() => {
+    const m = memoryRef.current;
+    if (nav.chatId) m.chatId = nav.chatId;
     if (nav.docId) {
-      lastKbRef.current = { docId: nav.docId, docTab: nav.docTab || DOC_TAB.SUMMARY };
+      m.docId = nav.docId;
+      m.docTab = nav.docTab || DOC_TAB.SUMMARY;
     }
-  }, [nav.docId, nav.docTab]);
+    if (nav.view === 'files' && nav.filePath) m.filePath = nav.filePath;
+  }, [nav.view, nav.chatId, nav.docId, nav.docTab, nav.filePath]);
+
+  // Раскладку панелей запоминаем по разделам — при возврате в раздел она
+  // восстановится (см. switchView).
+  useEffect(() => {
+    savePanelState(nav.view, { leftCollapsed: nav.leftCollapsed, rightTab: nav.rightTab });
+  }, [nav.view, nav.leftCollapsed, nav.rightTab]);
 
   // Флаг: изменение пришло из popstate — значит URL уже актуален, писать НЕ нужно.
   const fromPopRef = useRef(false);
+  // Способ записи следующего адреса. 'replace' ставят операции, которые не
+  // являются переходом (сворачивание панелей): они не должны копить историю.
+  const historyModeRef = useRef('push');
 
   // ── Запись URL при изменении состояния ────────────────────────────────────
   useEffect(() => {
+    const mode = historyModeRef.current;
+    historyModeRef.current = 'push';
     if (fromPopRef.current) {
       // Это состояние выставлено обработчиком popstate — URL уже совпадает.
       fromPopRef.current = false;
@@ -201,12 +272,12 @@ export default function useAppNavigation() {
     }
     const next = buildUrl(nav);
     if (next === currentUrl()) return; // нет изменений — не плодим записи истории
-    window.history.pushState({}, '', next);
+    if (mode === 'replace') window.history.replaceState({}, '', next);
+    else window.history.pushState({}, '', next);
   }, [nav]);
 
-  // На старте гарантируем, что адрес канонический (путь соответствует view, лишние
-  // параметры срезаны, legacy ?view= переписан в путь) — иначе первый «Назад»
-  // вести некуда.
+  // На старте гарантируем, что адрес канонический (ресурс переехал в путь, legacy
+  // query срезан) — иначе первый «Назад» вести некуда.
   useEffect(() => {
     const canonical = buildUrl(navRef.current);
     if (canonical !== currentUrl()) {
@@ -218,27 +289,23 @@ export default function useAppNavigation() {
   useEffect(() => {
     const onPop = () => {
       const u = readUrl();
-      const prev = navRef.current;
       const view = u.view || (u.docId || u.search ? 'knowledge' : 'chat');
+      // Раскладка панелей записана в адрес только когда отличается от дефолта,
+      // поэтому её отсутствие — это именно дефолт для той записи истории.
       fromPopRef.current = true;
       setNav({
         view,
-        // chatId: в URL присутствует во всех view (buildUrl его всегда пишет),
-        // поэтому при возврате на запись он там есть. Fallback на prev нужен лишь
-        // как страховка для записей, сделанных до появления chat в URL.
-        chatId: u.chatId ?? prev.chatId,
-        // docId: СТРОГО из URL. buildUrl пишет doc только когда он реально активен
-        // (view=knowledge и нет поиска). Если в URL его нет — значит для этой
-        // записи истории документ не активен (поиск, чат, admin или settings).
-        // Подмешивать prev.docId здесь нельзя: при возврате на запись без doc это
-        // вернуло бы устаревший документ, и экран рассинхронизировался бы с URL.
-        // Память «последнего документа» живёт в lastKbRef и восстанавливается в
-        // switchView, а не здесь.
+        // Ресурсы — СТРОГО из URL. Подмешивать память нельзя: при возврате на
+        // запись без ресурса это вернуло бы устаревший экран, разъехавшийся с
+        // адресом. «Куда вернуться» живёт в memoryRef и применяется в switchView.
+        chatId: u.chatId,
         docId: u.docId,
         docTab: u.docTab,
         search: u.search,
         mode: u.mode,
         filePath: u.filePath,
+        leftCollapsed: u.leftCollapsed,
+        rightTab: u.rightTab,
       });
     };
     window.addEventListener('popstate', onPop);
@@ -249,34 +316,34 @@ export default function useAppNavigation() {
 
   /**
    * Переключить верхнеуровневый view (вкладка / страница).
-   * Подходит для chat | knowledge | admin | settings.
-   * Для KB восстанавливает последний документ, если для текущей записи истории
-   * документ/поиск не активны (например, после «Назад» на chat/admin/settings
-   * docId в состоянии обнулён, но lastKbRef его помнит).
+   * Восстанавливает последний открытый ресурс раздела (чат / документ / путь) и
+   * запомненную для него раскладку панелей.
    */
   const switchView = useCallback((view) => {
     setNav((prev) => {
       if (prev.view === view) return prev;
-      if (view === 'knowledge' && !prev.docId && !prev.search) {
-        const last = lastKbRef.current;
-        if (last?.docId) {
-          return { ...prev, view, docId: last.docId, docTab: last.docTab || DOC_TAB.SUMMARY };
-        }
+      const m = memoryRef.current;
+      const panels = readPanelState(view);
+      const next = { ...prev, ...panels, view };
+      if (view === 'chat') next.chatId = prev.chatId || m.chatId || null;
+      if (view === 'knowledge' && !prev.docId && !prev.search && m.docId) {
+        next.docId = m.docId;
+        next.docTab = m.docTab || DOC_TAB.SUMMARY;
       }
-      return { ...prev, view };
+      if (view === 'files' && !prev.filePath) next.filePath = m.filePath || '';
+      return next;
     });
   }, []);
 
   /** Открыть документ в KB (из чата, doc-ссылки, дерева). */
   const openDoc = useCallback((docId, docTab = DOC_TAB.SUMMARY) => {
     const id = docId == null ? null : String(docId);
-    if (id) lastKbRef.current = { docId: id, docTab };
     setNav((prev) => ({ ...prev, view: 'knowledge', docId: id, docTab, search: '', mode: prev.mode }));
   }, []);
 
   /** Сменить вкладку детали документа (summary/content/…). */
   const setDocTab = useCallback((docTab) => {
-    setNav((prev) => ({ ...prev, docTab }));
+    setNav((prev) => (prev.docTab === docTab ? prev : { ...prev, docTab }));
   }, []);
 
   /** Запустить поиск в KB (сбрасывает выбранный документ). */
@@ -301,6 +368,23 @@ export default function useAppNavigation() {
     setNav((prev) => ({ ...prev, view: 'chat', chatId: id }));
   }, []);
 
+  // ── Раскладка панелей (replaceState: это не переход) ────────────────────────
+
+  /** Свернуть/раскрыть левую панель текущего раздела. */
+  const toggleLeftPanel = useCallback(() => {
+    historyModeRef.current = 'replace';
+    setNav((prev) => ({ ...prev, leftCollapsed: !prev.leftCollapsed }));
+  }, []);
+
+  /**
+   * Раскрыть правую панель на вкладке `tab`, либо свернуть её (`null`).
+   * Повторный клик по активной вкладке сворачивает панель.
+   */
+  const setRightTab = useCallback((tab) => {
+    historyModeRef.current = 'replace';
+    setNav((prev) => ({ ...prev, rightTab: prev.rightTab === tab ? null : tab || null }));
+  }, []);
+
   return {
     nav,
     switchView,
@@ -309,6 +393,8 @@ export default function useAppNavigation() {
     setSearch,
     openChat,
     openFilePath,
+    toggleLeftPanel,
+    setRightTab,
   };
 }
 
@@ -317,18 +403,15 @@ export default function useAppNavigation() {
  * SPA-fallback (обязательно для путь-роутинга)
  * ──────────────────────────────────────────────────────────────────────────
  * Dev (react-scripts): webpack-dev-server отдаёт index.html на html-запросы, а
- *   `proxy` в package.json гонит на :8080 только нехтмл (API) — так что /admin,
- *   /settings и пр. при прямом заходе/перезагрузке работают «из коробки».
+ *   `proxy` в package.json гонит на :8080 только нехтмл (API) — так что вложенные
+ *   пути при прямом заходе/перезагрузке работают «из коробки».
  *
- * Prod: сервер статики должен отдавать index.html на неизвестные пути.
- *   • Spring Boot (если он же раздаёт build): добавьте форвард на index.html
- *     для известных маршрутов (REST под /api/** не затрагивается):
+ * Prod: сервер статики должен отдавать index.html на неизвестные пути, ВКЛЮЧАЯ
+ *   вложенные (/chat/<id>, /knowledge/doc/<id>, /files/<path…>).
+ *   • Spring Boot (если он же раздаёт build) — см. SpaForwardController:
  *
- *       @Controller
- *       class SpaForwardController {
- *           @GetMapping({ "/chat", "/knowledge", "/files", "/admin", "/settings" })
- *           String forward() { return "forward:/index.html"; }
- *       }
+ *       @GetMapping({ "/chat/**", "/knowledge/**", "/files/**", "/admin", "/settings" })
+ *       String forward() { return "forward:/index.html"; }
  *
  *   • nginx:  location / { try_files $uri /index.html; }
  */

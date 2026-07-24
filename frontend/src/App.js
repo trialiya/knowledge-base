@@ -16,8 +16,18 @@ import './App.css';
 
 function App() {
   const { t } = useTranslation();
-  const { nav, switchView, openDoc, setDocTab, setSearch, openChat, openFilePath } = useAppNavigation();
+  const { nav, switchView, openDoc, setDocTab, setSearch, openChat, openFilePath, toggleLeftPanel, setRightTab } =
+    useAppNavigation();
   const view = nav.view; // 'chat' | 'knowledge' | 'files' | 'admin' | 'settings'
+
+  // Раскладка панелей рабочей области. Живёт в URL (общая для всех разделов
+  // пара left/right), поэтому передаётся разделам одним набором пропсов.
+  const panels = {
+    leftCollapsed: nav.leftCollapsed,
+    onToggleLeft: toggleLeftPanel,
+    rightTab: nav.rightTab,
+    onRightTabChange: setRightTab,
+  };
 
   // ── Глобальная строка поиска (живёт в шапке вкладок, видна всегда) ──────────
   const [searchText, setSearchText] = useState(nav.search || '');
@@ -153,7 +163,7 @@ function App() {
         {/* Files / Admin / Settings — полноценные view со своим URL, монтируются по адресу */}
         {view === 'files' && (
           <div className="app-tab-panel app-tab-panel--active">
-            <FilesPanel path={nav.filePath} onPathChange={openFilePath} />
+            <FilesPanel path={nav.filePath} onPathChange={openFilePath} panels={panels} />
           </div>
         )}
         {view === 'admin' && (
