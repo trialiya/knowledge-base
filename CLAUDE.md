@@ -167,6 +167,14 @@ doesn't touch. One PR = the task + migration of the files it touched.
   `?right=<tab>`), owned by `useAppNavigation` and threaded down as the `panels`
   prop from `App`. Per-section layout is remembered in `localStorage`
   (`panelState.js`). Never keep panel open/closed state locally in a section.
+- The right panel is where "everything *about* the thing" goes; the center is
+  the thing itself. Chat → attachments; knowledge base → summary, folder
+  contents, attachments, info (`detailSidebar.jsx` builds the tabs); files →
+  nothing yet. `DOC_TAB` keys are right-panel tab keys, not center tabs.
+- State shared by the center and the right panel (the KB content draft,
+  fullscreen, history) lives in `useDetailPanel`, hoisted to `KnowledgeBase`.
+  It is no longer remounted per document, so it resets on `nodeId` change
+  itself — keep that reset when adding state to it.
 
 ### URL scheme
 
@@ -175,15 +183,18 @@ doesn't touch. One PR = the task + migration of the files it touched.
 screen state**:
 
 ```
-/chat/<chatId>                   /knowledge/doc/<docId>[?tab=]
+/chat/<chatId>                   /knowledge/doc/<docId>
 /knowledge/search?q=&mode=       /files/<path/to/file>
 /admin  /settings                (+ ?left=0 / ?right=<tab> anywhere)
 ```
 
 Only non-default values are written, so addresses stay short. Old query-form
-links (`?view=`, `?doc=`, `?path=`, `?chat=`) still open and are canonicalized
-on load — keep that fallback when touching `readUrl`. Panel toggles use
-`replaceState` (they are not navigation); real transitions use `pushState`.
+links (`?view=`, `?doc=`, `?path=`, `?chat=`, `?tab=`) still open and are
+canonicalized on load — keep that fallback when touching `readUrl`. Panel
+toggles use `replaceState` (they are not navigation); real transitions use
+`pushState`. The write mode is set by whoever triggers the change (`pushNav` /
+`replaceNav`), never reset from the write effect — a `setNav` that bails out
+would otherwise leak the mode into the next real transition.
 Adding a new top-level path means updating `SpaForwardController` too — its
 mappings must cover nested paths.
 

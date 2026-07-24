@@ -16,7 +16,7 @@ import './App.css';
 
 function App() {
   const { t } = useTranslation();
-  const { nav, switchView, openDoc, setDocTab, setSearch, openChat, openFilePath, toggleLeftPanel, setRightTab } =
+  const { nav, switchView, openDoc, setSearch, openChat, openFilePath, toggleLeftPanel, setRightTab } =
     useAppNavigation();
   const view = nav.view; // 'chat' | 'knowledge' | 'files' | 'admin' | 'settings'
 
@@ -147,17 +147,14 @@ function App() {
 
         <div className={`app-tab-panel ${view === 'knowledge' ? 'app-tab-panel--active' : 'app-tab-panel--hidden'}`}>
           <KnowledgeBase
-            isActive={view === 'knowledge'}
             docId={view === 'knowledge' ? nav.docId : null}
-            docTab={nav.docTab}
             search={view === 'knowledge' ? nav.search : ''}
             mode={nav.mode}
             refreshSignal={refreshTick}
             onRefreshingChange={setKbRefreshing}
             onOpenDoc={openDoc}
-            onTabChange={setDocTab}
             onSearch={setSearch}
-            onNavigateToChat={openChat}
+            panels={panels}
           />
         </div>
 

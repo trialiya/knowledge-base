@@ -3,8 +3,8 @@
    (левая панель · центр · правая панель)
 
    Раскладка одна на чат, базу знаний и файлы: раньше каждый раздел держал свой
-   контейнер (.chat-app-container / .knowledge-base-container /
-   .files-panel-container) и свой сплит — здесь это один набор классов.
+   контейнер и свой сплит (три набора почти одинаковых классов) — здесь это
+   одна реализация.
 ═══════════════════════════════════════════════ */
 
 .workspace {
@@ -178,12 +178,12 @@
   align-items: center;
   gap: 5px;
   flex-shrink: 0;
-  padding: 5px 10px;
+  padding: 5px 9px;
   border: none;
   border-radius: 8px;
   background: none;
   color: var(--kb-muted);
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;

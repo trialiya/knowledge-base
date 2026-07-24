@@ -1,5 +1,6 @@
 {
   "tree": {
+    "title": "Documents",
     "create": "Create",
     "dragToReorder": "Drag to reorder",
     "delete": "Delete",
@@ -11,9 +12,9 @@
   },
   "tabs": {
     "summary": "Summary",
-    "content": "Content",
     "contents": "Contents",
-    "attachments": "Attachments"
+    "attachments": "Attachments",
+    "info": "Info"
   },
   "detail": {
     "about": "About",
@@ -195,5 +196,16 @@
     "noDiff": "Nothing to compare.",
     "identical": "The description is identical in both versions.",
     "rulerHint": "Change map — click to jump to a section"
+  },
+  "info": {
+    "type": "Type",
+    "typeDocument": "Document",
+    "typeFolder": "Folder",
+    "created": "Created",
+    "updated": "Updated",
+    "version": "Version",
+    "descriptionVersion": "Content version",
+    "id": "ID",
+    "systemNote": "System document: renaming and deletion are unavailable."
   }
 }

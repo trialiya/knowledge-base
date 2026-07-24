@@ -131,9 +131,10 @@ const ChatWindow = ({
   // Ref to hold activeChatId at mount time so the initial fetch effect
   // doesn't need it in its dependency array (we only want this to run once).
   const initialActiveChatIdRef = useRef(activeChatId);
-  // chatId, заданный явно в URL (?chat=...) на момент монтирования. null — когда
-  // в URL чата нет (например, просто ?view=chat). Позволяет отличить «осознанную
-  // ссылку на чат» от id, подставленного из localStorage (он может быть устаревшим).
+  // chatId, заданный явно в URL (/chat/<id>) на момент монтирования. null — когда
+  // в адресе чата нет (просто /chat, либо открыт другой раздел). Позволяет
+  // отличить «осознанную ссылку на чат» от id, подставленного из localStorage
+  // (он может быть устаревшим).
   const initialPropChatIdRef = useRef(propActiveChatId);
   // Mirror of `chats` so callbacks can read the latest value synchronously
   // without listing `chats` in their dependency arrays (which would recreate
@@ -593,7 +594,9 @@ const ChatWindow = ({
       setChats((prev) => prev.filter((c) => c.id !== id));
       setDeletedNotice(true);
       const remaining = chatsRef.current.filter((c) => c.id !== id);
-      selectChat(remaining[0]?.id || null);
+      // Событие пришло извне (другая вкладка/сессия), а не от пользователя:
+      // если он сейчас в файлах или базе знаний — не утаскиваем его в чат.
+      selectChat(remaining[0]?.id || null, { navigate: false });
     },
     [selectChat],
   );

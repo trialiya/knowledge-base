@@ -5,33 +5,35 @@ import './KnowledgeBase.css';
 import TreeNode from './TreeNode';
 import FolderDetail from './FolderDetail';
 import DocumentDetail from './DocumentDetail';
+import DetailModals from './DetailModals';
 import AddModal from './AddModal';
 import MoveConfirmModal from './MoveConfirmModal';
 import ConfirmModal from '../common/ConfirmModal';
 import SearchResults from './SearchResults';
 import ErrorModal from '../common/ErrorModal';
+import WorkspaceLayout from '../common/WorkspaceLayout';
 import { IconPlus } from '../../icons';
 import useKnowledgeBase from './useKnowledgeBase';
+import useDetailPanel from './useDetailPanel';
+import useFolderChildren from './useFolderChildren';
+import { buildDetailTabs } from './detailSidebar';
 
 const KnowledgeBase = ({
-  onNavigateToChat,
   isActive,
   docId,
-  docTab,
   search,
   mode,
   refreshSignal,
   onRefreshingChange,
   onOpenDoc,
-  onTabChange,
   onSearch,
+  panels,
 }) => {
   const { t } = useTranslation('knowledgeBase');
 
   const {
     tree,
     selectedNode,
-    activeTab,
     searchQuery,
     searchResults,
     showAddModal,
@@ -43,7 +45,6 @@ const KnowledgeBase = ({
     discardConfirm,
     refreshing,
     path,
-    setActiveTab,
     setShowAddModal,
     setNotFoundDocId,
     setDocLoadError,
@@ -63,7 +64,24 @@ const KnowledgeBase = ({
     handleRefresh,
     handleDiscardConfirm,
     handleDiscardCancel,
-  } = useKnowledgeBase({ docId, docTab, search, mode, onOpenDoc, onTabChange, onSearch });
+  } = useKnowledgeBase({ docId, search, mode, onOpenDoc, onSearch });
+
+  // Состояние детали (черновик описания, полноэкранный режим, история, счётчик
+  // вложений) поднято сюда: его делят ЦЕНТР (редактор) и ПРАВАЯ панель
+  // (описание, вложения) — раньше оно жило внутри одной вкладки.
+  const {
+    attachmentCount,
+    setAttachmentCount,
+    fullscreen,
+    setFullscreen,
+    showHistory,
+    setShowHistory,
+    contentDraft,
+    setContentDraft,
+  } = useDetailPanel(selectedNode?.description || '', selectedNode?.id ?? null);
+
+  // Состав папки нужен правой панели, поэтому грузим его здесь, а не в FolderDetail.
+  const { children: folderChildren } = useFolderChildren(selectedNode, handleLoadChildren);
 
   // ── Refresh, инициированный кнопкой в шапке вкладок (App.js) ────────────────
   // App инкрементит refreshSignal; первый «холостой» рендер пропускаем.
@@ -85,59 +103,95 @@ const KnowledgeBase = ({
   const detailProps = {
     node: selectedNode,
     path,
-    tab: activeTab,
-    onTabChange: setActiveTab,
     onUpdate: handleUpdate,
     onDelete: handleDelete,
     onNavigate: selectNode,
     onRename: handleRename,
-    onSummarize: handleSummarize,
-    onLoadChildren: handleLoadChildren,
     tree,
+    contentDraft,
+    setContentDraft,
+    onExpandContent: () => setFullscreen('content'),
+    onHistory: () => setShowHistory(true),
   };
 
+  const center =
+    searchResults.length > 0 && !selectedNode ? (
+      <SearchResults query={searchQuery} results={searchResults} tree={tree} onSelect={selectNode} />
+    ) : selectedNode ? (
+      selectedNode.type === 'folder' ? (
+        <FolderDetail key={selectedNode.id} {...detailProps} />
+      ) : (
+        <DocumentDetail key={selectedNode.id} {...detailProps} />
+      )
+    ) : (
+      <div className="empty-preview">{t('empty.selectDocument')}</div>
+    );
+
+  // Правая панель осмысленна только когда узел выбран: у результатов поиска и у
+  // пустого экрана рассказывать не о чем — тогда её (и рельс) просто нет.
+  const rightTabs = selectedNode
+    ? buildDetailTabs({
+        node: selectedNode,
+        t,
+        tree,
+        onNavigate: selectNode,
+        onSummarize: handleSummarize,
+        onExpandAbout: () => setFullscreen('about'),
+        attachmentCount,
+        onAttachmentCountChange: setAttachmentCount,
+        folderChildren,
+      })
+    : null;
+
   return (
-    <div className="knowledge-base-container">
-      <div className="kb-main">
-        {/* ── Tree ── */}
-        <div className="kb-tree">
-          {/* Кнопка создания — в стиле «+ Новый чат» из списка чатов */}
-          <button className="kb-new-doc-button" onClick={() => setShowAddModal(true)}>
-            <IconPlus />
-            {t('tree.create')}
-          </button>
+    <>
+      <WorkspaceLayout
+        className="workspace--kb"
+        {...panels}
+        left={{
+          title: t('tree.title'),
+          action: (
+            <button type="button" className="btn btn--primary" onClick={() => setShowAddModal(true)}>
+              <IconPlus />
+              {t('tree.create')}
+            </button>
+          ),
+          children: (
+            <div className="tree-container">
+              {tree.map((node) => (
+                <TreeNode
+                  key={node.id}
+                  node={node}
+                  level={0}
+                  selectedId={selectedNode?.id}
+                  onSelect={selectNode}
+                  onDelete={handleDelete}
+                  onReorder={handleReorder}
+                  onLoadChildren={handleLoadChildren}
+                />
+              ))}
+            </div>
+          ),
+        }}
+        center={center}
+        right={rightTabs}
+      />
 
-          <div className="tree-container">
-            {tree.map((node) => (
-              <TreeNode
-                key={node.id}
-                node={node}
-                level={0}
-                selectedId={selectedNode?.id}
-                onSelect={selectNode}
-                onDelete={handleDelete}
-                onReorder={handleReorder}
-                onLoadChildren={handleLoadChildren}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* ── Detail / Search Results ── */}
-        <div className="kb-preview">
-          {searchResults.length > 0 && !selectedNode ? (
-            <SearchResults query={searchQuery} results={searchResults} tree={tree} onSelect={selectNode} />
-          ) : selectedNode ? (
-            selectedNode.type === 'folder' ? (
-              <FolderDetail key={selectedNode.id} {...detailProps} />
-            ) : (
-              <DocumentDetail key={selectedNode.id} {...detailProps} />
-            )
-          ) : (
-            <div className="empty-preview">{t('empty.selectDocument')}</div>
-          )}
-        </div>
-      </div>
+      {/* ── Полноэкранный редактор и история ── */}
+      {selectedNode && (
+        <DetailModals
+          node={selectedNode}
+          fullscreen={fullscreen}
+          onCloseFullscreen={() => setFullscreen(null)}
+          showHistory={showHistory}
+          onCloseHistory={() => setShowHistory(false)}
+          onUpdate={handleUpdate}
+          contentDraft={contentDraft}
+          setContentDraft={setContentDraft}
+          tree={tree}
+          onNavigate={selectNode}
+        />
+      )}
 
       {showAddModal && (
         <AddModal
@@ -211,7 +265,7 @@ const KnowledgeBase = ({
         message={saveError?.message || t('loadError.saveErrorMessage')}
         onClose={() => setSaveError(null)}
       />
-    </div>
+    </>
   );
 };
 

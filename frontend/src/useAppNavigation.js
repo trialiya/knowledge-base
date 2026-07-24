@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { DOC_TAB } from './constants/docTabs';
 import { SEARCH_MODE } from './constants/searchMode';
 import { readPanelState, savePanelState } from './panelState';
 
@@ -33,7 +32,6 @@ import { readPanelState, savePanelState } from './panelState';
  * Query-параметры (пишутся только когда отличаются от дефолта, чтобы адреса
  * оставались короткими и читаемыми):
  *
- *   ?tab=<docTab>   вкладка центра у документа KB (дефолт summary)
  *   ?q=, ?mode=     запрос и режим поиска KB (дефолт режима — hybrid)
  *   ?left=0         левая панель свёрнута (дефолт — раскрыта)
  *   ?right=<tab>    правая панель раскрыта на вкладке (дефолт — свёрнута)
@@ -59,6 +57,8 @@ import { readPanelState, savePanelState } from './panelState';
  * Старые ссылки (`/knowledge?doc=5&tab=content`, `?view=settings&chat=…`,
  * `/files?path=…`) продолжают открываться: readUrl понимает и старую форму, а
  * канонизирующий replaceState на старте переписывает адрес в новую схему.
+ * Вкладки центра `?tab=` больше нет — те её значения, что переехали в правую
+ * панель, разбираются в `?right=`.
  *
  * ⚠️ Деплой: путь-роутинг требует SPA-fallback на index.html, включая ВЛОЖЕННЫЕ
  * пути (/chat/<id>, /knowledge/doc/<id>, /files/<path…>). См. примечание в конце
@@ -132,19 +132,24 @@ function readUrl() {
     filePath = segs.length > 1 ? segs.slice(1).join('/') : p.get('path') || '';
   }
 
+  // Legacy `?tab=`: раньше это была вкладка ЦЕНТРА. Те из них, что переехали в
+  // правую панель, открываем в ней; `tab=content` терять не жалко — содержимое
+  // теперь и так в центре.
+  const legacyTab = p.get('tab');
+  const legacyRightTab = legacyTab && legacyTab !== 'content' ? legacyTab : null;
+
   return {
     view,
     chatId,
     docId,
-    docTab: p.get('tab') || DOC_TAB.SUMMARY,
     search,
     mode: p.get('mode') || SEARCH_MODE.HYBRID,
     filePath,
     leftCollapsed: p.get('left') === '0',
-    rightTab: p.get('right') || null,
+    rightTab: p.get('right') || legacyRightTab,
     // Есть ли в адресе явная раскладка панелей. Если нет — берём запомненную
     // для этого раздела (иначе ссылка без параметров всегда сбрасывала бы её).
-    hasPanelParams: p.has('left') || p.has('right'),
+    hasPanelParams: p.has('left') || p.has('right') || !!legacyRightTab,
     // Legacy ?chat= в адресе НЕ чат-раздела: в новую схему не попадает, но как
     // «последний чат» пригодится — иначе старая ссылка теряла бы его.
     legacyChatId: view !== 'chat' ? p.get('chat') || null : null,
@@ -160,7 +165,6 @@ function buildUrl(nav) {
     case 'knowledge':
       if (nav.docId) {
         path = `/knowledge/doc/${encodeURIComponent(nav.docId)}`;
-        if (nav.docTab && nav.docTab !== DOC_TAB.SUMMARY) p.set('tab', nav.docTab);
       } else if (nav.search) {
         path = '/knowledge/search';
         p.set('q', nav.search);
@@ -208,7 +212,6 @@ function initialNav() {
     view,
     chatId: u.chatId,
     docId: u.docId,
-    docTab: u.docTab,
     search: u.search,
     mode: u.mode,
     filePath: u.filePath,
@@ -233,21 +236,23 @@ export default function useAppNavigation() {
   // Адрес описывает только текущую запись истории, поэтому «Назад» на /chat
   // обнуляет docId, а /knowledge — chatId. Чтобы клик по вкладке возвращал туда
   // же, где пользователь был, помним последний ресурс каждого раздела здесь.
-  const memoryRef = useRef({
-    chatId: nav.chatId || readUrl().legacyChatId || null,
-    docId: nav.docId || null,
-    docTab: nav.docTab || DOC_TAB.SUMMARY,
-    filePath: nav.filePath || '',
-  });
+  // Ленивая инициализация: аргумент useRef вычисляется на КАЖДОМ рендере, а
+  // разбор адреса нужен ровно один раз (nav меняется часто — в т.ч. на каждый
+  // тумблер панели).
+  const memoryRef = useRef(null);
+  if (memoryRef.current === null) {
+    memoryRef.current = {
+      chatId: nav.chatId || readUrl().legacyChatId || null,
+      docId: nav.docId || null,
+      filePath: nav.filePath || '',
+    };
+  }
   useEffect(() => {
     const m = memoryRef.current;
     if (nav.chatId) m.chatId = nav.chatId;
-    if (nav.docId) {
-      m.docId = nav.docId;
-      m.docTab = nav.docTab || DOC_TAB.SUMMARY;
-    }
+    if (nav.docId) m.docId = nav.docId;
     if (nav.view === 'files' && nav.filePath) m.filePath = nav.filePath;
-  }, [nav.view, nav.chatId, nav.docId, nav.docTab, nav.filePath]);
+  }, [nav.view, nav.chatId, nav.docId, nav.filePath]);
 
   // Раскладку панелей запоминаем по разделам — при возврате в раздел она
   // восстановится (см. switchView).
@@ -257,33 +262,45 @@ export default function useAppNavigation() {
 
   // Флаг: изменение пришло из popstate — значит URL уже актуален, писать НЕ нужно.
   const fromPopRef = useRef(false);
-  // Способ записи следующего адреса. 'replace' ставят операции, которые не
-  // являются переходом (сворачивание панелей): они не должны копить историю.
+  // Способ записи следующего адреса. Ставится ТЕМ, кто инициирует изменение
+  // (pushNav / replaceNav), а не эффектом: setNav может вернуть прежнее
+  // состояние (например, раскрытие уже раскрытой вкладки), тогда эффект не
+  // запустится — и режим, сброшенный только в нём, протёк бы в следующий,
+  // настоящий переход, съев запись истории.
   const historyModeRef = useRef('push');
+  // Первую запись адреса всегда делаем через replaceState: на старте мы лишь
+  // канонизируем то, что уже открыто (legacy-ссылка → новая схема), а не
+  // переходим куда-то. Иначе «Назад» возвращал бы на исходный legacy-адрес,
+  // который тут же канонизируется снова — кнопка выглядела бы сломанной.
+  const wroteUrlRef = useRef(false);
+
+  /** Переход: новая запись в истории. */
+  const pushNav = useCallback((updater) => {
+    historyModeRef.current = 'push';
+    setNav(updater);
+  }, []);
+
+  /** Не переход (раскладка панелей): адрес обновляется на месте. */
+  const replaceNav = useCallback((updater) => {
+    historyModeRef.current = 'replace';
+    setNav(updater);
+  }, []);
 
   // ── Запись URL при изменении состояния ────────────────────────────────────
   useEffect(() => {
-    const mode = historyModeRef.current;
-    historyModeRef.current = 'push';
     if (fromPopRef.current) {
       // Это состояние выставлено обработчиком popstate — URL уже совпадает.
       fromPopRef.current = false;
+      wroteUrlRef.current = true;
       return;
     }
+    const mode = wroteUrlRef.current ? historyModeRef.current : 'replace';
     const next = buildUrl(nav);
+    wroteUrlRef.current = true;
     if (next === currentUrl()) return; // нет изменений — не плодим записи истории
     if (mode === 'replace') window.history.replaceState({}, '', next);
     else window.history.pushState({}, '', next);
   }, [nav]);
-
-  // На старте гарантируем, что адрес канонический (ресурс переехал в путь, legacy
-  // query срезан) — иначе первый «Назад» вести некуда.
-  useEffect(() => {
-    const canonical = buildUrl(navRef.current);
-    if (canonical !== currentUrl()) {
-      window.history.replaceState({}, '', canonical);
-    }
-  }, []);
 
   // ── popstate → состояние ───────────────────────────────────────────────────
   useEffect(() => {
@@ -300,7 +317,6 @@ export default function useAppNavigation() {
         // адресом. «Куда вернуться» живёт в memoryRef и применяется в switchView.
         chatId: u.chatId,
         docId: u.docId,
-        docTab: u.docTab,
         search: u.search,
         mode: u.mode,
         filePath: u.filePath,
@@ -319,48 +335,52 @@ export default function useAppNavigation() {
    * Восстанавливает последний открытый ресурс раздела (чат / документ / путь) и
    * запомненную для него раскладку панелей.
    */
-  const switchView = useCallback((view) => {
-    setNav((prev) => {
-      if (prev.view === view) return prev;
-      const m = memoryRef.current;
-      const panels = readPanelState(view);
-      const next = { ...prev, ...panels, view };
-      if (view === 'chat') next.chatId = prev.chatId || m.chatId || null;
-      if (view === 'knowledge' && !prev.docId && !prev.search && m.docId) {
-        next.docId = m.docId;
-        next.docTab = m.docTab || DOC_TAB.SUMMARY;
-      }
-      if (view === 'files' && !prev.filePath) next.filePath = m.filePath || '';
-      return next;
-    });
-  }, []);
+  const switchView = useCallback(
+    (view) => {
+      pushNav((prev) => {
+        if (prev.view === view) return prev;
+        const m = memoryRef.current;
+        const panels = readPanelState(view);
+        const next = { ...prev, ...panels, view };
+        if (view === 'chat') next.chatId = prev.chatId || m.chatId || null;
+        if (view === 'knowledge' && !prev.docId && !prev.search && m.docId) next.docId = m.docId;
+        if (view === 'files' && !prev.filePath) next.filePath = m.filePath || '';
+        return next;
+      });
+    },
+    [pushNav],
+  );
 
   /** Открыть документ в KB (из чата, doc-ссылки, дерева). */
-  const openDoc = useCallback((docId, docTab = DOC_TAB.SUMMARY) => {
-    const id = docId == null ? null : String(docId);
-    setNav((prev) => ({ ...prev, view: 'knowledge', docId: id, docTab, search: '', mode: prev.mode }));
-  }, []);
-
-  /** Сменить вкладку детали документа (summary/content/…). */
-  const setDocTab = useCallback((docTab) => {
-    setNav((prev) => (prev.docTab === docTab ? prev : { ...prev, docTab }));
-  }, []);
+  const openDoc = useCallback(
+    (docId) => {
+      const id = docId == null ? null : String(docId);
+      pushNav((prev) => ({ ...prev, view: 'knowledge', docId: id, search: '', mode: prev.mode }));
+    },
+    [pushNav],
+  );
 
   /** Запустить поиск в KB (сбрасывает выбранный документ). */
-  const setSearch = useCallback((search, mode) => {
-    setNav((prev) => ({
-      ...prev,
-      view: 'knowledge',
-      docId: search ? null : prev.docId, // при активном поиске документ не выбран
-      search,
-      mode: mode ?? prev.mode,
-    }));
-  }, []);
+  const setSearch = useCallback(
+    (search, mode) => {
+      pushNav((prev) => ({
+        ...prev,
+        view: 'knowledge',
+        docId: search ? null : prev.docId, // при активном поиске документ не выбран
+        search,
+        mode: mode ?? prev.mode,
+      }));
+    },
+    [pushNav],
+  );
 
   /** Открыть путь в файловом браузере ('' — корень репозитория). */
-  const openFilePath = useCallback((path) => {
-    setNav((prev) => ({ ...prev, view: 'files', filePath: path || '' }));
-  }, []);
+  const openFilePath = useCallback(
+    (path) => {
+      pushNav((prev) => ({ ...prev, view: 'files', filePath: path || '' }));
+    },
+    [pushNav],
+  );
 
   /**
    * Открыть/сменить активный чат.
@@ -373,19 +393,21 @@ export default function useAppNavigation() {
    * на файл или документ нельзя было бы поделиться. Выбор при этом запоминается
    * (memoryRef) и попадает в адрес, как только пользователь вернётся в чат.
    */
-  const openChat = useCallback((chatId, { navigate = true } = {}) => {
-    const id = chatId == null ? null : String(chatId);
-    if (id) memoryRef.current.chatId = id;
-    setNav((prev) => (!navigate && prev.view !== 'chat' ? prev : { ...prev, view: 'chat', chatId: id }));
-  }, []);
+  const openChat = useCallback(
+    (chatId, { navigate = true } = {}) => {
+      const id = chatId == null ? null : String(chatId);
+      if (id) memoryRef.current.chatId = id;
+      pushNav((prev) => (!navigate && prev.view !== 'chat' ? prev : { ...prev, view: 'chat', chatId: id }));
+    },
+    [pushNav],
+  );
 
   // ── Раскладка панелей (replaceState: это не переход) ────────────────────────
 
   /** Свернуть/раскрыть левую панель текущего раздела. */
   const toggleLeftPanel = useCallback(() => {
-    historyModeRef.current = 'replace';
-    setNav((prev) => ({ ...prev, leftCollapsed: !prev.leftCollapsed }));
-  }, []);
+    replaceNav((prev) => ({ ...prev, leftCollapsed: !prev.leftCollapsed }));
+  }, [replaceNav]);
 
   /**
    * Раскрыть правую панель на вкладке `tab`, либо свернуть её (`null`).
@@ -394,16 +416,17 @@ export default function useAppNavigation() {
    * «повторный вызов сворачивает» дало бы ровно обратный эффект. Свернуть можно
    * кнопкой в шапке панели (она передаёт null).
    */
-  const setRightTab = useCallback((tab) => {
-    historyModeRef.current = 'replace';
-    setNav((prev) => (prev.rightTab === (tab || null) ? prev : { ...prev, rightTab: tab || null }));
-  }, []);
+  const setRightTab = useCallback(
+    (tab) => {
+      replaceNav((prev) => (prev.rightTab === (tab || null) ? prev : { ...prev, rightTab: tab || null }));
+    },
+    [replaceNav],
+  );
 
   return {
     nav,
     switchView,
     openDoc,
-    setDocTab,
     setSearch,
     openChat,
     openFilePath,

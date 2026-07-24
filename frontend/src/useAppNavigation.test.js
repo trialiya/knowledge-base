@@ -15,9 +15,9 @@ beforeEach(() => {
 
 describe('чтение адреса', () => {
   it('разбирает ресурс из пути', () => {
-    go('/knowledge/doc/42?tab=content');
+    go('/knowledge/doc/42');
     const { result } = renderHook(() => useAppNavigation());
-    expect(result.current.nav).toMatchObject({ view: 'knowledge', docId: '42', docTab: 'content' });
+    expect(result.current.nav).toMatchObject({ view: 'knowledge', docId: '42' });
   });
 
   it('разбирает поиск', () => {
@@ -52,12 +52,12 @@ describe('построение адреса', () => {
 
   it('не пишет дефолтные значения в query', () => {
     const { result } = renderHook(() => useAppNavigation());
-    act(() => result.current.openDoc('7')); // tab=summary — дефолт
+    act(() => result.current.openDoc('7'));
     expect(url()).toBe('/knowledge/doc/7');
-    act(() => result.current.setDocTab('content'));
-    expect(url()).toBe('/knowledge/doc/7?tab=content');
     act(() => result.current.setSearch('фраза', 'hybrid')); // mode=hybrid — дефолт
     expect(url()).toBe('/knowledge/search?q=%D1%84%D1%80%D0%B0%D0%B7%D0%B0');
+    act(() => result.current.setSearch('фраза', 'semantic'));
+    expect(url()).toBe('/knowledge/search?q=%D1%84%D1%80%D0%B0%D0%B7%D0%B0&mode=semantic');
   });
 
   it('не тащит активный чат в адреса других разделов', () => {
@@ -73,8 +73,28 @@ describe('обратная совместимость со старой схем
   it('открывает старую ссылку на документ и канонизирует адрес', () => {
     go('/knowledge?doc=5&tab=content&chat=old-chat');
     const { result } = renderHook(() => useAppNavigation());
-    expect(result.current.nav).toMatchObject({ view: 'knowledge', docId: '5', docTab: 'content' });
-    expect(url()).toBe('/knowledge/doc/5?tab=content');
+    expect(result.current.nav).toMatchObject({ view: 'knowledge', docId: '5' });
+    // tab=content означал «показать содержимое» — теперь оно и так в центре.
+    expect(url()).toBe('/knowledge/doc/5');
+  });
+
+  it('переносит вкладки старого ?tab= в правую панель', () => {
+    // summary/contents/attachments были вкладками центра, а теперь живут справа.
+    go('/knowledge?doc=5&tab=attachments');
+    const { result } = renderHook(() => useAppNavigation());
+    expect(result.current.nav.rightTab).toBe('attachments');
+    expect(url()).toBe('/knowledge/doc/5?right=attachments');
+  });
+
+  it('канонизирует адрес НА МЕСТЕ, не добавляя запись в историю', () => {
+    // Канонизация — это не переход: с pushState «Назад» возвращал бы на
+    // legacy-адрес, который тут же канонизируется снова, и кнопка выглядела бы
+    // сломанной.
+    go('/knowledge?doc=5&tab=content');
+    const before = window.history.length;
+    renderHook(() => useAppNavigation());
+    expect(url()).toBe('/knowledge/doc/5');
+    expect(window.history.length).toBe(before);
   });
 
   it('открывает старую ссылку на файл', () => {
@@ -158,6 +178,20 @@ describe('раскладка панелей', () => {
     act(() => result.current.toggleLeftPanel());
     act(() => result.current.setRightTab('attachments'));
     expect(window.history.length).toBe(before);
+  });
+
+  it('холостое раскрытие панели не съедает следующую запись истории', () => {
+    // Режим записи ставит инициатор изменения. Если бы его сбрасывал эффект,
+    // «раскрыть уже раскрытую вкладку» (так делает загрузка вложения при
+    // открытой панели) не вызвало бы ре-рендер, и 'replace' протёк бы в
+    // следующий переход — тот записался бы поверх текущей записи.
+    const { result } = renderHook(() => useAppNavigation());
+    act(() => result.current.setRightTab('attachments'));
+    act(() => result.current.setRightTab('attachments')); // холостой вызов
+    const before = window.history.length;
+    act(() => result.current.openChat('c1'));
+    expect(window.history.length).toBe(before + 1);
+    expect(url()).toBe('/chat/c1?right=attachments');
   });
 
   it('раскладка запоминается отдельно для каждого раздела', () => {

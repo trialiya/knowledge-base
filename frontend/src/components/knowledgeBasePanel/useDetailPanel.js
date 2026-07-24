@@ -1,31 +1,51 @@
 import { useState, useEffect, useRef } from 'react';
 
 /**
- * Local UI state shared by FolderDetail and DocumentDetail:
- *   - attachmentCount: badge count reported by AttachmentPanel
- *   - fullscreen: 'about' | 'content' | null (which pane is expanded)
- *   - showHistory: history modal open?
+ * Состояние детали узла базы знаний, общее для ЦЕНТРА (редактор содержимого) и
+ * ПРАВОЙ панели (описание, вложения):
+ *   - attachmentCount: счётчик, который сообщает AttachmentPanel
+ *   - fullscreen: 'about' | 'content' | null (что раскрыто на весь экран)
+ *   - showHistory: открыта ли модалка истории
  *   - contentDraft: «поднятый» черновик описания, чтобы встроенный редактор и
  *     полноэкранный («развернуть») делили один источник правды.
  *
- * @param savedContent — текущее сохранённое описание узла (node.description).
+ * Хук живёт в KnowledgeBase, то есть переживает смену выбранного узла (раньше он
+ * сидел внутри DocumentDetail с `key={node.id}` и просто пересоздавался).
+ * Поэтому смену узла он обрабатывает сам — иначе черновик одного документа
+ * протекал бы в другой и редактор предлагал сохранить чужой текст.
+ *
+ * @param savedContent — сохранённое описание узла (node.description)
+ * @param nodeId       — id узла; его смена сбрасывает состояние детали
  */
-export default function useDetailPanel(savedContent = '') {
+export default function useDetailPanel(savedContent = '', nodeId = null) {
   const [attachmentCount, setAttachmentCount] = useState(0);
   const [fullscreen, setFullscreen] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
   const [contentDraft, setContentDraft] = useState(savedContent);
 
-  // Когда сохранённое описание меняется извне (сохранение, восстановление из
-  // истории, рефетч), подхватываем его в черновик — но только если у
-  // пользователя нет несохранённых правок (черновик == прежнее сохранённое).
-  // Так внешнее обновление не затирает правки в процессе редактирования.
   const savedRef = useRef(savedContent);
+  const nodeRef = useRef(nodeId);
+
   useEffect(() => {
+    if (nodeId !== nodeRef.current) {
+      // Открыт другой узел — начинаем с чистого листа: черновик, развёрнутый
+      // редактор и история относились к предыдущему документу.
+      nodeRef.current = nodeId;
+      savedRef.current = savedContent;
+      setContentDraft(savedContent);
+      setFullscreen(null);
+      setShowHistory(false);
+      setAttachmentCount(0);
+      return;
+    }
+    // Тот же узел, но сохранённое описание изменилось извне (сохранение,
+    // восстановление из истории, догрузка полного документа поверх краткого
+    // стаба из дерева) — подхватываем его в черновик, но только если у
+    // пользователя нет несохранённых правок (черновик == прежнее сохранённое).
     if (savedContent === savedRef.current) return;
     setContentDraft((prev) => (prev === savedRef.current ? savedContent : prev));
     savedRef.current = savedContent;
-  }, [savedContent]);
+  }, [nodeId, savedContent]);
 
   return {
     attachmentCount,
