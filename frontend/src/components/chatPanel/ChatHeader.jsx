@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconPaperclip, IconTrash, IconSearch } from '../../icons';
+import { IconTrash, IconSearch } from '../../icons';
 
 /**
  * Шапка активного чата: заголовок с инлайн-переименованием, дата создания и
- * кнопки поиска/вложений/удаления. Вынесено из ChatWindow — состояние
- * редактирования заголовка живёт здесь и не ре-рендерит оркестратор на каждый
- * keystroke. Селекторы модели/режима переехали под поле ввода (ComposerToolbar).
+ * кнопки поиска/удаления. Вынесено из ChatWindow — состояние редактирования
+ * заголовка живёт здесь и не ре-рендерит оркестратор на каждый keystroke.
+ * Селекторы модели/режима переехали под поле ввода (ComposerToolbar), вложения —
+ * в правую панель рабочей области (её тумблер общий для всех разделов).
  *
  * `chat` обязателен (не null) — условие рендера держит вызывающая сторона
  * (ChatWindow: activeChat && <ChatHeader …/>). Так внутри нет раннего return
@@ -17,23 +18,10 @@ import { IconPaperclip, IconTrash, IconSearch } from '../../icons';
  *   canSearch       — доступен ли find-бар для этого чата
  *   searchOpen      — find-бар открыт (подсветка кнопки)
  *   onToggleSearch  — () => void
- *   attachPanelOpen — панель вложений открыта (подсветка кнопки)
- *   attachCount     — счётчик для бейджа на кнопке вложений
- *   onToggleAttach  — () => void
  *   onRename        — (chatId, title) => void
  *   onDelete        — (chatId) => void
  */
-const ChatHeader = ({
-  chat,
-  canSearch,
-  searchOpen,
-  onToggleSearch,
-  attachPanelOpen,
-  attachCount,
-  onToggleAttach,
-  onRename,
-  onDelete,
-}) => {
+const ChatHeader = ({ chat, canSearch, searchOpen, onToggleSearch, onRename, onDelete }) => {
   const { t } = useTranslation('chat');
   // Черновик переименования. Храним ВМЕСТЕ с id чата, для которого оно началось:
   // активный чат может смениться до blur (выбор в поиске, синхронизация из другой
@@ -97,15 +85,6 @@ const ChatHeader = ({
           <IconSearch size={14} />
         </button>
       )}
-      {/* Attachment toggle button in header */}
-      <button
-        className={`chat-header-attachments-btn ${attachPanelOpen ? 'chat-header-attachments-btn--active' : ''}`}
-        onClick={onToggleAttach}
-        title={t('window.attachments')}
-      >
-        <IconPaperclip size={15} />
-        {attachCount > 0 && <span className="attach-badge">{attachCount}</span>}
-      </button>
       <button className="chat-header-delete" onClick={() => onDelete(chat.id)}>
         <IconTrash />
       </button>

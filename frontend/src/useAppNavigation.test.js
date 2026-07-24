@@ -95,6 +95,27 @@ describe('обратная совместимость со старой схем
   });
 });
 
+describe('фоновый выбор чата', () => {
+  it('не уводит с открытого раздела и не трогает адрес', () => {
+    // Панель чата смонтирована всегда и при загрузке сама выбирает чат. Без
+    // navigate:false она утаскивала бы deep link на файл в /chat.
+    go('/files/backend/build.gradle');
+    const { result } = renderHook(() => useAppNavigation());
+    act(() => result.current.openChat('auto-picked', { navigate: false }));
+    expect(result.current.nav.view).toBe('files');
+    expect(url()).toBe('/files/backend/build.gradle');
+    // Но выбор запомнен — возврат в чат открывает именно его.
+    act(() => result.current.switchView('chat'));
+    expect(url()).toBe('/chat/auto-picked');
+  });
+
+  it('находясь в чате, фоновый выбор всё же попадает в адрес', () => {
+    const { result } = renderHook(() => useAppNavigation());
+    act(() => result.current.openChat('auto-picked', { navigate: false }));
+    expect(url()).toBe('/chat/auto-picked');
+  });
+});
+
 describe('память последнего открытого', () => {
   it('возвращает в раздел последний ресурс', () => {
     const { result } = renderHook(() => useAppNavigation());
@@ -119,10 +140,14 @@ describe('раскладка панелей', () => {
     expect(url()).toBe('/chat?right=attachments');
   });
 
-  it('повторный клик по активной вкладке сворачивает правую панель', () => {
+  it('повторное раскрытие той же вкладки не сворачивает панель', () => {
+    // Панель раскрывают и действия (загрузили вложение → показать вложения),
+    // поэтому сеттер не переключающий: свернуть можно только явным null.
     const { result } = renderHook(() => useAppNavigation());
     act(() => result.current.setRightTab('attachments'));
     act(() => result.current.setRightTab('attachments'));
+    expect(result.current.nav.rightTab).toBe('attachments');
+    act(() => result.current.setRightTab(null));
     expect(result.current.nav.rightTab).toBeNull();
     expect(url()).toBe('/chat');
   });

@@ -141,6 +141,7 @@ function App() {
             activeChatId={nav.chatId}
             onSelectChat={openChat}
             onNavigateToDoc={openDoc}
+            panels={panels}
           />
         </div>
 

@@ -362,10 +362,21 @@ export default function useAppNavigation() {
     setNav((prev) => ({ ...prev, view: 'files', filePath: path || '' }));
   }, []);
 
-  /** Открыть/сменить активный чат. */
-  const openChat = useCallback((chatId) => {
+  /**
+   * Открыть/сменить активный чат.
+   *
+   * `navigate: false` — «чат выбран фоном, а не пользователем»: так ChatWindow
+   * сообщает про автовыбор при загрузке (первый чат из списка, либо пустой
+   * черновик, когда чатов нет). Панель чата смонтирована всегда, в том числе
+   * когда открыт другой раздел, поэтому безусловный переход уводил бы с
+   * /files/<путь> или /knowledge/doc/<id> на /chat сразу после старта — ссылкой
+   * на файл или документ нельзя было бы поделиться. Выбор при этом запоминается
+   * (memoryRef) и попадает в адрес, как только пользователь вернётся в чат.
+   */
+  const openChat = useCallback((chatId, { navigate = true } = {}) => {
     const id = chatId == null ? null : String(chatId);
-    setNav((prev) => ({ ...prev, view: 'chat', chatId: id }));
+    if (id) memoryRef.current.chatId = id;
+    setNav((prev) => (!navigate && prev.view !== 'chat' ? prev : { ...prev, view: 'chat', chatId: id }));
   }, []);
 
   // ── Раскладка панелей (replaceState: это не переход) ────────────────────────
@@ -378,11 +389,14 @@ export default function useAppNavigation() {
 
   /**
    * Раскрыть правую панель на вкладке `tab`, либо свернуть её (`null`).
-   * Повторный клик по активной вкладке сворачивает панель.
+   * Сеттер намеренно НЕ переключающий: панель раскрывают не только кликом по
+   * тумблеру, но и действия (загрузили вложение → показать вложения), и для них
+   * «повторный вызов сворачивает» дало бы ровно обратный эффект. Свернуть можно
+   * кнопкой в шапке панели (она передаёт null).
    */
   const setRightTab = useCallback((tab) => {
     historyModeRef.current = 'replace';
-    setNav((prev) => ({ ...prev, rightTab: prev.rightTab === tab ? null : tab || null }));
+    setNav((prev) => (prev.rightTab === (tab || null) ? prev : { ...prev, rightTab: tab || null }));
   }, []);
 
   return {

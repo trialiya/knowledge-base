@@ -28,6 +28,7 @@ const RightPanel = ({ tabs, activeKey, onTabChange, onClose }) => {
           <span className="workspace__side-title">
             {active.icon}
             {active.label}
+            {active.badge > 0 && <span className="workspace__tab-badge">{active.badge}</span>}
           </span>
         ) : (
           <div className="workspace__tabs" role="tablist">

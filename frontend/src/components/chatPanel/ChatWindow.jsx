@@ -20,12 +20,18 @@ import useChatDrafts from './useChatDrafts';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import ChatList from './ChatList';
+import ChatSearch from './ChatSearch';
 import ChatHeader from './ChatHeader';
 import ChatSearchBar from './ChatSearchBar';
 import AttachmentPanel from '../common/AttachmentPanel';
+import WorkspaceLayout from '../common/WorkspaceLayout';
+import { IconPaperclip, IconPlus } from '../../icons';
 import './chatWindow.css';
 import ErrorModal from '../common/ErrorModal';
 import ConfirmModal from '../common/ConfirmModal';
+
+/** Ключ вкладки правой панели чата (попадает в URL как ?right=attachments). */
+const RIGHT_TAB_ATTACHMENTS = 'attachments';
 
 const generateUUID = () => {
   if (crypto?.randomUUID) {
@@ -37,7 +43,13 @@ const generateUUID = () => {
   });
 };
 
-const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActiveChatId = null, onSelectChat }) => {
+const ChatWindow = ({
+  onNavigateToDoc,
+  isActive = true,
+  activeChatId: propActiveChatId = null,
+  onSelectChat,
+  panels,
+}) => {
   const { t } = useTranslation('chat');
   const [chats, setChats] = useState([]);
   // Внутреннее зеркало активного чата. Источник правды — проп propActiveChatId
@@ -50,11 +62,14 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
   // Поднять выбор чата наверх (в навигацию). Локальный стейт обновится, когда
   // App вернёт новый propActiveChatId — но мы также обновляем его сразу, чтобы
   // не зависеть от round-trip и сохранить мгновенную реакцию UI.
+  // `navigate: false` — выбор сделан не пользователем, а автоматикой загрузки:
+  // тогда навигация лишь запомнит чат, но не утащит с открытого раздела (панель
+  // чата смонтирована всегда, в том числе поверх /files и /knowledge).
   const selectChat = useCallback(
-    (id) => {
+    (id, opts) => {
       setActiveChatId(id);
       if (id) localStorage.setItem(STORAGE_KEY_ACTIVE_CHAT, id);
-      if (onSelectChat) onSelectChat(id);
+      if (onSelectChat) onSelectChat(id, opts);
     },
     [onSelectChat],
   );
@@ -72,8 +87,10 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
     }),
     [],
   );
-  const [attachPanelOpen, setAttachPanelOpen] = useState(false);
   const [attachCount, setAttachCount] = useState(0);
+  // Вложения живут в правой панели рабочей области — её состояние приходит из
+  // навигации (URL), поэтому локального attachPanelOpen здесь больше нет.
+  const openAttachments = panels?.onRightTabChange;
   // Конфиг моделей и режимов грузится один раз — вынесено в отдельные хуки.
   const { modelConfig, modelOptions } = useModelConfig();
   const { modeOptions } = useModeConfig();
@@ -187,13 +204,15 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
           // Чат в URL не задан (его нет вовсе, либо id из localStorage устарел) —
           // ошибку НЕ показываем: открываем первый существующий чат, а если чатов
           // нет — стартуем с пустого черновика «new» (поведение как у «Новый чат»).
+          // Автовыбор при загрузке — не переход: если открыт другой раздел
+          // (deep link на файл/документ), пользователя оттуда не уводим.
           const firstId = chatList[0]?.id;
           if (firstId) {
             setChats(chatList);
-            selectChat(firstId);
+            selectChat(firstId, { navigate: false });
           } else {
             setChats([makeDraft()]);
-            selectChat(DRAFT_CHAT_ID);
+            selectChat(DRAFT_CHAT_ID, { navigate: false });
           }
         }
       } catch (err) {
@@ -715,161 +734,167 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
       try {
         await attachmentApi.upload('chat', activeChatId, file);
         setAttachCount((n) => n + 1);
-        // Open attachment panel to show the uploaded file
-        setAttachPanelOpen(true);
+        // Показываем загруженный файл — раскрываем правую панель на вложениях.
+        openAttachments?.(RIGHT_TAB_ATTACHMENTS);
       } catch (err) {
         console.error('Upload error:', err);
         setUploadErrorNotice(true);
       }
     },
-    [activeChatId],
+    [activeChatId, openAttachments],
   );
 
   // Суффикс с кодом ошибки для сообщения модалки (если это не сетевой сбой).
   const errorModalSuffix = chatErrorModal && chatErrorModal.status !== 'network' ? ` (${chatErrorModal.status})` : '';
 
-  return (
-    <div className="chat-app-container">
-      {/* ── Left sidebar: chat list only ── */}
-      <ChatList
-        chats={visibleChats}
-        activeChatId={activeChatId}
-        onSelectChat={handleSelectChat}
-        onNewChat={handleNewChat}
-        onDeleteChat={handleDeleteChat}
-        onRenameChat={renameChat}
-        onSearchSelect={handleChatSearchSelect}
+  // ── Центр: шапка чата, найденное, лента сообщений и поле ввода ──────────────
+  const center = (
+    <>
+      {activeChat && (
+        <ChatHeader
+          chat={activeChat}
+          canSearch={canSearchChat}
+          searchOpen={inChatSearch.open}
+          onToggleSearch={() => (inChatSearch.open ? inChatSearch.close() : inChatSearch.openBar())}
+          onRename={renameChat}
+          onDelete={handleDeleteChat}
+        />
+      )}
+
+      {inChatSearch.open && canSearchChat && (
+        <ChatSearchBar
+          inputRef={inChatSearchInputRef}
+          query={inChatSearch.query}
+          onQueryChange={inChatSearch.setQuery}
+          total={inChatSearch.total}
+          activeIndex={inChatSearch.activeIndex}
+          loading={inChatSearch.loading}
+          onPrev={inChatSearch.goPrev}
+          onNext={inChatSearch.goNext}
+          onClose={inChatSearch.close}
+        />
+      )}
+
+      {loadingMessages ? (
+        <div className="loading-messages">{t('window.loadingMessages')}</div>
+      ) : activeChat?.notFound || activeChat?.loadError ? (
+        <div className="loading-messages" style={{ flexDirection: 'column', gap: '0.5rem' }}>
+          <span style={{ fontSize: '2rem' }}>{activeChat?.notFound ? '🔍' : '⚠️'}</span>
+          <span>{activeChat?.notFound ? t('window.notFoundTitle') : t('window.loadErrorTitle')}</span>
+          <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>
+            {activeChat?.notFound
+              ? t('window.notFoundDesc')
+              : t('window.loadErrorDesc', { status: activeChat?.loadError })}
+          </span>
+        </div>
+      ) : (
+        <MessageList
+          key={activeChatId}
+          conversationId={activeChatId}
+          messages={activeMessages}
+          onNavigateToDoc={onNavigateToDoc}
+          onLoadMore={handleLoadOlder}
+          onRetry={handleRetryMessage}
+          hasMore={!!activeChat?.hasMore}
+          canLoadMore={!isStreaming}
+          activeSearchMid={inChatSearch.activeMatchMid}
+          searchQuery={inChatSearch.open ? inChatSearch.query.trim() : ''}
+        />
+      )}
+
+      {/* Message input with inline attach */}
+      <input
+        ref={attachFileRef}
+        type="file"
+        style={{ display: 'none' }}
+        accept="text/*,.md,.json,.yaml,.yml,.xml,.csv,.log,.sql,.java,.js,.jsx,.ts,.tsx,.py,.go,.rs,.html,.css"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleAttachFile(file);
+          e.target.value = '';
+        }}
       />
-
-      {/* ── Center: chat window ── */}
-      <div className="chat-window">
-        {activeChat && (
-          <ChatHeader
-            chat={activeChat}
-            canSearch={canSearchChat}
-            searchOpen={inChatSearch.open}
-            onToggleSearch={() => (inChatSearch.open ? inChatSearch.close() : inChatSearch.openBar())}
-            attachPanelOpen={attachPanelOpen}
-            attachCount={attachCount}
-            onToggleAttach={() => setAttachPanelOpen((v) => !v)}
-            onRename={renameChat}
-            onDelete={handleDeleteChat}
-          />
-        )}
-
-        {inChatSearch.open && canSearchChat && (
-          <ChatSearchBar
-            inputRef={inChatSearchInputRef}
-            query={inChatSearch.query}
-            onQueryChange={inChatSearch.setQuery}
-            total={inChatSearch.total}
-            activeIndex={inChatSearch.activeIndex}
-            loading={inChatSearch.loading}
-            onPrev={inChatSearch.goPrev}
-            onNext={inChatSearch.goNext}
-            onClose={inChatSearch.close}
-          />
-        )}
-
-        {loadingMessages ? (
-          <div className="loading-messages">{t('window.loadingMessages')}</div>
-        ) : activeChat?.notFound || activeChat?.loadError ? (
-          <div className="loading-messages" style={{ flexDirection: 'column', gap: '0.5rem' }}>
-            <span style={{ fontSize: '2rem' }}>{activeChat?.notFound ? '🔍' : '⚠️'}</span>
-            <span>{activeChat?.notFound ? t('window.notFoundTitle') : t('window.loadErrorTitle')}</span>
-            <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>
-              {activeChat?.notFound
-                ? t('window.notFoundDesc')
-                : t('window.loadErrorDesc', { status: activeChat?.loadError })}
-            </span>
-          </div>
-        ) : (
-          <MessageList
-            key={activeChatId}
-            conversationId={activeChatId}
-            messages={activeMessages}
-            onNavigateToDoc={onNavigateToDoc}
-            onLoadMore={handleLoadOlder}
-            onRetry={handleRetryMessage}
-            hasMore={!!activeChat?.hasMore}
-            canLoadMore={!isStreaming}
-            activeSearchMid={inChatSearch.activeMatchMid}
-            searchQuery={inChatSearch.open ? inChatSearch.query.trim() : ''}
-          />
-        )}
-
-        {/* Message input with inline attach */}
-        <input
-          ref={attachFileRef}
-          type="file"
-          style={{ display: 'none' }}
-          accept="text/*,.md,.json,.yaml,.yml,.xml,.csv,.log,.sql,.java,.js,.jsx,.ts,.tsx,.py,.go,.rs,.html,.css"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) handleAttachFile(file);
-            e.target.value = '';
+      {activeChat?.notFound || activeChat?.loadError ? (
+        <div className="message-input-wrapper message-input-wrapper--disabled">
+          <span className="message-input-disabled-note">
+            {activeChat?.notFound ? t('window.notFoundInputNote') : t('window.loadErrorInputNote')}
+          </span>
+        </div>
+      ) : (
+        <MessageInput
+          onSend={handleSendMessage}
+          onStop={handleStopGeneration}
+          disabled={isStreaming}
+          onAttach={() => attachFileRef.current?.click()}
+          isEmpty={isChatEmpty && !loadingMessages}
+          resetSignal={composerResetSignal}
+          focusSignal={composerFocusSignal}
+          chatId={activeChatId}
+          initialText={getDraftFor(activeChatId)}
+          onTextChange={(v) => handleComposerTextChange(activeChatId, v)}
+          model={{
+            config: modelConfig,
+            options: modelOptions,
+            selected: selectedModelId,
+            onChange: handleModelChange,
+          }}
+          mode={{
+            options: modeOptions,
+            selected: selectedModeId,
+            onChange: handleModeChange,
           }}
         />
-        {activeChat?.notFound || activeChat?.loadError ? (
-          <div className="message-input-wrapper message-input-wrapper--disabled">
-            <span className="message-input-disabled-note">
-              {activeChat?.notFound ? t('window.notFoundInputNote') : t('window.loadErrorInputNote')}
-            </span>
-          </div>
-        ) : (
-          <MessageInput
-            onSend={handleSendMessage}
-            onStop={handleStopGeneration}
-            disabled={isStreaming}
-            onAttach={() => attachFileRef.current?.click()}
-            isEmpty={isChatEmpty && !loadingMessages}
-            resetSignal={composerResetSignal}
-            focusSignal={composerFocusSignal}
-            chatId={activeChatId}
-            initialText={getDraftFor(activeChatId)}
-            onTextChange={(v) => handleComposerTextChange(activeChatId, v)}
-            model={{
-              config: modelConfig,
-              options: modelOptions,
-              selected: selectedModelId,
-              onChange: handleModelChange,
-            }}
-            mode={{
-              options: modeOptions,
-              selected: selectedModeId,
-              onChange: handleModeChange,
-            }}
-          />
-        )}
-      </div>
-
-      {/* ── Right panel: attachments ── */}
-      {attachPanelOpen && (
-        <div className="chat-attachment-panel">
-          <div className="chat-attachment-panel__header">
-            <span>📎 {t('window.attachments')}</span>
-            <button
-              className="chat-attachment-panel__close"
-              onClick={() => setAttachPanelOpen(false)}
-              title={t('common:close')}
-            >
-              ✕
-            </button>
-          </div>
-          <div className="chat-attachment-panel__body">
-            {activeChatId ? (
-              <AttachmentPanel
-                key={activeChatId}
-                ownerType={OWNER_TYPE.CHAT}
-                ownerId={activeChatId}
-                onCountChange={setAttachCount}
-              />
-            ) : (
-              <p className="chat-attachment-panel__empty">{t('window.selectChat')}</p>
-            )}
-          </div>
-        </div>
       )}
+    </>
+  );
+
+  // ── Правая панель: пока только вложения активного чата ──────────────────────
+  const rightTabs = [
+    {
+      key: RIGHT_TAB_ATTACHMENTS,
+      label: t('window.attachments'),
+      icon: <IconPaperclip size={16} />,
+      badge: attachCount,
+      content: activeChatId ? (
+        <AttachmentPanel
+          key={activeChatId}
+          ownerType={OWNER_TYPE.CHAT}
+          ownerId={activeChatId}
+          onCountChange={setAttachCount}
+        />
+      ) : (
+        <p className="chat-empty-note">{t('window.selectChat')}</p>
+      ),
+    },
+  ];
+
+  return (
+    <>
+      <WorkspaceLayout
+        className="workspace--chat"
+        {...panels}
+        left={{
+          title: t('list.title'),
+          action: (
+            <button type="button" onClick={handleNewChat} className="btn btn--primary">
+              <IconPlus />
+              {t('list.newChat')}
+            </button>
+          ),
+          toolbar: <ChatSearch onSelect={handleChatSearchSelect} />,
+          children: (
+            <ChatList
+              chats={visibleChats}
+              activeChatId={activeChatId}
+              onSelectChat={handleSelectChat}
+              onDeleteChat={handleDeleteChat}
+              onRenameChat={renameChat}
+            />
+          ),
+        }}
+        center={center}
+        right={rightTabs}
+      />
       <ErrorModal
         open={!!chatErrorModal}
         icon={chatErrorModal?.notFound ? '🔍' : '⚠️'}
@@ -925,7 +950,7 @@ const ChatWindow = ({ onNavigateToDoc, isActive = true, activeChatId: propActive
         })}
         onClose={() => setDeleteErrorNotice(null)}
       />
-    </div>
+    </>
   );
 };
 

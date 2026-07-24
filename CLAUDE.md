@@ -151,6 +151,42 @@ button classes, panel-local copy of a shared concern), migrate that file to the
 shared pattern as part of the change — but do not fan out into files the task
 doesn't touch. One PR = the task + migration of the files it touched.
 
+### Layout (оболочка разделов)
+
+- Every section (chat, knowledge base, files) renders through the shared
+  `<WorkspaceLayout>` from `components/common/`. It owns the section container,
+  the collapsible left panel (title · action · toolbar · body), the center area
+  and the right panel — a drawer that is **collapsed by default** and shows as
+  an icon rail (`<RightPanel>` renders it expanded, with tabs and badges).
+  Sections supply slot content only; they must not rebuild their own split.
+- Do not reintroduce per-section container/split classes
+  (`chat-app-container`, `files-panel-main`, … are gone). Panel widths are CSS
+  variables on `.workspace` (`--ws-left-width`, `--ws-right-width`); a section
+  tunes them via its own modifier (e.g. `.workspace--files`).
+- Panel layout is **controlled state that lives in the URL** (`?left=0`,
+  `?right=<tab>`), owned by `useAppNavigation` and threaded down as the `panels`
+  prop from `App`. Per-section layout is remembered in `localStorage`
+  (`panelState.js`). Never keep panel open/closed state locally in a section.
+
+### URL scheme
+
+`useAppNavigation` is the only owner of navigation state and the only writer of
+`window.history`. The **path carries the opened resource**, the **query carries
+screen state**:
+
+```
+/chat/<chatId>                   /knowledge/doc/<docId>[?tab=]
+/knowledge/search?q=&mode=       /files/<path/to/file>
+/admin  /settings                (+ ?left=0 / ?right=<tab> anywhere)
+```
+
+Only non-default values are written, so addresses stay short. Old query-form
+links (`?view=`, `?doc=`, `?path=`, `?chat=`) still open and are canonicalized
+on load — keep that fallback when touching `readUrl`. Panel toggles use
+`replaceState` (they are not navigation); real transitions use `pushState`.
+Adding a new top-level path means updating `SpaForwardController` too — its
+mappings must cover nested paths.
+
 ### Modals
 
 - Use the shared `<ModalShell>` from `components/common/` for every dialog. It owns:
@@ -190,9 +226,9 @@ doesn't touch. One PR = the task + migration of the files it touched.
   plain `.js` modules next to the feature (`treeOps.js`, `fileChips.js`).
 - Keep files focused: a file approaching ~300 lines or holding 2+ exported
   components is due for a split. Big-file precedents still being dismantled
-  (keep this list current as they shrink): `ChatWindow.jsx` (~900 lines, worst
-  offender — untouched), `useKnowledgeBase.js` (~700), `icons/index.jsx`
-  (~640), and `DocLinkTooltip.jsx` (~340). `FileChipInput.jsx` was decomposed
+  (keep this list current as they shrink): `ChatWindow.jsx` (~960 lines, worst
+  offender — only its layout has been extracted so far), `useKnowledgeBase.js`
+  (~700), `icons/index.jsx` (~660), and `DocLinkTooltip.jsx` (~340). `FileChipInput.jsx` was decomposed
   into `ChipEditor.jsx` + `RichTextEditor.jsx`/`useChipPicker.js`/
   `useChipPreview.js`/`chipTriggers.js` and is off this list.
 - Reuse the shared hooks before writing new plumbing: `useSearchDropdown`
