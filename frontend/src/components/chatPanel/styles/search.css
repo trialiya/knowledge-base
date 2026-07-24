@@ -1,27 +1,4 @@
 /* ── Search toggle button in chat header (Ctrl/Cmd+F) ── */
-.chat-header-search-btn {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  background: none;
-  border: 1.5px solid var(--kb-border);
-  border-radius: 20px;
-  padding: 5px 9px;
-  color: var(--kb-muted);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.chat-header-search-btn:hover {
-  border-color: var(--kb-accent);
-  color: var(--kb-accent);
-  background: var(--kb-accent-light);
-}
-.chat-header-search-btn--active {
-  border-color: var(--kb-accent);
-  color: var(--kb-accent);
-  background: var(--kb-accent-bg);
-}
-
 /* ── In-chat find bar (Ctrl+F) ── */
 .chat-search-bar {
   display: flex;

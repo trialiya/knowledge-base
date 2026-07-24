@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import ChatWindow from './components/chatPanel/ChatWindow';
 import KnowledgeBase from './components/knowledgeBasePanel/KnowledgeBase';
@@ -22,12 +22,17 @@ function App() {
 
   // Раскладка панелей рабочей области. Живёт в URL (общая для всех разделов
   // пара left/right), поэтому передаётся разделам одним набором пропсов.
-  const panels = {
-    leftCollapsed: nav.leftCollapsed,
-    onToggleLeft: toggleLeftPanel,
-    rightTab: nav.rightTab,
-    onRightTabChange: setRightTab,
-  };
+  // useMemo обязателен: чат смонтирован всегда, и новый объект на каждый рендер
+  // App (ввод в строке поиска, тик refresh) перерисовывал бы все разделы разом.
+  const panels = useMemo(
+    () => ({
+      leftCollapsed: nav.leftCollapsed,
+      onToggleLeft: toggleLeftPanel,
+      rightTab: nav.rightTab,
+      onRightTabChange: setRightTab,
+    }),
+    [nav.leftCollapsed, nav.rightTab, toggleLeftPanel, setRightTab],
+  );
 
   // ── Глобальная строка поиска (живёт в шапке вкладок, видна всегда) ──────────
   const [searchText, setSearchText] = useState(nav.search || '');
@@ -166,12 +171,12 @@ function App() {
         )}
         {view === 'admin' && (
           <div className="app-tab-panel app-tab-panel--active">
-            <AdminPanel />
+            <AdminPanel panels={panels} />
           </div>
         )}
         {view === 'settings' && (
           <div className="app-tab-panel app-tab-panel--active">
-            <SettingsPanel />
+            <SettingsPanel panels={panels} />
           </div>
         )}
       </main>

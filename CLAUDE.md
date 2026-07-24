@@ -159,8 +159,10 @@ doesn't touch. One PR = the task + migration of the files it touched.
   and the right panel — a drawer that is **collapsed by default** and shows as
   an icon rail (`<RightPanel>` renders it expanded, with tabs and badges).
   Sections supply slot content only; they must not rebuild their own split.
-- Do not reintroduce per-section container/split classes
-  (`chat-app-container`, `files-panel-main`, … are gone). Panel widths are CSS
+- Every section goes through it, including Settings and Admin (`SettingsShell`
+  renders a `WorkspaceLayout` with no right panel). Do not reintroduce
+  per-section container/split classes — `chat-app-container`,
+  `files-panel-main`, `knowledge-base-container`, `settings-container` are gone. Panel widths are CSS
   variables on `.workspace` (`--ws-left-width`, `--ws-right-width`); a section
   tunes them via its own modifier (e.g. `.workspace--files`).
 - Panel layout is **controlled state that lives in the URL** (`?left=0`,
@@ -212,11 +214,12 @@ mappings must cover nested paths.
 
 ### Buttons
 
-- Use the shared button classes from `components/common/`: `btn`,
-  `btn--primary`, `btn--ghost`, `btn--danger`, `btn--sm`, and `icon-btn` for
-  icon-only buttons (modeled on settings' `set-btn` family). Don't add new
-  panel-local button classes (`set-btn`, `detail-icon-btn`,
-  `new-chat-button`, … are legacy).
+- Use the shared button classes from `components/common/buttons.css`: `btn`,
+  `btn--primary`, `btn--ghost`, `btn--danger`, `btn--sm`, and `icon-btn`
+  (+ `icon-btn--danger`, `icon-btn--done`, `icon-btn--star`) for icon-only
+  buttons. That file is now the only place button looks live — the panel-local
+  families (`set-btn`, `set-icon-btn`, `detail-icon-btn`, `new-chat-button`,
+  `kb-new-doc-button`, `chat-header-delete`, …) are gone. Don't add new ones.
 
 ### CSS
 

@@ -18,8 +18,6 @@
   },
   "detail": {
     "about": "Описание",
-    "contents": "Состав",
-    "attachments": "Вложения",
     "createdAt": "Создан: {{date}}",
     "levelUp": "На уровень выше",
     "systemBadge": "Системный документ: переименование и удаление недоступны",
@@ -40,8 +38,6 @@
     "document": "Document"
   },
   "section": {
-    "edit": "Редактировать",
-    "openTab": "Открыть вкладку",
     "expand": "Развернуть",
     "readMore": "Развернуть",
     "collapse": "Свернуть",

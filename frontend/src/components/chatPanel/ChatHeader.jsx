@@ -78,14 +78,14 @@ const ChatHeader = ({ chat, canSearch, searchOpen, onToggleSearch, onRename, onD
       {/* Search toggle button in header (Ctrl/Cmd+F) */}
       {canSearch && (
         <button
-          className={`chat-header-search-btn ${searchOpen ? 'chat-header-search-btn--active' : ''}`}
+          className={`icon-btn${searchOpen ? ' icon-btn--done' : ''}`}
           onClick={onToggleSearch}
           title={t('inChatSearch.open')}
         >
           <IconSearch size={14} />
         </button>
       )}
-      <button className="chat-header-delete" onClick={() => onDelete(chat.id)}>
+      <button className="icon-btn icon-btn--danger" onClick={() => onDelete(chat.id)}>
         <IconTrash />
       </button>
     </div>

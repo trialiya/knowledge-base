@@ -33,8 +33,7 @@ describe('useDetailPanel', () => {
 
     rerender({ saved: 'второй', id: 2 });
     expect(result.current.contentDraft).toBe('второй');
-    // Развёрнутый редактор и счётчик вложений — состояние прошлого документа.
+    // Развёрнутый редактор относился к прошлому документу — его тоже сбрасываем.
     expect(result.current.fullscreen).toBeNull();
-    expect(result.current.attachmentCount).toBe(0);
   });
 });

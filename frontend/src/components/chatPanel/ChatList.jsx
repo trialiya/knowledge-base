@@ -62,7 +62,7 @@ const ChatList = ({ chats, activeChatId, onSelectChat, onDeleteChat, onRenameCha
               <span className="chat-title">{chat.title}</span>
               <div className="chat-actions">
                 <button
-                  className="rename-chat-button"
+                  className="icon-btn chat-list-item__action"
                   onClick={(e) => {
                     e.stopPropagation();
                     startEdit(chat.id, chat.title);
@@ -73,7 +73,7 @@ const ChatList = ({ chats, activeChatId, onSelectChat, onDeleteChat, onRenameCha
                 </button>
                 {chats.length > 1 && (
                   <button
-                    className="delete-chat-button"
+                    className="icon-btn icon-btn--danger chat-list-item__action"
                     onClick={(e) => {
                       e.stopPropagation();
                       onDeleteChat(chat.id);

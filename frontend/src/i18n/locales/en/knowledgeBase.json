@@ -18,8 +18,6 @@
   },
   "detail": {
     "about": "About",
-    "contents": "Contents",
-    "attachments": "Attachments",
     "createdAt": "Created: {{date}}",
     "levelUp": "Up one level",
     "systemBadge": "System document: renaming and deletion are disabled",
@@ -40,8 +38,6 @@
     "document": "Document"
   },
   "section": {
-    "edit": "Edit",
-    "openTab": "Open tab",
     "expand": "Expand",
     "readMore": "Expand",
     "collapse": "Collapse",

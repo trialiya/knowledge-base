@@ -37,7 +37,9 @@ const RightPanel = ({ tabs, activeKey, onTabChange, onClose }) => {
                 key={tab.key}
                 type="button"
                 role="tab"
+                id={`ws-tab-${tab.key}`}
                 aria-selected={tab.key === active.key}
+                aria-controls="ws-tabpanel"
                 className={`workspace__tab${tab.key === active.key ? ' workspace__tab--active' : ''}`}
                 onClick={() => onTabChange(tab.key)}
               >
@@ -57,7 +59,14 @@ const RightPanel = ({ tabs, activeKey, onTabChange, onClose }) => {
           <IconChevronRight size={14} />
         </button>
       </div>
-      <div className="workspace__side-body">{active?.content}</div>
+      <div
+        className="workspace__side-body"
+        id="ws-tabpanel"
+        role={single ? undefined : 'tabpanel'}
+        aria-labelledby={single ? undefined : `ws-tab-${active?.key}`}
+      >
+        {active?.content}
+      </div>
     </aside>
   );
 };

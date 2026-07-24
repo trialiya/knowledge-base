@@ -137,26 +137,6 @@
   margin-top: 6px;
 }
 
-/* Icon buttons */
-.detail-icon-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--kb-muted);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  transition: background 0.15s, color 0.15s;
-  flex-shrink: 0;
-}
-.detail-icon-btn:hover {
-  background: var(--kb-accent-bg);
-  color: var(--kb-accent);
-}
-
 /* Breadcrumb */
 .detail-breadcrumb {
   display: flex;
@@ -253,28 +233,6 @@
 }
 
 /* ── Summarize button ── */
-.detail-summarize-btn {
-  color: var(--kb-accent);
-  border: 1.5px solid var(--kb-accent-bg);
-  background: var(--kb-accent-bg);
-}
-.detail-summarize-btn:hover {
-  background: var(--kb-accent);
-  color: #fff;
-}
-.detail-summarize-btn--stale {
-  border-color: #f59e0b;
-  background: #fffbeb;
-  color: #d97706;
-}
-.detail-summarize-btn--stale:hover {
-  background: #f59e0b;
-  color: #fff;
-}
-.detail-summarize-btn--loading {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
 .spin {
   animation: kb-spin 0.9s linear infinite;
 }
@@ -555,12 +513,6 @@
   min-width: 0;
   overflow: auto;
   overflow-wrap: break-word;
-}
-
-.detail-icon-btn--done,
-.detail-icon-btn--done:hover {
-  color: var(--kb-accent);
-  background: var(--kb-accent-bg);
 }
 
 /* ═══════════════════════════════════════════════

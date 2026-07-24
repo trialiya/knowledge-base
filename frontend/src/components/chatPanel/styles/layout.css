@@ -7,7 +7,7 @@
   align-items: center;
   gap: 10px;
   /* верх увеличен: даём место всплывающей дате над заголовком, чтобы её
-     не обрезал родитель .chat-window { overflow: hidden } */
+     не обрезал центр рабочей области (overflow: hidden) */
   padding: 1.35rem 1.2rem 0.85rem;
   border-bottom: 1px solid var(--kb-border);
   background: var(--kb-white);
@@ -199,28 +199,9 @@
   min-width: 0;
 }
 
-.chat-header-delete {
-  flex-shrink: 0;
-  background: none;
-  border: none;
-  font-size: 0.82rem;
-  color: var(--kb-muted);
-  cursor: pointer;
-  padding: 5px 9px;
-  border-radius: 8px;
-  opacity: 0.6;
-  transition: opacity 0.15s, background 0.15s;
-  white-space: nowrap;
-}
-.chat-header-delete:hover {
-  opacity: 1;
-  background: var(--kb-error-bg);
-  color: var(--kb-error);
-}
-
 .message-list {
   flex: 1;
-  min-height: 0; /* без этого список растёт за пределы chat-window */
+  min-height: 0; /* без этого список растёт за пределы центра */
   padding: 1.5rem;
   overflow-y: auto;
   display: flex;

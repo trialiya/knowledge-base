@@ -3,7 +3,6 @@ import { useState, useEffect, useRef } from 'react';
 /**
  * Состояние детали узла базы знаний, общее для ЦЕНТРА (редактор содержимого) и
  * ПРАВОЙ панели (описание, вложения):
- *   - attachmentCount: счётчик, который сообщает AttachmentPanel
  *   - fullscreen: 'about' | 'content' | null (что раскрыто на весь экран)
  *   - showHistory: открыта ли модалка истории
  *   - contentDraft: «поднятый» черновик описания, чтобы встроенный редактор и
@@ -18,7 +17,6 @@ import { useState, useEffect, useRef } from 'react';
  * @param nodeId       — id узла; его смена сбрасывает состояние детали
  */
 export default function useDetailPanel(savedContent = '', nodeId = null) {
-  const [attachmentCount, setAttachmentCount] = useState(0);
   const [fullscreen, setFullscreen] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
   const [contentDraft, setContentDraft] = useState(savedContent);
@@ -35,7 +33,6 @@ export default function useDetailPanel(savedContent = '', nodeId = null) {
       setContentDraft(savedContent);
       setFullscreen(null);
       setShowHistory(false);
-      setAttachmentCount(0);
       return;
     }
     // Тот же узел, но сохранённое описание изменилось извне (сохранение,
@@ -48,8 +45,6 @@ export default function useDetailPanel(savedContent = '', nodeId = null) {
   }, [nodeId, savedContent]);
 
   return {
-    attachmentCount,
-    setAttachmentCount,
     fullscreen,
     setFullscreen,
     showHistory,

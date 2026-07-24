@@ -204,6 +204,10 @@ public class AttachmentService implements DisposableBean {
                 .toList();
     }
 
+    public long countByDocument(Long documentId) {
+        return attachmentRepo.countByDocumentId(documentId);
+    }
+
     public long countByConversation(String conversationId) {
         return attachmentRepo.countByConversationId(conversationId);
     }

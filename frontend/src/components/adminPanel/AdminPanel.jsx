@@ -53,7 +53,7 @@ const IndexGroup = () => {
                 </div>
               )}
             </div>
-            <button className="set-btn set-btn--primary" onClick={runReindex} disabled={state === 'running'}>
+            <button className="btn btn--primary" onClick={runReindex} disabled={state === 'running'}>
               {state === 'running' ? t('admin.index.reindex.running') : t('admin.index.reindex.run')}
             </button>
           </div>
@@ -65,7 +65,7 @@ const IndexGroup = () => {
 
 // ─── AdminPanel ───────────────────────────────────────────────────────────────
 
-const AdminPanel = () => {
+const AdminPanel = ({ panels }) => {
   const { t } = useTranslation('settings');
   const [group, setGroup] = useState('index');
 
@@ -75,7 +75,7 @@ const AdminPanel = () => {
   ];
 
   return (
-    <SettingsShell title={t('admin.nav.title')} groups={groups} activeKey={group} onSelect={setGroup}>
+    <SettingsShell title={t('admin.nav.title')} groups={groups} activeKey={group} onSelect={setGroup} panels={panels}>
       {group === 'index' && <IndexGroup />}
       {group === 'bulk' && <BulkOperations />}
     </SettingsShell>

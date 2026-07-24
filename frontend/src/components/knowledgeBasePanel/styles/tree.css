@@ -60,16 +60,6 @@
   min-width: 0;
 }
 
-.tree-row__count {
-  font-size: 0.72rem;
-  font-weight: 600;
-  background: var(--kb-accent-bg);
-  color: var(--kb-accent);
-  border-radius: 10px;
-  padding: 1px 7px;
-  flex-shrink: 0;
-}
-
 .tree-row__del {
   background: none;
   border: none;

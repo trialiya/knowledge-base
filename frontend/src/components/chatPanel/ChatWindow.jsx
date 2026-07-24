@@ -25,6 +25,7 @@ import ChatHeader from './ChatHeader';
 import ChatSearchBar from './ChatSearchBar';
 import AttachmentPanel from '../common/AttachmentPanel';
 import WorkspaceLayout from '../common/WorkspaceLayout';
+import useAttachmentCount from '../common/useAttachmentCount';
 import { IconPaperclip, IconPlus } from '../../icons';
 import './chatWindow.css';
 import ErrorModal from '../common/ErrorModal';
@@ -87,10 +88,14 @@ const ChatWindow = ({
     }),
     [],
   );
-  const [attachCount, setAttachCount] = useState(0);
   // Вложения живут в правой панели рабочей области — её состояние приходит из
   // навигации (URL), поэтому локального attachPanelOpen здесь больше нет.
   const openAttachments = panels?.onRightTabChange;
+  // Счётчик для бейджа. У черновика чата на бэке ещё нет — считать нечего.
+  const [attachCount, setAttachCount] = useAttachmentCount(
+    OWNER_TYPE.CHAT,
+    activeChatId && activeChatId !== DRAFT_CHAT_ID ? activeChatId : null,
+  );
   // Конфиг моделей и режимов грузится один раз — вынесено в отдельные хуки.
   const { modelConfig, modelOptions } = useModelConfig();
   const { modeOptions } = useModeConfig();
@@ -276,17 +281,6 @@ const ChatWindow = ({
   const handleLoadOlder = useCallback(() => loadOlderMessages(activeChatId), [activeChatId, loadOlderMessages]);
 
   // (Запись URL вынесена в useAppNavigation — ChatWindow историю не трогает.)
-
-  // Fetch attachment count independently so the badge stays accurate
-  // even when the attachment panel is closed.
-  useEffect(() => {
-    if (!activeChatId || activeChatId === DRAFT_CHAT_ID) return;
-    setAttachCount(0);
-    chatApi
-      .getAttachmentCount(activeChatId)
-      .then((count) => setAttachCount(typeof count === 'number' ? count : 0))
-      .catch(() => setAttachCount(0));
-  }, [activeChatId]);
 
   const activeChat = useMemo(() => chats.find((c) => c.id === activeChatId) || null, [chats, activeChatId]);
   const activeMessages = useMemo(() => activeChat?.messages || [], [activeChat]);
@@ -679,7 +673,8 @@ const ChatWindow = ({
       // сохраняется отдельно (см. useChatDrafts), поэтому переключаться можно свободно.
       flushDrafts(); // зафиксировать текущий черновик до ухода
       selectChat(id);
-      setAttachCount(0); // reset until new panel loads count for new chat
+      // Счётчик вложений сбрасывать вручную не нужно: useAttachmentCount сам
+      // обнуляет его при смене владельца и запрашивает новое число.
     },
     [activeChatId, selectChat, flushDrafts],
   );
@@ -852,29 +847,34 @@ const ChatWindow = ({
   );
 
   // ── Правая панель: пока только вложения активного чата ──────────────────────
-  const rightTabs = [
-    {
-      key: RIGHT_TAB_ATTACHMENTS,
-      label: t('window.attachments'),
-      icon: <IconPaperclip size={16} />,
-      badge: attachCount,
-      content: activeChatId ? (
-        <AttachmentPanel
-          key={activeChatId}
-          ownerType={OWNER_TYPE.CHAT}
-          ownerId={activeChatId}
-          onCountChange={setAttachCount}
-        />
-      ) : (
-        <p className="chat-empty-note">{t('window.selectChat')}</p>
-      ),
-    },
-  ];
+  // Мемоизируем: ChatWindow перерисовывается на каждый чанк стриминга, а без
+  // этого на каждый чанк пересоздавалось бы и содержимое открытой панели
+  // вложений (таблица со списком файлов).
+  const rightTabs = useMemo(
+    () => [
+      {
+        key: RIGHT_TAB_ATTACHMENTS,
+        label: t('window.attachments'),
+        icon: <IconPaperclip size={16} />,
+        badge: attachCount,
+        content: activeChatId ? (
+          <AttachmentPanel
+            key={activeChatId}
+            ownerType={OWNER_TYPE.CHAT}
+            ownerId={activeChatId}
+            onCountChange={setAttachCount}
+          />
+        ) : (
+          <p className="chat-empty-note">{t('window.selectChat')}</p>
+        ),
+      },
+    ],
+    [t, attachCount, activeChatId, setAttachCount],
+  );
 
   return (
     <>
       <WorkspaceLayout
-        className="workspace--chat"
         {...panels}
         left={{
           title: t('list.title'),

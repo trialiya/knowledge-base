@@ -13,8 +13,10 @@ import SearchResults from './SearchResults';
 import ErrorModal from '../common/ErrorModal';
 import WorkspaceLayout from '../common/WorkspaceLayout';
 import { IconPlus } from '../../icons';
+import { OWNER_TYPE } from '../../constants/ownerType';
 import useKnowledgeBase from './useKnowledgeBase';
 import useDetailPanel from './useDetailPanel';
+import useAttachmentCount from '../common/useAttachmentCount';
 import useFolderChildren from './useFolderChildren';
 import { buildDetailTabs } from './detailSidebar';
 
@@ -66,19 +68,17 @@ const KnowledgeBase = ({
     handleDiscardCancel,
   } = useKnowledgeBase({ docId, search, mode, onOpenDoc, onSearch });
 
-  // Состояние детали (черновик описания, полноэкранный режим, история, счётчик
-  // вложений) поднято сюда: его делят ЦЕНТР (редактор) и ПРАВАЯ панель
-  // (описание, вложения) — раньше оно жило внутри одной вкладки.
-  const {
-    attachmentCount,
-    setAttachmentCount,
-    fullscreen,
-    setFullscreen,
-    showHistory,
-    setShowHistory,
-    contentDraft,
-    setContentDraft,
-  } = useDetailPanel(selectedNode?.description || '', selectedNode?.id ?? null);
+  // Состояние детали (черновик описания, полноэкранный режим, история) поднято
+  // сюда: его делят ЦЕНТР (редактор) и ПРАВАЯ панель (описание, вложения) —
+  // раньше оно жило внутри одной вкладки.
+  const { fullscreen, setFullscreen, showHistory, setShowHistory, contentDraft, setContentDraft } = useDetailPanel(
+    selectedNode?.description || '',
+    selectedNode?.id ?? null,
+  );
+
+  // Счётчик вложений для бейджа: панель вложений смонтирована, только когда её
+  // вкладка раскрыта, поэтому число берём отдельным запросом.
+  const [attachmentCount, setAttachmentCount] = useAttachmentCount(OWNER_TYPE.DOCUMENT, selectedNode?.id ?? null);
 
   // Состав папки нужен правой панели, поэтому грузим его здесь, а не в FolderDetail.
   const { children: folderChildren } = useFolderChildren(selectedNode, handleLoadChildren);
