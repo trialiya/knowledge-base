@@ -23,6 +23,8 @@ import './settingsShell.css';
 const SettingsShell = ({ title, groups, activeKey, onSelect, panels, children }) => {
   // Строки здесь — настоящие <button> (Tab и Enter работают сами), стрелки
   // добавляем для единообразия со списками и деревьями остальных разделов.
+  // Поэтому и tabIndex у контейнера нет: в остальных разделах он единственная
+  // точка входа только потому, что там строки — неинтерактивные div/li.
   const handleKeyDown = useListNavigation();
 
   return (
@@ -31,7 +33,9 @@ const SettingsShell = ({ title, groups, activeKey, onSelect, panels, children })
       left={{
         title,
         children: (
-          <div className="ws-list" aria-label={title} onKeyDown={handleKeyDown}>
+          // role="group" — чтобы aria-label был законным именем: на div без роли
+          // (role=generic) ARIA запрещает aria-label, и скринридер его теряет.
+          <div className="ws-list" role="group" aria-label={title} onKeyDown={handleKeyDown}>
             {groups.map((g) => (
               <button
                 key={g.key}

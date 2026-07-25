@@ -50,7 +50,9 @@ const FileTreeNode = ({ node, level, selectedPath, expanded, treeCache, loadingD
   }, [isSelected]);
 
   return (
-    <div className="file-tree-node-wrap">
+    // role="none" — обёртка нужна только для раскладки; без неё treeitem
+    // оказывается не прямым потомком tree/group (см. TreeNode базы знаний).
+    <div className="file-tree-node-wrap" role="none">
       <div
         ref={rowRef}
         data-ws-item

@@ -3,6 +3,35 @@ import { useCallback } from 'react';
 /** Строки, между которыми ходим: их помечает сам список (см. common/sidePanel.css). */
 const ITEM = '[data-ws-item]';
 
+/** Ближайший предок, который реально прокручивается по вертикали. */
+function scrollParent(el) {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    const { overflowY } = window.getComputedStyle(p);
+    if ((overflowY === 'auto' || overflowY === 'scroll') && p.scrollHeight > p.clientHeight) return p;
+  }
+  return null;
+}
+
+/**
+ * Доскроллить до строки ТОЛЬКО по вертикали.
+ *
+ * Ни scrollIntoView, ни focus() без preventScroll для этого не годятся: обе
+ * двигают и горизонталь. В дереве файлов строка растянута на всю ширину
+ * раскрытого дерева (.file-tree { width: max-content }) и заведомо шире панели,
+ * а «nearest» для элемента шире вьюпорта означает «прижать к начальному краю» —
+ * то есть каждый шаг стрелкой сбрасывал бы горизонтальную прокрутку в ноль и
+ * уводил имена глубоко вложенных файлов за границу панели. Та же ловушка
+ * описана в FileTreeNode, где скролл к выбранному узлу считается вручную.
+ */
+function scrollRowIntoView(row) {
+  const scroller = scrollParent(row);
+  if (!scroller) return;
+  const rowRect = row.getBoundingClientRect();
+  const boxRect = scroller.getBoundingClientRect();
+  if (rowRect.bottom > boxRect.bottom) scroller.scrollTop += rowRect.bottom - boxRect.bottom;
+  else if (rowRect.top < boxRect.top) scroller.scrollTop -= boxRect.top - rowRect.top;
+}
+
 /**
  * Клавиатурная навигация по списку/дереву левой панели.
  *
@@ -45,8 +74,8 @@ export default function useListNavigation() {
     const focusAt = (i) => {
       const next = items[Math.max(0, Math.min(i, items.length - 1))];
       if (!next) return;
-      next.focus();
-      next.scrollIntoView({ block: 'nearest' });
+      next.focus({ preventScroll: true });
+      scrollRowIntoView(next);
     };
 
     const level = (el) => Number(el?.getAttribute('aria-level') || 1);

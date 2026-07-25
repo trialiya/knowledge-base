@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import useSearchDropdown from '../../hooks/useSearchDropdown';
@@ -82,6 +82,15 @@ const PanelSearch = ({
 
   const trimmed = query.trim();
 
+  // Поле + плавающий список — это combobox с listbox: поле остаётся
+  // сфокусированным, а «текущий результат» скринридеру называет
+  // aria-activedescendant. Список висит в портале на body, поэтому связь между
+  // ними держится только на id — их и раздаём отсюда.
+  const baseId = useId();
+  const listId = `${baseId}list`;
+  const optionId = (i) => `${baseId}opt${i}`;
+  const hasResults = results.length > 0;
+
   return (
     <div className="panel-search" ref={wrapRef}>
       {open ? (
@@ -92,6 +101,12 @@ const PanelSearch = ({
           <input
             ref={inputRef}
             type="text"
+            role="combobox"
+            aria-label={label}
+            aria-autocomplete="list"
+            aria-expanded={hasResults}
+            aria-controls={hasResults ? listId : undefined}
+            aria-activedescendant={hasResults ? optionId(idx) : undefined}
             className="panel-search__input"
             placeholder={placeholder}
             value={query}
@@ -134,14 +149,20 @@ const PanelSearch = ({
               <div className="panel-search__msg">{t('panelSearch.empty')}</div>
             )}
             {!loading && trimmed.length === 0 && <div className="panel-search__msg">{hint}</div>}
-            {results.length > 0 && (
-              <div className="panel-search__list" ref={listRef}>
+            {hasResults && (
+              <div className="panel-search__list" role="listbox" id={listId} aria-label={label} ref={listRef}>
                 {results.map((item, i) => {
                   const { icon, title, subtitle, badge, multiline } = describeItem(item, query);
                   return (
                     <button
                       key={getKey(item)}
                       type="button"
+                      role="option"
+                      id={optionId(i)}
+                      aria-selected={i === idx}
+                      // Фокус остаётся в поле ввода — по списку ходят стрелками,
+                      // а не табом (иначе Tab уводил бы в конец body, где портал).
+                      tabIndex={-1}
                       className={`panel-search__item${i === idx ? ' panel-search__item--selected' : ''}`}
                       onMouseEnter={() => setIdx(i)}
                       onMouseDown={(e) => {

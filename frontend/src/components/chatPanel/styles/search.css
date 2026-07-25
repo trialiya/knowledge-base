@@ -1,5 +1,6 @@
-/* ── Search toggle button in chat header (Ctrl/Cmd+F) ── */
-/* ── In-chat find bar (Ctrl+F) ── */
+/* ── In-chat find bar (Ctrl+F) ──
+   Поиск ПО ОТКРЫТОМУ ЧАТУ, не по списку чатов: тот переехал в общий
+   common/PanelSearch (см. panelSearch.css). */
 .chat-search-bar {
   display: flex;
   align-items: center;

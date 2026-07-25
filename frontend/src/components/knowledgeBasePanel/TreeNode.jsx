@@ -219,7 +219,10 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
   const remaining = knownTotal !== null ? knownTotal - currentCount : 0;
 
   return (
-    <div className="tree-node-wrap">
+    // role="none" — обёртка нужна только для раскладки; без неё treeitem
+    // оказывается не прямым потомком tree/group, и структура дерева для
+    // скринридера разваливается.
+    <div className="tree-node-wrap" role="none">
       <div
         ref={rowRef}
         data-ws-item
@@ -300,6 +303,10 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
               role="treeitem"
               aria-level={level + 2}
               aria-selected={false} // строка-действие, а не узел дерева — выбрать её нельзя
+              // Как и остальные строки: в таб-порядке дерева одна точка входа —
+              // сам контейнер, до строк добираются стрелками (useListNavigation).
+              // Enter/Space здесь отрабатывает браузер — это настоящая кнопка.
+              tabIndex={-1}
               style={{ '--depth': level + 1 }}
               onClick={handleLoadMore}
               disabled={loadingMore}

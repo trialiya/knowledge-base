@@ -162,9 +162,13 @@ doesn't touch. One PR = the task + migration of the files it touched.
 - Every section goes through it, including Settings and Admin (`SettingsShell`
   renders a `WorkspaceLayout` with no right panel). Do not reintroduce
   per-section container/split classes — `chat-app-container`,
-  `files-panel-main`, `knowledge-base-container`, `settings-container` are gone. Panel widths are CSS
-  variables on `.workspace` (`--ws-left-width`, `--ws-right-width`); a section
-  tunes them via its own modifier (e.g. `.workspace--files`).
+  `files-panel-main`, `knowledge-base-container`, `settings-container` are gone.
+  Panel metrics are CSS variables: `--ws-right-width` and the row tokens sit on
+  `.workspace`, and a section may tune those from its own modifier (e.g.
+  `.workspace--files` narrows `--ws-indent`). `--ws-left-width` is the exception
+  — it lives on `:root` because the drag handle rewrites it there for every
+  section at once; a `.workspace--*` override would outrank `:root` and freeze
+  that section's width, so never redeclare it.
 - Panel layout is **controlled state that lives in the URL** (`?left=0`,
   `?right=<tab>`), owned by `useAppNavigation` and threaded down as the `panels`
   prop from `App`. Per-section layout is remembered in `localStorage`
@@ -210,7 +214,7 @@ mappings must cover nested paths.
   per-panel row families — `chat-list-item`, `tree-row__*`, `file-tree-row`,
   `settings-nav__item` are gone.
 - Metrics come from tokens on `.workspace` (`--ws-gutter`, `--ws-row-min-h`,
-  `--ws-row-font`, `--ws-indent`, `--ws-left-width`): the panel head, the action
+  `--ws-row-font`, `--ws-indent`): the panel head, the action
   button, the search widget and the rows all sit on one vertical. A section may
   override a token from its own `.workspace--*` modifier, but only with a
   comment saying why (files use a smaller `--ws-indent` — repo paths are deep).
@@ -228,7 +232,14 @@ mappings must cover nested paths.
   contain action buttons — so this is how they become reachable at all; keep the
   attributes when adding a new kind of row. ARIA: trees are
   `role="tree"`/`treeitem` + `aria-level`/`aria-expanded`/`aria-selected`, flat
-  lists are `role="listbox"`/`option`.
+  lists are `role="listbox"`/`option`, and layout wrappers between them carry
+  `role="none"` so the rows stay owned by the tree. The settings list is the one
+  exception to the single tab stop — its rows *are* `<button>`s, so the container
+  keeps no `tabIndex` and arrows just supplement native Tab/Enter.
+- `useListNavigation` scrolls the focused row into view **vertically only**
+  (`focus({ preventScroll: true })` + a manual `scrollTop` nudge). Don't swap it
+  back to `scrollIntoView`: file-tree rows are wider than the panel, and
+  `inline: 'nearest'` on them resets the horizontal scroll to 0.
 - The left panel's width is draggable and lives in one shared store
   (`useLeftPanelWidth`), not in component state or the URL: several
   `WorkspaceLayout`s are mounted at once (chat and knowledge base always are), so
