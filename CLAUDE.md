@@ -162,9 +162,13 @@ doesn't touch. One PR = the task + migration of the files it touched.
 - Every section goes through it, including Settings and Admin (`SettingsShell`
   renders a `WorkspaceLayout` with no right panel). Do not reintroduce
   per-section container/split classes — `chat-app-container`,
-  `files-panel-main`, `knowledge-base-container`, `settings-container` are gone. Panel widths are CSS
-  variables on `.workspace` (`--ws-left-width`, `--ws-right-width`); a section
-  tunes them via its own modifier (e.g. `.workspace--files`).
+  `files-panel-main`, `knowledge-base-container`, `settings-container` are gone.
+  Panel metrics are CSS variables: `--ws-right-width` and the row tokens sit on
+  `.workspace`, and a section may tune those from its own modifier (e.g.
+  `.workspace--files` narrows `--ws-indent`). `--ws-left-width` is the exception
+  — it lives on `:root` because the drag handle rewrites it there for every
+  section at once; a `.workspace--*` override would outrank `:root` and freeze
+  that section's width, so never redeclare it.
 - Panel layout is **controlled state that lives in the URL** (`?left=0`,
   `?right=<tab>`), owned by `useAppNavigation` and threaded down as the `panels`
   prop from `App`. Per-section layout is remembered in `localStorage`
@@ -200,6 +204,50 @@ would otherwise leak the mode into the next real transition.
 Adding a new top-level path means updating `SpaForwardController` too — its
 mappings must cover nested paths.
 
+### Left panel (списки и деревья)
+
+- Every row of a left panel — chat list, knowledge tree, file tree, settings
+  groups — is the shared `.ws-item` from `common/sidePanel.css` (with
+  `.ws-item__chevron/__icon/__label/__actions/__action`, `.ws-list`, `.ws-hint`).
+  Sections add only their own behaviour (drag-drop in the KB tree, the
+  `.ws-item--nowrap` horizontal scroll in the file tree). Do not restore
+  per-panel row families — `chat-list-item`, `tree-row__*`, `file-tree-row`,
+  `settings-nav__item` are gone.
+- Metrics come from tokens on `.workspace` (`--ws-gutter`, `--ws-row-min-h`,
+  `--ws-row-font`, `--ws-indent`): the panel head, the action
+  button, the search widget and the rows all sit on one vertical. A section may
+  override a token from its own `.workspace--*` modifier, but only with a
+  comment saying why (files use a smaller `--ws-indent` — repo paths are deep).
+- Row height is `min-height` only, never padding + content: a row with an action
+  button would otherwise be taller than one without.
+- Search above the list is the shared `<PanelSearch>` from `components/common/`
+  (trigger → field → portal dropdown, built on `useSearchDropdown`). A section
+  passes only `search` (fetch) and `describeItem` (icon/title/subtitle/badge);
+  common labels live in `common.json` under `panelSearch.*`. Don't write another
+  search widget — `ChatSearch`/`FileSearch`/`TreeSearch` are 40-line adapters.
+- Keyboard: the list **container** is the single tab stop (`tabIndex={0}` +
+  `onKeyDown={useListNavigation()}`), rows carry `data-ws-item` + `tabIndex={-1}`
+  and are reached with arrows (Enter/Space opens, ←/→ collapses/expands through
+  `[data-ws-chevron]`, Home/End jump). Rows cannot be `<button>`s — they already
+  contain action buttons — so this is how they become reachable at all; keep the
+  attributes when adding a new kind of row. ARIA: trees are
+  `role="tree"`/`treeitem` + `aria-level`/`aria-expanded`/`aria-selected`, flat
+  lists are `role="listbox"`/`option`, and layout wrappers between them carry
+  `role="none"` so the rows stay owned by the tree. The settings list is the one
+  exception to the single tab stop — its rows *are* `<button>`s, so the container
+  keeps no `tabIndex` and arrows just supplement native Tab/Enter.
+- `useListNavigation` scrolls the focused row into view **vertically only**
+  (`focus({ preventScroll: true })` + a manual `scrollTop` nudge). Don't swap it
+  back to `scrollIntoView`: file-tree rows are wider than the panel, and
+  `inline: 'nearest'` on them resets the horizontal scroll to 0.
+- The left panel's width is draggable and lives in one shared store
+  (`useLeftPanelWidth`), not in component state or the URL: several
+  `WorkspaceLayout`s are mounted at once (chat and knowledge base always are), so
+  per-instance width would make the panel edge jump between sections again.
+  Dragging writes the `--ws-left-width` CSS variable on `:root` directly and only
+  commits to the store on pointer-up — a `setState` per `pointermove` would
+  re-render the whole section.
+
 ### Modals
 
 - Use the shared `<ModalShell>` from `components/common/` for every dialog. It owns:
@@ -233,6 +281,10 @@ mappings must cover nested paths.
 - CSS is plain (no modules/preprocessor); classes are global — prefix with the
   block name to avoid collisions, and never reference another panel's classes
   (shared chrome belongs in `common/`).
+- There is **no global `box-sizing: border-box`** in the project. Any rule that
+  sizes a box (`min-height`, `height`, `width`) must set `box-sizing` itself, or
+  padding and border silently add to it — and `<button>`s behave differently
+  from `<div>`s, since the UA stylesheet gives buttons `border-box`.
 
 ### Components & hooks
 

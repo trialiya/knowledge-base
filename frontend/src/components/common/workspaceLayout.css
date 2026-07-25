@@ -8,11 +8,20 @@
 ═══════════════════════════════════════════════ */
 
 .workspace {
-  /* Ширины боковых панелей — единые для всех разделов. Раздел может
-     переопределить их своим модификатором на .workspace. */
-  --ws-left-width: 268px;
+  /* Ширина левой панели (--ws-left-width) задана в index.css на :root: она одна
+     на всё приложение и меняется перетаскиванием границы (useLeftPanelWidth),
+     а разделов, смонтированных одновременно, несколько. */
   --ws-right-width: 320px;
   --ws-rail-width: 46px;
+
+  /* Метрика левой панели. Один отступ на шапку, кнопку действия, поиск и строки
+     списка — иначе они стоят на разных вертикалях (так и было до унификации:
+     13.6 / 25.6 / 14 / 16px в одной панели). Строки рисует .ws-item
+     (см. sidePanel.css), эти же токены использует и он. */
+  --ws-gutter: 14px;
+  --ws-row-min-h: 34px;
+  --ws-row-font: 0.86rem;
+  --ws-indent: 14px;
 
   flex: 1;
   display: flex;
@@ -56,7 +65,9 @@
   gap: 8px;
   flex-shrink: 0;
   min-height: 44px;
-  padding: 0.4rem 0.5rem 0.4rem 0.85rem;
+  /* Справа отступ меньше: там кнопка-иконка, её собственные поля добирают
+     оптическое равенство с левым краем. */
+  padding: 0.4rem 0.5rem 0.4rem var(--ws-gutter);
   border-bottom: 1px solid var(--kb-border);
   background: var(--kb-white);
 }
@@ -79,18 +90,24 @@
 .workspace__side-action {
   flex-shrink: 0;
   display: flex;
-  padding: 0.75rem 0.85rem 0.35rem;
+  padding: 0.75rem var(--ws-gutter) 0.4rem;
 }
 .workspace__side-action > * {
   flex: 1;
 }
 
-/* Строка инструментов (поиск по списку/дереву) */
+/* Строка инструментов (поиск по списку/дереву). Виджет занимает её целиком:
+   раздел без кнопки действия (файлы) иначе получал бы одинокую иконку в пустой
+   строке во всю ширину. */
 .workspace__side-toolbar {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  padding: 0.4rem 0.6rem;
+  padding: 0.4rem var(--ws-gutter) 0.6rem;
+}
+.workspace__side-toolbar > * {
+  flex: 1;
+  min-width: 0;
 }
 
 /* Тело панели — единственная прокручиваемая часть */
@@ -113,6 +130,47 @@
    списка/дерева подсвечиваются на всю ширину панели. */
 .workspace__side--right .workspace__side-body {
   padding: 0.75rem;
+}
+
+/* ── Граница левой панели: тянем ширину ──
+   Полоса шириной 5px, которую отрицательные поля утягивают ровно на границу
+   панели: в сумме (5 − 2 − 3) она не занимает в раскладке ни пикселя, но имеет
+   настоящий бокс — по нему попадает курсор, его видит фокус и тестовые
+   инструменты (у нулевого элемента этого нет). Видимый отклик — линия ::after
+   поверх самой границы. */
+
+.workspace__resizer {
+  position: relative;
+  flex: 0 0 5px;
+  margin: 0 -3px 0 -2px;
+  z-index: 5;
+  cursor: col-resize;
+  outline: none;
+}
+
+.workspace__resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2px;
+  width: 2px;
+  background: var(--kb-accent);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.workspace__resizer:hover::after,
+.workspace__resizer:focus-visible::after,
+.workspace--resizing .workspace__resizer::after {
+  opacity: 1;
+}
+
+/* Пока тянем: курсор один на всё окно (указатель захвачен разделителем и может
+   уехать далеко) и никакого выделения текста под ним. */
+.workspace--resizing {
+  cursor: col-resize;
+  user-select: none;
 }
 
 /* ── Рельс: свёрнутая панель ── */
@@ -238,6 +296,11 @@
 }
 
 @media (max-width: 820px) {
+  /* Панель всплывает поверх центра — тянуть её границу нечем и незачем. */
+  .workspace__resizer {
+    display: none;
+  }
+
   .workspace__side--left {
     position: absolute;
     top: 0;

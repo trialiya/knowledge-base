@@ -20,7 +20,13 @@
   "panels": {
     "collapseLeft": "Collapse panel",
     "expandLeft": "Expand panel",
-    "collapseRight": "Collapse panel"
+    "collapseRight": "Collapse panel",
+    "resizeLeft": "Resize panel"
+  },
+  "panelSearch": {
+    "searching": "Searching…",
+    "empty": "Nothing found",
+    "close": "Close search"
   },
   "search": {
     "placeholder": "Search the knowledge base…",

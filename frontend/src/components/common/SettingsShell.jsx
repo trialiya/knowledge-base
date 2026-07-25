@@ -1,5 +1,6 @@
 import React from 'react';
 import WorkspaceLayout from './WorkspaceLayout';
+import useListNavigation from '../../hooks/useListNavigation';
 import './settingsShell.css';
 
 /**
@@ -19,29 +20,42 @@ import './settingsShell.css';
  *   panels     — раскладка панелей из навигации (см. App)
  *   children   — содержимое активной группы (центр)
  */
-const SettingsShell = ({ title, groups, activeKey, onSelect, panels, children }) => (
-  <WorkspaceLayout
-    {...panels}
-    left={{
-      title,
-      children: (
-        <div className="settings-nav__list">
-          {groups.map((g) => (
-            <button
-              key={g.key}
-              className={`settings-nav__item${activeKey === g.key ? ' settings-nav__item--active' : ''}`}
-              onClick={() => onSelect(g.key)}
-            >
-              <span className="settings-nav__icon">{g.icon}</span>
-              <span className="settings-nav__label">{g.label}</span>
-            </button>
-          ))}
-        </div>
-      ),
-    }}
-    center={children}
-  />
-);
+const SettingsShell = ({ title, groups, activeKey, onSelect, panels, children }) => {
+  // Строки здесь — настоящие <button> (Tab и Enter работают сами), стрелки
+  // добавляем для единообразия со списками и деревьями остальных разделов.
+  // Поэтому и tabIndex у контейнера нет: в остальных разделах он единственная
+  // точка входа только потому, что там строки — неинтерактивные div/li.
+  const handleKeyDown = useListNavigation();
+
+  return (
+    <WorkspaceLayout
+      {...panels}
+      left={{
+        title,
+        children: (
+          // role="group" — чтобы aria-label был законным именем: на div без роли
+          // (role=generic) ARIA запрещает aria-label, и скринридер его теряет.
+          <div className="ws-list" role="group" aria-label={title} onKeyDown={handleKeyDown}>
+            {groups.map((g) => (
+              <button
+                key={g.key}
+                type="button"
+                data-ws-item
+                aria-current={activeKey === g.key ? 'true' : undefined}
+                className={`ws-item${activeKey === g.key ? ' ws-item--active' : ''}`}
+                onClick={() => onSelect(g.key)}
+              >
+                <span className="ws-item__icon">{g.icon}</span>
+                <span className="ws-item__label">{g.label}</span>
+              </button>
+            ))}
+          </div>
+        ),
+      }}
+      center={children}
+    />
+  );
+};
 
 /* Удобные подкомпоненты для центра — чтобы страницы были компактнее. */
 

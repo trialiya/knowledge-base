@@ -1,0 +1,191 @@
+/* ═══════════════════════════════════════════════
+   SIDE PANEL — содержимое левой панели рабочей области
+   (строки списков и деревьев, подсказки)
+
+   Оболочка панели живёт в workspaceLayout.css, здесь — то, что внутри неё.
+   До этого файла каждый раздел рисовал строку своими правилами
+   (.chat-list-item, .tree-row, .file-tree-row, .settings-nav__item): разъезжались
+   высота, шрифт, цвет, маркер выбора и разделители. Теперь вид строки один на
+   всё приложение, а раздел добавляет только своё поведение (drag-drop в базе
+   знаний, горизонтальный скролл в файлах).
+
+   Все размеры — из токенов .workspace (см. workspaceLayout.css), чтобы строка,
+   кнопка действия и поиск стояли на одной вертикали.
+═══════════════════════════════════════════════ */
+
+/* Контейнер списка: сбрасывает ul-разметку, если список — <ul>.
+   Он же — единственная точка входа с клавиатуры (tabIndex=0, стрелки в
+   useListNavigation), поэтому свой фокус показывает изнутри: обычный outline
+   обрезался бы прокруткой панели. */
+.ws-list {
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ws-list:focus {
+  outline: none;
+}
+.ws-list:focus-visible {
+  outline: 2px solid var(--kb-accent);
+  outline-offset: -2px;
+}
+
+/* ── Строка списка/дерева ──
+   Годится и для <div>, и для <li>, и для <button> (список групп настроек),
+   поэтому здесь же сброс кнопочных стилей. */
+.ws-item {
+  position: relative; /* якорь для полосы выделения */
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  /* Высоту задаёт ТОЛЬКО min-height, вертикальных полей нет: иначе она равна
+     «padding + самое высокое содержимое», и строка с кнопкой действия (22px)
+     оказывается выше строки без неё — ровно так чат и база знаний разъезжались
+     с файлами и настройками на 3px. Содержимое центрирует flex.
+     box-sizing — потому что глобального border-box в проекте нет: с content-box
+     min-height считается без padding и border (36px в дереве базы знаний
+     рендерились как 55px, а строка настроек — <button> с UA-border-box — как
+     честные 40). */
+  box-sizing: border-box;
+  min-height: var(--ws-row-min-h);
+  padding: 0 var(--ws-gutter) 0 calc(var(--ws-gutter) + var(--depth, 0) * var(--ws-indent));
+  border: none;
+  background: none;
+  text-align: left;
+  font-family: inherit;
+  font-size: var(--ws-row-font);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--kb-text);
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.ws-item:hover {
+  background: var(--kb-accent-light);
+}
+
+/* Строка получает фокус с клавиатуры (стрелками). Внутренний outline — по той
+   же причине, что и у контейнера: панель прокручивается и обрезает внешний. */
+.ws-item:focus {
+  outline: none;
+}
+.ws-item:focus-visible {
+  outline: 2px solid var(--kb-accent);
+  outline-offset: -2px;
+}
+
+/* Выбранная строка: заливка + акцентный текст + полоса слева.
+   :hover перечислен явно — иначе он (два класса против одного) перебивал бы
+   выделение, и активная строка светлела под курсором. */
+.ws-item--active,
+.ws-item--active:hover {
+  background: var(--kb-accent-bg);
+  color: var(--kb-accent);
+  font-weight: 700;
+}
+
+/* Полоса — псевдоэлемент внутри границ строки, а не border-left: border сдвинул
+   бы текст на 3px относительно других панелей, а box-shadow конфликтует с
+   индикаторами drag-drop дерева базы знаний (они как раз на box-shadow). */
+.ws-item--active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  background: var(--kb-accent);
+}
+
+/* ── Части строки ── */
+
+.ws-item__chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  color: var(--kb-muted);
+}
+
+.ws-item__icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--kb-muted);
+}
+.ws-item__icon--folder {
+  color: var(--kb-accent);
+}
+/* Выбранная строка акцентная целиком — иконка вместе с меткой. */
+.ws-item--active .ws-item__icon {
+  color: var(--kb-accent);
+}
+
+.ws-item__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Дерево файлов: строка растянута на всю ширину раскрытого дерева
+   (width: max-content у контейнера — нужен горизонтальный скролл), поэтому имя
+   не сжимается и не обрезается — недостающее добирается прокруткой. */
+.ws-item--nowrap .ws-item__label {
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+/* ── Действия строки (переименовать/удалить) ──
+   Показываем только на наведённой, сфокусированной или выбранной строке: на
+   длинном дереве колонка корзин на каждой строке — визуальный шум. Скрыто
+   прозрачностью, а не display:none, — кнопки остаются в потоке (строка не
+   дёргается) и в таб-порядке, а :focus-within проявляет их, когда до них
+   добрались с клавиатуры. */
+.ws-item__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.ws-item__action {
+  width: 22px;
+  height: 22px;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+.ws-item:hover .ws-item__action,
+.ws-item:focus-within .ws-item__action,
+.ws-item--active .ws-item__action {
+  opacity: 1;
+}
+
+/* Поле переименования по месту (двойной клик / кнопка «переименовать»). */
+.ws-item__edit {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 3px 7px;
+  border: 1.5px solid var(--kb-accent);
+  border-radius: 6px;
+  background: var(--kb-white);
+  font: inherit;
+  font-weight: 500;
+  color: var(--kb-text);
+  outline: none;
+}
+
+/* ── Служебная строка панели: «Пусто», «Загрузка…», «ещё N» ── */
+
+.ws-hint {
+  padding: 6px var(--ws-gutter) 6px calc(var(--ws-gutter) + var(--depth, 0) * var(--ws-indent));
+  font-size: 0.78rem;
+  color: var(--kb-muted);
+}

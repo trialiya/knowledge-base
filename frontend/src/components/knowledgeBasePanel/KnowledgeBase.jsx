@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import './KnowledgeBase.css';
 
 import TreeNode from './TreeNode';
+import TreeSearch from './TreeSearch';
 import FolderDetail from './FolderDetail';
 import DocumentDetail from './DocumentDetail';
 import DetailModals from './DetailModals';
@@ -14,6 +15,7 @@ import ErrorModal from '../common/ErrorModal';
 import WorkspaceLayout from '../common/WorkspaceLayout';
 import { IconPlus } from '../../icons';
 import { OWNER_TYPE } from '../../constants/ownerType';
+import useListNavigation from '../../hooks/useListNavigation';
 import useKnowledgeBase from './useKnowledgeBase';
 import useDetailPanel from './useDetailPanel';
 import useAttachmentCount from '../common/useAttachmentCount';
@@ -22,9 +24,11 @@ import { buildDetailTabs } from './detailSidebar';
 
 const KnowledgeBase = ({ docId, search, mode, refreshSignal, onRefreshingChange, onOpenDoc, onSearch, panels }) => {
   const { t } = useTranslation('knowledgeBase');
+  const handleTreeKeyDown = useListNavigation();
 
   const {
     tree,
+    treeLoaded,
     selectedNode,
     searchQuery,
     searchResults,
@@ -146,22 +150,32 @@ const KnowledgeBase = ({ docId, search, mode, refreshSignal, onRefreshingChange,
               {t('tree.create')}
             </button>
           ),
-          children: (
-            <div className="tree-container">
-              {tree.map((node) => (
-                <TreeNode
-                  key={node.id}
-                  node={node}
-                  level={0}
-                  selectedId={selectedNode?.id}
-                  onSelect={selectNode}
-                  onDelete={handleDelete}
-                  onReorder={handleReorder}
-                  onLoadChildren={handleLoadChildren}
-                />
-              ))}
-            </div>
-          ),
+          toolbar: <TreeSearch onSelect={selectNode} />,
+          children:
+            treeLoaded && tree.length === 0 ? (
+              <div className="ws-hint">{t('tree.empty')}</div>
+            ) : (
+              <div
+                className="ws-list"
+                role="tree"
+                aria-label={t('tree.title')}
+                tabIndex={0}
+                onKeyDown={handleTreeKeyDown}
+              >
+                {tree.map((node) => (
+                  <TreeNode
+                    key={node.id}
+                    node={node}
+                    level={0}
+                    selectedId={selectedNode?.id}
+                    onSelect={selectNode}
+                    onDelete={handleDelete}
+                    onReorder={handleReorder}
+                    onLoadChildren={handleLoadChildren}
+                  />
+                ))}
+              </div>
+            ),
         }}
         center={center}
         right={rightTabs}

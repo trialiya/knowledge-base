@@ -20,7 +20,13 @@
   "panels": {
     "collapseLeft": "Свернуть панель",
     "expandLeft": "Развернуть панель",
-    "collapseRight": "Свернуть панель"
+    "collapseRight": "Свернуть панель",
+    "resizeLeft": "Изменить ширину панели"
+  },
+  "panelSearch": {
+    "searching": "Поиск…",
+    "empty": "Ничего не найдено",
+    "close": "Закрыть поиск"
   },
   "search": {
     "placeholder": "Поиск по базе знаний…",

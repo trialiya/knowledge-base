@@ -1,17 +1,21 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import useListNavigation from '../../hooks/useListNavigation';
+import { IconEdit, IconTrash } from '../../icons';
 
 /**
  * Список чатов — содержимое левой панели рабочей области.
  *
  * Кнопка «Новый чат» и поиск по чатам живут не здесь, а в слотах
  * WorkspaceLayout (action / toolbar): их место в шапке панели общее для всех
- * разделов, поэтому список отвечает только за сами чаты.
+ * разделов, поэтому список отвечает только за сами чаты. Вид строки — общий
+ * .ws-item (common/sidePanel.css), клавиатура — общий useListNavigation.
  */
 const ChatList = ({ chats, activeChatId, onSelectChat, onDeleteChat, onRenameChat }) => {
   const { t } = useTranslation('chat');
   const [editingId, setEditingId] = useState(null);
   const [editValue, setEditValue] = useState('');
+  const handleListKeyDown = useListNavigation();
 
   const startEdit = (id, currentTitle) => {
     setEditingId(id);
@@ -38,12 +42,23 @@ const ChatList = ({ chats, activeChatId, onSelectChat, onDeleteChat, onRenameCha
     }
   };
 
+  // Пустой список означает только «ещё грузим»: после загрузки в нём всегда есть
+  // хотя бы черновик нового чата (см. ChatWindow), поэтому «чатов нет» здесь
+  // было бы неправдой.
+  if (chats.length === 0) {
+    return <div className="ws-hint">{t('common:loading')}</div>;
+  }
+
   return (
-    <ul className="chat-list">
+    <ul className="ws-list" role="listbox" aria-label={t('list.title')} tabIndex={0} onKeyDown={handleListKeyDown}>
       {chats.map((chat) => (
         <li
           key={chat.id}
-          className={`chat-list-item ${chat.id === activeChatId ? 'active' : ''}`}
+          data-ws-item
+          role="option"
+          aria-selected={chat.id === activeChatId}
+          tabIndex={-1}
+          className={`ws-item${chat.id === activeChatId ? ' ws-item--active' : ''}`}
           onClick={() => onSelectChat(chat.id)}
         >
           {editingId === chat.id ? (
@@ -54,36 +69,41 @@ const ChatList = ({ chats, activeChatId, onSelectChat, onDeleteChat, onRenameCha
               onBlur={() => saveEdit(chat.id)}
               onKeyDown={(e) => handleKeyDown(e, chat.id)}
               autoFocus
-              className="chat-edit-input"
+              className="ws-item__edit"
+              aria-label={t('list.rename')}
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
             <>
-              <span className="chat-title">{chat.title}</span>
-              <div className="chat-actions">
+              <span className="ws-item__label">{chat.title}</span>
+              <span className="ws-item__actions">
                 <button
-                  className="icon-btn chat-list-item__action"
+                  type="button"
+                  className="icon-btn ws-item__action"
                   onClick={(e) => {
                     e.stopPropagation();
                     startEdit(chat.id, chat.title);
                   }}
                   title={t('list.rename')}
+                  aria-label={t('list.rename')}
                 >
-                  ✎
+                  <IconEdit size={12} />
                 </button>
                 {chats.length > 1 && (
                   <button
-                    className="icon-btn icon-btn--danger chat-list-item__action"
+                    type="button"
+                    className="icon-btn icon-btn--danger ws-item__action"
                     onClick={(e) => {
                       e.stopPropagation();
                       onDeleteChat(chat.id);
                     }}
                     title={t('list.delete')}
+                    aria-label={t('list.delete')}
                   >
-                    ✕
+                    <IconTrash size={12} />
                   </button>
                 )}
-              </div>
+              </span>
             </>
           )}
         </li>
