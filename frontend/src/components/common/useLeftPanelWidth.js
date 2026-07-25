@@ -7,8 +7,21 @@ export const MAX_LEFT_WIDTH = 520;
 /** Шаг изменения ширины стрелками, когда фокус на разделителе. */
 const KEY_STEP = 16;
 const CSS_VAR = '--ws-left-width';
+/** Не отдавать центру раздела больше этой доли ширины окна, см. viewportMax(). */
+const MAX_WIDTH_VIEWPORT_SHARE = 0.6;
 
-const clamp = (px) => Math.min(MAX_LEFT_WIDTH, Math.max(MIN_LEFT_WIDTH, Math.round(px)));
+/**
+ * MAX_LEFT_WIDTH — паспортный максимум для широких экранов; на узких он сам по
+ * себе не спасает: на ~900px (ещё до оверлейного брейкпоинта в 820px, см.
+ * workspaceLayout.css) панель в 520px — это 58% рабочей области. Верхнюю
+ * границу берём как минимум из двух: паспортной и доли текущего окна.
+ */
+function viewportMax() {
+  if (typeof window === 'undefined') return MAX_LEFT_WIDTH;
+  return Math.min(MAX_LEFT_WIDTH, Math.round(window.innerWidth * MAX_WIDTH_VIEWPORT_SHARE));
+}
+
+const clamp = (px) => Math.min(viewportMax(), Math.max(MIN_LEFT_WIDTH, Math.round(px)));
 
 function readStored() {
   try {
@@ -55,6 +68,23 @@ function subscribe(notify) {
 }
 
 applyVar(current); // сохранённая ширина должна встать до первого кадра
+
+/**
+ * ТОЛЬКО ДЛЯ ТЕСТОВ. `current` живёт на уровне модуля (см. ниже) — общий на все
+ * экземпляры хука, в точности как в приложении. Но это же делает тесты в одном
+ * файле order-dependent: тест, оставивший ширину не-дефолтной (перетащил и не
+ * вызвал reset/Home), портит следующий, который ожидает чистое состояние.
+ * Вызывать из beforeEach/afterEach конкретного test-файла, не из кода приложения.
+ */
+export function resetLeftPanelWidthForTests() {
+  current = DEFAULT_LEFT_WIDTH;
+  applyVar(current);
+  try {
+    localStorage.removeItem(STORAGE_KEY_LEFT_WIDTH);
+  } catch {
+    /* ignore quota / private-mode errors */
+  }
+}
 
 /**
  * Ширина левой панели, которую можно тянуть мышью, — ОДНА НА ВСЕ РАЗДЕЛЫ.

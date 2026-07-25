@@ -2,6 +2,7 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import WorkspaceLayout from './WorkspaceLayout';
+import { resetLeftPanelWidthForTests } from './useLeftPanelWidth';
 
 // i18n в тестах не инициализируем — берём ключ как подпись.
 jest.mock('react-i18next', () => ({
@@ -9,6 +10,13 @@ jest.mock('react-i18next', () => ({
 }));
 
 const baseLeft = { title: 'Дерево', children: <div>содержимое дерева</div> };
+
+// Ширина левой панели — общий стор на уровне модуля (см. useLeftPanelWidth):
+// без сброса тест, оставивший её не-дефолтной, ломает соседний, который
+// рассчитывает на чистое состояние.
+beforeEach(() => {
+  resetLeftPanelWidthForTests();
+});
 
 describe('WorkspaceLayout', () => {
   it('показывает левую панель и сворачивает её по тумблеру', async () => {
@@ -100,6 +108,28 @@ describe('WorkspaceLayout', () => {
     await userEvent.keyboard('{Home}'); // сброс к ширине по умолчанию
     expect(rootWidth()).toBe('280px');
     expect(localStorage.getItem('ui_leftWidth')).toBe('280');
+  });
+
+  it('ширина не может отобрать у центра больше 60% окна', async () => {
+    // MAX_LEFT_WIDTH (520px) — паспортный потолок для широких экранов; на узком
+    // окне он сам по себе не спасает от того, что панель займёт большую часть
+    // рабочей области. Верхняя граница — минимум из паспортной и доли текущего
+    // window.innerWidth (см. viewportMax() в useLeftPanelWidth).
+    const originalWidth = window.innerWidth;
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 700 });
+    try {
+      render(<WorkspaceLayout left={baseLeft} center={<div>центр</div>} />);
+      screen.getByRole('separator', { name: 'panels.resizeLeft' }).focus();
+
+      // С большим запасом шагов — попытка упереться в потолок, а не проверка
+      // конкретного количества нажатий.
+      // eslint-disable-next-line no-await-in-loop
+      for (let i = 0; i < 20; i++) await userEvent.keyboard('{ArrowRight}');
+
+      expect(document.documentElement.style.getPropertyValue('--ws-left-width')).toBe('420px'); // 700 * 0.6
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: originalWidth });
+    }
   });
 
   it('у свёрнутой панели разделителя нет — тянуть нечего', () => {

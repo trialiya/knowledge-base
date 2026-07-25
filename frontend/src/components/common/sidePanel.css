@@ -162,7 +162,6 @@
   transition: opacity 0.15s, background 0.15s, color 0.15s;
 }
 .ws-item:hover .ws-item__action,
-.ws-item:focus-visible .ws-item__action,
 .ws-item:focus-within .ws-item__action,
 .ws-item--active .ws-item__action {
   opacity: 1;
