@@ -70,6 +70,14 @@ export const IconChevronUp = ({ size = 12, className }) => (
   </svg>
 );
 
+/** Тумблер левой панели рабочей области (прямоугольник с выделенной левой колонкой). */
+export const IconPanelLeft = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" {...s} strokeWidth="1.8">
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <line x1="9" y1="4" x2="9" y2="20" />
+  </svg>
+);
+
 export const IconArrowLeft = () => (
   <svg width="15" height="15" viewBox="0 0 24 24" {...s} strokeWidth="2.5">
     <line x1="19" y1="12" x2="5" y2="12" />

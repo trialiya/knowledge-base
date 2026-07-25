@@ -1,23 +1,30 @@
 import React from 'react';
+import WorkspaceLayout from './WorkspaceLayout';
 import './settingsShell.css';
 
 /**
- * Общая «рамка» master-detail для страниц Админ-панель и Настройки.
- * Повторяет каркас базы знаний: слева — список групп (как дерево),
- * справа — рабочая область выбранной группы.
+ * Каркас master-detail для страниц «Админ-панель» и «Настройки».
+ *
+ * Раскладка — общая для всего приложения (WorkspaceLayout): список групп это
+ * левая скрываемая панель, содержимое группы — центр. Раньше здесь был свой
+ * контейнер, повторявший каркас базы знаний; после перехода разделов на общую
+ * оболочку копия стала лишней и разъезжалась бы с ней при любой правке.
+ * Правой панели у этих страниц нет — рассказывать сбоку не о чем.
  *
  * props:
  *   title      — заголовок над списком групп (например, «Настройки»)
  *   groups     — [{ key, label, icon }]
  *   activeKey  — ключ активной группы
  *   onSelect   — (key) => void
- *   children   — содержимое активной группы (правая колонка)
+ *   panels     — раскладка панелей из навигации (см. App)
+ *   children   — содержимое активной группы (центр)
  */
-const SettingsShell = ({ title, groups, activeKey, onSelect, children }) => (
-  <div className="settings-container">
-    <div className="settings-main">
-      <nav className="settings-nav">
-        {title && <div className="settings-nav__title">{title}</div>}
+const SettingsShell = ({ title, groups, activeKey, onSelect, panels, children }) => (
+  <WorkspaceLayout
+    {...panels}
+    left={{
+      title,
+      children: (
         <div className="settings-nav__list">
           {groups.map((g) => (
             <button
@@ -30,14 +37,13 @@ const SettingsShell = ({ title, groups, activeKey, onSelect, children }) => (
             </button>
           ))}
         </div>
-      </nav>
-
-      <div className="settings-content">{children}</div>
-    </div>
-  </div>
+      ),
+    }}
+    center={children}
+  />
 );
 
-/* Удобные подкомпоненты для правой колонки — чтобы страницы были компактнее. */
+/* Удобные подкомпоненты для центра — чтобы страницы были компактнее. */
 
 export const SettingsContentHead = ({ title, subtitle, actions }) => (
   <div className="settings-content__head">

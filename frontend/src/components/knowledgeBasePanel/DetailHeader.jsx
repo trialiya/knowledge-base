@@ -34,10 +34,10 @@ const InlineRename = ({ value, onSave, onCancel }) => {
           if (e.key === 'Escape') onCancel();
         }}
       />
-      <button className="detail-icon-btn" onClick={() => onSave(val)}>
+      <button className="icon-btn" onClick={() => onSave(val)}>
         <IconCheck />
       </button>
-      <button className="detail-icon-btn" onClick={onCancel}>
+      <button className="icon-btn" onClick={onCancel}>
         <IconX />
       </button>
     </span>
@@ -118,7 +118,7 @@ const DetailHeader = ({ node, path, onNavigate, onRename, onDelete }) => {
                 </span>
               ) : (
                 <button
-                  className="detail-icon-btn detail-header__rename-btn"
+                  className="icon-btn detail-header__rename-btn"
                   title={t('detail.rename')}
                   onClick={() => setRenaming(true)}
                 >
@@ -131,7 +131,7 @@ const DetailHeader = ({ node, path, onNavigate, onRename, onDelete }) => {
 
         <div className="detail-header__actions">
           {!isSystem && (
-            <button className="detail-icon-btn" title={t('detail.delete')} onClick={() => onDelete(node.id)}>
+            <button className="icon-btn" title={t('detail.delete')} onClick={() => onDelete(node.id)}>
               <IconTrash />
             </button>
           )}

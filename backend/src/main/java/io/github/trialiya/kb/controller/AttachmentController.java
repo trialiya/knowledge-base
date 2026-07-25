@@ -23,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
  *
  * <pre>
  * GET /api/documents/{documentId}/attachments
+ * GET /api/documents/{documentId}/attachments/count
  * GET /api/chats/{conversationId}/attachments
  * GET /api/chats/{conversationId}/attachments/count
  * </pre>
@@ -78,6 +79,11 @@ public class AttachmentController {
     @GetMapping("/chats/{conversationId}/attachments")
     public List<Attachment> listForChat(@PathVariable String conversationId) {
         return service.findByConversation(conversationId);
+    }
+
+    @GetMapping("/documents/{documentId}/attachments/count")
+    public long countForDocument(@PathVariable Long documentId) {
+        return service.countByDocument(documentId);
     }
 
     @GetMapping("/chats/{conversationId}/attachments/count")

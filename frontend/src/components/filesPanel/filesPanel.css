@@ -2,44 +2,15 @@
    FILES PANEL — просмотр репозитория (GitHub-стиль)
 ═══════════════════════════════════════════════ */
 
-.files-panel-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  background: var(--kb-white);
-  border-radius: var(--kb-radius);
-  overflow: hidden;
-  box-shadow: 0 4px 24px rgba(91, 79, 207, 0.1);
-  margin: 1rem;
-  font-family: 'Segoe UI', system-ui, sans-serif;
-  color: var(--kb-text);
-}
+/* Оболочка раздела (контейнер, левая панель, центр) — общая: см.
+   common/workspaceLayout.css. Здесь только специфика дерева и содержимого. */
 
-.files-panel-main {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
+/* Путей в репозитории много и они глубокие — даём дереву больше места. */
+.workspace--files {
+  --ws-left-width: 290px;
 }
 
 /* ── Tree ── */
-
-.files-panel-left {
-  width: 280px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  background: var(--kb-bg);
-  border-right: 1px solid var(--kb-border);
-  min-height: 0;
-}
-
-.files-panel-toolbar {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  padding: 0.5rem 0.6rem;
-  border-bottom: 1px solid var(--kb-border);
-}
 
 .files-panel-tree {
   flex: 1;
@@ -277,14 +248,6 @@
 }
 
 /* ── Content ── */
-
-.files-panel-preview {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
 
 .file-content {
   flex: 1;

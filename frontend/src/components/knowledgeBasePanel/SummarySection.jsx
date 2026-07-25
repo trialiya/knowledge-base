@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import MarkdownEditor from './MarkdownEditor';
-import { IconEdit, IconChevronRight, IconExpand, IconCopy, IconCheck } from '../../icons';
+import { IconExpand, IconCopy, IconCheck } from '../../icons';
 import { COPY_DONE_MS } from '../../constants/ui';
 
 const MAX_LINES = 12;
@@ -10,27 +10,13 @@ const MAX_LINES = 12;
  * props:
  *   label        — section heading text
  *   description  — raw markdown / plain text
- *   onEdit       — called when pencil is clicked (switches to content tab)
  *   onExpand     — called when expand button is clicked (opens fullscreen modal)
- *   showMoreBtn  — show a › button (to switch to contents tab)
- *   onMore       — called when › is clicked
  *   children     — optional slot rendered inside the section card (e.g. ContentsTable)
  *   tree         — KB tree array (forwarded to MarkdownEditor for DocLinkTooltip)
  *   onNavigate   — (node) => void (forwarded to MarkdownEditor for DocLinkTooltip)
  *   copyable     — show a "copy all" button in the header (copies `description`)
  */
-const SummarySection = ({
-  label,
-  description,
-  onEdit,
-  onExpand,
-  showMoreBtn,
-  onMore,
-  children,
-  tree = [],
-  onNavigate,
-  copyable = false,
-}) => {
+const SummarySection = ({ label, description, onExpand, children, tree = [], onNavigate, copyable = false }) => {
   const { t } = useTranslation('knowledgeBase');
   const [isExpanded, setIsExpanded] = useState(false);
   const [isTruncated, setIsTruncated] = useState(false);
@@ -69,25 +55,15 @@ const SummarySection = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           {showCopy && (
             <button
-              className={`detail-icon-btn${copied ? ' detail-icon-btn--done' : ''}`}
+              className={`icon-btn${copied ? ' icon-btn--done' : ''}`}
               title={copied ? t('editor.copied') : t('editor.copyAll')}
               onClick={handleCopy}
             >
               {copied ? <IconCheck /> : <IconCopy />}
             </button>
           )}
-          {onEdit && (
-            <button className="detail-icon-btn" title={t('section.edit')} onClick={onEdit}>
-              <IconEdit />
-            </button>
-          )}
-          {showMoreBtn && (
-            <button className="detail-icon-btn" title={t('section.openTab')} onClick={onMore}>
-              <IconChevronRight size={13} />
-            </button>
-          )}
           {onExpand && (
-            <button className="detail-icon-btn" title={t('section.expand')} onClick={onExpand}>
+            <button className="icon-btn" title={t('section.expand')} onClick={onExpand}>
               <IconExpand />
             </button>
           )}

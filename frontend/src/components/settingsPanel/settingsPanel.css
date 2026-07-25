@@ -2,12 +2,6 @@
    SETTINGS PANEL — специфика (фразы, модели)
 ═══════════════════════════════════════════════ */
 
-/* Мелкая кнопка для шапки секции («Добавить») */
-.set-btn--sm {
-  padding: 5px 12px;
-  font-size: 0.78rem;
-}
-
 /* ── Строка фразы ── */
 .phrase-row {
   display: flex;
@@ -132,15 +126,6 @@
 }
 
 /* Инлайновый код в подсказках */
-.set-hint code {
-  font-family: 'Fira Mono', 'Consolas', monospace;
-  font-size: 0.85em;
-  background: var(--kb-bg);
-  padding: 1px 5px;
-  border-radius: 4px;
-  color: var(--kb-accent);
-}
-
 /* ═══════════════════════════════════════════════
    Редактор библиотеки фраз (PhrasesSettings)
 ═══════════════════════════════════════════════ */
@@ -211,14 +196,9 @@
   flex-shrink: 0;
   line-height: 1;
 }
-.phrase-row__order .set-icon-btn {
+.phrase-row__order .icon-btn {
   padding: 1px 6px;
   font-size: 0.85rem;
-}
-
-/* Активная звезда «избранное» */
-.set-icon-btn--star {
-  color: #f5b301;
 }
 
 /* Баннер ошибки запроса (сеть/HTTP) над списком фраз */

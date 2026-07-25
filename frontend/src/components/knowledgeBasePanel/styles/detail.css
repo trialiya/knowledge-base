@@ -2,14 +2,8 @@
    DETAIL PANEL
 ═══════════════════════════════════════════════ */
 
-.kb-preview {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--kb-white);
-  min-width: 0;
-}
+/* Оболочка раздела (контейнер, левая панель, центр, правая панель) — общая:
+   см. common/workspaceLayout.css. Здесь только внутренности детали. */
 
 .empty-preview {
   color: var(--kb-muted);
@@ -143,26 +137,6 @@
   margin-top: 6px;
 }
 
-/* Icon buttons */
-.detail-icon-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--kb-muted);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  transition: background 0.15s, color 0.15s;
-  flex-shrink: 0;
-}
-.detail-icon-btn:hover {
-  background: var(--kb-accent-bg);
-  color: var(--kb-accent);
-}
-
 /* Breadcrumb */
 .detail-breadcrumb {
   display: flex;
@@ -195,49 +169,6 @@
   color: var(--kb-border);
 }
 
-/* Tabs — горизонтальный отступ выровнен с шапкой (1.2rem) */
-.detail-tabs {
-  display: flex;
-  padding: 0 1.2rem;
-  margin-top: 0.6rem;
-  border-bottom: 1px solid var(--kb-border);
-  flex-shrink: 0;
-}
-
-.detail-tab {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  padding: 9px 2px;
-  margin-right: 22px;
-  margin-bottom: -1px;
-  font-size: 0.88rem;
-  font-weight: 500;
-  color: var(--kb-muted);
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
-}
-.detail-tab:hover {
-  color: var(--kb-text);
-}
-.detail-tab--active {
-  color: var(--kb-accent);
-  border-bottom-color: var(--kb-accent);
-  font-weight: 600;
-}
-.detail-tab__count {
-  font-size: 0.7rem;
-  font-weight: 600;
-  background: var(--kb-accent-bg);
-  color: var(--kb-accent);
-  border-radius: 10px;
-  padding: 1px 6px;
-  line-height: 1.4;
-}
-
 /* Body — горизонтальный отступ выровнен с шапкой (1.2rem) */
 .detail-body {
   flex: 1;
@@ -249,14 +180,8 @@
 }
 
 /* ═══════════════════════════════════════════════
-   SUMMARY TAB
+   SUMMARY / ABOUT (правая панель)
 ═══════════════════════════════════════════════ */
-
-.summary-tab {
-  display: flex;
-  flex-direction: column;
-  gap: 1.2rem;
-}
 
 .summary-section {
   border: 1px solid var(--kb-border);
@@ -308,28 +233,6 @@
 }
 
 /* ── Summarize button ── */
-.detail-summarize-btn {
-  color: var(--kb-accent);
-  border: 1.5px solid var(--kb-accent-bg);
-  background: var(--kb-accent-bg);
-}
-.detail-summarize-btn:hover {
-  background: var(--kb-accent);
-  color: #fff;
-}
-.detail-summarize-btn--stale {
-  border-color: #f59e0b;
-  background: #fffbeb;
-  color: #d97706;
-}
-.detail-summarize-btn--stale:hover {
-  background: #f59e0b;
-  color: #fff;
-}
-.detail-summarize-btn--loading {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
 .spin {
   animation: kb-spin 0.9s linear infinite;
 }
@@ -439,26 +342,9 @@
   color: var(--kb-accent);
 }
 
-/* Regenerate button (shown when summary exists) */
-.ai-summary-regenerate {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: none;
-  border: 1.5px solid var(--kb-accent-bg);
-  border-radius: 20px;
-  padding: 3px 10px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--kb-accent);
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-}
-.ai-summary-regenerate:hover {
-  background: var(--kb-accent);
-  border-color: var(--kb-accent);
-  color: #fff;
-}
+/* Regenerate button (shown when summary exists) — chrome is the shared
+   btn/btn--sm/btn--ghost; only the "needs update" amber tint is specific to
+   this feature (no shared modifier has an analogue for it). */
 .ai-summary-regenerate--stale {
   border-color: #f59e0b;
   color: #d97706;
@@ -469,12 +355,8 @@
   border-color: #f59e0b;
   color: #fff;
 }
-.ai-summary-regenerate--loading {
-  opacity: 0.65;
-  cursor: not-allowed;
-}
 
-/* Empty state — no summary yet */
+/* Empty state — no summary yet. Generate button is the shared btn/btn--primary. */
 .ai-summary-empty {
   display: flex;
   flex-direction: column;
@@ -483,48 +365,12 @@
   padding: 28px 24px 24px;
   color: var(--kb-accent);
 }
-.ai-summary-empty__text {
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--kb-muted);
-  text-align: center;
-  max-width: 280px;
-}
 .ai-summary-empty__hint {
   margin: 0;
   font-size: 0.75rem;
   color: var(--kb-muted);
   opacity: 0.7;
   text-align: center;
-}
-
-/* Generate button */
-.ai-summary-generate-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--kb-accent);
-  color: #fff;
-  border: none;
-  border-radius: 20px;
-  padding: 7px 18px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.15s, transform 0.1s;
-}
-.ai-summary-generate-btn:hover:not(:disabled) {
-  opacity: 0.88;
-  transform: translateY(-1px);
-}
-.ai-summary-generate-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  transform: none;
-}
-.ai-summary-generate-btn--loading {
-  opacity: 0.7;
-  cursor: not-allowed;
 }
 
 /* Stale badge */
@@ -612,8 +458,83 @@
   overflow-wrap: break-word;
 }
 
-.detail-icon-btn--done,
-.detail-icon-btn--done:hover {
-  color: var(--kb-accent);
-  background: var(--kb-accent-bg);
+/* ═══════════════════════════════════════════════
+   INFO TAB (правая панель)
+═══════════════════════════════════════════════ */
+
+.detail-info__list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.detail-info__row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 2px;
+  border-bottom: 1px solid var(--kb-border-light);
+}
+.detail-info__row:last-child {
+  border-bottom: none;
+}
+
+.detail-info__label {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  color: var(--kb-muted);
+}
+
+.detail-info__value {
+  margin: 0;
+  margin-left: auto;
+  text-align: right;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--kb-text);
+  overflow-wrap: anywhere;
+}
+
+.detail-info__note {
+  margin: 0.9rem 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--kb-warning-bg);
+  color: var(--kb-text);
+  font-size: 0.76rem;
+}
+
+/* ═══════════════════════════════════════════════
+   ПРАВАЯ ПАНЕЛЬ — адаптация к узкой колонке
+═══════════════════════════════════════════════ */
+
+/* Описание рендерится как markdown: длинные пути, inline-код и ссылки
+   (`backend/build.gradle`) не переносятся сами и вылезали за край панели. */
+.workspace__side--right .summary-markdown,
+.workspace__side--right .summary-about {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.workspace__side--right .summary-markdown code,
+.workspace__side--right .summary-markdown a {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+/* Заголовки документа в превью не должны спорить с заголовком самой панели. */
+.workspace__side--right .summary-markdown h1,
+.workspace__side--right .summary-markdown h2 {
+  font-size: 0.95rem;
+}
+
+/* Состав папки: тип уже показан иконкой строки — в узкой панели убираем колонку
+   и отдаём место имени, иначе от него остаётся «Хроноло…». Сетку сужаем в тех же
+   правилах, что и в contents.css, — из четырёх колонок остаётся три. */
+.workspace__side--right .contents-table__header,
+.workspace__side--right .contents-row {
+  grid-template-columns: 24px 1fr 72px;
+}
+.workspace__side--right .contents-table__header span:nth-child(3),
+.workspace__side--right .contents-row__type {
+  display: none;
 }

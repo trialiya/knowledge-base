@@ -1,5 +1,7 @@
 /* ═══════════════════════════════════════════════
-   BUTTONS — shared classes, modeled on settings' set-btn/set-icon-btn family
+   BUTTONS — общие классы кнопок приложения.
+   Единственное место, где живёт вид кнопок: панельных копий (set-btn,
+   detail-icon-btn, new-chat-button…) больше нет.
 ═══════════════════════════════════════════════ */
 
 .btn {
@@ -76,4 +78,17 @@
 .icon-btn--danger:hover {
   background: var(--kb-error-bg);
   color: var(--kb-error);
+}
+
+/* Активная «звезда» (избранное) */
+.icon-btn--star {
+  color: #f5b301;
+}
+
+/* Кратковременное состояние «сделано» (скопировано и т.п.) — подсветка держится
+   и без наведения, поэтому это отдельный модификатор, а не :hover. */
+.icon-btn--done,
+.icon-btn--done:hover {
+  background: var(--kb-accent-bg);
+  color: var(--kb-accent);
 }

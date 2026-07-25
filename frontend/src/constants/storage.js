@@ -15,6 +15,14 @@ export const STORAGE_KEY_LAST_MODE = 'chat_lastMode';
 export const STORAGE_KEY_CHAT_DRAFTS = 'chat_drafts';
 
 /**
+ * localStorage: состояние боковых панелей рабочей области по разделам —
+ * JSON-объект `{ [view]: { leftCollapsed, rightTab } }`. Источник правды для
+ * ТЕКУЩЕГО раздела — URL; здесь хранится раскладка остальных, чтобы она не
+ * терялась при переключении вкладок. См. panelState.js.
+ */
+export const STORAGE_KEY_PANELS = 'ui_panels';
+
+/**
  * Псевдо-id черновика нового чата. Реальный UUID появляется только при
  * отправке первого сообщения — до этого бэк ничего о чате не знает.
  */

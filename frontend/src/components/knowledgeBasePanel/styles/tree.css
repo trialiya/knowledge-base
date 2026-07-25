@@ -2,18 +2,8 @@
    TREE
 ═══════════════════════════════════════════════ */
 
-.kb-tree {
-  width: 260px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  background: var(--kb-bg);
-  border-right: 1px solid var(--kb-border);
-}
-
+/* Панель дерева — общая (.workspace__side--left); здесь только само дерево. */
 .tree-container {
-  flex: 1;
-  overflow-y: auto;
   padding: 0;
 }
 .tree-node-wrap {
@@ -70,16 +60,6 @@
   min-width: 0;
 }
 
-.tree-row__count {
-  font-size: 0.72rem;
-  font-weight: 600;
-  background: var(--kb-accent-bg);
-  color: var(--kb-accent);
-  border-radius: 10px;
-  padding: 1px 7px;
-  flex-shrink: 0;
-}
-
 .tree-row__del {
   background: none;
   border: none;
@@ -134,8 +114,9 @@
 /* ── Drop indicators ──────────────────────────── */
 
 /*
-  `.knowledge-base-container` and `.tree-container` both have overflow:hidden/auto,
-  which clips absolutely-positioned pseudo-elements that extend outside .tree-row.
+  The workspace shell and the panel body around `.tree-container` have
+  overflow:hidden/auto, which clips absolutely-positioned pseudo-elements that
+  extend outside .tree-row.
   Fix: use box-shadow and border — they render strictly within the element's own
   box and are never clipped by ancestor overflow.
 

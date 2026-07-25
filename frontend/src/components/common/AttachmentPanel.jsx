@@ -259,11 +259,11 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
               </span>
               <span className="attachment-row__size">{formatFileSize(a.fileSize)}</span>
               <span className="attachment-row__actions">
-                <button className="detail-icon-btn" title={t('attachments.viewTitle')} onClick={() => showContent(a)}>
+                <button className="icon-btn" title={t('attachments.viewTitle')} onClick={() => showContent(a)}>
                   <IconEye />
                 </button>
                 <button
-                  className="detail-icon-btn"
+                  className="icon-btn"
                   title={a.summary ? t('attachments.summarizeUpdate') : t('attachments.summarizeCreate')}
                   onClick={() => handleSummarize(a.id)}
                   disabled={summarizingId === a.id}
@@ -271,7 +271,7 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
                   {summarizingId === a.id ? '⏳' : <IconSummarize />}
                 </button>
                 <button
-                  className="detail-icon-btn attachment-row__delete"
+                  className="icon-btn attachment-row__delete"
                   title={t('attachments.deleteTitle')}
                   onClick={() => setPendingDelete(a.id)}
                 >

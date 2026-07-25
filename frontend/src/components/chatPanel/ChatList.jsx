@@ -1,8 +1,14 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import ChatSearch from './ChatSearch';
 
-const ChatList = ({ chats, activeChatId, onSelectChat, onNewChat, onDeleteChat, onRenameChat, onSearchSelect }) => {
+/**
+ * Список чатов — содержимое левой панели рабочей области.
+ *
+ * Кнопка «Новый чат» и поиск по чатам живут не здесь, а в слотах
+ * WorkspaceLayout (action / toolbar): их место в шапке панели общее для всех
+ * разделов, поэтому список отвечает только за сами чаты.
+ */
+const ChatList = ({ chats, activeChatId, onSelectChat, onDeleteChat, onRenameChat }) => {
   const { t } = useTranslation('chat');
   const [editingId, setEditingId] = useState(null);
   const [editValue, setEditValue] = useState('');
@@ -33,62 +39,56 @@ const ChatList = ({ chats, activeChatId, onSelectChat, onNewChat, onDeleteChat, 
   };
 
   return (
-    <div className="chat-list">
-      <button onClick={onNewChat} className="new-chat-button">
-        + {t('list.newChat')}
-      </button>
-      {onSearchSelect && <ChatSearch onSelect={onSearchSelect} />}
-      <ul>
-        {chats.map((chat) => (
-          <li
-            key={chat.id}
-            className={`chat-list-item ${chat.id === activeChatId ? 'active' : ''}`}
-            onClick={() => onSelectChat(chat.id)}
-          >
-            {editingId === chat.id ? (
-              <input
-                type="text"
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                onBlur={() => saveEdit(chat.id)}
-                onKeyDown={(e) => handleKeyDown(e, chat.id)}
-                autoFocus
-                className="chat-edit-input"
-                onClick={(e) => e.stopPropagation()}
-              />
-            ) : (
-              <>
-                <span className="chat-title">{chat.title}</span>
-                <div className="chat-actions">
+    <ul className="chat-list">
+      {chats.map((chat) => (
+        <li
+          key={chat.id}
+          className={`chat-list-item ${chat.id === activeChatId ? 'active' : ''}`}
+          onClick={() => onSelectChat(chat.id)}
+        >
+          {editingId === chat.id ? (
+            <input
+              type="text"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={() => saveEdit(chat.id)}
+              onKeyDown={(e) => handleKeyDown(e, chat.id)}
+              autoFocus
+              className="chat-edit-input"
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <>
+              <span className="chat-title">{chat.title}</span>
+              <div className="chat-actions">
+                <button
+                  className="icon-btn chat-list-item__action"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    startEdit(chat.id, chat.title);
+                  }}
+                  title={t('list.rename')}
+                >
+                  ✎
+                </button>
+                {chats.length > 1 && (
                   <button
-                    className="rename-chat-button"
+                    className="icon-btn icon-btn--danger chat-list-item__action"
                     onClick={(e) => {
                       e.stopPropagation();
-                      startEdit(chat.id, chat.title);
+                      onDeleteChat(chat.id);
                     }}
-                    title={t('list.rename')}
+                    title={t('list.delete')}
                   >
-                    ✎
+                    ✕
                   </button>
-                  {chats.length > 1 && (
-                    <button
-                      className="delete-chat-button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDeleteChat(chat.id);
-                      }}
-                      title={t('list.delete')}
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-              </>
-            )}
-          </li>
-        ))}
-      </ul>
-    </div>
+                )}
+              </div>
+            </>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 };
 

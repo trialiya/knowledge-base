@@ -17,6 +17,11 @@
     "knowledgeBase": "Knowledge Base",
     "files": "Files"
   },
+  "panels": {
+    "collapseLeft": "Collapse panel",
+    "expandLeft": "Expand panel",
+    "collapseRight": "Collapse panel"
+  },
   "search": {
     "placeholder": "Search the knowledge base…",
     "modeTitle": "Search mode",

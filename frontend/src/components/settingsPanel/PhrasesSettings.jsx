@@ -154,7 +154,7 @@ const PhrasesSettings = () => {
         <SettingsSection
           label={t('phrases.sectionLabel')}
           action={
-            <button className="set-btn set-btn--ghost set-btn--sm" onClick={startCreate}>
+            <button className="btn btn--ghost btn--sm" onClick={startCreate}>
               <IconPlus /> {t('phrases.add')}
             </button>
           }
@@ -201,10 +201,10 @@ const PhrasesSettings = () => {
                 {t('phrases.form.enabled')}
               </label>
               <div className="set-actions">
-                <button className="set-btn set-btn--primary" onClick={save} disabled={busy}>
+                <button className="btn btn--primary" onClick={save} disabled={busy}>
                   {t('phrases.form.save')}
                 </button>
-                <button className="set-btn set-btn--ghost" onClick={cancel} disabled={busy}>
+                <button className="btn btn--ghost" onClick={cancel} disabled={busy}>
                   {t('phrases.form.cancel')}
                 </button>
               </div>
@@ -224,7 +224,7 @@ const PhrasesSettings = () => {
 
                 <div className="phrase-row__order">
                   <button
-                    className="set-icon-btn"
+                    className="icon-btn"
                     title={t('phrases.row.moveUp')}
                     disabled={i <= 0}
                     onClick={() => moveUp(p)}
@@ -232,7 +232,7 @@ const PhrasesSettings = () => {
                     ↑
                   </button>
                   <button
-                    className="set-icon-btn"
+                    className="icon-btn"
                     title={t('phrases.row.moveDown')}
                     disabled={i < 0 || i >= arr.length - 1}
                     onClick={() => moveDown(p)}
@@ -242,24 +242,24 @@ const PhrasesSettings = () => {
                 </div>
 
                 <button
-                  className={`set-icon-btn ${p.favorite ? 'set-icon-btn--star' : ''}`}
+                  className={`icon-btn ${p.favorite ? 'icon-btn--star' : ''}`}
                   title={p.favorite ? t('phrases.row.removeFavorite') : t('phrases.row.addFavorite')}
                   onClick={() => toggleFav(p)}
                 >
                   {p.favorite ? '★' : '☆'}
                 </button>
                 <button
-                  className="set-icon-btn"
+                  className="icon-btn"
                   title={p.enabled ? t('phrases.row.disable') : t('phrases.row.enable')}
                   onClick={() => toggleEnabled(p)}
                 >
                   {p.enabled ? '◉' : '○'}
                 </button>
-                <button className="set-icon-btn" title={t('phrases.row.edit')} onClick={() => startEdit(p)}>
+                <button className="icon-btn" title={t('phrases.row.edit')} onClick={() => startEdit(p)}>
                   <IconEdit />
                 </button>
                 <button
-                  className="set-icon-btn set-icon-btn--danger"
+                  className="icon-btn icon-btn--danger"
                   title={t('phrases.row.delete')}
                   onClick={() => askDelete(p)}
                 >

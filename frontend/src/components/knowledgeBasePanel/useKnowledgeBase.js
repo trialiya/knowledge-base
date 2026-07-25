@@ -7,7 +7,6 @@ import { findNodeById, findPath } from '../common/utils';
 import { isEditorDirty, clearEditorDirty } from './editorDirtyStore';
 import { invalidateDocPreviewCache } from '../common/useDocPreview';
 import { KB_PAGE_SIZE as PAGE_SIZE, KB_FULL_PAGE as FULL_PAGE } from '../../constants/pagination';
-import { DOC_TAB } from '../../constants/docTabs';
 import { SEARCH_MODE } from '../../constants/searchMode';
 
 const rootItems = (paged) => (Array.isArray(paged?.items) ? paged.items : []);
@@ -18,28 +17,27 @@ const rootItems = (paged) => (Array.isArray(paged?.items) ? paged.items : []);
  *
  * props (из useAppNavigation через KnowledgeBase.jsx):
  *   docId      — какой документ показать (null = ничего/поиск)
- *   docTab     — вкладка детали (summary/content/…)
  *   search     — поисковый запрос
  *   mode       — режим поиска
- *   onOpenDoc(id, tab?)      — KB сообщает навигации: выбран документ
+ *   onOpenDoc(id)            — KB сообщает навигации: выбран документ
  *   onSearch(query, mode)    — KB сообщает навигации: запущен поиск
- *   onTabChange(tab)         — KB сообщает навигации: сменилась вкладка детали
+ *
+ * Вкладок детали здесь больше нет: центр занят редактором, а описание/состав/
+ * вложения/метаданные живут в правой панели, состоянием которой владеет
+ * навигация (`?right=`) — см. detailSidebar.jsx.
  *
  * Хук НЕ пишет URL и НЕ слушает popstate — этим владеет useAppNavigation.
  */
 export default function useKnowledgeBase({
   docId: navDocId = null,
-  docTab: navDocTab = DOC_TAB.SUMMARY,
   search: navSearch = '',
   mode: navMode = SEARCH_MODE.HYBRID,
   onOpenDoc,
   onSearch,
-  onTabChange,
 } = {}) {
   const { t } = useTranslation('knowledgeBase');
   const [tree, setTree] = useState([]);
   const [selectedNode, setSelectedNode] = useState(null);
-  const [activeTab, setActiveTab] = useState(navDocTab || DOC_TAB.SUMMARY);
   const [searchQuery, setSearchQuery] = useState(navSearch || '');
   const [searchMode, setSearchMode] = useState(navMode || SEARCH_MODE.HYBRID);
   const [searchResults, setSearchResults] = useState([]);
@@ -211,20 +209,15 @@ export default function useKnowledgeBase({
    * (which carries only a ≤150-char snippet).
    */
   const applySelectNode = useCallback(
-    (node, { notify = true, tab = DOC_TAB.SUMMARY } = {}) => {
+    (node, { notify = true } = {}) => {
       setSelectedNode({ ...node, _full: true });
-      // Вкладку берём из opts: при выборе из дерева/поиска это 'summary' (по
-      // умолчанию), а при навигации по URL/«Назад» — вкладка из адреса. Раньше
-      // здесь был жёсткий 'summary', который асинхронно затирал выставленную
-      // эффектом вкладку (→ всегда Summary при back/прямой ссылке).
-      setActiveTab(tab);
       setSearchResults([]);
       setSearchQuery('');
       setNotFoundDocId(null);
       setDocLoadError(null);
       // Сообщаем навигации (она пишет URL). notify=false, когда выбор пришёл
       // ИЗ навигации (prop docId) — иначе была бы петля.
-      if (notify && onOpenDoc) onOpenDoc(node.id, tab);
+      if (notify && onOpenDoc) onOpenDoc(node.id);
 
       // NOTE: folder children are loaded by FolderDetail's useFolderChildren
       // through the shared (deduplicated) loader. We intentionally do NOT fetch
@@ -377,17 +370,12 @@ export default function useKnowledgeBase({
 
   useEffect(() => {
     if (navDocId) {
-      const tab = navDocTab || DOC_TAB.SUMMARY;
-      if (lastNavDocRef.current === navDocId) {
-        // Тот же документ, но вкладка могла измениться — например, «Назад» на
-        // запись истории doc=5&tab=content при уже открытом doc=5. Документ
-        // повторно не грузим, лишь синхронизируем вкладку из URL.
-        setActiveTab(tab);
-        return;
-      }
+      // Тот же документ — повторно не грузим (вкладки центра, которую раньше
+      // надо было досинхронизировать, больше нет).
+      if (lastNavDocRef.current === navDocId) return;
       lastNavDocRef.current = navDocId;
       lastNavSearchRef.current = undefined;
-      navigateToDocById(navDocId, { notify: false, tab });
+      navigateToDocById(navDocId, { notify: false });
     } else if (navSearch) {
       lastNavDocRef.current = undefined;
       if (lastNavSearchRef.current === navSearch) return;
@@ -411,7 +399,7 @@ export default function useKnowledgeBase({
       setSearchQuery('');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navDocId, navSearch, navDocTab, navMode]);
+  }, [navDocId, navSearch, navMode]);
 
   // Keep selectedNode in sync when the tree updates after CRUD.
   //
@@ -624,20 +612,10 @@ export default function useKnowledgeBase({
   // ── Derived ────────────────────────────────────────────────────────────────
   const path = selectedNode ? findPath(tree, selectedNode.id) || [] : [];
 
-  // Смена вкладки детали документа → локально + уведомить навигацию (URL).
-  const changeTab = useCallback(
-    (tab) => {
-      setActiveTab(tab);
-      if (onTabChange) onTabChange(tab);
-    },
-    [onTabChange],
-  );
-
   // ── Guarded navigation ─────────────────────────────────────────────────────
   // Public navigation entry points are wrapped so that, with unsaved editor
   // changes, the action is deferred behind the discard-confirm modal.
   const guardedSelectNode = useCallback((nodeOrId) => guard(() => selectNode(nodeOrId)), [guard, selectNode]);
-  const guardedChangeTab = useCallback((tab) => guard(() => changeTab(tab)), [guard, changeTab]);
   const guardedSearch = useCallback(() => guard(() => handleSearch()), [guard, handleSearch]);
   // Refresh re-fetches the selected document from the API and remounts the
   // editor, so unsaved edits ARE discarded — hence the same discard-confirm.
@@ -647,7 +625,6 @@ export default function useKnowledgeBase({
     // state
     tree,
     selectedNode,
-    activeTab,
     searchQuery,
     searchMode,
     searchResults,
@@ -661,7 +638,6 @@ export default function useKnowledgeBase({
     discardConfirm,
     path,
     // setters used directly by the view
-    setActiveTab: guardedChangeTab,
     setSearchQuery,
     setSearchMode,
     setShowAddModal,

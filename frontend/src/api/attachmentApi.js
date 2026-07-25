@@ -10,6 +10,9 @@ const seg = (ownerType) => (ownerType === OWNER_TYPE.DOCUMENT ? 'documents' : 'c
 const attachmentApi = {
   list: (ownerType, ownerId) => request(`/api/${seg(ownerType)}/${ownerId}/attachments`),
 
+  /** Только число вложений — для бейджа, когда список ещё не нужен. */
+  count: (ownerType, ownerId) => request(`/api/${seg(ownerType)}/${ownerId}/attachments/count`),
+
   upload: (ownerType, ownerId, file) => {
     const formData = new FormData();
     formData.append('file', file);

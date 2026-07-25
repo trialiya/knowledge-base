@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import ChatWindow from './components/chatPanel/ChatWindow';
 import KnowledgeBase from './components/knowledgeBasePanel/KnowledgeBase';
@@ -16,8 +16,23 @@ import './App.css';
 
 function App() {
   const { t } = useTranslation();
-  const { nav, switchView, openDoc, setDocTab, setSearch, openChat, openFilePath } = useAppNavigation();
+  const { nav, switchView, openDoc, setSearch, openChat, openFilePath, toggleLeftPanel, setRightTab } =
+    useAppNavigation();
   const view = nav.view; // 'chat' | 'knowledge' | 'files' | 'admin' | 'settings'
+
+  // Раскладка панелей рабочей области. Живёт в URL (общая для всех разделов
+  // пара left/right), поэтому передаётся разделам одним набором пропсов.
+  // useMemo обязателен: чат смонтирован всегда, и новый объект на каждый рендер
+  // App (ввод в строке поиска, тик refresh) перерисовывал бы все разделы разом.
+  const panels = useMemo(
+    () => ({
+      leftCollapsed: nav.leftCollapsed,
+      onToggleLeft: toggleLeftPanel,
+      rightTab: nav.rightTab,
+      onRightTabChange: setRightTab,
+    }),
+    [nav.leftCollapsed, nav.rightTab, toggleLeftPanel, setRightTab],
+  );
 
   // ── Глобальная строка поиска (живёт в шапке вкладок, видна всегда) ──────────
   const [searchText, setSearchText] = useState(nav.search || '');
@@ -131,39 +146,37 @@ function App() {
             activeChatId={nav.chatId}
             onSelectChat={openChat}
             onNavigateToDoc={openDoc}
+            panels={panels}
           />
         </div>
 
         <div className={`app-tab-panel ${view === 'knowledge' ? 'app-tab-panel--active' : 'app-tab-panel--hidden'}`}>
           <KnowledgeBase
-            isActive={view === 'knowledge'}
             docId={view === 'knowledge' ? nav.docId : null}
-            docTab={nav.docTab}
             search={view === 'knowledge' ? nav.search : ''}
             mode={nav.mode}
             refreshSignal={refreshTick}
             onRefreshingChange={setKbRefreshing}
             onOpenDoc={openDoc}
-            onTabChange={setDocTab}
             onSearch={setSearch}
-            onNavigateToChat={openChat}
+            panels={panels}
           />
         </div>
 
         {/* Files / Admin / Settings — полноценные view со своим URL, монтируются по адресу */}
         {view === 'files' && (
           <div className="app-tab-panel app-tab-panel--active">
-            <FilesPanel path={nav.filePath} onPathChange={openFilePath} />
+            <FilesPanel path={nav.filePath} onPathChange={openFilePath} panels={panels} />
           </div>
         )}
         {view === 'admin' && (
           <div className="app-tab-panel app-tab-panel--active">
-            <AdminPanel />
+            <AdminPanel panels={panels} />
           </div>
         )}
         {view === 'settings' && (
           <div className="app-tab-panel app-tab-panel--active">
-            <SettingsPanel />
+            <SettingsPanel panels={panels} />
           </div>
         )}
       </main>

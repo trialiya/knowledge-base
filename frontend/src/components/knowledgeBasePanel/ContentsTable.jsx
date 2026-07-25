@@ -6,17 +6,17 @@ import { IconFolder, IconDoc } from '../../icons';
 import { makeSnippet } from '../common/utils';
 import { KB_PAGE_SIZE as PAGE_SIZE } from '../../constants/pagination';
 
-const ContentsTable = ({ children, onNavigate }) => {
+const ContentsTable = ({ items, onNavigate }) => {
   const { t, i18n } = useTranslation('knowledgeBase');
   const [page, setPage] = useState(0);
 
   // Reset to page 0 when the data changes (e.g. navigating to another folder)
   useEffect(() => {
     setPage(0);
-  }, [children]);
+  }, [items]);
 
-  const totalPages = Math.ceil(children.length / PAGE_SIZE);
-  const pageItems = children.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const totalPages = Math.ceil(items.length / PAGE_SIZE);
+  const pageItems = items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   return (
     <div className="contents-table">

@@ -165,7 +165,7 @@ const ModelsGroup = () => {
 
 // ─── SettingsPanel ────────────────────────────────────────────────────────────
 
-const SettingsPanel = () => {
+const SettingsPanel = ({ panels }) => {
   const { t } = useTranslation('settings');
   const [group, setGroup] = useState('phrases');
 
@@ -175,7 +175,7 @@ const SettingsPanel = () => {
   ];
 
   return (
-    <SettingsShell title={t('nav.title')} groups={groups} activeKey={group} onSelect={setGroup}>
+    <SettingsShell title={t('nav.title')} groups={groups} activeKey={group} onSelect={setGroup} panels={panels}>
       {group === 'phrases' && <PhrasesSettings />}
       {group === 'models' && <ModelsGroup />}
     </SettingsShell>

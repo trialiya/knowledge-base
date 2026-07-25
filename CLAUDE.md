@@ -151,6 +151,55 @@ button classes, panel-local copy of a shared concern), migrate that file to the
 shared pattern as part of the change — but do not fan out into files the task
 doesn't touch. One PR = the task + migration of the files it touched.
 
+### Layout (оболочка разделов)
+
+- Every section (chat, knowledge base, files) renders through the shared
+  `<WorkspaceLayout>` from `components/common/`. It owns the section container,
+  the collapsible left panel (title · action · toolbar · body), the center area
+  and the right panel — a drawer that is **collapsed by default** and shows as
+  an icon rail (`<RightPanel>` renders it expanded, with tabs and badges).
+  Sections supply slot content only; they must not rebuild their own split.
+- Every section goes through it, including Settings and Admin (`SettingsShell`
+  renders a `WorkspaceLayout` with no right panel). Do not reintroduce
+  per-section container/split classes — `chat-app-container`,
+  `files-panel-main`, `knowledge-base-container`, `settings-container` are gone. Panel widths are CSS
+  variables on `.workspace` (`--ws-left-width`, `--ws-right-width`); a section
+  tunes them via its own modifier (e.g. `.workspace--files`).
+- Panel layout is **controlled state that lives in the URL** (`?left=0`,
+  `?right=<tab>`), owned by `useAppNavigation` and threaded down as the `panels`
+  prop from `App`. Per-section layout is remembered in `localStorage`
+  (`panelState.js`). Never keep panel open/closed state locally in a section.
+- The right panel is where "everything *about* the thing" goes; the center is
+  the thing itself. Chat → attachments; knowledge base → summary, folder
+  contents, attachments, info (`detailSidebar.jsx` builds the tabs); files →
+  nothing yet. `DOC_TAB` keys are right-panel tab keys, not center tabs.
+- State shared by the center and the right panel (the KB content draft,
+  fullscreen, history) lives in `useDetailPanel`, hoisted to `KnowledgeBase`.
+  It is no longer remounted per document, so it resets on `nodeId` change
+  itself — keep that reset when adding state to it.
+
+### URL scheme
+
+`useAppNavigation` is the only owner of navigation state and the only writer of
+`window.history`. The **path carries the opened resource**, the **query carries
+screen state**:
+
+```
+/chat/<chatId>                   /knowledge/doc/<docId>
+/knowledge/search?q=&mode=       /files/<path/to/file>
+/admin  /settings                (+ ?left=0 / ?right=<tab> anywhere)
+```
+
+Only non-default values are written, so addresses stay short. Old query-form
+links (`?view=`, `?doc=`, `?path=`, `?chat=`, `?tab=`) still open and are
+canonicalized on load — keep that fallback when touching `readUrl`. Panel
+toggles use `replaceState` (they are not navigation); real transitions use
+`pushState`. The write mode is set by whoever triggers the change (`pushNav` /
+`replaceNav`), never reset from the write effect — a `setNav` that bails out
+would otherwise leak the mode into the next real transition.
+Adding a new top-level path means updating `SpaForwardController` too — its
+mappings must cover nested paths.
+
 ### Modals
 
 - Use the shared `<ModalShell>` from `components/common/` for every dialog. It owns:
@@ -165,11 +214,12 @@ doesn't touch. One PR = the task + migration of the files it touched.
 
 ### Buttons
 
-- Use the shared button classes from `components/common/`: `btn`,
-  `btn--primary`, `btn--ghost`, `btn--danger`, `btn--sm`, and `icon-btn` for
-  icon-only buttons (modeled on settings' `set-btn` family). Don't add new
-  panel-local button classes (`set-btn`, `detail-icon-btn`,
-  `new-chat-button`, … are legacy).
+- Use the shared button classes from `components/common/buttons.css`: `btn`,
+  `btn--primary`, `btn--ghost`, `btn--danger`, `btn--sm`, and `icon-btn`
+  (+ `icon-btn--danger`, `icon-btn--done`, `icon-btn--star`) for icon-only
+  buttons. That file is now the only place button looks live — the panel-local
+  families (`set-btn`, `set-icon-btn`, `detail-icon-btn`, `new-chat-button`,
+  `kb-new-doc-button`, `chat-header-delete`, …) are gone. Don't add new ones.
 
 ### CSS
 
@@ -190,9 +240,9 @@ doesn't touch. One PR = the task + migration of the files it touched.
   plain `.js` modules next to the feature (`treeOps.js`, `fileChips.js`).
 - Keep files focused: a file approaching ~300 lines or holding 2+ exported
   components is due for a split. Big-file precedents still being dismantled
-  (keep this list current as they shrink): `ChatWindow.jsx` (~900 lines, worst
-  offender — untouched), `useKnowledgeBase.js` (~700), `icons/index.jsx`
-  (~640), and `DocLinkTooltip.jsx` (~340). `FileChipInput.jsx` was decomposed
+  (keep this list current as they shrink): `ChatWindow.jsx` (~960 lines, worst
+  offender — only its layout has been extracted so far), `useKnowledgeBase.js`
+  (~700), `icons/index.jsx` (~660), and `DocLinkTooltip.jsx` (~340). `FileChipInput.jsx` was decomposed
   into `ChipEditor.jsx` + `RichTextEditor.jsx`/`useChipPicker.js`/
   `useChipPreview.js`/`chipTriggers.js` and is off this list.
 - Reuse the shared hooks before writing new plumbing: `useSearchDropdown`

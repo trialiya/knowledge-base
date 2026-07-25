@@ -64,7 +64,7 @@ const BulkOperations = () => {
                 </div>
               )}
             </div>
-            <button className="set-btn set-btn--ghost" onClick={runExport} disabled={exportState === 'running'}>
+            <button className="btn btn--ghost" onClick={runExport} disabled={exportState === 'running'}>
               {exportState === 'running' ? t('admin.bulk.export.running') : t('admin.bulk.export.run')}
             </button>
           </div>

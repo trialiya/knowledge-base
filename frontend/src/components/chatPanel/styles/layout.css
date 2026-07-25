@@ -1,14 +1,5 @@
-/* ── Корневой контейнер — заполняет main из App ── */
-.chat-app-container {
-  flex: 1;
-  display: flex;
-  overflow: hidden;
-  background: var(--kb-white);
-  border-radius: var(--kb-radius);
-  box-shadow: 0 4px 20px rgba(91, 79, 207, 0.1);
-  margin: 1rem;
-  font-family: 'Segoe UI', system-ui, sans-serif;
-}
+/* Оболочка раздела (контейнер, левая панель, центр, правая панель) — общая:
+   см. common/workspaceLayout.css. Здесь только внутренности чата. */
 
 /* ── Шапка активного чата ── */
 .chat-header {
@@ -16,7 +7,7 @@
   align-items: center;
   gap: 10px;
   /* верх увеличен: даём место всплывающей дате над заголовком, чтобы её
-     не обрезал родитель .chat-window { overflow: hidden } */
+     не обрезал центр рабочей области (overflow: hidden) */
   padding: 1.35rem 1.2rem 0.85rem;
   border-bottom: 1px solid var(--kb-border);
   background: var(--kb-white);
@@ -208,38 +199,9 @@
   min-width: 0;
 }
 
-.chat-header-delete {
-  flex-shrink: 0;
-  background: none;
-  border: none;
-  font-size: 0.82rem;
-  color: var(--kb-muted);
-  cursor: pointer;
-  padding: 5px 9px;
-  border-radius: 8px;
-  opacity: 0.6;
-  transition: opacity 0.15s, background 0.15s;
-  white-space: nowrap;
-}
-.chat-header-delete:hover {
-  opacity: 1;
-  background: var(--kb-error-bg);
-  color: var(--kb-error);
-}
-
-/* ── Правая часть: окно чата ── */
-.chat-window {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  min-width: 0;
-  background: var(--kb-white);
-}
-
 .message-list {
   flex: 1;
-  min-height: 0; /* без этого список растёт за пределы chat-window */
+  min-height: 0; /* без этого список растёт за пределы центра */
   padding: 1.5rem;
   overflow-y: auto;
   display: flex;
@@ -256,89 +218,8 @@
   font-size: 0.95rem;
 }
 
-/* ── Attachment toggle button in chat header ── */
-.chat-header-attachments-btn {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  background: none;
-  border: 1.5px solid var(--kb-border);
-  border-radius: 20px;
-  padding: 5px 11px;
-  color: var(--kb-muted);
-  cursor: pointer;
-  font-size: 0.82rem;
-  font-weight: 600;
-  transition: all 0.15s;
-}
-.chat-header-attachments-btn:hover {
-  border-color: var(--kb-accent);
-  color: var(--kb-accent);
-  background: var(--kb-accent-light);
-}
-.chat-header-attachments-btn--active {
-  border-color: var(--kb-accent);
-  color: var(--kb-accent);
-  background: var(--kb-accent-bg);
-}
-
-.attach-badge {
-  background: var(--kb-accent);
-  color: #fff;
-  border-radius: 10px;
-  padding: 0 5px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  line-height: 1.5;
-}
-
-/* ── Right attachment panel ── */
-.chat-attachment-panel {
-  width: 300px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  border-left: 1px solid var(--kb-border);
-  background: var(--kb-bg);
-  overflow: hidden;
-}
-
-.chat-attachment-panel__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.85rem 1rem;
-  border-bottom: 1px solid var(--kb-border);
-  font-size: 0.88rem;
-  font-weight: 700;
-  color: var(--kb-text);
-  flex-shrink: 0;
-  background: var(--kb-white);
-}
-
-.chat-attachment-panel__close {
-  background: none;
-  border: none;
-  color: var(--kb-muted);
-  cursor: pointer;
-  font-size: 0.9rem;
-  padding: 2px 6px;
-  border-radius: 6px;
-  transition: background 0.15s, color 0.15s;
-}
-.chat-attachment-panel__close:hover {
-  background: var(--kb-error-bg);
-  color: var(--kb-error);
-}
-
-.chat-attachment-panel__body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 0.75rem;
-}
-
-.chat-attachment-panel__empty {
+/* Заглушка правой панели, когда чат ещё не выбран. */
+.chat-empty-note {
   color: var(--kb-muted);
   font-size: 0.84rem;
   text-align: center;

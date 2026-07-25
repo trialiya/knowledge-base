@@ -55,9 +55,6 @@ const chatApi = {
     return request(`/api/chats/${enc(chatId)}/tool-calls?${params}`);
   },
 
-  /** Количество вложений активного чата (для бейджа). */
-  getAttachmentCount: (id) => request(`/api/chats/${enc(id)}/attachments/count`),
-
   /** Список вложений чата. */
   listAttachments: (id) => request(`/api/chats/${enc(id)}/attachments`),
 

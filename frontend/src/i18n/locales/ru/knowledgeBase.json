@@ -1,5 +1,6 @@
 {
   "tree": {
+    "title": "Документы",
     "create": "Создать",
     "dragToReorder": "Перетащите, чтобы изменить порядок",
     "delete": "Удалить",
@@ -10,15 +11,13 @@
     "selectDocument": "Выберите документ для просмотра"
   },
   "tabs": {
-    "summary": "Summary",
-    "content": "Content",
-    "contents": "Contents",
-    "attachments": "Attachments"
+    "summary": "Описание",
+    "contents": "Состав",
+    "attachments": "Вложения",
+    "info": "Инфо"
   },
   "detail": {
-    "about": "About",
-    "contents": "Contents",
-    "attachments": "Attachments",
+    "about": "Описание",
     "createdAt": "Создан: {{date}}",
     "levelUp": "На уровень выше",
     "systemBadge": "Системный документ: переименование и удаление недоступны",
@@ -28,8 +27,8 @@
     "docPlaceholder": "# Markdown контент...",
     "folderEmpty": "Папка пуста",
     "loading": "Загрузка…",
-    "fullscreenAbout": "{{title}} — About",
-    "fullscreenContent": "{{title}} — Content"
+    "fullscreenAbout": "{{title}} — описание",
+    "fullscreenContent": "{{title}} — содержимое"
   },
   "contentsTable": {
     "name": "Название",
@@ -39,8 +38,6 @@
     "document": "Document"
   },
   "section": {
-    "edit": "Редактировать",
-    "openTab": "Открыть вкладку",
     "expand": "Развернуть",
     "readMore": "Развернуть",
     "collapse": "Свернуть",
@@ -195,5 +192,16 @@
     "noDiff": "Нет данных для сравнения.",
     "identical": "Описание идентично в обеих версиях.",
     "rulerHint": "Карта изменений — клик переходит к участку"
+  },
+  "info": {
+    "type": "Тип",
+    "typeDocument": "Документ",
+    "typeFolder": "Папка",
+    "created": "Создан",
+    "updated": "Изменён",
+    "version": "Версия",
+    "descriptionVersion": "Версия содержимого",
+    "id": "ID",
+    "systemNote": "Системный документ: переименование и удаление недоступны."
   }
 }

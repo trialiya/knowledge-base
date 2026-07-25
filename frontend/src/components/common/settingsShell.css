@@ -1,46 +1,9 @@
 /* ═══════════════════════════════════════════════
-   SETTINGS / ADMIN — общий master-detail каркас
-   (повторяет .knowledge-base-container + .kb-tree + .kb-preview)
+   SETTINGS / ADMIN — содержимое страниц
+
+   Оболочка (контейнер, левая панель со списком групп, центр) — общая:
+   см. common/workspaceLayout.css. Здесь только список групп и карточки.
 ═══════════════════════════════════════════════ */
-
-.settings-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  background: var(--kb-white);
-  border-radius: var(--kb-radius);
-  overflow: hidden;
-  box-shadow: 0 4px 24px rgba(91, 79, 207, 0.1);
-  margin: 1rem;
-  font-family: 'Segoe UI', system-ui, sans-serif;
-  color: var(--kb-text);
-}
-
-.settings-main {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-}
-
-/* ── Левая колонка: список групп (как .kb-tree) ── */
-.settings-nav {
-  width: 260px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  background: var(--kb-bg);
-  border-right: 1px solid var(--kb-border);
-  overflow-y: auto;
-}
-
-.settings-nav__title {
-  padding: 1.1rem 1.2rem 0.7rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--kb-muted);
-}
 
 .settings-nav__list {
   display: flex;
@@ -88,16 +51,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* ── Правая колонка: контент (как .kb-preview) ── */
-.settings-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--kb-white);
-  min-width: 0;
 }
 
 .settings-content__head {
@@ -229,13 +182,6 @@
   gap: 10px;
 }
 
-.set-hint {
-  margin: 0;
-  font-size: 0.76rem;
-  color: var(--kb-muted);
-  line-height: 1.5;
-}
-
 /* ═══════════════════════════════════════════════
    FORM CONTROLS
 ═══════════════════════════════════════════════ */
@@ -248,7 +194,7 @@
   padding: 12px 14px;
   border: 1.5px solid var(--kb-border);
   border-radius: 10px;
-  font-family: 'Fira Mono', 'Consolas', monospace;
+  font-family: var(--kb-font-mono);
   font-size: 0.83rem;
   line-height: 1.6;
   color: var(--kb-text);
@@ -260,105 +206,10 @@
   border-color: var(--kb-accent);
 }
 
-.set-input {
-  padding: 8px 12px;
-  border: 1.5px solid var(--kb-border);
-  border-radius: 10px;
-  font-size: 0.85rem;
-  color: var(--kb-text);
-  background: var(--kb-white);
-  outline: none;
-  transition: border-color 0.15s;
-}
-.set-input:focus {
-  border-color: var(--kb-accent);
-}
-
-.set-select {
-  padding: 7px 12px;
-  border: 1.5px solid var(--kb-border);
-  border-radius: 10px;
-  font-size: 0.84rem;
-  font-family: 'Fira Mono', 'Consolas', monospace;
-  color: var(--kb-text);
-  background: var(--kb-white);
-  cursor: pointer;
-  outline: none;
-  transition: border-color 0.15s;
-}
-.set-select:focus {
-  border-color: var(--kb-accent);
-}
-
 /* ═══════════════════════════════════════════════
    BUTTONS
 ═══════════════════════════════════════════════ */
 
-.set-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border-radius: 20px;
-  padding: 7px 16px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1.5px solid transparent;
-  transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s;
-}
-.set-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.set-btn--primary {
-  background: var(--kb-accent);
-  color: #fff;
-}
-.set-btn--primary:hover:not(:disabled) {
-  background: var(--kb-accent-hover);
-}
-
-.set-btn--ghost {
-  background: var(--kb-white);
-  border-color: var(--kb-border);
-  color: var(--kb-accent);
-}
-.set-btn--ghost:hover:not(:disabled) {
-  border-color: var(--kb-accent);
-  background: var(--kb-accent-light);
-}
-
-.set-btn--danger {
-  background: var(--kb-white);
-  border-color: var(--kb-border);
-  color: var(--kb-error);
-}
-.set-btn--danger:hover:not(:disabled) {
-  border-color: var(--kb-error);
-  background: var(--kb-error-bg);
-}
-
-/* Маленькая иконочная кнопка (edit / delete в списках) */
-.set-icon-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--kb-muted);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  flex-shrink: 0;
-  transition: background 0.15s, color 0.15s;
-}
-.set-icon-btn:hover {
-  background: var(--kb-accent-bg);
-  color: var(--kb-accent);
-}
-.set-icon-btn--danger:hover {
-  background: var(--kb-error-bg);
-  color: var(--kb-error);
-}
+/* Кнопки — общие: см. common/buttons.css (btn / btn--primary / btn--ghost /
+   btn--danger / btn--sm, icon-btn). Раньше здесь жило их семейство set-btn,
+   с которого общие классы и были срисованы. */
