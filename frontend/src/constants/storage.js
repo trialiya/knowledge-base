@@ -23,6 +23,13 @@ export const STORAGE_KEY_CHAT_DRAFTS = 'chat_drafts';
 export const STORAGE_KEY_PANELS = 'ui_panels';
 
 /**
+ * localStorage: ширина левой панели в пикселях — одна на все разделы (см.
+ * common/useLeftPanelWidth.js). Не в URL: ссылкой делятся раскладкой панелей,
+ * а ширина — личная настройка рабочего места.
+ */
+export const STORAGE_KEY_LEFT_WIDTH = 'ui_leftWidth';
+
+/**
  * Псевдо-id черновика нового чата. Реальный UUID появляется только при
  * отправке первого сообщения — до этого бэк ничего о чате не знает.
  */

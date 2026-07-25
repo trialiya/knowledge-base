@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import useSearchDropdown from '../../hooks/useSearchDropdown';
@@ -67,6 +67,19 @@ const PanelSearch = ({
     [onSelect, query, close],
   );
 
+  // Поле поиска исчезает при закрытии — вместе с ним пропадал бы и фокус (Escape
+  // отправлял его в body, и Tab начинал обход страницы заново). Возвращаем его на
+  // кнопку-триггер, но только если фокус действительно осиротел: после выбора
+  // результата его мог забрать открытый чат или документ, и отнимать нельзя.
+  const triggerRef = useRef(null);
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (wasOpen.current && !open && document.activeElement === document.body) {
+      triggerRef.current?.focus();
+    }
+    wasOpen.current = open;
+  }, [open]);
+
   const trimmed = query.trim();
 
   return (
@@ -96,7 +109,13 @@ const PanelSearch = ({
           </button>
         </div>
       ) : (
-        <button type="button" className="btn btn--ghost btn--sm panel-search__trigger" onClick={openSearch} title={label}>
+        <button
+          type="button"
+          ref={triggerRef}
+          className="btn btn--ghost btn--sm panel-search__trigger"
+          onClick={openSearch}
+          title={label}
+        >
           <IconSearch size={14} />
           <span className="panel-search__trigger-label">{label}</span>
         </button>
@@ -135,9 +154,7 @@ const PanelSearch = ({
                         <span className="panel-search__item-title">{title}</span>
                         {subtitle && (
                           <span
-                            className={`panel-search__item-sub${
-                              multiline ? ' panel-search__item-sub--multiline' : ''
-                            }`}
+                            className={`panel-search__item-sub${multiline ? ' panel-search__item-sub--multiline' : ''}`}
                           >
                             {subtitle}
                           </span>

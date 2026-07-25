@@ -20,7 +20,8 @@
   "panels": {
     "collapseLeft": "Свернуть панель",
     "expandLeft": "Развернуть панель",
-    "collapseRight": "Свернуть панель"
+    "collapseRight": "Свернуть панель",
+    "resizeLeft": "Изменить ширину панели"
   },
   "panelSearch": {
     "searching": "Поиск…",

@@ -77,6 +77,36 @@ describe('WorkspaceLayout', () => {
     expect(onRightTabChange).toHaveBeenCalledWith(null);
   });
 
+  it('ширину левой панели можно менять с клавиатуры — и её сразу видят все разделы', async () => {
+    // Ширина живёт на :root, а не на конкретной панели: чат и база знаний
+    // смонтированы одновременно, и «своя» ширина у каждого снова разводила бы
+    // границу панели между разделами.
+    const rootWidth = () => document.documentElement.style.getPropertyValue('--ws-left-width');
+
+    // Два раздела на экране разом — как в приложении.
+    render(<WorkspaceLayout left={baseLeft} center={<div>чат</div>} />);
+    render(<WorkspaceLayout left={baseLeft} center={<div>база знаний</div>} />);
+    const [resizer, otherResizer] = screen.getAllByRole('separator', { name: 'panels.resizeLeft' });
+
+    expect(rootWidth()).toBe('280px');
+
+    resizer.focus();
+    await userEvent.keyboard('{ArrowRight}{ArrowRight}');
+    expect(rootWidth()).toBe('312px');
+    // Второй раздел узнал о новой ширине, хотя тянули не его.
+    expect(resizer).toHaveAttribute('aria-valuenow', '312');
+    expect(otherResizer).toHaveAttribute('aria-valuenow', '312');
+
+    await userEvent.keyboard('{Home}'); // сброс к ширине по умолчанию
+    expect(rootWidth()).toBe('280px');
+    expect(localStorage.getItem('ui_leftWidth')).toBe('280');
+  });
+
+  it('у свёрнутой панели разделителя нет — тянуть нечего', () => {
+    render(<WorkspaceLayout left={baseLeft} center={<div>центр</div>} leftCollapsed onToggleLeft={jest.fn()} />);
+    expect(screen.queryByRole('separator')).not.toBeInTheDocument();
+  });
+
   it('устаревшая вкладка из адреса не ломает рендер — панель считается свёрнутой', () => {
     const tabs = [{ key: 'summary', label: 'Описание', icon: <span>★</span>, content: <div>текст описания</div> }];
     const { container } = render(

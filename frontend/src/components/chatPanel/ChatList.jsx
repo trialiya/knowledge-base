@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import useListNavigation from '../../hooks/useListNavigation';
 import { IconEdit, IconTrash } from '../../icons';
 
 /**
@@ -8,12 +9,13 @@ import { IconEdit, IconTrash } from '../../icons';
  * Кнопка «Новый чат» и поиск по чатам живут не здесь, а в слотах
  * WorkspaceLayout (action / toolbar): их место в шапке панели общее для всех
  * разделов, поэтому список отвечает только за сами чаты. Вид строки — общий
- * .ws-item (common/sidePanel.css), как у деревьев базы знаний и файлов.
+ * .ws-item (common/sidePanel.css), клавиатура — общий useListNavigation.
  */
 const ChatList = ({ chats, activeChatId, onSelectChat, onDeleteChat, onRenameChat }) => {
   const { t } = useTranslation('chat');
   const [editingId, setEditingId] = useState(null);
   const [editValue, setEditValue] = useState('');
+  const handleListKeyDown = useListNavigation();
 
   const startEdit = (id, currentTitle) => {
     setEditingId(id);
@@ -48,10 +50,14 @@ const ChatList = ({ chats, activeChatId, onSelectChat, onDeleteChat, onRenameCha
   }
 
   return (
-    <ul className="ws-list">
+    <ul className="ws-list" role="listbox" aria-label={t('list.title')} tabIndex={0} onKeyDown={handleListKeyDown}>
       {chats.map((chat) => (
         <li
           key={chat.id}
+          data-ws-item
+          role="option"
+          aria-selected={chat.id === activeChatId}
+          tabIndex={-1}
           className={`ws-item${chat.id === activeChatId ? ' ws-item--active' : ''}`}
           onClick={() => onSelectChat(chat.id)}
         >
@@ -64,6 +70,7 @@ const ChatList = ({ chats, activeChatId, onSelectChat, onDeleteChat, onRenameCha
               onKeyDown={(e) => handleKeyDown(e, chat.id)}
               autoFocus
               className="ws-item__edit"
+              aria-label={t('list.rename')}
               onClick={(e) => e.stopPropagation()}
             />
           ) : (

@@ -739,7 +739,7 @@ const ChatWindow = ({
         setUploadErrorNotice(true);
       }
     },
-    [activeChatId, openAttachments],
+    [activeChatId, openAttachments, setAttachCount],
   );
 
   // Суффикс с кодом ошибки для сообщения модалки (если это не сетевой сбой).

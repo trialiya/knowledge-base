@@ -221,6 +221,21 @@ mappings must cover nested paths.
   passes only `search` (fetch) and `describeItem` (icon/title/subtitle/badge);
   common labels live in `common.json` under `panelSearch.*`. Don't write another
   search widget — `ChatSearch`/`FileSearch`/`TreeSearch` are 40-line adapters.
+- Keyboard: the list **container** is the single tab stop (`tabIndex={0}` +
+  `onKeyDown={useListNavigation()}`), rows carry `data-ws-item` + `tabIndex={-1}`
+  and are reached with arrows (Enter/Space opens, ←/→ collapses/expands through
+  `[data-ws-chevron]`, Home/End jump). Rows cannot be `<button>`s — they already
+  contain action buttons — so this is how they become reachable at all; keep the
+  attributes when adding a new kind of row. ARIA: trees are
+  `role="tree"`/`treeitem` + `aria-level`/`aria-expanded`/`aria-selected`, flat
+  lists are `role="listbox"`/`option`.
+- The left panel's width is draggable and lives in one shared store
+  (`useLeftPanelWidth`), not in component state or the URL: several
+  `WorkspaceLayout`s are mounted at once (chat and knowledge base always are), so
+  per-instance width would make the panel edge jump between sections again.
+  Dragging writes the `--ws-left-width` CSS variable on `:root` directly and only
+  commits to the store on pointer-up — a `setState` per `pointermove` would
+  re-render the whole section.
 
 ### Modals
 

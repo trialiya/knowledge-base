@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import RightPanel from './RightPanel';
+import useLeftPanelWidth, { MIN_LEFT_WIDTH, MAX_LEFT_WIDTH } from './useLeftPanelWidth';
 import { IconPanelLeft } from '../../icons';
 import './workspaceLayout.css';
 import './sidePanel.css';
@@ -16,6 +17,11 @@ import './sidePanel.css';
  * Компонент УПРАВЛЯЕМЫЙ: состояние панелей живёт в URL (useAppNavigation), сюда
  * приходит пропсами. Так раскладку можно передать ссылкой, а «Назад» не тратится
  * на сворачивание панели (навигация пишет её через replaceState).
+ *
+ * Исключение — ширина левой панели: она не в пропсах и не в адресе, а в общем
+ * сторе (useLeftPanelWidth). Ширина одна на все разделы и правится
+ * перетаскиванием границы, поэтому её нельзя держать ни в состоянии одного
+ * экземпляра (их несколько смонтировано разом), ни в ссылке.
  *
  * props:
  *   left  — { title, action, toolbar, children, bodyScroll } — левая панель.
@@ -39,13 +45,14 @@ const WorkspaceLayout = ({
   className = '',
 }) => {
   const { t } = useTranslation();
+  const leftWidth = useLeftPanelWidth();
   const tabs = right || [];
   // Вкладка из URL могла устареть (раздел сменился, вкладку убрали) — тогда
   // считаем панель свёрнутой, а не падаем на пустом содержимом.
   const activeTab = tabs.find((tab) => tab.key === rightTab) || null;
 
   return (
-    <div className={`workspace${className ? ` ${className}` : ''}`}>
+    <div className={`workspace${className ? ` ${className}` : ''}${leftWidth.dragging ? ' workspace--resizing' : ''}`}>
       {leftCollapsed ? (
         <div className="workspace__rail workspace__rail--left">
           <button
@@ -80,6 +87,24 @@ const WorkspaceLayout = ({
             {left?.children}
           </div>
         </aside>
+      )}
+
+      {/* Граница левой панели: тянется мышью, стрелками с клавиатуры, двойной
+          клик возвращает ширину по умолчанию. У свёрнутой панели её нет —
+          тянуть нечего. */}
+      {!leftCollapsed && (
+        <div
+          className="workspace__resizer"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={t('panels.resizeLeft')}
+          aria-valuenow={leftWidth.width}
+          aria-valuemin={MIN_LEFT_WIDTH}
+          aria-valuemax={MAX_LEFT_WIDTH}
+          tabIndex={0}
+          onDoubleClick={leftWidth.reset}
+          {...leftWidth.handleProps}
+        />
       )}
 
       <section className="workspace__center">{center}</section>

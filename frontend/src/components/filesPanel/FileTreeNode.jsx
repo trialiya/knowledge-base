@@ -53,6 +53,12 @@ const FileTreeNode = ({ node, level, selectedPath, expanded, treeCache, loadingD
     <div className="file-tree-node-wrap">
       <div
         ref={rowRef}
+        data-ws-item
+        role="treeitem"
+        aria-selected={isSelected}
+        aria-expanded={isDir ? isOpen : undefined}
+        aria-level={level + 1}
+        tabIndex={-1}
         className={`ws-item ws-item--nowrap${isSelected ? ' ws-item--active' : ''}`}
         style={{ '--depth': level }}
         onClick={() => {
@@ -63,6 +69,7 @@ const FileTreeNode = ({ node, level, selectedPath, expanded, treeCache, loadingD
         <span
           ref={chevronRef}
           className="ws-item__chevron"
+          data-ws-chevron
           onClick={(e) => {
             e.stopPropagation();
             if (isDir) onToggle(node.path);
@@ -70,7 +77,7 @@ const FileTreeNode = ({ node, level, selectedPath, expanded, treeCache, loadingD
         >
           {isDir && <IconChevron open={isOpen} />}
         </span>
-        <span className={`ws-item__icon ${isDir ? 'ws-item__icon--folder' : ''}`}>
+        <span className={`ws-item__icon${isDir ? ' ws-item__icon--folder' : ''}`}>
           {isDir ? <IconFolder /> : <IconDoc />}
         </span>
         <span ref={labelRef} className="ws-item__label">
@@ -79,14 +86,14 @@ const FileTreeNode = ({ node, level, selectedPath, expanded, treeCache, loadingD
       </div>
 
       {isDir && isOpen && (
-        <div className="file-tree-children">
+        <div className="file-tree-children" role="group">
           {!children && isLoading && (
-            <div className="ws-hint" style={{ '--depth': level + 1 }}>
+            <div className="ws-hint" role="none" style={{ '--depth': level + 1 }}>
               {t('tree.loading')}
             </div>
           )}
           {children && children.length === 0 && (
-            <div className="ws-hint" style={{ '--depth': level + 1 }}>
+            <div className="ws-hint" role="none" style={{ '--depth': level + 1 }}>
               {t('tree.empty')}
             </div>
           )}

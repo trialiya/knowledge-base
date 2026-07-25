@@ -13,13 +13,23 @@
    кнопка действия и поиск стояли на одной вертикали.
 ═══════════════════════════════════════════════ */
 
-/* Контейнер списка: сбрасывает ul-разметку, если список — <ul>. */
+/* Контейнер списка: сбрасывает ul-разметку, если список — <ul>.
+   Он же — единственная точка входа с клавиатуры (tabIndex=0, стрелки в
+   useListNavigation), поэтому свой фокус показывает изнутри: обычный outline
+   обрезался бы прокруткой панели. */
 .ws-list {
   display: flex;
   flex-direction: column;
   list-style: none;
   margin: 0;
   padding: 0;
+}
+.ws-list:focus {
+  outline: none;
+}
+.ws-list:focus-visible {
+  outline: 2px solid var(--kb-accent);
+  outline-offset: -2px;
 }
 
 /* ── Строка списка/дерева ──
@@ -55,6 +65,16 @@
 
 .ws-item:hover {
   background: var(--kb-accent-light);
+}
+
+/* Строка получает фокус с клавиатуры (стрелками). Внутренний outline — по той
+   же причине, что и у контейнера: панель прокручивается и обрезает внешний. */
+.ws-item:focus {
+  outline: none;
+}
+.ws-item:focus-visible {
+  outline: 2px solid var(--kb-accent);
+  outline-offset: -2px;
 }
 
 /* Выбранная строка: заливка + акцентный текст + полоса слева.
@@ -122,8 +142,11 @@
 }
 
 /* ── Действия строки (переименовать/удалить) ──
-   Приглушены, пока на строку не навели: полностью прятать нельзя — с клавиатуры
-   и на тач-экране до них было бы не добраться. */
+   Показываем только на наведённой, сфокусированной или выбранной строке: на
+   длинном дереве колонка корзин на каждой строке — визуальный шум. Скрыто
+   прозрачностью, а не display:none, — кнопки остаются в потоке (строка не
+   дёргается) и в таб-порядке, а :focus-within проявляет их, когда до них
+   добрались с клавиатуры. */
 .ws-item__actions {
   display: flex;
   align-items: center;
@@ -135,11 +158,13 @@
 .ws-item__action {
   width: 22px;
   height: 22px;
-  opacity: 0.5;
+  opacity: 0;
   transition: opacity 0.15s, background 0.15s, color 0.15s;
 }
 .ws-item:hover .ws-item__action,
-.ws-item__action:focus-visible {
+.ws-item:focus-visible .ws-item__action,
+.ws-item:focus-within .ws-item__action,
+.ws-item--active .ws-item__action {
   opacity: 1;
 }
 

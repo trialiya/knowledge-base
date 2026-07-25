@@ -222,6 +222,12 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
     <div className="tree-node-wrap">
       <div
         ref={rowRef}
+        data-ws-item
+        role="treeitem"
+        aria-selected={isSelected}
+        aria-expanded={hasChildren ? open : undefined}
+        aria-level={level + 1}
+        tabIndex={-1}
         className={`ws-item tree-row ${isSelected ? 'ws-item--active' : ''} ${dropClass} ${
           isSystem ? 'tree-row--system' : ''
         }`}
@@ -239,11 +245,11 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
       >
         <DragHandle disabled={isSystem} />
 
-        <span className="ws-item__chevron" onClick={(e) => toggleOpen(e)}>
+        <span className="ws-item__chevron" data-ws-chevron onClick={(e) => toggleOpen(e)}>
           {hasChildren && <IconChevron open={open} />}
         </span>
 
-        <span className={`ws-item__icon ${isFolder ? 'ws-item__icon--folder' : ''}`}>
+        <span className={`ws-item__icon${isFolder ? ' ws-item__icon--folder' : ''}`}>
           {isFolder ? <IconFolder /> : <IconDoc />}
         </span>
 
@@ -272,7 +278,7 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
       </div>
 
       {hasChildren && open && (
-        <div className="tree-children">
+        <div className="tree-children" role="group">
           {node.children.map((child) => (
             <TreeNode
               key={child.id}
@@ -290,6 +296,10 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
           {showLoadMore && (
             <button
               className="tree-load-more"
+              data-ws-item
+              role="treeitem"
+              aria-level={level + 2}
+              aria-selected={false} // строка-действие, а не узел дерева — выбрать её нельзя
               style={{ '--depth': level + 1 }}
               onClick={handleLoadMore}
               disabled={loadingMore}

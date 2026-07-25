@@ -11,7 +11,10 @@ const SNIPPET_LIMIT = 80;
 /** Первая строка описания без markdown-разметки — как подзаголовок результата. */
 const plainSnippet = (description) => {
   if (!description) return null;
-  const text = description.replace(/[#*_`>[\]]/g, ' ').replace(/\s+/g, ' ').trim();
+  const text = description
+    .replace(/[#*_`>[\]]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
   if (!text) return null;
   return text.length > SNIPPET_LIMIT ? `${text.slice(0, SNIPPET_LIMIT)}…` : text;
 };

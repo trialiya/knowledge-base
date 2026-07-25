@@ -20,7 +20,8 @@
   "panels": {
     "collapseLeft": "Collapse panel",
     "expandLeft": "Expand panel",
-    "collapseRight": "Collapse panel"
+    "collapseRight": "Collapse panel",
+    "resizeLeft": "Resize panel"
   },
   "panelSearch": {
     "searching": "Searching…",
