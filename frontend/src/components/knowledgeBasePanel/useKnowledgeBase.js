@@ -37,6 +37,9 @@ export default function useKnowledgeBase({
 } = {}) {
   const { t } = useTranslation('knowledgeBase');
   const [tree, setTree] = useState([]);
+  // Дерево уже загружали? Пустой tree сам по себе неоднозначен: и «в базе знаний
+  // ничего нет», и «первый запрос ещё в полёте» — а панель показывает разное.
+  const [treeLoaded, setTreeLoaded] = useState(false);
   const [selectedNode, setSelectedNode] = useState(null);
   const [searchQuery, setSearchQuery] = useState(navSearch || '');
   const [searchMode, setSearchMode] = useState(navMode || SEARCH_MODE.HYBRID);
@@ -104,6 +107,8 @@ export default function useKnowledgeBase({
     } catch {
       setTree([]);
       return [];
+    } finally {
+      setTreeLoaded(true);
     }
   }, []);
 
@@ -624,6 +629,7 @@ export default function useKnowledgeBase({
   return {
     // state
     tree,
+    treeLoaded,
     selectedNode,
     searchQuery,
     searchMode,

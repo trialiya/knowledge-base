@@ -5,7 +5,13 @@
     "dragToReorder": "Drag to reorder",
     "delete": "Delete",
     "loadMore": "··· {{count}} more",
-    "unknown": "Unknown"
+    "unknown": "Unknown",
+    "empty": "No documents yet"
+  },
+  "treeSearch": {
+    "open": "Search documents",
+    "placeholder": "Find a document…",
+    "hint": "Type a document or folder name"
   },
   "empty": {
     "selectDocument": "Select a document to view"

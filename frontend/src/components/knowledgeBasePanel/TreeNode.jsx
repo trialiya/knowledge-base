@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconFolder, IconDoc, IconChevron, IconLock, IconDragHandle } from '../../icons';
+import { IconFolder, IconDoc, IconChevron, IconLock, IconDragHandle, IconTrash } from '../../icons';
 import { findNodeById } from '../common/utils';
 import { KB_PAGE_SIZE as PAGE_SIZE } from '../../constants/pagination';
 
@@ -222,7 +222,7 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
     <div className="tree-node-wrap">
       <div
         ref={rowRef}
-        className={`tree-row ${isSelected ? 'tree-row--selected' : ''} ${dropClass} ${
+        className={`ws-item tree-row ${isSelected ? 'ws-item--active' : ''} ${dropClass} ${
           isSystem ? 'tree-row--system' : ''
         }`}
         style={{ '--depth': level }}
@@ -239,32 +239,36 @@ const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLo
       >
         <DragHandle disabled={isSystem} />
 
-        <span className="tree-row__chevron" onClick={(e) => toggleOpen(e)}>
-          {hasChildren ? <IconChevron open={open} /> : <span style={{ display: 'inline-block', width: 12 }} />}
+        <span className="ws-item__chevron" onClick={(e) => toggleOpen(e)}>
+          {hasChildren && <IconChevron open={open} />}
         </span>
 
-        <span className={`tree-row__icon ${isFolder ? 'tree-row__icon--folder' : 'tree-row__icon--doc'}`}>
+        <span className={`ws-item__icon ${isFolder ? 'ws-item__icon--folder' : ''}`}>
           {isFolder ? <IconFolder /> : <IconDoc />}
         </span>
 
-        <span className="tree-row__label">{node.title}</span>
+        <span className="ws-item__label">{node.title}</span>
 
-        {isSystem ? (
-          <span className="tree-row__system-badge" title={t('detail.systemBadge')}>
-            <IconLock />
-          </span>
-        ) : (
-          <button
-            className="tree-row__del"
-            title={t('tree.delete')}
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(node.id);
-            }}
-          >
-            ✕
-          </button>
-        )}
+        <span className="ws-item__actions">
+          {isSystem ? (
+            <span className="tree-row__system-badge" title={t('detail.systemBadge')}>
+              <IconLock />
+            </span>
+          ) : (
+            <button
+              type="button"
+              className="icon-btn icon-btn--danger ws-item__action"
+              title={t('tree.delete')}
+              aria-label={t('tree.delete')}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(node.id);
+              }}
+            >
+              <IconTrash size={12} />
+            </button>
+          )}
+        </span>
       </div>
 
       {hasChildren && open && (

@@ -22,6 +22,11 @@
     "expandLeft": "Expand panel",
     "collapseRight": "Collapse panel"
   },
+  "panelSearch": {
+    "searching": "Searching…",
+    "empty": "Nothing found",
+    "close": "Close search"
+  },
   "search": {
     "placeholder": "Search the knowledge base…",
     "modeTitle": "Search mode",

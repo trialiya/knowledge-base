@@ -13,7 +13,7 @@ const FileTreeNode = ({ node, level, selectedPath, expanded, treeCache, loadingD
   // Доскроллить дерево до выбранного узла: на глубокой вложенности (deep link,
   // либо клик на корневой элемент при уже проскроленном вправо дереве) он
   // оказывается за границей панели. Считаем вручную, а не через scrollIntoView:
-  // строка (.file-tree-row) растянута на всю ширину раскрытого дерева
+  // строка растянута на всю ширину раскрытого дерева
   // (шире вьюпорта), поэтому scrollIntoView на самой строке или на метке с
   // flex:1 «выравнивал по левому краю» и обрезал начало имени у мелких узлов.
   // Видимой должна быть область от шеврона/иконки (начало строки) до конца
@@ -53,7 +53,7 @@ const FileTreeNode = ({ node, level, selectedPath, expanded, treeCache, loadingD
     <div className="file-tree-node-wrap">
       <div
         ref={rowRef}
-        className={`file-tree-row ${isSelected ? 'file-tree-row--selected' : ''}`}
+        className={`ws-item ws-item--nowrap${isSelected ? ' ws-item--active' : ''}`}
         style={{ '--depth': level }}
         onClick={() => {
           onSelect(node);
@@ -62,18 +62,18 @@ const FileTreeNode = ({ node, level, selectedPath, expanded, treeCache, loadingD
       >
         <span
           ref={chevronRef}
-          className="file-tree-row__chevron"
+          className="ws-item__chevron"
           onClick={(e) => {
             e.stopPropagation();
             if (isDir) onToggle(node.path);
           }}
         >
-          {isDir ? <IconChevron open={isOpen} /> : <span className="file-tree-row__chevron-spacer" />}
+          {isDir && <IconChevron open={isOpen} />}
         </span>
-        <span className={`file-tree-row__icon ${isDir ? 'file-tree-row__icon--folder' : 'file-tree-row__icon--file'}`}>
+        <span className={`ws-item__icon ${isDir ? 'ws-item__icon--folder' : ''}`}>
           {isDir ? <IconFolder /> : <IconDoc />}
         </span>
-        <span ref={labelRef} className="file-tree-row__label">
+        <span ref={labelRef} className="ws-item__label">
           {node.name}
         </span>
       </div>
@@ -81,12 +81,12 @@ const FileTreeNode = ({ node, level, selectedPath, expanded, treeCache, loadingD
       {isDir && isOpen && (
         <div className="file-tree-children">
           {!children && isLoading && (
-            <div className="file-tree-hint" style={{ '--depth': level + 1 }}>
+            <div className="ws-hint" style={{ '--depth': level + 1 }}>
               {t('tree.loading')}
             </div>
           )}
           {children && children.length === 0 && (
-            <div className="file-tree-hint" style={{ '--depth': level + 1 }}>
+            <div className="ws-hint" style={{ '--depth': level + 1 }}>
               {t('tree.empty')}
             </div>
           )}

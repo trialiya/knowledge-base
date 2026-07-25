@@ -200,6 +200,28 @@ would otherwise leak the mode into the next real transition.
 Adding a new top-level path means updating `SpaForwardController` too — its
 mappings must cover nested paths.
 
+### Left panel (списки и деревья)
+
+- Every row of a left panel — chat list, knowledge tree, file tree, settings
+  groups — is the shared `.ws-item` from `common/sidePanel.css` (with
+  `.ws-item__chevron/__icon/__label/__actions/__action`, `.ws-list`, `.ws-hint`).
+  Sections add only their own behaviour (drag-drop in the KB tree, the
+  `.ws-item--nowrap` horizontal scroll in the file tree). Do not restore
+  per-panel row families — `chat-list-item`, `tree-row__*`, `file-tree-row`,
+  `settings-nav__item` are gone.
+- Metrics come from tokens on `.workspace` (`--ws-gutter`, `--ws-row-min-h`,
+  `--ws-row-font`, `--ws-indent`, `--ws-left-width`): the panel head, the action
+  button, the search widget and the rows all sit on one vertical. A section may
+  override a token from its own `.workspace--*` modifier, but only with a
+  comment saying why (files use a smaller `--ws-indent` — repo paths are deep).
+- Row height is `min-height` only, never padding + content: a row with an action
+  button would otherwise be taller than one without.
+- Search above the list is the shared `<PanelSearch>` from `components/common/`
+  (trigger → field → portal dropdown, built on `useSearchDropdown`). A section
+  passes only `search` (fetch) and `describeItem` (icon/title/subtitle/badge);
+  common labels live in `common.json` under `panelSearch.*`. Don't write another
+  search widget — `ChatSearch`/`FileSearch`/`TreeSearch` are 40-line adapters.
+
 ### Modals
 
 - Use the shared `<ModalShell>` from `components/common/` for every dialog. It owns:
@@ -233,6 +255,10 @@ mappings must cover nested paths.
 - CSS is plain (no modules/preprocessor); classes are global — prefix with the
   block name to avoid collisions, and never reference another panel's classes
   (shared chrome belongs in `common/`).
+- There is **no global `box-sizing: border-box`** in the project. Any rule that
+  sizes a box (`min-height`, `height`, `width`) must set `box-sizing` itself, or
+  padding and border silently add to it — and `<button>`s behave differently
+  from `<div>`s, since the UA stylesheet gives buttons `border-box`.
 
 ### Components & hooks
 

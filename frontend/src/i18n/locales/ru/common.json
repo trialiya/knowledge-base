@@ -22,6 +22,11 @@
     "expandLeft": "Развернуть панель",
     "collapseRight": "Свернуть панель"
   },
+  "panelSearch": {
+    "searching": "Поиск…",
+    "empty": "Ничего не найдено",
+    "close": "Закрыть поиск"
+  },
   "search": {
     "placeholder": "Поиск по базе знаний…",
     "modeTitle": "Режим поиска",

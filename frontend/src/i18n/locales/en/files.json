@@ -8,10 +8,7 @@
   },
   "search": {
     "open": "Find file",
-    "close": "Close search",
     "placeholder": "Find a file…",
-    "searching": "Searching…",
-    "empty": "No matches",
     "hint": "Type a file name"
   },
   "breadcrumb": {

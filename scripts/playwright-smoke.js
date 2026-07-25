@@ -148,8 +148,9 @@ async function main() {
         // Both the sidebar's chat list (GET /api/chats) and the active chat's
         // messages (GET /{id}/messages) are fetched async after mount — #root
         // having children only proves the shell rendered, not that the seeded
-        // chat and its messages have actually shown up yet.
-        await page.waitForSelector('.chat-list-item', { timeout: 15000 });
+        // chat and its messages have actually shown up yet. `.ws-item` is the
+        // shared left-panel row (common/sidePanel.css) — here, a chat.
+        await page.waitForSelector('.ws-item', { timeout: 15000 });
         await page.waitForSelector('.message', { timeout: 15000 });
       }
       await page.screenshot({ path: screenshotPath, fullPage: true });

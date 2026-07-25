@@ -25,15 +25,16 @@ const SettingsShell = ({ title, groups, activeKey, onSelect, panels, children })
     left={{
       title,
       children: (
-        <div className="settings-nav__list">
+        <div className="ws-list">
           {groups.map((g) => (
             <button
               key={g.key}
-              className={`settings-nav__item${activeKey === g.key ? ' settings-nav__item--active' : ''}`}
+              type="button"
+              className={`ws-item${activeKey === g.key ? ' ws-item--active' : ''}`}
               onClick={() => onSelect(g.key)}
             >
-              <span className="settings-nav__icon">{g.icon}</span>
-              <span className="settings-nav__label">{g.label}</span>
+              <span className="ws-item__icon">{g.icon}</span>
+              <span className="ws-item__label">{g.label}</span>
             </button>
           ))}
         </div>

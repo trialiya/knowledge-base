@@ -5,53 +5,8 @@
    см. common/workspaceLayout.css. Здесь только список групп и карточки.
 ═══════════════════════════════════════════════ */
 
-.settings-nav__list {
-  display: flex;
-  flex-direction: column;
-}
-
-.settings-nav__item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 16px;
-  font-size: 0.88rem;
-  color: var(--kb-accent);
-  font-weight: 500;
-  cursor: pointer;
-  background: none;
-  border: none;
-  border-bottom: 1px solid var(--kb-border-light);
-  border-left: 3px solid transparent;
-  text-align: left;
-  transition: background 0.1s, border-color 0.1s;
-  min-height: 40px;
-}
-.settings-nav__item:hover {
-  background: var(--kb-accent-light);
-}
-.settings-nav__item--active {
-  background: var(--kb-accent-bg);
-  border-left-color: var(--kb-accent);
-  font-weight: 700;
-}
-
-.settings-nav__icon {
-  display: flex;
-  align-items: center;
-  color: var(--kb-muted);
-  flex-shrink: 0;
-}
-.settings-nav__item--active .settings-nav__icon {
-  color: var(--kb-accent);
-}
-
-.settings-nav__label {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+/* Список групп — общие строки левой панели (.ws-item, см. sidePanel.css):
+   собственных правил у него больше нет. */
 
 .settings-content__head {
   display: flex;

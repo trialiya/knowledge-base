@@ -5,9 +5,12 @@
 /* Оболочка раздела (контейнер, левая панель, центр) — общая: см.
    common/workspaceLayout.css. Здесь только специфика дерева и содержимого. */
 
-/* Путей в репозитории много и они глубокие — даём дереву больше места. */
+/* Отступ уровня на два пикселя меньше общего: глубина путей репозитория
+   (java-пакеты) заметно больше, чем у дерева базы знаний, и на восьмом уровне
+   строка иначе уезжает в горизонтальный скролл раньше времени. Ширина панели
+   при этом общая — раздел её не переопределяет. */
 .workspace--files {
-  --ws-left-width: 290px;
+  --ws-indent: 12px;
 }
 
 /* ── Tree ── */
@@ -18,233 +21,19 @@
   /* Скролл по обеим осям: на большой глубине вложенности строки шире панели,
      без горизонтального скролла имена файлов уезжали бы за границу. */
   overflow: auto;
-  padding: 0.5rem 0;
-  /* Отступ на уровень меньше глобального --tree-indent: глубина путей репозитория
-     (java-пакеты) заметно больше, чем у дерева базы знаний. */
-  --file-tree-indent: 12px;
 }
 
 /* Ширина по самой длинной строке (не меньше панели) — фон выделенной строки
-   тянется на всю прокручиваемую ширину, а не обрезается на 280px. */
+   тянется на всю прокручиваемую ширину, а не обрезается на ширине панели. */
 .file-tree {
   width: max-content;
   min-width: 100%;
 }
 
-.file-tree-node-wrap {
-  display: flex;
-  flex-direction: column;
-}
-
-.file-tree-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 14px 7px calc(14px + var(--depth, 0) * var(--file-tree-indent));
-  font-size: 0.86rem;
-  color: var(--kb-text);
-  cursor: pointer;
-  border-left: 3px solid transparent;
-  transition: background 0.1s;
-  min-height: 32px;
-}
-.file-tree-row:hover {
-  background: var(--kb-accent-light);
-}
-.file-tree-row--selected {
-  background: var(--kb-accent-bg);
-  color: var(--kb-accent);
-  font-weight: 700;
-  border-left-color: var(--kb-accent);
-}
-
-.file-tree-row__chevron {
-  display: flex;
-  align-items: center;
-  color: var(--kb-muted);
-  flex-shrink: 0;
-  width: 12px;
-}
-.file-tree-row__chevron-spacer {
-  display: inline-block;
-  width: 12px;
-}
-.file-tree-row__icon {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  color: var(--kb-muted);
-}
-.file-tree-row__icon--folder {
-  color: var(--kb-accent);
-}
-/* Без ellipsis и без flex:1: имя задаёт ширину строки само, недостающее
-   добирается горизонтальным скроллом панели. flex:1 растягивал метку до
-   конца раскрытого дерева (шире вьюпорта), из-за чего автоскролл к строке
-   ошибочно выравнивал её левый край и обрезал начало коротких имён. */
-.file-tree-row__label {
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
+.file-tree-node-wrap,
 .file-tree-children {
   display: flex;
   flex-direction: column;
-}
-
-.file-tree-hint {
-  padding: 6px 14px 6px calc(14px + var(--depth, 0) * var(--file-tree-indent));
-  font-size: 0.78rem;
-  color: var(--kb-muted);
-}
-
-/* ── File search ── */
-
-.file-search {
-  flex: 1;
-  min-width: 0;
-}
-
-.file-search__trigger {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: 1.5px solid var(--kb-border);
-  background: var(--kb-white);
-  color: var(--kb-muted);
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
-}
-.file-search__trigger:hover {
-  border-color: var(--kb-accent);
-  color: var(--kb-accent);
-  background: var(--kb-accent-light);
-}
-
-.file-search__field {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  height: 28px;
-  padding: 0 8px;
-  border-radius: 14px;
-  border: 1.5px solid var(--kb-accent);
-  background: var(--kb-white);
-}
-
-.file-search__field-icon {
-  display: flex;
-  align-items: center;
-  color: var(--kb-muted);
-  flex-shrink: 0;
-}
-
-.file-search__input {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  outline: none;
-  background: none;
-  font: inherit;
-  font-size: 0.82rem;
-  color: var(--kb-text);
-}
-.file-search__input::placeholder {
-  color: var(--kb-muted);
-}
-
-.file-search__close {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 18px;
-  height: 18px;
-  border: none;
-  border-radius: 50%;
-  background: none;
-  color: var(--kb-muted);
-  cursor: pointer;
-}
-.file-search__close:hover {
-  background: var(--kb-accent-light);
-  color: var(--kb-accent);
-}
-
-.file-search-dropdown {
-  position: fixed;
-  z-index: 1200;
-  background: var(--kb-white);
-  border: 1px solid var(--kb-border);
-  border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(91, 79, 207, 0.16);
-  overflow: hidden;
-  max-height: 360px;
-  display: flex;
-  flex-direction: column;
-}
-
-.file-search-dropdown__msg {
-  padding: 12px 14px;
-  font-size: 0.82rem;
-  color: var(--kb-muted);
-}
-
-.file-search-dropdown__list {
-  overflow-y: auto;
-  padding: 4px;
-}
-
-.file-search-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 7px 10px;
-  border: none;
-  border-radius: 8px;
-  background: none;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.file-search-item:hover,
-.file-search-item--selected {
-  background: var(--kb-accent-light);
-}
-
-.file-search-item__icon {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  color: var(--kb-muted);
-}
-
-.file-search-item__body {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  gap: 1px;
-}
-
-.file-search-item__name {
-  font-size: 0.85rem;
-  color: var(--kb-text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.file-search-item__path {
-  font-size: 0.72rem;
-  color: var(--kb-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* ── Content ── */

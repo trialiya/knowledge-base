@@ -1,85 +1,20 @@
 /* ═══════════════════════════════════════════════
-   TREE
+   TREE — специфика дерева базы знаний
+
+   Вид строки общий (.ws-item, см. common/sidePanel.css): высота, шрифт, цвет,
+   отступ уровня и маркер выбора живут там. Здесь — только то, чего нет у других
+   панелей: перетаскивание, системные узлы, подгрузка следующей страницы.
 ═══════════════════════════════════════════════ */
 
-/* Панель дерева — общая (.workspace__side--left); здесь только само дерево. */
-.tree-container {
-  padding: 0;
-}
-.tree-node-wrap {
-  display: flex;
-  flex-direction: column;
-}
-
-.tree-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 9px 14px 9px calc(14px + var(--depth, 0) * var(--tree-indent));
-  font-size: 0.88rem;
-  color: var(--kb-accent);
-  font-weight: 500;
-  cursor: pointer;
-  border-bottom: 1px solid var(--kb-border-light);
-  border-left: 3px solid transparent;
-  transition: background 0.1s, box-shadow 0.1s, border-color 0.1s;
-  min-height: 36px;
-}
-.tree-row:hover {
-  background: var(--kb-accent-light);
-}
-.tree-row--selected {
-  background: var(--kb-accent-bg);
-  font-weight: 700;
-}
-
-.tree-row__chevron {
-  display: flex;
-  align-items: center;
-  color: var(--kb-muted);
-  flex-shrink: 0;
-  width: 16px;
-}
-.tree-row__icon {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-}
-.tree-row__icon--folder {
-  color: var(--kb-accent);
-}
-.tree-row__icon--doc {
-  color: var(--kb-muted);
-}
-
-.tree-row__label {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
-
-.tree-row__del {
-  background: none;
-  border: none;
-  font-size: 0.8rem;
-  cursor: pointer;
-  color: var(--kb-muted);
-  opacity: 0;
-  padding: 0 2px;
-  transition: opacity 0.15s;
-  flex-shrink: 0;
-}
-.tree-row:hover .tree-row__del {
-  opacity: 0.6;
-}
-.tree-row__del:hover {
-  opacity: 1 !important;
-}
+.tree-node-wrap,
 .tree-children {
   display: flex;
   flex-direction: column;
+}
+
+/* Системный узел: приглушённая метка вместо кнопки удаления (её заменяет замок). */
+.tree-row--system .ws-item__label {
+  color: var(--kb-muted);
 }
 
 /* ═══════════════════════════════════════════════
@@ -114,28 +49,30 @@
 /* ── Drop indicators ──────────────────────────── */
 
 /*
-  The workspace shell and the panel body around `.tree-container` have
+  The workspace shell and the panel body around the tree have
   overflow:hidden/auto, which clips absolutely-positioned pseudo-elements that
   extend outside .tree-row.
-  Fix: use box-shadow and border — they render strictly within the element's own
-  box and are never clipped by ancestor overflow.
+  Fix: use inset box-shadow — it renders strictly within the element's own box
+  and is never clipped by ancestor overflow.
 
-  BEFORE: 3px inset shadow on top  + left border accent (visible "dot" equivalent)
-  AFTER:  3px inset shadow on bottom + left border accent
+  BEFORE: 3px inset shadow on top  + accent bar on the left (the "dot")
+  AFTER:  3px inset shadow on bottom + accent bar on the left
   INSIDE: 4-side inset shadow (acts like outline without the clipping issue)
+
+  Раньше боковую отметку рисовал border-left-color, а строка ради этого держала
+  постоянный border-left: 3px transparent — из-за него текст дерева стоял на 3px
+  правее, чем в остальных панелях. Теперь это второй inset-shadow.
 */
 
-/* BEFORE — top inset shadow = line; left border color = accent dot */
+/* BEFORE — top inset shadow = line */
 .tree-row--drop-before {
-  box-shadow: inset 0 3px 0 0 var(--kb-accent);
-  border-left-color: var(--kb-accent);
+  box-shadow: inset 0 3px 0 0 var(--kb-accent), inset 3px 0 0 0 var(--kb-accent);
   background: var(--kb-accent-light) !important;
 }
 
-/* AFTER — bottom inset shadow = line; left border color = accent dot */
+/* AFTER — bottom inset shadow = line */
 .tree-row--drop-after {
-  box-shadow: inset 0 -3px 0 0 var(--kb-accent);
-  border-left-color: var(--kb-accent);
+  box-shadow: inset 0 -3px 0 0 var(--kb-accent), inset 3px 0 0 0 var(--kb-accent);
   background: var(--kb-accent-light) !important;
 }
 
@@ -226,11 +163,6 @@
 
 /* ── System node styles ─────────────────────────── */
 
-/* Subtle visual distinction: slightly muted label */
-.tree-row--system .tree-row__label {
-  color: var(--kb-muted);
-}
-
 /* Lock badge replaces the delete button */
 .tree-row__system-badge {
   display: flex;
@@ -238,7 +170,6 @@
   justify-content: center;
   width: 22px;
   height: 22px;
-  margin-left: auto;
   flex-shrink: 0;
   color: var(--kb-muted);
   opacity: 0;
@@ -247,7 +178,7 @@
 
 /* Show lock on hover so it doesn't clutter the default view */
 .tree-row--system:hover .tree-row__system-badge,
-.tree-row--system.tree-row--selected .tree-row__system-badge {
+.tree-row--system.ws-item--active .tree-row__system-badge {
   opacity: 1;
 }
 
@@ -274,10 +205,9 @@
   display: flex;
   align-items: center;
   width: 100%;
-  padding: 4px 8px 4px calc(14px + var(--depth, 0) * var(--tree-indent));
+  padding: 4px 8px 4px calc(var(--ws-gutter) + var(--depth, 0) * var(--ws-indent));
   background: none;
   border: none;
-  border-bottom: 1px solid var(--kb-border-light);
   cursor: pointer;
   font-size: 0.8rem;
   color: var(--kb-muted);

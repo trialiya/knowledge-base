@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import RightPanel from './RightPanel';
 import { IconPanelLeft } from '../../icons';
 import './workspaceLayout.css';
+import './sidePanel.css';
 
 /**
  * Единая оболочка рабочей области для всех разделов (чат, база знаний, файлы).

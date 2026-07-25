@@ -9,8 +9,8 @@ const FileTree = ({ treeCache, loadingDirs, expanded, selectedPath, onToggle, on
 
   return (
     <div className="file-tree">
-      {!rootNodes && rootLoading && <div className="file-tree-hint">{t('tree.loading')}</div>}
-      {rootNodes && rootNodes.length === 0 && <div className="file-tree-hint">{t('tree.empty')}</div>}
+      {!rootNodes && rootLoading && <div className="ws-hint">{t('tree.loading')}</div>}
+      {rootNodes && rootNodes.length === 0 && <div className="ws-hint">{t('tree.empty')}</div>}
       {rootNodes &&
         rootNodes.map((node) => (
           <FileTreeNode

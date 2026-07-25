@@ -10,9 +10,18 @@
 .workspace {
   /* Ширины боковых панелей — единые для всех разделов. Раздел может
      переопределить их своим модификатором на .workspace. */
-  --ws-left-width: 268px;
+  --ws-left-width: 280px;
   --ws-right-width: 320px;
   --ws-rail-width: 46px;
+
+  /* Метрика левой панели. Один отступ на шапку, кнопку действия, поиск и строки
+     списка — иначе они стоят на разных вертикалях (так и было до унификации:
+     13.6 / 25.6 / 14 / 16px в одной панели). Строки рисует .ws-item
+     (см. sidePanel.css), эти же токены использует и он. */
+  --ws-gutter: 14px;
+  --ws-row-min-h: 34px;
+  --ws-row-font: 0.86rem;
+  --ws-indent: 14px;
 
   flex: 1;
   display: flex;
@@ -56,7 +65,9 @@
   gap: 8px;
   flex-shrink: 0;
   min-height: 44px;
-  padding: 0.4rem 0.5rem 0.4rem 0.85rem;
+  /* Справа отступ меньше: там кнопка-иконка, её собственные поля добирают
+     оптическое равенство с левым краем. */
+  padding: 0.4rem 0.5rem 0.4rem var(--ws-gutter);
   border-bottom: 1px solid var(--kb-border);
   background: var(--kb-white);
 }
@@ -79,18 +90,24 @@
 .workspace__side-action {
   flex-shrink: 0;
   display: flex;
-  padding: 0.75rem 0.85rem 0.35rem;
+  padding: 0.75rem var(--ws-gutter) 0.4rem;
 }
 .workspace__side-action > * {
   flex: 1;
 }
 
-/* Строка инструментов (поиск по списку/дереву) */
+/* Строка инструментов (поиск по списку/дереву). Виджет занимает её целиком:
+   раздел без кнопки действия (файлы) иначе получал бы одинокую иконку в пустой
+   строке во всю ширину. */
 .workspace__side-toolbar {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  padding: 0.4rem 0.6rem;
+  padding: 0.4rem var(--ws-gutter) 0.6rem;
+}
+.workspace__side-toolbar > * {
+  flex: 1;
+  min-width: 0;
 }
 
 /* Тело панели — единственная прокручиваемая часть */

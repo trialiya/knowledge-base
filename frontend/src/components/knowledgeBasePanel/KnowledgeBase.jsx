@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import './KnowledgeBase.css';
 
 import TreeNode from './TreeNode';
+import TreeSearch from './TreeSearch';
 import FolderDetail from './FolderDetail';
 import DocumentDetail from './DocumentDetail';
 import DetailModals from './DetailModals';
@@ -25,6 +26,7 @@ const KnowledgeBase = ({ docId, search, mode, refreshSignal, onRefreshingChange,
 
   const {
     tree,
+    treeLoaded,
     selectedNode,
     searchQuery,
     searchResults,
@@ -146,8 +148,10 @@ const KnowledgeBase = ({ docId, search, mode, refreshSignal, onRefreshingChange,
               {t('tree.create')}
             </button>
           ),
+          toolbar: <TreeSearch onSelect={selectNode} />,
           children: (
-            <div className="tree-container">
+            <div className="ws-list">
+              {treeLoaded && tree.length === 0 && <div className="ws-hint">{t('tree.empty')}</div>}
               {tree.map((node) => (
                 <TreeNode
                   key={node.id}
