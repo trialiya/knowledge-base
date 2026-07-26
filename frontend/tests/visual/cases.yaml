@@ -1,0 +1,208 @@
+# Реестр визуальных кейсов
+#
+# Что это. Сценарии, которыми компоненты уже проверялись руками, вместе с
+# данными для них. Цель — чтобы следующая сессия не придумывала проверки заново
+# (другие, неполные и на других данных), а взяла отсюда. Заготовка под
+# Storybook + Playwright: из кейса должна собираться стори без уточняющих
+# вопросов.
+#
+# Правила ведения:
+#   • id стабилен навсегда — он станет именем стори и именем baseline-снимка.
+#     Переименование = потеря baseline.
+#   • Похожий кейс уже есть? Дополни его (уточни expected, допиши origin), а не
+#     заводи второй id. Дубликаты под разными именами — главная ошибка здесь.
+#   • Данные — только в fixtures/<компонент>.js именованными экспортами, и
+#     только статика: без Date.now(), Math.random(), реальных id из базы,
+#     живых токенов и персональных данных.
+#   • status: verified — наблюдалось в браузере; broken — воспроизведённый
+#     дефект (тогда ссылка на issue/строку); blocked — кейс описан, но прогнать
+#     нечем (нет данных, нужен недостижимый бэкенд/состояние).
+#   • expected пишем проверяемо: что видно на экране, а не «выглядит хорошо».
+#
+# Как проверялись кейсы со status: verified в PR #155. Дев-сервер в веб-песочнице
+# не работает, поэтому прогон шёл через собранный jar с профилем h2, засеянный
+# backend/src/test/resources/db/sample-data.sql, под Chromium/Playwright с
+# HTTP Basic admin/admin (рецепт — в scripts/playwright-smoke.js и CLAUDE.md,
+# раздел «Visually validating the frontend»). Фикстуры ниже — те же данные,
+# переписанные под пропсы компонентов и с синтетическими id.
+
+- id: chat-header-single-row
+  component: ChatHeader
+  path: frontend/src/components/chatPanel/ChatHeader.jsx
+  title: Шапка активного чата — одна строка, без даты создания
+  status: verified
+  origin:
+    - PR #155, сессия 2026-07-26
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /
+  fixtures: ./fixtures/chatHeader.js#activeChatProps
+  expected:
+    - Заголовок чата в одну строку, длинный режется многоточием
+    - Под заголовком ничего нет — дата создания убрана в правую панель, вкладка «Инфо»
+    - Справа в шапке две иконки — поиск по чату и удаление
+    - Высота шапки 56px, её верхняя граница совпадает с шапкой левой панели («Chats»)
+  notes: |
+    Замерено в браузере: центральная шапка {h: 56, top: 79}, шапки боковых
+    панелей — тоже {h: 56, top: 79}.
+    Правая панель в этом прогоне была свёрнута в рельс (состояние по умолчанию)
+    с бейджем вложений «1» — это не часть кейса, но так выглядел снимок.
+
+- id: kb-detail-header-document
+  component: DetailHeader
+  path: frontend/src/components/knowledgeBasePanel/DetailHeader.jsx
+  title: Шапка документа базы знаний — крошки, иконка, имя и кнопки в одной строке
+  status: verified
+  origin:
+    - PR #155, сессия 2026-07-26
+  preconditions:
+    viewport: [1150, 700]
+    auth: admin
+    route: /knowledge/doc/<id документа из фикстуры>
+    hover: .detail-header
+  fixtures: ./fixtures/detailHeader.js#documentInFolder
+  expected:
+    - 'Слева крошка предка («анализ») и разделитель после неё: путь и имя читаются одной цепочкой'
+    - Дальше иконка типа (документ), затем полное имя узла
+    - Справа две кнопки — переименовать и удалить; кнопка переименования проявляется по наведению на шапку или по фокусу с клавиатуры
+    - Высота шапки 56px, совпадает с шапкой левой панели
+  notes: |
+    Замерено в браузере: centerHeadH 56 == sideHeadH 56, крошки «анализ»,
+    заголовок целиком, кнопок действий 2.
+    Оригинальный прогон шёл на db/sample-data.sql (документ 76 внутри папки 75);
+    в фикстуре id синтетические.
+
+- id: kb-empty-no-selection
+  component: KnowledgeBase
+  path: frontend/src/components/knowledgeBasePanel/KnowledgeBase.jsx
+  title: База знаний без выбранного документа — у центра нет шапки
+  status: verified
+  origin:
+    - PR #155, сессия 2026-07-26
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /knowledge
+  fixtures: ./fixtures/knowledgeBaseTree.js#singleFolderTree
+  expected:
+    - В центре плейсхолдер «Select a document to view»
+    - Шапки центра (.workspace__head) в DOM нет вовсе — она принадлежит открытому узлу, а его нет
+    - Слева шапка «Documents», кнопка «Create», поиск и свёрнутая папка «анализ»
+  notes: |
+    Это экранный кейс, а не компонентный: он про отсутствие шапки в разделе
+    целиком, и в стори без стора и роутера не разворачивается — Playwright
+    подходит лучше.
+    Практическое следствие для будущих замеров: на этом роуте нельзя мерить
+    шапку через document.querySelector('.workspace__head') — разделы чата и
+    базы знаний смонтированы одновременно, и селектор поймает чужую шапку.
+    Мерить надо внутри видимой секции.
+
+- id: files-breadcrumb-deep-path
+  component: Breadcrumb
+  path: frontend/src/components/filesPanel/Breadcrumb.jsx
+  title: Глубокий путь к файлу — строка не переносится и прокручена к концу
+  status: verified
+  origin:
+    - PR #155, сессия 2026-07-26
+  preconditions:
+    viewport: [1150, 820]
+    auth: admin
+    route: /files/<путь из фикстуры>
+  fixtures: ./fixtures/filesBreadcrumb.js#deepJavaPath
+  expected:
+    - Крошки идут одной строкой, шапка не растёт в высоту
+    - 'Начало пути обрезано слева (от «backend» видно только хвост «nd») — строка прокручена к концу'
+    - Имя файла «MovePhraseRequest.java» видно целиком, жирным, и это не кнопка
+    - Полосы прокрутки не видно
+    - Высота шапки 56px, совпадает с шапкой левой панели
+  notes: |
+    Ключевой кейс на прижатие скролла к концу пути (HeadCrumbs.jsx): до PR #155
+    контейнер оставался прокручен в начало, и глубокий путь показывал корень,
+    обрывая строку ровно на самой полезной крошке.
+    Файл существует в репозитории, поэтому кейс годится и для прогона поверх
+    живого бэкенда с PROJECT_PATH=.
+
+- id: files-breadcrumb-not-found
+  component: Breadcrumb
+  path: frontend/src/components/filesPanel/Breadcrumb.jsx
+  title: Путь к несуществующему файлу — крошки строятся из URL
+  status: verified
+  origin:
+    - PR #155, сессия 2026-07-26
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /files/<путь из фикстуры>
+  fixtures: ./fixtures/filesBreadcrumb.js#missingPath
+  expected:
+    - 'Полная цепочка: Repository › backend › src › main › java › com › example › knowledgebase'
+    - Последнее звено жирное и не кнопка, все предыдущие — кнопки
+    - В центре под шапкой сообщение «File or directory not found»
+    - Шапка полноценная, на одной линии с шапкой левой панели («Repository»)
+
+- id: kb-detail-header-deep-path
+  component: DetailHeader
+  path: frontend/src/components/knowledgeBasePanel/DetailHeader.jsx
+  title: Шапка документа с длинным путём — крошки сжимаются, имя остаётся целым
+  status: blocked
+  origin:
+    - PR #155, сессия 2026-07-26
+  preconditions:
+    viewport: [1150, 700]
+    auth: admin
+    route: /knowledge/doc/<id документа из фикстуры>
+  fixtures: ./fixtures/detailHeader.js#documentDeepPath
+  expected:
+    - Крошки уступают место первыми — сжимаются, пока имя открытого узла целое
+    - Строка одна, шапка не растёт в высоту
+    - Прокрутка крошек прижата к концу — ближайшая папка видна, начало пути уезжает влево
+  notes: |
+    Блокировано данными: в db/sample-data.sql дерево двухуровневое
+    (одна папка в корне → два документа), у документа всегда ровно один предок,
+    переполнения не бывает. Замер crumbsPinnedToEnd в PR #155 вышел тривиальным
+    (scrollLeft 0 == maxScroll 0) и за проверку не считается.
+    Ожидание выведено из кода (HeadCrumbs.jsx, .workspace__head-crumbs в
+    common/workspaceLayout.css), а не из наблюдения. Фикстура готова —
+    для стори этого достаточно, для Playwright нужен сид с глубоким деревом.
+
+- id: kb-detail-header-system-node
+  component: DetailHeader
+  path: frontend/src/components/knowledgeBasePanel/DetailHeader.jsx
+  title: Системный узел — замок вместо кнопок переименования и удаления
+  status: blocked
+  origin:
+    - PR #155, сессия 2026-07-26
+  preconditions:
+    viewport: [1150, 700]
+    auth: admin
+    route: /knowledge/doc/<id документа из фикстуры>
+  fixtures: ./fixtures/detailHeader.js#systemDocument
+  expected:
+    - Справа в шапке один значок замка с подсказкой «Системный документ: переименование и удаление недоступны»
+    - Кнопок переименования и удаления нет
+    - Остальная шапка как у обычного документа — крошки, иконка типа, имя
+  notes: |
+    Блокировано данными: в db/sample-data.sql нет ни одной строки с
+    is_system = TRUE. Ожидание выведено из кода (DetailHeader.jsx), а не из
+    наблюдения.
+
+- id: kb-detail-header-folder
+  component: DetailHeader
+  path: frontend/src/components/knowledgeBasePanel/DetailHeader.jsx
+  title: Шапка папки — вариант иконки --folder с непустыми крошками
+  status: blocked
+  origin:
+    - PR #155, сессия 2026-07-26
+  preconditions:
+    viewport: [1150, 700]
+    auth: admin
+    route: /knowledge/doc/<id папки из фикстуры>
+  fixtures: ./fixtures/detailHeader.js#folderInFolder
+  expected:
+    - Иконка типа — папка на акцентной подложке (.detail-header__icon--folder), а не документ
+    - Крошка родительской папки на месте
+  notes: |
+    Блокировано данными: единственная папка в db/sample-data.sql лежит в корне,
+    то есть её шапка идёт без крошек, а сочетание «папка + непустой путь» на
+    этих данных недостижимо. Ожидание выведено из кода.

@@ -77,6 +77,11 @@ Chromium and Playwright are pre-installed (no `playwright install`). Don't use
 `yarn start` — the dev server doesn't work here; boot the backend jar (H2
 profile, dummy AI env vars) and drive it with Chromium instead.
 
+Before checking a component by hand, read `frontend/tests/visual/cases.yaml` —
+scenarios and data for already-checked components live there, with fixtures in
+`frontend/tests/visual/fixtures/`. Add new checks as cases in the same format
+and never rename an existing `id` (it is the future story/baseline name).
+
 `scripts/playwright-smoke.js` is a working, runnable example — boots the jar,
 polls `/actuator/health`, logs in via HTTP Basic (`admin`/`admin`), waits for
 the SPA to mount, and screenshots it. By default it also seeds `db/sample-data.sql`
