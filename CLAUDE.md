@@ -339,18 +339,10 @@ distribution download is blocked.
 
 ### Testcontainers Docker image caching
 
-The `*IT` suites use Testcontainers to spin up a PostgreSQL 17 + pgvector database.
-On the first run, Docker needs to pull `pgvector/pgvector:pg17` from the registry,
-which can be slow (5–10 minutes) or fail transiently. If `./run/test.sh` fails with
-`ContainerFetchException: Can't get Docker image: pgvector/pgvector:pg17`, pre-pull
-the image and retry:
-
-```bash
-docker pull pgvector/pgvector:pg17
-./run/test.sh pre-pr  # or ./run/test.sh unit, etc.
-```
-
-Once pulled, the image is cached locally and subsequent test runs are fast.
+`*IT` suites pull `pgvector/pgvector:pg17` via Testcontainers on first run, which can
+be slow or fail transiently — if `./run/test.sh` hits a `ContainerFetchException` for
+it, run `docker pull pgvector/pgvector:pg17` and retry; the image stays cached locally
+after that.
 
 ### Visually validating the frontend in the web sandbox (Playwright)
 
