@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconChevronRight } from '../../icons';
+import HeadCrumbs from '../common/HeadCrumbs';
 
 /** Строит цепочку {name, path} от корня до полного пути (сам путь не включает корень). */
 function segmentsOf(path) {
@@ -12,30 +12,31 @@ function segmentsOf(path) {
   });
 }
 
+/**
+ * Путь к открытому файлу — он же шапка центра файлового раздела: оболочка общая
+ * (.workspace__head), сами крошки — общий <HeadCrumbs>. Метаданные пути (размер,
+ * язык, последний коммит) — на вкладке «Инфо» справа, здесь только навигация.
+ *
+ * Последнее звено — сам открытый файл, поэтому оно не кнопка и разделителя после
+ * себя не требует.
+ */
 const Breadcrumb = ({ path, onNavigate }) => {
   const { t } = useTranslation('files');
   const segments = segmentsOf(path);
 
+  const items = [
+    { key: '', label: t('breadcrumb.root'), onNavigate: () => onNavigate('') },
+    ...segments.map((seg, i) => ({
+      key: seg.path,
+      label: seg.name,
+      onNavigate: i < segments.length - 1 ? () => onNavigate(seg.path) : undefined,
+    })),
+  ];
+
   return (
-    <nav className="file-breadcrumb" aria-label={t('breadcrumb.label')}>
-      <button className="file-breadcrumb__crumb" onClick={() => onNavigate('')}>
-        {t('breadcrumb.root')}
-      </button>
-      {segments.map((seg, i) => (
-        <React.Fragment key={seg.path}>
-          <span className="file-breadcrumb__sep" aria-hidden="true">
-            <IconChevronRight size={11} />
-          </span>
-          {i === segments.length - 1 ? (
-            <span className="file-breadcrumb__crumb file-breadcrumb__crumb--current">{seg.name}</span>
-          ) : (
-            <button className="file-breadcrumb__crumb" onClick={() => onNavigate(seg.path)}>
-              {seg.name}
-            </button>
-          )}
-        </React.Fragment>
-      ))}
-    </nav>
+    <div className="workspace__head">
+      <HeadCrumbs items={items} label={t('breadcrumb.label')} />
+    </div>
   );
 };
 

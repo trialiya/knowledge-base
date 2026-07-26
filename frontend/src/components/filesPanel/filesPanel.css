@@ -57,46 +57,11 @@
   font-size: 0.9rem;
 }
 
-/* ── Breadcrumb ── */
-
-.file-breadcrumb {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 0.9rem 1.5rem;
-  border-bottom: 1px solid var(--kb-border);
-  font-size: 0.86rem;
-}
-
-.file-breadcrumb__crumb {
-  background: none;
-  border: none;
-  padding: 2px 4px;
-  border-radius: 6px;
-  font: inherit;
-  color: var(--kb-accent);
-  cursor: pointer;
-}
-.file-breadcrumb__crumb:hover {
-  background: var(--kb-accent-light);
-  text-decoration: underline;
-}
-.file-breadcrumb__crumb--current {
-  color: var(--kb-text);
-  font-weight: 700;
-  cursor: default;
-}
-.file-breadcrumb__crumb--current:hover {
-  background: none;
-  text-decoration: none;
-}
-
-.file-breadcrumb__sep {
-  display: flex;
-  align-items: center;
-  color: var(--kb-border);
-}
+/* ── Breadcrumb ──
+   Путь к файлу — он же шапка центра: общая .workspace__head даёт высоту,
+   отступы и линию снизу, сами крошки — общий <HeadCrumbs>
+   (.workspace__head-crumbs, см. common/workspaceLayout.css). Своих правил у
+   раздела здесь нет. */
 
 /* ── Directory listing ── */
 

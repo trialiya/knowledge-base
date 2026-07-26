@@ -23,6 +23,13 @@
   --ws-row-font: 0.86rem;
   --ws-indent: 14px;
 
+  /* Высота шапок. Одна на все три колонки: шапка списка слева, шапка объекта в
+     центре и шапка вкладок справа стоят на одной линии — раньше центральная
+     была заметно выше (у чата 1.35rem сверху под всплывающую дату, у базы
+     знаний три строки: имя, крошки, дата) и «ступенька» была видна на стыке. */
+  --ws-head-min-h: 56px;
+  --ws-head-pad-x: 1.2rem;
+
   flex: 1;
   display: flex;
   overflow: hidden;
@@ -58,32 +65,22 @@
   border-left: 1px solid var(--kb-border);
 }
 
-/* Шапка панели: заголовок (или вкладки) + тумблер сворачивания */
+/* Шапка панели: заголовок (или вкладки) + тумблер сворачивания.
+   Общая часть с шапкой центра (.workspace__head) — ниже, в «Центре»: обе
+   колонки обязаны быть одной высоты, поэтому всё, кроме отступов, задано им
+   одним правилом. Здесь только отступы боковой шапки. */
 .workspace__side-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-  min-height: 44px;
   /* Справа отступ меньше: там кнопка-иконка, её собственные поля добирают
      оптическое равенство с левым краем. */
   padding: 0.4rem 0.5rem 0.4rem var(--ws-gutter);
-  border-bottom: 1px solid var(--kb-border);
-  background: var(--kb-white);
 }
 
 .workspace__side-title {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex: 1;
-  min-width: 0;
   font-size: 0.82rem;
   font-weight: 700;
-  color: var(--kb-text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* Главное действие панели («Новый чат», «Создать документ») */
@@ -224,11 +221,6 @@
   gap: 2px;
   flex: 1;
   min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.workspace__tabs::-webkit-scrollbar {
-  display: none;
 }
 
 .workspace__tab {
@@ -275,6 +267,134 @@
   flex-direction: column;
   overflow: hidden;
   background: var(--kb-white);
+}
+
+/* Шапка центра и шапки боковых панелей — одно правило: они обязаны стоять на
+   одной линии, а два одинаковых набора свойств рано или поздно разъезжаются.
+   Различаются только отступы (у боковой они заданы выше, у центра — ниже).
+
+   box-sizing обязателен: глобального в проекте нет, иначе padding прибавился бы
+   к высоте только там, где он больше, и «ступенька» вернулась бы.
+
+   Строка ровно одна: содержимое не переносится (иначе шапка вырастет и
+   равенство высот сломается), длинное — режется многоточием или уезжает в
+   скролл. Разделы кладут в шапку центра только своё содержимое: имя объекта,
+   крошки и кнопки действий. Всё, что «про объект» (даты, версии, путь, автор),
+   живёт в правой панели на вкладке «Инфо» — в шапке это было бы вторым
+   экземпляром той же информации и лишней строкой высоты. */
+.workspace__head,
+.workspace__side-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  min-height: var(--ws-head-min-h);
+  border-bottom: 1px solid var(--kb-border);
+  background: var(--kb-white);
+}
+
+.workspace__head {
+  padding: 0.4rem var(--ws-head-pad-x);
+}
+
+/* Имя открытого объекта (и заголовок боковой панели): занимает всю свободную
+   ширину и режется многоточием. Размер шрифта — у каждого свой, см. выше.
+   Блочный (не flex) — text-overflow работает только на самом текстовом боксе. */
+.workspace__head-title,
+.workspace__side-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  color: var(--kb-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.workspace__head-title {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Слот имени в режиме правки (инлайн-переименование) стоит на месте заголовка и
+   тянется так же — иначе поле уезжало бы во всю ширину шапки, под кнопки. Вид
+   поля у разделов свой, общая здесь только раскладка. */
+.workspace__head-edit {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Кнопки справа в шапке центра */
+.workspace__head-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* Хлебные крошки в шапке центра (общий <HeadCrumbs>, см. common/HeadCrumbs.jsx).
+   Уступают место первыми: сжимаются, пока имя открытого объекта целое. Строка
+   одна и не переносится — глубокий путь иначе растил бы шапку; вместо переноса
+   он уезжает в горизонтальный скролл, а тот прижат к концу пути (ближайшая
+   папка и открытый файл важнее корня — см. HeadCrumbs). */
+.workspace__head-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: 0.86rem;
+}
+
+.workspace__head-crumb {
+  flex-shrink: 0;
+  padding: 2px 4px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  color: var(--kb-muted);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+.workspace__head-crumb:hover {
+  color: var(--kb-accent);
+  background: var(--kb-accent-light);
+}
+
+/* Последняя крошка — сам открытый объект (файлы: имя файла и есть конец пути).
+   Не кнопка: идти по ней некуда. */
+.workspace__head-crumb--current {
+  color: var(--kb-text);
+  font-weight: 700;
+  cursor: default;
+}
+.workspace__head-crumb--current:hover {
+  color: var(--kb-text);
+  background: none;
+}
+
+.workspace__head-crumb-sep {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--kb-border);
+}
+
+/* Горизонтальный скролл без видимой полосы — вкладки правой панели и крошки в
+   шапке центра. Обе строки высотой ровно в строку: системная полоса съела бы её
+   низ и появлялась/исчезала бы вместе с переполнением, дёргая содержимое. */
+.workspace__tabs,
+.workspace__head-crumbs {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.workspace__tabs::-webkit-scrollbar,
+.workspace__head-crumbs::-webkit-scrollbar {
+  display: none;
 }
 
 /* ── Адаптив ──

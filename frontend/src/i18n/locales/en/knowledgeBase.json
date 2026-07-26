@@ -24,8 +24,7 @@
   },
   "detail": {
     "about": "About",
-    "createdAt": "Created: {{date}}",
-    "levelUp": "Up one level",
+    "breadcrumb": "Path",
     "systemBadge": "System document: renaming and deletion are disabled",
     "rename": "Rename",
     "delete": "Delete",

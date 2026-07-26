@@ -1,16 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  IconFolder,
-  IconDoc,
-  IconChevronRight,
-  IconEdit,
-  IconTrash,
-  IconArrowLeft,
-  IconCheck,
-  IconX,
-  IconLock,
-} from '../../icons';
+import { IconFolder, IconDoc, IconEdit, IconTrash, IconCheck, IconX, IconLock } from '../../icons';
+import HeadCrumbs from '../common/HeadCrumbs';
 
 // ─── Inline rename ────────────────────────────────────────────────────────────
 
@@ -23,7 +14,7 @@ const InlineRename = ({ value, onSave, onCancel }) => {
   }, []);
 
   return (
-    <span className="inline-rename">
+    <span className="inline-rename workspace__head-edit">
       <input
         ref={ref}
         className="inline-rename__input"
@@ -44,104 +35,78 @@ const InlineRename = ({ value, onSave, onCancel }) => {
   );
 };
 
-// ─── Breadcrumb ───────────────────────────────────────────────────────────────
-
-const Breadcrumb = ({ path, onNavigate }) => {
-  if (!path || path.length === 0) return null;
-  return (
-    <div className="detail-breadcrumb">
-      {path.map((node, i) => (
-        <React.Fragment key={node.id}>
-          <span className="detail-breadcrumb__icon">
-            {node.type === 'folder' ? <IconFolder size={12} /> : <IconDoc size={12} />}
-          </span>
-          <button className="detail-breadcrumb__item" onClick={() => onNavigate(node)}>
-            {node.title}
-          </button>
-          {i < path.length - 1 && (
-            <span className="detail-breadcrumb__sep">
-              <IconChevronRight />
-            </span>
-          )}
-        </React.Fragment>
-      ))}
-    </div>
-  );
-};
-
 // ─── DetailHeader ─────────────────────────────────────────────────────────────
 
+/**
+ * Шапка открытого узла базы знаний: путь к нему, иконка типа, имя с
+ * переименованием на месте и удаление.
+ *
+ * Оболочка общая — .workspace__head (common/workspaceLayout.css), высота та же,
+ * что у шапок боковых панелей, поэтому строка ровно одна. Отсюда убраны:
+ *   • дата создания — она (вместе с датой правки, версиями и id) на вкладке
+ *     «Инфо» в правой панели, второй раз показывать её незачем;
+ *   • кнопка «на уровень выше» — она вела ровно туда же, куда последняя
+ *     хлебная крошка, а крошки теперь стоят в той же строке.
+ *
+ * В `path` только предки узла — сам он стоит следом заголовком, поэтому у крошек
+ * есть замыкающий разделитель: путь и имя читаются одной цепочкой.
+ */
 const DetailHeader = ({ node, path, onNavigate, onRename, onDelete }) => {
-  const { t, i18n } = useTranslation('knowledgeBase');
+  const { t } = useTranslation('knowledgeBase');
   const [renaming, setRenaming] = useState(false);
   const isFolder = node.type === 'folder';
-  const isSystem = !!node.system;
-  const parent = path && path.length > 0 ? path[path.length - 1] : null;
+  // Системный узел не переименовать и не удалить — вместо кнопок замок,
+  // объясняющий, почему их нет. Во время правки имени кнопки тоже не нужны:
+  // подтверждение и отмена стоят в самом поле (InlineRename).
+  const actions = node.system ? (
+    <span className="detail-header__system-badge" title={t('detail.systemBadge')}>
+      <IconLock size={13} />
+    </span>
+  ) : (
+    !renaming && (
+      <>
+        <button
+          className="icon-btn detail-header__rename-btn"
+          title={t('detail.rename')}
+          onClick={() => setRenaming(true)}
+        >
+          <IconEdit />
+        </button>
+        <button className="icon-btn" title={t('detail.delete')} onClick={() => onDelete(node.id)}>
+          <IconTrash />
+        </button>
+      </>
+    )
+  );
 
-  // Дата создания (как в чате). createdAt при наличии, иначе updatedAt.
-  const createdRaw = node.createdAt || node.updatedAt;
-  const createdLabel = createdRaw
-    ? t('detail.createdAt', { date: new Date(createdRaw).toLocaleString(i18n.language) })
-    : null;
+  const crumbs = (path || []).map((ancestor) => ({
+    key: ancestor.id,
+    label: ancestor.title,
+    onNavigate: () => onNavigate(ancestor),
+  }));
 
   return (
-    <div className="detail-header">
-      <div className="detail-header__top">
-        {parent && (
-          <button className="detail-back-btn" title={t('detail.levelUp')} onClick={() => onNavigate(parent)}>
-            <IconArrowLeft />
-          </button>
-        )}
+    <div className="workspace__head detail-header">
+      <HeadCrumbs items={crumbs} trailingSep label={t('detail.breadcrumb')} />
 
-        <div className="detail-header__main">
-          <span
-            className={`detail-header__icon ${isFolder ? 'detail-header__icon--folder' : 'detail-header__icon--doc'}`}
-          >
-            {isFolder ? <IconFolder size={15} /> : <IconDoc size={13} />}
-          </span>
+      <span className={`detail-header__icon ${isFolder ? 'detail-header__icon--folder' : 'detail-header__icon--doc'}`}>
+        {isFolder ? <IconFolder size={15} /> : <IconDoc size={13} />}
+      </span>
 
-          {renaming ? (
-            <InlineRename
-              value={node.title}
-              onSave={(name) => {
-                onRename(node.id, name);
-                setRenaming(false);
-              }}
-              onCancel={() => setRenaming(false)}
-            />
-          ) : (
-            <h2 className="detail-header__title">
-              {node.title}
-              {isSystem ? (
-                <span className="detail-header__system-badge" title={t('detail.systemBadge')}>
-                  <IconLock size={13} />
-                </span>
-              ) : (
-                <button
-                  className="icon-btn detail-header__rename-btn"
-                  title={t('detail.rename')}
-                  onClick={() => setRenaming(true)}
-                >
-                  <IconEdit />
-                </button>
-              )}
-            </h2>
-          )}
-        </div>
+      {renaming ? (
+        <InlineRename
+          value={node.title}
+          onSave={(name) => {
+            onRename(node.id, name);
+            setRenaming(false);
+          }}
+          onCancel={() => setRenaming(false)}
+        />
+      ) : (
+        <h2 className="workspace__head-title">{node.title}</h2>
+      )}
 
-        <div className="detail-header__actions">
-          {!isSystem && (
-            <button className="icon-btn" title={t('detail.delete')} onClick={() => onDelete(node.id)}>
-              <IconTrash />
-            </button>
-          )}
-        </div>
-      </div>
-
-      <Breadcrumb path={path} onNavigate={onNavigate} />
-
-      {/* Дата — под именем и хлебными крошками (как chat-meta под названием чата) */}
-      {createdLabel && <div className="detail-date">{createdLabel}</div>}
+      <div className="workspace__head-actions">{actions}</div>
     </div>
   );
 };
