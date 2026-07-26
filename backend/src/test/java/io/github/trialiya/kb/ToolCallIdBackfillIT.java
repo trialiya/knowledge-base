@@ -65,7 +65,7 @@ class ToolCallIdBackfillIT extends AbstractPostgresIntegrationTest {
                 new ChatTopicEntity(
                         conv,
                         "admin",
-                        false,
+                        null,
                         "t",
                         null,
                         null,

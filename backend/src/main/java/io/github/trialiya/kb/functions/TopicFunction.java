@@ -50,19 +50,17 @@ public class TopicFunction {
         String chatId = conversationId(context);
         log.info("[{}] Chat topic: {}", chatId, topic);
         Optional<ChatTopicEntity> chatTopicOptional = chatTopicRepository.findById(chatId);
-        if (!chatTopicOptional.map(ChatTopicEntity::isUser).orElse(false)) {
-            chatTopicRepository.save(
-                    new ChatTopicEntity(
-                            chatId,
-                            chatUser(context),
-                            false,
-                            topic,
-                            chatTopicOptional.map(ChatTopicEntity::getModel).orElse(null),
-                            chatTopicOptional.map(ChatTopicEntity::getMode).orElse(null),
-                            chatTopicOptional.map(ChatTopicEntity::getCreatedAt).orElse(null),
-                            chatTopicOptional.map(ChatTopicEntity::getUpdatedAt).orElse(null),
-                            chatTopicOptional.isEmpty()));
-        }
+        chatTopicRepository.save(
+                new ChatTopicEntity(
+                        chatId,
+                        chatUser(context),
+                        chatTopicOptional.map(ChatTopicEntity::getUserTopic).orElse(null),
+                        topic,
+                        chatTopicOptional.map(ChatTopicEntity::getModel).orElse(null),
+                        chatTopicOptional.map(ChatTopicEntity::getMode).orElse(null),
+                        chatTopicOptional.map(ChatTopicEntity::getCreatedAt).orElse(null),
+                        chatTopicOptional.map(ChatTopicEntity::getUpdatedAt).orElse(null),
+                        chatTopicOptional.isEmpty()));
     }
 
     private @NonNull String conversationId(ToolContext context) {

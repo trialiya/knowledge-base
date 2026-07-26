@@ -15,8 +15,8 @@ public class ChatTopicEntity implements Persistable<String> {
 
     @Id private final String conversationId;
     private final String user;
-    private final boolean isUser;
-    private final String topic;
+    @Nullable private final String userTopic;
+    @Nullable private final String aiTopic;
     @Nullable private final String model;
     @Nullable private final String mode;
     @CreatedDate private final LocalDateTime createdAt;
@@ -27,8 +27,8 @@ public class ChatTopicEntity implements Persistable<String> {
     public ChatTopicEntity(
             String conversationId,
             String user,
-            boolean isUser,
-            String topic,
+            @Nullable String userTopic,
+            @Nullable String aiTopic,
             @Nullable String model,
             @Nullable String mode,
             LocalDateTime createdAt,
@@ -36,8 +36,8 @@ public class ChatTopicEntity implements Persistable<String> {
             boolean isNew) {
         this.conversationId = conversationId;
         this.user = user;
-        this.isUser = isUser;
-        this.topic = topic;
+        this.userTopic = userTopic;
+        this.aiTopic = aiTopic;
         this.model = model;
         this.mode = mode;
         this.createdAt = createdAt;
@@ -50,23 +50,23 @@ public class ChatTopicEntity implements Persistable<String> {
     public ChatTopicEntity(
             String conversationId,
             String user,
-            boolean isUser,
-            String topic,
+            @Nullable String userTopic,
+            @Nullable String aiTopic,
             @Nullable String model,
             @Nullable String mode,
             LocalDateTime createdAt,
             LocalDateTime updatedAt) {
-        this(conversationId, user, isUser, topic, model, mode, createdAt, updatedAt, false);
+        this(conversationId, user, userTopic, aiTopic, model, mode, createdAt, updatedAt, false);
     }
 
     public ChatTopicEntity(
             String conversationId,
             String user,
-            boolean isUser,
-            String topic,
+            @Nullable String userTopic,
+            @Nullable String aiTopic,
             @Nullable String model,
             boolean isNew) {
-        this(conversationId, user, isUser, topic, model, null, null, null, isNew);
+        this(conversationId, user, userTopic, aiTopic, model, null, null, null, isNew);
     }
 
     public String getConversationId() {
@@ -77,12 +77,22 @@ public class ChatTopicEntity implements Persistable<String> {
         return user;
     }
 
-    public boolean isUser() {
-        return isUser;
+    /** Название чата, заданное пользователем вручную (см. {@code PUT .../topic}). */
+    @Nullable
+    public String getUserTopic() {
+        return userTopic;
     }
 
-    public String getTopic() {
-        return topic;
+    /** Название чата, предложенное ИИ (см. {@code recordChatInsights}). */
+    @Nullable
+    public String getAiTopic() {
+        return aiTopic;
+    }
+
+    /** Название для отображения: пользовательское имеет приоритет над предложенным ИИ. */
+    @Nullable
+    public String getDisplayTopic() {
+        return userTopic != null ? userTopic : aiTopic;
     }
 
     @Nullable
