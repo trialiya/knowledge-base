@@ -243,7 +243,10 @@ public class GitService {
         return new GitPathView(
                 target,
                 type,
-                "file".equals(type) ? getFileContent(target) : null,
+                // knownTracked=true: resolvePathType() just confirmed this against the same
+                // `tracked` list, so re-checking via isTracked() would re-read the index for
+                // nothing.
+                "file".equals(type) ? getFileContent(target, null, null, true) : null,
                 isDirectory ? listings.getOrDefault(target, List.of()) : null,
                 tree);
     }
@@ -746,7 +749,20 @@ public class GitService {
      */
     public GitFileContent getFileContent(
             @NonNull String filePath, @Nullable Integer fromLine, @Nullable Integer toLine) {
-        FileBytes fb = readTrackedFile(filePath);
+        return getFileContent(filePath, fromLine, toLine, false);
+    }
+
+    /**
+     * @param knownTracked true when the caller already verified {@code filePath} against a
+     *     previously-read index (e.g. {@link #browsePath}'s {@code tracked} list) — skips the
+     *     redundant {@link #isTracked} re-check that would otherwise re-read the Git index.
+     */
+    private GitFileContent getFileContent(
+            @NonNull String filePath,
+            @Nullable Integer fromLine,
+            @Nullable Integer toLine,
+            boolean knownTracked) {
+        FileBytes fb = readTrackedFile(filePath, knownTracked);
         String language = LanguageDetector.detect(fb.path());
 
         if (fb.binary()) {
@@ -856,6 +872,16 @@ public class GitService {
      * security checks shared by {@link #getFileContent} and {@link #getFileOutline}.
      */
     private FileBytes readTrackedFile(String filePath) {
+        return readTrackedFile(filePath, false);
+    }
+
+    /**
+     * @param knownTracked true when the caller already confirmed {@code filePath} is tracked
+     *     against a previously-read index — skips the {@link #isTracked} re-check (and the index
+     *     re-read it entails). Never set this from a caller that hasn't actually done that check:
+     *     it is the gate that stops untracked/gitignored files from being served.
+     */
+    private FileBytes readTrackedFile(String filePath, boolean knownTracked) {
         String normalized = toForwardSlashes(filePath.strip());
         requireSafeGitRelativePath(normalized);
 
@@ -868,7 +894,7 @@ public class GitService {
         // Only tracked files may be served. The message is the same whether the path is
         // untracked-but-present or genuinely missing, so a caller can't use it to fingerprint
         // which unrelated files (e.g. a gitignored .env) happen to exist on disk.
-        if (!isTracked(normalized)) {
+        if (!knownTracked && !isTracked(normalized)) {
             throw new IllegalArgumentException("File not found: " + normalized);
         }
 
