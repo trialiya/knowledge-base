@@ -35,14 +35,25 @@ Testcontainers, `CI=true` for Jest — so none of that has to be retyped:
 ./run/test.sh front             # Jest
 ./run/test.sh format            # spotlessCheck
 ./run/test.sh build             # full build
+./run/test.sh clean             # gradle clean — stuck toolchain/spotless cache
 ./run/test.sh smoke             # build the JAR + drive the UI with Chromium
 ./run/test.sh pre-pr            # format + back + build (see "Before a PR")
+./run/test.sh ci                # the same three, --console=plain for CI logs
+```
+
+Anything after `--` goes to Gradle untouched, so narrowing down to one test does
+not mean dropping out of the wrapper — and a `--tests` of your own replaces the
+suite's default filter rather than widening it:
+
+```bash
+./run/test.sh unit -- --tests '*ToolTranslationsTest'
+./run/test.sh back -- --info
 ```
 
 Windows: `run\test.bat` / `run\test.ps1` — same suites, except that Docker must
-already be running and `smoke` is Linux/macOS only. The sections below explain
-*why* the script does what it does; reach for the raw commands only when
-debugging the setup itself.
+already be running, and `smoke` plus the `--` passthrough are Linux/macOS only.
+The sections below explain *why* the script does what it does; reach for the raw
+commands only when debugging the setup itself.
 
 ## Testing on JDK 21 (no JDK 25 available)
 

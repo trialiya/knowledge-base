@@ -6,7 +6,7 @@
 # CI=true for Jest) are decided here instead of being retyped every session.
 #
 # Usage:
-#   ./test.sh [suite ...]
+#   ./test.sh [suite ...] [-- <extra gradle args>]
 #
 # Suites:
 #   unit      backend unit tests (*Test) — no Docker needed
@@ -15,17 +15,27 @@
 #   front     frontend Jest tests
 #   format    spotlessCheck (Google Java Format, AOSP)
 #   build     full build (frontend bundled into the backend JAR)
+#   clean     gradle clean — when something is stuck in the toolchain/spotless cache
 #   smoke     build the JAR and drive the UI with Chromium (scripts/playwright-smoke.js);
 #             scenarios and data for it live in frontend/tests/visual/cases.yaml
 #   pre-pr    format + back + build — the list from CLAUDE.md, "Before a PR"
+#   ci        same three, with --console=plain for a readable CI log
 #
 # No suite given → unit + front: the fast pair that needs neither Docker nor a JAR.
+#
+# Everything after `--` is passed to Gradle as is, so narrowing down to a single
+# test does not mean dropping out of the wrapper. A `--tests` of your own
+# replaces the suite's default filter instead of widening it (Gradle ORs the
+# patterns, so keeping both would run everything).
 #
 # Examples:
 #   ./test.sh                 # quick check while working
 #   ./test.sh front           # only Jest
 #   ./test.sh pre-pr          # everything expected before a pull request
 #   ./test.sh smoke           # look at the UI, not just at green tests
+#   ./test.sh unit -- --tests '*ToolTranslationsTest'      # one class
+#   ./test.sh back -- --info                               # noisier output
+#   ./test.sh clean build     # rebuild from scratch
 #
 # Environment:
 #   GRADLE      path to the Gradle to use (the web sandbox sets it; otherwise
@@ -82,9 +92,13 @@ if [ "$NEED_JAVA21" = yes ]; then
   GRADLE_ARGS+=(--init-script gradle/java21.gradle --no-configuration-cache)
 fi
 
+# Empty arrays are expanded through the ${arr[@]+"${arr[@]}"} guard everywhere
+# below: macOS still ships bash 3.2, where a bare "${empty[@]}" under `set -u`
+# aborts with "unbound variable". Both arrays are legitimately empty — no extra
+# args, and JDK 25 needing no init script.
 gradle_run() {
   echo "→ $GRADLE_BIN $*"
-  "$GRADLE_BIN" "$@" "${GRADLE_ARGS[@]}"
+  "$GRADLE_BIN" "$@" ${GRADLE_ARGS[@]+"${GRADLE_ARGS[@]}"} ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
 }
 
 # ── Docker for Testcontainers ─────────────────────────────────────────────────
@@ -111,21 +125,39 @@ ensure_docker() {
 }
 
 # ── Suites ────────────────────────────────────────────────────────────────────
-run_unit()   { gradle_run :backend:test --tests "*Test"; }
-run_it()     { ensure_docker; gradle_run :backend:test --tests "*IT"; }
+# unit/it narrow :backend:test by name — but only while the caller has not
+# supplied a --tests of their own (see OWN_FILTER below).
+run_unit() {
+  if [ "$OWN_FILTER" = yes ]; then
+    gradle_run :backend:test --tests "*Test"
+  else
+    gradle_run :backend:test
+  fi
+}
+run_it() {
+  ensure_docker
+  if [ "$OWN_FILTER" = yes ]; then
+    gradle_run :backend:test --tests "*IT"
+  else
+    gradle_run :backend:test
+  fi
+}
 run_back()   { ensure_docker; gradle_run :backend:test; }
 run_front()  { CI=true gradle_run :frontend:yarnTest; }
 run_format() { gradle_run spotlessCheck; }
 run_build()  { gradle_run build; }
+run_clean()  { gradle_run clean; }
 
 run_smoke() {
   # Jest is skipped here on purpose: the point is a running UI, and './test.sh
   # front' covers the tests.
   gradle_run :backend:bootJar -x :frontend:yarnTest
-  local node_env=()
-  [ -d /opt/node22/lib/node_modules ] && node_env=(env NODE_PATH=/opt/node22/lib/node_modules)
   echo "→ node scripts/playwright-smoke.js"
-  "${node_env[@]}" node scripts/playwright-smoke.js
+  if [ -d /opt/node22/lib/node_modules ]; then
+    env NODE_PATH=/opt/node22/lib/node_modules node scripts/playwright-smoke.js
+  else
+    node scripts/playwright-smoke.js
+  fi
 }
 
 run_suite() {
@@ -136,23 +168,58 @@ run_suite() {
     front)  run_front ;;
     format) run_format ;;
     build)  run_build ;;
+    clean)  run_clean ;;
     smoke)  run_smoke ;;
-    pre-pr) run_format; run_back; run_build ;;
+    pre-pr | ci) run_format; run_back; run_build ;;
     *)
       echo "ERROR: unknown suite '$1'." >&2
-      echo "       Known: unit it back front format build smoke pre-pr" >&2
+      echo "       Known: unit it back front format build clean smoke pre-pr ci" >&2
       exit 2
       ;;
   esac
 }
 
-SUITES=("$@")
-[ ${#SUITES[@]} -eq 0 ] && SUITES=(unit front)
+# ── Arguments ─────────────────────────────────────────────────────────────────
+# Suites up to `--`, everything after it goes to Gradle untouched.
+SUITES=()
+EXTRA_ARGS=()
+seen_dashdash=no
+for arg in "$@"; do
+  if [ "$seen_dashdash" = yes ]; then
+    EXTRA_ARGS+=("$arg")
+  elif [ "$arg" = "--" ]; then
+    seen_dashdash=yes
+  else
+    SUITES+=("$arg")
+  fi
+done
+
+if [ ${#SUITES[@]} -eq 0 ]; then
+  SUITES=(unit front)
+fi
+
+# Own --tests filter of unit/it, suppressed when the caller supplied one.
+OWN_FILTER=yes
+for arg in ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}; do
+  if [ "$arg" = "--tests" ]; then
+    OWN_FILTER=no
+  fi
+done
+
+# A readable log matters more than progress bars on CI.
+for suite in ${SUITES[@]+"${SUITES[@]}"}; do
+  if [ "$suite" = "ci" ]; then
+    GRADLE_ARGS+=(--console=plain)
+  fi
+done
 
 echo "Knowledge Base checks"
 echo "  Gradle:  $GRADLE_BIN"
 echo "  Java 21 workaround: $NEED_JAVA21"
 echo "  Suites:  ${SUITES[*]}"
+if [ ${#EXTRA_ARGS[@]} -gt 0 ]; then
+  echo "  Gradle args: ${EXTRA_ARGS[*]}"
+fi
 echo ""
 
 for suite in "${SUITES[@]}"; do

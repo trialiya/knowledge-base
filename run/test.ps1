@@ -14,10 +14,15 @@
 #   front     frontend Jest tests
 #   format    spotlessCheck (Google Java Format, AOSP)
 #   build     full build (frontend bundled into the backend JAR)
+#   clean     gradle clean — when something is stuck in the toolchain/spotless cache
 #   pre-pr    format + back + build — the list from CLAUDE.md, "Before a PR"
+#   ci        same three, with --console=plain for a readable CI log
 #
-# No suite given → unit + front. The 'smoke' suite is Linux/macOS only
-# (see test.sh) — run scripts/playwright-smoke.js by hand if you need it here.
+# No suite given → unit + front. Two things test.sh has and this does not:
+# the 'smoke' suite (Linux/macOS only — run scripts/playwright-smoke.js by hand)
+# and the `--` passthrough of extra Gradle arguments; for a one-off narrowing
+# call gradlew.bat directly, e.g.
+#   .\gradlew.bat :backend:test --tests '*FooTest'
 #
 # Environment:
 #   KB_JAVA21   1 forces the Java 21 init script, 0 forbids it. Unset = decide by
@@ -60,6 +65,10 @@ $GradleArgs = @()
 if ($NeedJava21) {
     $GradleArgs = @('--init-script', 'gradle/java21.gradle', '--no-configuration-cache')
 }
+# A readable log matters more than progress bars on CI.
+if ($Suites -contains 'ci') {
+    $GradleArgs += '--console=plain'
+}
 
 function Invoke-Gradle {
     param([string[]]$GradleTaskArgs)
@@ -85,9 +94,11 @@ function Invoke-Suite {
         'front'  { $env:CI = 'true'; Invoke-Gradle @(':frontend:yarnTest') }
         'format' { Invoke-Gradle @('spotlessCheck') }
         'build'  { Invoke-Gradle @('build') }
+        'clean'  { Invoke-Gradle @('clean') }
         'pre-pr' { Invoke-Suite 'format'; Invoke-Suite 'back'; Invoke-Suite 'build' }
+        'ci'     { Invoke-Suite 'pre-pr' }
         default  {
-            Write-Error "Unknown suite '$Name'. Known: unit it back front format build pre-pr"
+            Write-Error "Unknown suite '$Name'. Known: unit it back front format build clean pre-pr ci"
             exit 2
         }
     }

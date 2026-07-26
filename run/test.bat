@@ -7,7 +7,9 @@ rem
 rem Examples:
 rem   test.bat            (unit + front — the fast pair, no Docker needed)
 rem   test.bat front      (only Jest)
+rem   test.bat clean build
 rem   test.bat pre-pr     (format + back + build, the list from CLAUDE.md)
+rem   test.bat ci         (the same three, with --console=plain)
 rem
 rem This is a thin delegator to test.ps1: suite handling, the Java 21 init
 rem script and the Docker check all live there, so there is only one copy of

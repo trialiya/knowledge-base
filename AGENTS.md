@@ -18,8 +18,17 @@
     ./run/test.sh front      # Jest
     ./run/test.sh format     # spotlessCheck
     ./run/test.sh build      # полная сборка
+    ./run/test.sh clean      # gradle clean, когда залип кэш toolchain/spotless
     ./run/test.sh smoke      # собрать jar и посмотреть UI в Chromium
     ./run/test.sh pre-pr     # format + back + build — перед пул-реквестом
+    ./run/test.sh ci         # то же самое, но с --console=plain
+
+Всё после `--` уходит в Gradle как есть, поэтому одиночный тест не повод
+выходить из обёртки — свой `--tests` при этом заменяет фильтр сьюта, а не
+добавляется к нему:
+
+    ./run/test.sh unit -- --tests '*ToolTranslationsTest'
+    ./run/test.sh back -- --info
 
 Сырые команды остались в `CLAUDE.md` — они нужны, когда чинишь саму сборку, а не
 когда просто гоняешь тесты.

@@ -75,6 +75,12 @@ function waitForHealth(timeoutMs = 60000) {
 }
 
 async function main() {
+  // local-db/ is gitignored, so on a fresh clone it does not exist yet — and H2
+  // does not create the parent directory of its database file. Needed for both
+  // modes: the seeded run writes local-db/h2-smoke*, and --no-seed falls back to
+  // application-h2.yaml's local-db/h2.
+  fs.mkdirSync(path.dirname(SMOKE_DB), { recursive: true });
+
   for (const f of fs.readdirSync(path.dirname(SMOKE_DB)).filter((f) => f.startsWith('h2-smoke'))) {
     fs.rmSync(path.join(path.dirname(SMOKE_DB), f));
   }
