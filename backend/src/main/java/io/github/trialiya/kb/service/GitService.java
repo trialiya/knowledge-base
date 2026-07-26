@@ -193,11 +193,13 @@ public class GitService {
                         String name = path.substring(from, slash);
                         String dirPath = dir.isEmpty() ? name : dir + "/" + name;
                         bucket.putIfAbsent(
-                                dirPath, new GitFileNode(dirPath, name, FileEntryType.DIRECTORY, null));
+                                dirPath,
+                                new GitFileNode(dirPath, name, FileEntryType.DIRECTORY, null));
                     } else {
                         String name = path.substring(from);
                         bucket.putIfAbsent(
-                                path, new GitFileNode(path, name, FileEntryType.FILE, fileSize(path)));
+                                path,
+                                new GitFileNode(path, name, FileEntryType.FILE, fileSize(path)));
                     }
                 }
                 if (slash < 0) break;
@@ -252,7 +254,9 @@ public class GitService {
                 tree);
     }
 
-    /** {@code FILE}, {@code DIRECTORY} or {@code null} for missing — the repo root is a directory. */
+    /**
+     * {@code FILE}, {@code DIRECTORY} or {@code null} for missing — the repo root is a directory.
+     */
     private static FileEntryType resolvePathType(String path, List<String> tracked) {
         if (path.isEmpty()) return FileEntryType.DIRECTORY;
         String prefix = path + "/";
@@ -450,7 +454,8 @@ public class GitService {
                                     s.path().contains("/")
                                             ? s.path().substring(s.path().lastIndexOf('/') + 1)
                                             : s.path();
-                            return new GitFileNode(s.path(), name, FileEntryType.FILE, fileSize(s.path()));
+                            return new GitFileNode(
+                                    s.path(), name, FileEntryType.FILE, fileSize(s.path()));
                         })
                 .toList();
     }

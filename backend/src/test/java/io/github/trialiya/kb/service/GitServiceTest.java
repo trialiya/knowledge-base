@@ -465,7 +465,8 @@ class GitServiceTest {
         writeFile("src/main/Foo.java", "class Foo {}\n");
         commitAll();
 
-        assertThat(service.browsePath("src\\main\\Foo.java", true).type()).isEqualTo(FileEntryType.FILE);
+        assertThat(service.browsePath("src\\main\\Foo.java", true).type())
+                .isEqualTo(FileEntryType.FILE);
 
         var dir = service.browsePath("src/main/", true);
         assertThat(dir.path()).isEqualTo("src/main");
