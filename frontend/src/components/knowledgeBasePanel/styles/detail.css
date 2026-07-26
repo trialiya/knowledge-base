@@ -458,52 +458,8 @@
   overflow-wrap: break-word;
 }
 
-/* ═══════════════════════════════════════════════
-   INFO TAB (правая панель)
-═══════════════════════════════════════════════ */
-
-.detail-info__list {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.detail-info__row {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  padding: 7px 2px;
-  border-bottom: 1px solid var(--kb-border-light);
-}
-.detail-info__row:last-child {
-  border-bottom: none;
-}
-
-.detail-info__label {
-  flex-shrink: 0;
-  font-size: 0.78rem;
-  color: var(--kb-muted);
-}
-
-.detail-info__value {
-  margin: 0;
-  margin-left: auto;
-  text-align: right;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--kb-text);
-  overflow-wrap: anywhere;
-}
-
-.detail-info__note {
-  margin: 0.9rem 0 0;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: var(--kb-warning-bg);
-  color: var(--kb-text);
-  font-size: 0.76rem;
-}
+/* Вкладка «Инфо» больше не здесь: разметка и стили общие для всех разделов,
+   см. components/common/InfoList.jsx + common/infoList.css. */
 
 /* ═══════════════════════════════════════════════
    ПРАВАЯ ПАНЕЛЬ — адаптация к узкой колонке

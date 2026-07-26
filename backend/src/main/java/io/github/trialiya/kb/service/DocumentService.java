@@ -157,6 +157,7 @@ public class DocumentService {
                                         e.getVersion(),
                                         null,
                                         e.getDescriptionVersion(),
+                                        null, // createdAt omitted in skeleton
                                         null,
                                         Collections.emptyList(),
                                         parentIds.contains(e.getId()),
@@ -183,6 +184,7 @@ public class DocumentService {
                                                 c.getVersion(),
                                                 null,
                                                 c.getDescriptionVersion(),
+                                                c.getCreatedAt(),
                                                 null,
                                                 Collections.emptyList(),
                                                 repo.hasChildren(c.getId()),
@@ -201,6 +203,7 @@ public class DocumentService {
                 e.getVersion(),
                 e.getDescription(),
                 e.getDescriptionVersion(),
+                e.getCreatedAt(),
                 e.getUpdatedAt(),
                 children,
                 !children.isEmpty(),
@@ -220,6 +223,7 @@ public class DocumentService {
                 e.getVersion(),
                 snippetOf(e.getDescription()),
                 e.getDescriptionVersion(),
+                e.getCreatedAt(),
                 e.getUpdatedAt(),
                 Collections.emptyList(),
                 hc,
@@ -250,6 +254,7 @@ public class DocumentService {
                 e.getVersion(),
                 null, // description omitted — fetch via GET /api/documents/{id}
                 e.getDescriptionVersion(),
+                e.getCreatedAt(),
                 e.getUpdatedAt(),
                 children,
                 hc,
@@ -267,6 +272,7 @@ public class DocumentService {
         DocumentType type = req.getType() != null ? req.getType() : DocumentType.DOCUMENT;
         int nextPos = nextSiblingPosition(req.getParentId());
 
+        LocalDateTime now = LocalDateTime.now();
         DocumentEntity entity =
                 new DocumentEntity(
                         null,
@@ -274,7 +280,8 @@ public class DocumentService {
                         type,
                         req.getParentId(),
                         req.getDescription(),
-                        LocalDateTime.now(),
+                        now, // createdAt — set once, never updated afterwards
+                        now,
                         nextPos,
                         false, // новые узлы никогда не системные
                         0, // version — Spring Data JDBC проставит 1 при INSERT
@@ -832,6 +839,7 @@ public class DocumentService {
                 e.getVersion(),
                 e.getDescriptionVersion(),
                 null, // description omitted — fetch via GET /api/documents/{id}
+                e.getCreatedAt(),
                 e.getUpdatedAt(),
                 null, // children
                 e.getSummary(),

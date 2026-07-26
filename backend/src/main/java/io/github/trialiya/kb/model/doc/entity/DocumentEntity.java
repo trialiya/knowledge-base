@@ -20,6 +20,13 @@ public class DocumentEntity {
     private DocumentType type;
     @Nullable private Long parentId;
     private String description;
+
+    /**
+     * Set once at INSERT and never touched again. Seeded from {@code updated_at} for rows that
+     * predate the column (see {@code V2026.07.27_00__documents_created_at.sql}).
+     */
+    private LocalDateTime createdAt;
+
     private LocalDateTime updatedAt;
 
     /** Zero-based display order among siblings. */

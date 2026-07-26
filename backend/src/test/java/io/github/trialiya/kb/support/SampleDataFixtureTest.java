@@ -82,6 +82,9 @@ class SampleDataFixtureTest {
     void newFixtureDocumentLinksToExistingDocumentAndFile() {
         DocumentEntity doc = documentRepo.findById(77L).orElseThrow();
         assertThat(doc.getParentId()).isEqualTo(75L);
+        // created_at is populated by the fixture, not left to the column default — the
+        // knowledge-base "Info" panel renders it.
+        assertThat(doc.getCreatedAt()).isNotNull().isEqualTo(doc.getUpdatedAt());
         assertThat(doc.getDescription())
                 .contains("/files?path=backend/build.gradle")
                 .contains("/?doc=76")

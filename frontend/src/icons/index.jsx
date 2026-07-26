@@ -534,6 +534,15 @@ export const IconSliders = ({ size = 16 }) => (
   </svg>
 );
 
+/** Буква «i» в круге — вкладка «Инфо» правой панели (одна на все разделы). */
+export const IconInfo = ({ size = 15 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" {...s}>
+    <circle cx="12" cy="12" r="10" />
+    <line x1="12" y1="11" x2="12" y2="16" />
+    <line x1="12" y1="8" x2="12" y2="8" />
+  </svg>
+);
+
 /** Документ с текстом — системный промпт. */
 export const IconFileText = ({ size = 16 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" {...s}>

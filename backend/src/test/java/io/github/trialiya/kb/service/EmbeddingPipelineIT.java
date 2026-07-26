@@ -356,6 +356,7 @@ class EmbeddingPipelineIT extends AbstractPostgresIntegrationTest {
                         null,
                         description,
                         LocalDateTime.now(),
+                        LocalDateTime.now(),
                         0,
                         false,
                         0,

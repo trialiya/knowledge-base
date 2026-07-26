@@ -96,6 +96,7 @@ class DocumentServiceUnitTest {
                         parentId,
                         null,
                         LocalDateTime.now(),
+                        LocalDateTime.now(),
                         position,
                         system,
                         0,

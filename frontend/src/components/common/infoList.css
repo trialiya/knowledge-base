@@ -1,0 +1,75 @@
+/* ═══════════════════════════════════════════════
+   INFO LIST — вкладка «Инфо» правой панели
+   (общая для чата, базы знаний и файлов;
+   перенесено из knowledgeBasePanel/styles/detail.css)
+═══════════════════════════════════════════════ */
+
+.info-list__list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.info-list__row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 2px;
+  border-bottom: 1px solid var(--kb-border-light);
+}
+.info-list__row:last-child {
+  border-bottom: none;
+}
+
+/* Длинный текст (сообщение коммита): метка сверху, значение под ней по левому
+   краю — выключка вправо на 3-4 строки не читается. */
+.info-list__row--block {
+  display: block;
+}
+.info-list__row--block .info-list__value {
+  margin-top: 3px;
+  margin-left: 0;
+  text-align: left;
+  font-weight: 500;
+}
+
+.info-list__label {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  color: var(--kb-muted);
+}
+
+.info-list__value {
+  margin: 0;
+  margin-left: auto;
+  text-align: right;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--kb-text);
+  overflow-wrap: anywhere;
+}
+
+/* Хеши, пути, id — читаются посимвольно, поэтому моноширинным. */
+.info-list__value--mono {
+  font-family: var(--kb-font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 0.76rem;
+  font-weight: 500;
+}
+
+.info-list__note {
+  margin: 0.9rem 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--kb-warning-bg);
+  color: var(--kb-text);
+  font-size: 0.76rem;
+}
+
+/* Плейсхолдеры «загрузка» / «нечего показать» внутри вкладки. */
+.info-list__hint {
+  margin: 0;
+  padding: 12px 2px;
+  color: var(--kb-muted);
+  font-size: 0.8rem;
+}

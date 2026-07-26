@@ -140,9 +140,9 @@ ALTER TABLE tool_call_index ALTER COLUMN id RESTART WITH 506;
 
 -- ── documents (75 'анализ' + 76 'Хронология...' captured; 77 is hand-added — 
 --    exercises file links, doc links (incl. anchor) and an external link) ──────
-INSERT INTO documents (id, title, type, parent_id, updated_at, description, position, is_system, version, summary, summary_source_version, description_version) VALUES
-    (75, 'анализ', 'folder', NULL, '2026-07-18 18:00:55.850512+00:00', NULL, 5, FALSE, 1, NULL, NULL, 1),
-    (76, 'Хронология изменений backend/build.gradle', 'document', 75, '2026-07-18 18:01:16.433971+00:00', '# Хронология изменений [`backend/build.gradle`](/files?path=backend/build.gradle)
+INSERT INTO documents (id, title, type, parent_id, created_at, updated_at, description, position, is_system, version, summary, summary_source_version, description_version) VALUES
+    (75, 'анализ', 'folder', NULL, '2026-07-18 18:00:55.850512+00:00', '2026-07-18 18:00:55.850512+00:00', NULL, 5, FALSE, 1, NULL, NULL, 1),
+    (76, 'Хронология изменений backend/build.gradle', 'document', 75, '2026-07-18 18:01:16.433971+00:00', '2026-07-18 18:01:16.433971+00:00', '# Хронология изменений [`backend/build.gradle`](/files?path=backend/build.gradle)
 
 Всего **17 коммитов** за период 20.05–13.07.2026.
 
@@ -304,7 +304,7 @@ INSERT INTO documents (id, title, type, parent_id, updated_at, description, posi
 | Мажорные миграции | 1 (SB4.1 + SA2.0) |
 | Инфраструктура сборки | 4 (bootJar, jar, test ordering) |
 ', 0, FALSE, 1, NULL, NULL, 1),
-    (77, 'Пример: ссылки на файлы и документы', 'document', 75, '2026-07-18 18:05:00.000000+00:00', '# Пример: ссылки на файлы и документы
+    (77, 'Пример: ссылки на файлы и документы', 'document', 75, '2026-07-18 18:05:00.000000+00:00', '2026-07-18 18:05:00.000000+00:00', '# Пример: ссылки на файлы и документы
 
 Этот документ добавлен вручную (не через AI-инструменты) для проверки рендеринга ссылок и вложений.
 

@@ -1,6 +1,7 @@
 // ─── Git API ───────────────────────────────────────────────────────────────
 // Тонкие обёртки вокруг /api/git/* — поиск файлов репозитория для автодополнения
-// в композере чата и чтение содержимого (превью/разворачивание чипа при отправке).
+// в композере чата, чтение содержимого (превью/разворачивание чипа при отправке)
+// и история коммитов для вкладки «Инфо» файлового браузера.
 
 import { request } from './client';
 
@@ -33,6 +34,17 @@ const gitApi = {
   getTree: (path, signal) => {
     const qs = path ? `?${new URLSearchParams({ path })}` : '';
     return request(`/api/git/tree${qs}`, signal ? { signal } : undefined);
+  },
+
+  /**
+   * История коммитов (свежие первыми), опционально по одному пути.
+   * path='' или omitted — история всего репозитория. Возвращает GitCommit[]
+   * { hash, shortHash, author, email, date, message }.
+   */
+  getCommits: (path, limit = 20, signal) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (path) params.set('path', path);
+    return request(`/api/git/commits?${params}`, signal ? { signal } : undefined);
   },
 };
 

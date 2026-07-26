@@ -23,6 +23,21 @@
     "loadError": "Не удалось загрузить содержимое",
     "toggleMarkdown": "Просмотр в markdown"
   },
+  "info": {
+    "name": "Имя",
+    "path": "Путь",
+    "type": "Тип",
+    "typeFile": "Файл",
+    "typeDirectory": "Каталог",
+    "items": "Элементов",
+    "size": "Размер",
+    "language": "Язык",
+    "lines": "Строк",
+    "modified": "Последнее изменение",
+    "author": "Кто изменил",
+    "commit": "Коммит",
+    "commitMessage": "Название коммита"
+  },
   "preview": {
     "close": "Закрыть"
   }
