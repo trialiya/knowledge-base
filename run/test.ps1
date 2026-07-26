@@ -15,8 +15,9 @@
 #   format    spotlessCheck (Google Java Format, AOSP)
 #   build     full build (frontend bundled into the backend JAR)
 #   clean     gradle clean — when something is stuck in the toolchain/spotless cache
-#   pre-pr    format + back + build — the list from CLAUDE.md, "Before a PR"
-#   ci        same three, with --console=plain for a readable CI log
+#   pre-pr    format + back + build — the gate before a pull request
+#   ci        the same three with --console=plain (non-interactive logs). Note: the
+#             GitHub workflows do not call this — they run ./gradlew per module.
 #
 # No suite given → unit + front. Two things test.sh has and this does not:
 # the 'smoke' suite (Linux/macOS only — run scripts/playwright-smoke.js by hand)
