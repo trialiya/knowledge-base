@@ -6,17 +6,19 @@ import java.util.List;
 /**
  * Chat metadata as served to the UI.
  *
- * @param topic display title — {@code userTopic} if the user renamed the chat, otherwise {@code
- *     aiTopic}. Kept as its own field so callers that only render a title need no fallback logic.
- * @param userTopic title set explicitly by the user (PUT {@code .../topic}), or null
+ * @param topic display title — the user's own title if the chat was renamed, otherwise the
+ *     assistant-proposed one. Kept pre-resolved so callers that only render a title need no
+ *     fallback logic.
  * @param aiTopic title proposed by the assistant ({@code recordChatInsights}), or null. Shown
- *     separately in the chat "Info" panel, where the two are meant to be told apart.
+ *     separately in the chat "Info" panel (alongside {@link #topic}) so a renamed chat can still
+ *     display what the assistant would have called it. {@code userTopic} itself isn't exposed:
+ *     nothing needs it once {@code topic} and {@code aiTopic} disagree, that already means the user
+ *     renamed the chat.
  */
 public record Chat(
         String conversationId,
         String user,
         String topic,
-        String userTopic,
         String aiTopic,
         String model,
         String mode,

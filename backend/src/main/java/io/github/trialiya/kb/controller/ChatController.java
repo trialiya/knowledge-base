@@ -454,7 +454,6 @@ public class ChatController {
                 entity.getConversationId(),
                 entity.getUser(),
                 entity.getDisplayTopic(),
-                entity.getUserTopic(),
                 entity.getAiTopic(),
                 entity.getModel(),
                 entity.getMode(),

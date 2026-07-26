@@ -184,7 +184,13 @@ public class DocumentService {
                                                 c.getVersion(),
                                                 null,
                                                 c.getDescriptionVersion(),
-                                                c.getCreatedAt(),
+                                                // description/updatedAt/createdAt all
+                                                // deliberately omitted here — this is a stub
+                                                // entry (no consumer reads dates off it; the
+                                                // paginated children list from toStubNode()
+                                                // carries the real metadata), so keep it
+                                                // uniformly sparse rather than half-filled.
+                                                null,
                                                 null,
                                                 Collections.emptyList(),
                                                 repo.hasChildren(c.getId()),
