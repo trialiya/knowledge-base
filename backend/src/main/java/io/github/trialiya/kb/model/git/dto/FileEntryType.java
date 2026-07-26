@@ -19,10 +19,6 @@ public enum FileEntryType {
     }
 
     @JsonCreator
-    public static FileEntryType create(String value) {
-        return fromValue(value);
-    }
-
     public static FileEntryType fromValue(String value) {
         for (FileEntryType type : FileEntryType.values()) {
             if (type.value.equals(value)) {
