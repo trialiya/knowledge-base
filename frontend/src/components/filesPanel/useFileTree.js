@@ -46,6 +46,7 @@ export default function useFileTree({ path, onPathChange }) {
   const treeCacheRef = useRef(treeCache);
   treeCacheRef.current = treeCache;
   const inFlightRef = useRef(new Map()); // dirPath -> Promise, dedups concurrent fetches
+  const dirOwnerRef = useRef(new Map()); // dirPath -> token of the most recent path-open fetch
 
   // Кэш каталогов и раскрытые узлы переживают размонтирование панели.
   const cacheDirs = useCallback((entries) => {
@@ -114,6 +115,11 @@ export default function useFileTree({ path, onPathChange }) {
     let cancelled = false;
     const ancestors = ancestorsOf(path);
     const missing = ancestors.filter((dir) => !treeCacheRef.current[dir]);
+    // Клеймим каждый недостающий каталог этим запросом: если следующая
+    // навигация придёт раньше и тоже захочет один из них, она перезапишет
+    // владельца — и именно её finally() снимет спиннер, а не эта.
+    const token = {};
+    missing.forEach((dir) => dirOwnerRef.current.set(dir, token));
     setContentLoading(true);
     // Предков раскрываем сразу, не дожидаясь ответа: те их уровни, что уже в
     // кэше, отрисуются мгновенно, остальные — по мере прихода листингов.
@@ -141,11 +147,16 @@ export default function useFileTree({ path, onPathChange }) {
       } catch (error) {
         if (!cancelled) setContent({ type: 'error', path, error });
       } finally {
-        // Отметку загрузки снимаем всегда, даже если запрос уже неактуален:
+        // Отметку загрузки снимаем всегда, даже если запрос уже неактуален —
         // иначе брошенный при быстром переходе каталог навсегда остаётся со
-        // спиннером. А contentLoading — только для актуального запроса, его
-        // уже успел выставить эффект следующего пути.
-        markLoading(missing, false);
+        // спиннером — но только для тех каталогов, которыми всё ещё владеет
+        // этот запрос: если более новая навигация уже перехватила один из
+        // них (тот же общий предок), её собственный finally() снимет
+        // спиннер сам, когда придут её данные — снимать его здесь означало
+        // бы мигание спиннера между двумя быстрыми переходами.
+        const stillOwned = missing.filter((dir) => dirOwnerRef.current.get(dir) === token);
+        markLoading(stillOwned, false);
+        stillOwned.forEach((dir) => dirOwnerRef.current.delete(dir));
         if (!cancelled) setContentLoading(false);
       }
     })();
