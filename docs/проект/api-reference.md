@@ -407,9 +407,9 @@ Fuzzy-поиск tracked-файлов по имени (subsequence match, рег
 | `path` | String? | `null` | Путь относительно корня репо; пусто — корень |
 | `ancestors` | boolean | `true` | `false` — не отдавать листинги предков (клиент уже держит их в кэше) |
 
-**Response:** `GitPathView` — `{ path, type: "file"|"directory"|"missing", file?, nodes?, tree: [{ path, nodes }] }`. `file` — только для файла, `nodes` (потомки) — только для каталога, `tree` — листинги от корня до родителя пути.
+**Response:** `GitPathView` — `{ path, type: "file"|"directory"|null, file?, nodes?, tree: [{ path, nodes }] }`. `file` — только для файла, `nodes` (потомки) — только для каталога, `tree` — листинги от корня до родителя пути.
 
-**Ошибки:** `400` — путь содержит `..`, `/`, `-` в начале, `\0`. Несуществующий путь — не ошибка, а `type: "missing"`.
+**Ошибки:** `400` — путь содержит `..`, `/`, `-` в начале, `\0`. Несуществующий путь — не ошибка, а `type: null`.
 
 ---
 

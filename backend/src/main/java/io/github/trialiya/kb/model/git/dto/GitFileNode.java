@@ -11,15 +11,15 @@ import org.jspecify.annotations.Nullable;
  *
  * @param path относительный путь от корня репозитория
  * @param name имя файла/каталога
- * @param type "file" или "directory"
+ * @param type тип записи (файл или директория)
  * @param size размер в байтах (только для файлов, у каталогов — null)
  */
-public record GitFileNode(String path, String name, String type, @Nullable Long size)
+public record GitFileNode(String path, String name, FileEntryType type, @Nullable Long size)
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
     @Override
     public String getFormattedResponse() {
-        return "directory".equals(type) ? path + "/" : path + " (" + size + "B)";
+        return FileEntryType.DIRECTORY.equals(type) ? path + "/" : path + " (" + size + "B)";
     }
 
     @Override

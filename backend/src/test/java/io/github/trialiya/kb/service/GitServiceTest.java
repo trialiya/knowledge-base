@@ -3,6 +3,7 @@ package io.github.trialiya.kb.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.github.trialiya.kb.model.git.dto.FileEntryType;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
@@ -91,18 +92,18 @@ class GitServiceTest {
         List<GitFileNode> docsNodes = root.stream().filter(n -> n.name().equals("docs")).toList();
         assertThat(docsNodes).hasSize(1);
         assertThat(docsNodes.get(0).path()).isEqualTo("docs");
-        assertThat(docsNodes.get(0).type()).isEqualTo("directory");
+        assertThat(docsNodes.get(0).type()).isEqualTo(FileEntryType.DIRECTORY);
 
         List<GitFileNode> underDocs = service.getFileTree("docs");
         assertThat(underDocs).hasSize(1);
         assertThat(underDocs.get(0).path()).isEqualTo("docs/проект");
-        assertThat(underDocs.get(0).type()).isEqualTo("directory");
+        assertThat(underDocs.get(0).type()).isEqualTo(FileEntryType.DIRECTORY);
 
         List<GitFileNode> underProject = service.getFileTree("docs/проект");
         assertThat(underProject).hasSize(1);
         assertThat(underProject.get(0).path()).isEqualTo("docs/проект/readme.md");
         assertThat(underProject.get(0).name()).isEqualTo("readme.md");
-        assertThat(underProject.get(0).type()).isEqualTo("file");
+        assertThat(underProject.get(0).type()).isEqualTo(FileEntryType.FILE);
     }
 
     @Test
@@ -361,7 +362,7 @@ class GitServiceTest {
 
         var view = service.browsePath("src/main/java/com/app/Main.java", true);
 
-        assertThat(view.type()).isEqualTo("file");
+        assertThat(view.type()).isEqualTo(FileEntryType.FILE);
         assertThat(view.file()).isNotNull();
         assertThat(view.file().content()).contains("class Main");
         assertThat(view.nodes()).isNull();
@@ -393,7 +394,7 @@ class GitServiceTest {
 
         var view = service.browsePath("docs/guide", true);
 
-        assertThat(view.type()).isEqualTo("directory");
+        assertThat(view.type()).isEqualTo(FileEntryType.DIRECTORY);
         assertThat(view.file()).isNull();
         assertThat(view.nodes()).extracting(GitFileNode::name).containsExactly("intro.md");
         // The opened directory itself is in `nodes`, so it must not be duplicated as a level.
@@ -407,7 +408,7 @@ class GitServiceTest {
 
         var view = service.browsePath("docs/guide/intro.md", false);
 
-        assertThat(view.type()).isEqualTo("file");
+        assertThat(view.type()).isEqualTo(FileEntryType.FILE);
         assertThat(view.file()).isNotNull();
         assertThat(view.tree()).isEmpty();
     }
@@ -420,7 +421,7 @@ class GitServiceTest {
         var view = service.browsePath("docs/guide/gone.md", true);
 
         // A dead deep link must render as "not found", not as a load error.
-        assertThat(view.type()).isEqualTo("missing");
+        assertThat(view.type()).isNull();
         assertThat(view.file()).isNull();
         assertThat(view.nodes()).isNull();
         // The tree still expands as far as the path exists, so the user sees where it broke.
@@ -438,7 +439,7 @@ class GitServiceTest {
         var view = service.browsePath(null, true);
 
         assertThat(view.path()).isEmpty();
-        assertThat(view.type()).isEqualTo("directory");
+        assertThat(view.type()).isEqualTo(FileEntryType.DIRECTORY);
         assertThat(view.nodes()).extracting(GitFileNode::name).containsExactly("docs", "README.md");
         // The root has no ancestors — its own listing is `nodes`, not a tree level.
         assertThat(view.tree()).isEmpty();
@@ -464,11 +465,12 @@ class GitServiceTest {
         writeFile("src/main/Foo.java", "class Foo {}\n");
         commitAll();
 
-        assertThat(service.browsePath("src\\main\\Foo.java", true).type()).isEqualTo("file");
+        assertThat(service.browsePath("src\\main\\Foo.java", true).type())
+                .isEqualTo(FileEntryType.FILE);
 
         var dir = service.browsePath("src/main/", true);
         assertThat(dir.path()).isEqualTo("src/main");
-        assertThat(dir.type()).isEqualTo("directory");
+        assertThat(dir.type()).isEqualTo(FileEntryType.DIRECTORY);
         assertThat(dir.nodes()).extracting(GitFileNode::name).containsExactly("Foo.java");
     }
 }

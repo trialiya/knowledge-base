@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.service;
 
+import io.github.trialiya.kb.model.git.dto.FileEntryType;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitEditResult;
@@ -104,7 +105,7 @@ public class GitService {
 
     /** Tree listing order: directories first, then by name, case-insensitively. */
     private static final Comparator<GitFileNode> NODE_ORDER =
-            Comparator.<GitFileNode, Boolean>comparing(n -> !"directory".equals(n.type()))
+            Comparator.<GitFileNode, Boolean>comparing(n -> FileEntryType.DIRECTORY != n.type())
                     .thenComparing(GitFileNode::name, String.CASE_INSENSITIVE_ORDER);
 
     /** File names to always exclude from uncommitted changes (OS/IDE junk). */
@@ -192,11 +193,13 @@ public class GitService {
                         String name = path.substring(from, slash);
                         String dirPath = dir.isEmpty() ? name : dir + "/" + name;
                         bucket.putIfAbsent(
-                                dirPath, new GitFileNode(dirPath, name, "directory", null));
+                                dirPath,
+                                new GitFileNode(dirPath, name, FileEntryType.DIRECTORY, null));
                     } else {
                         String name = path.substring(from);
                         bucket.putIfAbsent(
-                                path, new GitFileNode(path, name, "file", fileSize(path)));
+                                path,
+                                new GitFileNode(path, name, FileEntryType.FILE, fileSize(path)));
                     }
                 }
                 if (slash < 0) break;
@@ -226,11 +229,11 @@ public class GitService {
     public GitPathView browsePath(@Nullable String path, boolean includeAncestors) {
         String target = normalizeSub(path);
         List<String> tracked = trackedPaths();
-        String type = resolvePathType(target, tracked);
+        FileEntryType type = resolvePathType(target, tracked);
 
         List<String> ancestors = includeAncestors ? ancestorDirs(target) : List.of();
         Set<String> bases = new LinkedHashSet<>(ancestors);
-        boolean isDirectory = "directory".equals(type);
+        boolean isDirectory = FileEntryType.DIRECTORY.equals(type);
         if (isDirectory) bases.add(target);
         Map<String, List<GitFileNode>> listings =
                 bases.isEmpty() ? Map.of() : listDirectories(tracked, bases);
@@ -246,20 +249,22 @@ public class GitService {
                 // knownTracked=true: resolvePathType() just confirmed this against the same
                 // `tracked` list, so re-checking via isTracked() would re-read the index for
                 // nothing.
-                "file".equals(type) ? getFileContent(target, null, null, true) : null,
+                FileEntryType.FILE.equals(type) ? getFileContent(target, null, null, true) : null,
                 isDirectory ? listings.getOrDefault(target, List.of()) : null,
                 tree);
     }
 
-    /** {@code "file"}, {@code "directory"} or {@code "missing"} — the repo root is a directory. */
-    private static String resolvePathType(String path, List<String> tracked) {
-        if (path.isEmpty()) return "directory";
+    /**
+     * {@code FILE}, {@code DIRECTORY} or {@code null} for missing — the repo root is a directory.
+     */
+    private static FileEntryType resolvePathType(String path, List<String> tracked) {
+        if (path.isEmpty()) return FileEntryType.DIRECTORY;
         String prefix = path + "/";
         for (String candidate : tracked) {
-            if (candidate.equals(path)) return "file";
-            if (candidate.startsWith(prefix)) return "directory";
+            if (candidate.equals(path)) return FileEntryType.FILE;
+            if (candidate.startsWith(prefix)) return FileEntryType.DIRECTORY;
         }
-        return "missing";
+        return null;
     }
 
     /**
@@ -449,7 +454,8 @@ public class GitService {
                                     s.path().contains("/")
                                             ? s.path().substring(s.path().lastIndexOf('/') + 1)
                                             : s.path();
-                            return new GitFileNode(s.path(), name, "file", fileSize(s.path()));
+                            return new GitFileNode(
+                                    s.path(), name, FileEntryType.FILE, fileSize(s.path()));
                         })
                 .toList();
     }

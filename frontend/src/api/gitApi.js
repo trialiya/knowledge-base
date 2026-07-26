@@ -32,7 +32,7 @@ const gitApi = {
    * всех каталогов-предков, чтобы дерево слева раскрылось до него без запроса
    * на каждый уровень вложенности.
    *
-   * Возвращает GitPathView { path, type: 'file'|'directory'|'missing', file?,
+   * Возвращает GitPathView { path, type: 'file'|'directory'|null, file?,
    * nodes?, tree: [{ path, nodes }] }.
    *
    * @param {boolean} ancestors — false, если листинги предков уже в кэше клиента.
