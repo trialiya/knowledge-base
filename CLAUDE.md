@@ -11,103 +11,34 @@ the backend JAR. Full docs (Russian) under `docs/`.
 
 ## Common commands
 
+**Every check goes through `run/test.sh`** (Windows: `run\test.bat` /
+`run\test.ps1`). It decides the awkward parts itself — system Gradle vs
+`./gradlew`, the JDK 21 init script, starting `dockerd` for Testcontainers,
+`CI=true` for Jest — so none of that has to be retyped:
+
 ```bash
-./gradlew build                 # Full build (frontend bundled into backend JAR)
-./gradlew :backend:bootRun      # Run backend (dev) on :8080
-./gradlew :frontend:yarnServe   # Frontend dev server on :3000 (proxies to :8080)
-./gradlew :backend:test         # Backend tests (JUnit 5)
-./gradlew :frontend:yarnTest    # Frontend tests (Jest)
-./gradlew spotlessApply         # Format backend (Google Java Format, AOSP)
+./run/test.sh                   # unit + front — the fast pair, no Docker
+./run/test.sh pre-pr            # format + back + build, before a pull request
+./run/test.sh smoke             # build the JAR + drive the UI with Chromium
+./run/test.sh unit -- --tests '*ToolTranslationsTest'   # after -- goes to Gradle
+```
+
+The full suite list, the `--` passthrough rules and `KB_JAVA21` are in the
+script's own header — that copy sits next to the code and cannot drift from it,
+so read it there rather than expecting this file to mirror it. Windows lacks
+`smoke` and the `--` passthrough, and needs Docker already running.
+
+What the wrapper deliberately does not cover:
+
+```bash
+./gradlew :backend:bootRun      # backend (dev) on :8080; run/run.sh h2 runs the built JAR
+./gradlew :frontend:yarnServe   # frontend dev server on :3000 (proxies to :8080)
+./gradlew spotlessApply         # format backend (Google Java Format, AOSP)
 ```
 
 `*IT` tests use Testcontainers and need Docker; `*Test` (unit) tests don't.
-
-## Testing on JDK 21 (no JDK 25 available)
-
-The backend toolchain targets Java 25. On environments with only JDK 21 (some CI
-runners, the web sandbox) the build fails to resolve the toolchain. Apply the
-`gradle/java21.gradle` init script to retarget to 21 and enable preview features
-(`ToolTranslationsTest` uses unnamed variables `_`, a Java 21 preview finalized
-in 22–25):
-
-```bash
-./gradlew :backend:test --init-script gradle/java21.gradle --no-configuration-cache
-```
-
-`--no-configuration-cache` is required. This is a local/CI workaround only — keep
-`backend/build.gradle` on Java 25.
-
-## Building & testing in the Claude Code web sandbox
-
-**`./gradlew` does not work here** (the gradle-9.6.1 download is blocked) —
-use the system Gradle at `/opt/gradle/bin/gradle`.
-
-A SessionStart hook (`.claude/hooks/session-start.sh`, web-only) already sets
-`LANG=C.utf8`, exports `GRADLE=/opt/gradle/bin/gradle`, and pre-compiles
-backend main+test classes with the JDK 21 init script — so the dependency
-cache is warm and `spotlessCheck`/unit tests start fast without extra setup.
-
-**For `*IT` tests start `dockerd` first:**
-
-```bash
-sudo dockerd > /tmp/dockerd.log 2>&1 &
-until docker ps > /dev/null 2>&1; do sleep 1; done
-```
-
-Then (init script needed because only JDK 21 is available, see above):
-
-```bash
-# Unit tests only (no Docker needed)
-/opt/gradle/bin/gradle :backend:test --init-script gradle/java21.gradle --no-configuration-cache --tests "*Test"
-
-# All backend tests incl. *IT (dockerd must be running)
-/opt/gradle/bin/gradle :backend:test --init-script gradle/java21.gradle --no-configuration-cache
-
-# Full build (frontend Node/yarn downloads work; Jest runs too)
-/opt/gradle/bin/gradle build --init-script gradle/java21.gradle --no-configuration-cache
-```
-
-`--no-configuration-cache` is required with the init script. Maven Central,
-plugins.gradle.org, nodejs.org and Docker Hub are all reachable; only the
-Gradle distribution download is blocked.
-
-## Visually validating the frontend in the web sandbox (Playwright)
-
-Chromium and Playwright are pre-installed (no `playwright install`). Don't use
-`yarn start` — the dev server doesn't work here; boot the backend jar (H2
-profile, dummy AI env vars) and drive it with Chromium instead.
-
-`scripts/playwright-smoke.js` is a working, runnable example — boots the jar,
-polls `/actuator/health`, logs in via HTTP Basic (`admin`/`admin`), waits for
-the SPA to mount, and screenshots it. By default it also seeds `db/sample-data.sql`
-into a disposable `local-db/h2-smoke` file first (never your real `local-db/h2`),
-so the screenshot shows real chat/document content instead of an empty app — pass
-`--no-seed` to skip that. See its header comment for the details (incl. the
-`LANG=C.utf8` locale gotcha — the sandbox has no locale configured, so a bare JVM
-defaults to ASCII and `GitService` throws on non-ASCII repo paths). Build the jar
-first, then run it:
-
-```bash
-/opt/gradle/bin/gradle :backend:bootJar -x :frontend:yarnTest \
-  --init-script gradle/java21.gradle --no-configuration-cache
-
-NODE_PATH=/opt/node22/lib/node_modules node scripts/playwright-smoke.js
-```
-
-Copy its `chromium.launch()`/env-var setup for ad hoc checks beyond a screenshot.
-
-## Тестовые данные для H2 (`db/sample-data.sql`)
-
-`backend/src/test/resources/db/sample-data.sql` is a ready-made H2 dataset (a real
-captured chat conversation plus documents, attachments and tool calls) for manual
-QA and as a `@Sql`-loadable fixture in tests. Targets the `db/migration-h2` schema
-only — do **not** run it against real Postgres, the array/vector column types
-differ. Full contents and rationale are in the file's own header comment.
-
-`SampleDataFixtureTest` is the worked usage example (`@Sql` on an H2
-`@DataJdbcTest`, same pattern as `DocumentServiceUnitTest`) and also the
-regression test keeping the fixture in sync with `db/migration-h2` — run it
-after touching either.
+Raw Gradle invocations are for debugging the build itself — the environment
+flags they need are in "Environment quirks" at the end of this file.
 
 ## Tool-call storage architecture (backend)
 
@@ -137,6 +68,19 @@ The most non-obvious part of the backend — read this before touching
 - Migrations for this live in both `db/migration` (Postgres) and
   `db/migration-h2`; schema changes must update both, plus
   `db/sample-data.sql` + `SampleDataFixtureTest`.
+
+## Тестовые данные для H2 (`db/sample-data.sql`)
+
+`backend/src/test/resources/db/sample-data.sql` is a ready-made H2 dataset (a real
+captured chat conversation plus documents, attachments and tool calls) for manual
+QA and as a `@Sql`-loadable fixture in tests. Targets the `db/migration-h2` schema
+only — do **not** run it against real Postgres, the array/vector column types
+differ. Full contents and rationale are in the file's own header comment.
+
+`SampleDataFixtureTest` is the worked usage example (`@Sql` on an H2
+`@DataJdbcTest`, same pattern as `DocumentServiceUnitTest`) and also the
+regression test keeping the fixture in sync with `db/migration-h2` — run it
+after touching either.
 
 ## Frontend conventions (`frontend/src`)
 
@@ -238,10 +182,11 @@ mappings must cover nested paths.
 - Every row of a left panel — chat list, knowledge tree, file tree, settings
   groups — is the shared `.ws-item` from `common/sidePanel.css` (with
   `.ws-item__chevron/__icon/__label/__actions/__action`, `.ws-list`, `.ws-hint`).
-  Sections add only their own behaviour (drag-drop in the KB tree, the
-  `.ws-item--nowrap` horizontal scroll in the file tree). Do not restore
-  per-panel row families — `chat-list-item`, `tree-row__*`, `file-tree-row`,
-  `settings-nav__item` are gone.
+  A section adds only modifiers for its own behaviour **on top of** the shared
+  block — the KB tree's `.tree-row--dragging`/`__drag-handle`/`__system-badge`,
+  the file tree's `.ws-item--nowrap` horizontal scroll — never a parallel row
+  family of its own (`chat-list-item`, `file-tree-row`, `settings-nav__item`
+  were exactly that, and are gone).
 - Metrics come from tokens on `.workspace` (`--ws-gutter`, `--ws-row-min-h`,
   `--ws-row-font`, `--ws-indent`): the panel head, the action
   button, the search widget and the rows all sit on one vertical. A section may
@@ -302,11 +247,10 @@ mappings must cover nested paths.
 
 - One naming scheme: BEM (`block__element--modifier`), lowercase-hyphenated
   block names. No new abbreviated prefixes (`tcd-`, `fcd-`, `set-`).
-- File layout: shared styles live next to their component in `common/`;
-  panel styles go in `<panel>/styles/<topic>.css` (one topic per file, like
-  `chatPanel/styles/` and `knowledgeBasePanel/styles/`) — don't grow
-  monolithic per-panel files (`chatWindow.css` at 1100+ lines is the
-  anti-example, being split).
+- File layout: shared styles live next to their component in `common/`; panel
+  styles go in `<panel>/styles/<topic>.css`, one topic per file — the pattern is
+  `chatPanel/styles/` behind the `chatWindow.css` import barrel, and
+  `knowledgeBasePanel/styles/`. Don't grow monolithic per-panel files.
 - CSS is plain (no modules/preprocessor); classes are global — prefix with the
   block name to avoid collisions, and never reference another panel's classes
   (shared chrome belongs in `common/`).
@@ -320,12 +264,10 @@ mappings must cover nested paths.
 - Components render; hooks own state/API orchestration; pure logic goes in
   plain `.js` modules next to the feature (`treeOps.js`, `fileChips.js`).
 - Keep files focused: a file approaching ~300 lines or holding 2+ exported
-  components is due for a split. Big-file precedents still being dismantled
-  (keep this list current as they shrink): `ChatWindow.jsx` (~960 lines, worst
-  offender — only its layout has been extracted so far), `useKnowledgeBase.js`
-  (~700), `icons/index.jsx` (~660), and `DocLinkTooltip.jsx` (~340). `FileChipInput.jsx` was decomposed
-  into `ChipEditor.jsx` + `RichTextEditor.jsx`/`useChipPicker.js`/
-  `useChipPreview.js`/`chipTriggers.js` and is off this list.
+  components is due for a split — `wc -l` answers this, so no list of offenders
+  is kept here (the ones that used to be listed had all drifted). `ChatWindow.jsx`
+  is the worst of them and the one to chip away at when you are in it anyway:
+  only its layout has been extracted so far.
 - Reuse the shared hooks before writing new plumbing: `useSearchDropdown`
   (search-button → dropdown widgets), `useEscape`, `useDocPreview`/
   `useFilePreview` (both built on `usePreviewCache` — the module-cache preview
@@ -338,11 +280,78 @@ mappings must cover nested paths.
 - New user-facing strings go through i18n (`en` + `ru` locale files), never
   hardcoded.
 
+### Visual checks
+
+Before checking a component by hand, read `frontend/tests/visual/cases.yaml` —
+scenarios and data for already-checked components live there, with fixtures in
+`frontend/tests/visual/fixtures/`. Add new checks as cases in the same format
+and never rename an existing `id` (it is the future story/baseline name).
+`./run/test.sh smoke` boots the app and screenshots it.
+
 ## Before a PR
 
-`./gradlew spotlessCheck` · `./gradlew :backend:test` · `./gradlew build`
-(add `--init-script gradle/java21.gradle --no-configuration-cache` on JDK 21;
-in the web sandbox use `/opt/gradle/bin/gradle` and start `dockerd` first —
-all three checks can run there, IT tests included).
+`./run/test.sh pre-pr` — `spotlessCheck` · `:backend:test` · `build`. All three
+run in the web sandbox too, IT tests included.
 Dependency locking is on — after changing deps run
 `./gradlew resolveAndLockAll --write-locks`.
+
+## Environment quirks (temporary)
+
+Scaffolding for two environments that will outlive their need: runners with
+no JDK 25, and the Claude Code web sandbox. `run/test.sh` already applies all
+of it — read on only when running Gradle by hand or when the wrapper itself
+misbehaves. Delete a subsection once its environment is gone.
+
+### Testing on JDK 21 (no JDK 25 available)
+
+The backend toolchain targets Java 25. On environments with only JDK 21 (some CI
+runners, the web sandbox) the build fails to resolve the toolchain. Apply the
+`gradle/java21.gradle` init script to retarget to 21 and enable preview features
+(`ToolTranslationsTest` uses unnamed variables `_`, a Java 21 preview finalized
+in 22–25):
+
+```bash
+./gradlew :backend:test --init-script gradle/java21.gradle --no-configuration-cache
+```
+
+`--no-configuration-cache` is required. This is a local/CI workaround only — keep
+`backend/build.gradle` on Java 25.
+
+`run/test.sh` applies this by itself: it reads the major version of the JDK it
+would use and adds both flags below 25. Force the decision with `KB_JAVA21=1`
+(always apply) or `KB_JAVA21=0` (never) when the heuristic guesses wrong — e.g.
+when Gradle is pinned to a different JDK than the `java` on `PATH`.
+
+### Building & testing in the Claude Code web sandbox
+
+**`./gradlew` does not work here** (the gradle-9.6.1 download is blocked) —
+use the system Gradle at `/opt/gradle/bin/gradle`.
+
+A SessionStart hook (`.claude/hooks/session-start.sh`, web-only) already sets
+`LANG=C.utf8`, exports `GRADLE=/opt/gradle/bin/gradle`, and pre-compiles
+backend main+test classes with the JDK 21 init script — so the dependency
+cache is warm and `spotlessCheck`/unit tests start fast without extra setup.
+
+`run/test.sh` needs nothing extra here: it picks up the hook's `GRADLE`, adds the
+init script, and starts `dockerd` itself for the `*IT` suites. Maven Central,
+plugins.gradle.org, nodejs.org and Docker Hub are all reachable; only the Gradle
+distribution download is blocked.
+
+### Visually validating the frontend in the web sandbox (Playwright)
+
+Chromium and Playwright are pre-installed (no `playwright install`). Don't use
+`yarn start` — the dev server doesn't work here; boot the backend jar (H2
+profile, dummy AI env vars) and drive it with Chromium instead.
+
+`scripts/playwright-smoke.js` is a working, runnable example — boots the jar,
+polls `/actuator/health`, logs in via HTTP Basic (`admin`/`admin`), waits for
+the SPA to mount, and screenshots it. By default it also seeds `db/sample-data.sql`
+into a disposable `local-db/h2-smoke` file first (never your real `local-db/h2`),
+so the screenshot shows real chat/document content instead of an empty app — pass
+`--no-seed` to skip that. See its header comment for the details (incl. the
+`LANG=C.utf8` locale gotcha — the sandbox has no locale configured, so a bare JVM
+defaults to ASCII and `GitService` throws on non-ASCII repo paths).
+
+`./run/test.sh smoke` is the whole thing in one command — it builds the jar and
+runs the script; the by-hand form is in the script's Prerequisites/Usage header.
+Copy its `chromium.launch()`/env-var setup for ad hoc checks beyond a screenshot.
