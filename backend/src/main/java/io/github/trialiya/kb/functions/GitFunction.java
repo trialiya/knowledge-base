@@ -56,7 +56,7 @@ public class GitFunction {
             description =
                     """
                     Один уровень файлового дерева репозитория. Узел: path, name, \
-                    type ("file"|"directory"), size (байты, только для файлов). \
+                    type (FILE|DIRECTORY), size (байты, только для файлов). \
                     Каталоги не раскрываются — вызови повторно с нужным path для следующего уровня.\
                     """,
             resultConverter = CompactToolResultConverter.class)
@@ -173,7 +173,7 @@ public class GitFunction {
                     """
                     Ищет tracked файлы по имени (fuzzy: символы запроса как подпоследовательность, \
                     регистронезависимо — "mgi" находит MessageInput). Результаты ранжированы: \
-                    лучшее совпадение первым. Узлы: path, name, type="file", size. Ищет ТОЛЬКО по \
+                    лучшее совпадение первым. Узлы: path, name, type=FILE, size. Ищет ТОЛЬКО по \
                     имени/пути файла (поиск по содержимому — grepContent).
                     """,
             resultConverter = CompactToolResultConverter.class)

@@ -12,15 +12,15 @@ import org.jspecify.annotations.Nullable;
  * на глубоком пути это десяток последовательных round-trip'ов.
  *
  * @param path запрошенный путь (нормализованный; "" — корень репозитория)
- * @param type {@code "file"}, {@code "directory"} или {@code "missing"}
- * @param file содержимое файла — только для {@code type="file"}
- * @param nodes прямые потомки — только для {@code type="directory"}
+ * @param type тип записи (FILE, DIRECTORY, или null для missing)
+ * @param file содержимое файла — только для {@code type=FILE}
+ * @param nodes прямые потомки — только для {@code type=DIRECTORY}
  * @param tree листинги каталогов-предков (от корня до родителя пути); пуст, если клиент их не
  *     запрашивал (уже есть в его кэше) либо путь лежит в корне
  */
 public record GitPathView(
         String path,
-        String type,
+        @Nullable FileEntryType type,
         @Nullable GitFileContent file,
         @Nullable List<GitFileNode> nodes,
         List<GitTreeLevel> tree) {}
