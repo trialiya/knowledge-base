@@ -22,6 +22,28 @@ the backend JAR. Full docs (Russian) under `docs/`.
 
 `*IT` tests use Testcontainers and need Docker; `*Test` (unit) tests don't.
 
+**Running the checks: use `run/test.sh` instead of the raw Gradle lines.** It is
+one entry point for every suite and decides the awkward parts itself — system
+Gradle vs `./gradlew`, the JDK 21 init script, starting `dockerd` for
+Testcontainers, `CI=true` for Jest — so none of that has to be retyped:
+
+```bash
+./run/test.sh                   # unit + front — the fast pair, no Docker
+./run/test.sh unit              # backend *Test only
+./run/test.sh it                # backend *IT (starts dockerd if needed)
+./run/test.sh back              # all backend tests
+./run/test.sh front             # Jest
+./run/test.sh format            # spotlessCheck
+./run/test.sh build             # full build
+./run/test.sh smoke             # build the JAR + drive the UI with Chromium
+./run/test.sh pre-pr            # format + back + build (see "Before a PR")
+```
+
+Windows: `run\test.bat` / `run\test.ps1` — same suites, except that Docker must
+already be running and `smoke` is Linux/macOS only. The sections below explain
+*why* the script does what it does; reach for the raw commands only when
+debugging the setup itself.
+
 ## Testing on JDK 21 (no JDK 25 available)
 
 The backend toolchain targets Java 25. On environments with only JDK 21 (some CI
@@ -37,6 +59,11 @@ in 22–25):
 `--no-configuration-cache` is required. This is a local/CI workaround only — keep
 `backend/build.gradle` on Java 25.
 
+`run/test.sh` applies this by itself: it reads the major version of the JDK it
+would use and adds both flags below 25. Force the decision with `KB_JAVA21=1`
+(always apply) or `KB_JAVA21=0` (never) when the heuristic guesses wrong — e.g.
+when Gradle is pinned to a different JDK than the `java` on `PATH`.
+
 ## Building & testing in the Claude Code web sandbox
 
 **`./gradlew` does not work here** (the gradle-9.6.1 download is blocked) —
@@ -47,29 +74,20 @@ A SessionStart hook (`.claude/hooks/session-start.sh`, web-only) already sets
 backend main+test classes with the JDK 21 init script — so the dependency
 cache is warm and `spotlessCheck`/unit tests start fast without extra setup.
 
-**For `*IT` tests start `dockerd` first:**
+`run/test.sh` covers all of this here — it picks up the hook's `GRADLE`, adds
+the init script because only JDK 21 is available, and starts `dockerd` itself
+for the `*IT` suites (`sudo dockerd > /tmp/dockerd.log 2>&1 &`, then waits for
+`docker ps`). So the whole matrix is:
 
 ```bash
-sudo dockerd > /tmp/dockerd.log 2>&1 &
-until docker ps > /dev/null 2>&1; do sleep 1; done
+./run/test.sh unit      # no Docker needed
+./run/test.sh back      # all backend tests incl. *IT — dockerd started if absent
+./run/test.sh build     # full build (frontend Node/yarn downloads work; Jest runs too)
 ```
 
-Then (init script needed because only JDK 21 is available, see above):
-
-```bash
-# Unit tests only (no Docker needed)
-/opt/gradle/bin/gradle :backend:test --init-script gradle/java21.gradle --no-configuration-cache --tests "*Test"
-
-# All backend tests incl. *IT (dockerd must be running)
-/opt/gradle/bin/gradle :backend:test --init-script gradle/java21.gradle --no-configuration-cache
-
-# Full build (frontend Node/yarn downloads work; Jest runs too)
-/opt/gradle/bin/gradle build --init-script gradle/java21.gradle --no-configuration-cache
-```
-
-`--no-configuration-cache` is required with the init script. Maven Central,
-plugins.gradle.org, nodejs.org and Docker Hub are all reachable; only the
-Gradle distribution download is blocked.
+which expands to `/opt/gradle/bin/gradle <task> --init-script gradle/java21.gradle
+--no-configuration-cache`. Maven Central, plugins.gradle.org, nodejs.org and
+Docker Hub are all reachable; only the Gradle distribution download is blocked.
 
 ## Visually validating the frontend in the web sandbox (Playwright)
 
@@ -89,8 +107,11 @@ into a disposable `local-db/h2-smoke` file first (never your real `local-db/h2`)
 so the screenshot shows real chat/document content instead of an empty app — pass
 `--no-seed` to skip that. See its header comment for the details (incl. the
 `LANG=C.utf8` locale gotcha — the sandbox has no locale configured, so a bare JVM
-defaults to ASCII and `GitService` throws on non-ASCII repo paths). Build the jar
-first, then run it:
+defaults to ASCII and `GitService` throws on non-ASCII repo paths).
+
+`./run/test.sh smoke` is the whole thing in one command — it builds the jar
+(skipping Jest, which `./run/test.sh front` covers) and runs the script with
+`NODE_PATH` set. By hand that is:
 
 ```bash
 /opt/gradle/bin/gradle :backend:bootJar -x :frontend:yarnTest \
@@ -345,9 +366,11 @@ mappings must cover nested paths.
 
 ## Before a PR
 
-`./gradlew spotlessCheck` · `./gradlew :backend:test` · `./gradlew build`
-(add `--init-script gradle/java21.gradle --no-configuration-cache` on JDK 21;
-in the web sandbox use `/opt/gradle/bin/gradle` and start `dockerd` first —
-all three checks can run there, IT tests included).
+`./run/test.sh pre-pr` — `spotlessCheck` · `:backend:test` · `build`, with the
+JDK 21 flags and `dockerd` handled for you. All three run in the web sandbox
+too, IT tests included. By hand: `./gradlew spotlessCheck` · `./gradlew
+:backend:test` · `./gradlew build` (add `--init-script gradle/java21.gradle
+--no-configuration-cache` on JDK 21, and `/opt/gradle/bin/gradle` in the
+sandbox).
 Dependency locking is on — after changing deps run
 `./gradlew resolveAndLockAll --write-locks`.
