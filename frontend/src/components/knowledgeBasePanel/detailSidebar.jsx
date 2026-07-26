@@ -4,7 +4,7 @@ import SummarySection from './SummarySection';
 import ContentsTable from './ContentsTable';
 import DetailInfo from './DetailInfo';
 import AttachmentPanel from '../common/AttachmentPanel';
-import { IconSparkle, IconPaperclip, IconList, IconSliders } from '../../icons';
+import { IconSparkle, IconPaperclip, IconList, IconInfo } from '../../icons';
 import { DOC_TAB } from '../../constants/docTabs';
 import { OWNER_TYPE } from '../../constants/ownerType';
 
@@ -34,6 +34,14 @@ export function buildDetailTabs({
   const isFolder = node.type === 'folder';
 
   const tabs = [
+    // «Инфо» — первая вкладка во всех разделах: сначала «что это за объект»,
+    // потом всё остальное о нём.
+    {
+      key: DOC_TAB.INFO,
+      label: t('tabs.info'),
+      icon: <IconInfo size={15} />,
+      content: <DetailInfo node={node} />,
+    },
     {
       key: DOC_TAB.SUMMARY,
       label: t('tabs.summary'),
@@ -70,28 +78,20 @@ export function buildDetailTabs({
     });
   }
 
-  tabs.push(
-    {
-      key: DOC_TAB.ATTACHMENTS,
-      label: t('tabs.attachments'),
-      icon: <IconPaperclip size={15} />,
-      badge: attachmentCount,
-      content: (
-        <AttachmentPanel
-          key={node.id}
-          ownerType={OWNER_TYPE.DOCUMENT}
-          ownerId={node.id}
-          onCountChange={onAttachmentCountChange}
-        />
-      ),
-    },
-    {
-      key: DOC_TAB.INFO,
-      label: t('tabs.info'),
-      icon: <IconSliders size={15} />,
-      content: <DetailInfo node={node} />,
-    },
-  );
+  tabs.push({
+    key: DOC_TAB.ATTACHMENTS,
+    label: t('tabs.attachments'),
+    icon: <IconPaperclip size={15} />,
+    badge: attachmentCount,
+    content: (
+      <AttachmentPanel
+        key={node.id}
+        ownerType={OWNER_TYPE.DOCUMENT}
+        ownerId={node.id}
+        onCountChange={onAttachmentCountChange}
+      />
+    ),
+  });
 
   return tabs;
 }

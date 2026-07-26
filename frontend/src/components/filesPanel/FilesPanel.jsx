@@ -1,16 +1,19 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import FileTree from './FileTree';
 import FileContent from './FileContent';
 import FileSearch from './FileSearch';
+import FileInfo from './FileInfo';
 import useFileTree from './useFileTree';
 import WorkspaceLayout from '../common/WorkspaceLayout';
+import { IconInfo } from '../../icons';
+import { RIGHT_TAB } from '../../constants/rightTabs';
 import './filesPanel.css';
 
 /**
  * GitHub-стиль просмотр репозитория: дерево слева, содержимое файла/каталога
- * в центре. Раскладка — общая (WorkspaceLayout), правой панели у раздела пока
- * нет: работа со структурой файлов и историей коммитов появится в ней позже.
+ * в центре. Раскладка — общая (WorkspaceLayout); справа вкладка «Инфо»
+ * (метаданные пути и последний коммит), как в чате и базе знаний.
  */
 const FilesPanel = ({ path, onPathChange, panels }) => {
   const { t } = useTranslation('files');
@@ -18,6 +21,18 @@ const FilesPanel = ({ path, onPathChange, panels }) => {
     path,
     onPathChange,
   });
+
+  const rightTabs = useMemo(
+    () => [
+      {
+        key: RIGHT_TAB.INFO,
+        label: t('tabs.info'),
+        icon: <IconInfo size={15} />,
+        content: <FileInfo content={content} loading={contentLoading} path={path} />,
+      },
+    ],
+    [t, content, contentLoading, path],
+  );
 
   return (
     <WorkspaceLayout
@@ -43,6 +58,7 @@ const FilesPanel = ({ path, onPathChange, panels }) => {
         ),
       }}
       center={<FileContent content={content} loading={contentLoading} onNavigate={onPathChange} />}
+      right={rightTabs}
     />
   );
 };

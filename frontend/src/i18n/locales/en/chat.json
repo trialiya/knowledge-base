@@ -25,6 +25,16 @@
     "genericError": "An error occurred. Please try again.",
     "uploadError": "Failed to upload file"
   },
+  "info": {
+    "title": "Name",
+    "aiTopic": "AI topic",
+    "created": "Created",
+    "updated": "Last change",
+    "model": "Model",
+    "mode": "Mode",
+    "id": "ID",
+    "draftNote": "Draft: the chat is created on the server with the first message."
+  },
   "errorModal": {
     "notFoundTitle": "Chat not found",
     "loadErrorTitle": "Failed to load chat",

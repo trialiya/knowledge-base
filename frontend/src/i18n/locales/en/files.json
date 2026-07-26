@@ -23,6 +23,21 @@
     "loadError": "Failed to load content",
     "toggleMarkdown": "Markdown preview"
   },
+  "info": {
+    "name": "Name",
+    "path": "Path",
+    "type": "Type",
+    "typeFile": "File",
+    "typeDirectory": "Directory",
+    "items": "Items",
+    "size": "Size",
+    "language": "Language",
+    "lines": "Lines",
+    "modified": "Last change",
+    "author": "Changed by",
+    "commit": "Commit",
+    "commitMessage": "Commit message"
+  },
   "preview": {
     "close": "Close"
   }

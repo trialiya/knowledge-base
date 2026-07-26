@@ -174,9 +174,17 @@ doesn't touch. One PR = the task + migration of the files it touched.
   prop from `App`. Per-section layout is remembered in `localStorage`
   (`panelState.js`). Never keep panel open/closed state locally in a section.
 - The right panel is where "everything *about* the thing" goes; the center is
-  the thing itself. Chat → attachments; knowledge base → summary, folder
-  contents, attachments, info (`detailSidebar.jsx` builds the tabs); files →
-  nothing yet. `DOC_TAB` keys are right-panel tab keys, not center tabs.
+  the thing itself. Every section opens with an **Info** tab (first, always) —
+  chat: dates/AI topic/model; knowledge base: type, dates, versions; files:
+  path metadata + the last commit that touched it. It renders through the
+  shared `<InfoList>` (`common/InfoList.jsx`): sections pass
+  `[{ label, value, mono, block }]` rows and it drops the empty ones — don't
+  hand-roll another `dl`. Then come the per-section tabs: chat → attachments;
+  knowledge base → summary, folder contents, attachments (`detailSidebar.jsx`
+  builds them); files → nothing else yet. Tab keys shared across sections live
+  in `constants/rightTabs.js` (`RIGHT_TAB`) so `?right=info` means the same
+  thing everywhere; `DOC_TAB` holds the knowledge-base-only ones and is
+  right-panel keys, not center tabs.
 - State shared by the center and the right panel (the KB content draft,
   fullscreen, history) lives in `useDetailPanel`, hoisted to `KnowledgeBase`.
   It is no longer remounted per document, so it resets on `nodeId` change

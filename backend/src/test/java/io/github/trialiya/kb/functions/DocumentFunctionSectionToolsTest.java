@@ -70,6 +70,7 @@ class DocumentFunctionSectionToolsTest {
                 description,
                 3,
                 LocalDateTime.now(),
+                LocalDateTime.now(),
                 List.of(),
                 false,
                 false,

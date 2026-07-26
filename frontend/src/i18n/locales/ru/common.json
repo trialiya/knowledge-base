@@ -23,6 +23,9 @@
     "collapseRight": "Свернуть панель",
     "resizeLeft": "Изменить ширину панели"
   },
+  "tabs": {
+    "info": "Инфо"
+  },
   "panelSearch": {
     "searching": "Поиск…",
     "empty": "Ничего не найдено",

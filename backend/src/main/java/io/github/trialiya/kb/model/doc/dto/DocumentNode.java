@@ -25,6 +25,9 @@ import org.jspecify.annotations.Nullable;
  *     #summary} is {@code null} (nothing to be stale yet).
  * @param summarySourceVersion The {@code descriptionVersion} at which the summary was generated.
  *     {@code null} while {@link #summary} is {@code null}.
+ * @param createdAt When the node was created. {@code null} in the lightweight projections (tree,
+ *     skeleton) that deliberately omit per-node metadata — the "Info" panel reads it from {@code
+ *     GET /api/documents/{id}}.
  */
 public record DocumentNode(
         long id,
@@ -34,6 +37,7 @@ public record DocumentNode(
         int version,
         String description,
         int descriptionVersion,
+        @Nullable LocalDateTime createdAt,
         LocalDateTime updatedAt,
         @Nullable List<DocumentNode> children,
         boolean hasChildren,

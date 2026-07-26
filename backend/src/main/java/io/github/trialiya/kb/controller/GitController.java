@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.controller;
 
+import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.service.GitService;
@@ -19,8 +20,9 @@ import org.springframework.web.server.ResponseStatusException;
  * <p>{@code GET /search} fuzzy-matches tracked file names for the picker; {@code GET /content}
  * returns a file (optionally a line range) so an inserted chip can be previewed and expanded into
  * the outgoing message; {@code GET /tree} lists the direct children of a directory for the file
- * browser tree. All delegate to {@link GitService}, which enforces tracked-files-only access,
- * path-traversal guards and binary/size limits.
+ * browser tree; {@code GET /commits} returns commit history for a path. All delegate to {@link
+ * GitService}, which enforces tracked-files-only access, path-traversal guards and binary/size
+ * limits.
  */
 @RestController
 @RequestMapping("/api/git")
@@ -51,6 +53,21 @@ public class GitController {
             @RequestParam(name = "to", required = false) @Nullable Integer to) {
         requireSafePath(path);
         return gitService.getFileContent(path, from, to);
+    }
+
+    /**
+     * Commit history, newest first — optionally narrowed to one file or directory. The file
+     * browser's "Info" panel asks for {@code limit=1} to show who last changed the selected path
+     * and when; omit {@code path} for the repository's own history.
+     */
+    @GetMapping("/commits")
+    public List<GitCommit> getCommits(
+            @RequestParam(name = "path", required = false) @Nullable String path,
+            @RequestParam(name = "limit", defaultValue = "20") int limit) {
+        if (path != null && !path.isBlank()) {
+            requireSafePath(path);
+        }
+        return gitService.getCommitLog(limit, path);
     }
 
     /**

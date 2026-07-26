@@ -31,6 +31,7 @@ public record Document(
         int version,
         int descriptionVersion,
         @Nullable String description,
+        @Nullable LocalDateTime createdAt,
         LocalDateTime updatedAt,
         List<Document> children,
         @Nullable String summary,

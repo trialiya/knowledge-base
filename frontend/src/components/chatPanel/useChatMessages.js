@@ -192,6 +192,12 @@ export default function useChatMessages({ chats, chatsRef, setChats, activeChatI
                   notFound: false,
                   loadError: null,
                   model: meta.model ?? null,
+                  // Метаданные для вкладки «Инфо». Из списка чатов они приходят
+                  // не всегда: чат, открытый прямой ссылкой, попадает в список
+                  // заглушкой без дат.
+                  createdAt: meta.createdAt ?? chat.createdAt ?? null,
+                  updatedAt: meta.updatedAt ?? chat.updatedAt ?? null,
+                  aiTopic: meta.aiTopic ?? chat.aiTopic ?? null,
                 }
               : chat,
           ),

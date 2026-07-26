@@ -84,6 +84,7 @@ class PostgresDocumentIT extends AbstractPostgresIntegrationTest {
                         parentId,
                         null,
                         LocalDateTime.now(),
+                        LocalDateTime.now(),
                         position,
                         false,
                         0,

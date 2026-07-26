@@ -23,16 +23,15 @@ import ChatList from './ChatList';
 import ChatSearch from './ChatSearch';
 import ChatHeader from './ChatHeader';
 import ChatSearchBar from './ChatSearchBar';
+import ChatInfo from './ChatInfo';
 import AttachmentPanel from '../common/AttachmentPanel';
 import WorkspaceLayout from '../common/WorkspaceLayout';
 import useAttachmentCount from '../common/useAttachmentCount';
-import { IconPaperclip, IconPlus } from '../../icons';
+import { IconInfo, IconPaperclip, IconPlus } from '../../icons';
+import { RIGHT_TAB } from '../../constants/rightTabs';
 import './chatWindow.css';
 import ErrorModal from '../common/ErrorModal';
 import ConfirmModal from '../common/ConfirmModal';
-
-/** Ключ вкладки правой панели чата (попадает в URL как ?right=attachments). */
-const RIGHT_TAB_ATTACHMENTS = 'attachments';
 
 const generateUUID = () => {
   if (crypto?.randomUUID) {
@@ -183,6 +182,10 @@ const ChatWindow = ({
           title: chat.topic || tRef.current('window.defaultTitle'),
           messages: null,
           createdAt: chat.createdAt || null,
+          // updatedAt/aiTopic не участвуют в списке — они нужны вкладке «Инфо»
+          // правой панели, а отдельного запроса за метаданными чата там нет.
+          updatedAt: chat.updatedAt || null,
+          aiTopic: chat.aiTopic || null,
           model: chat.model || null,
           mode: chat.mode || null,
         }));
@@ -259,6 +262,11 @@ const ChatWindow = ({
                 mode: data.mode ?? chat.mode ?? null,
                 // не затираем уже имеющийся createdAt, иначе берём из ответа
                 createdAt: chat.createdAt ?? data.createdAt ?? null,
+                // updatedAt, наоборот, всегда из ответа: ради него этот запрос
+                // и делается после ответа ассистента (бэк двигает его на каждом
+                // сообщении), иначе «Изменён» во вкладке «Инфо» застынет.
+                updatedAt: data.updatedAt ?? chat.updatedAt ?? null,
+                aiTopic: data.aiTopic ?? chat.aiTopic ?? null,
               }
             : chat,
         ),
@@ -733,7 +741,7 @@ const ChatWindow = ({
         await attachmentApi.upload('chat', activeChatId, file);
         setAttachCount((n) => n + 1);
         // Показываем загруженный файл — раскрываем правую панель на вложениях.
-        openAttachments?.(RIGHT_TAB_ATTACHMENTS);
+        openAttachments?.(RIGHT_TAB.ATTACHMENTS);
       } catch (err) {
         console.error('Upload error:', err);
         setUploadErrorNotice(true);
@@ -846,14 +854,54 @@ const ChatWindow = ({
     </>
   );
 
-  // ── Правая панель: пока только вложения активного чата ──────────────────────
+  // Подписи модели и режима для вкладки «Инфо»: в чате хранятся id, а показывать
+  // осмысленно человекочитаемый label из конфига.
+  const selectedModelLabel = useMemo(
+    () => modelOptions.find((o) => o.id === selectedModelId)?.label || selectedModelId || null,
+    [modelOptions, selectedModelId],
+  );
+  const selectedModeLabel = useMemo(
+    () => modeOptions.find((o) => o.id === selectedModeId)?.label || null,
+    [modeOptions, selectedModeId],
+  );
+
+  // Мемо ниже держится на этом срезе, а не на самом activeChat: объект чата
+  // пересоздаётся на каждый чанк стриминга (в нём лежат messages), и вкладка
+  // «Инфо» тянула бы за собой пересборку всей правой панели. Поля здесь —
+  // примитивы, меняются только когда меняются реально.
+  const chatTitle = activeChat?.title ?? null;
+  const chatAiTopic = activeChat?.aiTopic ?? null;
+  const chatCreatedAt = activeChat?.createdAt ?? null;
+  const chatUpdatedAt = activeChat?.updatedAt ?? null;
+  const infoChat = useMemo(
+    () =>
+      activeChatId
+        ? {
+            id: activeChatId,
+            title: chatTitle,
+            aiTopic: chatAiTopic,
+            createdAt: chatCreatedAt,
+            updatedAt: chatUpdatedAt,
+          }
+        : null,
+    [activeChatId, chatTitle, chatAiTopic, chatCreatedAt, chatUpdatedAt],
+  );
+
+  // ── Правая панель: инфо о чате + вложения ──────────────────────────────────
   // Мемоизируем: ChatWindow перерисовывается на каждый чанк стриминга, а без
   // этого на каждый чанк пересоздавалось бы и содержимое открытой панели
   // вложений (таблица со списком файлов).
   const rightTabs = useMemo(
     () => [
       {
-        key: RIGHT_TAB_ATTACHMENTS,
+        // «Инфо» первой — так же, как в базе знаний и файлах.
+        key: RIGHT_TAB.INFO,
+        label: t('tabs.info'),
+        icon: <IconInfo size={16} />,
+        content: <ChatInfo chat={infoChat} modelLabel={selectedModelLabel} modeLabel={selectedModeLabel} />,
+      },
+      {
+        key: RIGHT_TAB.ATTACHMENTS,
         label: t('window.attachments'),
         icon: <IconPaperclip size={16} />,
         badge: attachCount,
@@ -869,7 +917,7 @@ const ChatWindow = ({
         ),
       },
     ],
-    [t, attachCount, activeChatId, setAttachCount],
+    [t, attachCount, activeChatId, setAttachCount, infoChat, selectedModelLabel, selectedModeLabel],
   );
 
   return (

@@ -23,6 +23,9 @@
     "collapseRight": "Collapse panel",
     "resizeLeft": "Resize panel"
   },
+  "tabs": {
+    "info": "Info"
+  },
   "panelSearch": {
     "searching": "Searching…",
     "empty": "Nothing found",
