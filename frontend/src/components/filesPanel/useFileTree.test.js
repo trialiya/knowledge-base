@@ -126,6 +126,63 @@ describe('useFileTree', () => {
     expect(gitApi.browse).toHaveBeenLastCalledWith('a/b/c.txt', false);
   });
 
+  test('a shared ancestor does not flicker when a second navigation starts before the first resolves', async () => {
+    let resolveFirst;
+    let resolveSecond;
+    const firstPromise = new Promise((resolve) => {
+      resolveFirst = resolve;
+    });
+    const secondPromise = new Promise((resolve) => {
+      resolveSecond = resolve;
+    });
+    gitApi.browse.mockImplementationOnce(() => firstPromise).mockImplementationOnce(() => secondPromise);
+
+    const { result, rerender } = renderHook(({ path }) => useFileTree({ path, onPathChange: jest.fn() }), {
+      initialProps: { path: 'a/b/c.txt' },
+    });
+    await waitFor(() => expect(gitApi.browse).toHaveBeenCalledTimes(1));
+
+    // Second navigation to a sibling file (same ancestors) fires before the
+    // first request settles — both effects are now fetching 'a/b' (among
+    // others).
+    rerender({ path: 'a/b/d.txt' });
+    await waitFor(() => expect(gitApi.browse).toHaveBeenCalledTimes(2));
+    expect(result.current.loadingDirs.has('a/b')).toBe(true);
+
+    // The stale first request resolves. Its cleanup must NOT clear the
+    // spinner for 'a/b' — the second (current) request still owns it.
+    await act(async () => {
+      resolveFirst(fileView());
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(result.current.loadingDirs.has('a/b')).toBe(true);
+    expect(result.current.contentLoading).toBe(true);
+
+    // The current request resolves — now the spinner clears for real.
+    await act(async () => {
+      resolveSecond({
+        path: 'a/b/d.txt',
+        type: 'file',
+        file: { path: 'a/b/d.txt', content: 'yo' },
+        nodes: null,
+        tree: [
+          { path: '', nodes: [nodeA] },
+          { path: 'a', nodes: [nodeAB] },
+          { path: 'a/b', nodes: [nodeC] },
+        ],
+      });
+    });
+    await waitFor(() => expect(result.current.contentLoading).toBe(false));
+
+    expect(result.current.loadingDirs.has('a/b')).toBe(false);
+    expect(result.current.content).toEqual({
+      type: 'file',
+      path: 'a/b/d.txt',
+      file: { path: 'a/b/d.txt', content: 'yo' },
+    });
+  });
+
   test('a failed directory load is not cached, so retrying refetches instead of staying empty', async () => {
     gitApi.browse.mockResolvedValue({ path: '', type: 'directory', file: null, nodes: [], tree: [] });
     gitApi.getTree.mockRejectedValue(new Error('boom'));
