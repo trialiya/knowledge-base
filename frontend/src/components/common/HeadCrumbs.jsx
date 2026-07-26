@@ -8,7 +8,10 @@ import { IconChevronRight } from '../../icons';
  *
  * props:
  *   items       — [{ key, label, onNavigate? }]; звено без onNavigate рисуется
- *                 как текущее (не кнопка) — идти по нему некуда
+ *                 как текущее (не кнопка) — идти по нему некуда. Звено с
+ *                 `ellipsis: true` (см. utils/breadcrumbs.collapseCrumbs) —
+ *                 схлопнутая середина пути: приглушённое «…», не кнопка и не
+ *                 текущее, `title` в нём — имена скрытых звеньев через « / ».
  *   trailingSep — разделитель после последнего звена. Нужен, когда следом в той
  *                 же строке стоит имя открытого объекта (база знаний: крошки —
  *                 только предки), и не нужен, когда последнее звено само и есть
@@ -38,7 +41,11 @@ const HeadCrumbs = ({ items, trailingSep = false, label }) => {
     <nav ref={ref} className="workspace__head-crumbs" aria-label={label}>
       {items.map((item, i) => (
         <React.Fragment key={item.key}>
-          {item.onNavigate ? (
+          {item.ellipsis ? (
+            <span className="workspace__head-crumb workspace__head-crumb--ellipsis" title={item.title}>
+              {item.label}
+            </span>
+          ) : item.onNavigate ? (
             <button type="button" className="workspace__head-crumb" onClick={item.onNavigate}>
               {item.label}
             </button>

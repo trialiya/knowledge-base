@@ -30,7 +30,7 @@
 .info-list__row--block .info-list__value {
   margin-top: 3px;
   margin-left: 0;
-  text-align: left;
+  justify-content: flex-start;
   font-weight: 500;
 }
 
@@ -43,11 +43,28 @@
 .info-list__value {
   margin: 0;
   margin-left: auto;
-  text-align: right;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 2px;
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--kb-text);
+}
+
+.info-list__value-text {
+  text-align: right;
   overflow-wrap: anywhere;
+}
+.info-list__row--block .info-list__value-text {
+  text-align: left;
+}
+
+/* Компактная кнопка копирования у каждой строки — 28px icon-btn слишком
+   грузный для строки высотой в одну строку текста. */
+.info-list__copy-btn {
+  width: 20px;
+  height: 20px;
 }
 
 /* Хеши, пути, id — читаются посимвольно, поэтому моноширинным. */

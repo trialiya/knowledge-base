@@ -939,7 +939,6 @@ const ChatWindow = ({
               activeChatId={activeChatId}
               onSelectChat={handleSelectChat}
               onDeleteChat={handleDeleteChat}
-              onRenameChat={renameChat}
             />
           ),
         }}

@@ -377,6 +377,12 @@
   background: none;
 }
 
+/* Схлопнутая середина длинного пути (collapseCrumbs) — не кнопка, не текущее
+   звено, поэтому не должна выглядеть кликабельной или жирной как они. */
+.workspace__head-crumb--ellipsis {
+  cursor: default;
+}
+
 .workspace__head-crumb-sep {
   display: flex;
   align-items: center;
