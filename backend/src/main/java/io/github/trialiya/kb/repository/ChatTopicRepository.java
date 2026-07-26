@@ -30,11 +30,15 @@ public interface ChatTopicRepository extends CrudRepository<ChatTopicEntity, Str
     @Query("UPDATE chat_topic SET mode = :mode WHERE conversation_id = :convId")
     void updateMode(@Param("convId") String convId, @Param("mode") String mode);
 
-    /** Чаты пользователя, чьё название содержит q (поиск по чатам). */
+    /**
+     * Чаты пользователя, чьё название содержит q (поиск по чатам). Ищет по отображаемому названию —
+     * пользовательское имя, если задано, иначе предложенное ИИ (см. {@link
+     * io.github.trialiya.kb.model.chat.entity.ChatTopicEntity#getDisplayTopic()}).
+     */
     @Query(
             """
     SELECT * FROM chat_topic
-    WHERE "user" = :user AND topic ILIKE '%' || :q || '%'
+    WHERE "user" = :user AND COALESCE(user_topic, ai_topic) ILIKE '%' || :q || '%'
     ORDER BY updated_at DESC
     """)
     List<ChatTopicEntity> searchByTopic(@Param("user") String user, @Param("q") String q);

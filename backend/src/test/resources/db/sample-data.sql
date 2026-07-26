@@ -38,8 +38,8 @@
 -- needs, matching the existing rows.
 
 -- ── chat_topic ────────────────────────────────────────────────────────────
-INSERT INTO chat_topic (conversation_id, "user", is_user, topic, model, created_at, updated_at) VALUES
-    ('c5dfa618-0ad2-4845-a976-ada46c50f9a4', 'admin', FALSE, 'История коммитов backend/build.gradle', NULL, '2026-07-18 20:59:02.915088', '2026-07-18 21:01:19.071770');
+INSERT INTO chat_topic (conversation_id, "user", user_topic, ai_topic, model, created_at, updated_at) VALUES
+    ('c5dfa618-0ad2-4845-a976-ada46c50f9a4', 'admin', NULL, 'История коммитов backend/build.gradle', NULL, '2026-07-18 20:59:02.915088', '2026-07-18 21:01:19.071770');
 
 -- ── chat_message (captured conversation, position 1..16) ────────────────────
 INSERT INTO chat_message (id, conversation_id, content, created_at, position, summarized, summary, type, meta, tool_data) VALUES

@@ -401,7 +401,7 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
     @Test
     void persistsSelectedModelOnTopic() {
         String conv = newConversation();
-        topicRepo.save(new ChatTopicEntity(conv, "alice", true, "тема", null, true));
+        topicRepo.save(new ChatTopicEntity(conv, "alice", "тема", null, null, true));
 
         topicRepo.updateModel(conv, "gpt-4o-mini");
 
@@ -415,7 +415,7 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
     @Test
     void persistsSelectedModeOnTopic() {
         String conv = newConversation();
-        topicRepo.save(new ChatTopicEntity(conv, "alice", true, "тема", null, true));
+        topicRepo.save(new ChatTopicEntity(conv, "alice", "тема", null, null, true));
 
         topicRepo.updateMode(conv, "developer");
 
@@ -431,8 +431,8 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
         String user = "bob-" + UUID.randomUUID();
         String older = newConversation();
         String newer = newConversation();
-        topicRepo.save(new ChatTopicEntity(older, user, true, "старая", null, true));
-        topicRepo.save(new ChatTopicEntity(newer, user, true, "новая", null, true));
+        topicRepo.save(new ChatTopicEntity(older, user, "старая", null, null, true));
+        topicRepo.save(new ChatTopicEntity(newer, user, "новая", null, null, true));
 
         // делаем «newer» свежее по updated_at
         topicRepo.updateUpdatedAt(newer);
@@ -514,8 +514,8 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
         String user = "carol-" + UUID.randomUUID();
         String byTitle = newConversation();
         String byMessage = newConversation();
-        topicRepo.save(new ChatTopicEntity(byTitle, user, true, "Обсуждение жирафов", null, true));
-        topicRepo.save(new ChatTopicEntity(byMessage, user, true, "Другая тема", null, true));
+        topicRepo.save(new ChatTopicEntity(byTitle, user, "Обсуждение жирафов", null, null, true));
+        topicRepo.save(new ChatTopicEntity(byMessage, user, "Другая тема", null, null, true));
 
         messageRepo.save(
                 entity(
@@ -556,10 +556,10 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
         String mine = newConversation();
         String theirs = newConversation();
         topicRepo.save(
-                new ChatTopicEntity(mine, user, true, "мой уникальный секрет123", null, true));
+                new ChatTopicEntity(mine, user, "мой уникальный секрет123", null, null, true));
         topicRepo.save(
                 new ChatTopicEntity(
-                        theirs, otherUser, true, "чужой уникальный секрет123", null, true));
+                        theirs, otherUser, "чужой уникальный секрет123", null, null, true));
 
         List<ChatSearchResult> results = memory().searchChats(user, "секрет123", 20);
 

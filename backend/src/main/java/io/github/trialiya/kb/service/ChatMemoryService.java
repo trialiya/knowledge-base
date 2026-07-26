@@ -814,7 +814,7 @@ public class ChatMemoryService implements ChatMemoryRepository {
                                     latestHitByConversation.get(topic.getConversationId());
                             return new ChatSearchResult(
                                     topic.getConversationId(),
-                                    topic.getTopic(),
+                                    topic.getDisplayTopic(),
                                     topic.getUpdatedAt(),
                                     titleMatchIds.contains(topic.getConversationId()),
                                     countByConversation.getOrDefault(topic.getConversationId(), 0),

@@ -244,8 +244,8 @@ public class ChatController {
                                     new ChatTopicEntity(
                                             chatTopicEntity.getConversationId(),
                                             chatTopicEntity.getUser(),
-                                            true,
                                             topic,
+                                            chatTopicEntity.getAiTopic(),
                                             chatTopicEntity.getModel(),
                                             chatTopicEntity.getMode(),
                                             chatTopicEntity.getCreatedAt(),
@@ -257,8 +257,8 @@ public class ChatController {
                                         new ChatTopicEntity(
                                                 conversationId,
                                                 getUser(),
-                                                true,
                                                 topic,
+                                                null,
                                                 null,
                                                 null,
                                                 null,
@@ -440,8 +440,8 @@ public class ChatController {
                                         new ChatTopicEntity(
                                                 conversationId,
                                                 getUser(),
-                                                false,
-                                                "",
+                                                null,
+                                                null,
                                                 null,
                                                 null,
                                                 null,
@@ -453,7 +453,7 @@ public class ChatController {
         return new Chat(
                 entity.getConversationId(),
                 entity.getUser(),
-                entity.getTopic(),
+                entity.getDisplayTopic(),
                 entity.getModel(),
                 entity.getMode(),
                 entity.getCreatedAt(),
