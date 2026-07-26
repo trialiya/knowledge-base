@@ -13,16 +13,18 @@ import { formatFileSize, formatDateTime } from '../../utils/formatting';
  * (см. useLastCommit): `git log` по пути дороже листинга дерева.
  *
  * `content` — это объект из useFileTree: { type: 'file'|'directory'|'not-found'
- * |'error', path, file?, nodes? }.
+ * |'error', path, file?, nodes? }. `path` берём отдельным пропом, а не из
+ * content: пока новый путь грузится, content ещё держит предыдущий, и запрос
+ * истории ушёл бы сначала за старым путём, а потом за новым — два `git log`
+ * на каждый переход по дереву.
  */
-const FileInfo = ({ content, loading }) => {
+const FileInfo = ({ content, loading, path = '' }) => {
   const { t, i18n } = useTranslation('files');
 
   const type = content?.type;
   const known = type === 'file' || type === 'directory';
-  const path = content?.path ?? '';
   // Историю тянем только для существующих путей: у not-found/error спрашивать нечего.
-  const { commit, loading: commitLoading } = useLastCommit(path, known);
+  const { commit, loading: commitLoading, error: commitError } = useLastCommit(path, known);
 
   if (loading) {
     return <p className="info-list__hint">{t('loading')}</p>;
@@ -44,9 +46,17 @@ const FileInfo = ({ content, loading }) => {
     { label: t('info.size'), value: !isDir && file?.sizeBytes != null ? formatFileSize(file.sizeBytes) : null },
     { label: t('info.language'), value: !isDir ? file?.language : null },
     { label: t('info.lines'), value: !isDir && file?.lineCount != null ? String(file.lineCount) : null },
-    // ── Последний коммит. Пока история грузится, показываем это в строке даты,
-    // а не отдельным блоком: иначе список дёргается, дорисовывая четыре строки.
-    { label: t('info.modified'), value: commitLoading ? t('loading') : formatDateTime(commit?.date, i18n.language) },
+    // ── Последний коммит. Загрузку и ошибку показываем в строке даты, а не
+    // отдельным блоком: иначе список дёргается, дорисовывая четыре строки.
+    // Без этой строки упавший запрос истории выглядел бы как «коммитов нет».
+    {
+      label: t('info.modified'),
+      value: commitLoading
+        ? t('loading')
+        : commitError
+        ? t('common:loadError')
+        : formatDateTime(commit?.date, i18n.language),
+    },
     { label: t('info.author'), value: commit?.author },
     { label: t('info.commit'), value: commit?.shortHash, mono: true },
     { label: t('info.commitMessage'), value: commit?.message, block: true },

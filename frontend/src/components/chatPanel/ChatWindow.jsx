@@ -865,6 +865,28 @@ const ChatWindow = ({
     [modeOptions, selectedModeId],
   );
 
+  // Мемо ниже держится на этом срезе, а не на самом activeChat: объект чата
+  // пересоздаётся на каждый чанк стриминга (в нём лежат messages), и вкладка
+  // «Инфо» тянула бы за собой пересборку всей правой панели. Поля здесь —
+  // примитивы, меняются только когда меняются реально.
+  const chatTitle = activeChat?.title ?? null;
+  const chatAiTopic = activeChat?.aiTopic ?? null;
+  const chatCreatedAt = activeChat?.createdAt ?? null;
+  const chatUpdatedAt = activeChat?.updatedAt ?? null;
+  const infoChat = useMemo(
+    () =>
+      activeChatId
+        ? {
+            id: activeChatId,
+            title: chatTitle,
+            aiTopic: chatAiTopic,
+            createdAt: chatCreatedAt,
+            updatedAt: chatUpdatedAt,
+          }
+        : null,
+    [activeChatId, chatTitle, chatAiTopic, chatCreatedAt, chatUpdatedAt],
+  );
+
   // ── Правая панель: инфо о чате + вложения ──────────────────────────────────
   // Мемоизируем: ChatWindow перерисовывается на каждый чанк стриминга, а без
   // этого на каждый чанк пересоздавалось бы и содержимое открытой панели
@@ -876,7 +898,7 @@ const ChatWindow = ({
         key: RIGHT_TAB.INFO,
         label: t('tabs.info'),
         icon: <IconInfo size={16} />,
-        content: <ChatInfo chat={activeChat} modelLabel={selectedModelLabel} modeLabel={selectedModeLabel} />,
+        content: <ChatInfo chat={infoChat} modelLabel={selectedModelLabel} modeLabel={selectedModeLabel} />,
       },
       {
         key: RIGHT_TAB.ATTACHMENTS,
@@ -895,7 +917,7 @@ const ChatWindow = ({
         ),
       },
     ],
-    [t, attachCount, activeChatId, setAttachCount, activeChat, selectedModelLabel, selectedModeLabel],
+    [t, attachCount, activeChatId, setAttachCount, infoChat, selectedModelLabel, selectedModeLabel],
   );
 
   return (

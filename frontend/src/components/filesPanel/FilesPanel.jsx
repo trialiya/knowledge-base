@@ -28,10 +28,10 @@ const FilesPanel = ({ path, onPathChange, panels }) => {
         key: RIGHT_TAB.INFO,
         label: t('tabs.info'),
         icon: <IconInfo size={15} />,
-        content: <FileInfo content={content} loading={contentLoading} />,
+        content: <FileInfo content={content} loading={contentLoading} path={path} />,
       },
     ],
-    [t, content, contentLoading],
+    [t, content, contentLoading, path],
   );
 
   return (

@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Version;
+import org.springframework.data.relational.core.mapping.InsertOnlyProperty;
 import org.springframework.data.relational.core.mapping.Table;
 
 @Data
@@ -22,10 +23,12 @@ public class DocumentEntity {
     private String description;
 
     /**
-     * Set once at INSERT and never touched again. Seeded from {@code updated_at} for rows that
-     * predate the column (see {@code V2026.07.27_00__documents_created_at.sql}).
+     * Set once at INSERT and never touched again — {@link InsertOnlyProperty} keeps the column out
+     * of every generated UPDATE, so a stale or mutated value on a loaded entity can no longer
+     * rewrite it. Seeded from the oldest {@code document_history} snapshot for rows that predate
+     * the column (see {@code V2026.07.27_00__documents_created_at.sql}).
      */
-    private LocalDateTime createdAt;
+    @InsertOnlyProperty private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
 
