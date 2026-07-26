@@ -27,6 +27,25 @@ const gitApi = {
   },
 
   /**
+   * Открыть путь в файловом браузере одним запросом: чем путь является, его
+   * содержимое (файл) или листинг (каталог) и — при ancestors=true — листинги
+   * всех каталогов-предков, чтобы дерево слева раскрылось до него без запроса
+   * на каждый уровень вложенности.
+   *
+   * Возвращает GitPathView { path, type: 'file'|'directory'|'missing', file?,
+   * nodes?, tree: [{ path, nodes }] }.
+   *
+   * @param {boolean} ancestors — false, если листинги предков уже в кэше клиента.
+   */
+  browse: (path, ancestors = true, signal) => {
+    const params = new URLSearchParams();
+    if (path) params.set('path', path);
+    if (!ancestors) params.set('ancestors', 'false');
+    const qs = params.toString();
+    return request(`/api/git/browse${qs ? `?${qs}` : ''}`, signal ? { signal } : undefined);
+  },
+
+  /**
    * Прямые потомки каталога (файлы + подкаталоги) для дерева файлового браузера.
    * path='' или omitted — корень репозитория. Возвращает GitFileNode[], каталоги
    * отсортированы перед файлами, затем по алфавиту.

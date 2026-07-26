@@ -94,14 +94,17 @@ export const FileView = ({ file, path }) => {
   );
 };
 
-const FileContent = ({ content, loading, onNavigate }) => {
+const FileContent = ({ content, path, loading, onNavigate }) => {
   const { t } = useTranslation('files');
 
-  const path = content?.path ?? '';
+  // Крошки рисуем по запрошенному пути, а не по загруженному содержимому: путь
+  // известен сразу из URL, и шапка центра появляется, не дожидаясь ответа
+  // (иначе при переходе она ещё показывала бы предыдущий файл).
+  const crumbPath = path ?? content?.path ?? '';
 
   return (
     <div className="file-content">
-      <Breadcrumb path={path} onNavigate={onNavigate} />
+      <Breadcrumb path={crumbPath} onNavigate={onNavigate} />
       <div className="file-content__body">
         {loading && <div className="file-content__empty">{t('loading')}</div>}
         {!loading && content?.type === 'directory' && (

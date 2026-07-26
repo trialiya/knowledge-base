@@ -23,8 +23,11 @@ const FileInfo = ({ content, loading, path = '' }) => {
 
   const type = content?.type;
   const known = type === 'file' || type === 'directory';
-  // Историю тянем только для существующих путей: у not-found/error спрашивать нечего.
-  const { commit, loading: commitLoading, error: commitError } = useLastCommit(path, known);
+  // Историю тянем только для существующих путей: у not-found/error спрашивать
+  // нечего. Пока путь грузится, тип ещё неизвестен — и мы всё равно спрашиваем,
+  // параллельно с содержимым: ждать ответа центра значило бы отложить `git log`
+  // ещё на один round-trip, а промах (путь не существует) стоит пустой истории.
+  const { commit, loading: commitLoading, error: commitError } = useLastCommit(path, loading || known);
 
   if (loading) {
     return <p className="info-list__hint">{t('loading')}</p>;

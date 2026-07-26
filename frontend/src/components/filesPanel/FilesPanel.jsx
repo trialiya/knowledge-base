@@ -57,7 +57,7 @@ const FilesPanel = ({ path, onPathChange, panels }) => {
           </div>
         ),
       }}
-      center={<FileContent content={content} loading={contentLoading} onNavigate={onPathChange} />}
+      center={<FileContent content={content} path={path} loading={contentLoading} onNavigate={onPathChange} />}
       right={rightTabs}
     />
   );
