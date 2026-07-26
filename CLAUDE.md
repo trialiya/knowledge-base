@@ -337,6 +337,21 @@ init script, and starts `dockerd` itself for the `*IT` suites. Maven Central,
 plugins.gradle.org, nodejs.org and Docker Hub are all reachable; only the Gradle
 distribution download is blocked.
 
+### Testcontainers Docker image caching
+
+The `*IT` suites use Testcontainers to spin up a PostgreSQL 17 + pgvector database.
+On the first run, Docker needs to pull `pgvector/pgvector:pg17` from the registry,
+which can be slow (5–10 minutes) or fail transiently. If `./run/test.sh` fails with
+`ContainerFetchException: Can't get Docker image: pgvector/pgvector:pg17`, pre-pull
+the image and retry:
+
+```bash
+docker pull pgvector/pgvector:pg17
+./run/test.sh pre-pr  # or ./run/test.sh unit, etc.
+```
+
+Once pulled, the image is cached locally and subsequent test runs are fast.
+
 ### Visually validating the frontend in the web sandbox (Playwright)
 
 Chromium and Playwright are pre-installed (no `playwright install`). Don't use
