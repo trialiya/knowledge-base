@@ -1,64 +1,17 @@
 /* Оболочка раздела (контейнер, левая панель, центр, правая панель) — общая:
    см. common/workspaceLayout.css. Здесь только внутренности чата. */
 
-/* ── Шапка активного чата ── */
-.chat-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  /* верх увеличен: даём место всплывающей дате над заголовком, чтобы её
-     не обрезал центр рабочей области (overflow: hidden) */
-  padding: 1.35rem 1.2rem 0.85rem;
-  border-bottom: 1px solid var(--kb-border);
-  background: var(--kb-white);
-  flex-shrink: 0;
-}
+/* ── Шапка активного чата ──
+   Сама шапка — общая .workspace__head (common/workspaceLayout.css): высота у
+   неё та же, что у шапок боковых панелей. Здесь только то, что специфично для
+   чата: клик по имени переименовывает его на месте. Даты в шапке нет — она на
+   вкладке «Инфо» справа. */
 
-.chat-header-title {
-  flex: 1;
-  min-width: 0;
-  position: relative; /* якорь для всплывающей даты */
-}
-
-.chat-header-title h3 {
-  margin: 0 0 2px;
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--kb-text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.chat-header__title {
   cursor: pointer;
 }
-.chat-header-title h3:hover {
+.chat-header__title:hover {
   color: var(--kb-accent);
-}
-
-.chat-header-title .chat-meta {
-  /* Дату не показываем в потоке: это всплывающая подсказка НАД заголовком,
-     которая не занимает места и проявляется только при наведении на сам h3. */
-  position: absolute;
-  left: 0;
-  bottom: calc(100% + 4px); /* над блоком заголовка */
-  z-index: 20;
-  margin: 0;
-  padding: 2px 8px;
-  font-size: 0.72rem;
-  line-height: 1.25;
-  color: var(--kb-muted);
-  background: var(--kb-white);
-  border: 1px solid var(--kb-border);
-  border-radius: 6px;
-  white-space: nowrap;
-  box-shadow: 0 4px 12px rgba(91, 79, 207, 0.14);
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(4px);
-  transition: opacity 0.15s, transform 0.15s;
-}
-.chat-header-title h3:hover ~ .chat-meta {
-  opacity: 1;
-  transform: translateY(0);
 }
 
 /* ── Селектор модели в шапке: кастомный дропдаун ── */
@@ -84,7 +37,7 @@
   padding: 0;
   border: none;
   background: transparent;
-  /* Моноширинный «технический» стиль — отличается от заголовка (.chat-header-title h3),
+  /* Моноширинный «технический» стиль — отличается от заголовка чата,
      id моделей читаются как токены (claude-opus-4, gpt-4o и т.п.) */
   font-family: ui-monospace, 'SF Mono', 'Cascadia Code', 'Cascadia Mono', Consolas, 'Liberation Mono', monospace;
   font-size: 0.8rem;
@@ -184,9 +137,11 @@
   color: var(--kb-accent);
 }
 
-.chat-header-edit {
+/* Поле инлайн-переименования: стоит на месте заголовка, поэтому тянется так же
+   (flex: 1), а не во всю ширину шапки — справа кнопки действий. */
+.chat-header__edit {
   display: block;
-  width: 100%;
+  flex: 1;
   box-sizing: border-box;
   border: 1.5px solid var(--kb-accent);
   border-radius: 8px;

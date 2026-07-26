@@ -169,6 +169,15 @@ doesn't touch. One PR = the task + migration of the files it touched.
   — it lives on `:root` because the drag handle rewrites it there for every
   section at once; a `.workspace--*` override would outrank `:root` and freeze
   that section's width, so never redeclare it.
+- The header of the center area is the shared `.workspace__head`
+  (`common/workspaceLayout.css`) — same `--ws-head-min-h` as the left/right
+  `.workspace__side-head`, so all three columns start on one line. It is **one
+  row**: put the object's name in `.workspace__head-title` (ellipsis) and the
+  buttons in `.workspace__head-actions`; nothing may wrap. Metadata does not go
+  there — dates, versions, path, author belong to the right panel's Info tab
+  (that is why the chat's created-at, the KB date row and the KB "up one level"
+  button, a duplicate of the last breadcrumb, are gone). Both heads set
+  `box-sizing: border-box` themselves — there is no global one.
 - Panel layout is **controlled state that lives in the URL** (`?left=0`,
   `?right=<tab>`), owned by `useAppNavigation` and threaded down as the `panels`
   prop from `App`. Per-section layout is remembered in `localStorage`

@@ -20,45 +20,8 @@
   min-height: 0;
 }
 
-/* Header — те же отступы, что у .chat-header (0.85rem 1.2rem) + линия снизу */
-.detail-header {
-  padding: 0.85rem 1.2rem;
-  flex-shrink: 0;
-  border-bottom: 1px solid var(--kb-border);
-}
-
-.detail-header__top {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.detail-back-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  border: 1.5px solid var(--kb-border);
-  background: var(--kb-white);
-  color: var(--kb-accent);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background 0.15s, border-color 0.15s;
-}
-.detail-back-btn:hover {
-  background: var(--kb-accent-bg);
-  border-color: var(--kb-accent);
-}
-
-.detail-header__main {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-}
+/* Шапка — общая .workspace__head (common/workspaceLayout.css): одна высота с
+   шапками боковых панелей и одна строка. Здесь только её содержимое. */
 
 .detail-header__icon {
   display: flex;
@@ -78,32 +41,25 @@
   color: var(--kb-muted);
 }
 
-.detail-header__title {
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--kb-text);
-  margin: 0;
-  letter-spacing: -0.01em;
-  display: flex;
+/* Замок системного узла — на месте кнопок действий: такой узел не переименовать
+   и не удалить, значок объясняет, почему кнопок нет. */
+.detail-header__system-badge {
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
-  min-width: 0;
+  padding: 0 6px;
+  color: var(--kb-muted);
 }
 
+/* Заголовок — общий .workspace__head-title. Переименование живёт в кнопках
+   справа и проявляется по наведению на шапку (место под неё занято всегда —
+   строка не должна дёргаться под курсором). */
 .detail-header__rename-btn {
   opacity: 0;
   transition: opacity 0.15s;
 }
-.detail-header__title:hover .detail-header__rename-btn,
-.detail-header__title:focus-within .detail-header__rename-btn {
+.detail-header:hover .detail-header__rename-btn,
+.detail-header:focus-within .detail-header__rename-btn {
   opacity: 1;
-}
-
-.detail-header__actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
 }
 
 /* Inline rename */
@@ -128,35 +84,26 @@
   letter-spacing: -0.01em;
 }
 
-/* Date — отдельной строкой под именем и breadcrumb (как .chat-meta) */
-.detail-date {
-  display: block;
-  font-size: 0.75rem;
-  color: var(--kb-muted);
-  white-space: nowrap;
-  margin-top: 6px;
-}
-
-/* Breadcrumb */
+/* Breadcrumb — в одной строке с заголовком (дат и «наверх» в шапке больше нет).
+   Уступает место первым: сжимается и режется, пока имя открытого узла целое. */
 .detail-breadcrumb {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-top: 6px;
-  flex-wrap: wrap;
-}
-.detail-breadcrumb__icon {
-  display: flex;
-  align-items: center;
-  color: var(--kb-muted);
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
 }
 .detail-breadcrumb__item {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 0.78rem;
+  font-size: 0.86rem;
   color: var(--kb-muted);
   padding: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   transition: color 0.15s;
 }
 .detail-breadcrumb__item:hover {
@@ -166,6 +113,7 @@
 .detail-breadcrumb__sep {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
   color: var(--kb-border);
 }
 

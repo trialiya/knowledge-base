@@ -3,11 +3,15 @@ import { useTranslation } from 'react-i18next';
 import { IconTrash, IconSearch } from '../../icons';
 
 /**
- * Шапка активного чата: заголовок с инлайн-переименованием, дата создания и
- * кнопки поиска/удаления. Вынесено из ChatWindow — состояние редактирования
+ * Шапка активного чата: заголовок с инлайн-переименованием и кнопки
+ * поиска/удаления. Вынесено из ChatWindow — состояние редактирования
  * заголовка живёт здесь и не ре-рендерит оркестратор на каждый keystroke.
  * Селекторы модели/режима переехали под поле ввода (ComposerToolbar), вложения —
  * в правую панель рабочей области (её тумблер общий для всех разделов).
+ *
+ * Общая оболочка шапки — .workspace__head (common/workspaceLayout.css): у неё
+ * та же высота, что у шапок боковых панелей. Даты здесь нет намеренно — она
+ * (вместе с моделью, режимом и id) на вкладке «Инфо» справа.
  *
  * `chat` обязателен (не null) — условие рендера держит вызывающая сторона
  * (ChatWindow: activeChat && <ChatHeader …/>). Так внутри нет раннего return
@@ -49,45 +53,46 @@ const ChatHeader = ({ chat, canSearch, searchOpen, onToggleSearch, onRename, onD
   };
 
   return (
-    <div className="chat-header">
-      <div className="chat-header-title">
-        {editing ? (
-          <input
-            className="chat-header-edit"
-            value={editing.draft}
-            autoFocus
-            onChange={(e) => setEditing((ed) => (ed ? { ...ed, draft: e.target.value } : ed))}
-            onBlur={commitRename}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') e.target.blur();
-              if (e.key === 'Escape') {
-                cancelRef.current = true;
-                e.target.blur();
-              }
-            }}
-          />
-        ) : (
-          <h3 title={t('window.renameHint')} onClick={() => setEditing({ id: chat.id, draft: chat.title })}>
-            {chat.title}
-          </h3>
-        )}
-        {chat.createdAt && (
-          <div className="chat-meta">{t('window.createdAt', { date: new Date(chat.createdAt).toLocaleString() })}</div>
-        )}
-      </div>
-      {/* Search toggle button in header (Ctrl/Cmd+F) */}
-      {canSearch && (
-        <button
-          className={`icon-btn${searchOpen ? ' icon-btn--done' : ''}`}
-          onClick={onToggleSearch}
-          title={t('inChatSearch.open')}
+    <div className="workspace__head">
+      {editing ? (
+        <input
+          className="chat-header__edit"
+          value={editing.draft}
+          autoFocus
+          onChange={(e) => setEditing((ed) => (ed ? { ...ed, draft: e.target.value } : ed))}
+          onBlur={commitRename}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.target.blur();
+            if (e.key === 'Escape') {
+              cancelRef.current = true;
+              e.target.blur();
+            }
+          }}
+        />
+      ) : (
+        <h3
+          className="workspace__head-title chat-header__title"
+          title={t('window.renameHint')}
+          onClick={() => setEditing({ id: chat.id, draft: chat.title })}
         >
-          <IconSearch size={14} />
-        </button>
+          {chat.title}
+        </h3>
       )}
-      <button className="icon-btn icon-btn--danger" onClick={() => onDelete(chat.id)}>
-        <IconTrash />
-      </button>
+      <div className="workspace__head-actions">
+        {/* Search toggle button in header (Ctrl/Cmd+F) */}
+        {canSearch && (
+          <button
+            className={`icon-btn${searchOpen ? ' icon-btn--done' : ''}`}
+            onClick={onToggleSearch}
+            title={t('inChatSearch.open')}
+          >
+            <IconSearch size={14} />
+          </button>
+        )}
+        <button className="icon-btn icon-btn--danger" onClick={() => onDelete(chat.id)}>
+          <IconTrash />
+        </button>
+      </div>
     </div>
   );
 };

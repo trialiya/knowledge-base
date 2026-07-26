@@ -12,12 +12,18 @@ function segmentsOf(path) {
   });
 }
 
+/**
+ * Путь к открытому файлу — он же шапка центра файлового раздела: оболочка общая
+ * (.workspace__head, common/workspaceLayout.css), поэтому высота та же, что у
+ * шапок боковых панелей. Метаданные пути (размер, язык, последний коммит) — на
+ * вкладке «Инфо» справа, здесь только навигация.
+ */
 const Breadcrumb = ({ path, onNavigate }) => {
   const { t } = useTranslation('files');
   const segments = segmentsOf(path);
 
   return (
-    <nav className="file-breadcrumb" aria-label={t('breadcrumb.label')}>
+    <nav className="workspace__head file-breadcrumb" aria-label={t('breadcrumb.label')}>
       <button className="file-breadcrumb__crumb" onClick={() => onNavigate('')}>
         {t('breadcrumb.root')}
       </button>

@@ -23,6 +23,13 @@
   --ws-row-font: 0.86rem;
   --ws-indent: 14px;
 
+  /* Высота шапок. Одна на все три колонки: шапка списка слева, шапка объекта в
+     центре и шапка вкладок справа стоят на одной линии — раньше центральная
+     была заметно выше (у чата 1.35rem сверху под всплывающую дату, у базы
+     знаний три строки: имя, крошки, дата) и «ступенька» была видна на стыке. */
+  --ws-head-min-h: 56px;
+  --ws-head-pad-x: 1.2rem;
+
   flex: 1;
   display: flex;
   overflow: hidden;
@@ -64,7 +71,11 @@
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
-  min-height: 44px;
+  /* border-box обязателен: глобального box-sizing в проекте нет, а высота
+     должна совпадать с шапкой центра до пикселя (иначе отступы прибавятся
+     только здесь). */
+  box-sizing: border-box;
+  min-height: var(--ws-head-min-h);
   /* Справа отступ меньше: там кнопка-иконка, её собственные поля добирают
      оптическое равенство с левым краем. */
   padding: 0.4rem 0.5rem 0.4rem var(--ws-gutter);
@@ -275,6 +286,49 @@
   flex-direction: column;
   overflow: hidden;
   background: var(--kb-white);
+}
+
+/* Шапка центра — та же высота и та же линия снизу, что у боковых (.workspace__
+   side-head). Разделы кладут в неё только своё содержимое: имя объекта, крошки
+   и кнопки действий. Всё, что «про объект» (даты, версии, путь, автор), живёт в
+   правой панели на вкладке «Инфо» — в шапке это было бы вторым экземпляром той
+   же информации и лишней строкой высоты.
+
+   Строка ровно одна: содержимое не переносится (иначе шапка вырастет и равенство
+   высот сломается), длинное — режется многоточием или уезжает в скролл. */
+.workspace__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  min-height: var(--ws-head-min-h);
+  padding: 0.4rem var(--ws-head-pad-x);
+  border-bottom: 1px solid var(--kb-border);
+  background: var(--kb-white);
+}
+
+/* Имя открытого объекта: занимает всю свободную ширину и режется многоточием.
+   Блочный (не flex) — text-overflow работает только на самом текстовом боксе. */
+.workspace__head-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--kb-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Кнопки справа в шапке центра */
+.workspace__head-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
 /* ── Адаптив ──

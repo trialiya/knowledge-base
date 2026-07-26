@@ -57,16 +57,22 @@
   font-size: 0.9rem;
 }
 
-/* ── Breadcrumb ── */
+/* ── Breadcrumb ──
+   Он же шапка центра: общая .workspace__head даёт высоту, отступы и линию снизу
+   (см. common/workspaceLayout.css). Здесь только сами крошки.
+
+   Строка одна и не переносится — иначе глубокий путь растил бы шапку. Длинный
+   путь уезжает в горизонтальный скролл (полосу прячем, как у вкладок правой
+   панели): конец пути — имя файла — виден всегда. */
 
 .file-breadcrumb {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
   gap: 4px;
-  padding: 0.9rem 1.5rem;
-  border-bottom: 1px solid var(--kb-border);
   font-size: 0.86rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.file-breadcrumb::-webkit-scrollbar {
+  display: none;
 }
 
 .file-breadcrumb__crumb {
@@ -77,6 +83,8 @@
   font: inherit;
   color: var(--kb-accent);
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .file-breadcrumb__crumb:hover {
   background: var(--kb-accent-light);
@@ -95,6 +103,7 @@
 .file-breadcrumb__sep {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
   color: var(--kb-border);
 }
 
