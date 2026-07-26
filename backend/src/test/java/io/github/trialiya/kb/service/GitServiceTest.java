@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
+import io.github.trialiya.kb.model.git.dto.GitTreeLevel;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -347,5 +348,127 @@ class GitServiceTest {
         List<GitDiffEntry> changes = service.getUncommittedChanges(false);
         assertThat(changes).extracting(GitDiffEntry::path).containsExactly("conflict.txt");
         assertThat(changes.get(0).status()).isEqualTo("M");
+    }
+
+    // ── browsePath: opening one path in the file browser ─────────────────────
+
+    @Test
+    void browsePathReturnsFileContentAndEveryAncestorListing() {
+        writeFile("src/main/java/com/app/Main.java", "class Main {}\n");
+        writeFile("src/main/java/com/app/Util.java", "class Util {}\n");
+        writeFile("README.md", "readme\n");
+        commitAll();
+
+        var view = service.browsePath("src/main/java/com/app/Main.java", true);
+
+        assertThat(view.type()).isEqualTo("file");
+        assertThat(view.file()).isNotNull();
+        assertThat(view.file().content()).contains("class Main");
+        assertThat(view.nodes()).isNull();
+
+        // The whole chain root → parent comes back at once: that is what saved the file browser
+        // one round trip per level of nesting.
+        assertThat(view.tree())
+                .extracting(GitTreeLevel::path)
+                .containsExactly(
+                        "",
+                        "src",
+                        "src/main",
+                        "src/main/java",
+                        "src/main/java/com",
+                        "src/main/java/com/app");
+        assertThat(view.tree().getFirst().nodes())
+                .extracting(GitFileNode::name)
+                .containsExactly("src", "README.md"); // directories first
+        // The last level is the file's own directory — the tree needs its siblings to render it.
+        assertThat(view.tree().getLast().nodes())
+                .extracting(GitFileNode::name)
+                .containsExactly("Main.java", "Util.java");
+    }
+
+    @Test
+    void browsePathReturnsDirectoryListingWithoutRepeatingItInTheAncestors() {
+        writeFile("docs/guide/intro.md", "intro\n");
+        commitAll();
+
+        var view = service.browsePath("docs/guide", true);
+
+        assertThat(view.type()).isEqualTo("directory");
+        assertThat(view.file()).isNull();
+        assertThat(view.nodes()).extracting(GitFileNode::name).containsExactly("intro.md");
+        // The opened directory itself is in `nodes`, so it must not be duplicated as a level.
+        assertThat(view.tree()).extracting(GitTreeLevel::path).containsExactly("", "docs");
+    }
+
+    @Test
+    void browsePathSkipsAncestorsWhenTheCallerAlreadyHasThem() {
+        writeFile("docs/guide/intro.md", "intro\n");
+        commitAll();
+
+        var view = service.browsePath("docs/guide/intro.md", false);
+
+        assertThat(view.type()).isEqualTo("file");
+        assertThat(view.file()).isNotNull();
+        assertThat(view.tree()).isEmpty();
+    }
+
+    @Test
+    void browsePathReportsAnUnknownPathAsMissingInsteadOfFailing() {
+        writeFile("docs/guide/intro.md", "intro\n");
+        commitAll();
+
+        var view = service.browsePath("docs/guide/gone.md", true);
+
+        // A dead deep link must render as "not found", not as a load error.
+        assertThat(view.type()).isEqualTo("missing");
+        assertThat(view.file()).isNull();
+        assertThat(view.nodes()).isNull();
+        // The tree still expands as far as the path exists, so the user sees where it broke.
+        assertThat(view.tree())
+                .extracting(GitTreeLevel::path)
+                .containsExactly("", "docs", "docs/guide");
+    }
+
+    @Test
+    void browsePathWithoutPathOpensTheRepositoryRoot() {
+        writeFile("docs/guide/intro.md", "intro\n");
+        writeFile("README.md", "readme\n");
+        commitAll();
+
+        var view = service.browsePath(null, true);
+
+        assertThat(view.path()).isEmpty();
+        assertThat(view.type()).isEqualTo("directory");
+        assertThat(view.nodes()).extracting(GitFileNode::name).containsExactly("docs", "README.md");
+        // The root has no ancestors — its own listing is `nodes`, not a tree level.
+        assertThat(view.tree()).isEmpty();
+    }
+
+    @Test
+    void browsePathListingsMatchTheSingleDirectoryEndpoint() {
+        writeFile("src/main/java/com/app/Main.java", "class Main {}\n");
+        writeFile("src/main/resources/app.yaml", "a: 1\n");
+        writeFile("src/README.md", "readme\n");
+        commitAll();
+
+        // The batched pass over the index must produce exactly what getFileTree does level by
+        // level — same nodes, same order.
+        var view = service.browsePath("src/main/java/com/app/Main.java", true);
+        for (GitTreeLevel level : view.tree()) {
+            assertThat(level.nodes()).isEqualTo(service.getFileTree(level.path()));
+        }
+    }
+
+    @Test
+    void browsePathHandlesWindowsBackslashesAndTrailingSlashes() {
+        writeFile("src/main/Foo.java", "class Foo {}\n");
+        commitAll();
+
+        assertThat(service.browsePath("src\\main\\Foo.java", true).type()).isEqualTo("file");
+
+        var dir = service.browsePath("src/main/", true);
+        assertThat(dir.path()).isEqualTo("src/main");
+        assertThat(dir.type()).isEqualTo("directory");
+        assertThat(dir.nodes()).extracting(GitFileNode::name).containsExactly("Foo.java");
     }
 }

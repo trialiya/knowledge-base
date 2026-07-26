@@ -7,6 +7,8 @@ import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
+import io.github.trialiya.kb.model.git.dto.GitPathView;
+import io.github.trialiya.kb.model.git.dto.GitTreeLevel;
 import io.github.trialiya.kb.model.git.dto.OutlineResult;
 import io.github.trialiya.kb.service.outline.LanguageDetector;
 import jakarta.annotation.PreDestroy;
@@ -23,8 +25,10 @@ import java.nio.file.StandardCopyOption;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -98,6 +102,11 @@ public class GitService {
      */
     private static final int ABBREV_LEN = 7;
 
+    /** Tree listing order: directories first, then by name, case-insensitively. */
+    private static final Comparator<GitFileNode> NODE_ORDER =
+            Comparator.<GitFileNode, Boolean>comparing(n -> !"directory".equals(n.type()))
+                    .thenComparing(GitFileNode::name, String.CASE_INSENSITIVE_ORDER);
+
     /** File names to always exclude from uncommitted changes (OS/IDE junk). */
     private static final Set<String> IGNORED_FILES =
             Set.of(".DS_Store", "Thumbs.db", "desktop.ini", ".directory");
@@ -147,37 +156,121 @@ public class GitService {
      */
     public List<GitFileNode> getFileTree(@Nullable String subPath) {
         String base = normalizeSub(subPath);
-        List<String> lines =
-                trackedPaths().stream()
-                        .filter(p -> base.isEmpty() || p.equals(base) || p.startsWith(base + "/"))
-                        .toList();
+        return listDirectories(trackedPaths(), Set.of(base)).getOrDefault(base, List.of());
+    }
 
-        // Build a de-duplicated list: files + their direct parent directories
-        // relative to the requested subPath.
-        var nodes = new java.util.LinkedHashMap<String, GitFileNode>();
-        int prefixLen = base.isEmpty() ? 0 : base.length() + 1; // +1 for trailing '/'
+    /**
+     * Lists several directories in a single pass over the index.
+     *
+     * <p>Each tracked path is walked segment by segment; whenever a prefix of it is one of the
+     * requested {@code bases}, the child at that level (a subdirectory or the file itself) is added
+     * to that base's listing. So the whole ancestor chain of a deeply nested file costs one index
+     * read and one scan, instead of one full scan per level as repeated {@link
+     * #getFileTree(String)} calls would.
+     *
+     * @param tracked index paths, as returned by {@link #trackedPaths()}
+     * @param bases directory paths to list ("" — repo root); paths that are not directories simply
+     *     come back with an empty listing
+     */
+    private Map<String, List<GitFileNode>> listDirectories(
+            List<String> tracked, Set<String> bases) {
+        // Directory nodes de-duplicate by path (many files share one subdirectory), hence the
+        // LinkedHashMap per base rather than a plain list.
+        Map<String, LinkedHashMap<String, GitFileNode>> acc = new LinkedHashMap<>();
+        for (String base : bases) {
+            acc.put(base, new LinkedHashMap<>());
+        }
 
-        for (String line : lines) {
-            if (line.length() <= prefixLen) continue;
-            String relative = line.substring(prefixLen);
-            int slash = relative.indexOf('/');
-            if (slash >= 0) {
-                // It's inside a subdirectory — add directory node
-                String dirName = relative.substring(0, slash);
-                String dirPath = base.isEmpty() ? dirName : base + "/" + dirName;
-                nodes.putIfAbsent(dirPath, new GitFileNode(dirPath, dirName, "directory", null));
-            } else {
-                // Direct file
-                long size = fileSize(line);
-                nodes.putIfAbsent(line, new GitFileNode(line, relative, "file", size));
+        for (String path : tracked) {
+            int from = 0;
+            while (true) {
+                int slash = path.indexOf('/', from);
+                String dir = from == 0 ? "" : path.substring(0, from - 1);
+                LinkedHashMap<String, GitFileNode> bucket = acc.get(dir);
+                if (bucket != null) {
+                    if (slash >= 0) {
+                        String name = path.substring(from, slash);
+                        String dirPath = dir.isEmpty() ? name : dir + "/" + name;
+                        bucket.putIfAbsent(
+                                dirPath, new GitFileNode(dirPath, name, "directory", null));
+                    } else {
+                        String name = path.substring(from);
+                        bucket.putIfAbsent(
+                                path, new GitFileNode(path, name, "file", fileSize(path)));
+                    }
+                }
+                if (slash < 0) break;
+                from = slash + 1;
             }
         }
-        return nodes.values().stream()
-                .sorted(
-                        Comparator.<GitFileNode, Boolean>comparing(
-                                        n -> !"directory".equals(n.type()))
-                                .thenComparing(GitFileNode::name, String.CASE_INSENSITIVE_ORDER))
-                .toList();
+
+        Map<String, List<GitFileNode>> result = new LinkedHashMap<>();
+        acc.forEach(
+                (base, nodes) ->
+                        result.put(base, nodes.values().stream().sorted(NODE_ORDER).toList()));
+        return result;
+    }
+
+    // ── Opening a path in the file browser ───────────────────────────────────
+
+    /**
+     * Resolves {@code path} into everything the file browser needs to render it: what the path is
+     * (file / directory / missing), its content or listing, and — when {@code includeAncestors} —
+     * the listings of every directory from the repo root down to the path's parent, so the tree can
+     * be expanded to it without walking the levels one request at a time.
+     *
+     * @param path path relative to repo root; null or blank means the root itself
+     * @param includeAncestors whether to include the ancestor listings; a caller that already has
+     *     them cached passes false and gets only the path itself
+     */
+    public GitPathView browsePath(@Nullable String path, boolean includeAncestors) {
+        String target = normalizeSub(path);
+        List<String> tracked = trackedPaths();
+        String type = resolvePathType(target, tracked);
+
+        List<String> ancestors = includeAncestors ? ancestorDirs(target) : List.of();
+        Set<String> bases = new LinkedHashSet<>(ancestors);
+        boolean isDirectory = "directory".equals(type);
+        if (isDirectory) bases.add(target);
+        Map<String, List<GitFileNode>> listings =
+                bases.isEmpty() ? Map.of() : listDirectories(tracked, bases);
+
+        List<GitTreeLevel> tree =
+                ancestors.stream()
+                        .map(dir -> new GitTreeLevel(dir, listings.getOrDefault(dir, List.of())))
+                        .toList();
+
+        return new GitPathView(
+                target,
+                type,
+                "file".equals(type) ? getFileContent(target) : null,
+                isDirectory ? listings.getOrDefault(target, List.of()) : null,
+                tree);
+    }
+
+    /** {@code "file"}, {@code "directory"} or {@code "missing"} — the repo root is a directory. */
+    private static String resolvePathType(String path, List<String> tracked) {
+        if (path.isEmpty()) return "directory";
+        String prefix = path + "/";
+        for (String candidate : tracked) {
+            if (candidate.equals(path)) return "file";
+            if (candidate.startsWith(prefix)) return "directory";
+        }
+        return "missing";
+    }
+
+    /**
+     * Directories from the repo root down to {@code path}'s parent; {@code path} itself is never
+     * included — for the root that means no ancestors at all, not a self-reference.
+     */
+    private static List<String> ancestorDirs(String path) {
+        if (path.isEmpty()) return List.of();
+        List<String> dirs = new ArrayList<>();
+        dirs.add("");
+        for (int slash = path.indexOf('/'); slash >= 0; slash = path.indexOf('/', slash + 1)) {
+            dirs.add(path.substring(0, slash));
+        }
+        return dirs;
     }
 
     // ── Commit history ───────────────────────────────────────────────────────

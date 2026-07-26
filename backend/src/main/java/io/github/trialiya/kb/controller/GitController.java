@@ -3,6 +3,7 @@ package io.github.trialiya.kb.controller;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
+import io.github.trialiya.kb.model.git.dto.GitPathView;
 import io.github.trialiya.kb.service.GitService;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
@@ -19,10 +20,11 @@ import org.springframework.web.server.ResponseStatusException;
  *
  * <p>{@code GET /search} fuzzy-matches tracked file names for the picker; {@code GET /content}
  * returns a file (optionally a line range) so an inserted chip can be previewed and expanded into
- * the outgoing message; {@code GET /tree} lists the direct children of a directory for the file
- * browser tree; {@code GET /commits} returns commit history for a path. All delegate to {@link
- * GitService}, which enforces tracked-files-only access, path-traversal guards and binary/size
- * limits.
+ * the outgoing message; {@code GET /browse} opens one path in the file browser (content or listing
+ * plus the ancestor directories) in a single round trip, while {@code GET /tree} lists the direct
+ * children of a single directory (a chevron click in that tree); {@code GET /commits} returns
+ * commit history for a path. All delegate to {@link GitService}, which enforces tracked-files-only
+ * access, path-traversal guards and binary/size limits.
  */
 @RestController
 @RequestMapping("/api/git")
@@ -68,6 +70,25 @@ public class GitController {
             requireSafePath(path);
         }
         return gitService.getCommitLog(limit, path);
+    }
+
+    /**
+     * Opens {@code path} in the file browser in one round trip: what the path is (file / directory
+     * / missing), its content or listing, and — unless {@code ancestors=false} — the listings of
+     * every directory between the repo root and the path, so the tree can expand to it without a
+     * request per level. Omit {@code path} for the repo root.
+     *
+     * <p>Clients that already have the ancestor listings cached (navigating inside the tree they
+     * just loaded) pass {@code ancestors=false} and get only the path itself.
+     */
+    @GetMapping("/browse")
+    public GitPathView browse(
+            @RequestParam(name = "path", required = false) @Nullable String path,
+            @RequestParam(name = "ancestors", defaultValue = "true") boolean ancestors) {
+        if (path != null && !path.isBlank()) {
+            requireSafePath(path);
+        }
+        return gitService.browsePath(path, ancestors);
     }
 
     /**

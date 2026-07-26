@@ -1,30 +1,56 @@
 import { renderHook, waitFor, act } from '@testing-library/react';
 import useFileTree from './useFileTree';
+import { resetFileTreeCache } from './fileTreeStore';
 import gitApi from '../../api/gitApi';
 
 jest.mock('../../api/gitApi');
 
+const nodeA = { path: 'a', name: 'a', type: 'directory', size: null };
+const nodeAB = { path: 'a/b', name: 'b', type: 'directory', size: null };
+const nodeC = { path: 'a/b/c.txt', name: 'c.txt', type: 'file', size: 2 };
+
+/** Ответ /api/git/browse для 'a/b/c.txt' — с листингами предков или без них. */
+const fileView = (withTree = true) => ({
+  path: 'a/b/c.txt',
+  type: 'file',
+  file: { path: 'a/b/c.txt', content: 'hi' },
+  nodes: null,
+  tree: withTree
+    ? [
+        { path: '', nodes: [nodeA] },
+        { path: 'a', nodes: [nodeAB] },
+        { path: 'a/b', nodes: [nodeC] },
+      ]
+    : [],
+});
+
 describe('useFileTree', () => {
+  beforeEach(() => {
+    resetFileTreeCache();
+  });
+
   afterEach(() => {
     jest.resetAllMocks();
   });
 
-  test('expands all ancestor directories for a deep-linked path', async () => {
-    const tree = {
-      '': [{ path: 'a', name: 'a', type: 'directory', size: null }],
-      a: [{ path: 'a/b', name: 'b', type: 'directory', size: null }],
-      'a/b': [{ path: 'a/b/c.txt', name: 'c.txt', type: 'file', size: 2 }],
-    };
-    gitApi.getTree.mockImplementation((dirPath) => Promise.resolve(tree[dirPath] ?? []));
-    gitApi.getFileContent.mockResolvedValue({ path: 'a/b/c.txt', content: 'hi' });
+  test('opens a deep-linked path with a single request and expands its ancestors', async () => {
+    gitApi.browse.mockResolvedValue(fileView());
 
     const { result } = renderHook(() => useFileTree({ path: 'a/b/c.txt', onPathChange: jest.fn() }));
 
     await waitFor(() => expect(result.current.contentLoading).toBe(false));
 
+    // Раньше на каждый уровень вложенности уходил свой /tree, и только потом
+    // запрос содержимого — здесь всё приходит одним ответом.
+    expect(gitApi.browse).toHaveBeenCalledTimes(1);
+    expect(gitApi.browse).toHaveBeenCalledWith('a/b/c.txt', true);
+    expect(gitApi.getTree).not.toHaveBeenCalled();
+    expect(gitApi.getFileContent).not.toHaveBeenCalled();
+
     expect(result.current.expanded.has('')).toBe(true);
     expect(result.current.expanded.has('a')).toBe(true);
     expect(result.current.expanded.has('a/b')).toBe(true);
+    expect(result.current.treeCache['a/b']).toEqual([nodeC]);
     expect(result.current.content).toEqual({
       type: 'file',
       path: 'a/b/c.txt',
@@ -32,12 +58,77 @@ describe('useFileTree', () => {
     });
   });
 
-  test('a failed directory load is not cached, so retrying refetches instead of staying empty', async () => {
-    gitApi.getTree.mockImplementation((dirPath) => {
-      if (dirPath === '') return Promise.resolve([]);
-      return Promise.reject(new Error('boom'));
+  test('a directory listing lands in the tree cache under its own path', async () => {
+    gitApi.browse.mockResolvedValue({
+      path: 'a/b',
+      type: 'directory',
+      file: null,
+      nodes: [nodeC],
+      tree: [
+        { path: '', nodes: [nodeA] },
+        { path: 'a', nodes: [nodeAB] },
+      ],
     });
-    gitApi.getFileContent.mockResolvedValue({ path: '', content: '' });
+
+    const { result } = renderHook(() => useFileTree({ path: 'a/b', onPathChange: jest.fn() }));
+    await waitFor(() => expect(result.current.contentLoading).toBe(false));
+
+    expect(result.current.content).toEqual({ type: 'directory', path: 'a/b', nodes: [nodeC] });
+    // Раскрытый каталог уже в кэше — второго запроса за тем же листингом нет.
+    expect(result.current.expanded.has('a/b')).toBe(true);
+    expect(result.current.treeCache['a/b']).toEqual([nodeC]);
+  });
+
+  test('a missing path resolves to not-found instead of an error', async () => {
+    gitApi.browse.mockResolvedValue({ path: 'a/gone.txt', type: 'missing', file: null, nodes: null, tree: [] });
+
+    const { result } = renderHook(() => useFileTree({ path: 'a/gone.txt', onPathChange: jest.fn() }));
+    await waitFor(() => expect(result.current.contentLoading).toBe(false));
+
+    expect(result.current.content).toEqual({ type: 'not-found', path: 'a/gone.txt' });
+  });
+
+  test('already-cached ancestors are not requested again on the next navigation', async () => {
+    gitApi.browse.mockResolvedValue(fileView());
+    const { result, rerender } = renderHook(({ path }) => useFileTree({ path, onPathChange: jest.fn() }), {
+      initialProps: { path: 'a/b/c.txt' },
+    });
+    await waitFor(() => expect(result.current.contentLoading).toBe(false));
+
+    gitApi.browse.mockResolvedValue({
+      path: 'a/b/d.txt',
+      type: 'file',
+      file: { path: 'a/b/d.txt', content: 'yo' },
+      nodes: null,
+      tree: [],
+    });
+    rerender({ path: 'a/b/d.txt' });
+    await waitFor(() => expect(result.current.content?.path).toBe('a/b/d.txt'));
+
+    expect(gitApi.browse).toHaveBeenLastCalledWith('a/b/d.txt', false);
+    // Дерево от прошлого пути никуда не делось.
+    expect(result.current.treeCache['a/b']).toEqual([nodeC]);
+  });
+
+  test('the tree cache survives unmounting the panel (leaving the section and coming back)', async () => {
+    gitApi.browse.mockResolvedValue(fileView());
+    const first = renderHook(() => useFileTree({ path: 'a/b/c.txt', onPathChange: jest.fn() }));
+    await waitFor(() => expect(first.result.current.contentLoading).toBe(false));
+    first.unmount();
+
+    gitApi.browse.mockResolvedValue(fileView(false));
+    const second = renderHook(() => useFileTree({ path: 'a/b/c.txt', onPathChange: jest.fn() }));
+
+    // Дерево нарисовано ещё до ответа — из модульного кэша.
+    expect(second.result.current.treeCache['a/b']).toEqual([nodeC]);
+    expect(second.result.current.expanded.has('a/b')).toBe(true);
+    await waitFor(() => expect(second.result.current.contentLoading).toBe(false));
+    expect(gitApi.browse).toHaveBeenLastCalledWith('a/b/c.txt', false);
+  });
+
+  test('a failed directory load is not cached, so retrying refetches instead of staying empty', async () => {
+    gitApi.browse.mockResolvedValue({ path: '', type: 'directory', file: null, nodes: [], tree: [] });
+    gitApi.getTree.mockRejectedValue(new Error('boom'));
 
     const { result } = renderHook(() => useFileTree({ path: '', onPathChange: jest.fn() }));
     await waitFor(() => expect(result.current.contentLoading).toBe(false));
@@ -49,12 +140,7 @@ describe('useFileTree', () => {
     // would be indistinguishable from a genuinely empty directory.
     expect(result.current.treeCache['broken']).toBeUndefined();
 
-    gitApi.getTree.mockImplementation((dirPath) => {
-      if (dirPath === 'broken') {
-        return Promise.resolve([{ path: 'broken/ok.txt', name: 'ok.txt', type: 'file', size: 1 }]);
-      }
-      return Promise.resolve([]);
-    });
+    gitApi.getTree.mockResolvedValue([{ path: 'broken/ok.txt', name: 'ok.txt', type: 'file', size: 1 }]);
 
     // Second click: same dir, toggles `expanded` back off, but must still retry the fetch.
     act(() => result.current.toggleExpand('broken'));
