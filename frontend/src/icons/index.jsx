@@ -78,13 +78,6 @@ export const IconPanelLeft = ({ size = 16 }) => (
   </svg>
 );
 
-export const IconArrowLeft = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" {...s} strokeWidth="2.5">
-    <line x1="19" y1="12" x2="5" y2="12" />
-    <polyline points="12 19 5 12 12 5" />
-  </svg>
-);
-
 /** Стрелка вниз (кнопка «прокрутить к последнему сообщению»). */
 export const IconArrowDown = ({ size = 18 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" {...s} strokeWidth="2.4">

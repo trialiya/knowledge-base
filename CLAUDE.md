@@ -170,14 +170,26 @@ doesn't touch. One PR = the task + migration of the files it touched.
   section at once; a `.workspace--*` override would outrank `:root` and freeze
   that section's width, so never redeclare it.
 - The header of the center area is the shared `.workspace__head`
-  (`common/workspaceLayout.css`) — same `--ws-head-min-h` as the left/right
-  `.workspace__side-head`, so all three columns start on one line. It is **one
-  row**: put the object's name in `.workspace__head-title` (ellipsis) and the
-  buttons in `.workspace__head-actions`; nothing may wrap. Metadata does not go
-  there — dates, versions, path, author belong to the right panel's Info tab
-  (that is why the chat's created-at, the KB date row and the KB "up one level"
-  button, a duplicate of the last breadcrumb, are gone). Both heads set
-  `box-sizing: border-box` themselves — there is no global one.
+  (`common/workspaceLayout.css`) — one rule with the left/right
+  `.workspace__side-head`, so all three columns start on one line; only the
+  padding differs per class, and it sets `box-sizing: border-box` itself (there
+  is no global one). Keep them in that one rule: two copies drift and the step
+  at the column seam comes back. It is **one row**: put the object's name in
+  `.workspace__head-title` (ellipsis, `.workspace__head-edit` for its
+  inline-rename form) and the buttons in `.workspace__head-actions`; nothing may
+  wrap. Metadata does not go there — dates, versions, path, author belong to the
+  right panel's Info tab (that is why the chat's created-at, the KB date row and
+  the KB "up one level" button, a duplicate of the last breadcrumb, are gone).
+  The one section still outside this is Settings/Admin: `SettingsShell`'s head
+  is deliberately two rows (title + subtitle) and does not line up — migrate it
+  when that subtitle finds another home, don't copy its metrics anywhere.
+- A path in a header is the shared `<HeadCrumbs>` (`common/HeadCrumbs.jsx`):
+  sections pass `items` (`{ key, label, onNavigate? }` — an item without
+  `onNavigate` is the current one) and `trailingSep` when the header's own title
+  continues the chain (knowledge base) rather than ending it (files). It scrolls
+  horizontally instead of wrapping and keeps the scroll pinned to the **end** —
+  the nearest folder and the open object matter more than the root, which the
+  tree on the left already shows. Don't write a third breadcrumb.
 - Panel layout is **controlled state that lives in the URL** (`?left=0`,
   `?right=<tab>`), owned by `useAppNavigation` and threaded down as the `panels`
   prop from `App`. Per-section layout is remembered in `localStorage`

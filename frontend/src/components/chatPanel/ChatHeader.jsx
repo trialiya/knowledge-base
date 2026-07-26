@@ -9,9 +9,8 @@ import { IconTrash, IconSearch } from '../../icons';
  * Селекторы модели/режима переехали под поле ввода (ComposerToolbar), вложения —
  * в правую панель рабочей области (её тумблер общий для всех разделов).
  *
- * Общая оболочка шапки — .workspace__head (common/workspaceLayout.css): у неё
- * та же высота, что у шапок боковых панелей. Даты здесь нет намеренно — она
- * (вместе с моделью, режимом и id) на вкладке «Инфо» справа.
+ * Оболочка шапки общая — .workspace__head (common/workspaceLayout.css). Даты
+ * здесь нет намеренно: она (вместе с моделью, режимом и id) на вкладке «Инфо».
  *
  * `chat` обязателен (не null) — условие рендера держит вызывающая сторона
  * (ChatWindow: activeChat && <ChatHeader …/>). Так внутри нет раннего return
@@ -56,7 +55,7 @@ const ChatHeader = ({ chat, canSearch, searchOpen, onToggleSearch, onRename, onD
     <div className="workspace__head">
       {editing ? (
         <input
-          className="chat-header__edit"
+          className="workspace__head-edit chat-header__edit"
           value={editing.draft}
           autoFocus
           onChange={(e) => setEditing((ed) => (ed ? { ...ed, draft: e.target.value } : ed))}

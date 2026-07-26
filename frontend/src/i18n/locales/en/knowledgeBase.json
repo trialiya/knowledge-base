@@ -24,6 +24,7 @@
   },
   "detail": {
     "about": "About",
+    "breadcrumb": "Path",
     "systemBadge": "System document: renaming and deletion are disabled",
     "rename": "Rename",
     "delete": "Delete",
