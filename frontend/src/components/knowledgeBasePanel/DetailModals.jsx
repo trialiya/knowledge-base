@@ -9,7 +9,7 @@ import HistoryModal from './HistoryModal';
  *
  * props:
  *   node              — the document/folder node
- *   fullscreen        — 'about' | 'content' | null
+ *   fullscreen        — раскрыт ли редактор содержимого на весь экран
  *   onCloseFullscreen — () => void
  *   showHistory       — boolean
  *   onCloseHistory    — () => void
@@ -32,23 +32,17 @@ const DetailModals = ({
 }) => {
   const { t } = useTranslation('knowledgeBase');
   const saveDescription = (val) => onUpdate(node.id, { description: val });
-  const isAbout = fullscreen === 'about';
 
   return (
     <>
       {fullscreen && (
         <FullscreenEditorModal
-          title={
-            isAbout
-              ? t('detail.fullscreenAbout', { title: node.title })
-              : t('detail.fullscreenContent', { title: node.title })
-          }
-          // About — это превью сохранённого описания; Content — общий черновик,
-          // поэтому развёрнутое окно открывается с текущими несохранёнными правками.
-          value={isAbout ? node.description || '' : contentDraft}
-          onChange={isAbout ? undefined : setContentDraft}
+          title={t('detail.fullscreenContent', { title: node.title })}
+          // Значение — общий черновик, поэтому развёрнутое окно открывается
+          // с текущими несохранёнными правками встроенного редактора.
+          value={contentDraft}
+          onChange={setContentDraft}
           savedValue={node.description || ''}
-          previewOnly={isAbout}
           onSave={saveDescription}
           onClose={onCloseFullscreen}
           tree={tree}

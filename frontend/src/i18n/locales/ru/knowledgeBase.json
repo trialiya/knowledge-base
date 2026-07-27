@@ -17,13 +17,12 @@
     "selectDocument": "Выберите документ для просмотра"
   },
   "tabs": {
-    "summary": "Описание",
+    "summary": "Summary",
     "contents": "Состав",
     "attachments": "Вложения",
     "info": "Инфо"
   },
   "detail": {
-    "about": "Описание",
     "breadcrumb": "Путь",
     "systemBadge": "Системный документ: переименование и удаление недоступны",
     "rename": "Переименовать",
@@ -32,7 +31,6 @@
     "docPlaceholder": "# Markdown контент...",
     "folderEmpty": "Папка пуста",
     "loading": "Загрузка…",
-    "fullscreenAbout": "{{title}} — описание",
     "fullscreenContent": "{{title}} — содержимое"
   },
   "contentsTable": {
@@ -41,12 +39,6 @@
     "updated": "Обновлено",
     "folder": "Folder",
     "document": "Document"
-  },
-  "section": {
-    "expand": "Развернуть",
-    "readMore": "Развернуть",
-    "collapse": "Свернуть",
-    "empty": "Нет содержимого — нажмите ✏️ чтобы добавить"
   },
   "summary": {
     "aiSummary": "AI Summary",

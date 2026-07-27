@@ -6,10 +6,12 @@ import MarkdownEditor from './MarkdownEditor';
 /**
  * Центр раздела «База знаний» для документа: шапка и редактор содержимого.
  *
- * Описание, вложения и метаданные переехали в правую панель (см.
+ * AI-summary, вложения и метаданные живут в правой панели (см.
  * detailSidebar.jsx), поэтому вкладок в центре больше нет — здесь ровно то, что
- * пользователь редактирует. Состояние черновика/полноэкранного режима поднято в
- * KnowledgeBase (его делят центр и правая панель), сюда приходит пропсами.
+ * пользователь читает и правит. Открывается редактор в режиме просмотра
+ * (`defaultPreview`): документ чаще читают, чем правят. Состояние
+ * черновика/полноэкранного режима поднято в KnowledgeBase (его делят центр и
+ * правая панель), сюда приходит пропсами.
  */
 const DocumentDetail = ({
   node,
@@ -42,6 +44,7 @@ const DocumentDetail = ({
           savedValue={node.description || ''}
           placeholder={t('detail.docPlaceholder')}
           onSave={(val) => onUpdate(node.id, { description: val })}
+          defaultPreview
           onExpand={onExpandContent}
           tree={tree}
           onNavigate={onNavigate}

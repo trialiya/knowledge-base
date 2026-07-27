@@ -23,7 +23,6 @@
     "info": "Info"
   },
   "detail": {
-    "about": "About",
     "breadcrumb": "Path",
     "systemBadge": "System document: renaming and deletion are disabled",
     "rename": "Rename",
@@ -32,7 +31,6 @@
     "docPlaceholder": "# Markdown content...",
     "folderEmpty": "Folder is empty",
     "loading": "Loading…",
-    "fullscreenAbout": "{{title}} — About",
     "fullscreenContent": "{{title}} — Content"
   },
   "contentsTable": {
@@ -41,12 +39,6 @@
     "updated": "Updated",
     "folder": "Folder",
     "document": "Document"
-  },
-  "section": {
-    "expand": "Expand",
-    "readMore": "Expand",
-    "collapse": "Collapse",
-    "empty": "No content — click ✏️ to add"
   },
   "summary": {
     "aiSummary": "AI Summary",

@@ -8,7 +8,8 @@ import MarkdownEditor from './MarkdownEditor';
  *
  * Состав папки, вложения и метаданные — в правой панели (detailSidebar.jsx);
  * список детей грузит KnowledgeBase (useFolderChildren), потому что он нужен и
- * правой панели, а не только этому компоненту.
+ * правой панели, а не только этому компоненту. Редактор, как и у документа,
+ * открывается в режиме просмотра (`defaultPreview`).
  */
 const FolderDetail = ({
   node,
@@ -36,6 +37,7 @@ const FolderDetail = ({
           savedValue={node.description || ''}
           placeholder={t('detail.folderPlaceholder')}
           onSave={(val) => onUpdate(node.id, { description: val })}
+          defaultPreview
           onExpand={onExpandContent}
           tree={tree}
           onNavigate={onNavigate}

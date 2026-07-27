@@ -1,6 +1,5 @@
 import React from 'react';
 import AiSummarySection from './AiSummarySection';
-import SummarySection from './SummarySection';
 import ContentsTable from './ContentsTable';
 import DetailInfo from './DetailInfo';
 import AttachmentPanel from '../common/AttachmentPanel';
@@ -13,8 +12,13 @@ import { OWNER_TYPE } from '../../constants/ownerType';
  *
  * Раньше это были вкладки ЦЕНТРА (DetailTabs): «Summary», «Содержимое»,
  * «Состав», «Вложения» — и всё «о документе» отнимало место у самого документа.
- * Теперь центр занят редактором содержимого, а описание, состав папки, вложения
- * и метаданные живут здесь, в общей правой панели (свёрнута по умолчанию).
+ * Теперь центр занят редактором содержимого, а состав папки, вложения и
+ * метаданные живут здесь, в общей правой панели (свёрнута по умолчанию).
+ *
+ * Вкладка «Описание» показывает только AI-summary: сам текст описания —
+ * это и есть содержимое документа, его редактирует центр, и второй копией
+ * в правой панели она лишь отнимала место. У папок AI-summary нет, поэтому
+ * для них вкладки просто нет.
  *
  * Это функция-сборщик, а не компонент: WorkspaceLayout принимает вкладки
  * массивом ({ key, label, icon, badge, content }) и сам решает, показать их
@@ -23,10 +27,8 @@ import { OWNER_TYPE } from '../../constants/ownerType';
 export function buildDetailTabs({
   node,
   t,
-  tree,
   onNavigate,
   onSummarize,
-  onExpandAbout,
   attachmentCount,
   onAttachmentCountChange,
   folderChildren = [],
@@ -42,25 +44,6 @@ export function buildDetailTabs({
       icon: <IconInfo size={15} />,
       content: <DetailInfo node={node} />,
     },
-    {
-      key: DOC_TAB.SUMMARY,
-      label: t('tabs.summary'),
-      icon: <IconSparkle size={15} />,
-      content: (
-        <>
-          {/* AI-описание есть только у документов — папки не суммаризируются. */}
-          {!isFolder && <AiSummarySection node={node} onSummarize={onSummarize} />}
-          <SummarySection
-            label={t('detail.about')}
-            description={node.description}
-            onExpand={onExpandAbout}
-            tree={tree}
-            onNavigate={onNavigate}
-            copyable
-          />
-        </>
-      ),
-    },
   ];
 
   if (isFolder) {
@@ -75,6 +58,13 @@ export function buildDetailTabs({
         ) : (
           <ContentsTable items={folderChildren} onNavigate={onNavigate} />
         ),
+    });
+  } else {
+    tabs.push({
+      key: DOC_TAB.SUMMARY,
+      label: t('tabs.summary'),
+      icon: <IconSparkle size={15} />,
+      content: <AiSummarySection node={node} onSummarize={onSummarize} />,
     });
   }
 
