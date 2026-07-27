@@ -1,15 +1,21 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SettingsContentHead, SettingsSection } from '../common/SettingsShell';
+import { ConfigBlock } from '../common/ConfigGroup';
+import useConfigSnapshot from '../common/useConfigSnapshot';
 import { IconDownload } from '../../icons';
 import api from '../../api/documentsApi';
+import settingsApi from '../../api/settingsApi';
 
 // ─── Группа: массовые операции ────────────────────────────────────────────────
 // Экспорт/импорт и пакетная обработка документов. Экспорт вызывает текущий
-// серверный метод — выгрузку дерева в папку kb.documents.export-path.
+// серверный метод — выгрузку дерева в папку kb.documents.export-path. Сам путь
+// показан рядом: без него «не удалось выгрузить» неотличимо от незаданного
+// DOCUMENTS_EXPORT_PATH, а это самая частая причина отказа.
 
 const BulkOperations = () => {
   const { t } = useTranslation('settings');
+  const { data: info } = useConfigSnapshot(settingsApi.getSystemInfo);
 
   // idle | running | done | error
   const [exportState, setExportState] = useState('idle');
@@ -69,6 +75,16 @@ const BulkOperations = () => {
             </button>
           </div>
         </SettingsSection>
+
+        {info && (
+          <SettingsSection label={t('admin.bulk.targetLabel')}>
+            <ConfigBlock
+              label={t('admin.bulk.exportPath')}
+              value={info.documents.exportPath}
+              empty={t('admin.system.documents.exportPathEmpty')}
+            />
+          </SettingsSection>
+        )}
       </div>
     </>
   );

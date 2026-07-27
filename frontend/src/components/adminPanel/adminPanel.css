@@ -76,3 +76,11 @@
 .admin-check input {
   cursor: pointer;
 }
+
+/* ── Пояснение под строками секции (где правится значение, почему оно такое) ── */
+.admin-note {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--kb-muted);
+}

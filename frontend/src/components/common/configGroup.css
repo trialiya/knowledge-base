@@ -1,0 +1,89 @@
+/* ═══════════════════════════════════════════════
+   CONFIG GROUP — общая начинка read-only снимков конфигурации
+   («Настройки» и «Администрирование»).
+
+   Раньше .set-row__value, .status-badge и состояния загрузки/ошибки жили в
+   settingsPanel.css. Админка показывает такие же строки, а ссылаться на классы
+   чужой панели нельзя — общее переехало сюда. Карточка секции и сама строка
+   .set-row остаются в settingsShell.css: это каркас страницы, а не снимка.
+═══════════════════════════════════════════════ */
+
+/* ── Read-only значение в .set-row ── */
+.set-row__value {
+  flex-shrink: 0;
+  font-family: 'Fira Mono', 'Consolas', monospace;
+  font-size: 0.83rem;
+  color: var(--kb-text);
+  font-weight: 500;
+}
+
+/* ── Статус-бейдж (включён / отключён) ── */
+.status-badge {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  border-radius: 10px;
+  padding: 2px 9px;
+}
+.status-badge--on {
+  color: #12663b;
+  background: #d1fae5;
+}
+.status-badge--off {
+  color: var(--kb-muted);
+  background: var(--kb-bg);
+}
+
+/* ── Загрузка / ошибка снимка ── */
+.config-group__loading {
+  padding: 2rem;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--kb-muted);
+}
+.config-group__error {
+  margin: 0;
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  color: var(--kb-error);
+  background: var(--kb-error-bg);
+  border: 1px solid #fda29b;
+  border-radius: 8px;
+}
+
+/* ── Список коротких значений (инструменты саб-агента, подключения MCP) ── */
+.config-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.config-tags__item {
+  font-family: 'Fira Mono', 'Consolas', monospace;
+  font-size: 0.76rem;
+  color: var(--kb-text);
+  background: var(--kb-bg);
+  border: 1px solid var(--kb-border-light);
+  border-radius: 8px;
+  padding: 2px 8px;
+}
+.config-tags__empty {
+  font-size: 0.82rem;
+  color: var(--kb-muted);
+}
+
+/* ── Строка «ключ → значение», где значение длинное (путь, cron, URL) ── */
+.config-block {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.config-block__label {
+  font-size: 0.85rem;
+  color: var(--kb-text);
+}
+.config-block__value {
+  font-family: 'Fira Mono', 'Consolas', monospace;
+  font-size: 0.8rem;
+  color: var(--kb-muted);
+  overflow-wrap: anywhere;
+}
