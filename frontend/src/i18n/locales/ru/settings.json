@@ -2,20 +2,40 @@
   "nav": {
     "title": "Настройки",
     "phrases": "Библиотека фраз",
-    "models": "Модели"
+    "models": "Модели",
+    "search": "Поиск",
+    "tools": "Инструменты"
+  },
+  "config": {
+    "loading": "Загрузка…",
+    "errorLoading": "Ошибка загрузки конфигурации",
+    "on": "включён",
+    "off": "отключён",
+    "yes": "да",
+    "no": "нет",
+    "notSet": "не задано",
+    "unknown": "неизвестно",
+    "messagesValue": "{{count}} сообщений",
+    "tokensValue": "{{count}} токенов",
+    "resultsValue": "{{count}} результатов",
+    "daysValue": "{{count}} дней",
+    "duration": {
+      "seconds": "{{value}} с",
+      "minutes": "{{value}} мин",
+      "hours": "{{value}} ч"
+    }
   },
   "models": {
     "title": "Конфигурация AI-моделей",
-    "subtitle": "Параметры вызова, основная модель, агент поиска, сжатие контекста",
-    "loading": "Загрузка…",
-    "errorLoading": "Ошибка загрузки конфигурации",
+    "subtitle": "Параметры вызова, основная модель, агент поиска, сжатие контекста, эмбеддинги",
     "general": {
       "label": "Общее",
       "maxTokens": "Макс. токенов ответа",
       "temperature": "Temperature",
       "topP": "Top-p",
-      "memoryWindow": "Окно памяти",
-      "memoryWindowValue": "50 сообщений"
+      "requestTimeout": "Таймаут запроса к модели",
+      "retryMaxAttempts": "Попыток при сбое",
+      "sseTimeout": "Окно SSE-подписки вкладки"
     },
     "chat": {
       "label": "Основная модель (Чат)",
@@ -28,34 +48,89 @@
     "searchCodebase": {
       "label": "Агент поиска (searchCodebase)",
       "status": "Статус",
-      "statusOn": "включён",
-      "statusOff": "отключён",
       "model": "Модель",
       "modelSameAs": "= основная ({{id}})",
       "maxTokens": "Макс. токенов на вызов",
-      "maxTokensValue": "{{count}} токенов",
-      "maxIterations": "Макс. итераций инструментов"
+      "maxIterations": "Макс. итераций инструментов",
+      "allowedTools": "Доступные инструменты",
+      "allowedToolsEmpty": "Список пуст — агент не сможет ничего вызвать"
     },
     "summarize": {
       "label": "Сжатие контекста (SummarizeService)",
       "model": "Модель",
       "modelSameAs": "= основная ({{id}})",
       "tokenThreshold": "Порог токенов",
-      "tokensValue": "{{count}} токенов",
       "messageThreshold": "Порог сообщений",
-      "messagesValue": "{{count}} сообщений",
-      "overlap": "Буфер живых сообщений"
+      "overlap": "Буфер живых сообщений",
+      "collapseThreshold": "Порог схлопывания сводок",
+      "summariesValue": "{{count}} сводок",
+      "charsPerToken": "Символов на токен (оценка)",
+      "charsValue": "{{count}} символа"
+    },
+    "embedding": {
+      "label": "Эмбеддинги",
+      "model": "Модель",
+      "chunkMaxTokens": "Макс. размер чанка",
+      "chunkOverlap": "Перекрытие чанков",
+      "reindexBatchSize": "Размер пачки переиндексации",
+      "documentsValue": "{{count}} документов",
+      "cache": "Кэш векторов",
+      "cacheTtl": "TTL кэша"
+    }
+  },
+  "search": {
+    "title": "Поиск по базе знаний",
+    "subtitle": "Лимиты и пороги keyword-, семантического и гибридного поиска",
+    "limit": "Лимит результатов",
+    "threshold": "Порог схожести",
+    "keyword": {
+      "label": "Keyword-поиск"
+    },
+    "semantic": {
+      "label": "Семантический поиск",
+      "status": "Статус"
+    },
+    "hybrid": {
+      "label": "Гибридный поиск",
+      "keywordWeight": "Вес keyword-результатов",
+      "semanticWeight": "Вес семантических результатов"
+    }
+  },
+  "tools": {
+    "title": "Инструменты и режимы",
+    "subtitle": "Что ассистент умеет помимо встроенного поиска по коду и документам",
+    "modes": {
+      "label": "Режимы ассистента",
+      "empty": "Режимы не настроены — доступен только вариант «без режима»."
+    },
+    "git": {
+      "label": "Правка файлов в репозитории",
+      "editEnabled": "Разрешено в конфиге",
+      "editActive": "Инструменты выданы модели",
+      "readOnlyNote": "Правка включена в конфиге, но рабочее дерево недоступно на запись (read-only монтирование), поэтому createFile/editFile модели не отданы."
+    },
+    "mcp": {
+      "label": "Внешние MCP-серверы",
+      "status": "Инструменты MCP",
+      "connections": "Подключения",
+      "connectionsEmpty": "Подключения не настроены"
+    },
+    "uploads": {
+      "label": "Лимиты вложений",
+      "maxFileSize": "Макс. размер файла",
+      "maxRequestSize": "Макс. размер запроса"
     }
   },
   "admin": {
     "nav": {
       "title": "Администрирование",
       "index": "Семантический индекс",
-      "bulk": "Массовые операции"
+      "bulk": "Массовые операции",
+      "system": "Система"
     },
     "index": {
       "title": "Семантический индекс",
-      "subtitle": "Переиндексация эмбеддингов базы знаний",
+      "subtitle": "Переиндексация эмбеддингов базы знаний и параметры фоновой очереди",
       "sectionLabel": "Операции",
       "reindex": {
         "title": "Переиндексировать все документы",
@@ -66,12 +141,29 @@
         "done": "Переиндексация запущена.",
         "errorBadge": "ошибка",
         "error": "Не удалось запустить переиндексацию. Попробуйте позже."
+      },
+      "queue": {
+        "label": "Очередь эмбеддингов",
+        "workers": "Параллельных вызовов API",
+        "pollBatchSize": "Задач за один опрос",
+        "tasksValue": "{{count}} задач",
+        "pollInterval": "Интервал опроса",
+        "maxAttempts": "Попыток до отказа",
+        "retryBackoff": "Задержка перед повтором (× попытку)",
+        "stuckTimeout": "Таймаут зависшей задачи",
+        "stuckCheck": "Интервал проверки зависших",
+        "cleanupRetention": "Хранение завершённых задач",
+        "cache": "Кэш векторов",
+        "cacheTtl": "TTL кэша",
+        "cacheCleanupCron": "Расписание очистки кэша (cron)"
       }
     },
     "bulk": {
       "title": "Массовые операции",
       "subtitle": "Экспорт, импорт и пакетная обработка документов",
       "sectionLabel": "Операции",
+      "targetLabel": "Куда выгружается",
+      "exportPath": "Папка экспорта на сервере (kb.documents.export-path)",
       "export": {
         "title": "Экспорт всех документов",
         "desc": "Выгрузка дерева в серверную папку (DOCUMENTS_EXPORT_PATH): Markdown{{meta}}, структура папок сохраняется",
@@ -83,6 +175,44 @@
         "done": "Документы выгружены в серверную папку экспорта.",
         "errorBadge": "ошибка",
         "error": "Не удалось выгрузить. Проверьте, что задан DOCUMENTS_EXPORT_PATH."
+      }
+    },
+    "system": {
+      "title": "Система",
+      "subtitle": "Профиль, база данных, индексируемый репозиторий и доступ",
+      "app": {
+        "label": "Приложение",
+        "name": "Имя приложения",
+        "profiles": "Активные профили",
+        "port": "Порт",
+        "java": "Версия Java",
+        "startedAt": "Запущено",
+        "uptime": "Аптайм"
+      },
+      "database": {
+        "label": "База данных",
+        "url": "JDBC URL (без учётных данных)",
+        "driver": "Драйвер",
+        "username": "Пользователь",
+        "flywayLocations": "Миграции Flyway",
+        "schemaVersion": "Версия схемы"
+      },
+      "git": {
+        "label": "Индексируемый репозиторий",
+        "projectPath": "Путь к репозиторию (kb.git.project-path)",
+        "editEnabled": "Правка разрешена в конфиге",
+        "writable": "Рабочее дерево доступно на запись"
+      },
+      "documents": {
+        "label": "Экспорт документов",
+        "exportPath": "Папка экспорта (kb.documents.export-path)",
+        "exportPathEmpty": "не задана — экспорт не сработает",
+        "replace": "Перезаписывать существующие файлы"
+      },
+      "security": {
+        "label": "Доступ",
+        "username": "Пользователь (HTTP Basic)",
+        "note": "Единственный пользователь задаётся в конфиге (kb.security). Пароль здесь не показывается и через API не отдаётся."
       }
     }
   },

@@ -64,6 +64,23 @@ public class ChatConfig {
                 Executors.newVirtualThreadPerTaskExecutor());
     }
 
+    /**
+     * NOT the size of the context sent to the model — that is decided by {@code SummarizeService}
+     * (messages flagged {@code summarized} drop out of {@link
+     * ChatMemoryService#findByConversationId}), and the thresholds live in {@code
+     * kb.chat.summarize.*}.
+     *
+     * <p>{@code maxMessages} only acts on the write path: {@link MessageWindowChatMemory#add} trims
+     * history + new messages to the last N and hands that list to {@code saveAll}. Reads go through
+     * {@link MessageWindowChatMemory#get}, which is a bare {@code findByConversationId} with no
+     * window at all. Since {@link ChatMemoryService#saveAll} is append-only — already persisted
+     * messages are filtered out, nothing is ever deleted — the trim has no observable effect here.
+     * It is kept high so that it also cannot silently drop a message from an unusually large single
+     * {@code add()} batch.
+     *
+     * <p>Deliberately not surfaced in Settings → Модели: a number that changes nothing would only
+     * read as the context limit, which is exactly the confusion the panel used to create.
+     */
     @Bean
     public ChatMemory chatMemory(ChatMemoryService chatMemoryService) {
         return MessageWindowChatMemory.builder()

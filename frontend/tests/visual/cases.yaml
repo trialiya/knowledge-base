@@ -275,3 +275,127 @@
     Блокировано данными: в db/sample-data.sql один чат, а на нём не видно
     главного различия — строки с кнопкой удаления и без неё. Нужен сид с двумя
     и более чатами. Ожидание выведено из кода.
+
+- id: settings-models-config-snapshot
+  component: ModelsSettings
+  path: frontend/src/components/settingsPanel/ModelsSettings.jsx
+  title: Снимок конфигурации моделей — без строки «Окно памяти»
+  status: verified
+  origin:
+    - сессия 2026-07-27, вынос application.yaml в панели
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /settings
+    click: список групп «Настройки» → «Модели»
+  fixtures: ./fixtures/aiConfig.js#defaultAiConfig
+  expected:
+    - 'Секция «Общее»: макс. токенов, temperature, top-p, таймаут запроса, попыток при сбое, окно SSE'
+    - Строки «Окно памяти» в секции «Общее» НЕТ — MessageWindowChatMemory.maxMessages ничего не ограничивает (см. ChatConfig#chatMemory)
+    - 'Секция «Агент поиска»: статус бейджем «включён», модель как «= основная (<id>)», под строками — 11 имён инструментов чипами в две строки'
+    - 'Секция «Сжатие контекста» показывает все пять порогов kb.chat.summarize.*, включая порог схлопывания сводок и символов на токен'
+    - 'Секция «Эмбеддинги»: модель, размер чанка, перекрытие, размер пачки, кэш и его TTL'
+  notes: |
+    До этой сессии панель показывала «Окно памяти: 50 сообщений» — число было
+    захардкожено в локали и не совпадало ни с чем в коде (в ChatConfig стояло
+    300). Проверка байт-кода Spring AI показала, что и 300 показывать нечестно:
+    трим идёт только на записи, а saveAll в ChatMemoryService append-only.
+    Строку убрали, а не переименовали — реальный предел контекста показывает
+    секция «Сжатие контекста».
+
+- id: settings-search-semantic-off-on-h2
+  component: SearchSettings
+  path: frontend/src/components/settingsPanel/SearchSettings.jsx
+  title: Настройки поиска — на профиле h2 семантика видна как отключённая
+  status: verified
+  origin:
+    - сессия 2026-07-27, вынос application.yaml в панели
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /settings
+    profile: h2
+    click: список групп «Настройки» → «Поиск»
+  fixtures: ./fixtures/aiConfig.js#defaultAiConfig
+  expected:
+    - Три секции — keyword, семантический, гибридный
+    - 'На профиле h2 у семантического поиска статус «отключён» (application-h2.yaml выключает kb.search.semantic.enabled)'
+    - У гибридного видны оба веса (0.4 / 0.6), порог и лимит
+    - Пороги и веса показаны как есть, без округления и без процентов
+  notes: |
+    Это и есть смысл группы: до неё выключенная семантика не была видна из
+    интерфейса никак — поиск молча работал как keyword.
+
+- id: settings-tools-modes-and-limits
+  component: ToolsSettings
+  path: frontend/src/components/settingsPanel/ToolsSettings.jsx
+  title: Инструменты и режимы — правка файлов и MCP как «да/нет», лимиты вложений
+  status: verified
+  origin:
+    - сессия 2026-07-27, вынос application.yaml в панели
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /settings
+    click: список групп «Настройки» → «Инструменты»
+  fixtures: ./fixtures/aiConfig.js#defaultAiConfig
+  expected:
+    - 'Секция «Режимы ассистента»: три строки — analytic/developer/tester с русскими лейблами справа'
+    - 'Правка файлов: две строки — «Разрешено в конфиге» и «Инструменты выданы модели», обе бейджем «да»/«нет», а не «включён»'
+    - Когда правка разрешена в конфиге, но дерево не пишется, под строками появляется пояснение, почему инструменты не выданы
+    - 'MCP: статус «отключён» и «Подключения не настроены» вместо пустого списка'
+    - 'Лимиты вложений: 1.0 MB и 2.0 MB из spring.servlet.multipart.*'
+  notes: |
+    Два бейджа у правки файлов не дублируют друг друга: первый — флаг
+    kb.git.edit-enabled, второй — наличие бина GitEditFunction, который при
+    read-only дереве не регистрируется. Именно расхождение этих двух и
+    объясняет, почему модель «не умеет» править файлы.
+
+- id: admin-system-no-secrets
+  component: SystemInfo
+  path: frontend/src/components/adminPanel/SystemInfo.jsx
+  title: Система — профиль, база и репозиторий без единого секрета
+  status: verified
+  origin:
+    - сессия 2026-07-27, вынос application.yaml в панели
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /admin
+    profile: h2
+    click: список групп «Администрирование» → «Система»
+  fixtures: ./fixtures/systemInfo.js#h2SystemInfo
+  expected:
+    - 'Приложение: имя, активные профили (h2), порт, версия Java, время старта в локали и аптайм'
+    - 'База: JDBC URL уже зачищенный — «jdbc:h2:./local-db/h2» без хвоста ;MODE=…;PASSWORD=…, драйвер, пользователь, локация Flyway и версия схемы'
+    - 'Репозиторий: абсолютный путь, «Правка разрешена в конфиге — нет», «Рабочее дерево доступно на запись — да»'
+    - Пароля нет ни в одной строке; под секцией «Доступ» об этом сказано прямо
+    - Длинные значения (путь, URL, локации Flyway) идут под лейблом, а не справа от него, и переносятся по символам
+  notes: |
+    Зачистка URL проверена и юнит-тестом (SystemInfoControllerTest): у Postgres
+    режется всё после «?», у H2 — всё после «;», плюс срезается префикс
+    user:password@. Бэкенд собирает ответ по полям и не трогает Environment
+    целиком, поэтому утечь секрету неоткуда.
+
+- id: admin-index-queue-knobs
+  component: IndexOperations
+  path: frontend/src/components/adminPanel/IndexOperations.jsx
+  title: Семантический индекс — кнопка переиндексации и параметры очереди рядом
+  status: verified
+  origin:
+    - сессия 2026-07-27, вынос application.yaml в панели
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /admin
+    click: список групп «Администрирование» → «Семантический индекс»
+  fixtures: ./fixtures/systemInfo.js#h2SystemInfo
+  expected:
+    - Сверху секция «Операции» с кнопкой «Переиндексировать» — она работает и когда снимок настроек не загрузился
+    - 'Ниже секция «Очередь эмбеддингов»: воркеры, размер пачки, интервал опроса, попытки, backoff, таймаут зависших, retention'
+    - Длительности показаны в человеческих единицах — «1 с», «30 с», «10 мин», «5 мин», а не в миллисекундах
+    - Cron-расписание очистки кэша идёт отдельной строкой под лейблом
+  notes: |
+    Секция очереди намеренно не завёрнута в ConfigGroup: у кнопки и у снимка
+    разные источники и разные отказы, и падение GET /api/admin/system не должно
+    прятать работающую кнопку.

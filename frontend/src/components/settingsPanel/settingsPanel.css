@@ -82,50 +82,17 @@
   color: var(--kb-muted);
 }
 
-/* ── Read-only значение в set-row (моноширинный) ── */
-.set-row__value {
-  flex-shrink: 0;
-  font-family: 'Fira Mono', 'Consolas', monospace;
-  font-size: 0.83rem;
-  color: var(--kb-text);
-  font-weight: 500;
-}
+/* Read-only значение (.set-row__value), статус-бейдж и состояния загрузки/ошибки
+   переехали в common/configGroup.css: те же строки показывает и админка. */
 
-/* ── Статус-бейдж (включён / отключён) ── */
-.status-badge {
-  flex-shrink: 0;
-  font-size: 0.7rem;
-  font-weight: 600;
-  border-radius: 10px;
-  padding: 2px 9px;
-}
-.status-badge--on {
-  color: #12663b;
-  background: #d1fae5;
-}
-.status-badge--off {
-  color: var(--kb-muted);
-  background: var(--kb-bg);
-}
-
-/* ── Загрузка / ошибка конфига ── */
-.ai-config-loading {
-  padding: 2rem;
-  text-align: center;
-  font-size: 0.85rem;
-  color: var(--kb-muted);
-}
-.ai-config-error {
+/* ── Пояснение под строками секции (например, почему правка файлов неактивна) ── */
+.tools-note {
   margin: 0;
-  padding: 10px 14px;
-  font-size: 0.82rem;
-  color: #b42318;
-  background: #fef3f2;
-  border: 1px solid #fda29b;
-  border-radius: 8px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--kb-muted);
 }
 
-/* Инлайновый код в подсказках */
 /* ═══════════════════════════════════════════════
    Редактор библиотеки фраз (PhrasesSettings)
 ═══════════════════════════════════════════════ */

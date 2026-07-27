@@ -948,6 +948,14 @@ public class GitService {
     }
 
     /**
+     * Absolute, normalized path of the indexed repository ({@code kb.git.project-path}). Reported
+     * by the admin panel so it is visible which working tree the model actually reads.
+     */
+    public Path repoPath() {
+        return repoPath;
+    }
+
+    /**
      * Creates a new file in the working tree and stages it ({@code git add}), so it immediately
      * becomes <em>tracked</em> and visible to every read tool of this service (which serve tracked
      * files only).

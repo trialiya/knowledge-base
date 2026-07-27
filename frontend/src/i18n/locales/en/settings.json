@@ -2,20 +2,40 @@
   "nav": {
     "title": "Settings",
     "phrases": "Phrase library",
-    "models": "Models"
+    "models": "Models",
+    "search": "Search",
+    "tools": "Tools"
+  },
+  "config": {
+    "loading": "Loading…",
+    "errorLoading": "Failed to load configuration",
+    "on": "enabled",
+    "off": "disabled",
+    "yes": "yes",
+    "no": "no",
+    "notSet": "not set",
+    "unknown": "unknown",
+    "messagesValue": "{{count}} messages",
+    "tokensValue": "{{count}} tokens",
+    "resultsValue": "{{count}} results",
+    "daysValue": "{{count}} days",
+    "duration": {
+      "seconds": "{{value}} s",
+      "minutes": "{{value}} min",
+      "hours": "{{value}} h"
+    }
   },
   "models": {
     "title": "AI model configuration",
-    "subtitle": "Call parameters, main model, search agent, context compression",
-    "loading": "Loading…",
-    "errorLoading": "Failed to load configuration",
+    "subtitle": "Call parameters, main model, search agent, context compression, embeddings",
     "general": {
       "label": "General",
       "maxTokens": "Max response tokens",
       "temperature": "Temperature",
       "topP": "Top-p",
-      "memoryWindow": "Memory window",
-      "memoryWindowValue": "50 messages"
+      "requestTimeout": "Model request timeout",
+      "retryMaxAttempts": "Retry attempts",
+      "sseTimeout": "Tab SSE subscription window"
     },
     "chat": {
       "label": "Main model (Chat)",
@@ -28,34 +48,89 @@
     "searchCodebase": {
       "label": "Search agent (searchCodebase)",
       "status": "Status",
-      "statusOn": "enabled",
-      "statusOff": "disabled",
       "model": "Model",
       "modelSameAs": "= main ({{id}})",
       "maxTokens": "Max tokens per call",
-      "maxTokensValue": "{{count}} tokens",
-      "maxIterations": "Max tool iterations"
+      "maxIterations": "Max tool iterations",
+      "allowedTools": "Allowed tools",
+      "allowedToolsEmpty": "The list is empty — the agent can call nothing"
     },
     "summarize": {
       "label": "Context compression (SummarizeService)",
       "model": "Model",
       "modelSameAs": "= main ({{id}})",
       "tokenThreshold": "Token threshold",
-      "tokensValue": "{{count}} tokens",
       "messageThreshold": "Message threshold",
-      "messagesValue": "{{count}} messages",
-      "overlap": "Live message buffer"
+      "overlap": "Live message buffer",
+      "collapseThreshold": "Summary collapse threshold",
+      "summariesValue": "{{count}} summaries",
+      "charsPerToken": "Characters per token (estimate)",
+      "charsValue": "{{count}} characters"
+    },
+    "embedding": {
+      "label": "Embeddings",
+      "model": "Model",
+      "chunkMaxTokens": "Max chunk size",
+      "chunkOverlap": "Chunk overlap",
+      "reindexBatchSize": "Re-index batch size",
+      "documentsValue": "{{count}} documents",
+      "cache": "Vector cache",
+      "cacheTtl": "Cache TTL"
+    }
+  },
+  "search": {
+    "title": "Knowledge base search",
+    "subtitle": "Limits and thresholds of keyword, semantic and hybrid search",
+    "limit": "Result limit",
+    "threshold": "Similarity threshold",
+    "keyword": {
+      "label": "Keyword search"
+    },
+    "semantic": {
+      "label": "Semantic search",
+      "status": "Status"
+    },
+    "hybrid": {
+      "label": "Hybrid search",
+      "keywordWeight": "Keyword result weight",
+      "semanticWeight": "Semantic result weight"
+    }
+  },
+  "tools": {
+    "title": "Tools and modes",
+    "subtitle": "What the assistant can do beyond the built-in code and document search",
+    "modes": {
+      "label": "Assistant modes",
+      "empty": "No modes configured — only the “no mode” option is available."
+    },
+    "git": {
+      "label": "Repository file edits",
+      "editEnabled": "Allowed in configuration",
+      "editActive": "Tools exposed to the model",
+      "readOnlyNote": "Editing is enabled in the configuration, but the working tree is not writable (read-only mount), so createFile/editFile are not exposed to the model."
+    },
+    "mcp": {
+      "label": "External MCP servers",
+      "status": "MCP tools",
+      "connections": "Connections",
+      "connectionsEmpty": "No connections configured"
+    },
+    "uploads": {
+      "label": "Attachment limits",
+      "maxFileSize": "Max file size",
+      "maxRequestSize": "Max request size"
     }
   },
   "admin": {
     "nav": {
       "title": "Administration",
       "index": "Semantic index",
-      "bulk": "Bulk operations"
+      "bulk": "Bulk operations",
+      "system": "System"
     },
     "index": {
       "title": "Semantic index",
-      "subtitle": "Re-indexing of knowledge base embeddings",
+      "subtitle": "Re-indexing of knowledge base embeddings and background queue settings",
       "sectionLabel": "Operations",
       "reindex": {
         "title": "Re-index all documents",
@@ -66,12 +141,29 @@
         "done": "Re-indexing has been started.",
         "errorBadge": "error",
         "error": "Failed to start re-indexing. Try again later."
+      },
+      "queue": {
+        "label": "Embedding queue",
+        "workers": "Concurrent API calls",
+        "pollBatchSize": "Tasks claimed per poll",
+        "tasksValue": "{{count}} tasks",
+        "pollInterval": "Poll interval",
+        "maxAttempts": "Attempts before failure",
+        "retryBackoff": "Retry backoff (× attempt)",
+        "stuckTimeout": "Stuck task timeout",
+        "stuckCheck": "Stuck task check interval",
+        "cleanupRetention": "Finished task retention",
+        "cache": "Vector cache",
+        "cacheTtl": "Cache TTL",
+        "cacheCleanupCron": "Cache cleanup schedule (cron)"
       }
     },
     "bulk": {
       "title": "Bulk operations",
       "subtitle": "Export, import and batch processing of documents",
       "sectionLabel": "Operations",
+      "targetLabel": "Export target",
+      "exportPath": "Server export folder (kb.documents.export-path)",
       "export": {
         "title": "Export all documents",
         "desc": "Exports the tree to the server folder (DOCUMENTS_EXPORT_PATH): Markdown{{meta}}, folder structure is preserved",
@@ -83,6 +175,44 @@
         "done": "Documents exported to the server export folder.",
         "errorBadge": "error",
         "error": "Export failed. Make sure DOCUMENTS_EXPORT_PATH is set."
+      }
+    },
+    "system": {
+      "title": "System",
+      "subtitle": "Profile, database, indexed repository and access",
+      "app": {
+        "label": "Application",
+        "name": "Application name",
+        "profiles": "Active profiles",
+        "port": "Port",
+        "java": "Java version",
+        "startedAt": "Started",
+        "uptime": "Uptime"
+      },
+      "database": {
+        "label": "Database",
+        "url": "JDBC URL (credentials stripped)",
+        "driver": "Driver",
+        "username": "User",
+        "flywayLocations": "Flyway migrations",
+        "schemaVersion": "Schema version"
+      },
+      "git": {
+        "label": "Indexed repository",
+        "projectPath": "Repository path (kb.git.project-path)",
+        "editEnabled": "Editing allowed in configuration",
+        "writable": "Working tree is writable"
+      },
+      "documents": {
+        "label": "Document export",
+        "exportPath": "Export folder (kb.documents.export-path)",
+        "exportPathEmpty": "not set — export will fail",
+        "replace": "Overwrite existing files"
+      },
+      "security": {
+        "label": "Access",
+        "username": "User (HTTP Basic)",
+        "note": "The single user is configured in kb.security. The password is not shown here and is never returned by the API."
       }
     }
   },
