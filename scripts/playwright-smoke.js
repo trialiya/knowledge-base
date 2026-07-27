@@ -2,11 +2,11 @@
 /**
  * Boots the backend jar (H2 profile, no real AI backend needed) and drives it with
  * Playwright's pre-installed Chromium to confirm the SPA actually renders. This is
- * the canonical example for "Visually validating the frontend" in CLAUDE.md — see
+ * the canonical example for the frontend-visual-check skill (.claude/skills/) — see
  * there for the full explanation (locale gotcha, auth, why the jar route).
  *
- * By default the app is seeded with db/sample-data.sql (see CLAUDE.md, 'Тестовые
- * данные для H2') so the screenshot shows real chat/document content instead of an
+ * By default the app is seeded with db/sample-data.sql (see .claude/rules/
+ * backend-data.md) so the screenshot shows real chat/document content instead of an
  * empty knowledge base — pass --no-seed to skip that and check bare-schema startup
  * instead. Seeding always targets a disposable local-db/h2-smoke file (deleted and
  * recreated on every run) via an env var override of spring.datasource.url with

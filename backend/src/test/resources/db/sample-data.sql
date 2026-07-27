@@ -1,5 +1,5 @@
--- H2 sample/test dataset — see CLAUDE.md ('Тестовые данные для H2') for a pointer
--- to this file and to SampleDataFixtureTest, the worked usage example. Full
+-- H2 sample/test dataset — see .claude/rules/backend-data.md for a pointer to
+-- this file and to SampleDataFixtureTest, the worked usage example. Full
 -- rationale lives here, next to the data it describes:
 --
 -- Schema target: db/migration-h2 (H2 in PostgreSQL mode). NOT valid against the
