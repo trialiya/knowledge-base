@@ -130,26 +130,6 @@
   line-height: 1.6;
   color: var(--kb-text);
 }
-.summary-about--empty {
-  color: var(--kb-muted);
-  font-style: italic;
-}
-
-/* "...читать далее" link inside summary */
-.summary-read-more {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--kb-accent);
-  font-size: 0.85rem;
-  font-weight: 600;
-  padding: 0;
-  transition: opacity 0.15s;
-}
-.summary-read-more:hover {
-  opacity: 0.75;
-}
-
 /* ── Summarize button ── */
 .spin {
   animation: kb-spin 0.9s linear infinite;
@@ -178,60 +158,6 @@
   border-radius: 8px;
   padding: 1px 7px;
   vertical-align: middle;
-}
-
-/* ── Formatted markdown inside summary ── */
-.summary-markdown {
-  font-size: 0.88rem;
-  line-height: 1.6;
-  color: var(--kb-text);
-}
-.summary-markdown p {
-  margin: 0 0 0.5em;
-}
-.summary-markdown p:last-child {
-  margin-bottom: 0;
-}
-.summary-markdown h1,
-.summary-markdown h2,
-.summary-markdown h3,
-.summary-markdown h4 {
-  font-size: 0.92rem;
-  font-weight: 700;
-  margin: 0.6em 0 0.3em;
-  color: var(--kb-text);
-}
-.summary-markdown h1:first-child,
-.summary-markdown h2:first-child,
-.summary-markdown h3:first-child {
-  margin-top: 0;
-}
-.summary-markdown ul,
-.summary-markdown ol {
-  padding-left: 1.3em;
-  margin: 0 0 0.5em;
-}
-.summary-markdown li {
-  margin-bottom: 0.15em;
-}
-.summary-markdown code {
-  font-family: 'Fira Mono', 'Consolas', monospace;
-  font-size: 0.83em;
-  background: var(--kb-bg);
-  padding: 1px 5px;
-  border-radius: 4px;
-  color: var(--kb-accent);
-}
-.summary-markdown strong {
-  font-weight: 600;
-}
-.summary-markdown blockquote {
-  border-left: 3px solid var(--kb-accent);
-  margin: 0 0 0.5em;
-  padding: 0.2em 0.8em;
-  color: var(--kb-muted);
-  background: var(--kb-accent-light);
-  border-radius: 0 6px 6px 0;
 }
 
 /* ═══════════════════════════════════════════════
@@ -383,22 +309,11 @@
    ПРАВАЯ ПАНЕЛЬ — адаптация к узкой колонке
 ═══════════════════════════════════════════════ */
 
-/* Описание рендерится как markdown: длинные пути, inline-код и ссылки
+/* AI-summary — сплошной текст без переносов: длинные пути и идентификаторы
    (`backend/build.gradle`) не переносятся сами и вылезали за край панели. */
-.workspace__side--right .summary-markdown,
 .workspace__side--right .summary-about {
   overflow-wrap: anywhere;
   min-width: 0;
-}
-.workspace__side--right .summary-markdown code,
-.workspace__side--right .summary-markdown a {
-  overflow-wrap: anywhere;
-  white-space: normal;
-}
-/* Заголовки документа в превью не должны спорить с заголовком самой панели. */
-.workspace__side--right .summary-markdown h1,
-.workspace__side--right .summary-markdown h2 {
-  font-size: 0.95rem;
 }
 
 /* Состав папки: тип уже показан иконкой строки — в узкой панели убираем колонку

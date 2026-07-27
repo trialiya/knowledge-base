@@ -275,3 +275,54 @@
     Блокировано данными: в db/sample-data.sql один чат, а на нём не видно
     главного различия — строки с кнопкой удаления и без неё. Нужен сид с двумя
     и более чатами. Ожидание выведено из кода.
+
+- id: kb-document-opens-in-preview
+  component: DocumentDetail
+  path: frontend/src/components/knowledgeBasePanel/DocumentDetail.jsx
+  title: Документ открывается в режиме просмотра, а не в правке
+  status: verified
+  origin:
+    - PR #171, сессия 2026-07-27
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /knowledge/doc/<id документа из фикстуры>
+  fixtures: ./fixtures/detailPanel.js#documentWithContent
+  expected:
+    - В центре отрендеренный markdown (.md-preview), textarea нет — документ чаще читают, чем правят
+    - Заголовки, списки и ссылка на файл видны как оформленный текст, а не как разметка
+    - Кнопки форматирования в тулбаре погашены (disabled), активны копирование, «глаз», развернуть и история
+    - Клик по «глазу» открывает textarea с исходным markdown, тулбар оживает
+    - Полоса «Сохранить/Отменить» не появляется, пока текст не менялся
+  notes: |
+    Замерено в браузере: при заходе на документ .md-preview есть, .md-textarea
+    нет; после клика по кнопке «глаз» — наоборот.
+    То же и у папки (FolderDetail, defaultPreview): у пустого описания в
+    просмотре видно «Nothing to show», правка — по «глазу».
+
+- id: kb-right-summary-ai-only
+  component: detailSidebar
+  path: frontend/src/components/knowledgeBasePanel/detailSidebar.jsx
+  title: Вкладка «Summary» справа — только AI-описание, без копии содержимого
+  status: verified
+  origin:
+    - PR #171, сессия 2026-07-27
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /knowledge/doc/<id документа из фикстуры>?right=summary
+  fixtures: ./fixtures/detailPanel.js#documentWithContent
+  expected:
+    - У документа справа три вкладки — «Info · Summary · Attachments»
+    - Во вкладке «Summary» одна секция «AI SUMMARY»; блока «About» с текстом документа больше нет
+    - Без сгенерированного summary в секции кнопка «Generate summary» (и подсказка, если описание пустое)
+    - С готовым, но устаревшим summary (фикстура documentWithSummary) — текст описания, бейдж «STALE» у заголовка и кнопка «Update» справа
+    - У папки вкладки «Summary» нет вовсе — «Info · Contents · Attachments», папки не суммаризируются
+    - Ссылка вида /knowledge/doc/<id папки>?right=summary не ломает панель: вкладки такой нет, панель остаётся рельсом
+  notes: |
+    Замерено в браузере: у документа вкладки Info/Summary/Attachments, тело
+    вкладки — «AI SUMMARY · Generate summary»; у папки Info/Contents/Attachments.
+    Состояние с готовым summary проверялось отдельным прогоном: в
+    db/sample-data.sql summary у документов не засеян, поэтому он проставлялся
+    UPDATE-ом по засеянной H2 (summary_source_version ниже description_version —
+    отсюда «STALE»).

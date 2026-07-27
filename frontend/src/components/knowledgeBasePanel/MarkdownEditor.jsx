@@ -162,6 +162,9 @@ function insertTable(textarea, labels = { col1: 'Колонка 1', col2: 'Ко�
  *   placeholder — placeholder text for textarea (по умолчанию t('editor.placeholder'))
  *   onSave      — async (val: string) => void
  *   previewOnly — if true, renders only the preview pane without toolbar or editor controls
+ *   defaultPreview — с какой панели редактор открывается: true → просмотр, false → правка.
+ *                 Основной редактор документа (центр) открывается в просмотре — документ
+ *                 чаще читают, чем правят; переключатель «глаз» в тулбаре на месте.
  *   tree        — KB tree array (for DocLinkTooltip instant lookup)
  *   onNavigate  — (node) => void (for DocLinkTooltip "Открыть" button)
  *   onExpand    — optional () => void; if set, shows an "expand" button in the toolbar right group
@@ -174,13 +177,14 @@ const MarkdownEditor = ({
   placeholder,
   onSave,
   previewOnly = false,
+  defaultPreview = false,
   tree = [],
   onNavigate,
   onExpand,
   onHistory,
 }) => {
   const { t } = useTranslation('knowledgeBase');
-  const [preview, setPreview] = useState(false);
+  const [preview, setPreview] = useState(defaultPreview);
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copiedJira, setCopiedJira] = useState(false);
@@ -409,7 +413,7 @@ const MarkdownEditor = ({
     }
   };
 
-  // ── Preview-only mode (used in SummarySection About + fullscreen About) ────
+  // ── Preview-only mode (used by HistoryModal's version previews) ───────────
   if (previewOnly) {
     return (
       <div className="md-preview md-preview--embedded">

@@ -5,28 +5,17 @@ import ModalShell from '../common/ModalShell';
 import { IconX } from '../../icons';
 
 /**
- * Полноэкранная модалка для разворачивания описания.
+ * Полноэкранная модалка для разворачивания содержимого документа/папки.
  * props:
  *   title       — заголовок в шапке модалки
- *   value       — markdown-строка (для Content — общий черновик)
- *   onChange    — (val) => void; правки черновика (нужен только если previewOnly=false)
+ *   value       — markdown-строка (общий черновик содержимого)
+ *   onChange    — (val) => void; правки черновика
  *   savedValue  — сохранённое описание (для вычисления «грязно» в редакторе)
- *   previewOnly — true → только preview (Summary.About), false → редактор (Content)
- *   onSave      — async (val) => void   (нужен только если previewOnly=false)
+ *   onSave      — async (val) => void
  *   onClose     — () => void
  *   tree, onNavigate — пробрасываются в MarkdownEditor для DocLinkTooltip
  */
-const FullscreenEditorModal = ({
-  title,
-  value,
-  onChange,
-  savedValue = '',
-  previewOnly = false,
-  onSave,
-  onClose,
-  tree = [],
-  onNavigate,
-}) => {
+const FullscreenEditorModal = ({ title, value, onChange, savedValue = '', onSave, onClose, tree = [], onNavigate }) => {
   const { t } = useTranslation('knowledgeBase');
 
   return (
@@ -42,7 +31,6 @@ const FullscreenEditorModal = ({
           value={value}
           onChange={onChange}
           savedValue={savedValue}
-          previewOnly={previewOnly}
           onSave={onSave || (() => {})}
           tree={tree}
           onNavigate={onNavigate}

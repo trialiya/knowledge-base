@@ -2,8 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 
 /**
  * Состояние детали узла базы знаний, общее для ЦЕНТРА (редактор содержимого) и
- * ПРАВОЙ панели (описание, вложения):
- *   - fullscreen: 'about' | 'content' | null (что раскрыто на весь экран)
+ * ПРАВОЙ панели (summary, вложения):
+ *   - fullscreen: раскрыт ли редактор содержимого на весь экран
  *   - showHistory: открыта ли модалка истории
  *   - contentDraft: «поднятый» черновик описания, чтобы встроенный редактор и
  *     полноэкранный («развернуть») делили один источник правды.
@@ -17,7 +17,7 @@ import { useState, useEffect, useRef } from 'react';
  * @param nodeId       — id узла; его смена сбрасывает состояние детали
  */
 export default function useDetailPanel(savedContent = '', nodeId = null) {
-  const [fullscreen, setFullscreen] = useState(null);
+  const [fullscreen, setFullscreen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [contentDraft, setContentDraft] = useState(savedContent);
 
@@ -31,7 +31,7 @@ export default function useDetailPanel(savedContent = '', nodeId = null) {
       nodeRef.current = nodeId;
       savedRef.current = savedContent;
       setContentDraft(savedContent);
-      setFullscreen(null);
+      setFullscreen(false);
       setShowHistory(false);
       return;
     }
