@@ -32,6 +32,15 @@ Knowledge Base помогает **вести документацию**, **ан�
 
 ## Быстрый старт
 
+Есть два способа запуска. Выбирайте по тому, что уже стоит на машине:
+
+| Способ | Что нужно | Когда выбирать |
+|---|---|---|
+| **Docker** (рекомендуется) | Docker + `docker compose` | Просто попробовать или развернуть: ни JDK, ни ручной сборки — образ собирается сам |
+| **Скрипты `run/`** | JDK 25 | Docker нет или не нужен; удобнее держать настройки в YAML-файле и переключать профили |
+
+### Вариант 1 — Docker (рекомендуется)
+
 ```bash
 cd docker
 cp example.env .env
@@ -43,21 +52,34 @@ docker compose -f docker-compose-h2.yaml up
 
 > **Что внутри:** встроенная H2 (PostgreSQL не нужен), keyword-поиск, AI-чат,
 > Git-интеграция. Семантический поиск отключён — для полного стека замените
-> `docker-compose-h2.yaml` на `docker compose up`.
->
-> Пошаговая инструкция — [Руководство по установке](docs/проект/руководство-по-установке.md)
+> `docker-compose-h2.yaml` на `docker compose up` и добавьте в `.env`
+> переменные `AI_EMBED_*`.
 
-### Без Docker — запуск из JAR
+### Вариант 2 — скрипты `run/` (без Docker)
+
+Готовые скрипты запуска лежат в папке `run/` рядом с конфигом `run/application.yaml`.
 
 ```bash
-./gradlew :backend:bootJar          # фронтенд встраивается автоматически
-SPRING_PROFILES_ACTIVE=h2 \
-AI_BASE_URL=https://api.openai.com/ AI_API_KEY=your-key AI_MODEL=gpt-4o \
-PROJECT_PATH=./ \
-java -jar backend/build/libs/backend-1.0-SNAPSHOT.jar
+./gradlew :backend:bootJar     # фронтенд встраивается в JAR автоматически
+# Отредактируйте run/application.yaml: api-key, base-url, модель,
+# kb.git.project-path (путь к репозиторию для анализа)
+./run/run.sh                   # профиль h2 по умолчанию
 ```
 
-Требуется JDK 25. Подробнее — [Руководство по установке](docs/проект/руководство-по-установке.md), раздел 4.
+Windows: `run\run.bat` (cmd) или `.\run\run.ps1` (PowerShell) — аргументы те же.
+
+Открывайте http://localhost:8080, логин/пароль по умолчанию — `admin` / `admin`
+(меняются в `kb.security`).
+
+> **Профили:** `./run/run.sh h2` — встроенная H2 (по умолчанию),
+> `./run/run.sh external` — свой PostgreSQL. Чтобы держать несколько наборов
+> настроек, скопируйте `run/application.yaml` в `run/application-<имя>.yaml`
+> и запускайте `./run/run.sh <имя>`.
+>
+> JVM стартует из папки `run/`, поэтому относительные пути в конфиге
+> (например `project-path: ..`) считаются от неё.
+
+Пошаговая инструкция для обоих вариантов — [Руководство по установке](docs/проект/руководство-по-установке.md).
 
 ## Документация
 
