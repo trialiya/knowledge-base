@@ -434,8 +434,12 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
         topicRepo.save(new ChatTopicEntity(older, user, "старая", null, null, true));
         topicRepo.save(new ChatTopicEntity(newer, user, "новая", null, null, true));
 
-        // делаем «newer» свежее по updated_at
-        topicRepo.updateUpdatedAt(newer);
+        // разводим updated_at явными отметками: тест про сортировку, а не про
+        // разрешение системных часов — два save подряд могут попасть в одну и ту же
+        // миллисекунду, и тогда порядок при равных updated_at произволен
+        LocalDateTime now = LocalDateTime.now();
+        topicRepo.updateUpdatedAt(older, now.minusHours(1));
+        topicRepo.updateUpdatedAt(newer, now);
 
         List<String> ids =
                 topicRepo.findAllByUserOrderByUpdatedAtDesc(user).stream()
@@ -444,6 +448,30 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
 
         assertThat(ids).first().isEqualTo(newer);
         assertThat(ids).contains(older);
+    }
+
+    /**
+     * «Тронуть» чат обязано двигать {@code updated_at} только вперёд относительно отметки, которую
+     * поставил аудит при сохранении. Раньше время брал {@code clock_timestamp()} — часы БД, — и на
+     * машине, где контейнер с Postgres отстаёт от хоста, только что открытый чат уезжал вниз
+     * списка.
+     */
+    @Test
+    void touchingTopicMovesUpdatedAtForward() {
+        String conv = newConversation();
+        topicRepo.save(
+                new ChatTopicEntity(conv, "bob-" + UUID.randomUUID(), "тема", null, null, true));
+        LocalDateTime afterSave = topicRepo.findById(conv).orElseThrow().getUpdatedAt();
+
+        // отматываем назад, чтобы «тронуть» было чем проверить: без этого проверка
+        // прошла бы и на запросе, который вообще ничего не пишет
+        topicRepo.updateUpdatedAt(conv, afterSave.minusDays(1));
+        assertThat(topicRepo.findById(conv).orElseThrow().getUpdatedAt()).isBefore(afterSave);
+
+        topicRepo.updateUpdatedAt(conv);
+
+        assertThat(topicRepo.findById(conv).orElseThrow().getUpdatedAt())
+                .isAfterOrEqualTo(afterSave);
     }
 
     // ── Поиск по сообщениям внутри чата (find-бар, Ctrl+F) ───────────────────
