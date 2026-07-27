@@ -1,7 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconCopySmall, IconCopied } from '../../icons';
-import { COPY_DONE_MS } from '../../constants/ui';
+import useCopyFeedback from '../../hooks/useCopyFeedback';
 import './infoList.css';
 
 /**
@@ -23,48 +23,38 @@ import './infoList.css';
  *                  (сообщение коммита) выключка вправо в 4 строки нечитаема
  *   note — узел под списком (предупреждение/пояснение), необязателен
  *
- * У каждой строки — кнопка копирования значения в буфер обмена: большинство
- * значений здесь (id, хеш, путь) для того и нужны, чтобы вставить их куда-то
- * ещё, а руками их не выделить — они не текст, а вёрстка списка.
+ * У строки с текстовым значением есть кнопка копирования: большинство значений
+ * здесь (id, хеш, путь) для того и нужны, чтобы вставить их куда-то ещё, а
+ * выделить их мышью трудно — это не текст, а вёрстка списка. У значения-узла
+ * кнопки нет: копировать в буфер нечего, в него ушло бы «[object Object]».
  */
 const InfoList = ({ rows, note }) => {
   const { t } = useTranslation();
+  const [copiedLabel, copy] = useCopyFeedback();
   const visible = rows.filter((row) => row && row.value != null && row.value !== '');
-  const [copiedLabel, setCopiedLabel] = useState(null);
-  const timerRef = useRef(null);
-
-  useEffect(() => () => clearTimeout(timerRef.current), []);
-
-  const handleCopy = async (row) => {
-    try {
-      await navigator.clipboard.writeText(String(row.value));
-      setCopiedLabel(row.label);
-      clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setCopiedLabel(null), COPY_DONE_MS);
-    } catch {
-      /* clipboard API недоступен в insecure context */
-    }
-  };
 
   return (
     <div className="info-list">
       <dl className="info-list__list">
         {visible.map((row) => {
           const copied = copiedLabel === row.label;
+          const copyable = typeof row.value === 'string' || typeof row.value === 'number';
           return (
             <div className={`info-list__row${row.block ? ' info-list__row--block' : ''}`} key={row.label}>
               <dt className="info-list__label">{row.label}</dt>
               <dd className={`info-list__value${row.mono ? ' info-list__value--mono' : ''}`}>
                 <span className="info-list__value-text">{row.value}</span>
-                <button
-                  type="button"
-                  className={`icon-btn info-list__copy-btn${copied ? ' icon-btn--done' : ''}`}
-                  onClick={() => handleCopy(row)}
-                  title={copied ? t('copied') : t('copy')}
-                  aria-label={copied ? t('copied') : t('copy')}
-                >
-                  {copied ? <IconCopied size={12} /> : <IconCopySmall size={12} />}
-                </button>
+                {copyable && (
+                  <button
+                    type="button"
+                    className={`icon-btn info-list__copy-btn${copied ? ' icon-btn--done' : ''}`}
+                    onClick={() => copy(String(row.value), row.label)}
+                    title={copied ? t('copied') : t('copy')}
+                    aria-label={`${copied ? t('copied') : t('copy')}: ${row.label}`}
+                  >
+                    {copied ? <IconCopied size={12} /> : <IconCopySmall size={12} />}
+                  </button>
+                )}
               </dd>
             </div>
           );

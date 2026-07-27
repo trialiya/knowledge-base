@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconFolder, IconDoc, IconEdit, IconTrash, IconCheck, IconX, IconLock } from '../../icons';
 import HeadCrumbs from '../common/HeadCrumbs';
-import { collapseCrumbs } from '../../utils/breadcrumbs';
 
 // ─── Inline rename ────────────────────────────────────────────────────────────
 
@@ -52,9 +51,10 @@ const InlineRename = ({ value, onSave, onCancel }) => {
  * В `path` только предки узла — сам он стоит следом заголовком, поэтому у крошек
  * есть замыкающий разделитель: путь и имя читаются одной цепочкой.
  *
- * Длинная цепочка предков схлопывается до корня и последнего перед заголовком
- * (collapseCrumbs) — сам узел уже виден в заголовке, дальше нужен только путь
- * до него, а не полный список промежуточных папок.
+ * Цепочку предков отдаём целиком: не влезающую в шапку середину схлопывает сам
+ * HeadCrumbs. Названия узлов здесь длинные (это фразы, а не сегменты пути),
+ * поэтому переполнение начинается уже на двух-трёх предках — считать его по
+ * глубине дерева было бы мимо.
  */
 const DetailHeader = ({ node, path, onNavigate, onRename, onDelete }) => {
   const { t } = useTranslation('knowledgeBase');
@@ -84,13 +84,11 @@ const DetailHeader = ({ node, path, onNavigate, onRename, onDelete }) => {
     )
   );
 
-  const crumbs = collapseCrumbs(
-    (path || []).map((ancestor) => ({
-      key: ancestor.id,
-      label: ancestor.title,
-      onNavigate: () => onNavigate(ancestor),
-    })),
-  );
+  const crumbs = (path || []).map((ancestor) => ({
+    key: ancestor.id,
+    label: ancestor.title,
+    onNavigate: () => onNavigate(ancestor),
+  }));
 
   return (
     <div className="workspace__head detail-header">

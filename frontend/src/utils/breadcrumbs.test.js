@@ -3,17 +3,24 @@ import { collapseCrumbs } from './breadcrumbs';
 const item = (key) => ({ key, label: key, onNavigate: () => {} });
 
 describe('collapseCrumbs', () => {
-  it('короткую цепочку не трогает', () => {
-    const items = [item('root'), item('a'), item('b')];
+  it('цепочку без середины возвращает той же самой — прятать нечего', () => {
+    const items = [item('root'), item('file')];
     expect(collapseCrumbs(items)).toBe(items);
+    // Та же цепочка глазами файлового раздела (keepEnd = 2: папка + файл).
+    expect(collapseCrumbs([...items, item('x')], 1, 2)).toHaveLength(3);
   });
 
-  it('прячущую единственное звено цепочку не схлопывает — выигрыша нет', () => {
+  it('схлопывает и единственное скрытое звено: решение о схлопывании принято по ширине', () => {
+    // Длинное название папки из базы знаний экономит строке больше, чем стоит
+    // потерянная ссылка на неё, — иначе HeadCrumbs сюда бы и не обратился.
     const items = [item('root'), item('a'), item('file')];
-    expect(collapseCrumbs(items)).toEqual(items);
+    const result = collapseCrumbs(items);
+
+    expect(result).toHaveLength(3);
+    expect(result[1]).toMatchObject({ label: '…', ellipsis: true, title: 'a' });
   });
 
-  it('схлопывает середину, когда прячет два и больше звеньев', () => {
+  it('схлопывает середину, оставляя края нетронутыми', () => {
     const items = [item('root'), item('a'), item('b'), item('c'), item('file')];
     const result = collapseCrumbs(items);
 
