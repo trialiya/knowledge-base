@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 @Slf4j
@@ -21,6 +22,18 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AsyncRequestNotUsableException.class)
     public void handleClientDisconnect(AsyncRequestNotUsableException ex) {
         log.debug("Async request no longer usable (client disconnected): {}", ex.getMessage());
+    }
+
+    /**
+     * Запрос статического ресурса, которого нет (например, браузерные автопробы вроде
+     * /.well-known/appspecific/com.chrome.devtools.json от Chrome DevTools) — обычный 404, не
+     * причина для ERROR-стектрейса, который иначе сыпал бы catch-all ниже.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResourceFound(NoResourceFoundException ex) {
+        log.debug(ex.getMessage());
+        ErrorResponse error = new ErrorResponse(HttpStatus.NOT_FOUND, ex.getMessage());
+        return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
     }
 
     @ExceptionHandler(ResponseStatusException.class)
