@@ -104,7 +104,7 @@ const KnowledgeBase = ({ docId, search, mode, refreshSignal, onRefreshingChange,
     tree,
     contentDraft,
     setContentDraft,
-    onExpandContent: () => setFullscreen('content'),
+    onExpandContent: () => setFullscreen(true),
     onHistory: () => setShowHistory(true),
   };
 
@@ -127,10 +127,8 @@ const KnowledgeBase = ({ docId, search, mode, refreshSignal, onRefreshingChange,
     ? buildDetailTabs({
         node: selectedNode,
         t,
-        tree,
         onNavigate: selectNode,
         onSummarize: handleSummarize,
-        onExpandAbout: () => setFullscreen('about'),
         attachmentCount,
         onAttachmentCountChange: setAttachmentCount,
         folderChildren,
@@ -186,7 +184,7 @@ const KnowledgeBase = ({ docId, search, mode, refreshSignal, onRefreshingChange,
         <DetailModals
           node={selectedNode}
           fullscreen={fullscreen}
-          onCloseFullscreen={() => setFullscreen(null)}
+          onCloseFullscreen={() => setFullscreen(false)}
           showHistory={showHistory}
           onCloseHistory={() => setShowHistory(false)}
           onUpdate={handleUpdate}

@@ -77,7 +77,7 @@ function App() {
   // Регистрируем переход в Files для DocLinkTooltip (кнопка "Открыть" у
   // файловой ссылки) — компонент смонтирован в чате/KB, на много уровней
   // ниже App, поэтому проп сюда не прокинуть без прошивки всей цепочки
-  // (Message/ChatWindow, SummarySection/MarkdownEditor/DetailModals/...).
+  // (Message/ChatWindow, MarkdownEditor/DetailModals/...).
   useEffect(() => {
     registerFileNavigator((path) => {
       goView('files');
