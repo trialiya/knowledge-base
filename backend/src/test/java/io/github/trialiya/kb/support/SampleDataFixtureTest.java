@@ -22,7 +22,7 @@ import org.springframework.test.context.jdbc.Sql;
 /**
  * Loads {@code db/sample-data.sql} against the H2 schema and sanity-checks it — both a regression
  * test for the fixture itself (catches SQL that no longer matches {@code db/migration-h2}) and a
- * worked example of using the fixture in a test, per CLAUDE.md ("Тестовые данные для H2").
+ * worked example of using the fixture in a test, per {@code .claude/rules/backend-data.md}.
  */
 @ActiveProfiles("h2")
 @DataJdbcTest(

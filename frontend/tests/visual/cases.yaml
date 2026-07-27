@@ -22,8 +22,8 @@
 # Как проверялись кейсы со status: verified в PR #155. Дев-сервер в веб-песочнице
 # не работает, поэтому прогон шёл через собранный jar с профилем h2, засеянный
 # backend/src/test/resources/db/sample-data.sql, под Chromium/Playwright с
-# HTTP Basic admin/admin (рецепт — в scripts/playwright-smoke.js и CLAUDE.md,
-# раздел «Visually validating the frontend»). Фикстуры ниже — те же данные,
+# HTTP Basic admin/admin (рецепт — в scripts/playwright-smoke.js и в скилле
+# frontend-visual-check, .claude/skills/). Фикстуры ниже — те же данные,
 # переписанные под пропсы компонентов и с синтетическими id.
 
 - id: chat-header-single-row
