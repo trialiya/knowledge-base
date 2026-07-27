@@ -3,6 +3,7 @@ package io.github.trialiya.kb.service;
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.model.chat.dto.ChatEvent;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
@@ -105,6 +106,20 @@ public class ChatEventService {
      */
     public void sendHeartbeats() {
         hubs.values().forEach(ConversationHub::sendHeartbeat);
+    }
+
+    /**
+     * Закрывает все хабы и очищает реестр — при остановке приложения (см. {@link
+     * ChatRuntimeShutdown}). Возвращает число освобождённых SSE-подписок.
+     */
+    public int closeAll() {
+        final List<ConversationHub> snapshot = List.copyOf(hubs.values());
+        hubs.clear();
+        int subscribers = 0;
+        for (final ConversationHub hub : snapshot) {
+            subscribers += hub.close();
+        }
+        return subscribers;
     }
 
     /**

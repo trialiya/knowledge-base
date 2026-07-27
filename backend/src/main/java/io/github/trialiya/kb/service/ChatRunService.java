@@ -17,6 +17,7 @@ import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import io.github.trialiya.kb.utils.ChatUtils;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -67,6 +68,9 @@ public class ChatRunService {
     private static final String TOOL_CALLS_FINISH_REASON =
             ChatCompletion.Choice.FinishReason.Value.TOOL_CALLS.name();
 
+    /** Шаг опроса реестра прогонов в {@link #awaitQuiescence}. */
+    private static final long QUIESCENCE_POLL_MS = 25;
+
     private final ChatClient chatClient;
     private final ChatMemory chatMemory;
     private final ChatMemoryService chatMemoryService;
@@ -101,6 +105,7 @@ public class ChatRunService {
             String conversationId,
             String user,
             AtomicReference<Disposable> disposable,
+            AtomicBoolean stopRequested,
             AtomicBoolean persisted) {}
 
     /** Запускает генерацию в фоне и сразу возвращает runId — HTTP-запрос не держим. */
@@ -120,7 +125,12 @@ public class ChatRunService {
         }
         final RunHandle handle =
                 new RunHandle(
-                        runId, conversationId, user, new AtomicReference<>(), new AtomicBoolean());
+                        runId,
+                        conversationId,
+                        user,
+                        new AtomicReference<>(),
+                        new AtomicBoolean(),
+                        new AtomicBoolean());
         runs.put(runId, handle);
         events.startRun(conversationId, runId);
         // executor — DelegatingSecurityContextExecutorService: проставит SecurityContext текущего
@@ -144,11 +154,54 @@ public class ChatRunService {
         if (handle == null || !handle.conversationId().equals(conversationId)) {
             return false;
         }
+        cancel(handle);
+        return true;
+    }
+
+    /**
+     * Останавливает все активные прогоны — при остановке приложения (см. {@link
+     * ChatRuntimeShutdown}). Возвращает число прогонов, которым послан сигнал.
+     */
+    public int stopAll() {
+        final List<RunHandle> snapshot = List.copyOf(runs.values());
+        snapshot.forEach(this::cancel);
+        return snapshot.size();
+    }
+
+    /**
+     * Ждёт (не дольше {@code timeout}), пока реестр прогонов опустеет. Терминальная обработка идёт
+     * на других потоках и пишет в БД, поэтому после {@link #stopAll} нужна эта пауза: без неё
+     * shutdown закрыл бы пул соединений раньше, чем сохранится оборванный ответ.
+     *
+     * @return {@code true}, если все прогоны успели завершиться
+     */
+    public boolean awaitQuiescence(Duration timeout) {
+        final long deadline = System.nanoTime() + timeout.toNanos();
+        while (!runs.isEmpty()) {
+            if (System.nanoTime() - deadline >= 0) {
+                return false;
+            }
+            try {
+                Thread.sleep(QUIESCENCE_POLL_MS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return runs.isEmpty();
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Сигнал остановки прогону. Флаг ставим ДО чтения disposable, а {@link #run} ставит disposable
+     * ДО чтения флага — так остановка не проваливается в окно между постановкой задачи в пул и
+     * подпиской на стрим (иначе прогон остался бы неостанавливаемым до конца генерации).
+     */
+    private void cancel(RunHandle handle) {
+        handle.stopRequested().set(true);
         final Disposable disposable = handle.disposable().get();
         if (disposable != null && !disposable.isDisposed()) {
             disposable.dispose();
         }
-        return true;
     }
 
     public Optional<String> activeRun(String conversationId) {
@@ -228,6 +281,10 @@ public class ChatRunService {
                                     error -> log.error("Stream error {}", conversationId, error),
                                     () -> onComplete(handle, toolCollector, liveSink));
             handle.disposable().set(disposable);
+            // Остановку могли запросить, пока задача ещё не подписалась на стрим — см. cancel().
+            if (handle.stopRequested().get()) {
+                disposable.dispose();
+            }
         } catch (Exception e) {
             log.error("Failed to run {}", conversationId, e);
             events.publish(
