@@ -166,6 +166,43 @@ public class ConversationHub {
     }
 
     /**
+     * Закрывает хаб при остановке приложения: завершает все подписки и больше не принимает новые
+     * (как и {@link #closeIfIdle}, но безусловно). Возвращает число закрытых подписчиков.
+     *
+     * <p>Открытая вкладка — это активный async-запрос: пока {@link SseEmitter} не завершён, Tomcat
+     * считает запрос выполняющимся и graceful shutdown ждёт его до своего таймаута (30 с), а потом
+     * всё равно обрывает. Поэтому подписки закрываем сами — до старта graceful shutdown (см. {@link
+     * ChatRuntimeShutdown}).
+     */
+    public int close() {
+        final List<SseEmitter> snapshot;
+        lock.lock();
+        try {
+            if (closed) {
+                return 0;
+            }
+            closed = true;
+            snapshot = List.copyOf(subscribers);
+            subscribers.clear();
+            eventLog.clear();
+            activeRunId = null;
+        } finally {
+            lock.unlock();
+        }
+        // complete() — вне лока: он дёргает контейнерные колбэки (onCompletion → remove), которым
+        // нужен тот же лок, и держать лок на время I/O незачем.
+        for (final SseEmitter emitter : snapshot) {
+            try {
+                emitter.complete();
+            } catch (Exception e) {
+                log.debug("[{}] complete on shutdown failed: {}", conversationId, e.getMessage());
+            }
+        }
+        log.debug("[{}] hub closed, {} subscriber(s) released", conversationId, snapshot.size());
+        return snapshot.size();
+    }
+
+    /**
      * Отправляет SSE-комментарий всем подписчикам. При записи в закрытый сокет Spring бросает
      * исключение → onError/onCompletion → remove() → хаб выгружается из реестра. Вызывается по
      * расписанию из {@link ChatRuntimeMonitor}.
