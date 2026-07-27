@@ -68,6 +68,10 @@ const HeadCrumbs = ({ items, trailingSep = false, label }) => {
   // Сам замер — только по развёрнутой цепочке: схлопнутая заведомо уже, и
   // проверка по ней ничего не скажет. +1 — на дробные ширины, округление
   // scrollWidth/clientWidth иначе даёт мнимое переполнение в один пиксель.
+  // Без массива зависимостей — эффект обязан перемерять после каждого рендера
+  // (не только при смене collapsed), а от бесконечного цикла защищает ранний
+  // выход выше.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el || collapsed || expandedRef.current) return;
