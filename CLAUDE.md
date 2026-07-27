@@ -130,10 +130,17 @@ doesn't touch. One PR = the task + migration of the files it touched.
 - A path in a header is the shared `<HeadCrumbs>` (`common/HeadCrumbs.jsx`):
   sections pass `items` (`{ key, label, onNavigate? }` — an item without
   `onNavigate` is the current one) and `trailingSep` when the header's own title
-  continues the chain (knowledge base) rather than ending it (files). It scrolls
-  horizontally instead of wrapping and keeps the scroll pinned to the **end** —
-  the nearest folder and the open object matter more than the root, which the
-  tree on the left already shows. Don't write a third breadcrumb.
+  continues the chain (knowledge base) rather than ending it (files). Sections
+  pass the **whole** chain — overflow is HeadCrumbs' business: a chain that
+  doesn't fit gets its middle collapsed into one clickable `…` (`utils/
+  breadcrumbs.js`, click restores it), and what still doesn't fit scrolls
+  horizontally with the scroll pinned to the **end** — the nearest folder and
+  the open object matter more than the root, which the tree on the left already
+  shows. Collapsing is decided by measuring (`scrollWidth` vs a `ResizeObserver`
+  on `.workspace__head`, never on the crumbs themselves — their own width
+  follows their content and observing it loops), never by counting crumbs: six
+  short repo segments fit where three knowledge-base titles don't. Don't write a
+  third breadcrumb.
 - Panel layout is **controlled state that lives in the URL** (`?left=0`,
   `?right=<tab>`), owned by `useAppNavigation` and threaded down as the `panels`
   prop from `App`. Per-section layout is remembered in `localStorage`
@@ -271,7 +278,11 @@ mappings must cover nested paths.
 - Reuse the shared hooks before writing new plumbing: `useSearchDropdown`
   (search-button → dropdown widgets), `useEscape`, `useDocPreview`/
   `useFilePreview` (both built on `usePreviewCache` — the module-cache preview
-  pattern; new preview kinds should reuse it too).
+  pattern; new preview kinds should reuse it too), `useCopyFeedback` (any
+  copy-to-clipboard button: `writeText` + the transient "copied" state and its
+  timer). The copy hook has six pre-existing copies of its body still inlined
+  (`CodeBlock`, `Message`, `SummarySection`, `MarkdownEditor` ×2, the tool-call
+  panels) — migrate them on touch, don't add a seventh.
 - Async effects must be cancellation-aware (`cancelled` flag or AbortSignal in
   cleanup), matching the existing preview hooks.
 - The two trees are intentionally separate: `knowledgeBasePanel/TreeNode`

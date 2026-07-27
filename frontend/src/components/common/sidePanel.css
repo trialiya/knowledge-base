@@ -167,21 +167,6 @@
   opacity: 1;
 }
 
-/* Поле переименования по месту (двойной клик / кнопка «переименовать»). */
-.ws-item__edit {
-  flex: 1;
-  min-width: 0;
-  box-sizing: border-box;
-  padding: 3px 7px;
-  border: 1.5px solid var(--kb-accent);
-  border-radius: 6px;
-  background: var(--kb-white);
-  font: inherit;
-  font-weight: 500;
-  color: var(--kb-text);
-  outline: none;
-}
-
 /* ── Служебная строка панели: «Пусто», «Загрузка…», «ещё N» ── */
 
 .ws-hint {

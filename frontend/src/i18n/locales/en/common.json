@@ -23,6 +23,9 @@
     "collapseRight": "Collapse panel",
     "resizeLeft": "Resize panel"
   },
+  "crumbs": {
+    "expand": "Show hidden part of the path"
+  },
   "tabs": {
     "info": "Info"
   },

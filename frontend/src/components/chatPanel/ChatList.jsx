@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 import useListNavigation from '../../hooks/useListNavigation';
-import { IconEdit, IconTrash } from '../../icons';
+import { IconTrash } from '../../icons';
 
 /**
  * Список чатов — содержимое левой панели рабочей области.
@@ -10,37 +10,13 @@ import { IconEdit, IconTrash } from '../../icons';
  * WorkspaceLayout (action / toolbar): их место в шапке панели общее для всех
  * разделов, поэтому список отвечает только за сами чаты. Вид строки — общий
  * .ws-item (common/sidePanel.css), клавиатура — общий useListNavigation.
+ *
+ * Переименование здесь не живёт — оно только в шапке открытого чата
+ * (ChatHeader): один способ переименовать чат, а не два разных на экране.
  */
-const ChatList = ({ chats, activeChatId, onSelectChat, onDeleteChat, onRenameChat }) => {
+const ChatList = ({ chats, activeChatId, onSelectChat, onDeleteChat }) => {
   const { t } = useTranslation('chat');
-  const [editingId, setEditingId] = useState(null);
-  const [editValue, setEditValue] = useState('');
   const handleListKeyDown = useListNavigation();
-
-  const startEdit = (id, currentTitle) => {
-    setEditingId(id);
-    setEditValue(currentTitle);
-  };
-
-  const cancelEdit = () => {
-    setEditingId(null);
-    setEditValue('');
-  };
-
-  const saveEdit = (id) => {
-    if (editValue.trim() && onRenameChat) {
-      onRenameChat(id, editValue.trim());
-    }
-    cancelEdit();
-  };
-
-  const handleKeyDown = (e, id) => {
-    if (e.key === 'Enter') {
-      saveEdit(id);
-    } else if (e.key === 'Escape') {
-      cancelEdit();
-    }
-  };
 
   // Пустой список означает только «ещё грузим»: после загрузки в нём всегда есть
   // хотя бы черновик нового чата (см. ChatWindow), поэтому «чатов нет» здесь
@@ -61,50 +37,22 @@ const ChatList = ({ chats, activeChatId, onSelectChat, onDeleteChat, onRenameCha
           className={`ws-item${chat.id === activeChatId ? ' ws-item--active' : ''}`}
           onClick={() => onSelectChat(chat.id)}
         >
-          {editingId === chat.id ? (
-            <input
-              type="text"
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-              onBlur={() => saveEdit(chat.id)}
-              onKeyDown={(e) => handleKeyDown(e, chat.id)}
-              autoFocus
-              className="ws-item__edit"
-              aria-label={t('list.rename')}
-              onClick={(e) => e.stopPropagation()}
-            />
-          ) : (
-            <>
-              <span className="ws-item__label">{chat.title}</span>
-              <span className="ws-item__actions">
-                <button
-                  type="button"
-                  className="icon-btn ws-item__action"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    startEdit(chat.id, chat.title);
-                  }}
-                  title={t('list.rename')}
-                  aria-label={t('list.rename')}
-                >
-                  <IconEdit size={12} />
-                </button>
-                {chats.length > 1 && (
-                  <button
-                    type="button"
-                    className="icon-btn icon-btn--danger ws-item__action"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteChat(chat.id);
-                    }}
-                    title={t('list.delete')}
-                    aria-label={t('list.delete')}
-                  >
-                    <IconTrash size={12} />
-                  </button>
-                )}
-              </span>
-            </>
+          <span className="ws-item__label">{chat.title}</span>
+          {chats.length > 1 && (
+            <span className="ws-item__actions">
+              <button
+                type="button"
+                className="icon-btn icon-btn--danger ws-item__action"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteChat(chat.id);
+                }}
+                title={t('list.delete')}
+                aria-label={t('list.delete')}
+              >
+                <IconTrash size={12} />
+              </button>
+            </span>
           )}
         </li>
       ))}

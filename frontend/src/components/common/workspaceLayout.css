@@ -377,6 +377,14 @@
   background: none;
 }
 
+/* Схлопнутая середина длинного пути (HeadCrumbs): «…» — это кнопка, по клику
+   середина раскрывается обратно. Поля шире обычного звена: одна точка-многоточие
+   иначе даёт мишень в несколько пикселей. */
+.workspace__head-crumb--ellipsis {
+  padding: 2px 7px;
+  letter-spacing: 1px;
+}
+
 .workspace__head-crumb-sep {
   display: flex;
   align-items: center;

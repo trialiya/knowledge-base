@@ -3,10 +3,34 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import HeadCrumbs from './HeadCrumbs';
 
+// i18n в тестах не инициализируем — берём ключ как подпись.
+jest.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key) => key }),
+}));
+
 const items = [
   { key: 'a', label: 'src', onNavigate: jest.fn() },
   { key: 'b', label: 'main', onNavigate: jest.fn() },
 ];
+
+const deep = ['repo', 'backend', 'src', 'main', 'App.java'].map((label, i, all) => ({
+  key: label,
+  label,
+  onNavigate: i < all.length - 1 ? jest.fn() : undefined,
+}));
+
+/**
+ * jsdom ничего не раскладывает: clientWidth всегда 0, поэтому подменённый
+ * scrollWidth и означает «строка не влезает». Без подмены цепочка помещается.
+ */
+const withOverflow = (fn) => {
+  const spy = jest.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(500);
+  try {
+    return fn();
+  } finally {
+    spy.mockRestore();
+  }
+};
 
 describe('HeadCrumbs', () => {
   it('рисует звенья кнопками и зовёт onNavigate по клику', async () => {
@@ -40,14 +64,52 @@ describe('HeadCrumbs', () => {
   });
 
   it('прокручивает строку к концу пути: важен открытый объект, а не корень', () => {
-    // jsdom не раскладывает элементы, поэтому scrollWidth подменяем: проверяем
-    // сам факт «уехали в конец», а не конкретное число.
-    const scrollWidth = jest.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(500);
-    try {
+    withOverflow(() => {
       const { container } = render(<HeadCrumbs items={items} label="Путь" />);
       expect(container.querySelector('.workspace__head-crumbs').scrollLeft).toBe(500);
+    });
+  });
+
+  it('влезающую цепочку не схлопывает, какой бы глубокой она ни была', () => {
+    render(<HeadCrumbs items={deep} label="Путь" />);
+
+    expect(screen.getByText('backend')).toBeInTheDocument();
+    expect(screen.getByText('main')).toBeInTheDocument();
+    expect(screen.queryByText('…')).toBeNull();
+  });
+
+  it('не влезающую схлопывает серединой, оставляя корень, папку и сам файл', () => {
+    withOverflow(() => render(<HeadCrumbs items={deep} label="Путь" />));
+
+    // keepEnd = 2 без trailingSep: последнее звено — сам файл, и без соседней
+    // папки по пути не понять, откуда он открыт.
+    expect(screen.getByText('repo')).toBeInTheDocument();
+    expect(screen.getByText('main')).toBeInTheDocument();
+    expect(screen.getByText('App.java')).toBeInTheDocument();
+    expect(screen.queryByText('backend')).toBeNull();
+    expect(screen.getByRole('button', { name: 'crumbs.expand' })).toHaveAttribute('title', 'backend / src');
+  });
+
+  it('с trailingSep из конца оставляет одно звено — имя объекта идёт заголовком шапки', () => {
+    withOverflow(() => render(<HeadCrumbs items={deep} label="Путь" trailingSep />));
+
+    expect(screen.getByText('repo')).toBeInTheDocument();
+    expect(screen.getByText('App.java')).toBeInTheDocument();
+    expect(screen.queryByText('main')).toBeNull();
+  });
+
+  it('по клику «…» середина раскрывается обратно и больше не схлопывается', async () => {
+    // Подмену держим и на время клика: иначе «раскрылось» доказывало бы лишь
+    // то, что переполнение кончилось, а не то, что кнопка что-то делает.
+    const spy = jest.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(500);
+    try {
+      render(<HeadCrumbs items={deep} label="Путь" />);
+      await userEvent.click(screen.getByRole('button', { name: 'crumbs.expand' }));
+
+      expect(screen.getByText('backend')).toBeInTheDocument();
+      expect(screen.queryByText('…')).toBeNull();
     } finally {
-      scrollWidth.mockRestore();
+      spy.mockRestore();
     }
   });
 });

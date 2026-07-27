@@ -109,7 +109,6 @@
   "list": {
     "title": "Чаты",
     "newChat": "Новый чат",
-    "rename": "Переименовать",
     "delete": "Удалить"
   },
   "inChatSearch": {
