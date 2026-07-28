@@ -551,3 +551,50 @@ AI-суммаризация вложения (генерирует и сохра
 | `q` | String | Query | Поисковый запрос |
 
 **Response:** `List<Attachment>`
+
+---
+
+## SystemInfoController — `/api/admin/system`
+
+Read-only вид конфигурации сервера для Admin-панели. Содержит информацию о профиле, БД, репозитории и параметрах поиска. **Внимание:** секреты (пароли, API-ключи) никогда не возвращаются.
+
+### GET `/api/admin/system`
+Получить полную информацию о конфигурации сервера.
+
+**Response:** `ServerInfo` со следующими полями:
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `profile` | String | Активный Spring profile (например, `h2` или `postgres`) |
+| `javaVersion` | String | Версия JDK (например, `25`) |
+| `springBootVersion` | String | Версия Spring Boot |
+| `springAiVersion` | String | Версия Spring AI |
+| `datasourceUrl` | String | URL БД (логины/пароли удаляются) |
+| `datasourceType` | String | Тип БД (например, `PostgreSQL 17` или `H2`) |
+| `gitProjectPath` | String | Путь к Git-репозиторию проекта |
+| `documentsExportPath` | String | Путь для экспорта документов |
+| `embeddingModel` | String | Модель эмбеддингов |
+| `embeddingCacheEnabled` | boolean | Кэширование эмбеддингов включено |
+| `semanticSearchEnabled` | boolean | Семантический поиск включён |
+| `searchKeywordLimit` | int | Лимит результатов keyword-поиска |
+| `searchSemanticThreshold` | double | Порог семантической схожести |
+| `flywayMigrations` | List | История миграций БД (версия, статус, описание) |
+
+**Ошибки:**
+- `403` — требуется аутентификация (HTTP Basic)
+
+---
+
+## Примечания
+
+### Версии и обновления
+
+Все версии, указанные в API Reference, соответствуют текущей версии приложения (см. [Архитектура](архитектура.md), раздел 2 — Технологический стек).
+
+### Authentication
+
+Все эндпоинты требуют HTTP Basic-аутентификацию с пользователем/паролем из `kb.security.*` (см. [Конфигурация](конфигурация.md)).
+
+### Content-Type
+
+Все запросы и ответы используют `application/json`, кроме эндпоинтов, которые явно указывают другой тип (например, `text/plain` для содержимого файлов).
