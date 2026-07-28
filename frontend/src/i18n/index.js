@@ -37,4 +37,13 @@ i18n
     react: { useSuspense: false },
   });
 
+// index.html жёстко объявляет lang="ru" (значение до загрузки JS, совпадает с fallbackLng).
+// Без синхронизации английский интерфейс остаётся размеченным как русский: скринридер читает
+// его с русской фонетикой, а браузер предлагает «перевести страницу».
+const syncHtmlLang = (lng) => {
+  if (lng) document.documentElement.lang = lng;
+};
+syncHtmlLang(i18n.resolvedLanguage);
+i18n.on('languageChanged', syncHtmlLang);
+
 export default i18n;

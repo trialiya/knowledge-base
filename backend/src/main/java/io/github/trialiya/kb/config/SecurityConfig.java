@@ -1,10 +1,15 @@
 package io.github.trialiya.kb.config;
 
 import io.github.trialiya.kb.config.model.SecurityProperties;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.security.autoconfigure.web.servlet.PathRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -39,9 +44,37 @@ public class SecurityConfig {
         return new InMemoryUserDetailsManager(user);
     }
 
+    /**
+     * Отдельная цепочка для H2-консоли — она включена только профилем {@code h2} (см. {@code
+     * application-h2.yaml}), поэтому и бин условный: с Postgres пути {@code /h2-console} нет.
+     *
+     * <p>Консоль рисует себя во фреймах, а общая цепочка ниже оставляет дефолтный {@code
+     * X-Frame-Options: DENY} — под ним страница открывается пустой. Ослабляем заголовок до {@code
+     * SAMEORIGIN}, и только на пути консоли: во всём остальном приложении остаётся {@code DENY}.
+     *
+     * <p>HTTP Basic на этот путь намеренно не распространяется ({@code permitAll}): вход в саму
+     * консоль всё равно закрыт JDBC-логином из {@code application-h2.yaml}, второй пароль поверх
+     * первого — не защита, а лишний клик. Профиль {@code h2} рассчитан на локальную разработку и
+     * демо-окружения, не на публичный интернет.
+     */
     @Bean
+    @Order(1)
+    @ConditionalOnProperty(name = "spring.h2.console.enabled", havingValue = "true")
+    public SecurityFilterChain h2ConsoleSecurityFilterChain(HttpSecurity http) throws Exception {
+        return http.securityMatcher(PathRequest.toH2Console())
+                .csrf(AbstractHttpConfigurer::disable)
+                .headers(
+                        headers ->
+                                headers.frameOptions(
+                                        HeadersConfigurer.FrameOptionsConfig::sameOrigin))
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+                .build();
+    }
+
+    @Bean
+    @Order(2)
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        return http.csrf(csrf -> csrf.disable())
+        return http.csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(
                         session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(

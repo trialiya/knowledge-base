@@ -107,21 +107,36 @@ gradle_run() {
 # developer machine Docker Desktop is normally already up, and then this is a
 # no-op.
 ensure_docker() {
-  if docker ps > /dev/null 2>&1; then
-    return 0
+  if ! docker ps > /dev/null 2>&1; then
+    if ! command -v dockerd > /dev/null 2>&1; then
+      echo "ERROR: *IT tests need Docker, and no daemon is reachable." >&2
+      echo "       Start Docker (Desktop or dockerd) and re-run, or use './test.sh unit'." >&2
+      exit 1
+    fi
+    echo "→ starting dockerd (log: /tmp/dockerd.log)"
+    sudo dockerd > /tmp/dockerd.log 2>&1 &
+    for _ in $(seq 1 60); do
+      docker ps > /dev/null 2>&1 && break
+      sleep 1
+    done
+    if ! docker ps > /dev/null 2>&1; then
+      echo "ERROR: dockerd did not come up in 60s — see /tmp/dockerd.log" >&2
+      exit 1
+    fi
   fi
-  if ! command -v dockerd > /dev/null 2>&1; then
-    echo "ERROR: *IT tests need Docker, and no daemon is reachable." >&2
-    echo "       Start Docker (Desktop or dockerd) and re-run, or use './test.sh unit'." >&2
-    exit 1
-  fi
-  echo "→ starting dockerd (log: /tmp/dockerd.log)"
-  sudo dockerd > /tmp/dockerd.log 2>&1 &
-  for _ in $(seq 1 60); do
-    docker ps > /dev/null 2>&1 && return 0
+
+  # `docker ps` only proves the API socket answers — a daemon that just came
+  # up can still be finishing bridge-network/iptables setup underneath. Hit
+  # that half-ready window and Testcontainers' first container attempt (Ryuk)
+  # fails inside a static initializer that the JVM caches for the rest of the
+  # run, so every *IT test then fails with NoClassDefFoundError even though
+  # the same daemon is fine a few seconds later. Prove it can actually run a
+  # container before handing off to Gradle.
+  for _ in $(seq 1 30); do
+    docker run --rm hello-world > /dev/null 2>&1 && return 0
     sleep 1
   done
-  echo "ERROR: dockerd did not come up in 60s — see /tmp/dockerd.log" >&2
+  echo "ERROR: Docker answers 'docker ps' but would not run a container — see /tmp/dockerd.log" >&2
   exit 1
 }
 

@@ -104,7 +104,7 @@ Windows: `run\run.bat` (cmd) или `.\run\run.ps1` (PowerShell) — аргум�
 
 | Компонент | Технологии |
 |---|---|
-| Бэкенд | Java 25, Spring Boot 3.5, Spring AI, PostgreSQL 17 + pgvector |
+| Бэкенд | Java 25, Spring Boot 4.1, Spring AI, PostgreSQL 17 + pgvector |
 | Фронтенд | React 19, CSS |
 | Инфраструктура | Docker, docker-compose |
 
