@@ -13,7 +13,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationInfo;
 import org.jspecify.annotations.Nullable;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -42,7 +41,10 @@ public class SystemInfoController {
     private final SecurityProperties securityProperties;
     private final GitProperties gitProperties;
     private final GitService gitService;
-    private final ObjectProvider<Flyway> flyway;
+    @Nullable private final Flyway flyway;
+
+    private volatile boolean schemaVersionResolved;
+    @Nullable private String cachedSchemaVersion;
 
     public SystemInfoController(
             ServerEnvironment environment,
@@ -51,7 +53,7 @@ public class SystemInfoController {
             SecurityProperties securityProperties,
             GitProperties gitProperties,
             GitService gitService,
-            ObjectProvider<Flyway> flyway) {
+            @Nullable Flyway flyway) {
         this.environment = environment;
         this.documentsConfiguration = documentsConfiguration;
         this.embeddingConfiguration = embeddingConfiguration;
@@ -100,23 +102,30 @@ public class SystemInfoController {
     }
 
     /**
-     * Current schema version according to Flyway. Reads the schema history table, so it is a DB
-     * round-trip; a failure here must not take the whole panel down, hence the broad catch.
+     * Current schema version according to Flyway. Migrations only run once, at startup, so the
+     * result never changes for the life of the process; reading the schema history table is a DB
+     * round-trip, so the first successful read is cached instead of repeating it on every panel
+     * load. A failure here must not take the whole panel down, hence the broad catch — it also
+     * leaves the value unresolved so the next request tries again.
      */
     private @Nullable String schemaVersion() {
-        Flyway instance = flyway.getIfAvailable();
-        if (instance == null) {
+        if (schemaVersionResolved) {
+            return cachedSchemaVersion;
+        }
+        if (flyway == null) {
             return null;
         }
         try {
-            MigrationInfo current = instance.info().current();
-            return current == null || current.getVersion() == null
-                    ? null
-                    : current.getVersion().toString();
+            MigrationInfo current = flyway.info().current();
+            cachedSchemaVersion =
+                    current == null || current.getVersion() == null
+                            ? null
+                            : current.getVersion().toString();
+            schemaVersionResolved = true;
         } catch (RuntimeException e) {
             log.debug("Could not read the Flyway schema version", e);
-            return null;
         }
+        return cachedSchemaVersion;
     }
 
     /**
