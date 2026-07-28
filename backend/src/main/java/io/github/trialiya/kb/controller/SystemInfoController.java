@@ -13,7 +13,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationInfo;
 import org.jspecify.annotations.Nullable;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -54,7 +53,7 @@ public class SystemInfoController {
             SecurityProperties securityProperties,
             GitProperties gitProperties,
             GitService gitService,
-            @Nullable @Autowired(required = false) Flyway flyway) {
+            @Nullable Flyway flyway) {
         this.environment = environment;
         this.documentsConfiguration = documentsConfiguration;
         this.embeddingConfiguration = embeddingConfiguration;
