@@ -128,7 +128,6 @@ const FileDiffModal = ({ change, onClose }) => {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [change.path, showsContent]);
 
   return (
@@ -185,10 +184,9 @@ const FileDiffModal = ({ change, onClose }) => {
         ) : (
           change.diffs.map((diff, i) => (
             // Индекс как key безопасен: список diff'ов иммутабелен в рамках открытой модалки.
-            // eslint-disable-next-line react/no-array-index-key
+
             <pre key={i} className="fcd-diff">
               {diff.split('\n').map((line, j) => (
-                // eslint-disable-next-line react/no-array-index-key
                 <span key={j} className={diffLineClass(line)}>
                   {line}
                   {'\n'}

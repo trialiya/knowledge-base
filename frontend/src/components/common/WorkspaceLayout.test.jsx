@@ -5,7 +5,7 @@ import WorkspaceLayout from './WorkspaceLayout';
 import { resetLeftPanelWidthForTests } from './useLeftPanelWidth';
 
 // i18n в тестах не инициализируем — берём ключ как подпись.
-jest.mock('react-i18next', () => ({
+vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key) => key }),
 }));
 
@@ -20,7 +20,7 @@ beforeEach(() => {
 
 describe('WorkspaceLayout', () => {
   it('показывает левую панель и сворачивает её по тумблеру', async () => {
-    const onToggleLeft = jest.fn();
+    const onToggleLeft = vi.fn();
     render(<WorkspaceLayout left={baseLeft} center={<div>центр</div>} onToggleLeft={onToggleLeft} />);
 
     expect(screen.getByText('содержимое дерева')).toBeInTheDocument();
@@ -29,7 +29,7 @@ describe('WorkspaceLayout', () => {
   });
 
   it('в свёрнутом виде показывает рельс с кнопкой разворачивания вместо панели', () => {
-    render(<WorkspaceLayout left={baseLeft} center={<div>центр</div>} leftCollapsed onToggleLeft={jest.fn()} />);
+    render(<WorkspaceLayout left={baseLeft} center={<div>центр</div>} leftCollapsed onToggleLeft={vi.fn()} />);
 
     expect(screen.queryByText('содержимое дерева')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'panels.expandLeft' })).toBeInTheDocument();
@@ -43,7 +43,7 @@ describe('WorkspaceLayout', () => {
   });
 
   it('правая панель свёрнута по умолчанию и раскрывается кликом по иконке вкладки', async () => {
-    const onRightTabChange = jest.fn();
+    const onRightTabChange = vi.fn();
     const tabs = [
       { key: 'attachments', label: 'Вложения', icon: <span>📎</span>, badge: 3, content: <div>список вложений</div> },
     ];
@@ -60,7 +60,7 @@ describe('WorkspaceLayout', () => {
   });
 
   it('показывает содержимое активной вкладки и умеет её закрыть', async () => {
-    const onRightTabChange = jest.fn();
+    const onRightTabChange = vi.fn();
     const tabs = [
       { key: 'summary', label: 'Описание', content: <div>текст описания</div> },
       { key: 'attachments', label: 'Вложения', content: <div>список вложений</div> },
@@ -123,7 +123,7 @@ describe('WorkspaceLayout', () => {
 
       // С большим запасом шагов — попытка упереться в потолок, а не проверка
       // конкретного количества нажатий.
-      // eslint-disable-next-line no-await-in-loop
+
       for (let i = 0; i < 20; i++) await userEvent.keyboard('{ArrowRight}');
 
       expect(document.documentElement.style.getPropertyValue('--ws-left-width')).toBe('420px'); // 700 * 0.6
@@ -133,7 +133,7 @@ describe('WorkspaceLayout', () => {
   });
 
   it('у свёрнутой панели разделителя нет — тянуть нечего', () => {
-    render(<WorkspaceLayout left={baseLeft} center={<div>центр</div>} leftCollapsed onToggleLeft={jest.fn()} />);
+    render(<WorkspaceLayout left={baseLeft} center={<div>центр</div>} leftCollapsed onToggleLeft={vi.fn()} />);
     expect(screen.queryByRole('separator')).not.toBeInTheDocument();
   });
 

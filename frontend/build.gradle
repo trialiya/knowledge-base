@@ -23,7 +23,8 @@ node {
 
 spotless {
     format 'react', {
-        target 'src/**/*.js', 'src/**/*.jsx', 'src/**/*.ts', 'src/**/*.tsx', 'src/**/*.css', 'src/**/*.scss'
+        target 'src/**/*.js', 'src/**/*.jsx', 'src/**/*.ts', 'src/**/*.tsx', 'src/**/*.css', 'src/**/*.scss',
+                'vite.config.js', 'eslint.config.js', 'postcss.config.js'
 
         prettier().config([
                 'semi': true,
@@ -52,14 +53,24 @@ tasks.register('yarnInstall', YarnTask) {
 
 tasks.register('yarnTest', YarnTask) {
     dependsOn('yarnInstall')
-    // CI=true → react-scripts прогоняет тесты один раз и выходит (без watch-режима).
-    environment.put('CI', 'true')
-    // --watchAll=false дублирует CI=true как страховку; --passWithNoTests не валит
-    // сборку, если тестов ещё нет в каком-то модуле.
-    args = ['run', 'test', '--watchAll=false', '--passWithNoTests']
+    // `vitest run` (в отличие от `vitest`) прогоняет тесты один раз и выходит,
+    // watch-режим включать нечем — CI=true тут больше не нужен.
+    // --passWithNoTests не валит сборку, если тестов ещё нет в каком-то модуле.
+    args = ['run', 'test', '--passWithNoTests']
     inputs.dir('src')
-    inputs.files('package.json', 'yarn.lock')
+    inputs.files('package.json', 'yarn.lock', 'vite.config.js')
     // У тестов нет файлового артефакта → не помечаем как up-to-date, гоняем при вызове.
+    outputs.upToDateWhen { false }
+}
+
+tasks.register('yarnLint', YarnTask) {
+    dependsOn('yarnInstall')
+    // ESLint приезжал внутри react-scripts и гонялся на каждой сборке CRA;
+    // после перехода на Vite его держим явной задачей. Prettier (spotless
+    // format 'react') его не заменяет — он форматтер, а не линтер.
+    args = ['run', 'lint']
+    inputs.dir('src')
+    inputs.files('package.json', 'yarn.lock', 'eslint.config.js')
     outputs.upToDateWhen { false }
 }
 
@@ -77,7 +88,7 @@ tasks.register('copyFrontend', Copy) {
     from('build') {
         include 'index.html'
         include 'static/**'
-        include 'manifest.json', 'favicon.ico', 'robots.txt', 'asset-manifest.json'
+        include 'manifest.json', 'favicon.ico', 'robots.txt'
     }
     into("${project(':backend').projectDir}/build/resources/main/static")
 }
@@ -86,11 +97,13 @@ tasks.named('build') {
     dependsOn('copyFrontend')
 }
 
-// Тесты — часть верификации. `./gradlew check` прогонит и spotlessCheck, и jest.
+// Тесты и линт — часть верификации. `./gradlew check` прогонит spotlessCheck,
+// vitest и eslint.
 // configureEach + matching: безопасно, даже если задачи `check` нет в этом модуле.
 tasks.matching { it.name == 'check' }.configureEach {
     if (runFrontendTests) {
         dependsOn('yarnTest')
+        dependsOn('yarnLint')
     }
 }
 

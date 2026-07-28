@@ -11,7 +11,7 @@
 #   unit      backend unit tests (*Test) — no Docker needed
 #   it        backend integration tests (*IT) — Docker Desktop must be running
 #   back      all backend tests (unit + IT)
-#   front     frontend Jest tests
+#   front     frontend tests (vitest) + eslint
 #   format    spotlessCheck (Google Java Format, AOSP)
 #   build     full build (frontend bundled into the backend JAR)
 #   clean     gradle clean — when something is stuck in the toolchain/spotless cache
@@ -92,7 +92,7 @@ function Invoke-Suite {
         'unit'   { Invoke-Gradle @(':backend:test', '--tests', '*Test') }
         'it'     { Assert-Docker; Invoke-Gradle @(':backend:test', '--tests', '*IT') }
         'back'   { Assert-Docker; Invoke-Gradle @(':backend:test') }
-        'front'  { $env:CI = 'true'; Invoke-Gradle @(':frontend:yarnTest') }
+        'front'  { Invoke-Gradle @(':frontend:yarnTest', ':frontend:yarnLint') }
         'format' { Invoke-Gradle @('spotlessCheck') }
         'build'  { Invoke-Gradle @('build') }
         'clean'  { Invoke-Gradle @('clean') }

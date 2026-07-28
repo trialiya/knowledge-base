@@ -2,8 +2,8 @@
 # Run the Knowledge Base checks on Linux or macOS.
 #
 # One entry point for every suite, so the awkward parts (system Gradle in the
-# web sandbox, the JDK 21 init script, starting dockerd for Testcontainers,
-# CI=true for Jest) are decided here instead of being retyped every session.
+# web sandbox, the JDK 21 init script, starting dockerd for Testcontainers) are
+# decided here instead of being retyped every session.
 #
 # Usage:
 #   ./test.sh [suite ...] [-- <extra gradle args>]
@@ -12,7 +12,7 @@
 #   unit      backend unit tests (*Test) — no Docker needed
 #   it        backend integration tests (*IT) — needs Docker, started if absent
 #   back      all backend tests (unit + IT)
-#   front     frontend Jest tests
+#   front     frontend tests (vitest) + eslint
 #   format    spotlessCheck (Google Java Format, AOSP)
 #   build     full build (frontend bundled into the backend JAR)
 #   clean     gradle clean — when something is stuck in the toolchain/spotless cache
@@ -31,7 +31,7 @@
 #
 # Examples:
 #   ./test.sh                 # quick check while working
-#   ./test.sh front           # only Jest
+#   ./test.sh front           # only the frontend checks
 #   ./test.sh pre-pr          # everything expected before a pull request
 #   ./test.sh smoke           # look at the UI, not just at green tests
 #   ./test.sh unit -- --tests '*ToolTranslationsTest'      # one class
@@ -144,14 +144,14 @@ run_it() {
   fi
 }
 run_back()   { ensure_docker; gradle_run :backend:test; }
-run_front()  { CI=true gradle_run :frontend:yarnTest; }
+run_front()  { gradle_run :frontend:yarnTest :frontend:yarnLint; }
 run_format() { gradle_run spotlessCheck; }
 run_build()  { gradle_run build; }
 run_clean()  { gradle_run clean; }
 
 run_smoke() {
-  # Jest is skipped here on purpose: the point is a running UI, and './test.sh
-  # front' covers the tests.
+  # Frontend tests are skipped here on purpose: the point is a running UI, and
+  # './test.sh front' covers them.
   gradle_run :backend:bootJar -x :frontend:yarnTest
   echo "→ node scripts/playwright-smoke.js"
   if [ -d /opt/node22/lib/node_modules ]; then

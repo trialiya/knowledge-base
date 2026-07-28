@@ -1,8 +1,8 @@
 /**
  * Проверки целостности i18n-словарей.
  *
- * Запуск (как и любой CRA-тест):
- *   CI=true yarn test i18n
+ * Запуск (как и любой тест фронта):
+ *   yarn test i18n
  *
  * Что проверяем:
  *   1. RU и EN описывают один и тот же набор «логических» ключей
@@ -156,7 +156,9 @@ function fileNamespaces(code) {
   return found ? ns : null;
 }
 
-const SRC_ROOT = path.resolve(__dirname, '..');
+// Тесты гоняются как ESM (vitest), где __dirname нет — берём каталог из
+// import.meta (Node ≥ 20.11, у нас 22).
+const SRC_ROOT = path.resolve(import.meta.dirname, '..');
 
 // ── Тесты ───────────────────────────────────────────────────────────────────
 

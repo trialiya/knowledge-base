@@ -25,7 +25,7 @@ describe('openChatEventStream fromSeq', () => {
   test('первое подключение идёт с fromSeq=0 (полный реплей текущего прогона)', async () => {
     const requested = [];
     originalFetch = global.fetch;
-    global.fetch = jest.fn((url) => {
+    global.fetch = vi.fn((url) => {
       requested.push(url);
       return Promise.resolve(hangingSseResponse());
     });
@@ -44,7 +44,7 @@ describe('openChatEventStream fromSeq', () => {
     // поверх уже собранного пузыря — ответ задваивался. Курсор чата это исключает.
     const requested = [];
     originalFetch = global.fetch;
-    global.fetch = jest.fn((url) => {
+    global.fetch = vi.fn((url) => {
       requested.push(url);
       return Promise.resolve(hangingSseResponse());
     });

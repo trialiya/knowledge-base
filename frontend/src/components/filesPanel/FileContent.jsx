@@ -15,7 +15,6 @@ const CodeView = ({ text, fromLine = 1, showLineNumbers = true }) => {
       <table className="file-code__table">
         <tbody>
           {lines.map((line, i) => (
-            // eslint-disable-next-line react/no-array-index-key
             <tr key={i}>
               {showLineNumbers && <td className="file-code__gutter">{fromLine + i}</td>}
               <td className="file-code__line">

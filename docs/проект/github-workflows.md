@@ -95,7 +95,7 @@ CI/CD построен на GitHub Actions. Три workflow + Dependabot для 
 3. `yarn install --frozen-lockfile`
 4. `yarn test --watchAll=false --passWithNoTests` (с `CI=true`)
 
-**Отличие от daily-сборки:** только тесты (без Gradle, без сборки CRA). Быстрее, так как не требует JDK и полного backend-окружения.
+**Отличие от daily-сборки:** только тесты (без Gradle, без сборки фронтенда). Быстрее, так как не требует JDK и полного backend-окружения.
 
 ---
 
