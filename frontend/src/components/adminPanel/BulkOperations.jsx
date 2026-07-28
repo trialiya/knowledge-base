@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SettingsContentHead, SettingsSection } from '../common/SettingsShell';
-import { ConfigBlock } from '../common/ConfigGroup';
+import { ConfigRow } from '../common/ConfigGroup';
 import useConfigSnapshot from '../common/useConfigSnapshot';
 import { IconDownload } from '../../icons';
 import api from '../../api/documentsApi';
@@ -78,7 +78,7 @@ const BulkOperations = () => {
 
         {info && (
           <SettingsSection label={t('admin.bulk.targetLabel')}>
-            <ConfigBlock
+            <ConfigRow
               label={t('admin.bulk.exportPath')}
               value={info.documents.exportPath}
               empty={t('admin.system.documents.exportPathEmpty')}

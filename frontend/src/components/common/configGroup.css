@@ -11,6 +11,12 @@
 /* ── Read-only значение в .set-row ── */
 .set-row__value {
   flex-shrink: 0;
+  /* Не шире строки: значение, которое длиннее всей карточки (JDBC URL, путь до
+     репозитория), переносится внутри себя, оставаясь выключенным вправо. */
+  max-width: 100%;
+  margin-left: auto;
+  text-align: right;
+  overflow-wrap: anywhere;
   font-family: 'Fira Mono', 'Consolas', monospace;
   font-size: 0.83rem;
   color: var(--kb-text);
@@ -71,7 +77,7 @@
   color: var(--kb-muted);
 }
 
-/* ── Строка «ключ → значение», где значение длинное (путь, cron, URL) ── */
+/* ── Метка со списком под ней (набор тегов не встаёт в строку справа) ── */
 .config-block {
   display: flex;
   flex-direction: column;
@@ -80,10 +86,4 @@
 .config-block__label {
   font-size: 0.85rem;
   color: var(--kb-text);
-}
-.config-block__value {
-  font-family: 'Fira Mono', 'Consolas', monospace;
-  font-size: 0.8rem;
-  color: var(--kb-muted);
-  overflow-wrap: anywhere;
 }

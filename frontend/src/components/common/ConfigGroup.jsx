@@ -47,11 +47,19 @@ export const useDurationFormat = () => {
   };
 };
 
-/** Строка «лейбл → значение» снимка. Значение моноширинное: это всегда конфиг. */
-export const ConfigRow = ({ label, value }) => (
+/**
+ * Строка «лейбл → значение» снимка. Значение моноширинное: это всегда конфиг.
+ *
+ * Годится и для длинных значений — URL, путей, cron-выражений: строка целиком
+ * переносится (см. `.set-row`), значение встаёт на свою строку и остаётся
+ * выключенным вправо. Уводить его под метку по левому краю не нужно.
+ *
+ * `empty` — подпись вместо незаданного значения («не задан»).
+ */
+export const ConfigRow = ({ label, value, empty }) => (
   <div className="set-row">
     <span className="set-row__label">{label}</span>
-    <span className="set-row__value">{value}</span>
+    <span className="set-row__value">{value == null || value === '' ? empty : value}</span>
   </div>
 );
 
@@ -83,14 +91,14 @@ export const ConfigBoolRow = ({ label, value }) => {
 };
 
 /**
- * Значение под лейблом, а не справа от него — для путей, URL и cron-выражений:
- * в одну строку они не помещаются, а обрезать их многоточием бессмысленно, весь
- * смысл такой строки в хвосте.
+ * Метка, под ней — содержимое блоком: для `<ConfigTags>`, набор которых в
+ * строку справа не встаёт. Длинные строковые значения (URL, путь, cron) сюда
+ * больше не идут — они остаются обычным `<ConfigRow>`, выключенным вправо.
  */
-export const ConfigBlock = ({ label, value, empty }) => (
+export const ConfigBlock = ({ label, children }) => (
   <div className="config-block">
     <span className="config-block__label">{label}</span>
-    <span className="config-block__value">{value || empty}</span>
+    {children}
   </div>
 );
 

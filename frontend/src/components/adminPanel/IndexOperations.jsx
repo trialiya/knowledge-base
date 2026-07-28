@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SettingsContentHead, SettingsSection } from '../common/SettingsShell';
-import { ConfigRow, ConfigStatusRow, ConfigBlock, useDurationFormat } from '../common/ConfigGroup';
+import { ConfigRow, ConfigStatusRow, useDurationFormat } from '../common/ConfigGroup';
 import useConfigSnapshot from '../common/useConfigSnapshot';
 import { IconRefresh } from '../../icons';
 import documentsApi from '../../api/documentsApi';
@@ -96,7 +96,7 @@ const QueueSection = ({ indexing }) => {
         label={t('admin.index.queue.cacheTtl')}
         value={t('config.daysValue', { count: indexing.cacheTtlDays })}
       />
-      <ConfigBlock
+      <ConfigRow
         label={t('admin.index.queue.cacheCleanupCron')}
         value={indexing.cacheCleanupCron}
         empty={t('config.notSet')}
