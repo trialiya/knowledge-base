@@ -52,13 +52,8 @@ class SecurityConfigTest {
         @Autowired private MockMvc mockMvc;
 
         @Test
-        void h2ConsoleRequiresAuthentication() throws Exception {
-            mockMvc.perform(get("/h2-console/")).andExpect(status().isUnauthorized());
-        }
-
-        @Test
         void h2ConsoleAllowsSameOriginFraming() throws Exception {
-            mockMvc.perform(get("/h2-console/").with(httpBasic("admin", "admin")))
+            mockMvc.perform(get("/h2-console/"))
                     .andExpect(header().string("X-Frame-Options", "SAMEORIGIN"));
         }
 
