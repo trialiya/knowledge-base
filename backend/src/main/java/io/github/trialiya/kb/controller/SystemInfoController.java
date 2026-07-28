@@ -37,13 +37,7 @@ public class SystemInfoController {
     private final EmbeddingConfiguration embeddingConfiguration;
     private final SecurityProperties securityProperties;
     private final GitService gitService;
-
-    /**
-     * Optional so the controller still wires up in a context that never registers a Flyway bean.
-     */
-    @Autowired(required = false)
-    private Flyway flyway;
-
+    @Nullable private final Flyway flyway;
     private final String applicationName;
     private final String activeProfiles;
     private final int serverPort;
@@ -56,13 +50,14 @@ public class SystemInfoController {
     private final long stuckCheckMs;
 
     private volatile boolean schemaVersionResolved;
-    private volatile @Nullable String cachedSchemaVersion;
+    @Nullable private String cachedSchemaVersion;
 
     public SystemInfoController(
             DocumentsConfiguration documentsConfiguration,
             EmbeddingConfiguration embeddingConfiguration,
             SecurityProperties securityProperties,
             GitService gitService,
+            @Nullable @Autowired(required = false) Flyway flyway,
             @Value("${spring.application.name:knowledge-base}") String applicationName,
             @Value("${spring.profiles.active:}") String activeProfiles,
             @Value("${server.port:8080}") int serverPort,
@@ -77,6 +72,7 @@ public class SystemInfoController {
         this.embeddingConfiguration = embeddingConfiguration;
         this.securityProperties = securityProperties;
         this.gitService = gitService;
+        this.flyway = flyway;
         this.applicationName = applicationName;
         this.activeProfiles = activeProfiles;
         this.serverPort = serverPort;
