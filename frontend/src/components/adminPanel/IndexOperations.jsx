@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { SettingsContentHead, SettingsSection } from '../common/SettingsShell';
 import { ConfigRow, ConfigStatusRow, useDurationFormat } from '../common/ConfigGroup';
+import OperationRow, { useOperation } from '../common/OperationRow';
 import useConfigSnapshot from '../common/useConfigSnapshot';
 import { IconRefresh } from '../../icons';
 import documentsApi from '../../api/documentsApi';
@@ -19,50 +20,28 @@ import settingsApi from '../../api/settingsApi';
 const IndexOperations = () => {
   const { t } = useTranslation('settings');
   const { data: info } = useConfigSnapshot(settingsApi.getSystemInfo);
-
-  // idle | running | done | error
-  const [state, setState] = useState('idle');
-
-  const runReindex = async () => {
-    if (state === 'running') return;
-    setState('running');
-    try {
-      await documentsApi.reindex();
-      setState('done');
-    } catch {
-      setState('error');
-    }
-  };
+  const [state, runReindex] = useOperation(documentsApi.reindex);
 
   return (
     <>
       <SettingsContentHead title={t('admin.index.title')} subtitle={t('admin.index.subtitle')} />
       <div className="settings-content__body">
         <SettingsSection label={t('admin.index.sectionLabel')} rows>
-          <div className="set-op">
-            <span className="set-op__icon">
-              <IconRefresh size={18} />
-            </span>
-            <div className="set-op__text">
-              <div className="set-op__title">{t('admin.index.reindex.title')}</div>
-              <div className="set-op__desc">{t('admin.index.reindex.desc')}</div>
-              {state === 'done' && (
-                <div className="admin-status admin-status--inline">
-                  <span className="admin-badge admin-badge--ok">{t('admin.index.reindex.doneBadge')}</span>
-                  <span>{t('admin.index.reindex.done')}</span>
-                </div>
-              )}
-              {state === 'error' && (
-                <div className="admin-status admin-status--inline">
-                  <span className="admin-badge admin-badge--error">{t('admin.index.reindex.errorBadge')}</span>
-                  <span>{t('admin.index.reindex.error')}</span>
-                </div>
-              )}
-            </div>
-            <button className="btn btn--primary" onClick={runReindex} disabled={state === 'running'}>
-              {state === 'running' ? t('admin.index.reindex.running') : t('admin.index.reindex.run')}
-            </button>
-          </div>
+          <OperationRow
+            icon={<IconRefresh size={18} />}
+            title={t('admin.index.reindex.title')}
+            desc={t('admin.index.reindex.desc')}
+            labels={{
+              run: t('admin.index.reindex.run'),
+              running: t('admin.index.reindex.running'),
+              doneBadge: t('admin.index.reindex.doneBadge'),
+              done: t('admin.index.reindex.done'),
+              errorBadge: t('admin.index.reindex.errorBadge'),
+              error: t('admin.index.reindex.error'),
+            }}
+            state={state}
+            onRun={runReindex}
+          />
         </SettingsSection>
 
         {info && <QueueSection indexing={info.indexing} />}

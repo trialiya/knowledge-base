@@ -49,7 +49,7 @@ const ToolsSections = ({ config }) => {
       <SettingsSection label={t('tools.git.label')}>
         <ConfigBoolRow label={t('tools.git.editEnabled')} value={git.editEnabled} />
         <ConfigBoolRow label={t('tools.git.editActive')} value={git.editActive} />
-        {git.editEnabled && !git.editActive && <p className="tools-note">{t('tools.git.readOnlyNote')}</p>}
+        {git.editEnabled && !git.editActive && <p className="config-note">{t('tools.git.readOnlyNote')}</p>}
       </SettingsSection>
 
       {/* ── Внешние MCP-серверы ── */}

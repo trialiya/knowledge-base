@@ -233,7 +233,7 @@ public class GitService {
 
         List<String> ancestors = includeAncestors ? ancestorDirs(target) : List.of();
         Set<String> bases = new LinkedHashSet<>(ancestors);
-        boolean isDirectory = FileEntryType.DIRECTORY.equals(type);
+        boolean isDirectory = type == FileEntryType.DIRECTORY;
         if (isDirectory) bases.add(target);
         Map<String, List<GitFileNode>> listings =
                 bases.isEmpty() ? Map.of() : listDirectories(tracked, bases);
@@ -249,7 +249,7 @@ public class GitService {
                 // knownTracked=true: resolvePathType() just confirmed this against the same
                 // `tracked` list, so re-checking via isTracked() would re-read the index for
                 // nothing.
-                FileEntryType.FILE.equals(type) ? getFileContent(target, null, null, true) : null,
+                type == FileEntryType.FILE ? getFileContent(target, null, null, true) : null,
                 isDirectory ? listings.getOrDefault(target, List.of()) : null,
                 tree);
     }
