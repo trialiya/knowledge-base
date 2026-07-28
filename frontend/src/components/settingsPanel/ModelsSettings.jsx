@@ -53,13 +53,13 @@ const ModelsSections = ({ config }) => {
 
       {/* ── Основная модель ── */}
       <SettingsSection label={t('models.chat.label')}>
-        <div className="set-row">
-          <span className="set-row__label">{t('models.chat.model')}</span>
-          <span className="set-row__value">{defaultId}</span>
-          {chat.defaultModel?.label && chat.defaultModel.label !== 'Default' && (
-            <span className="model-row__badge">{chat.defaultModel.label}</span>
-          )}
-        </div>
+        {/* Метка «Default» — заглушка из ChatModelProperties, а не имя модели:
+            показывать её рядом с id нечего. */}
+        <ConfigRow
+          label={t('models.chat.model')}
+          value={defaultId}
+          badge={chat.defaultModel?.label !== 'Default' ? chat.defaultModel?.label : null}
+        />
       </SettingsSection>
 
       {chat.models?.length > 0 && (
@@ -68,7 +68,7 @@ const ModelsSections = ({ config }) => {
             <div key={m.id} className="model-row">
               <span className="model-row__name">{m.id}</span>
               {m.label && m.label !== m.id && <span className="model-row__label">{m.label}</span>}
-              {m.id === defaultId && <span className="model-row__badge">{t('models.available.defaultBadge')}</span>}
+              {m.id === defaultId && <span className="config-badge">{t('models.available.defaultBadge')}</span>}
             </div>
           ))}
         </SettingsSection>

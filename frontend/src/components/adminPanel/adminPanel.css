@@ -1,69 +1,13 @@
 /* ═══════════════════════════════════════════════
-   ADMIN PANEL — специфика (статистика индекса)
+   ADMIN PANEL — специфика
+
+   Здесь остаётся только то, чего нет у «Настроек». Строку-операцию и её
+   результат рисует общий OperationRow (.set-op в common/settingsShell.css),
+   пояснение под секцией — .config-note в common/configGroup.css. Карточки
+   .admin-stat* ушли вместе с макетом фейковой статистики индекса (#173).
 ═══════════════════════════════════════════════ */
 
-.admin-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px;
-}
-
-.admin-stat {
-  background: var(--kb-bg);
-  border-radius: 10px;
-  padding: 0.85rem 1rem;
-}
-.admin-stat__label {
-  font-size: 0.76rem;
-  color: var(--kb-muted);
-}
-.admin-stat__value {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--kb-text);
-  margin-top: 2px;
-  letter-spacing: -0.01em;
-}
-.admin-stat__value--warn {
-  color: #d97706;
-}
-
-.admin-status {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 0.8rem;
-  color: var(--kb-muted);
-}
-
-.admin-badge {
-  display: inline-flex;
-  align-items: center;
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 3px 10px;
-  border-radius: 10px;
-  flex-shrink: 0;
-}
-.admin-badge--ok {
-  color: #0f6e56;
-  background: #e1f5ee;
-}
-.admin-badge--running {
-  color: var(--kb-accent);
-  background: var(--kb-accent-bg);
-}
-.admin-badge--error {
-  color: var(--kb-error);
-  background: var(--kb-error-bg);
-}
-
-.admin-status--inline {
-  margin-top: 10px;
-}
-
+/* ── Чекбокс-модификатор операции («с метаданными» у экспорта) ── */
 .admin-check {
   display: flex;
   align-items: center;
@@ -75,12 +19,4 @@
 }
 .admin-check input {
   cursor: pointer;
-}
-
-/* ── Пояснение под строками секции (где правится значение, почему оно такое) ── */
-.admin-note {
-  margin: 0;
-  font-size: 0.8rem;
-  line-height: 1.5;
-  color: var(--kb-muted);
 }

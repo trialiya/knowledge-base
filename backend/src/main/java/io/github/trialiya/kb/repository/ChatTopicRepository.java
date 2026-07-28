@@ -22,18 +22,18 @@ public interface ChatTopicRepository extends CrudRepository<ChatTopicEntity, Str
     /**
      * «Тронуть» чат: поднять его наверх списка. Время передаётся параметром, а не берётся из {@code
      * clock_timestamp()}: остальные записи в {@code updated_at} делает аудит Spring Data ({@link
-     * io.github.trialiya.kb.config.JdbcConfig#dateTimeProvider()}, часы приложения), и смешивать
-     * два источника времени нельзя — при расхождении часов приложения и БД свежий чат уезжает вниз
-     * списка. Бонусом запрос перестаёт зависеть от постгресовой функции и работает на H2.
+     * io.github.trialiya.kb.config.JdbcConfig#dateTimeProvider}), и смешивать два источника времени
+     * нельзя — при расхождении часов приложения и БД свежий чат уезжает вниз списка. Бонусом запрос
+     * перестаёт зависеть от постгресовой функции и работает на H2.
+     *
+     * <p>Перегрузки без параметра здесь намеренно нет: {@code LocalDateTime.now()} внутри
+     * репозитория — это снова второй источник времени, просто уже не такой заметный. Часы
+     * вызывающего обязаны быть теми же, что у аудита, — то есть бином {@link
+     * io.github.trialiya.kb.config.JdbcConfig#clock()}.
      */
     @Modifying
     @Query("UPDATE chat_topic SET updated_at = :now WHERE conversation_id = :convId")
     void updateUpdatedAt(@Param("convId") String convId, @Param("now") LocalDateTime now);
-
-    /** Отметить чат активным «сейчас» — по тем же часам, что и аудит при сохранении. */
-    default void updateUpdatedAt(String convId) {
-        updateUpdatedAt(convId, LocalDateTime.now());
-    }
 
     @Modifying
     @Query("UPDATE chat_topic SET model = :model WHERE conversation_id = :convId")

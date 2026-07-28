@@ -78,7 +78,7 @@ const SystemSections = ({ info }) => {
       {/* ── Доступ ── */}
       <SettingsSection label={t('admin.system.security.label')}>
         <ConfigRow label={t('admin.system.security.username')} value={security.username} />
-        <p className="admin-note">{t('admin.system.security.note')}</p>
+        <p className="config-note">{t('admin.system.security.note')}</p>
       </SettingsSection>
     </>
   );

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useTranslation } from 'react-i18next';
@@ -7,32 +7,18 @@ import './message.css';
 import CodeBlock from '../common/CodeBlock';
 import ToolCallNotifications from './ToolCallNotifications';
 import { IconCopySmall, IconCopied } from '../../icons';
-import { COPY_DONE_MS } from '../../constants/ui';
+import useCopyFeedback from '../../hooks/useCopyFeedback';
 import { SENDER } from '../../constants/messageSender';
 
 /** Кнопка «копировать всё сообщение» — копирует исходный текст сообщения. */
 const MessageCopyButton = ({ text }) => {
   const { t } = useTranslation('chat');
-  const [copied, setCopied] = useState(false);
-  const timerRef = useRef(null);
-
-  useEffect(() => () => clearTimeout(timerRef.current), []);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(text ?? '');
-      setCopied(true);
-      clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setCopied(false), COPY_DONE_MS);
-    } catch {
-      /* clipboard API may fail in insecure contexts */
-    }
-  };
+  const [copied, copy] = useCopyFeedback();
 
   return (
     <button
       className={`message-copy-btn ${copied ? 'message-copy-btn--done' : ''}`}
-      onClick={handleCopy}
+      onClick={() => copy(text ?? '')}
       title={copied ? t('common:copied') : t('message.copyMessage')}
       type="button"
     >

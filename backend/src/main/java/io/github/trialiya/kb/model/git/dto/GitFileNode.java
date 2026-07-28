@@ -19,7 +19,7 @@ public record GitFileNode(String path, String name, FileEntryType type, @Nullabl
 
     @Override
     public String getFormattedResponse() {
-        return FileEntryType.DIRECTORY.equals(type) ? path + "/" : path + " (" + size + "B)";
+        return type == FileEntryType.DIRECTORY ? path + "/" : path + " (" + size + "B)";
     }
 
     @Override

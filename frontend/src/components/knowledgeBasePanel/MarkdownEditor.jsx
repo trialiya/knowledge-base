@@ -31,8 +31,8 @@ import AtMentionDropdown from './AtMentionDropdown';
 import useAtMention from './useAtMention';
 import CodeBlock from '../common/CodeBlock';
 import { setEditorDirty } from './editorDirtyStore';
-import { COPY_DONE_MS } from '../../constants/ui';
 import { markdownToJira } from '../../utils/markdownToJira';
+import useCopyFeedback from '../../hooks/useCopyFeedback';
 
 // remark / rehype plugin arrays — stable references so ReactMarkdown doesn't
 // rebuild its processor on every render. rehypeSlug adds GitHub-style `id`s to
@@ -186,11 +186,12 @@ const MarkdownEditor = ({
   const { t } = useTranslation('knowledgeBase');
   const [preview, setPreview] = useState(defaultPreview);
   const [saving, setSaving] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [copiedJira, setCopiedJira] = useState(false);
+  // Кнопок копирования две (markdown и Jira), поэтому у хука спрашиваем ключ:
+  // «готово» должно загораться на той, которую нажали.
+  const [copiedKey, copy] = useCopyFeedback();
+  const copied = copiedKey === 'markdown';
+  const copiedJira = copiedKey === 'jira';
   const textareaRef = useRef(null);
-  const copyTimerRef = useRef(null);
-  const copyJiraTimerRef = useRef(null);
   // Stable per-instance id for the shared dirty registry.
   const dirtyIdRef = useRef(`md-${Math.random().toString(36).slice(2)}`);
 
@@ -221,10 +222,6 @@ const MarkdownEditor = ({
     return () => setEditorDirty(id, false);
   }, [previewOnly]);
 
-  // Cleanup the "copied" reset timers on unmount.
-  useEffect(() => () => clearTimeout(copyTimerRef.current), []);
-  useEffect(() => () => clearTimeout(copyJiraTimerRef.current), []);
-
   // ── @mention ──────────────────────────────────────────────────────────────
 
   const mention = useAtMention(textareaRef, value, (newVal, newCursor) => {
@@ -251,28 +248,10 @@ const MarkdownEditor = ({
   );
 
   // Copy the full markdown source to the clipboard.
-  const handleCopyAll = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      clearTimeout(copyTimerRef.current);
-      copyTimerRef.current = setTimeout(() => setCopied(false), COPY_DONE_MS);
-    } catch {
-      /* clipboard API недоступен в insecure context */
-    }
-  }, [value]);
+  const handleCopyAll = useCallback(() => copy(value, 'markdown'), [copy, value]);
 
   // Copy the document converted to Jira wiki markup (for pasting into issues/comments).
-  const handleCopyJira = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(markdownToJira(value));
-      setCopiedJira(true);
-      clearTimeout(copyJiraTimerRef.current);
-      copyJiraTimerRef.current = setTimeout(() => setCopiedJira(false), COPY_DONE_MS);
-    } catch {
-      /* clipboard API недоступен в insecure context */
-    }
-  }, [value]);
+  const handleCopyJira = useCallback(() => copy(markdownToJira(value), 'jira'), [copy, value]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);

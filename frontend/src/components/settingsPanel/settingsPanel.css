@@ -63,16 +63,8 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.model-row__badge {
-  flex-shrink: 0;
-  font-family: 'Segoe UI', system-ui, sans-serif;
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--kb-accent);
-  background: var(--kb-accent-bg);
-  border-radius: 10px;
-  padding: 2px 9px;
-}
+/* Пилюля «по умолчанию» в строке модели — общий .config-badge из
+   common/configGroup.css: такая же стоит и в строке снимка. */
 
 /* ── Человеко-читаемый лейбл рядом с id модели ── */
 .model-row__label {
@@ -84,14 +76,6 @@
 
 /* Read-only значение (.set-row__value), статус-бейдж и состояния загрузки/ошибки
    переехали в common/configGroup.css: те же строки показывает и админка. */
-
-/* ── Пояснение под строками секции (например, почему правка файлов неактивна) ── */
-.tools-note {
-  margin: 0;
-  font-size: 0.8rem;
-  line-height: 1.5;
-  color: var(--kb-muted);
-}
 
 /* ═══════════════════════════════════════════════
    Редактор библиотеки фраз (PhrasesSettings)

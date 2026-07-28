@@ -19,6 +19,7 @@ import io.github.trialiya.kb.service.ChatEventService;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.support.AbstractPostgresIntegrationTest;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -50,6 +51,7 @@ import org.springframework.context.annotation.Import;
 class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
 
     @Autowired private ChatTopicRepository topicRepo;
+    @Autowired private Clock clock;
     @Autowired private ChatMessageRepository messageRepo;
     @Autowired private ToolCallIndexRepository toolCallIndexRepo;
 
@@ -455,6 +457,11 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
      * поставил аудит при сохранении. Раньше время брал {@code clock_timestamp()} — часы БД, — и на
      * машине, где контейнер с Postgres отстаёт от хоста, только что открытый чат уезжал вниз
      * списка.
+     *
+     * <p>Отметка берётся из бина {@link io.github.trialiya.kb.config.JdbcConfig#clock()} — тех же
+     * часов, что стоят за аудитом ({@code dateTimeProvider}) и за вызовом в {@code
+     * ChatController#checkChat}. Проверяется именно эта связка: {@code LocalDateTime.now()} здесь
+     * прошёл бы и с разошедшимися часами.
      */
     @Test
     void touchingTopicMovesUpdatedAtForward() {
@@ -468,7 +475,7 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
         topicRepo.updateUpdatedAt(conv, afterSave.minusDays(1));
         assertThat(topicRepo.findById(conv).orElseThrow().getUpdatedAt()).isBefore(afterSave);
 
-        topicRepo.updateUpdatedAt(conv);
+        topicRepo.updateUpdatedAt(conv, LocalDateTime.now(clock));
 
         assertThat(topicRepo.findById(conv).orElseThrow().getUpdatedAt())
                 .isAfterOrEqualTo(afterSave);

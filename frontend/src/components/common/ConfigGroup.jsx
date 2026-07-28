@@ -55,11 +55,14 @@ export const useDurationFormat = () => {
  * выключенным вправо. Уводить его под метку по левому краю не нужно.
  *
  * `empty` — подпись вместо незаданного значения («не задан»).
+ * `badge` — пилюля справа от значения (человеческое имя модели рядом с её id);
+ *   ради неё строку больше не нужно расписывать вручную через `.set-row`.
  */
-export const ConfigRow = ({ label, value, empty }) => (
+export const ConfigRow = ({ label, value, empty, badge }) => (
   <div className="set-row">
     <span className="set-row__label">{label}</span>
     <span className="set-row__value">{value == null || value === '' ? empty : value}</span>
+    {badge && <span className="config-badge">{badge}</span>}
   </div>
 );
 

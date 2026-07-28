@@ -48,6 +48,8 @@ class EmbeddingTaskSchedulerTest {
                                 BACKOFF_SECONDS,
                                 10,
                                 7,
+                                1000,
+                                300_000,
                                 null,
                                 null));
     }
