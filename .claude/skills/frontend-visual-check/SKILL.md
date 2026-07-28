@@ -19,8 +19,9 @@ name.
 ./run/test.sh smoke
 ```
 
-Builds the JAR and runs `scripts/playwright-smoke.js` against it. The by-hand
-form is in that script's Prerequisites/Usage header.
+Runs `scripts/playwright-smoke.js`, which builds the JAR itself through
+`./run/test.sh jar` before booting it — so running the script directly does the
+same thing. Its Usage header has the flags (`--no-seed`, `--no-build`).
 
 ## Driving it yourself
 

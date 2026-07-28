@@ -19,8 +19,9 @@
 #   ci        the same three with --console=plain (non-interactive logs). Note: the
 #             GitHub workflows do not call this — they run ./gradlew per module.
 #
-# No suite given → unit + front. Two things test.sh has and this does not:
-# the 'smoke' suite (Linux/macOS only — run scripts/playwright-smoke.js by hand)
+# No suite given → unit + front. Two things test.sh has and this does not: the
+# 'smoke' suite with its 'jar' helper (scripts/playwright-smoke.js drives
+# Chromium in the Linux/macOS sandbox and calls run/test.sh to build the JAR)
 # and the `--` passthrough of extra Gradle arguments; for a one-off narrowing
 # call gradlew.bat directly, e.g.
 #   .\gradlew.bat :backend:test --tests '*FooTest'
