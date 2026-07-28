@@ -45,6 +45,8 @@ The wrapper deliberately does not cover:
 - **A schema change is four edits, not one.** Write the migration for both
   `db/migration` (Postgres) and `db/migration-h2`, then update
   `db/sample-data.sql` and `SampleDataFixtureTest` to match.
+- **Keep documentation in sync.** When adding or modifying functionality,
+  update the relevant documentation in `docs/` as part of the same change.
 - **Migrate on touch.** The codebase is mid-migration onto shared components.
   When you edit a file that still carries a legacy pattern — its own modal
   chrome, its own button classes, a panel-local copy of a shared concern —
