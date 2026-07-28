@@ -31,7 +31,9 @@
     "docPlaceholder": "# Markdown контент...",
     "folderEmpty": "Папка пуста",
     "loading": "Загрузка…",
-    "fullscreenContent": "{{title}} — содержимое"
+    "fullscreenContent": "{{title}} — содержимое",
+    "downloadDocument": "Скачать как .md",
+    "downloadFolder": "Скачать папку как .zip"
   },
   "contentsTable": {
     "name": "Название",

@@ -20,3 +20,107 @@
 .admin-check input {
   cursor: pointer;
 }
+
+/* ── Список различий папки экспорта и базы ── */
+/* Плоский список, а не дерево: вложенность видна отступом (--sync-depth), но
+   узлы не сворачиваются — их и так показывают отфильтрованными по статусу, а
+   свёрнутая ветка прятала бы то, что человек как раз пришёл отметить. */
+/* Отступы по бокам — те же 16px, что у .set-op: список стоит между строками-
+   операциями внутри одной секции и должен читаться как их продолжение, а не
+   как отдельный блок, приехавший к самому краю. */
+.sync-diff {
+  padding: 0 16px 14px;
+}
+.sync-diff__actions {
+  display: flex;
+  gap: 8px;
+  padding: 10px 16px 0;
+}
+.sync-diff__toolbar {
+  padding-bottom: 6px;
+}
+.sync-diff__toolbar .admin-check {
+  margin-top: 0;
+}
+.sync-diff__empty {
+  padding: 4px 16px 14px;
+  font-size: 0.8rem;
+  color: var(--kb-muted);
+}
+.sync-diff__list {
+  max-height: 340px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--kb-border);
+  border-radius: 8px;
+}
+.sync-diff__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* Отступ уровня — на первом элементе строки, чтобы галочки выстраивались по
+     вложенности так же, как узлы в дереве базы знаний. */
+  padding: 5px 10px 5px calc(10px + var(--sync-depth, 0) * 16px);
+  font-size: 0.8rem;
+  border-bottom: 1px solid var(--kb-border-soft, var(--kb-border));
+}
+.sync-diff__row:last-child {
+  border-bottom: none;
+}
+.sync-diff__row--unchanged {
+  opacity: 0.55;
+}
+.sync-diff__check {
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.sync-diff__check:disabled {
+  cursor: default;
+}
+.sync-diff__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--kb-muted);
+}
+.sync-diff__title {
+  flex-shrink: 0;
+  color: var(--kb-text);
+}
+/* Путь забирает остаток строки и урезается первым: заголовок важнее. */
+.sync-diff__path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--kb-font-mono);
+  font-size: 0.72rem;
+  color: var(--kb-muted);
+}
+.sync-diff__badge {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.sync-diff__badge--added {
+  color: #0f6e56;
+  background: #e1f5ee;
+}
+.sync-diff__badge--modified {
+  color: #8a5a00;
+  background: #fdf1dc;
+}
+.sync-diff__badge--missing {
+  color: var(--kb-error);
+  background: var(--kb-error-bg);
+}
+.sync-diff__badge--unchanged {
+  color: var(--kb-muted);
+  background: var(--kb-surface-alt, rgba(0, 0, 0, 0.05));
+}

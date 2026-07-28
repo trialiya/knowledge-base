@@ -149,6 +149,26 @@
   background: var(--kb-error-bg);
 }
 
+/* ── Ход выполнения (OperationRow, операции на SSE) ── */
+/* Одна строка: счётчик + путь текущего узла. Путь урезается многоточием, а не
+   переносится — иначе строка-операция прыгала бы по высоте на каждом событии. */
+.set-op__progress {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 0.8rem;
+  color: var(--kb-muted);
+}
+.set-op__progress-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--kb-font-mono);
+  font-size: 0.75rem;
+}
+
 /* ── Строка «лейбл + контрол» ── */
 /* Строка переносится целиком: значение (URL, путь, cron) не ужимается и не
    уходит под метку по левому краю — при нехватке места оно встаёт на свою

@@ -1,8 +1,11 @@
 package io.github.trialiya.kb.repository;
 
 import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
+import io.github.trialiya.kb.model.doc.entity.DocumentTreeRow;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
+import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jdbc.repository.query.Modifying;
@@ -24,6 +27,59 @@ public interface DocumentRepository
     @Query(
             "SELECT * FROM documents WHERE parent_id = :parentId ORDER BY position, type DESC, title")
     List<DocumentEntity> findByParentId(@Param("parentId") Long parentId);
+
+    /**
+     * One level of the tree as {@link DocumentTreeRow} — structure only, <b>without {@code
+     * description}</b>. {@code IS NOT DISTINCT FROM} makes the single query cover both a folder
+     * level and the root level ({@code parent_id IS NULL}), so a walker needs no special case for
+     * the root.
+     *
+     * <p>Export, subtree download and disk↔DB sync walk the tree with this and fetch bodies one at
+     * a time via {@link #findDescriptionById(long)}. Loading levels as full entities would put
+     * every document body of the level in the heap at once, which is exactly what those operations
+     * must avoid — see {@link DocumentTreeRow}.
+     *
+     * <p>Ordering matches {@link #findByParentId(Long)} so a walk and a UI listing agree on sibling
+     * order.
+     */
+    @Query(
+            """
+        SELECT id, parent_id, title, type, position, is_system, updated_at
+        FROM documents
+        WHERE parent_id IS NOT DISTINCT FROM :parentId
+        ORDER BY position, type DESC, title
+        """)
+    List<DocumentTreeRow> findTreeRowsByParent(@Param("parentId") @Nullable Long parentId);
+
+    /** A single node's structural row, without its body. */
+    @Query(
+            """
+        SELECT id, parent_id, title, type, position, is_system, updated_at
+        FROM documents
+        WHERE id = :id
+        """)
+    Optional<DocumentTreeRow> findTreeRowById(@Param("id") long id);
+
+    /**
+     * The body of one document, fetched on its own. Paired with {@link
+     * #findTreeRowsByParent(Long)}: the walk stays structural and each body is read, used and
+     * dropped before the next node is touched.
+     */
+    @Query("SELECT description FROM documents WHERE id = :id")
+    Optional<String> findDescriptionById(@Param("id") long id);
+
+    /**
+     * Highest position in a level, or {@code -1} when the level is empty — so the next sibling goes
+     * to {@code max + 1}. Replaces loading the whole level just to take a maximum, which turned a
+     * bulk insert of N siblings into N level-wide queries.
+     */
+    @Query(
+            """
+        SELECT COALESCE(MAX(position), -1)
+        FROM documents
+        WHERE parent_id IS NOT DISTINCT FROM :parentId
+        """)
+    int findMaxPosition(@Param("parentId") @Nullable Long parentId);
 
     /** Paginated children of a given parent folder, sorted by position. */
     Page<DocumentEntity> findByParentId(Long parentId, Pageable pageable);

@@ -16,20 +16,39 @@ import React, { useCallback, useRef, useState } from 'react';
  *   state       — из useOperation: idle | running | done | error
  *   onRun       — из useOperation
  *   runVariant  — модификатор кнопки: primary (по умолчанию) | ghost
+ *   runDisabled — заблокировать запуск и вне running (импорту нечего применять)
  *   children    — доп. контрол операции (чекбокс «с метаданными»), между
  *                 пояснением и результатом
+ *   progress    — что показывать во время работы вместо статичного «идёт…»:
+ *                 операции на SSE знают, какой узел обрабатывают прямо сейчас
+ *   done/error  — переопределяют текст результата, когда его надо собрать из
+ *                 сводки (сколько создано/обновлено), а не взять из labels
  */
-const OperationRow = ({ icon, title, desc, labels, state, onRun, runVariant = 'primary', children }) => (
+const OperationRow = ({
+  icon,
+  title,
+  desc,
+  labels,
+  state,
+  onRun,
+  runVariant = 'primary',
+  runDisabled = false,
+  children,
+  progress,
+  done,
+  error,
+}) => (
   <div className="set-op">
     {icon && <span className="set-op__icon">{icon}</span>}
     <div className="set-op__text">
       <div className="set-op__title">{title}</div>
       <div className="set-op__desc">{desc}</div>
       {children}
-      {state === 'done' && <OperationStatus kind="ok" badge={labels.doneBadge} text={labels.done} />}
-      {state === 'error' && <OperationStatus kind="error" badge={labels.errorBadge} text={labels.error} />}
+      {state === 'running' && progress && <div className="set-op__progress">{progress}</div>}
+      {state === 'done' && <OperationStatus kind="ok" badge={labels.doneBadge} text={done ?? labels.done} />}
+      {state === 'error' && <OperationStatus kind="error" badge={labels.errorBadge} text={error ?? labels.error} />}
     </div>
-    <button className={`btn btn--${runVariant}`} onClick={onRun} disabled={state === 'running'}>
+    <button className={`btn btn--${runVariant}`} onClick={onRun} disabled={state === 'running' || runDisabled}>
       {state === 'running' ? labels.running : labels.run}
     </button>
   </div>

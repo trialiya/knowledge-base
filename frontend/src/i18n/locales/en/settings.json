@@ -174,7 +174,45 @@
         "doneBadge": "done",
         "done": "Documents exported to the server export folder.",
         "errorBadge": "error",
-        "error": "Export failed. Make sure DOCUMENTS_EXPORT_PATH is set."
+        "error": "Export failed. Make sure DOCUMENTS_EXPORT_PATH is set.",
+        "doneFiles": "Files written: {{count}}."
+      },
+      "importSectionLabel": "Import from the export folder",
+      "progress": {
+        "nodes": "processed: {{count}}"
+      },
+      "diff": {
+        "title": "Compare the folder with the database",
+        "desc": "A read-only run: shows what an import would change without writing anything. Entries are matched by the file paths the export writes.",
+        "run": "Compare",
+        "running": "Comparing…",
+        "doneBadge": "done",
+        "done": "Comparison finished.",
+        "doneCounts": "Added: {{added}} · modified: {{modified}} · missing: {{missing}} · unchanged: {{unchanged}}.",
+        "errorBadge": "error",
+        "error": "Comparison failed. Make sure DOCUMENTS_EXPORT_PATH is set and the folder exists.",
+        "empty": "No differences — the export folder matches the database.",
+        "showUnchanged": "Show unchanged (hidden: {{count}})",
+        "selectAll": "Select all",
+        "selectNone": "Clear selection",
+        "status": {
+          "added": "added",
+          "modified": "modified",
+          "unchanged": "unchanged",
+          "missing": "missing"
+        }
+      },
+      "import": {
+        "title": "Import the selection",
+        "desc": "Writes the selected comparison entries to the database: {{count}} selected. Relative links are turned back into internal ones.",
+        "run": "Import",
+        "running": "Importing…",
+        "doneBadge": "done",
+        "done": "Import finished.",
+        "doneCounts": "Created: {{created}} · updated: {{updated}} · deleted: {{deleted}}.",
+        "errorBadge": "error",
+        "error": "Import failed. See the server log for details.",
+        "deleteMissing": "Delete selected \"missing\" entries from the database ({{count}})"
       }
     },
     "system": {

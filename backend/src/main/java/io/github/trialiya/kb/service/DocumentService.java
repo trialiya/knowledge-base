@@ -894,9 +894,12 @@ public class DocumentService {
         }
     }
 
-    private int nextSiblingPosition(Long parentId) {
-        List<DocumentEntity> siblings =
-                parentId == null ? repo.findRoots() : repo.findByParentId(parentId);
-        return siblings.stream().mapToInt(DocumentEntity::getPosition).max().orElse(-1) + 1;
+    /**
+     * Next free slot at the end of a level. Asks the database for the maximum directly instead of
+     * loading the level and folding over it in Java: creating N siblings in a row (bulk import)
+     * otherwise costs N level-wide selects, each carrying every sibling's body.
+     */
+    private int nextSiblingPosition(@Nullable Long parentId) {
+        return repo.findMaxPosition(parentId) + 1;
     }
 }

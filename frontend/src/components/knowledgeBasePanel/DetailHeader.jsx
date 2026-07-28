@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconFolder, IconDoc, IconEdit, IconTrash, IconCheck, IconX, IconLock } from '../../icons';
+import { IconFolder, IconDoc, IconEdit, IconTrash, IconCheck, IconX, IconLock, IconDownload } from '../../icons';
 import HeadCrumbs from '../common/HeadCrumbs';
+import documentsApi from '../../api/documentsApi';
 
 // ─── Inline rename ────────────────────────────────────────────────────────────
 
@@ -63,25 +64,44 @@ const DetailHeader = ({ node, path, onNavigate, onRename, onDelete }) => {
   // Системный узел не переименовать и не удалить — вместо кнопок замок,
   // объясняющий, почему их нет. Во время правки имени кнопки тоже не нужны:
   // подтверждение и отмена стоят в самом поле (InlineRename).
+  // Скачивание — обычная ссылка, а не fetch: браузер сам стримит ответ в файл,
+  // и содержимое папки не проходит через память вкладки.
+  const download = !renaming && (
+    <a
+      className="icon-btn"
+      href={documentsApi.downloadUrl(node.id)}
+      download
+      title={isFolder ? t('detail.downloadFolder') : t('detail.downloadDocument')}
+    >
+      <IconDownload size={14} />
+    </a>
+  );
+
   const actions = node.system ? (
-    <span className="detail-header__system-badge" title={t('detail.systemBadge')}>
-      <IconLock size={13} />
-    </span>
+    <>
+      {download}
+      <span className="detail-header__system-badge" title={t('detail.systemBadge')}>
+        <IconLock size={13} />
+      </span>
+    </>
   ) : (
-    !renaming && (
-      <>
-        <button
-          className="icon-btn detail-header__rename-btn"
-          title={t('detail.rename')}
-          onClick={() => setRenaming(true)}
-        >
-          <IconEdit />
-        </button>
-        <button className="icon-btn" title={t('detail.delete')} onClick={() => onDelete(node.id)}>
-          <IconTrash />
-        </button>
-      </>
-    )
+    <>
+      {download}
+      {!renaming && (
+        <>
+          <button
+            className="icon-btn detail-header__rename-btn"
+            title={t('detail.rename')}
+            onClick={() => setRenaming(true)}
+          >
+            <IconEdit />
+          </button>
+          <button className="icon-btn" title={t('detail.delete')} onClick={() => onDelete(node.id)}>
+            <IconTrash />
+          </button>
+        </>
+      )}
+    </>
   );
 
   const crumbs = (path || []).map((ancestor) => ({
