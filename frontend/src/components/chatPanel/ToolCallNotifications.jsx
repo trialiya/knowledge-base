@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next';
 import ToolCallDetailModal from './ToolCallDetailModal';
 import { getToolIcon, toolLabelKey, humanizeTool } from './toolMeta';
 import { IconCopySmall, IconCopied, IconStatusStarted, IconStatusOk, IconStatusError } from '../../icons';
-import { COPY_DONE_MS, GIST_PREVIEW_LEN } from '../../constants/ui';
+import { GIST_PREVIEW_LEN } from '../../constants/ui';
+import useCopyFeedback from '../../hooks/useCopyFeedback';
 import { TOOL_STATUS } from '../../constants/toolStatus';
 import './styles/tool-calls.css';
 
@@ -63,14 +64,11 @@ const ToolCallItem = ({ tc, conversationId }) => {
   const gist = gistPreview(tc.resultGist);
   const itemRef = useRef(null);
   const tooltipRef = useRef(null);
-  const copyTimerRef = useRef(null);
   const [hover, setHover] = useState(false);
   // pos: null пока не измерили реальный размер тултипа (рендерим скрытым).
   const [pos, setPos] = useState(null);
-  const [copied, setCopied] = useState(false);
+  const [copied, copy] = useCopyFeedback();
   const [showDetail, setShowDetail] = useState(false);
-
-  useEffect(() => () => clearTimeout(copyTimerRef.current), []);
   // callId приходит вместе с плашкой (SSE TOOL_CALL/TOOL_CALLS или GET /messages) — без него
   // (старые записи до этого поля) модалке деталей нечего запросить.
   const canShowDetail = !!(conversationId && tc.callId && tc.status !== TOOL_STATUS.STARTED && tc.hasDetails !== false);
@@ -125,16 +123,11 @@ const ToolCallItem = ({ tc, conversationId }) => {
     );
   }, [hover, argsStr, gist, tc.status, tc.error]);
 
-  const handleCopy = async (e) => {
+  const handleCopy = (e) => {
+    // Плашка сама по себе кликабельна (открывает детали) — копирование не должно
+    // всплывать до неё.
     e.stopPropagation();
-    try {
-      await navigator.clipboard.writeText(buildCopyText(tc, t));
-      setCopied(true);
-      clearTimeout(copyTimerRef.current);
-      copyTimerRef.current = setTimeout(() => setCopied(false), COPY_DONE_MS);
-    } catch {
-      /* clipboard API may fail in insecure contexts */
-    }
+    copy(buildCopyText(tc, t));
   };
 
   return (

@@ -63,16 +63,8 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.model-row__badge {
-  flex-shrink: 0;
-  font-family: 'Segoe UI', system-ui, sans-serif;
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--kb-accent);
-  background: var(--kb-accent-bg);
-  border-radius: 10px;
-  padding: 2px 9px;
-}
+/* Пилюля «по умолчанию» в строке модели — общий .config-badge из
+   common/configGroup.css: такая же стоит и в строке снимка. */
 
 /* ── Человеко-читаемый лейбл рядом с id модели ── */
 .model-row__label {

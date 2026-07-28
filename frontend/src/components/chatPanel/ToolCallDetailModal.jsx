@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import chatApi from '../../api/chatApi';
 import { getToolIcon, humanizeTool, toolLabelKey } from './toolMeta';
 import { IconCopySmall, IconCopied } from '../../icons';
-import { COPY_DONE_MS } from '../../constants/ui';
+import useCopyFeedback from '../../hooks/useCopyFeedback';
 import ModalShell from '../common/ModalShell';
 import './styles/tool-call-detail-modal.css';
 
@@ -50,29 +50,15 @@ const tryFormatJson = (raw) => {
 /** Маленькая кнопка копирования содержимого секции (аргументы/результат). */
 const CopyButton = ({ value }) => {
   const { t } = useTranslation('chat');
-  const [copied, setCopied] = useState(false);
-  const timerRef = useRef(null);
-
-  useEffect(() => () => clearTimeout(timerRef.current), []);
+  const [copied, copy] = useCopyFeedback();
 
   if (!value) return null;
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setCopied(false), COPY_DONE_MS);
-    } catch {
-      /* clipboard API may fail in insecure contexts */
-    }
-  };
 
   return (
     <button
       type="button"
       className={`tcd-copy-btn ${copied ? 'tcd-copy-btn--done' : ''}`}
-      onClick={handleCopy}
+      onClick={() => copy(value)}
       title={copied ? t('common:copied') : t('toolCall.copy')}
     >
       {copied ? <IconCopied /> : <IconCopySmall />}

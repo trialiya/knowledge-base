@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.service;
 
+import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.model.git.dto.FileEntryType;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
@@ -65,7 +66,6 @@ import org.eclipse.jgit.treewalk.FileTreeIterator;
 import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 /**
@@ -123,9 +123,8 @@ public class GitService {
     private final Git git;
     private final OutlineService outlineService;
 
-    public GitService(
-            @Value("${kb.git.project-path}") String projectPath, OutlineService outlineService) {
-        this.repoPath = Path.of(projectPath).toAbsolutePath().normalize();
+    public GitService(GitProperties gitProperties, OutlineService outlineService) {
+        this.repoPath = Path.of(gitProperties.projectPath()).toAbsolutePath().normalize();
         this.outlineService = outlineService;
         try {
             this.repository = new FileRepositoryBuilder().setWorkTree(repoPath.toFile()).build();

@@ -40,6 +40,19 @@
   background: var(--kb-bg);
 }
 
+/* ── Пилюля рядом со значением (имя модели у её id, «по умолчанию» в списке) ──
+   Шрифт задан явно: строка модели моноширинная, пилюля в ней — нет. */
+.config-badge {
+  flex-shrink: 0;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--kb-accent);
+  background: var(--kb-accent-bg);
+  border-radius: 10px;
+  padding: 2px 9px;
+}
+
 /* ── Загрузка / ошибка снимка ── */
 .config-group__loading {
   padding: 2rem;
