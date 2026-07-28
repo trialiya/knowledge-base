@@ -176,7 +176,7 @@ public class ChatConfig {
             ChatEventService chatEventService,
             McpProperties mcpProperties,
             ObjectProvider<ToolCallbackProvider> mcpToolCallbackProvider) {
-        log.info("Model: {}", chatModel.getDefaultOptions());
+        log.info("Model: {}", chatModel.getOptions());
 
         List<Object> functions =
                 new ArrayList<>(

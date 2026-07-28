@@ -98,9 +98,9 @@ public class SettingsController {
         this.embeddingConfiguration = embeddingConfiguration;
         this.subAgentConfig = subAgentConfig;
         this.searchConfiguration = searchConfiguration;
-        this.chatMaxTokens = openAiChatModel.getDefaultOptions().getMaxTokens();
-        this.chatTemperature = openAiChatModel.getDefaultOptions().getTemperature();
-        this.chatTopP = openAiChatModel.getDefaultOptions().getTopP();
+        this.chatMaxTokens = openAiChatModel.getOptions().getMaxTokens();
+        this.chatTemperature = openAiChatModel.getOptions().getTemperature();
+        this.chatTopP = openAiChatModel.getOptions().getTopP();
         this.summarizeProperties = summarizeProperties;
         this.chatTimeoutProperties = chatTimeoutProperties;
         this.mcpProperties = mcpProperties;

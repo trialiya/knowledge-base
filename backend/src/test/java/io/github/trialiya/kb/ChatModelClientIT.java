@@ -86,7 +86,6 @@ class ChatModelClientIT extends AbstractPostgresIntegrationTest {
         ChatModel chatModel = mock(ChatModel.class);
         // ChatClient.builder копирует опции модели — не отдаём null. Spring AI 2.0.0 читает
         // getOptions() в DefaultChatClientUtils, поэтому мокаем оба геттера опций.
-        when(chatModel.getDefaultOptions()).thenReturn(OpenAiChatOptions.builder().build());
         when(chatModel.getOptions()).thenReturn(OpenAiChatOptions.builder().build());
         when(chatModel.call(any(Prompt.class)))
                 .thenReturn(
