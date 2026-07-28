@@ -30,8 +30,8 @@ const ChatInfo = ({ chat, modelLabel, modeLabel }) => {
   const aiTopic = chat.aiTopic && chat.aiTopic !== chat.title ? chat.aiTopic : null;
 
   const rows = [
-    { label: t('info.title'), value: chat.title, block: true },
-    { label: t('info.aiTopic'), value: aiTopic, block: true },
+    { label: t('info.title'), value: chat.title },
+    { label: t('info.aiTopic'), value: aiTopic },
     { label: t('info.created'), value: formatDateTime(chat.createdAt, i18n.language) },
     { label: t('info.updated'), value: formatDateTime(chat.updatedAt, i18n.language) },
     { label: t('info.model'), value: modelLabel },
