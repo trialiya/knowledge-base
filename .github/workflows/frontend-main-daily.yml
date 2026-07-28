@@ -109,12 +109,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-frontend-node-${{ env.NODE_VERSION }}-
 
-      # Прогоняет фронт-модуль: yarnInstall → yarnTest → yarnBuild → copyFrontend,
-      # плюс spotlessCheck (через check). Тесты гейтят артефакт.
+      # Прогоняет фронт-модуль: yarnInstall → yarnTest → yarnLint → yarnBuild →
+      # copyFrontend, плюс spotlessCheck (через check). Тесты гейтят артефакт.
       - name: Build (with tests)
         run: ./gradlew -PuseSystemNode=true "${FRONTEND_MODULE}:build" --no-daemon --stacktrace
 
-      - name: Upload CRA build output
+      - name: Upload frontend build output
         if: success()
         uses: actions/upload-artifact@v7
         with:

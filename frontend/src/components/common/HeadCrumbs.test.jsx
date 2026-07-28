@@ -4,19 +4,19 @@ import userEvent from '@testing-library/user-event';
 import HeadCrumbs from './HeadCrumbs';
 
 // i18n в тестах не инициализируем — берём ключ как подпись.
-jest.mock('react-i18next', () => ({
+vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key) => key }),
 }));
 
 const items = [
-  { key: 'a', label: 'src', onNavigate: jest.fn() },
-  { key: 'b', label: 'main', onNavigate: jest.fn() },
+  { key: 'a', label: 'src', onNavigate: vi.fn() },
+  { key: 'b', label: 'main', onNavigate: vi.fn() },
 ];
 
 const deep = ['repo', 'backend', 'src', 'main', 'App.java'].map((label, i, all) => ({
   key: label,
   label,
-  onNavigate: i < all.length - 1 ? jest.fn() : undefined,
+  onNavigate: i < all.length - 1 ? vi.fn() : undefined,
 }));
 
 /**
@@ -24,7 +24,7 @@ const deep = ['repo', 'backend', 'src', 'main', 'App.java'].map((label, i, all) 
  * scrollWidth и означает «строка не влезает». Без подмены цепочка помещается.
  */
 const withOverflow = (fn) => {
-  const spy = jest.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(500);
+  const spy = vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(500);
   try {
     return fn();
   } finally {
@@ -101,7 +101,7 @@ describe('HeadCrumbs', () => {
   it('по клику «…» середина раскрывается обратно и больше не схлопывается', async () => {
     // Подмену держим и на время клика: иначе «раскрылось» доказывало бы лишь
     // то, что переполнение кончилось, а не то, что кнопка что-то делает.
-    const spy = jest.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(500);
+    const spy = vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(500);
     try {
       render(<HeadCrumbs items={deep} label="Путь" />);
       await userEvent.click(screen.getByRole('button', { name: 'crumbs.expand' }));

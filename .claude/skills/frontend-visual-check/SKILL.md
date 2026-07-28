@@ -25,9 +25,10 @@ form is in that script's Prerequisites/Usage header.
 ## Driving it yourself
 
 Chromium and Playwright are pre-installed in the web sandbox — do **not** run
-`playwright install`. Don't use `yarn start` either; the dev server does not
-work there. Boot the backend JAR (H2 profile, dummy AI env vars) and drive it
-with Chromium instead.
+`playwright install`. Don't reach for `yarn start` either: the Vite dev server
+does come up in the sandbox, but on its own it serves a UI with no backend
+behind it, so every panel renders empty. Boot the backend JAR (H2 profile, dummy
+AI env vars) and drive it with Chromium instead.
 
 `scripts/playwright-smoke.js` is the working, runnable example: it boots the
 JAR, polls `/actuator/health`, logs in over HTTP Basic (`admin`/`admin`), waits

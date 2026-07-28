@@ -77,7 +77,7 @@ describe('useListNavigation', () => {
   });
 
   it('Enter открывает строку, но не дублирует нативное нажатие на кнопке', () => {
-    const onActivate = jest.fn();
+    const onActivate = vi.fn();
     render(<Tree onActivate={onActivate} />);
     fireEvent.keyDown(screen.getByTestId('tree'), { key: 'ArrowDown' });
     fireEvent.keyDown(document.activeElement, { key: 'Enter' });
@@ -89,7 +89,7 @@ describe('useListNavigation', () => {
   });
 
   it('вправо/влево раскрывает и сворачивает папку через её шеврон', () => {
-    const onToggle = jest.fn();
+    const onToggle = vi.fn();
     const { rerender } = render(<Tree open={false} onToggle={onToggle} />);
     fireEvent.keyDown(screen.getByTestId('tree'), { key: 'ArrowDown' });
 
@@ -113,7 +113,7 @@ describe('useListNavigation', () => {
   });
 
   it('не перехватывает клавиши у поля переименования внутри строки', () => {
-    const onActivate = jest.fn();
+    const onActivate = vi.fn();
     render(<Renaming onActivate={onActivate} />);
     const input = screen.getByLabelText('имя');
     input.focus();

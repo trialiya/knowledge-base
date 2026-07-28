@@ -12,8 +12,12 @@ COPY gradle/ gradle/
 # Копируем конфигурации подпроектов отдельно для изоляции кэша
 COPY backend/build.gradle backend/
 COPY frontend/build.gradle frontend/package.json frontend/yarn.lock frontend/
+COPY frontend/vite.config.js frontend/postcss.config.js frontend/eslint.config.js frontend/
 
-# Копируем исходники
+# Копируем исходники.
+# index.html лежит в корне модуля — для Vite это точка входа сборки, а не
+# статика (в CRA он был public/index.html).
+COPY frontend/index.html frontend/
 COPY backend/src backend/src/
 COPY frontend/src frontend/src/
 COPY frontend/public frontend/public/

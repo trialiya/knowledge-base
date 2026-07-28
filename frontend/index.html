@@ -3,7 +3,7 @@
 <head>
     <!-- Обязательные мета-теги -->
     <meta charset="utf-8"/>
-    <link rel="icon" href="%PUBLIC_URL%/favicon.ico"/>
+    <link rel="icon" href="/favicon.ico"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
     <meta name="theme-color" content="#000000"/>
 
@@ -18,7 +18,7 @@
       Manifest.json файл для PWA (Progressive Web App).
       Позволяет установить приложение на главный экран мобильного устройства.
     -->
-    <link rel="manifest" href="%PUBLIC_URL%/manifest.json"/>
+    <link rel="manifest" href="/manifest.json"/>
 
     <!-- Заголовок вкладки в браузере -->
     <title>AI Knowledge Base </title>
@@ -33,13 +33,13 @@
 <!--
   САМАЯ ВАЖНАЯ ЧАСТЬ!
   Это "корневой" контейнер, в который React будет "монтировать" все компоненты.
-  Весь ваш интерфейс (App.js, ChatWindow.js и т.д.) будет отображен внутри этого div.
+  Весь ваш интерфейс (App.jsx, ChatWindow.jsx и т.д.) будет отображен внутри этого div.
 -->
 <div id="root"></div>
 
 <!--
-  Скрипты вашего приложения (собранные и сжатые) будут автоматически вставлены сюда
-  во время сборки (npm run build). Вам не нужно добавлять их вручную.
+  Точка входа. Vite сам подменит этот тег на собранные js/css при `vite build`.
 -->
+<script type="module" src="/src/index.jsx"></script>
 </body>
 </html>

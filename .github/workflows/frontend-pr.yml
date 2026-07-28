@@ -56,7 +56,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-frontend-node-${{ env.NODE_VERSION }}-
 
-      # :frontend:check прогоняет и yarnTest, и spotlessCheck (prettier) — см.
-      # frontend/build.gradle (tasks.matching { it.name == 'check' }).
-      - name: Run frontend tests & spotlessCheck
+      # :frontend:check прогоняет yarnTest, yarnLint и spotlessCheck (prettier) —
+      # см. frontend/build.gradle (tasks.matching { it.name == 'check' }).
+      - name: Run frontend tests, eslint & spotlessCheck
         run: ./gradlew "${FRONTEND_MODULE}:check" --no-daemon --stacktrace

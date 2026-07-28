@@ -11,7 +11,7 @@ PostgreSQL 17 + pgvector, H2 for local runs and tests) and a React 19 frontend
 **Never assemble a `gradle` command by hand — every check goes through
 `run/test.sh`** (Windows: `run\test.bat` / `run\test.ps1`). It decides the
 awkward parts itself: system Gradle vs `./gradlew`, the JDK 21 init script,
-starting `dockerd` for Testcontainers, `CI=true` for Jest.
+starting `dockerd` for Testcontainers.
 
 ```bash
 ./run/test.sh                  # unit + front — the fast pair, no Docker
@@ -29,7 +29,7 @@ The wrapper deliberately does not cover:
 
 ```bash
 ./gradlew :backend:bootRun     # dev backend on :8080 (run/run.sh h2 runs the JAR)
-./gradlew :frontend:yarnServe  # dev frontend on :3000, proxies to :8080
+./gradlew :frontend:yarnServe  # Vite dev server on :3000, proxies /api to :8080
 ./gradlew spotlessApply        # format the backend (Google Java Format, AOSP)
 ```
 

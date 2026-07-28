@@ -6,7 +6,7 @@ rem   test.bat [suite ...]
 rem
 rem Examples:
 rem   test.bat            (unit + front — the fast pair, no Docker needed)
-rem   test.bat front      (only Jest)
+rem   test.bat front      (only the frontend checks — vitest + eslint)
 rem   test.bat clean build
 rem   test.bat pre-pr     (format + back + build, the gate before a pull request)
 rem   test.bat ci         (the same three, with --console=plain)

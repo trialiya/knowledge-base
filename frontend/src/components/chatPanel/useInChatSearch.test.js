@@ -2,7 +2,7 @@ import { renderHook, waitFor, act } from '@testing-library/react';
 import useInChatSearch, { resolveActiveMatchMid } from './useInChatSearch';
 import chatApi from '../../api/chatApi';
 
-jest.mock('../../api/chatApi');
+vi.mock('../../api/chatApi');
 
 // Пузыри как в стейте чата: загруженные из БД имеют dbId, свежие (отправка/стриминг
 // текущей сессии) — нет.
@@ -60,7 +60,7 @@ describe('resolveActiveMatchMid', () => {
 });
 
 describe('useInChatSearch — догрузка старых страниц не запускается лишний раз', () => {
-  afterEach(() => jest.resetAllMocks());
+  afterEach(() => vi.resetAllMocks());
 
   // Регрессия: дефолтный (самый свежий) хит уже загружен и виден в свежем `messages`,
   // но chatsRef ещё отстаёт на рендер (обновляется отдельным эффектом в ChatWindow).
@@ -72,7 +72,7 @@ describe('useInChatSearch — догрузка старых страниц не 
     const messages = [loaded('m1', 10, 'про жирафов')];
     // chatsRef «отстал» — там ещё нет сообщений этого чата.
     const chatsRef = { current: [{ id: 'chat-1', messages: [], hasMore: true }] };
-    const loadOlderMessages = jest.fn().mockResolvedValue(true);
+    const loadOlderMessages = vi.fn().mockResolvedValue(true);
     chatApi.searchMessages.mockResolvedValue([{ id: 10, createdAt: '2026-01-01' }]);
 
     const { result } = renderHook(() =>
@@ -92,7 +92,7 @@ describe('useInChatSearch — догрузка старых страниц не 
   it('не падает, если messages стал undefined при смене чата (удаление активного чата)', async () => {
     const messages = [loaded('m1', 10, 'про жирафов')];
     const chatsRef = { current: [{ id: 'chat-1', messages, hasMore: false }] };
-    const loadOlderMessages = jest.fn().mockResolvedValue(true);
+    const loadOlderMessages = vi.fn().mockResolvedValue(true);
     chatApi.searchMessages.mockResolvedValue([{ id: 10, createdAt: '2026-01-01' }]);
 
     const { result, rerender } = renderHook((props) => useInChatSearch(props), {

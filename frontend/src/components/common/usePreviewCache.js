@@ -145,7 +145,6 @@ export default function usePreviewCache(store, key, enabled, fetcher, options = 
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetcher/instantLookup read via ref, namely not triggers
   }, [key, enabled, ttlMs, store]);
 
   return { value, loading, error };
