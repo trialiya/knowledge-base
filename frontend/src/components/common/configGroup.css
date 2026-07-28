@@ -11,6 +11,12 @@
 /* ── Read-only значение в .set-row ── */
 .set-row__value {
   flex-shrink: 0;
+  /* Не шире строки: значение, которое длиннее всей карточки (JDBC URL, путь до
+     репозитория), переносится внутри себя, оставаясь выключенным вправо. */
+  max-width: 100%;
+  margin-left: auto;
+  text-align: right;
+  overflow-wrap: anywhere;
   font-family: 'Fira Mono', 'Consolas', monospace;
   font-size: 0.83rem;
   color: var(--kb-text);
@@ -32,6 +38,19 @@
 .status-badge--off {
   color: var(--kb-muted);
   background: var(--kb-bg);
+}
+
+/* ── Пилюля рядом со значением (имя модели у её id, «по умолчанию» в списке) ──
+   Шрифт задан явно: строка модели моноширинная, пилюля в ней — нет. */
+.config-badge {
+  flex-shrink: 0;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--kb-accent);
+  background: var(--kb-accent-bg);
+  border-radius: 10px;
+  padding: 2px 9px;
 }
 
 /* ── Загрузка / ошибка снимка ── */
@@ -71,7 +90,18 @@
   color: var(--kb-muted);
 }
 
-/* ── Строка «ключ → значение», где значение длинное (путь, cron, URL) ── */
+/* ── Пояснение под строками секции ──
+   Почему значение такое и где оно правится: «пароль сюда не отдаётся»,
+   «правка файлов неактивна, потому что дерево read-only». Было двумя
+   одинаковыми копиями — .admin-note и .tools-note. */
+.config-note {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--kb-muted);
+}
+
+/* ── Метка со списком под ней (набор тегов не встаёт в строку справа) ── */
 .config-block {
   display: flex;
   flex-direction: column;
@@ -80,10 +110,4 @@
 .config-block__label {
   font-size: 0.85rem;
   color: var(--kb-text);
-}
-.config-block__value {
-  font-family: 'Fira Mono', 'Consolas', monospace;
-  font-size: 0.8rem;
-  color: var(--kb-muted);
-  overflow-wrap: anywhere;
 }

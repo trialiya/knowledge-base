@@ -118,14 +118,50 @@
   margin-top: 2px;
 }
 
-/* ── Строка «лейбл + контрол» ── */
-.set-row {
+/* ── Результат последнего запуска (OperationRow) ── */
+/* Раньше это были .admin-status/.admin-badge из adminPanel.css: строку-операцию
+   рисуют и «Настройки», а ссылаться на классы чужой панели нельзя. */
+.set-op__status {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  margin-top: 10px;
+  font-size: 0.8rem;
+  color: var(--kb-muted);
+}
+.set-op__badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 3px 10px;
+  border-radius: 10px;
+}
+.set-op__badge--ok {
+  color: #0f6e56;
+  background: #e1f5ee;
+}
+.set-op__badge--error {
+  color: var(--kb-error);
+  background: var(--kb-error-bg);
+}
+
+/* ── Строка «лейбл + контрол» ── */
+/* Строка переносится целиком: значение (URL, путь, cron) не ужимается и не
+   уходит под метку по левому краю — при нехватке места оно встаёт на свою
+   строку и остаётся выключенным вправо, как в коротких строках. */
+.set-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 12px;
 }
 .set-row__label {
-  flex: 1;
+  /* grow, но без shrink: иначе метка ужималась бы вместо переноса строки. */
+  flex: 1 0 auto;
   font-size: 0.85rem;
   color: var(--kb-text);
 }

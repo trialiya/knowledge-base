@@ -7,6 +7,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.config.model.SubAgentConfig;
 import io.github.trialiya.kb.functions.GitFunction;
 import io.github.trialiya.kb.model.search.SearchAgentResult;
@@ -73,7 +74,8 @@ class SearchAgentServiceIT {
         git("add", "-A");
         git("commit", "-q", "-m", "init");
 
-        GitService gitService = new GitService(repo.toString(), new OutlineService());
+        GitService gitService =
+                new GitService(new GitProperties(repo.toString(), false), new OutlineService());
 
         Set<String> allowed =
                 Set.of(

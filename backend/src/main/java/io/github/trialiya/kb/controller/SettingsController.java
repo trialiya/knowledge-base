@@ -6,6 +6,7 @@ import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.ChatModelProperties.ModelOption;
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.config.model.EmbeddingConfiguration;
+import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.config.model.McpProperties;
 import io.github.trialiya.kb.config.model.SearchConfiguration;
 import io.github.trialiya.kb.config.model.SubAgentConfig;
@@ -87,7 +88,7 @@ public class SettingsController {
             ObjectProvider<McpSseClientProperties> sseProperties,
             ObjectProvider<McpStreamableHttpClientProperties> streamableHttpProperties,
             ObjectProvider<McpStdioClientProperties> stdioProperties,
-            @Value("${kb.git.edit-enabled:false}") boolean gitEditEnabled,
+            GitProperties gitProperties,
             @Value("${spring.ai.openai.timeout:60s}") Duration requestTimeout,
             @Value("${spring.ai.retry.max-attempts:10}") int retryMaxAttempts,
             @Value("${spring.servlet.multipart.max-file-size:1MB}") DataSize maxFileSize,
@@ -103,7 +104,7 @@ public class SettingsController {
         this.summarizeProperties = summarizeProperties;
         this.chatTimeoutProperties = chatTimeoutProperties;
         this.mcpProperties = mcpProperties;
-        this.gitEditEnabled = gitEditEnabled;
+        this.gitEditEnabled = gitProperties.editEnabled();
         this.gitEditActive = gitEditFunction.getIfAvailable() != null;
         this.requestTimeout = requestTimeout;
         this.retryMaxAttempts = retryMaxAttempts;

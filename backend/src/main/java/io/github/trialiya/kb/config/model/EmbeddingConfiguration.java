@@ -16,8 +16,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *     retry-backoff-seconds: 30
  *     stuck-timeout-minutes: 10
  *     cleanup-retention-days: 7
- *     poll-interval-ms: 1000    # read by @Scheduled placeholders, not bound here
- *     stuck-check-ms: 300000    # read by @Scheduled placeholders, not bound here
+ *     poll-interval-ms: 1000
+ *     stuck-check-ms: 300000
  *     cache:
  *       enabled: true
  *       ttl-days: 30
@@ -26,6 +26,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *       max-tokens: 512
  *       overlap-tokens: 64
  * </pre>
+ *
+ * <p>{@code pollIntervalMs}/{@code stuckCheckMs} also live as raw placeholders in {@code
+ * EmbeddingTaskScheduler}'s {@code @Scheduled(fixedDelayString)} — an annotation cannot read a
+ * bean. They are bound here as well so that everything the Admin panel reports about the queue
+ * comes from this one record, instead of the controller re-declaring the two keys and their
+ * defaults a third time.
  */
 @ConfigurationProperties(prefix = "kb.embedding")
 public record EmbeddingConfiguration(
@@ -37,6 +43,8 @@ public record EmbeddingConfiguration(
         int retryBackoffSeconds,
         int stuckTimeoutMinutes,
         int cleanupRetentionDays,
+        long pollIntervalMs,
+        long stuckCheckMs,
         EmbeddingCacheConfiguration cache,
         EmbeddingChunkerConfiguration chunker) {
 

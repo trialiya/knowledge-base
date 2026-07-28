@@ -327,6 +327,8 @@ class EmbeddingPipelineIT extends AbstractPostgresIntegrationTest {
                 0, // retryBackoffSeconds=0 -> a reset task is immediately reclaimable
                 10,
                 7,
+                1000,
+                300_000,
                 new EmbeddingConfiguration.EmbeddingCacheConfiguration(true, 30, "0 0 2 * * *"),
                 new EmbeddingConfiguration.EmbeddingChunkerConfiguration(
                         chunkerMaxTokens, chunkerOverlapTokens));

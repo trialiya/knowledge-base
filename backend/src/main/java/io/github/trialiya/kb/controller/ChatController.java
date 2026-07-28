@@ -24,6 +24,7 @@ import io.github.trialiya.kb.service.ChatModeService;
 import io.github.trialiya.kb.service.ChatRunService;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import jakarta.annotation.Nonnull;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
@@ -66,6 +67,9 @@ public class ChatController {
     private final ChatRunService chatRunService;
     private final ChatEventService chatEventService;
 
+    /** Часы аудита Spring Data — ими же датируется «тронуть чат», см. JdbcConfig#clock. */
+    private final Clock clock;
+
     public ChatController(
             ChatModelProperties chatModelProperties,
             ChatModeProperties chatModeProperties,
@@ -75,7 +79,8 @@ public class ChatController {
             ChatTopicRepository chatTopicRepository,
             ChatMemoryService chatMemoryService,
             ChatRunService chatRunService,
-            ChatEventService chatEventService) {
+            ChatEventService chatEventService,
+            Clock clock) {
         this.chatModelProperties = chatModelProperties;
         this.chatModeProperties = chatModeProperties;
         this.chatModeService = chatModeService;
@@ -85,6 +90,7 @@ public class ChatController {
         this.chatMemoryService = chatMemoryService;
         this.chatRunService = chatRunService;
         this.chatEventService = chatEventService;
+        this.clock = clock;
     }
 
     /** Список выбираемых моделей и какая из них дефолтная. */
@@ -432,7 +438,8 @@ public class ChatController {
                                 throw new ResponseStatusException(FORBIDDEN, "Forbidden");
                             }
                             if (update) {
-                                chatTopicRepository.updateUpdatedAt(conversationId);
+                                chatTopicRepository.updateUpdatedAt(
+                                        conversationId, LocalDateTime.now(clock));
                             }
                         },
                         () ->

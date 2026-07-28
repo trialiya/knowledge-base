@@ -1,7 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconCopySmall, IconCopied } from '../../icons';
-import { COPY_DONE_MS } from '../../constants/ui';
+import useCopyFeedback from '../../hooks/useCopyFeedback';
 import './codeBlock.css';
 
 const extractLang = (className) => {
@@ -11,24 +11,8 @@ const extractLang = (className) => {
 
 const CodeBlock = ({ code, className, children, ...props }) => {
   const { t } = useTranslation();
-  const [copied, setCopied] = useState(false);
-  const timerRef = useRef(null);
+  const [copied, copy] = useCopyFeedback();
   const lang = extractLang(className);
-
-  // Сбрасываем таймер «скопировано» при размонтировании, чтобы setCopied не
-  // дёргался на уже удалённом компоненте (смена документа/закрытие превью).
-  useEffect(() => () => clearTimeout(timerRef.current), []);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(code);
-      setCopied(true);
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setCopied(false), COPY_DONE_MS);
-    } catch {
-      /* clipboard API недоступен в insecure context */
-    }
-  };
 
   return (
     <div className="code-block">
@@ -36,7 +20,7 @@ const CodeBlock = ({ code, className, children, ...props }) => {
         <span className="code-block__lang">{lang || ''}</span>
         <button
           className={`code-block__copy ${copied ? 'code-block__copy--done' : ''}`}
-          onClick={handleCopy}
+          onClick={() => copy(code)}
           title={copied ? t('copied') : t('copy')}
           type="button"
         >

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { SettingsSection } from '../common/SettingsShell';
-import ConfigGroup, { ConfigRow, ConfigStatusRow, ConfigBoolRow, ConfigTags } from '../common/ConfigGroup';
+import ConfigGroup, { ConfigRow, ConfigStatusRow, ConfigBoolRow, ConfigTags, ConfigBlock } from '../common/ConfigGroup';
 import useConfigSnapshot from '../common/useConfigSnapshot';
 import settingsApi from '../../api/settingsApi';
 import { formatFileSize } from '../../utils/formatting';
@@ -49,19 +49,18 @@ const ToolsSections = ({ config }) => {
       <SettingsSection label={t('tools.git.label')}>
         <ConfigBoolRow label={t('tools.git.editEnabled')} value={git.editEnabled} />
         <ConfigBoolRow label={t('tools.git.editActive')} value={git.editActive} />
-        {git.editEnabled && !git.editActive && <p className="tools-note">{t('tools.git.readOnlyNote')}</p>}
+        {git.editEnabled && !git.editActive && <p className="config-note">{t('tools.git.readOnlyNote')}</p>}
       </SettingsSection>
 
       {/* ── Внешние MCP-серверы ── */}
       <SettingsSection label={t('tools.mcp.label')}>
         <ConfigStatusRow label={t('tools.mcp.status')} on={mcp.enabled} />
-        <div className="config-block">
-          <span className="config-block__label">{t('tools.mcp.connections')}</span>
+        <ConfigBlock label={t('tools.mcp.connections')}>
           <ConfigTags
             items={mcp.connections.map((c) => `${c.name} · ${c.transport}`)}
             empty={t('tools.mcp.connectionsEmpty')}
           />
-        </div>
+        </ConfigBlock>
       </SettingsSection>
 
       {/* ── Лимиты вложений ── */}

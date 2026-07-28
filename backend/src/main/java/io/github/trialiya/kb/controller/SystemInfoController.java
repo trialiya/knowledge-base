@@ -2,18 +2,18 @@ package io.github.trialiya.kb.controller;
 
 import io.github.trialiya.kb.config.model.DocumentsConfiguration;
 import io.github.trialiya.kb.config.model.EmbeddingConfiguration;
+import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.config.model.SecurityProperties;
+import io.github.trialiya.kb.config.model.ServerEnvironment;
 import io.github.trialiya.kb.service.GitService;
 import java.lang.management.ManagementFactory;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationInfo;
 import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -25,64 +25,43 @@ import org.springframework.web.bind.annotation.RestController;
  * does the assistant think", Admin answers "how is this server set up".
  *
  * <p>Same rule as {@link SettingsController}: fields are assembled one by one and secrets are never
- * among them. The datasource URL is passed through {@link #sanitizeJdbcUrl} because a JDBC URL may
- * carry {@code user}/{@code password} query parameters, and the password is never reported at all.
+ * among them. Every value comes from a bound properties record — {@link ServerEnvironment} for the
+ * Spring-owned settings, {@link GitProperties} and {@link EmbeddingConfiguration} for the {@code
+ * kb.*} ones — and none of those has a field for a password or an API key. The datasource URL is
+ * passed through {@link #sanitizeJdbcUrl} because a JDBC URL may carry {@code user}/{@code
+ * password} query parameters of its own.
  */
 @RestController
 @RequestMapping("/api/admin/system")
 @Slf4j
 public class SystemInfoController {
 
+    private final ServerEnvironment environment;
     private final DocumentsConfiguration documentsConfiguration;
     private final EmbeddingConfiguration embeddingConfiguration;
     private final SecurityProperties securityProperties;
+    private final GitProperties gitProperties;
     private final GitService gitService;
     @Nullable private final Flyway flyway;
-    private final String applicationName;
-    private final String activeProfiles;
-    private final int serverPort;
-    private final String datasourceUrl;
-    private final String datasourceDriver;
-    private final String datasourceUsername;
-    private final String flywayLocations;
-    private final boolean gitEditEnabled;
-    private final long pollIntervalMs;
-    private final long stuckCheckMs;
 
     private volatile boolean schemaVersionResolved;
     @Nullable private String cachedSchemaVersion;
 
     public SystemInfoController(
+            ServerEnvironment environment,
             DocumentsConfiguration documentsConfiguration,
             EmbeddingConfiguration embeddingConfiguration,
             SecurityProperties securityProperties,
+            GitProperties gitProperties,
             GitService gitService,
-            @Nullable @Autowired(required = false) Flyway flyway,
-            @Value("${spring.application.name:knowledge-base}") String applicationName,
-            @Value("${spring.profiles.active:}") String activeProfiles,
-            @Value("${server.port:8080}") int serverPort,
-            @Value("${spring.datasource.url:}") String datasourceUrl,
-            @Value("${spring.datasource.driver-class-name:}") String datasourceDriver,
-            @Value("${spring.datasource.username:}") String datasourceUsername,
-            @Value("${spring.flyway.locations:}") String flywayLocations,
-            @Value("${kb.git.edit-enabled:false}") boolean gitEditEnabled,
-            @Value("${kb.embedding.poll-interval-ms:1000}") long pollIntervalMs,
-            @Value("${kb.embedding.stuck-check-ms:300000}") long stuckCheckMs) {
+            @Nullable @Autowired(required = false) Flyway flyway) {
+        this.environment = environment;
         this.documentsConfiguration = documentsConfiguration;
         this.embeddingConfiguration = embeddingConfiguration;
         this.securityProperties = securityProperties;
+        this.gitProperties = gitProperties;
         this.gitService = gitService;
         this.flyway = flyway;
-        this.applicationName = applicationName;
-        this.activeProfiles = activeProfiles;
-        this.serverPort = serverPort;
-        this.datasourceUrl = datasourceUrl;
-        this.datasourceDriver = datasourceDriver;
-        this.datasourceUsername = datasourceUsername;
-        this.flywayLocations = flywayLocations;
-        this.gitEditEnabled = gitEditEnabled;
-        this.pollIntervalMs = pollIntervalMs;
-        this.stuckCheckMs = stuckCheckMs;
     }
 
     @GetMapping
@@ -90,21 +69,21 @@ public class SystemInfoController {
         var runtime = ManagementFactory.getRuntimeMXBean();
         return new SystemInfoResponse(
                 new ApplicationInfo(
-                        applicationName,
-                        profiles(),
-                        serverPort,
+                        environment.applicationName(),
+                        environment.profiles(),
+                        environment.port(),
                         System.getProperty("java.version"),
                         Instant.ofEpochMilli(runtime.getStartTime()).toString(),
                         runtime.getUptime() / 1000),
                 new DatabaseInfo(
-                        sanitizeJdbcUrl(datasourceUrl),
-                        datasourceDriver,
-                        datasourceUsername,
-                        flywayLocations,
+                        sanitizeJdbcUrl(environment.datasourceUrl()),
+                        environment.datasourceDriver(),
+                        environment.datasourceUsername(),
+                        environment.flywayLocations(),
                         schemaVersion()),
                 new GitInfo(
                         gitService.repoPath().toString(),
-                        gitEditEnabled,
+                        gitProperties.editEnabled(),
                         gitService.isRepoWritable()),
                 new DocumentsInfo(
                         documentsConfiguration.exportPath(), documentsConfiguration.replace()),
@@ -112,26 +91,15 @@ public class SystemInfoController {
                 new IndexingInfo(
                         embeddingConfiguration.workers(),
                         embeddingConfiguration.pollBatchSize(),
-                        pollIntervalMs,
+                        embeddingConfiguration.pollIntervalMs(),
                         embeddingConfiguration.maxAttempts(),
                         embeddingConfiguration.retryBackoffSeconds(),
                         embeddingConfiguration.stuckTimeoutMinutes(),
-                        stuckCheckMs,
+                        embeddingConfiguration.stuckCheckMs(),
                         embeddingConfiguration.cleanupRetentionDays(),
                         embeddingConfiguration.cache().enabled(),
                         embeddingConfiguration.cache().ttlDays(),
                         embeddingConfiguration.cache().cleanupCron()));
-    }
-
-    /** {@code spring.profiles.active} is empty when nothing is set — Spring then runs "default". */
-    private List<String> profiles() {
-        if (activeProfiles.isBlank()) {
-            return List.of("default");
-        }
-        return Arrays.stream(activeProfiles.split(","))
-                .map(String::trim)
-                .filter(p -> !p.isBlank())
-                .toList();
     }
 
     /**

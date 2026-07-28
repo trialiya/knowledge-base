@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { SettingsSection } from '../common/SettingsShell';
-import ConfigGroup, { ConfigRow, ConfigBoolRow, ConfigBlock, useDurationFormat } from '../common/ConfigGroup';
+import ConfigGroup, { ConfigRow, ConfigBoolRow, useDurationFormat } from '../common/ConfigGroup';
 import useConfigSnapshot from '../common/useConfigSnapshot';
 import settingsApi from '../../api/settingsApi';
 import { formatDateTime } from '../../utils/formatting';
@@ -44,10 +44,10 @@ const SystemSections = ({ info }) => {
 
       {/* ── База данных ── */}
       <SettingsSection label={t('admin.system.database.label')}>
-        <ConfigBlock label={t('admin.system.database.url')} value={database.url} empty={t('config.notSet')} />
+        <ConfigRow label={t('admin.system.database.url')} value={database.url} empty={t('config.notSet')} />
         <ConfigRow label={t('admin.system.database.driver')} value={database.driver} />
         <ConfigRow label={t('admin.system.database.username')} value={database.username} />
-        <ConfigBlock
+        <ConfigRow
           label={t('admin.system.database.flywayLocations')}
           value={database.flywayLocations}
           empty={t('config.notSet')}
@@ -60,14 +60,14 @@ const SystemSections = ({ info }) => {
 
       {/* ── Репозиторий ── */}
       <SettingsSection label={t('admin.system.git.label')}>
-        <ConfigBlock label={t('admin.system.git.projectPath')} value={git.projectPath} empty={t('config.notSet')} />
+        <ConfigRow label={t('admin.system.git.projectPath')} value={git.projectPath} empty={t('config.notSet')} />
         <ConfigBoolRow label={t('admin.system.git.editEnabled')} value={git.editEnabled} />
         <ConfigBoolRow label={t('admin.system.git.writable')} value={git.writable} />
       </SettingsSection>
 
       {/* ── Экспорт документов ── */}
       <SettingsSection label={t('admin.system.documents.label')}>
-        <ConfigBlock
+        <ConfigRow
           label={t('admin.system.documents.exportPath')}
           value={documents.exportPath}
           empty={t('admin.system.documents.exportPathEmpty')}
@@ -78,7 +78,7 @@ const SystemSections = ({ info }) => {
       {/* ── Доступ ── */}
       <SettingsSection label={t('admin.system.security.label')}>
         <ConfigRow label={t('admin.system.security.username')} value={security.username} />
-        <p className="admin-note">{t('admin.system.security.note')}</p>
+        <p className="config-note">{t('admin.system.security.note')}</p>
       </SettingsSection>
     </>
   );
