@@ -30,7 +30,6 @@
 .info-list__row--block .info-list__value {
   margin-top: 3px;
   margin-left: 0;
-  justify-content: flex-start;
   /* Значение здесь в несколько строк: кнопка копирования встаёт к первой из
      них, а не по центру всего абзаца. */
   align-items: flex-start;
@@ -61,8 +60,13 @@
   text-align: right;
   overflow-wrap: anywhere;
 }
+/* Текст растягивается на всю ширину строки, поэтому кнопка копирования всегда
+   прижата к правому краю — как и в остальных строках, — а не липнет к концу
+   короткого значения. */
 .info-list__row--block .info-list__value-text {
   text-align: left;
+  flex: 1;
+  min-width: 0;
 }
 
 /* Компактная кнопка копирования у каждой строки — 28px icon-btn слишком
