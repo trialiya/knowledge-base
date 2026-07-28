@@ -12,7 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationInfo;
 import org.jspecify.annotations.Nullable;
-import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -37,7 +37,13 @@ public class SystemInfoController {
     private final EmbeddingConfiguration embeddingConfiguration;
     private final SecurityProperties securityProperties;
     private final GitService gitService;
-    private final ObjectProvider<Flyway> flyway;
+
+    /**
+     * Optional so the controller still wires up in a context that never registers a Flyway bean.
+     */
+    @Autowired(required = false)
+    private Flyway flyway;
+
     private final String applicationName;
     private final String activeProfiles;
     private final int serverPort;
@@ -49,12 +55,14 @@ public class SystemInfoController {
     private final long pollIntervalMs;
     private final long stuckCheckMs;
 
+    private volatile boolean schemaVersionResolved;
+    private volatile @Nullable String cachedSchemaVersion;
+
     public SystemInfoController(
             DocumentsConfiguration documentsConfiguration,
             EmbeddingConfiguration embeddingConfiguration,
             SecurityProperties securityProperties,
             GitService gitService,
-            ObjectProvider<Flyway> flyway,
             @Value("${spring.application.name:knowledge-base}") String applicationName,
             @Value("${spring.profiles.active:}") String activeProfiles,
             @Value("${server.port:8080}") int serverPort,
@@ -69,7 +77,6 @@ public class SystemInfoController {
         this.embeddingConfiguration = embeddingConfiguration;
         this.securityProperties = securityProperties;
         this.gitService = gitService;
-        this.flyway = flyway;
         this.applicationName = applicationName;
         this.activeProfiles = activeProfiles;
         this.serverPort = serverPort;
@@ -132,23 +139,30 @@ public class SystemInfoController {
     }
 
     /**
-     * Current schema version according to Flyway. Reads the schema history table, so it is a DB
-     * round-trip; a failure here must not take the whole panel down, hence the broad catch.
+     * Current schema version according to Flyway. Migrations only run once, at startup, so the
+     * result never changes for the life of the process; reading the schema history table is a DB
+     * round-trip, so the first successful read is cached instead of repeating it on every panel
+     * load. A failure here must not take the whole panel down, hence the broad catch — it also
+     * leaves the value unresolved so the next request tries again.
      */
     private @Nullable String schemaVersion() {
-        Flyway instance = flyway.getIfAvailable();
-        if (instance == null) {
+        if (schemaVersionResolved) {
+            return cachedSchemaVersion;
+        }
+        if (flyway == null) {
             return null;
         }
         try {
-            MigrationInfo current = instance.info().current();
-            return current == null || current.getVersion() == null
-                    ? null
-                    : current.getVersion().toString();
+            MigrationInfo current = flyway.info().current();
+            cachedSchemaVersion =
+                    current == null || current.getVersion() == null
+                            ? null
+                            : current.getVersion().toString();
+            schemaVersionResolved = true;
         } catch (RuntimeException e) {
             log.debug("Could not read the Flyway schema version", e);
-            return null;
         }
+        return cachedSchemaVersion;
     }
 
     /**
