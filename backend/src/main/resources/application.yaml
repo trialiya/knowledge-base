@@ -152,7 +152,10 @@ kb:
   embedding:
     # Must match spring.ai.openai.embedding.options.model.
     # Stored alongside every cached vector so that model upgrades invalidate old cache rows.
-    model: ${AI_EMBED_MODEL}
+    # Default matches the fallback of spring.ai.openai.embedding.model above: without it the
+    # h2 profile (semantic search off, AI_EMBED_* not required) leaves the placeholder
+    # unresolved and the Settings panel shows the literal "${AI_EMBED_MODEL}".
+    model: ${AI_EMBED_MODEL:bge-m3}
     # Number of documents sent to embedBatch() per slice during reindexAll().
     # Keep below OpenAI's per-request limit (~2 048 inputs / ~300 k tokens).
     reindex-batch-size: 50
