@@ -38,6 +38,11 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jdbc'
     implementation 'org.postgresql:postgresql'
     implementation 'com.h2database:h2'
+    // Same Spring Boot 4 extraction as spring-boot-flyway below: H2ConsoleAutoConfiguration left
+    // spring-boot-autoconfigure for its own module. Without it spring.h2.console.enabled (set by
+    // the h2 profile) silently does nothing and /h2-console answers 404. See SecurityConfig, which
+    // has to let the console out of the default X-Frame-Options: DENY to render its frameset.
+    implementation 'org.springframework.boot:spring-boot-h2console'
     // Spring Boot 4 extracted FlywayAutoConfiguration out of spring-boot-autoconfigure into the
     // dedicated spring-boot-flyway module, which flyway-core does not pull transitively. Without it
     // migrations never run (neither at app startup nor in @DataJdbcTest slices).
