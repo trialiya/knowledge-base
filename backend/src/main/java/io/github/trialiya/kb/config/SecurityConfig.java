@@ -51,7 +51,11 @@ public class SecurityConfig {
      * <p>Консоль рисует себя во фреймах, а общая цепочка ниже оставляет дефолтный {@code
      * X-Frame-Options: DENY} — под ним страница открывается пустой. Ослабляем заголовок до {@code
      * SAMEORIGIN}, и только на пути консоли: во всём остальном приложении остаётся {@code DENY}.
-     * Аутентификация обязательна ровно так же, как везде.
+     *
+     * <p>HTTP Basic на этот путь намеренно не распространяется ({@code permitAll}): вход в саму
+     * консоль всё равно закрыт JDBC-логином из {@code application-h2.yaml}, второй пароль поверх
+     * первого — не защита, а лишний клик. Профиль {@code h2} рассчитан на локальную разработку и
+     * демо-окружения, не на публичный интернет.
      */
     @Bean
     @Order(1)
@@ -64,7 +68,6 @@ public class SecurityConfig {
                                 headers.frameOptions(
                                         HeadersConfigurer.FrameOptionsConfig::sameOrigin))
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
-                .httpBasic(Customizer.withDefaults())
                 .build();
     }
 
