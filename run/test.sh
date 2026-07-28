@@ -15,9 +15,12 @@
 #   front     frontend tests (vitest) + eslint
 #   format    spotlessCheck (Google Java Format, AOSP)
 #   build     full build (frontend bundled into the backend JAR)
+#   jar       just the runnable backend JAR (bootJar, frontend bundled, no tests)
 #   clean     gradle clean — when something is stuck in the toolchain/spotless cache
-#   smoke     build the JAR and drive the UI with Chromium (scripts/playwright-smoke.js);
-#             scenarios and data for it live in frontend/tests/visual/cases.yaml
+#   smoke     drive the UI with Chromium (scripts/playwright-smoke.js); that script
+#             builds the JAR through the 'jar' suite itself, so running it directly
+#             behaves the same. Scenarios and data live in
+#             frontend/tests/visual/cases.yaml
 #   pre-pr    format + back + build — the gate before a pull request
 #   ci        the same three with --console=plain (non-interactive logs). Note: the
 #             GitHub workflows do not call this — they run ./gradlew per module.
@@ -163,11 +166,14 @@ run_front()  { gradle_run :frontend:yarnTest :frontend:yarnLint; }
 run_format() { gradle_run spotlessCheck; }
 run_build()  { gradle_run build; }
 run_clean()  { gradle_run clean; }
+# Frontend tests are skipped on purpose: the JAR is wanted for looking at a
+# running UI, and './test.sh front' covers the tests.
+run_jar()    { gradle_run :backend:bootJar -x :frontend:yarnTest; }
 
 run_smoke() {
-  # Frontend tests are skipped here on purpose: the point is a running UI, and
-  # './test.sh front' covers them.
-  gradle_run :backend:bootJar -x :frontend:yarnTest
+  # No bootJar here — playwright-smoke.js invokes './test.sh jar' itself, so a
+  # bare `node scripts/playwright-smoke.js` runs against just as fresh a JAR as
+  # this suite does, and the build stays in one place.
   echo "→ node scripts/playwright-smoke.js"
   if [ -d /opt/node22/lib/node_modules ]; then
     env NODE_PATH=/opt/node22/lib/node_modules node scripts/playwright-smoke.js
@@ -184,12 +190,13 @@ run_suite() {
     front)  run_front ;;
     format) run_format ;;
     build)  run_build ;;
+    jar)    run_jar ;;
     clean)  run_clean ;;
     smoke)  run_smoke ;;
     pre-pr | ci) run_format; run_back; run_build ;;
     *)
       echo "ERROR: unknown suite '$1'." >&2
-      echo "       Known: unit it back front format build clean smoke pre-pr ci" >&2
+      echo "       Known: unit it back front format build jar clean smoke pre-pr ci" >&2
       exit 2
       ;;
   esac

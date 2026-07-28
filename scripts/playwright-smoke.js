@@ -14,12 +14,15 @@
  * the SQL into the same file while the app is running — your real local-db/h2 (used
  * by 'Быстрый старт с H2') is never touched.
  *
- * Prerequisites (build the jar first — this script does not):
- *   /opt/gradle/bin/gradle :backend:bootJar -x :frontend:yarnTest \
- *     --init-script gradle/java21.gradle --no-configuration-cache
+ * The jar is built by the script itself, through `run/test.sh jar` — the same
+ * wrapper every other check goes through, so the Gradle to use, the JDK 21 init
+ * script and GRADLE/KB_JAVA21 are decided there and not repeated here. Pass
+ * --no-build to run against the jar already in backend/build/libs.
  *
  * Usage:
- *   NODE_PATH=/opt/node22/lib/node_modules node scripts/playwright-smoke.js [screenshot.png] [--no-seed]
+ *   ./run/test.sh smoke                 # the canonical form; delegates to this script
+ *   NODE_PATH=/opt/node22/lib/node_modules node scripts/playwright-smoke.js \
+ *     [screenshot.png] [--no-seed] [--no-build]
  *
  * Chromium and Playwright are pre-installed in the sandbox; do not run
  * `playwright install`.
@@ -31,6 +34,7 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..');
+const TEST_SH = path.join(ROOT, 'run/test.sh');
 const JAR = path.join(ROOT, 'backend/build/libs/backend-1.0-SNAPSHOT.jar');
 const SAMPLE_DATA = path.join(ROOT, 'backend/src/test/resources/db/sample-data.sql');
 const SMOKE_DB = path.join(ROOT, 'local-db/h2-smoke'); // disposable — never local-db/h2
@@ -39,8 +43,22 @@ const AUTH = { username: 'admin', password: 'admin' };
 
 const args = process.argv.slice(2);
 const seed = !args.includes('--no-seed');
+const build = !args.includes('--no-build');
 const screenshotPath =
   args.find((a) => !a.startsWith('--')) || path.join(ROOT, 'playwright-smoke.png');
+
+// Everything the build needs to know (system Gradle vs ./gradlew, the JDK 21
+// init script) is test.sh's job; 'jar' is bootJar without the frontend tests.
+// './run/test.sh smoke' does not pre-build — it lands here, so both entry points
+// build exactly once, the same way.
+function buildJar() {
+  console.log('→ ./run/test.sh jar');
+  const built = spawnSync(TEST_SH, ['jar'], { cwd: ROOT, stdio: 'inherit' });
+  if (built.error) throw built.error;
+  if (built.status !== 0) {
+    throw new Error(`./run/test.sh jar failed (exit ${built.status ?? built.signal})`);
+  }
+}
 
 function findH2Jar() {
   const base = path.join(os.homedir(), '.gradle/caches/modules-2/files-2.1/com.h2database/h2');
@@ -75,6 +93,12 @@ function waitForHealth(timeoutMs = 60000) {
 }
 
 async function main() {
+  if (build) {
+    buildJar();
+  } else if (!fs.existsSync(JAR)) {
+    throw new Error(`--no-build given, but ${path.relative(ROOT, JAR)} does not exist yet.`);
+  }
+
   // local-db/ is gitignored, so on a fresh clone it does not exist yet — and H2
   // does not create the parent directory of its database file. Needed for both
   // modes: the seeded run writes local-db/h2-smoke*, and --no-seed falls back to
