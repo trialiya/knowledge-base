@@ -30,7 +30,7 @@ const KnowledgeBase = ({
   onRefreshingChange,
   onOpenDoc,
   onSearch,
-  mutatedDoc,
+  mutatedDocs,
   panels,
 }) => {
   const { t } = useTranslation('knowledgeBase');
@@ -70,7 +70,7 @@ const KnowledgeBase = ({
     handleRefresh,
     handleDiscardConfirm,
     handleDiscardCancel,
-  } = useKnowledgeBase({ docId, search, mode, onOpenDoc, onSearch, mutatedDoc });
+  } = useKnowledgeBase({ docId, search, mode, onOpenDoc, onSearch, mutatedDocs });
 
   // Состояние детали (черновик описания, полноэкранный режим, история) поднято
   // сюда: его делят ЦЕНТР (редактор) и ПРАВАЯ панель (описание, вложения) —

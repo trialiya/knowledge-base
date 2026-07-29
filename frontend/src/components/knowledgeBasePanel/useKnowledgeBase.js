@@ -34,7 +34,7 @@ export default function useKnowledgeBase({
   mode: navMode = SEARCH_MODE.HYBRID,
   onOpenDoc,
   onSearch,
-  mutatedDoc = null,
+  mutatedDocs = null,
 } = {}) {
   const { t } = useTranslation('knowledgeBase');
   const [tree, setTree] = useState([]);
@@ -426,25 +426,28 @@ export default function useKnowledgeBase({
   // KB смонтирована всегда (в отличие от Files, у которой размонтирование само
   // сбрасывает устаревшее состояние), поэтому единственный способ подхватить
   // правку, сделанную инструментом ассистента, — среагировать на неё сразу, а
-  // не ждать открытия вкладки. Дедуп по ts — mutatedDoc от App меняется по
-  // ссылке на каждую мутацию, эффект не должен повторно сработать из-за того,
-  // что selectedNode тоже в зависимостях.
-  const lastMutationTsRef = useRef(0);
+  // не ждать открытия вкладки. mutatedDocs — весь список мутаций ОДНОГО прогона
+  // (см. App.jsx/useChatEventStream) и приходит новым массивом на каждый прогон,
+  // поэтому дедуп по ссылке достаточен и не срабатывает повторно из-за того, что
+  // selectedNode тоже в зависимостях. Перебираем ВЕСЬ список (не только
+  // последний элемент) — один прогон может создать/поменять несколько
+  // документов сразу, каждый требует своего refreshScope/select.
+  const lastMutationBatchRef = useRef(null);
   useEffect(() => {
-    if (!mutatedDoc || mutatedDoc.ts === lastMutationTsRef.current) return;
-    lastMutationTsRef.current = mutatedDoc.ts;
+    if (!mutatedDocs || mutatedDocs === lastMutationBatchRef.current) return;
+    lastMutationBatchRef.current = mutatedDocs;
 
-    if (selectedNode?.id === mutatedDoc.id) {
-      // Не отбираем несохранённый черновик того же документа: тихий фоновый
-      // рефреш не должен идти через guard()/discard-confirm — это диалог для
-      // ДЕЙСТВИЙ пользователя, а не для побочного эффекта чужого прогона.
-      if (!isEditorDirty()) fetchFullAndSelect(mutatedDoc.id, { notify: false });
-      return;
+    for (const m of mutatedDocs) {
+      if (selectedNode?.id === m.id) {
+        // Не отбираем несохранённый черновик того же документа: тихий фоновый
+        // рефреш не должен идти через guard()/discard-confirm — это диалог для
+        // ДЕЙСТВИЙ пользователя, а не для побочного эффекта чужого прогона.
+        if (!isEditorDirty()) fetchFullAndSelect(m.id, { notify: false });
+      } else if (m.action === 'createDocument') {
+        refreshScope(m.parentId ?? null);
+      }
     }
-    if (mutatedDoc.action === 'createDocument') {
-      refreshScope(mutatedDoc.parentId ?? null);
-    }
-  }, [mutatedDoc, selectedNode, fetchFullAndSelect, refreshScope]);
+  }, [mutatedDocs, selectedNode, fetchFullAndSelect, refreshScope]);
 
   // ── CRUD ─────────────────────────────────────────────────────────────────────
 

@@ -70,22 +70,30 @@ function App() {
   // можно и дёрнуть модульный кэш файлового дерева, и толкнуть живое состояние
   // KB (она тоже смонтирована всегда, поэтому у неё нет своего "открытия
   // вкладки", на которое можно было бы повесить рефетч).
-  const [docMutation, setDocMutation] = useState(null); // { id, parentId, action, ts }
+  const [docMutations, setDocMutations] = useState(null); // Array<{ id, parentId, action }> | null
   const [filesRefreshTick, setFilesRefreshTick] = useState(0);
 
-  const handleDocChanged = useCallback((ref) => {
-    invalidateDocPreviewCache(ref.id);
-    setDocMutation({
-      id: Number(ref.id),
-      parentId: ref.parentId != null ? Number(ref.parentId) : null,
-      action: ref.action,
-      ts: Date.now(),
-    });
+  // refs — ВЕСЬ список мутаций одного TOOL_CALLS события (см. useChatEventStream):
+  // один setState на событие, а не один на мутацию, иначе несколько setState подряд
+  // в одном тике React 18 схлопнутся до последнего и KB увидит только последнюю
+  // мутацию прогона — например, потеряет refreshScope для первого из двух doc'ов,
+  // созданных в разных папках одним ответом ассистента.
+  const handleDocChanged = useCallback((refs) => {
+    refs.forEach((ref) => invalidateDocPreviewCache(ref.id));
+    setDocMutations(
+      refs.map((ref) => ({
+        id: Number(ref.id),
+        parentId: ref.parentId != null ? Number(ref.parentId) : null,
+        action: ref.action,
+      })),
+    );
   }, []);
 
-  const handleFileChanged = useCallback((ref) => {
-    invalidateFilePreviewCache(ref.path);
-    invalidateFileTreePath(ref.path);
+  const handleFileChanged = useCallback((refs) => {
+    refs.forEach((ref) => {
+      invalidateFilePreviewCache(ref.path);
+      invalidateFileTreePath(ref.path);
+    });
     // Тик безвреден, даже если Files сейчас не смонтирована (проп просто не
     // используется) — а если смонтирована на том же пути, форсирует живой
     // рефетч вместо ожидания следующего открытия вкладки.
@@ -192,7 +200,7 @@ function App() {
             onRefreshingChange={setKbRefreshing}
             onOpenDoc={openDoc}
             onSearch={setSearch}
-            mutatedDoc={docMutation}
+            mutatedDocs={docMutations}
             panels={panels}
           />
         </div>
