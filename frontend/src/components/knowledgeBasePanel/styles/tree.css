@@ -185,7 +185,6 @@
 /* Disabled drag handle: same width as normal handle, no pointer */
 .tree-row__drag-handle--disabled {
   display: inline-block;
-  width: 10px; /* matches the SVG width */
   cursor: default;
 }
 
