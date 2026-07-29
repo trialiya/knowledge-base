@@ -118,6 +118,7 @@ export const getDocChangeRef = (tc) => {
   if (!meta || meta.id == null) return null;
   return {
     id: String(meta.id), // в стриме приходит числом (55), в истории строкой ("55")
+    parentId: meta.parent ?? null,
     descriptionVersion:
       typeof meta.descriptionVersion === 'number' ? meta.descriptionVersion : Number(meta.descriptionVersion) || null,
     title: meta.title ?? null,

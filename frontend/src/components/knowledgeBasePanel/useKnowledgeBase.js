@@ -34,6 +34,7 @@ export default function useKnowledgeBase({
   mode: navMode = SEARCH_MODE.HYBRID,
   onOpenDoc,
   onSearch,
+  mutatedDoc = null,
 } = {}) {
   const { t } = useTranslation('knowledgeBase');
   const [tree, setTree] = useState([]);
@@ -420,6 +421,30 @@ export default function useKnowledgeBase({
     if (!fromTree) return;
     setSelectedNode((prev) => (prev && prev.id === selectedNode.id ? mergeStubIntoSelection(prev, fromTree) : prev));
   }, [tree]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Реакция на doc-мутации из чата (createDocument/updateDocument/...) ──────
+  // KB смонтирована всегда (в отличие от Files, у которой размонтирование само
+  // сбрасывает устаревшее состояние), поэтому единственный способ подхватить
+  // правку, сделанную инструментом ассистента, — среагировать на неё сразу, а
+  // не ждать открытия вкладки. Дедуп по ts — mutatedDoc от App меняется по
+  // ссылке на каждую мутацию, эффект не должен повторно сработать из-за того,
+  // что selectedNode тоже в зависимостях.
+  const lastMutationTsRef = useRef(0);
+  useEffect(() => {
+    if (!mutatedDoc || mutatedDoc.ts === lastMutationTsRef.current) return;
+    lastMutationTsRef.current = mutatedDoc.ts;
+
+    if (selectedNode?.id === mutatedDoc.id) {
+      // Не отбираем несохранённый черновик того же документа: тихий фоновый
+      // рефреш не должен идти через guard()/discard-confirm — это диалог для
+      // ДЕЙСТВИЙ пользователя, а не для побочного эффекта чужого прогона.
+      if (!isEditorDirty()) fetchFullAndSelect(mutatedDoc.id, { notify: false });
+      return;
+    }
+    if (mutatedDoc.action === 'createDocument') {
+      refreshScope(mutatedDoc.parentId ?? null);
+    }
+  }, [mutatedDoc, selectedNode, fetchFullAndSelect, refreshScope]);
 
   // ── CRUD ─────────────────────────────────────────────────────────────────────
 

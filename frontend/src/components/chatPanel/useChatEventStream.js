@@ -3,6 +3,9 @@ import { openChatEventStream } from '../../api/chatEvents';
 import { applyChatEvent } from './chatEventReducer';
 import chatApi from '../../api/chatApi';
 import { DRAFT_CHAT_ID } from '../../constants/storage';
+import { CHAT_EVENT } from '../../constants/chatEventTypes';
+import { TOOL_STATUS } from '../../constants/toolStatus';
+import { getDocChangeRef, getFileChangeRef } from './toolMeta';
 
 /**
  * Подписка на поток событий активного чата: стриминг ответа + синхронизация между
@@ -23,6 +26,10 @@ import { DRAFT_CHAT_ID } from '../../constants/storage';
  * @param {Function} p.onChatDeleted        (chatId) => void — внешнее удаление чата
  * @param {Function} p.onRunSettled         (chatId) => void — RUN_DONE/STOPPED/ERROR
  * @param {Function} p.reloadMessages       (chatId) => void — перезагрузка истории
+ * @param {Function} [p.onDocChanged]       (ref) => void — успешная doc-мутация инструмента
+ *                                           (createDocument/updateDocument/...), ref из getDocChangeRef
+ * @param {Function} [p.onFileChanged]      (ref) => void — успешная file-мутация инструмента
+ *                                           (createFile/editFile), ref из getFileChangeRef
  */
 export default function useChatEventStream({
   activeChatId,
@@ -34,6 +41,8 @@ export default function useChatEventStream({
   onChatDeleted,
   onRunSettled,
   reloadMessages,
+  onDocChanged,
+  onFileChanged,
 }) {
   // Курсор последнего виденного seq по КАЖДОМУ чату. Живёт всё время, пока смонтирован
   // компонент (переживает переключения чатов), но не переживает перезагрузку страницы —
@@ -65,6 +74,16 @@ export default function useChatEventStream({
           return;
         }
         setChats((prev) => prev.map((c) => (c.id === chatId ? applyChatEvent(c, ev, ctx) : c)));
+        // Итоговые metas прогона: resultMeta появляется только здесь (см. toolMeta.js), не в
+        // живом TOOL_CALL — поэтому детектируем doc/file-мутации на этом событии.
+        if (ev.type === CHAT_EVENT.TOOL_CALLS && (onDocChanged || onFileChanged)) {
+          for (const tc of ev.payload?.toolCalls || []) {
+            const docRef = getDocChangeRef(tc);
+            if (docRef && docRef.status !== TOOL_STATUS.ERROR) onDocChanged?.(docRef);
+            const fileRef = getFileChangeRef(tc);
+            if (fileRef && fileRef.status !== TOOL_STATUS.ERROR) onFileChanged?.(fileRef);
+          }
+        }
         if (ev.type === 'RUN_DONE' || ev.type === 'RUN_STOPPED' || ev.type === 'RUN_ERROR') {
           // Прогон завершён: хаб очистит свой лог, а следующий прогон в этом чате начнёт
           // seq заново (в т.ч. с нового хаба после выгрузки простаивающего). Сбрасываем

@@ -15,11 +15,12 @@ import './filesPanel.css';
  * в центре. Раскладка — общая (WorkspaceLayout); справа вкладка «Инфо»
  * (метаданные пути и последний коммит), как в чате и базе знаний.
  */
-const FilesPanel = ({ path, onPathChange, panels }) => {
+const FilesPanel = ({ path, onPathChange, refreshToken, panels }) => {
   const { t } = useTranslation('files');
   const { treeCache, loadingDirs, expanded, toggleExpand, content, contentLoading, selectNode } = useFileTree({
     path,
     onPathChange,
+    refreshToken,
   });
 
   const rightTabs = useMemo(
