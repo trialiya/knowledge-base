@@ -239,6 +239,28 @@ ID предков от корня до узла (не включая сам уз
 
 ---
 
+### GET `/api/chats/search`
+Поиск чатов текущего пользователя по названию и/или содержимому сообщений (лупа над списком чатов). Объединяет оба вида совпадений по чату.
+
+| Параметр | Тип | По умолчанию | Описание |
+|---|---|---|---|
+| `q` | String | — | Поисковый запрос |
+| `limit` | int | `20` | Макс. результатов (макс. 50) |
+
+**Response:** `List<ChatSearchResult>`
+```json
+{
+  "conversationId": "uuid",
+  "topic": "string",
+  "updatedAt": "2026-06-09T10:00:00",
+  "titleMatched": true,
+  "messageMatchCount": 3,
+  "snippet": "string | null"
+}
+```
+
+---
+
 ### GET `/api/chats/{conversationId}`
 Получить чат с сообщениями.
 
@@ -271,6 +293,19 @@ ID предков от корня до узла (не включая сам уз
   "oldestCursor": { "createdAt": "2026-06-09T10:00:00", "id": 42 }
 }
 ```
+
+---
+
+### GET `/api/chats/{conversationId}/messages/search`
+Поиск сообщений внутри одного чата — для локального find-бара (Ctrl+F).
+
+| Параметр | Тип | По умолчанию | Описание |
+|---|---|---|---|
+| `q` | String | — | Поисковый запрос |
+
+**Response:** `List<MessageSearchHit>` — `{ id, createdAt }`
+
+**Ошибки:** `404` — не найден, `403` — чужой чат
 
 ---
 
@@ -339,6 +374,30 @@ SSE-поток событий чата: стриминг ответа + крос
 
 ---
 
+### GET `/api/chats/{conversationId}/tool-calls`
+Полные детали одного вызова инструмента (аргументы, статус, ошибка, результат) по протокольному `callId` — используется UI для разворачивания карточки вызова инструмента.
+
+| Параметр | Тип | По умолчанию | Описание |
+|---|---|---|---|
+| `callId` | String | — | Протокольный ID вызова (совпадает у ASSISTANT-вызова и TOOL-ответа) |
+
+**Response:** `ToolCallDetail`
+```json
+{
+  "name": "string",
+  "argumentsRaw": "string | null",
+  "status": "SUCCESS | ERROR | ...",
+  "error": "string | null",
+  "resultText": "string | null",
+  "resultMeta": "object | null",
+  "createdAt": "2026-06-09T10:00:00"
+}
+```
+
+**Ошибки:** `404` — вызов не найден
+
+---
+
 ### POST `/api/chats/{conversationId}/runs/{runId}/stop`
 Остановить активный прогон. Идемпотентно.
 
@@ -381,6 +440,31 @@ runId активного прогона чата (или пустой объек
 **Response:** `200 OK`
 
 **Ошибки:** `403` — чужой чат, `400` — неизвестная модель
+
+---
+
+### GET `/api/chats/modes`
+Список готовых режимов ассистента (id/label). Дефолт — «без режима» (пустой выбор на фронте).
+
+**Response:** `List<ChatModeProperties.ModeView>`
+```json
+[
+  { "id": "analytic", "label": "Аналитик" },
+  { "id": "developer", "label": "Разработчик" },
+  { "id": "tester", "label": "Тестировщик" }
+]
+```
+
+---
+
+### PUT `/api/chats/{conversationId}/mode`
+Выбрать режим ассистента для чата. Пустое тело — сброс к «без режима».
+
+**Body:** `String` — id режима (raw text) или пусто
+
+**Response:** `200 OK`
+
+**Ошибки:** `403` — чужой чат, `400` — неизвестный режим
 
 ---
 
