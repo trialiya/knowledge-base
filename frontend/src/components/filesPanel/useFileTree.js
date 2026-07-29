@@ -1,16 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import gitApi from '../../api/gitApi';
-import { readDirs, readExpanded, putDirs, putExpanded } from './fileTreeStore';
-
-/** Каталоги-предки пути (от корня), сам путь не включается. */
-function ancestorsOf(path) {
-  const dirs = [''];
-  if (!path) return dirs;
-  for (let slash = path.indexOf('/'); slash >= 0; slash = path.indexOf('/', slash + 1)) {
-    dirs.push(path.slice(0, slash));
-  }
-  return dirs;
-}
+import { readDirs, readExpanded, putDirs, putExpanded, ancestorsOf } from './fileTreeStore';
 
 /** Ответ /api/git/browse → содержимое центра ({ type, path, file|nodes }). */
 function contentOf(view, path) {
@@ -35,8 +25,15 @@ function contentOf(view, path) {
  * в модуле (см. fileTreeStore), поэтому переживает уход в другой раздел.
  *
  * Одиночный `/tree` остаётся для раскрытия каталога шевроном (ensureDir).
+ *
+ * `refreshToken` — внешний сигнал «что-то в репозитории могло поменяться»
+ * (правка файла инструментом чата, см. App.jsx): рост значения перезапускает
+ * эффект открытия пути ниже, даже если сам `path` не изменился. Каталоги,
+ * которые к этому моменту уже сброшены из кэша (invalidatePath), будут
+ * перезапрошены как недостающие; сам открытый путь всегда перезапрашивается
+ * заново вне зависимости от кэша.
  */
-export default function useFileTree({ path, onPathChange }) {
+export default function useFileTree({ path, onPathChange, refreshToken }) {
   const [treeCache, setTreeCache] = useState(readDirs);
   const [loadingDirs, setLoadingDirs] = useState(() => new Set());
   const [expanded, setExpanded] = useState(readExpanded);
@@ -164,7 +161,7 @@ export default function useFileTree({ path, onPathChange }) {
     return () => {
       cancelled = true;
     };
-  }, [path, cacheDirs, markLoading]);
+  }, [path, cacheDirs, markLoading, refreshToken]);
 
   const selectNode = useCallback((node) => onPathChange(node.path), [onPathChange]);
 

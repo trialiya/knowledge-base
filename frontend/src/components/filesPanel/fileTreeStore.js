@@ -56,3 +56,24 @@ export function resetFileTreeCache() {
   store.expanded = new Set(['']);
   store.at = 0;
 }
+
+/** Каталоги-предки пути (от корня), сам путь не включается. */
+export function ancestorsOf(path) {
+  const dirs = [''];
+  if (!path) return dirs;
+  for (let slash = path.indexOf('/'); slash >= 0; slash = path.indexOf('/', slash + 1)) {
+    dirs.push(path.slice(0, slash));
+  }
+  return dirs;
+}
+
+/**
+ * Сбрасывает из кэша листинги каталога-предка изменённого пути И всех ЕГО
+ * предков — правка файлового инструмента (createFile/editFile) из чата может
+ * как добавить файл в уже известный каталог, так и завести новый вложенный
+ * каталог, которого раньше не было в листинге его родителя. Сам путь `path`
+ * (не будучи каталогом) в кэше не лежит — трогать нечего.
+ */
+export function invalidatePath(path) {
+  ancestorsOf(path).forEach((dir) => store.dirs.delete(dir));
+}

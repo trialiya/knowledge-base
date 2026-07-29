@@ -1,6 +1,6 @@
 import { renderHook, waitFor, act } from '@testing-library/react';
 import useFileTree from './useFileTree';
-import { resetFileTreeCache } from './fileTreeStore';
+import { resetFileTreeCache, invalidatePath } from './fileTreeStore';
 import gitApi from '../../api/gitApi';
 
 vi.mock('../../api/gitApi');
@@ -206,5 +206,53 @@ describe('useFileTree', () => {
     expect(result.current.treeCache['broken']).toEqual([
       { path: 'broken/ok.txt', name: 'ok.txt', type: 'file', size: 1 },
     ]);
+  });
+
+  test('invalidatePath evicts an already-cached ancestor, so the next mount re-fetches it', async () => {
+    gitApi.browse.mockResolvedValue(fileView());
+    const first = renderHook(() => useFileTree({ path: 'a/b/c.txt', onPathChange: vi.fn() }));
+    await waitFor(() => expect(first.result.current.contentLoading).toBe(false));
+    expect(first.result.current.treeCache['a/b']).toEqual([nodeC]);
+    first.unmount();
+
+    // A chat-driven edit under 'a/b' invalidates that directory (and its
+    // ancestors) from outside React, same as App.jsx does on a file mutation.
+    invalidatePath('a/b/new.txt');
+
+    gitApi.browse.mockResolvedValue(fileView(false));
+    const second = renderHook(() => useFileTree({ path: 'a/b/c.txt', onPathChange: vi.fn() }));
+    await waitFor(() => expect(second.result.current.contentLoading).toBe(false));
+
+    // Unlike the "survives unmounting" test above, 'a/b' was evicted, so this
+    // mount must ask the server for ancestors again instead of trusting cache.
+    expect(gitApi.browse).toHaveBeenLastCalledWith('a/b/c.txt', true);
+  });
+
+  test('bumping refreshToken re-fetches the currently open path even though it did not change', async () => {
+    gitApi.browse.mockResolvedValue(fileView());
+    const { result, rerender } = renderHook(
+      ({ refreshToken }) => useFileTree({ path: 'a/b/c.txt', onPathChange: vi.fn(), refreshToken }),
+      { initialProps: { refreshToken: 0 } },
+    );
+    await waitFor(() => expect(result.current.contentLoading).toBe(false));
+    expect(gitApi.browse).toHaveBeenCalledTimes(1);
+
+    gitApi.browse.mockResolvedValue({
+      path: 'a/b/c.txt',
+      type: 'file',
+      file: { path: 'a/b/c.txt', content: 'edited by chat' },
+      nodes: null,
+      tree: [],
+    });
+    rerender({ refreshToken: 1 });
+
+    await waitFor(() => expect(gitApi.browse).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(result.current.content).toEqual({
+        type: 'file',
+        path: 'a/b/c.txt',
+        file: { path: 'a/b/c.txt', content: 'edited by chat' },
+      }),
+    );
   });
 });

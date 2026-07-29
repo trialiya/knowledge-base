@@ -1,4 +1,4 @@
-import { getFileChangeRef, FILE_MUTATION_TOOLS } from './toolMeta';
+import { getFileChangeRef, getDocChangeRef, FILE_MUTATION_TOOLS, DOC_MUTATION_TOOLS } from './toolMeta';
 
 describe('getFileChangeRef', () => {
   it('returns null for non-mutation tools and missing meta', () => {
@@ -39,5 +39,44 @@ describe('getFileChangeRef', () => {
   it('registers both mutation tools', () => {
     expect(FILE_MUTATION_TOOLS.has('createFile')).toBe(true);
     expect(FILE_MUTATION_TOOLS.has('editFile')).toBe(true);
+  });
+});
+
+describe('getDocChangeRef', () => {
+  it('returns null for non-mutation tools and missing meta', () => {
+    expect(getDocChangeRef(null)).toBeNull();
+    expect(getDocChangeRef({ name: 'getDocument', resultMeta: { id: 1 } })).toBeNull();
+    expect(getDocChangeRef({ name: 'createDocument' })).toBeNull();
+    expect(getDocChangeRef({ name: 'createDocument', resultMeta: {} })).toBeNull();
+  });
+
+  it('surfaces parentId from resultMeta.parent so a create can target its folder scope', () => {
+    const ref = getDocChangeRef({
+      name: 'createDocument',
+      status: 'OK',
+      resultMeta: { id: 55, parent: 7, title: 'New doc', descriptionVersion: 1 },
+    });
+    expect(ref).toEqual({
+      id: '55',
+      parentId: 7,
+      descriptionVersion: 1,
+      title: 'New doc',
+      action: 'createDocument',
+      status: 'OK',
+    });
+  });
+
+  it('defaults parentId to null for a root-level document', () => {
+    const ref = getDocChangeRef({
+      name: 'updateDocument',
+      status: 'OK',
+      resultMeta: { id: 3, descriptionVersion: 2 },
+    });
+    expect(ref.parentId).toBeNull();
+  });
+
+  it('registers the document mutation tools', () => {
+    expect(DOC_MUTATION_TOOLS.has('createDocument')).toBe(true);
+    expect(DOC_MUTATION_TOOLS.has('updateDocument')).toBe(true);
   });
 });

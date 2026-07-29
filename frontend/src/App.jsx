@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import ChatWindow from './components/chatPanel/ChatWindow';
 import KnowledgeBase from './components/knowledgeBasePanel/KnowledgeBase';
@@ -12,6 +12,9 @@ import GlobalSearch from './components/common/GlobalSearch';
 import AdminPanel from './components/adminPanel/AdminPanel';
 import SettingsPanel from './components/settingsPanel/SettingsPanel';
 import { SEARCH_MODE } from './constants/searchMode';
+import { invalidateDocPreviewCache } from './components/common/useDocPreview';
+import { invalidateFilePreviewCache } from './components/common/useFilePreview';
+import { invalidatePath as invalidateFileTreePath } from './components/filesPanel/fileTreeStore';
 import './App.css';
 
 function App() {
@@ -60,6 +63,42 @@ function App() {
   const [refreshTick, setRefreshTick] = useState(0);
   const [kbRefreshing, setKbRefreshing] = useState(false);
   const showRefresh = view === 'knowledge' && !!nav.docId;
+
+  // ── Инвалидация Knowledge/Files по мутациям инструментов чата ───────────────
+  // Чат смонтирован всегда (см. main ниже) и продолжает стримить события, даже
+  // когда открыт другой раздел, поэтому App — единственное общее место, откуда
+  // можно и дёрнуть модульный кэш файлового дерева, и толкнуть живое состояние
+  // KB (она тоже смонтирована всегда, поэтому у неё нет своего "открытия
+  // вкладки", на которое можно было бы повесить рефетч).
+  const [docMutations, setDocMutations] = useState(null); // Array<{ id, parentId, action }> | null
+  const [filesRefreshTick, setFilesRefreshTick] = useState(0);
+
+  // refs — ВЕСЬ список мутаций одного TOOL_CALLS события (см. useChatEventStream):
+  // один setState на событие, а не один на мутацию, иначе несколько setState подряд
+  // в одном тике React 18 схлопнутся до последнего и KB увидит только последнюю
+  // мутацию прогона — например, потеряет refreshScope для первого из двух doc'ов,
+  // созданных в разных папках одним ответом ассистента.
+  const handleDocChanged = useCallback((refs) => {
+    refs.forEach((ref) => invalidateDocPreviewCache(ref.id));
+    setDocMutations(
+      refs.map((ref) => ({
+        id: Number(ref.id),
+        parentId: ref.parentId != null ? Number(ref.parentId) : null,
+        action: ref.action,
+      })),
+    );
+  }, []);
+
+  const handleFileChanged = useCallback((refs) => {
+    refs.forEach((ref) => {
+      invalidateFilePreviewCache(ref.path);
+      invalidateFileTreePath(ref.path);
+    });
+    // Тик безвреден, даже если Files сейчас не смонтирована (проп просто не
+    // используется) — а если смонтирована на том же пути, форсирует живой
+    // рефетч вместо ожидания следующего открытия вкладки.
+    setFilesRefreshTick((n) => n + 1);
+  }, []);
 
   // ── Unsaved-changes guard при уходе из KB в любой другой раздел ──────────────
   // pendingView помнит, КУДА хотел уйти пользователь, чтобы после подтверждения
@@ -146,6 +185,8 @@ function App() {
             activeChatId={nav.chatId}
             onSelectChat={openChat}
             onNavigateToDoc={openDoc}
+            onDocChanged={handleDocChanged}
+            onFileChanged={handleFileChanged}
             panels={panels}
           />
         </div>
@@ -159,6 +200,7 @@ function App() {
             onRefreshingChange={setKbRefreshing}
             onOpenDoc={openDoc}
             onSearch={setSearch}
+            mutatedDocs={docMutations}
             panels={panels}
           />
         </div>
@@ -166,7 +208,12 @@ function App() {
         {/* Files / Admin / Settings — полноценные view со своим URL, монтируются по адресу */}
         {view === 'files' && (
           <div className="app-tab-panel app-tab-panel--active">
-            <FilesPanel path={nav.filePath} onPathChange={openFilePath} panels={panels} />
+            <FilesPanel
+              path={nav.filePath}
+              onPathChange={openFilePath}
+              refreshToken={filesRefreshTick}
+              panels={panels}
+            />
           </div>
         )}
         {view === 'admin' && (

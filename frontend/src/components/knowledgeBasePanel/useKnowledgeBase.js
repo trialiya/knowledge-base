@@ -34,6 +34,7 @@ export default function useKnowledgeBase({
   mode: navMode = SEARCH_MODE.HYBRID,
   onOpenDoc,
   onSearch,
+  mutatedDocs = null,
 } = {}) {
   const { t } = useTranslation('knowledgeBase');
   const [tree, setTree] = useState([]);
@@ -420,6 +421,33 @@ export default function useKnowledgeBase({
     if (!fromTree) return;
     setSelectedNode((prev) => (prev && prev.id === selectedNode.id ? mergeStubIntoSelection(prev, fromTree) : prev));
   }, [tree]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Реакция на doc-мутации из чата (createDocument/updateDocument/...) ──────
+  // KB смонтирована всегда (в отличие от Files, у которой размонтирование само
+  // сбрасывает устаревшее состояние), поэтому единственный способ подхватить
+  // правку, сделанную инструментом ассистента, — среагировать на неё сразу, а
+  // не ждать открытия вкладки. mutatedDocs — весь список мутаций ОДНОГО прогона
+  // (см. App.jsx/useChatEventStream) и приходит новым массивом на каждый прогон,
+  // поэтому дедуп по ссылке достаточен и не срабатывает повторно из-за того, что
+  // selectedNode тоже в зависимостях. Перебираем ВЕСЬ список (не только
+  // последний элемент) — один прогон может создать/поменять несколько
+  // документов сразу, каждый требует своего refreshScope/select.
+  const lastMutationBatchRef = useRef(null);
+  useEffect(() => {
+    if (!mutatedDocs || mutatedDocs === lastMutationBatchRef.current) return;
+    lastMutationBatchRef.current = mutatedDocs;
+
+    for (const m of mutatedDocs) {
+      if (selectedNode?.id === m.id) {
+        // Не отбираем несохранённый черновик того же документа: тихий фоновый
+        // рефреш не должен идти через guard()/discard-confirm — это диалог для
+        // ДЕЙСТВИЙ пользователя, а не для побочного эффекта чужого прогона.
+        if (!isEditorDirty()) fetchFullAndSelect(m.id, { notify: false });
+      } else if (m.action === 'createDocument') {
+        refreshScope(m.parentId ?? null);
+      }
+    }
+  }, [mutatedDocs, selectedNode, fetchFullAndSelect, refreshScope]);
 
   // ── CRUD ─────────────────────────────────────────────────────────────────────
 

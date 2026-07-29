@@ -48,6 +48,8 @@ const ChatWindow = ({
   isActive = true,
   activeChatId: propActiveChatId = null,
   onSelectChat,
+  onDocChanged,
+  onFileChanged,
   panels,
 }) => {
   const { t } = useTranslation('chat');
@@ -614,6 +616,8 @@ const ChatWindow = ({
     onChatDeleted: handleRemoteChatDeleted,
     onRunSettled: fetchAndUpdateTitle,
     reloadMessages: loadMessages,
+    onDocChanged,
+    onFileChanged,
   });
 
   const handleNewChat = useCallback(() => {

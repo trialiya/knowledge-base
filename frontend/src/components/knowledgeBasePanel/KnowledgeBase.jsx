@@ -22,7 +22,17 @@ import useAttachmentCount from '../common/useAttachmentCount';
 import useFolderChildren from './useFolderChildren';
 import { buildDetailTabs } from './detailSidebar';
 
-const KnowledgeBase = ({ docId, search, mode, refreshSignal, onRefreshingChange, onOpenDoc, onSearch, panels }) => {
+const KnowledgeBase = ({
+  docId,
+  search,
+  mode,
+  refreshSignal,
+  onRefreshingChange,
+  onOpenDoc,
+  onSearch,
+  mutatedDocs,
+  panels,
+}) => {
   const { t } = useTranslation('knowledgeBase');
   const handleTreeKeyDown = useListNavigation();
 
@@ -60,7 +70,7 @@ const KnowledgeBase = ({ docId, search, mode, refreshSignal, onRefreshingChange,
     handleRefresh,
     handleDiscardConfirm,
     handleDiscardCancel,
-  } = useKnowledgeBase({ docId, search, mode, onOpenDoc, onSearch });
+  } = useKnowledgeBase({ docId, search, mode, onOpenDoc, onSearch, mutatedDocs });
 
   // Состояние детали (черновик описания, полноэкранный режим, история) поднято
   // сюда: его делят ЦЕНТР (редактор) и ПРАВАЯ панель (описание, вложения) —
