@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { logTotal } from './syncLog';
+import { logTotal } from './syncLogStore';
 
 // ─── Что импорт сделал, узел за узлом ────────────────────────────────────────
 // Список различий отвечает на «что изменится», сводка — на «сколько изменилось».
