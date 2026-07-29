@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { appendLine, logTotal, EMPTY_LOG, LOG_LIMIT } from './syncLog';
+import { appendLine, logTotal, EMPTY_LOG, LOG_LIMIT } from './syncLogStore';
 
 const progress = (path, action, message) => ({ type: 'PROGRESS', path, action, message });
 

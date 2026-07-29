@@ -5,7 +5,7 @@ import useJobStream from './useJobStream';
 import SyncDiffList from './SyncDiffList';
 import SyncLog from './SyncLog';
 import { selectAllActionable, summarizeSelection, toggleEntry } from './syncSelection';
-import { appendLine, EMPTY_LOG } from './syncLog';
+import { appendLine, EMPTY_LOG } from './syncLogStore';
 import { IconRefreshCw, IconUpload } from '../../icons';
 import api from '../../api/documentsApi';
 
