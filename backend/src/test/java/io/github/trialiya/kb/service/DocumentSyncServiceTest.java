@@ -293,6 +293,19 @@ class DocumentSyncServiceTest {
         }
 
         @Test
+        void deletesANestedMissingLeafWithoutSelectingItsMissingParent() throws Exception {
+            standardTree();
+            export.exportAll(false);
+            deleteRecursively(exportDir.resolve("docs"));
+
+            // Only the grandchild is ticked — "docs" itself is never selected.
+            ImportSummary summary = apply(new ImportRequest(null, List.of("docs/api"), true));
+
+            assertThat(summary.deleted()).isEqualTo(1);
+            assertThat(db.titles()).doesNotContain("API").contains("Docs", "Intro");
+        }
+
+        @Test
         void skipsANewSubtreeWhoseFolderWasNotSelected() throws Exception {
             standardTree();
             export.exportAll(false);

@@ -90,7 +90,6 @@ const ImportOperation = () => {
               })
             : undefined
         }
-        error={diffStatus.error || undefined}
       />
 
       {(entries.length > 0 || diffStatus.state === 'running') && (
@@ -146,14 +145,20 @@ const ImportOperation = () => {
         }
         done={
           importStatus.summary
-            ? t('admin.bulk.import.doneCounts', {
-                created: importStatus.summary.created,
-                updated: importStatus.summary.updated,
-                deleted: importStatus.summary.deleted,
-              })
+            ? importStatus.summary.failed > 0
+              ? t('admin.bulk.import.doneCountsWithFailed', {
+                  created: importStatus.summary.created,
+                  updated: importStatus.summary.updated,
+                  deleted: importStatus.summary.deleted,
+                  failed: importStatus.summary.failed,
+                })
+              : t('admin.bulk.import.doneCounts', {
+                  created: importStatus.summary.created,
+                  updated: importStatus.summary.updated,
+                  deleted: importStatus.summary.deleted,
+                })
             : undefined
         }
-        error={importStatus.error || undefined}
       >
         <label className="admin-check">
           <input

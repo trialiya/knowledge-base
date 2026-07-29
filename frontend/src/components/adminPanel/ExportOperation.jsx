@@ -39,7 +39,6 @@ const ExportOperation = () => {
         </>
       }
       done={status.summary ? t('admin.bulk.export.doneFiles', { count: status.summary.files }) : undefined}
-      error={status.error || undefined}
     >
       <label className="admin-check">
         <input

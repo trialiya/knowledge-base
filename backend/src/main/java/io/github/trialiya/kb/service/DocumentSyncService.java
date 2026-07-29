@@ -291,8 +291,31 @@ public class DocumentSyncService {
 
         for (DocumentTreeRow row : unmatched.values()) {
             String path = prefix(pathPrefix, DocumentTreeReader.safeName(row.title()));
-            if (selection == null || selection.contains(path)) {
-                toDelete.add(row.id());
+            queueMissing(row, path, selection, toDelete);
+        }
+    }
+
+    /**
+     * A database node with no disk entry behind it: queued for deletion if selected, then the same
+     * for every child. Without this recursion a selected leaf deep in a missing subtree would never
+     * be visited at all — nothing walks into a folder that only exists in the database, the way
+     * {@link #compareDir} does for the same case via {@link #markDbSubtree}.
+     */
+    private void queueMissing(
+            DocumentTreeRow row,
+            String path,
+            @Nullable Set<String> selection,
+            List<Long> toDelete) {
+        if (selection == null || selection.contains(path)) {
+            toDelete.add(row.id());
+        }
+        if (row.isFolder()) {
+            for (DocumentTreeRow child : tree.children(row.id())) {
+                queueMissing(
+                        child,
+                        prefix(path, DocumentTreeReader.safeName(child.title())),
+                        selection,
+                        toDelete);
             }
         }
     }

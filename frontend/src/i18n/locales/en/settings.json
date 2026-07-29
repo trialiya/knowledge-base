@@ -210,6 +210,7 @@
         "doneBadge": "done",
         "done": "Import finished.",
         "doneCounts": "Created: {{created}} · updated: {{updated}} · deleted: {{deleted}}.",
+        "doneCountsWithFailed": "Created: {{created}} · updated: {{updated}} · deleted: {{deleted}} · failed: {{failed}} (see the server log for details).",
         "errorBadge": "error",
         "error": "Import failed. See the server log for details.",
         "deleteMissing": "Delete selected \"missing\" entries from the database ({{count}})"
