@@ -12,6 +12,7 @@ import io.github.trialiya.kb.model.doc.dto.UpdateDocumentRequest;
 import io.github.trialiya.kb.model.doc.entity.DocumentTreeRow;
 import io.github.trialiya.kb.model.doc.sync.ImportRequest;
 import io.github.trialiya.kb.service.DocumentExportService;
+import io.github.trialiya.kb.service.DocumentExportService.ExportEntry;
 import io.github.trialiya.kb.service.DocumentService;
 import io.github.trialiya.kb.service.DocumentSyncService;
 import io.github.trialiya.kb.service.SemanticSearchService;
@@ -20,6 +21,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +43,9 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 @RequestMapping("/api/documents")
 @RequiredArgsConstructor
 public class DocumentController {
+
+    /** File name offered for the whole-tree archive; a single node's name comes from its title. */
+    private static final String ARCHIVE_NAME = "knowledge-base.zip";
 
     private final DocumentService service;
     private final DocumentExportService documentExportService;
@@ -99,6 +104,26 @@ public class DocumentController {
     }
 
     /**
+     * Downloads the whole knowledge base as one {@code .zip}, in the layout the folder export
+     * writes — so unpacking it into the export folder and running a compare shows no differences.
+     *
+     * <p>Unlike {@code POST /admin/export} this writes nothing on the server and needs no {@code
+     * kb.documents.export-path} configured: the archive is assembled into the response as the tree
+     * is walked, which is the only way to get the tree out for someone with no access to the
+     * server's file system.
+     *
+     * <pre>GET /api/documents/download?meta=false</pre>
+     */
+    @GetMapping("/download")
+    public ResponseEntity<StreamingResponseBody> downloadAll(
+            @RequestParam(defaultValue = "false") boolean meta) {
+        return attachment(
+                zipOf(sink -> documentExportService.streamAll(meta, sink)),
+                ARCHIVE_NAME,
+                "application/zip");
+    }
+
+    /**
      * Downloads a node: a <b>document</b> comes back as one {@code .md}, a <b>folder</b> as a
      * {@code .zip} of its subtree in the export layout. Internal {@code /?doc=ID} links inside a
      * folder archive become relative paths, so the unpacked archive is navigable on its own.
@@ -123,24 +148,31 @@ public class DocumentController {
             return attachment(out -> out.write(markdown), filename, "text/markdown");
         }
         return attachment(
-                out -> {
-                    try (ZipOutputStream zip = new ZipOutputStream(out, StandardCharsets.UTF_8)) {
-                        documentExportService.streamSubtree(
-                                id,
-                                meta,
-                                entry -> {
-                                    try {
-                                        zip.putNextEntry(new ZipEntry(entry.path()));
-                                        zip.write(entry.content().getBytes(StandardCharsets.UTF_8));
-                                        zip.closeEntry();
-                                    } catch (IOException e) {
-                                        throw new UncheckedIOException(e);
-                                    }
-                                });
-                    }
-                },
+                zipOf(sink -> documentExportService.streamSubtree(id, meta, sink)),
                 filename,
                 "application/zip");
+    }
+
+    /**
+     * Zips a rendered sequence of files straight into the response body: each entry is written and
+     * released before the next is asked for, so nothing but the current file is ever held.
+     */
+    private static StreamingResponseBody zipOf(Consumer<Consumer<ExportEntry>> render) {
+        return out -> {
+            try (ZipOutputStream zip = new ZipOutputStream(out, StandardCharsets.UTF_8)) {
+                render.accept(entry -> writeEntry(zip, entry));
+            }
+        };
+    }
+
+    private static void writeEntry(ZipOutputStream zip, ExportEntry entry) {
+        try {
+            zip.putNextEntry(new ZipEntry(entry.path()));
+            zip.write(entry.content().getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private static ResponseEntity<StreamingResponseBody> attachment(

@@ -76,3 +76,38 @@ export const missingEntry = {
 
 /** Сводка импорта, применившего новую папку с ребёнком. */
 export const importSummary = { created: 2, updated: 0, deleted: 0, relinked: 0, failed: 0 };
+
+/**
+ * Журнал того же импорта — строки, которые собираются из кадров PROGRESS.
+ *
+ * Записан с живого прогона и специально включает три вещи, которых нет в
+ * сводке: отказ с причиной от сервера, узел, попавший в журнал дважды (создан,
+ * потом переписан вторым проходом по ссылкам), и порядок — сначала весь первый
+ * проход, только потом ссылки.
+ */
+export const importLogLines = [
+  {
+    path: 'анализ/хронология-изменений-backend-build-gradle',
+    action: 'failed',
+    message: 'type changed on disk',
+  },
+  { path: 'анализ/пример-ссылки-на-файлы-и-документы', action: 'updated', message: null },
+  { path: 'анализ/alpha', action: 'created', message: null },
+  { path: 'анализ/beta', action: 'created', message: null },
+  { path: 'novaya-papka', action: 'created', message: null },
+  { path: 'novaya-papka/rebenok', action: 'created', message: null },
+  { path: 'анализ/пример-ссылки-на-файлы-и-документы', action: 'relinked', message: null },
+  { path: 'анализ/alpha', action: 'relinked', message: null },
+];
+
+/** Тот же журнал целиком — как его хранит syncLog.js. */
+export const importLog = { lines: importLogLines, dropped: 0 };
+
+/** Сводка прогона, оставившего этот журнал. */
+export const importWithFailureSummary = {
+  created: 4,
+  updated: 1,
+  deleted: 0,
+  relinked: 2,
+  failed: 1,
+};

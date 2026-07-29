@@ -109,42 +109,41 @@ public class DocumentExportService {
         Map<Long, String> idToFile = collectFiles(null, namerFor(root));
         Counter written = new Counter();
         Counter nodes = new Counter();
-        Counter rootIndexWritten = new Counter();
 
-        tree.walk(
+        streamNodes(
                 null,
-                replayNamer(idToFile),
-                new DocumentTreeReader.Visitor() {
-                    @Override
-                    public void node(TreeNode node) {
-                        for (ExportEntry entry : renderNode(node, idToFile, includeMeta)) {
-                            writeFile(root.resolve(entry.path()), entry.content());
-                            written.value++;
-                        }
-                        nodes.value++;
-                        progress.accept(SyncEvent.progress(nodes.value, node.path()));
-                    }
-
-                    @Override
-                    public void levelDone(String parentDir, List<TreeNode> level) {
-                        ExportEntry index = renderIndex(parentDir, level);
-                        writeFile(root.resolve(index.path()), index.content());
-                        written.value++;
-                        if (parentDir.isEmpty()) {
-                            rootIndexWritten.value++;
-                        }
-                    }
+                idToFile,
+                includeMeta,
+                entry -> {
+                    writeFile(root.resolve(entry.path()), entry.content());
+                    written.value++;
+                },
+                node -> {
+                    nodes.value++;
+                    progress.accept(SyncEvent.progress(nodes.value, node.path()));
                 });
-
-        // An empty tree produces no levels at all, so the root index needs its own guarantee —
-        // an import reading the folder back must find it there.
-        if (rootIndexWritten.value == 0) {
-            writeFile(root.resolve(INDEX_FILE), "");
-            written.value++;
-        }
 
         log.info("Export complete: {} file(s) written to {}", written.value, root.toAbsolutePath());
         return written.value;
+    }
+
+    // ── Export to a stream (archive download) ────────────────────────────────
+
+    /**
+     * The whole tree as a sequence of files, laid out exactly the way {@link #exportAll} would have
+     * written it into the export folder — same names, same {@code .index.md}, same link rewriting —
+     * but handed to {@code sink} instead of to the disk.
+     *
+     * <p>That sameness is the point: the archive a user downloads unpacks into a folder {@link
+     * DocumentSyncService} can compare and import back. It also needs no {@code
+     * kb.documents.export-path} at all, which is the difference that matters to whoever cannot
+     * reach the server's file system.
+     *
+     * <p>Entries carry no wrapping directory — unpacking gives the root level of the knowledge
+     * base, the way unpacking a folder's archive gives that folder.
+     */
+    public void streamAll(boolean includeMeta, Consumer<ExportEntry> sink) {
+        streamNodes(null, collectFiles(null), includeMeta, sink, node -> {});
     }
 
     // ── Export to a stream (subtree download) ────────────────────────────────
@@ -184,20 +183,52 @@ public class DocumentExportService {
             prefixed.accept(new ExportEntry(FOLDER_META_FILE, renderMeta(root)));
         }
 
+        streamNodes(rootId, idToFile, includeMeta, prefixed, node -> {});
+    }
+
+    /**
+     * Walks a subtree and hands over every file it consists of, in the order an export writes them:
+     * a node's body and metadata sidecar as it is reached, then a directory's {@code .index.md}
+     * once that whole level is known.
+     *
+     * <p>The one spine under all three renderings — folder export, archive download, subtree
+     * download — so what a user unpacks is what the server would have written, and either can be
+     * read back by the import.
+     *
+     * @param onNode called once per node, after its files; the export reports progress through it
+     */
+    private void streamNodes(
+            @Nullable Long rootId,
+            Map<Long, String> idToFile,
+            boolean includeMeta,
+            Consumer<ExportEntry> sink,
+            Consumer<TreeNode> onNode) {
+
+        Counter rootIndex = new Counter();
         tree.walk(
                 rootId,
                 replayNamer(idToFile),
                 new DocumentTreeReader.Visitor() {
                     @Override
                     public void node(TreeNode node) {
-                        renderNode(node, idToFile, includeMeta).forEach(prefixed);
+                        renderNode(node, idToFile, includeMeta).forEach(sink);
+                        onNode.accept(node);
                     }
 
                     @Override
                     public void levelDone(String parentDir, List<TreeNode> level) {
-                        prefixed.accept(renderIndex(parentDir, level));
+                        sink.accept(renderIndex(parentDir, level));
+                        if (parentDir.isEmpty()) {
+                            rootIndex.value++;
+                        }
                     }
                 });
+
+        // An empty tree produces no levels at all, so the top-level index needs its own guarantee:
+        // whoever reads the result back has to find the file there, listing nothing.
+        if (rootIndex.value == 0) {
+            sink.accept(new ExportEntry(INDEX_FILE, ""));
+        }
     }
 
     /**

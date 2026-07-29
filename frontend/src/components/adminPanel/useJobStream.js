@@ -16,10 +16,11 @@ const IDLE = { state: 'idle', processed: 0, path: null, summary: null, error: nu
  * @param {(signal:AbortSignal)=>Promise<Response>} start запускает запрос и отдаёт SSE-ответ
  * @param {object} [options]
  * @param {(entry:object)=>void} [options.onEntry] на каждый кадр entry (записи сравнения)
+ * @param {(event:object)=>void} [options.onProgress] на каждый кадр progress (строки журнала)
  * @param {()=>void} [options.onStart] перед запуском — сбросить накопленное вызывающим
  * @returns {[object, () => Promise<void>, () => void]} [состояние, запуск, отмена]
  */
-export default function useJobStream(start, { onEntry, onStart } = {}) {
+export default function useJobStream(start, { onEntry, onProgress, onStart } = {}) {
   const [status, setStatus] = useState(IDLE);
   const abortRef = useRef(null);
 
@@ -53,6 +54,7 @@ export default function useJobStream(start, { onEntry, onStart } = {}) {
             setStatus((prev) => ({ ...prev, processed: event.processed, path: event.path }));
             break;
           case 'PROGRESS':
+            onProgress?.(event);
             setStatus((prev) => ({ ...prev, processed: event.processed, path: event.path }));
             break;
           case 'DONE':
@@ -76,7 +78,7 @@ export default function useJobStream(start, { onEntry, onStart } = {}) {
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
     }
-  }, [start, onEntry, onStart]);
+  }, [start, onEntry, onProgress, onStart]);
 
   return [status, run, cancel];
 }

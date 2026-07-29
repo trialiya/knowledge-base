@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.entry;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
@@ -10,6 +11,7 @@ import io.github.trialiya.kb.config.model.DocumentsConfiguration;
 import io.github.trialiya.kb.model.doc.entity.DocumentTreeRow;
 import io.github.trialiya.kb.model.doc.entity.DocumentType;
 import io.github.trialiya.kb.repository.DocumentRepository;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -354,6 +356,68 @@ class DocumentExportServiceTest {
             Map<String, String> entries = new LinkedHashMap<>();
             service.streamSubtree(rootId, meta, e -> entries.put(e.path(), e.content()));
             return entries;
+        }
+    }
+
+    // ── Whole-tree stream (archive download) ──────────────────────────────────
+
+    /**
+     * The archive has to be the export folder, not merely something like it: what a user unpacks,
+     * edits and puts back is read by the very comparison that expects the export's own layout.
+     */
+    @Nested
+    class ArchiveStream {
+
+        @Test
+        void producesTheSameFilesTheFolderExportWouldWrite() throws Exception {
+            stubTree(
+                    List.of(
+                            folder(1, "Docs", null, 0, "Folder body"),
+                            doc(2, "Intro", 1L, 0, "Intro body"),
+                            doc(4, "Root Doc", null, 1, "Root body")));
+
+            Map<String, String> archive = collectAll(true);
+            service.exportAll(true);
+
+            assertThat(archive).isNotEmpty();
+            for (Map.Entry<String, String> entry : archive.entrySet()) {
+                assertThat(read(entry.getKey()))
+                        .as("archive entry %s", entry.getKey())
+                        .isEqualTo(entry.getValue());
+            }
+            // Nothing landed on disk that the archive left out either.
+            assertThat(archive).containsOnlyKeys(filesUnder(exportDir));
+        }
+
+        @Test
+        void carriesNoWrappingDirectory() {
+            stubTree(List.of(folder(1, "Docs", null, 0, ""), doc(2, "Intro", 1L, 0, "body")));
+
+            assertThat(collectAll(false))
+                    .containsOnlyKeys(
+                            "docs/.content.md", "docs/.index.md", "docs/intro.md", ".index.md");
+        }
+
+        @Test
+        void stillCarriesTheRootIndexForAnEmptyTree() {
+            stubTree(List.of());
+
+            assertThat(collectAll(false)).containsExactly(entry(".index.md", ""));
+        }
+
+        private Map<String, String> collectAll(boolean meta) {
+            Map<String, String> entries = new LinkedHashMap<>();
+            service.streamAll(meta, e -> entries.put(e.path(), e.content()));
+            return entries;
+        }
+    }
+
+    /** Every file under {@code dir}, as {@code dir}-relative {@code /}-joined paths. */
+    private static String[] filesUnder(Path dir) throws IOException {
+        try (var walk = Files.walk(dir)) {
+            return walk.filter(Files::isRegularFile)
+                    .map(p -> dir.relativize(p).toString().replace('\\', '/'))
+                    .toArray(String[]::new);
         }
     }
 

@@ -4,6 +4,7 @@ import { SettingsContentHead, SettingsSection } from '../common/SettingsShell';
 import { ConfigRow } from '../common/ConfigGroup';
 import useConfigSnapshot from '../common/useConfigSnapshot';
 import ExportOperation from './ExportOperation';
+import ArchiveDownload from './ArchiveDownload';
 import ImportOperation from './ImportOperation';
 import settingsApi from '../../api/settingsApi';
 
@@ -26,6 +27,7 @@ const BulkOperations = () => {
       <div className="settings-content__body">
         <SettingsSection label={t('admin.bulk.sectionLabel')} rows>
           <ExportOperation />
+          <ArchiveDownload />
         </SettingsSection>
 
         <SettingsSection label={t('admin.bulk.importSectionLabel')} rows>

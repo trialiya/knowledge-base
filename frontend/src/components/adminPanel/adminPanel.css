@@ -124,3 +124,80 @@
   color: var(--kb-muted);
   background: var(--kb-surface-alt, rgba(0, 0, 0, 0.05));
 }
+
+/* ── Журнал импорта ── */
+/* Стоит под строкой импорта и повторяет её отступы — как и список различий над
+   ней, это продолжение операции, а не отдельный блок. Строки моноширинные:
+   читают их столбиком, сверяя пути. */
+.sync-log {
+  padding: 0 16px 14px;
+}
+.sync-log__head {
+  padding: 4px 0 6px;
+  font-size: 0.8rem;
+  color: var(--kb-muted);
+}
+.sync-log__list {
+  max-height: 240px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--kb-border);
+  border-radius: 8px;
+}
+.sync-log__row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  border-bottom: 1px solid var(--kb-border-soft, var(--kb-border));
+}
+.sync-log__row:last-child {
+  border-bottom: none;
+}
+/* Отказ — единственная строка, ради которой журнал открывают: её видно раньше,
+   чем прочитан путь. */
+.sync-log__row--failed {
+  background: var(--kb-error-bg);
+}
+.sync-log__badge {
+  flex-shrink: 0;
+  min-width: 78px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--kb-muted);
+}
+.sync-log__badge--created {
+  color: #0f6e56;
+}
+.sync-log__badge--updated {
+  color: #8a5a00;
+}
+.sync-log__badge--deleted,
+.sync-log__badge--failed {
+  color: var(--kb-error);
+}
+.sync-log__path {
+  flex-shrink: 0;
+  font-family: var(--kb-font-mono);
+  color: var(--kb-text);
+}
+/* Причина отказа приходит с сервера как есть и бывает длинной — она и урезается
+   первой, путь важнее. */
+.sync-log__message {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--kb-error);
+}
+.sync-log__more {
+  padding-top: 6px;
+  font-size: 0.75rem;
+  color: var(--kb-muted);
+}

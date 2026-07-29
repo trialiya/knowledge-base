@@ -78,6 +78,13 @@ const documentsApi = {
    */
   downloadUrl: (id, meta = false) => `/api/documents/${id}/download?meta=${meta}`,
 
+  /**
+   * Ссылка на архив всего дерева — та же раскладка, что и у экспорта в серверную
+   * папку, но без самой папки: распаковал, поправил, положил обратно. Ссылкой,
+   * а не fetch, по той же причине, что и downloadUrl.
+   */
+  archiveUrl: (meta = false) => `/api/documents/download?meta=${meta}`,
+
   // ── Потоковые операции администрирования ─────────────────────────────────
   // Возвращают сырой Response с телом-потоком SSE; читает его useJobStream.
   // Ошибку до начала потока (не задан DOCUMENTS_EXPORT_PATH и т.п.) видно по

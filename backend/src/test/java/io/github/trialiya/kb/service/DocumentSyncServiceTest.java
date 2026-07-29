@@ -2,6 +2,7 @@ package io.github.trialiya.kb.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
@@ -16,6 +17,7 @@ import io.github.trialiya.kb.model.doc.entity.DocumentType;
 import io.github.trialiya.kb.model.doc.sync.DiffSummary;
 import io.github.trialiya.kb.model.doc.sync.ImportRequest;
 import io.github.trialiya.kb.model.doc.sync.ImportSummary;
+import io.github.trialiya.kb.model.doc.sync.SyncAction;
 import io.github.trialiya.kb.model.doc.sync.SyncEntry;
 import io.github.trialiya.kb.model.doc.sync.SyncEvent;
 import io.github.trialiya.kb.model.doc.sync.SyncStatus;
@@ -346,6 +348,103 @@ class DocumentSyncServiceTest {
         }
     }
 
+    // ── The log a run leaves behind ──────────────────────────────────────────
+
+    /**
+     * The counters say three nodes were created and one was skipped. Which ones, and why the fourth
+     * — that only the per-node frames can answer, and without it an import that half worked is
+     * indistinguishable from one that fully did.
+     */
+    @Nested
+    class Journal {
+
+        @Test
+        void namesWhatItDidToEachNode() throws Exception {
+            standardTree();
+            export.exportAll(false);
+            Files.writeString(exportDir.resolve("docs/intro.md"), "edited\n");
+            Files.writeString(exportDir.resolve("docs/fresh.md"), "brand new\n");
+
+            List<SyncEvent> events =
+                    applyCollecting(
+                            new ImportRequest(null, List.of("docs/intro", "docs/fresh"), false));
+
+            assertThat(events)
+                    .extracting(SyncEvent::path, SyncEvent::action)
+                    .containsExactly(
+                            tuple("docs/intro", SyncAction.UPDATED),
+                            tuple("docs/fresh", SyncAction.CREATED));
+        }
+
+        @Test
+        void reportsTheSecondPassSeparatelyFromTheWriteThatPrecededIt() throws Exception {
+            standardTree();
+            export.exportAll(false);
+            Files.writeString(exportDir.resolve("docs/alpha.md"), "see [beta](beta.md)\n");
+            Files.writeString(exportDir.resolve("docs/beta.md"), "the target\n");
+
+            List<SyncEvent> events =
+                    applyCollecting(
+                            new ImportRequest(null, List.of("docs/alpha", "docs/beta"), false));
+
+            // alpha is written twice on purpose — the log should say so rather than hide the
+            // rewrite behind the create.
+            assertThat(events)
+                    .extracting(SyncEvent::path, SyncEvent::action)
+                    .containsExactly(
+                            tuple("docs/alpha", SyncAction.CREATED),
+                            tuple("docs/beta", SyncAction.CREATED),
+                            tuple("docs/alpha", SyncAction.RELINKED));
+        }
+
+        @Test
+        void namesADeletedNodeByItsPath() throws Exception {
+            standardTree();
+            export.exportAll(false);
+            Files.delete(exportDir.resolve("docs/api.md"));
+
+            List<SyncEvent> events =
+                    applyCollecting(new ImportRequest(null, List.of("docs/api"), true));
+
+            assertThat(events)
+                    .extracting(SyncEvent::path, SyncEvent::action)
+                    .containsExactly(tuple("docs/api", SyncAction.DELETED));
+        }
+
+        @Test
+        void carriesTheReasonASkippedNodeWasSkipped() throws Exception {
+            standardTree();
+            export.exportAll(false);
+            // "Intro" turns from a document into a directory — the one edit the import refuses.
+            Files.delete(exportDir.resolve("docs/intro.md"));
+            Files.createDirectories(exportDir.resolve("docs/intro"));
+            Files.writeString(exportDir.resolve("docs/intro/.content.md"), "now a folder\n");
+
+            List<SyncEvent> events =
+                    applyCollecting(new ImportRequest(null, List.of("docs/intro"), false));
+
+            assertThat(events)
+                    .singleElement()
+                    .satisfies(
+                            event -> {
+                                assertThat(event.action()).isEqualTo(SyncAction.FAILED);
+                                assertThat(event.path()).isEqualTo("docs/intro");
+                                assertThat(event.message()).isEqualTo("type changed on disk");
+                            });
+        }
+
+        /** The export walks the same tree but does one thing to every node — nothing to name. */
+        @Test
+        void exportProgressCarriesNoAction() {
+            standardTree();
+
+            List<SyncEvent> events = new ArrayList<>();
+            export.exportAll(false, events::add);
+
+            assertThat(events).isNotEmpty().extracting(SyncEvent::action).containsOnlyNulls();
+        }
+    }
+
     // ── Fixture ──────────────────────────────────────────────────────────────
 
     /**
@@ -371,6 +470,12 @@ class DocumentSyncServiceTest {
 
     private ImportSummary apply(ImportRequest request) {
         return sync.apply(request, event -> {});
+    }
+
+    private List<SyncEvent> applyCollecting(ImportRequest request) {
+        List<SyncEvent> events = new ArrayList<>();
+        sync.apply(request, events::add);
+        return events;
     }
 
     private static SyncEntry entryOf(List<SyncEntry> entries, String path) {

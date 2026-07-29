@@ -473,6 +473,15 @@ export const IconDownload = ({ size = 16 }) => (
   </svg>
 );
 
+/** Коробка с крышкой — zip-архив дерева. */
+export const IconArchive = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" {...s}>
+    <rect x="2" y="3" width="20" height="5" rx="1" />
+    <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" />
+    <line x1="10" y1="13" x2="14" y2="13" />
+  </svg>
+);
+
 /** Цилиндр БД — семантический индекс / эмбеддинги. */
 export const IconDatabase = ({ size = 16 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" {...s}>

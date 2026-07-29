@@ -177,6 +177,11 @@
         "error": "Export failed. Make sure DOCUMENTS_EXPORT_PATH is set.",
         "doneFiles": "Files written: {{count}}."
       },
+      "archive": {
+        "title": "Download everything as an archive",
+        "desc": "A zip of the whole tree in the same layout as the export. No server folder needed: the archive is assembled straight into the response.",
+        "run": "Download zip"
+      },
       "importSectionLabel": "Import from the export folder",
       "progress": {
         "nodes": "processed: {{count}}"
@@ -210,10 +215,21 @@
         "doneBadge": "done",
         "done": "Import finished.",
         "doneCounts": "Created: {{created}} · updated: {{updated}} · deleted: {{deleted}}.",
-        "doneCountsWithFailed": "Created: {{created}} · updated: {{updated}} · deleted: {{deleted}} · failed: {{failed}} (see the server log for details).",
+        "doneCountsWithFailed": "Created: {{created}} · updated: {{updated}} · deleted: {{deleted}} · failed: {{failed}} — the reasons are in the log below.",
         "errorBadge": "error",
         "error": "Import failed. See the server log for details.",
         "deleteMissing": "Delete selected \"missing\" entries from the database ({{count}})"
+      },
+      "log": {
+        "title": "What the import did (nodes: {{count}})",
+        "dropped": "…and {{count}} more — the start of the log is shown, every failure is.",
+        "action": {
+          "created": "created",
+          "updated": "updated",
+          "deleted": "deleted",
+          "relinked": "relinked",
+          "failed": "skipped"
+        }
       }
     },
     "system": {

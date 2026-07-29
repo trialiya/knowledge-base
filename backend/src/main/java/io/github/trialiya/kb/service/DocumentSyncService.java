@@ -13,6 +13,7 @@ import io.github.trialiya.kb.model.doc.entity.DocumentType;
 import io.github.trialiya.kb.model.doc.sync.DiffSummary;
 import io.github.trialiya.kb.model.doc.sync.ImportRequest;
 import io.github.trialiya.kb.model.doc.sync.ImportSummary;
+import io.github.trialiya.kb.model.doc.sync.SyncAction;
 import io.github.trialiya.kb.model.doc.sync.SyncEntry;
 import io.github.trialiya.kb.model.doc.sync.SyncEvent;
 import io.github.trialiya.kb.model.doc.sync.SyncStatus;
@@ -216,6 +217,10 @@ public class DocumentSyncService {
      * <p>A folder that is new on disk and <em>not</em> selected takes its whole subtree with it —
      * there would be no parent to attach the children to. Clients should tick the ancestors of
      * anything they tick.
+     *
+     * <p>Every node that is touched — or refused — emits a {@link SyncEvent.Type#PROGRESS} frame
+     * naming its {@link SyncAction}, so the caller can show what the run did node by node instead
+     * of only the four numbers at the end.
      */
     public ImportSummary apply(ImportRequest request, Consumer<SyncEvent> sink) {
         Path base = requireExportDir();
@@ -224,7 +229,7 @@ public class DocumentSyncService {
         Set<String> selection = request.selection();
         Tally tally = new Tally();
         List<Written> written = new ArrayList<>();
-        List<Long> toDelete = new ArrayList<>();
+        List<Missing> toDelete = new ArrayList<>();
 
         importDir(base, request.parentId(), "", 0, selection, tally, written, toDelete, sink);
 
@@ -252,7 +257,7 @@ public class DocumentSyncService {
             @Nullable Set<String> selection,
             Tally tally,
             List<Written> written,
-            List<Long> toDelete,
+            List<Missing> toDelete,
             Consumer<SyncEvent> sink) {
 
         if (tooDeep(depth, dir)) {
@@ -305,9 +310,9 @@ public class DocumentSyncService {
             DocumentTreeRow row,
             String path,
             @Nullable Set<String> selection,
-            List<Long> toDelete) {
+            List<Missing> toDelete) {
         if (selection == null || selection.contains(path)) {
-            toDelete.add(row.id());
+            toDelete.add(new Missing(row.id(), path));
         }
         if (row.isFolder()) {
             for (DocumentTreeRow child : tree.children(row.id())) {
@@ -338,7 +343,7 @@ public class DocumentSyncService {
             long id = documents.create(req).id();
             tally.created++;
             record(written, disk, path, id, body);
-            sink.accept(SyncEvent.progress(tally.processed(), path));
+            sink.accept(SyncEvent.progress(tally.processed(), path, SyncAction.CREATED));
             return id;
         } catch (RuntimeException e) {
             return failed(tally, path, e, sink);
@@ -361,7 +366,7 @@ public class DocumentSyncService {
             documents.update(row.id(), req);
             tally.updated++;
             record(written, disk, path, row.id(), body);
-            sink.accept(SyncEvent.progress(tally.processed(), path));
+            sink.accept(SyncEvent.progress(tally.processed(), path, SyncAction.UPDATED));
         } catch (RuntimeException e) {
             failed(tally, path, e, sink);
         }
@@ -393,37 +398,44 @@ public class DocumentSyncService {
             try {
                 documents.update(node.id(), req);
                 tally.relinked++;
-                sink.accept(SyncEvent.progress(tally.processed(), node.path()));
+                sink.accept(
+                        SyncEvent.progress(tally.processed(), node.path(), SyncAction.RELINKED));
             } catch (RuntimeException e) {
                 failed(tally, node.path(), e, sink);
             }
         }
     }
 
-    private void deleteAll(List<Long> ids, Tally tally, Consumer<SyncEvent> sink) {
+    private void deleteAll(List<Missing> missing, Tally tally, Consumer<SyncEvent> sink) {
         Set<Long> gone = new HashSet<>();
-        for (Long id : ids) {
-            if (!gone.add(id)) {
+        for (Missing node : missing) {
+            if (!gone.add(node.id())) {
                 continue;
             }
             try {
                 // Delete cascades, so a node already removed with its ancestor is simply absent.
-                if (tree.row(id).isPresent()) {
-                    documents.delete(id);
+                if (tree.row(node.id()).isPresent()) {
+                    documents.delete(node.id());
                     tally.deleted++;
-                    sink.accept(SyncEvent.progress(tally.processed(), "#" + id));
+                    sink.accept(
+                            SyncEvent.progress(tally.processed(), node.path(), SyncAction.DELETED));
                 }
             } catch (RuntimeException e) {
-                failed(tally, "#" + id, e, sink);
+                failed(tally, node.path(), e, sink);
             }
         }
     }
 
+    /**
+     * The exception text goes into the frame verbatim. It is the one place raw technical wording is
+     * right: the row's own status line stays translated, and "три узла пропущены" without saying
+     * which, or why, is exactly the report this feature was asked to stop producing.
+     */
     private @Nullable Long failed(
             Tally tally, String path, RuntimeException e, Consumer<SyncEvent> sink) {
         tally.failed++;
         log.warn("Import skipped {}: {}", path, e.getMessage());
-        sink.accept(SyncEvent.progress(tally.processed(), path));
+        sink.accept(SyncEvent.failure(tally.processed(), path, e.getMessage()));
         return null;
     }
 
@@ -619,6 +631,12 @@ public class DocumentSyncService {
 
     /** A node pass A wrote whose body still holds links pass B has to resolve. */
     private record Written(long id, String path, String exportFile) {}
+
+    /**
+     * A node queued for deletion. The path travels with the id purely so the log line can name the
+     * node rather than its number — by the time the deletion runs, the row is about to be gone.
+     */
+    private record Missing(long id, String path) {}
 
     /** Counters shared by both directions; only one half is ever non-zero. */
     private static final class Tally {

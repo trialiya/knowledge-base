@@ -14,6 +14,9 @@
   font-size: 0.84rem;
   font-weight: 600;
   cursor: pointer;
+  /* Класс вешается и на <a> (скачивание архива): подчёркивание по умолчанию
+     превратило бы кнопку в ссылку с рамкой. */
+  text-decoration: none;
   border: 1.5px solid transparent;
   transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s;
 }

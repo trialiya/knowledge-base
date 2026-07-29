@@ -3,7 +3,9 @@ import { useTranslation } from 'react-i18next';
 import OperationRow from '../common/OperationRow';
 import useJobStream from './useJobStream';
 import SyncDiffList from './SyncDiffList';
+import SyncLog from './SyncLog';
 import { selectAllActionable, summarizeSelection, toggleEntry } from './syncSelection';
+import { appendLine, EMPTY_LOG } from './syncLog';
 import { IconRefreshCw, IconUpload } from '../../icons';
 import api from '../../api/documentsApi';
 
@@ -20,6 +22,7 @@ const ImportOperation = () => {
   const [selected, setSelected] = useState(new Set());
   const [showUnchanged, setShowUnchanged] = useState(false);
   const [deleteMissing, setDeleteMissing] = useState(false);
+  const [log, setLog] = useState(EMPTY_LOG);
 
   const collectEntry = useCallback((entry) => {
     setEntries((prev) => [...prev, entry]);
@@ -28,6 +31,15 @@ const ImportOperation = () => {
   const resetDiff = useCallback(() => {
     setEntries([]);
     setSelected(new Set());
+  }, []);
+
+  const collectLog = useCallback((event) => {
+    setLog((prev) => appendLine(prev, event));
+  }, []);
+
+  const resetImport = useCallback(() => {
+    setSelected(new Set());
+    setLog(EMPTY_LOG);
   }, []);
 
   const [diffStatus, runDiff] = useJobStream(
@@ -40,7 +52,7 @@ const ImportOperation = () => {
       (signal) => api.importApply({ paths: [...selected], deleteMissing }, signal),
       [selected, deleteMissing],
     ),
-    { onStart: () => setSelected(new Set()) },
+    { onProgress: collectLog, onStart: resetImport },
   );
 
   // Запись в базу делает список различий неправдой: строки остались бы со
@@ -170,6 +182,8 @@ const ImportOperation = () => {
           {t('admin.bulk.import.deleteMissing', { count: chosen.missing })}
         </label>
       </OperationRow>
+
+      <SyncLog log={log} running={importStatus.state === 'running'} />
     </>
   );
 };
