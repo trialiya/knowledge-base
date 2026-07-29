@@ -1,28 +1,41 @@
 package io.github.trialiya.kb.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.entry;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.config.model.DocumentsConfiguration;
-import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
+import io.github.trialiya.kb.model.doc.entity.DocumentTreeRow;
 import io.github.trialiya.kb.model.doc.entity.DocumentType;
 import io.github.trialiya.kb.repository.DocumentRepository;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Unit tests for {@link DocumentExportService}.
  *
- * <p>The repository is mocked and the export target is a JUnit {@code @TempDir}, so the tests
+ * <p>The repository is mocked at the level the export actually uses — one structural level per
+ * query, one body fetched by id — and the export target is a JUnit {@code @TempDir}, so the tests
  * exercise the real on-disk layout (folder dirs, {@code .content.md}, {@code .index.md}, sidecar
- * {@code .yaml}) and — most importantly — the {@code /?doc=ID} link rewriting between documents.
+ * {@code .yaml}) and the {@code /?doc=ID} link rewriting between documents.
  *
  * <pre>
  *   Docs/ (id=1, folder)
@@ -43,34 +56,75 @@ class DocumentExportServiceTest {
     void setUp() {
         repo = mock(DocumentRepository.class);
         DocumentsConfiguration config = new DocumentsConfiguration(exportDir.toString(), true);
-        service = new DocumentExportService(repo, config);
+        service = new DocumentExportService(new DocumentTreeReader(repo), config);
     }
 
-    private static DocumentEntity doc(
+    // ── Fixture ───────────────────────────────────────────────────────────────
+
+    /** A node plus its body — the two halves the export fetches separately. */
+    private record Node(DocumentTreeRow row, String description) {}
+
+    private static Node doc(
             long id, String title, Long parentId, int position, String description) {
-        DocumentEntity e = new DocumentEntity();
-        e.setId(id);
-        e.setTitle(title);
-        e.setType(DocumentType.DOCUMENT);
-        e.setParentId(parentId);
-        e.setPosition(position);
-        e.setDescription(description);
-        e.setUpdatedAt(LocalDateTime.of(2026, 6, 14, 12, 0));
-        return e;
+        return node(id, title, parentId, position, description, DocumentType.DOCUMENT);
     }
 
-    private static DocumentEntity folder(
+    private static Node folder(
             long id, String title, Long parentId, int position, String description) {
-        DocumentEntity e = doc(id, title, parentId, position, description);
-        e.setType(DocumentType.FOLDER);
-        return e;
+        return node(id, title, parentId, position, description, DocumentType.FOLDER);
     }
 
-    /** Wires the standard fixture tree into the mocked repository. */
-    private void stubTree(List<DocumentEntity> all, List<DocumentEntity> roots) {
-        // Mutable copies — the service sorts the returned lists in place.
-        when(repo.findAll()).thenReturn(new java.util.ArrayList<>(all));
-        when(repo.findRoots()).thenReturn(new java.util.ArrayList<>(roots));
+    private static Node node(
+            long id,
+            String title,
+            Long parentId,
+            int position,
+            String description,
+            DocumentType type) {
+        return new Node(
+                new DocumentTreeRow(
+                        id,
+                        parentId,
+                        title,
+                        type,
+                        position,
+                        false,
+                        LocalDateTime.of(2026, 6, 14, 12, 0)),
+                description);
+    }
+
+    /**
+     * Wires the tree into the mocked repository the way the database serves it: children of one
+     * parent ordered by position, and bodies only ever by id.
+     */
+    private void stubTree(List<Node> nodes) {
+        Map<Long, String> bodies = new HashMap<>();
+        Map<Long, DocumentTreeRow> rows = new LinkedHashMap<>();
+        Map<Long, List<DocumentTreeRow>> byParent = new HashMap<>();
+
+        for (Node node : nodes) {
+            rows.put(node.row().id(), node.row());
+            bodies.put(node.row().id(), node.description());
+            byParent.computeIfAbsent(node.row().parentId(), k -> new ArrayList<>()).add(node.row());
+        }
+        byParent.values()
+                .forEach(
+                        level ->
+                                level.sort(
+                                        Comparator.comparingInt(DocumentTreeRow::position)
+                                                .thenComparing(DocumentTreeRow::title)));
+
+        when(repo.findTreeRowsByParent(any()))
+                .thenAnswer(
+                        invocation -> byParent.getOrDefault(invocation.getArgument(0), List.of()));
+        when(repo.findTreeRowById(anyLong()))
+                .thenAnswer(
+                        invocation ->
+                                Optional.ofNullable(rows.get(invocation.<Long>getArgument(0))));
+        when(repo.findDescriptionById(anyLong()))
+                .thenAnswer(
+                        invocation ->
+                                Optional.ofNullable(bodies.get(invocation.<Long>getArgument(0))));
     }
 
     private String read(String relativePath) throws Exception {
@@ -83,12 +137,13 @@ class DocumentExportServiceTest {
     class Layout {
 
         @Test
-        void writesFolderAndDocumentFilesWithMeta() throws Exception {
-            DocumentEntity docs = folder(1, "Docs", null, 0, "Folder body");
-            DocumentEntity intro = doc(2, "Intro", 1L, 0, "Intro body");
-            DocumentEntity api = doc(3, "API", 1L, 1, "API body");
-            DocumentEntity rootDoc = doc(4, "Root Doc", null, 1, "Top body");
-            stubTree(List.of(docs, intro, api, rootDoc), List.of(docs, rootDoc));
+        void writesFolderAndDocumentFilesWithMeta() {
+            stubTree(
+                    List.of(
+                            folder(1, "Docs", null, 0, "Folder body"),
+                            doc(2, "Intro", 1L, 0, "Intro body"),
+                            doc(3, "API", 1L, 1, "API body"),
+                            doc(4, "Root Doc", null, 1, "Top body")));
 
             service.exportAll(true);
 
@@ -106,10 +161,11 @@ class DocumentExportServiceTest {
         }
 
         @Test
-        void omitsSidecarYamlWhenMetaDisabled() throws Exception {
-            DocumentEntity docs = folder(1, "Docs", null, 0, "Folder body");
-            DocumentEntity intro = doc(2, "Intro", 1L, 0, "Intro body");
-            stubTree(List.of(docs, intro), List.of(docs));
+        void omitsSidecarYamlWhenMetaDisabled() {
+            stubTree(
+                    List.of(
+                            folder(1, "Docs", null, 0, "Folder body"),
+                            doc(2, "Intro", 1L, 0, "b")));
 
             service.exportAll(false);
 
@@ -122,10 +178,10 @@ class DocumentExportServiceTest {
 
         @Test
         void rootIndexListsChildrenInPositionOrder() throws Exception {
-            DocumentEntity docs = folder(1, "Docs", null, 0, "");
-            DocumentEntity rootDoc = doc(4, "Root Doc", null, 1, "Top body");
-            // Provide roots in reverse order to prove the service sorts by position.
-            stubTree(List.of(docs, rootDoc), List.of(rootDoc, docs));
+            stubTree(
+                    List.of(
+                            folder(1, "Docs", null, 0, ""),
+                            doc(4, "Root Doc", null, 1, "Top body")));
 
             service.exportAll(true);
 
@@ -138,6 +194,29 @@ class DocumentExportServiceTest {
             assertThat(index).contains("docs/.content.md");
             assertThat(index).contains("root-doc.md");
         }
+
+        @Test
+        void writesRootIndexForAnEmptyTree() {
+            stubTree(List.of());
+
+            int count = service.exportAll(true);
+
+            assertThat(exportDir.resolve(".index.md")).exists();
+            assertThat(count).isEqualTo(1);
+        }
+
+        @Test
+        void disambiguatesSiblingsThatNormaliseToTheSameName() {
+            stubTree(
+                    List.of(
+                            doc(1, "Intro!", null, 0, "first"),
+                            doc(2, "Intro?", null, 1, "second")));
+
+            service.exportAll(false);
+
+            assertThat(exportDir.resolve("intro.md")).exists();
+            assertThat(exportDir.resolve("intro-1.md")).exists();
+        }
     }
 
     // ── Link rewriting ──────────────────────────────────────────────────────────
@@ -147,10 +226,11 @@ class DocumentExportServiceTest {
 
         @Test
         void rewritesInternalDocLinkToRelativePath() throws Exception {
-            DocumentEntity docs = folder(1, "Docs", null, 0, "");
-            DocumentEntity intro = doc(2, "Intro", 1L, 0, "See [API doc](/?doc=3) for details.");
-            DocumentEntity api = doc(3, "API", 1L, 1, "API body");
-            stubTree(List.of(docs, intro, api), List.of(docs));
+            stubTree(
+                    List.of(
+                            folder(1, "Docs", null, 0, ""),
+                            doc(2, "Intro", 1L, 0, "See [API doc](/?doc=3) for details."),
+                            doc(3, "API", 1L, 1, "API body")));
 
             service.exportAll(true);
 
@@ -162,10 +242,11 @@ class DocumentExportServiceTest {
 
         @Test
         void rewritesCrossFolderLinkToRelativePath() throws Exception {
-            DocumentEntity docs = folder(1, "Docs", null, 0, "");
-            DocumentEntity intro = doc(2, "Intro", 1L, 0, "Jump to [top](/?doc=4).");
-            DocumentEntity rootDoc = doc(4, "Root Doc", null, 1, "Top body");
-            stubTree(List.of(docs, intro, rootDoc), List.of(docs, rootDoc));
+            stubTree(
+                    List.of(
+                            folder(1, "Docs", null, 0, ""),
+                            doc(2, "Intro", 1L, 0, "Jump to [top](/?doc=4)."),
+                            doc(4, "Root Doc", null, 1, "Top body")));
 
             service.exportAll(true);
 
@@ -175,8 +256,7 @@ class DocumentExportServiceTest {
 
         @Test
         void leavesUnresolvedDocLinkUnchanged() throws Exception {
-            DocumentEntity intro = doc(2, "Intro", null, 0, "Broken [missing](/?doc=999) link.");
-            stubTree(List.of(intro), List.of(intro));
+            stubTree(List.of(doc(2, "Intro", null, 0, "Broken [missing](/?doc=999) link.")));
 
             service.exportAll(true);
 
@@ -185,14 +265,159 @@ class DocumentExportServiceTest {
 
         @Test
         void rewritesLinkPointingToFolderContent() throws Exception {
-            DocumentEntity docs = folder(1, "Docs", null, 0, "Folder body");
-            DocumentEntity rootDoc = doc(4, "Root Doc", null, 1, "Go to [folder](/?doc=1).");
-            stubTree(List.of(docs, rootDoc), List.of(docs, rootDoc));
+            stubTree(
+                    List.of(
+                            folder(1, "Docs", null, 0, "Folder body"),
+                            doc(4, "Root Doc", null, 1, "Go to [folder](/?doc=1).")));
 
             service.exportAll(true);
 
             // Folder targets resolve to the folder's .content.md.
             assertThat(read("root-doc.md")).contains("[folder](docs/.content.md)");
+        }
+
+        @Test
+        void flattensRepoFileLinks() throws Exception {
+            stubTree(
+                    List.of(
+                            doc(
+                                    2,
+                                    "Intro",
+                                    null,
+                                    0,
+                                    "See [Git.java](/files?path=backend/Git.java#L1-L10).")));
+
+            service.exportAll(false);
+
+            assertThat(read("intro.md")).contains("Git.java (backend/Git.java)");
+        }
+    }
+
+    // ── Subtree stream (folder download) ──────────────────────────────────────
+
+    @Nested
+    class SubtreeStream {
+
+        @Test
+        void emitsTheFolderItselfAndItsChildrenUnderTheFolderName() {
+            stubTree(
+                    List.of(
+                            folder(1, "Docs", null, 0, "Folder body"),
+                            doc(2, "Intro", 1L, 0, "Intro body"),
+                            doc(4, "Root Doc", null, 1, "outside the subtree")));
+
+            Map<String, String> entries = collectSubtree(1L, false);
+
+            assertThat(entries)
+                    .containsOnlyKeys("docs/.content.md", "docs/.index.md", "docs/intro.md");
+            assertThat(entries.get("docs/.content.md")).isEqualTo("Folder body\n");
+            assertThat(entries.get("docs/.index.md")).isEqualTo("- [Intro](intro.md)\n");
+        }
+
+        @Test
+        void addsMetadataSidecarsOnlyWhenAsked() {
+            stubTree(List.of(folder(1, "Docs", null, 0, ""), doc(2, "Intro", 1L, 0, "body")));
+
+            assertThat(collectSubtree(1L, true)).containsKeys("docs/.meta.yaml", "docs/intro.yaml");
+            assertThat(collectSubtree(1L, false))
+                    .doesNotContainKeys("docs/.meta.yaml", "docs/intro.yaml");
+        }
+
+        @Test
+        void keepsLinksThatLeaveTheSubtreeAsAppLinks() {
+            stubTree(
+                    List.of(
+                            folder(1, "Docs", null, 0, ""),
+                            doc(2, "Intro", 1L, 0, "Out: [top](/?doc=4)"),
+                            doc(4, "Root Doc", null, 1, "Top body")));
+
+            assertThat(collectSubtree(1L, false).get("docs/intro.md")).contains("[top](/?doc=4)");
+        }
+
+        @Test
+        void refusesToStreamADocument() {
+            stubTree(List.of(doc(2, "Intro", null, 0, "body")));
+
+            assertThat(
+                            org.junit.jupiter.api.Assertions.assertThrows(
+                                    ResponseStatusException.class, () -> collectSubtree(2L, false)))
+                    .hasMessageContaining("folder");
+        }
+
+        @Test
+        void rendersASingleDocumentWithoutSurroundingExport() {
+            stubTree(List.of(doc(2, "Intro", null, 0, "Body with [link](/?doc=9)")));
+
+            // Nothing to be relative to, so the app link survives untouched.
+            assertThat(service.renderSingleDocument(2)).isEqualTo("Body with [link](/?doc=9)\n");
+        }
+
+        private Map<String, String> collectSubtree(long rootId, boolean meta) {
+            Map<String, String> entries = new LinkedHashMap<>();
+            service.streamSubtree(rootId, meta, e -> entries.put(e.path(), e.content()));
+            return entries;
+        }
+    }
+
+    // ── Whole-tree stream (archive download) ──────────────────────────────────
+
+    /**
+     * The archive has to be the export folder, not merely something like it: what a user unpacks,
+     * edits and puts back is read by the very comparison that expects the export's own layout.
+     */
+    @Nested
+    class ArchiveStream {
+
+        @Test
+        void producesTheSameFilesTheFolderExportWouldWrite() throws Exception {
+            stubTree(
+                    List.of(
+                            folder(1, "Docs", null, 0, "Folder body"),
+                            doc(2, "Intro", 1L, 0, "Intro body"),
+                            doc(4, "Root Doc", null, 1, "Root body")));
+
+            Map<String, String> archive = collectAll(true);
+            service.exportAll(true);
+
+            assertThat(archive).isNotEmpty();
+            for (Map.Entry<String, String> entry : archive.entrySet()) {
+                assertThat(read(entry.getKey()))
+                        .as("archive entry %s", entry.getKey())
+                        .isEqualTo(entry.getValue());
+            }
+            // Nothing landed on disk that the archive left out either.
+            assertThat(archive).containsOnlyKeys(filesUnder(exportDir));
+        }
+
+        @Test
+        void carriesNoWrappingDirectory() {
+            stubTree(List.of(folder(1, "Docs", null, 0, ""), doc(2, "Intro", 1L, 0, "body")));
+
+            assertThat(collectAll(false))
+                    .containsOnlyKeys(
+                            "docs/.content.md", "docs/.index.md", "docs/intro.md", ".index.md");
+        }
+
+        @Test
+        void stillCarriesTheRootIndexForAnEmptyTree() {
+            stubTree(List.of());
+
+            assertThat(collectAll(false)).containsExactly(entry(".index.md", ""));
+        }
+
+        private Map<String, String> collectAll(boolean meta) {
+            Map<String, String> entries = new LinkedHashMap<>();
+            service.streamAll(meta, e -> entries.put(e.path(), e.content()));
+            return entries;
+        }
+    }
+
+    /** Every file under {@code dir}, as {@code dir}-relative {@code /}-joined paths. */
+    private static String[] filesUnder(Path dir) throws IOException {
+        try (var walk = Files.walk(dir)) {
+            return walk.filter(Files::isRegularFile)
+                    .map(p -> dir.relativize(p).toString().replace('\\', '/'))
+                    .toArray(String[]::new);
         }
     }
 
@@ -200,8 +425,7 @@ class DocumentExportServiceTest {
 
     @Test
     void metaYamlContainsCoreFields() throws Exception {
-        DocumentEntity intro = doc(2, "Intro \"quoted\"", null, 0, "body");
-        stubTree(List.of(intro), List.of(intro));
+        stubTree(List.of(doc(2, "Intro \"quoted\"", null, 0, "body")));
 
         service.exportAll(true);
 
@@ -215,12 +439,25 @@ class DocumentExportServiceTest {
 
     @Test
     void returnsNumberOfFilesWritten() {
-        DocumentEntity intro = doc(2, "Intro", null, 0, "body");
-        stubTree(List.of(intro), List.of(intro));
+        stubTree(List.of(doc(2, "Intro", null, 0, "body")));
 
         // intro.md + intro.yaml + root .index.md = 3 files.
         int count = service.exportAll(true);
 
         assertThat(count).isEqualTo(3);
+    }
+
+    @Test
+    void reportsOneProgressEventPerNode() {
+        stubTree(
+                List.of(
+                        folder(1, "Docs", null, 0, ""),
+                        doc(2, "Intro", 1L, 0, "body"),
+                        doc(4, "Root Doc", null, 1, "body")));
+
+        List<String> paths = new ArrayList<>();
+        service.exportAll(false, event -> paths.add(Objects.requireNonNull(event.path())));
+
+        assertThat(paths).containsExactly("docs", "docs/intro", "root-doc");
     }
 }

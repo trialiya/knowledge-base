@@ -1,51 +1,49 @@
 package io.github.trialiya.kb.service;
 
-import com.google.common.collect.Streams;
+import static io.github.trialiya.kb.service.DocumentTreeReader.FOLDER_CONTENT_FILE;
+import static io.github.trialiya.kb.service.DocumentTreeReader.FOLDER_META_FILE;
+import static io.github.trialiya.kb.service.DocumentTreeReader.INDEX_FILE;
+import static io.github.trialiya.kb.service.DocumentTreeReader.MD_EXTENSION;
+
 import io.github.trialiya.kb.config.model.DocumentsConfiguration;
-import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
-import io.github.trialiya.kb.model.doc.entity.DocumentType;
-import io.github.trialiya.kb.repository.DocumentRepository;
+import io.github.trialiya.kb.model.doc.entity.DocumentTreeRow;
+import io.github.trialiya.kb.model.doc.sync.SyncEvent;
+import io.github.trialiya.kb.service.DocumentTreeReader.SegmentNamer;
+import io.github.trialiya.kb.service.DocumentTreeReader.TreeNode;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
+import java.util.function.Consumer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Exports every document/folder to the configured {@code kb.documents.export-path}.
+ * Renders the document tree as a directory of Markdown files — onto {@code
+ * kb.documents.export-path} ({@link #exportAll}) or straight into a response stream ({@link
+ * #streamSubtree}).
  *
- * <p>Layout on disk mirrors the document tree. File and folder names contain no ordinal prefixes;
- * sibling order is captured in a dedicated {@code .index.md} file written in every directory
- * (including the export root).
+ * <h2>Layout</h2>
  *
- * <p>Content and (optionally) metadata are written as separate files:
+ * The directory structure mirrors the tree. Names carry no ordinal prefixes; sibling order lives in
+ * a {@code .index.md} written in every directory, including the export root.
  *
  * <ul>
  *   <li>{@code .md} — document body (description only, no title heading)
- *   <li>{@code .yaml} — structured metadata (id, title, type, timestamps, …), only when {@code
- *       includeMeta=true}
- *   <li>{@code .index.md} — ordered list of children in this directory; folder entries link to the
- *       folder's {@code .content.md}
+ *   <li>{@code .yaml} — document metadata (id, title, type, …), only when {@code includeMeta}
+ *   <li>{@code .index.md} — ordered children of this directory; folders link to their {@code
+ *       .content.md}
  *   <li>{@code .content.md} — folder description (always created, may be empty)
- *   <li>{@code .meta.yaml} — folder metadata (only with {@code includeMeta=true})
+ *   <li>{@code .meta.yaml} — folder metadata, only when {@code includeMeta}
  * </ul>
- *
- * <p>Internal KB links ({@code /?doc=ID}) are rewritten to relative file paths so the exported
- * Markdown is navigable in any file browser or static site.
  *
  * <pre>
  *   &lt;exportPath&gt;/
@@ -56,344 +54,340 @@ import org.springframework.stereotype.Service;
  *       .index.md             ← ordered list of children
  *       some-document.md
  *       some-document.yaml    ← only with includeMeta
- *       nested-folder/
- *         .meta.yaml
- *         .content.md
- *         .index.md
- *         child-doc.md
- *         child-doc.yaml
  *     another-doc.md
- *     another-doc.yaml
  * </pre>
+ *
+ * <h2>Two passes, and what each of them holds</h2>
+ *
+ * Internal {@code /?doc=ID} links become relative file paths so the export is navigable in any
+ * Markdown viewer, and a document may link to one the walk has not reached yet. So the tree is
+ * walked twice: pass 1 decides every node's file name, pass 2 writes the files.
+ *
+ * <p>What survives between the passes is the id → file-name map and nothing else — no bodies. Each
+ * body is fetched by id at the moment its file is written and dropped immediately after, so the
+ * peak memory of an export is one document, not the knowledge base. Pass 2 replays pass 1's names
+ * from that map rather than re-deriving them: with {@code kb.documents.replace=false} the naming
+ * depends on what is already on disk, and re-deriving it after pass 2 has started writing would
+ * hand out different names than the links were built against.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class DocumentExportService {
 
-    /** Hidden file that stores a folder's own content (description). */
-    static final String FOLDER_CONTENT_FILE = ".content.md";
-
-    /** Hidden file that stores a folder's metadata. */
-    static final String FOLDER_META_FILE = ".meta.yaml";
-
-    /** File written in every directory listing children in their defined order. */
-    static final String INDEX_FILE = ".index.md";
-
-    /** Matches internal KB doc links inside Markdown link targets: {@code (/?doc=123)}. */
-    private static final Pattern DOC_LINK_PATTERN = Pattern.compile("\\(/\\?doc=(\\d+)\\)");
-
-    /**
-     * Matches whole Markdown links pointing at a repo file, e.g. {@code [GitService.java](/files
-     * ?path=backend/.../GitService.java#L1-L10)}. Group 1 is the link text, group 2 the
-     * (URL-encoded) path; the optional {@code #Lx-Ly} line-range suffix is discarded on export.
-     */
-    private static final Pattern FILE_LINK_PATTERN =
-            Pattern.compile("\\[([^\\]]+)]\\(/files\\?path=([^)#]+)(?:#L\\d+(?:-L\\d+)?)?\\)");
-
-    private final DocumentRepository repo;
+    private final DocumentTreeReader tree;
     private final DocumentsConfiguration config;
 
-    // ── Public API ───────────────────────────────────────────────────────────
+    /** One rendered file: where it goes and what is in it. Held one at a time, never collected. */
+    public record ExportEntry(String path, String content) {}
 
-    /**
-     * Exports the entire document tree to {@code exportPath} with metadata files included.
-     * Convenience overload — equivalent to {@code exportAll(true)}.
-     *
-     * @return the number of files written
-     */
+    // ── Export to the server folder ──────────────────────────────────────────
+
+    /** Exports the whole tree with metadata sidecars. */
     public int exportAll() {
         return exportAll(true);
     }
 
+    /** Exports the whole tree, reporting nothing. */
+    public int exportAll(boolean includeMeta) {
+        return exportAll(includeMeta, event -> {});
+    }
+
     /**
-     * Exports the entire document tree to {@code exportPath}. Existing files are overwritten;
-     * directories are created as needed.
+     * Exports the whole tree to {@code kb.documents.export-path}, creating directories as needed
+     * and overwriting existing files (unless {@code kb.documents.replace} is off, in which case a
+     * colliding name gets a {@code -1}, {@code -2} … suffix).
      *
-     * <p>Internal {@code /?doc=ID} links in document content are rewritten to relative file paths
-     * so the exported Markdown is self-contained.
-     *
-     * @param includeMeta whether to write {@code .yaml} / {@code .meta.yaml} sidecar files
+     * @param includeMeta whether to write {@code .yaml} / {@code .meta.yaml} sidecars
+     * @param progress receives one {@link SyncEvent.Type#PROGRESS} per node as it is written
      * @return the number of files written
      */
-    public int exportAll(boolean includeMeta) {
-        Path root = Paths.get(config.exportPath());
-
-        List<DocumentEntity> all = Streams.stream(repo.findAll()).collect(Collectors.toList());
-
-        // Build parent → children index
-        Map<Long, List<DocumentEntity>> byParent =
-                all.stream()
-                        .filter(e -> e.getParentId() != null)
-                        .collect(Collectors.groupingBy(DocumentEntity::getParentId));
-
-        byParent.values()
-                .forEach(list -> list.sort(Comparator.comparingInt(DocumentEntity::getPosition)));
-
-        List<DocumentEntity> roots = repo.findRoots();
-        roots.sort(Comparator.comparingInt(DocumentEntity::getPosition));
-
-        // Pass 1: build id → absolute .md path map (needed for link rewriting)
-        Map<Long, Path> idToPath = new HashMap<>();
-        for (DocumentEntity rootDoc : roots) {
-            collectPaths(rootDoc, root, byParent, idToPath);
-        }
-
-        // Pass 2: write files
+    public int exportAll(boolean includeMeta, Consumer<SyncEvent> progress) {
+        Path root = Paths.get(requireExportPath());
         createDirectories(root);
-        int count = 0;
-        for (DocumentEntity rootDoc : roots) {
-            count += exportNode(rootDoc, root, byParent, idToPath, includeMeta);
-        }
 
-        // Write root-level index
-        writeFile(root.resolve(INDEX_FILE), renderIndex(roots, root, idToPath));
-        count++;
+        Map<Long, String> idToFile = collectFiles(null, namerFor(root));
+        Counter written = new Counter();
+        Counter nodes = new Counter();
 
-        log.info("Export complete: {} file(s) written to {}", count, root.toAbsolutePath());
-        return count;
+        streamNodes(
+                null,
+                idToFile,
+                includeMeta,
+                entry -> {
+                    writeFile(root.resolve(entry.path()), entry.content());
+                    written.value++;
+                },
+                node -> {
+                    nodes.value++;
+                    progress.accept(SyncEvent.progress(nodes.value, node.path()));
+                });
+
+        log.info("Export complete: {} file(s) written to {}", written.value, root.toAbsolutePath());
+        return written.value;
     }
 
-    // ── Pass 1: collect id → path ────────────────────────────────────────────
+    // ── Export to a stream (archive download) ────────────────────────────────
 
     /**
-     * Dry-run walk that populates {@code idToPath} with the absolute {@code .md} path each entity
-     * will be written to. Folder content maps to the {@code .content.md} hidden file inside the
-     * folder directory.
+     * The whole tree as a sequence of files, laid out exactly the way {@link #exportAll} would have
+     * written it into the export folder — same names, same {@code .index.md}, same link rewriting —
+     * but handed to {@code sink} instead of to the disk.
+     *
+     * <p>That sameness is the point: the archive a user downloads unpacks into a folder {@link
+     * DocumentSyncService} can compare and import back. It also needs no {@code
+     * kb.documents.export-path} at all, which is the difference that matters to whoever cannot
+     * reach the server's file system.
+     *
+     * <p>Entries carry no wrapping directory — unpacking gives the root level of the knowledge
+     * base, the way unpacking a folder's archive gives that folder.
      */
-    private void collectPaths(
-            DocumentEntity entity,
-            Path parentDir,
-            Map<Long, List<DocumentEntity>> byParent,
-            Map<Long, Path> idToPath) {
+    public void streamAll(boolean includeMeta, Consumer<ExportEntry> sink) {
+        streamNodes(null, collectFiles(null), includeMeta, sink, node -> {});
+    }
 
-        boolean isFolder = entity.getType() == DocumentType.FOLDER;
+    // ── Export to a stream (subtree download) ────────────────────────────────
 
-        if (isFolder) {
-            Path folderDir = parentDir.resolve(safeName(entity.getTitle()));
-            idToPath.put(entity.getId(), folderDir.resolve(FOLDER_CONTENT_FILE));
+    /**
+     * Renders the subtree rooted at {@code rootId} as a sequence of files, handing each one to
+     * {@code sink} and forgetting it. Nothing is buffered: the caller can zip straight into the
+     * response, so a folder download costs the memory of its largest single document rather than of
+     * the whole subtree.
+     *
+     * <p>Entry paths are prefixed with the root folder's own name, so unpacking the archive
+     * reproduces the folder rather than scattering its children. Links pointing outside the subtree
+     * stay as {@code /?doc=ID} — there is no file to point them at.
+     *
+     * @throws ResponseStatusException 404 when the node does not exist
+     * @throws ResponseStatusException 422 when the node is not a folder
+     */
+    public void streamSubtree(long rootId, boolean includeMeta, Consumer<ExportEntry> sink) {
+        DocumentTreeRow root = requireRow(rootId);
+        if (!root.isFolder()) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNPROCESSABLE_ENTITY, "Subtree download requires a folder");
+        }
+        String base = DocumentTreeReader.safeName(root.title());
 
-            List<DocumentEntity> children = childrenOf(entity.getId(), byParent);
-            for (DocumentEntity child : children) {
-                collectPaths(child, folderDir, byParent, idToPath);
-            }
-        } else {
-            Path candidate = parentDir.resolve(safeName(entity.getTitle()) + ".md");
-            if (Files.exists(candidate) && !config.replace()) {
-                int suffix = 1;
-                do {
-                    candidate =
-                            parentDir.resolve(safeName(entity.getTitle()) + "-" + suffix + ".md");
-                    suffix++;
-                } while (Files.exists(candidate));
-            }
-            idToPath.put(entity.getId(), candidate);
+        // The root's own body sits at ".content.md", exactly where a folder one level up would put
+        // it — so relative links computed inside the subtree stay correct once everything is
+        // prefixed with `base/`.
+        Map<Long, String> idToFile = collectFiles(rootId, DocumentTreeReader.dedupingNamer());
+        idToFile.put(rootId, FOLDER_CONTENT_FILE);
+
+        Consumer<ExportEntry> prefixed =
+                entry -> sink.accept(new ExportEntry(base + "/" + entry.path(), entry.content()));
+
+        prefixed.accept(new ExportEntry(FOLDER_CONTENT_FILE, renderBody(root, "", idToFile)));
+        if (includeMeta) {
+            prefixed.accept(new ExportEntry(FOLDER_META_FILE, renderMeta(root)));
+        }
+
+        streamNodes(rootId, idToFile, includeMeta, prefixed, node -> {});
+    }
+
+    /**
+     * Walks a subtree and hands over every file it consists of, in the order an export writes them:
+     * a node's body and metadata sidecar as it is reached, then a directory's {@code .index.md}
+     * once that whole level is known.
+     *
+     * <p>The one spine under all three renderings — folder export, archive download, subtree
+     * download — so what a user unpacks is what the server would have written, and either can be
+     * read back by the import.
+     *
+     * @param onNode called once per node, after its files; the export reports progress through it
+     */
+    private void streamNodes(
+            @Nullable Long rootId,
+            Map<Long, String> idToFile,
+            boolean includeMeta,
+            Consumer<ExportEntry> sink,
+            Consumer<TreeNode> onNode) {
+
+        Counter rootIndex = new Counter();
+        tree.walk(
+                rootId,
+                replayNamer(idToFile),
+                new DocumentTreeReader.Visitor() {
+                    @Override
+                    public void node(TreeNode node) {
+                        renderNode(node, idToFile, includeMeta).forEach(sink);
+                        onNode.accept(node);
+                    }
+
+                    @Override
+                    public void levelDone(String parentDir, List<TreeNode> level) {
+                        sink.accept(renderIndex(parentDir, level));
+                        if (parentDir.isEmpty()) {
+                            rootIndex.value++;
+                        }
+                    }
+                });
+
+        // An empty tree produces no levels at all, so the top-level index needs its own guarantee:
+        // whoever reads the result back has to find the file there, listing nothing.
+        if (rootIndex.value == 0) {
+            sink.accept(new ExportEntry(INDEX_FILE, ""));
         }
     }
 
-    // ── Pass 2: recursive tree walk ──────────────────────────────────────────
+    /**
+     * The Markdown body of a single document, as its {@code .md} file would look. Used by the
+     * single-document download, where there is no surrounding export: internal links have nowhere
+     * relative to point and are left as {@code /?doc=ID}.
+     *
+     * @throws ResponseStatusException 404 when the document does not exist
+     */
+    public String renderSingleDocument(long id) {
+        return renderBody(requireRow(id), "", Map.of());
+    }
 
-    private int exportNode(
-            DocumentEntity entity,
-            Path parentDir,
-            Map<Long, List<DocumentEntity>> byParent,
-            Map<Long, Path> idToPath,
-            boolean includeMeta) {
+    /** File name a download should offer for a node. */
+    public String downloadName(DocumentTreeRow row) {
+        return DocumentTreeReader.safeName(row.title()) + (row.isFolder() ? ".zip" : MD_EXTENSION);
+    }
 
-        boolean isFolder = entity.getType() == DocumentType.FOLDER;
-        int written = 0;
+    public DocumentTreeRow requireRow(long id) {
+        return tree.row(id)
+                .orElseThrow(
+                        () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No such node"));
+    }
 
-        if (isFolder) {
-            Path folderDir = parentDir.resolve(safeName(entity.getTitle()));
-            createDirectories(folderDir);
+    // ── Pass 1 ───────────────────────────────────────────────────────────────
 
-            if (includeMeta) {
-                writeFile(folderDir.resolve(FOLDER_META_FILE), renderMeta(entity));
-                written++;
-            }
+    /**
+     * The id → body-file map for a subtree, as the export would lay it out. {@link
+     * DocumentSyncService} needs the very same map: comparing disk against database means rendering
+     * the database side exactly as an export would have written it, links included.
+     */
+    Map<Long, String> collectFiles(@Nullable Long rootId) {
+        return collectFiles(rootId, DocumentTreeReader.dedupingNamer());
+    }
 
-            // Always create .content.md (may be empty)
-            Path contentFile = folderDir.resolve(FOLDER_CONTENT_FILE);
-            writeFile(contentFile, renderContent(entity, contentFile, idToPath));
-            written++;
-            log.debug("Written folder content: {}", contentFile);
+    /** Walks the tree for names only, producing the id → body-file map the links are built on. */
+    private Map<Long, String> collectFiles(@Nullable Long rootId, SegmentNamer namer) {
+        Map<Long, String> idToFile = new HashMap<>();
+        tree.walk(rootId, namer, node -> idToFile.put(node.row().id(), node.contentFile()));
+        return idToFile;
+    }
 
-            List<DocumentEntity> children = childrenOf(entity.getId(), byParent);
-            for (DocumentEntity child : children) {
-                written += exportNode(child, folderDir, byParent, idToPath, includeMeta);
-            }
-
-            // Write index for this folder
-            writeFile(folderDir.resolve(INDEX_FILE), renderIndex(children, folderDir, idToPath));
-            written++;
-            log.debug("Written folder index: {}", folderDir.resolve(INDEX_FILE));
-
-        } else {
-            String baseName = safeName(entity.getTitle());
-            createDirectories(parentDir);
-
-            Path contentFile = uniquePath(parentDir, baseName + ".md");
-            writeFile(contentFile, renderContent(entity, contentFile, idToPath));
-            written++;
-            log.debug("Written document content: {}", contentFile);
-
-            if (includeMeta) {
-                String contentFileName = contentFile.getFileName().toString();
-                String metaFileName =
-                        contentFileName.substring(0, contentFileName.lastIndexOf('.')) + ".yaml";
-                writeFile(parentDir.resolve(metaFileName), renderMeta(entity));
-                written++;
-                log.debug("Written document meta: {}", parentDir.resolve(metaFileName));
-            }
+    /**
+     * Names as usual, but when {@code kb.documents.replace} is off also steps around files a
+     * previous export left behind.
+     */
+    private SegmentNamer namerFor(Path root) {
+        if (config.replace()) {
+            return DocumentTreeReader.dedupingNamer();
         }
+        return (parentDir, row, taken) ->
+                DocumentTreeReader.claim(
+                        DocumentTreeReader.safeName(row.title()),
+                        taken,
+                        segment -> {
+                            String candidate =
+                                    prefix(
+                                            parentDir,
+                                            row.isFolder() ? segment : segment + MD_EXTENSION);
+                            return Files.exists(root.resolve(candidate));
+                        });
+    }
 
-        return written;
+    /**
+     * Hands back the names pass 1 already decided. Falls back to the plain safe name for a node
+     * that appeared between the passes — it gets a file, just possibly not a unique one.
+     */
+    private static SegmentNamer replayNamer(Map<Long, String> idToFile) {
+        return (parentDir, row, taken) -> {
+            String file = idToFile.get(row.id());
+            String path = file == null ? DocumentTreeReader.safeName(row.title()) : pathOf(file);
+            int slash = path.lastIndexOf('/');
+            return slash < 0 ? path : path.substring(slash + 1);
+        };
+    }
+
+    /** Inverse of {@link TreeNode#contentFile()} — the node path a body file belongs to. */
+    private static String pathOf(String contentFile) {
+        String folderSuffix = "/" + FOLDER_CONTENT_FILE;
+        return contentFile.endsWith(folderSuffix)
+                ? contentFile.substring(0, contentFile.length() - folderSuffix.length())
+                : DocumentTreeReader.stripMdExtension(contentFile);
     }
 
     // ── Rendering ────────────────────────────────────────────────────────────
 
-    /**
-     * Renders the document/folder description as Markdown content, rewriting any {@code /?doc=ID}
-     * links to relative file paths based on {@code idToPath}.
-     *
-     * <p>The title is intentionally omitted here — it lives in the metadata sidecar. An empty
-     * string is returned when the entity has no description (e.g. empty folder).
-     *
-     * @param e entity to render
-     * @param thisFile absolute path of the file being written (used to compute relative links)
-     * @param idToPath map of document id → absolute export path
-     */
-    private String renderContent(DocumentEntity e, Path thisFile, Map<Long, Path> idToPath) {
-        if (!hasContent(e.getDescription())) {
-            return "";
-        }
-        String text = rewriteDocLinks(e.getDescription().trim(), thisFile, idToPath);
-        return rewriteFileLinks(text) + "\n";
+    /** The files one node owns: its body, and its metadata sidecar when asked for. */
+    private List<ExportEntry> renderNode(
+            TreeNode node, Map<Long, String> idToFile, boolean includeMeta) {
+        ExportEntry body =
+                new ExportEntry(
+                        node.contentFile(), renderBody(node.row(), node.contentFile(), idToFile));
+        return includeMeta
+                ? List.of(body, new ExportEntry(node.metaFile(), renderMeta(node.row())))
+                : List.of(body);
     }
 
     /**
-     * Renders an ordered Markdown list of {@code children} as a {@code .index.md} file. Folder
-     * entries link to their {@code .content.md}; document entries link to their {@code .md}.
+     * The node's description with its links translated for the file system. The body is fetched
+     * here and nowhere else — one at a time, by id.
      *
-     * @param children ordered list of sibling entities
-     * @param indexDir directory that will contain the index file (used to compute relative links)
-     * @param idToPath map of document id → absolute export path
+     * <p>The title is intentionally absent: it lives in {@code .index.md} and in the metadata
+     * sidecar. An empty string comes back for a node with no description (an empty folder).
      */
-    private String renderIndex(
-            List<DocumentEntity> children, Path indexDir, Map<Long, Path> idToPath) {
-        if (children.isEmpty()) {
+    String renderBody(DocumentTreeRow row, String ownFile, Map<Long, String> idToFile) {
+        String description = tree.description(row.id()).orElse(null);
+        if (description == null || description.isBlank()) {
             return "";
         }
-        Path indexFile = indexDir.resolve(INDEX_FILE);
+        String text = DocumentLinkRewriter.toRelativeLinks(description.trim(), ownFile, idToFile);
+        return DocumentLinkRewriter.flattenFileLinks(text) + "\n";
+    }
+
+    /**
+     * A directory's {@code .index.md}: the ordered children as a Markdown list. This is where
+     * sibling order and the human title survive the round trip — the file names carry neither.
+     */
+    private ExportEntry renderIndex(String parentDir, List<TreeNode> level) {
+        String indexFile = prefix(parentDir, INDEX_FILE);
         StringBuilder sb = new StringBuilder();
-        for (DocumentEntity child : children) {
-            Path targetPath = idToPath.get(child.getId());
-            if (targetPath == null) {
-                sb.append("- ").append(child.getTitle()).append("\n");
-            } else {
-                String rel =
-                        indexFile.getParent().relativize(targetPath).toString().replace('\\', '/');
-                sb.append("- [").append(child.getTitle()).append("](").append(rel).append(")\n");
-            }
+        for (TreeNode child : level) {
+            sb.append("- [")
+                    .append(child.row().title())
+                    .append("](")
+                    .append(DocumentLinkRewriter.relativize(indexFile, child.contentFile()))
+                    .append(")\n");
         }
+        return new ExportEntry(indexFile, sb.toString());
+    }
+
+    /** Structured metadata as YAML. */
+    private String renderMeta(DocumentTreeRow row) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("id: ").append(row.id()).append("\n");
+        sb.append("title: \"").append(escapeYaml(row.title())).append("\"\n");
+        sb.append("type: ").append(row.type().getValue()).append("\n");
+        if (row.parentId() != null) {
+            sb.append("parentId: ").append(row.parentId()).append("\n");
+        }
+        sb.append("position: ").append(row.position()).append("\n");
+        sb.append("updatedAt: ").append(row.updatedAt()).append("\n");
         return sb.toString();
     }
 
-    /**
-     * Replaces every {@code (/?doc=ID)} occurrence in {@code text} with a relative Markdown path
-     * pointing from {@code sourceFile} to the target document's exported {@code .md} file.
-     *
-     * <p>If the ID is not found in {@code idToPath} the original link is left unchanged.
-     */
-    private String rewriteDocLinks(String text, Path sourceFile, Map<Long, Path> idToPath) {
-        Matcher m = DOC_LINK_PATTERN.matcher(text);
-        StringBuilder out = new StringBuilder();
-        while (m.find()) {
-            long targetId = Long.parseLong(m.group(1));
-            Path targetPath = idToPath.get(targetId);
-            if (targetPath == null) {
-                m.appendReplacement(out, Matcher.quoteReplacement(m.group(0)));
-            } else {
-                String rel =
-                        sourceFile.getParent().relativize(targetPath).toString().replace('\\', '/');
-                m.appendReplacement(out, Matcher.quoteReplacement("(" + rel + ")"));
-            }
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private String requireExportPath() {
+        String path = config.exportPath();
+        if (path == null || path.isBlank()) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Export path is not configured (kb.documents.export-path)");
         }
-        m.appendTail(out);
-        return out.toString();
+        return path;
     }
 
-    /**
-     * Replaces every {@code [text](/files?path=PATH[#Lx-Ly])} link with plain, non-navigable text
-     * {@code text (PATH)} — the exported Markdown has no running app to serve {@code /files}, so
-     * the link is flattened to just the file's name and full repo-relative path.
-     */
-    private String rewriteFileLinks(String text) {
-        Matcher m = FILE_LINK_PATTERN.matcher(text);
-        StringBuilder out = new StringBuilder();
-        while (m.find()) {
-            String linkText = m.group(1);
-            // The LLM writes paths unencoded, so a literal '+' is part of the file name —
-            // shield it from URLDecoder's application/x-www-form-urlencoded '+'→space rule,
-            // while still decoding any %xx escapes.
-            String path = URLDecoder.decode(m.group(2).replace("+", "%2B"), StandardCharsets.UTF_8);
-            m.appendReplacement(out, Matcher.quoteReplacement(linkText + " (" + path + ")"));
-        }
-        m.appendTail(out);
-        return out.toString();
-    }
-
-    /** Renders structured metadata as YAML. */
-    private String renderMeta(DocumentEntity e) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("id: ").append(e.getId()).append("\n");
-        sb.append("title: \"").append(escapeYaml(e.getTitle())).append("\"\n");
-        sb.append("type: ").append(e.getType().getValue()).append("\n");
-        if (e.getParentId() != null) {
-            sb.append("parentId: ").append(e.getParentId()).append("\n");
-        }
-        sb.append("position: ").append(e.getPosition()).append("\n");
-        sb.append("updatedAt: ").append(e.getUpdatedAt()).append("\n");
-        return sb.toString();
-    }
-
-    // ── File-system helpers ──────────────────────────────────────────────────
-
-    /**
-     * Converts a document title into a filesystem-safe name: lower-case, spaces/special chars
-     * replaced with hyphens, no leading/trailing hyphens.
-     */
-    static String safeName(@Nullable String title) {
-        if (title == null || title.isBlank()) {
-            return "untitled";
-        }
-        return title.trim()
-                .toLowerCase()
-                .replaceAll("[^a-z0-9а-яёa-z]+", "-") // allow Cyrillic too
-                .replaceAll("^-+|-+$", ""); // trim leading/trailing hyphens
-    }
-
-    /**
-     * Returns a path that does not collide with existing siblings. E.g. {@code report.md} → {@code
-     * report-1.md} → {@code report-2.md} …
-     */
-    private Path uniquePath(Path dir, String fileName) {
-        Path candidate = dir.resolve(fileName);
-        if (!Files.exists(candidate)) {
-            return candidate;
-        } else if (!config.replace()) {
-            int dot = fileName.lastIndexOf('.');
-            String base = dot >= 0 ? fileName.substring(0, dot) : fileName;
-            String ext = dot >= 0 ? fileName.substring(dot) : "";
-            int suffix = 1;
-            do {
-                candidate = dir.resolve(base + "-" + suffix + ext);
-                suffix++;
-            } while (Files.exists(candidate));
-            return candidate;
-        } else {
-            return candidate;
-        }
+    /** Joins a directory and a name, tolerating an empty directory (the export root). */
+    static String prefix(String dir, String name) {
+        return dir.isEmpty() ? name : dir + "/" + name;
     }
 
     private void createDirectories(Path dir) {
@@ -406,6 +400,10 @@ public class DocumentExportService {
 
     private void writeFile(Path path, String content) {
         try {
+            Path parent = path.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
             Files.writeString(path, content);
         } catch (IOException e) {
             throw new UncheckedIOException("Cannot write file: " + path, e);
@@ -418,13 +416,8 @@ public class DocumentExportService {
         return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
-    // ── Misc helpers ─────────────────────────────────────────────────────────
-
-    private List<DocumentEntity> childrenOf(Long id, Map<Long, List<DocumentEntity>> byParent) {
-        return byParent.getOrDefault(id, Collections.emptyList());
-    }
-
-    private boolean hasContent(@Nullable String s) {
-        return s != null && !s.isBlank();
+    /** Mutable int the lambdas above can bump — a local would have to be effectively final. */
+    private static final class Counter {
+        int value;
     }
 }

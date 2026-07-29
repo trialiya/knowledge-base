@@ -4,23 +4,13 @@
 // стоп генерации). Читаем через fetch-stream (а не EventSource), чтобы работать с
 // тем же механизмом, что и остальной API, и переживать обрывы переподключением с
 // дозагрузкой пропущенного (fromSeq = последний виденный seq).
+//
+// Разбор кадров — общий (api/sse.js); здесь остаётся только то, что специфично
+// для чата: переподключение с backoff и курсор seq.
+
+import { readSseStream } from './sse';
 
 const enc = (id) => encodeURIComponent(id);
-
-// Разбирает один SSE-блок ("id:..\ndata:..") в { id, data }.
-// Несколько строк data: склеиваются через \n, как требует спека SSE (раньше они
-// конкатенировались без разделителя с trim'ом каждой строки — однострочный JSON
-// это переживал, но многострочный кадр молча ломался бы).
-const parseBlock = (block) => {
-  let id;
-  const data = [];
-  for (const line of block.split('\n')) {
-    const l = line.endsWith('\r') ? line.slice(0, -1) : line;
-    if (l.startsWith('data:')) data.push(l.slice(5).replace(/^ /, ''));
-    else if (l.startsWith('id:')) id = l.slice(3).trim();
-  }
-  return { id, data: data.join('\n') };
-};
 
 /**
  * Открывает поток событий чата. Возвращает функцию закрытия.
@@ -57,31 +47,18 @@ export function openChatEventStream(chatId, { onEvent, onStatus, onReconnect, fr
       onStatus?.('open');
       if (wasReconnecting) onReconnect?.();
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder('utf-8');
-      let buffer = '';
-      // SSE-события разделены пустой строкой.
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const blocks = buffer.split('\n\n');
-        buffer = blocks.pop() || '';
-        for (const block of blocks) {
-          const { data } = parseBlock(block);
-          if (!data) continue;
-          try {
-            const ev = JSON.parse(data);
-            if (typeof ev.seq === 'number') {
-              lastSeq = Math.max(lastSeq, ev.seq);
-              onSeq?.(lastSeq);
-            }
-            onEvent?.(ev);
-          } catch {
-            /* битый кадр — пропускаем */
+      await readSseStream(res, (data) => {
+        try {
+          const ev = JSON.parse(data);
+          if (typeof ev.seq === 'number') {
+            lastSeq = Math.max(lastSeq, ev.seq);
+            onSeq?.(lastSeq);
           }
+          onEvent?.(ev);
+        } catch {
+          /* битый кадр — пропускаем */
         }
-      }
+      });
     } catch {
       /* сеть/таймаут — упадём в переподключение ниже */
     }

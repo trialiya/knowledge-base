@@ -9,6 +9,7 @@ import io.github.trialiya.kb.config.PgVectorJdbcConfig;
 import io.github.trialiya.kb.model.doc.dto.Document;
 import io.github.trialiya.kb.model.doc.entity.DocumentEmbeddingEntity;
 import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
+import io.github.trialiya.kb.model.doc.entity.DocumentTreeRow;
 import io.github.trialiya.kb.model.doc.entity.DocumentType;
 import io.github.trialiya.kb.model.search.SemanticSearchResult;
 import io.github.trialiya.kb.repository.DocumentEmbeddingRepository;
@@ -109,6 +110,46 @@ class PostgresDocumentIT extends AbstractPostgresIntegrationTest {
         DocumentEntity fresh = doc("fresh", null, 999);
         assertThat(fresh.getId()).isNotNull().isNotIn(1L, 2L);
         assertThat(repo.findById(fresh.getId())).isPresent();
+    }
+
+    // ── Структурная проекция на реальном PostgreSQL ──────────────────────────
+
+    /**
+     * {@link DocumentTreeRow} — не корень агрегата, поэтому его отображение из колонок в компоненты
+     * записи, конвертер {@code DocumentType} и {@code IS NOT DISTINCT FROM} для корневого уровня
+     * проверяются только запуском на настоящей БД. На этих трёх запросах стоят и экспорт, и
+     * скачивание поддерева, и сравнение папки с базой.
+     */
+    @Test
+    void structuralProjectionMapsOnRealDialect() {
+        DocumentEntity top = folder("проекция", null, 500);
+        DocumentEntity child = doc("тело", top.getId(), 0);
+        repo.save(childWithDescription(child, "содержимое документа"));
+
+        List<DocumentTreeRow> level = repo.findTreeRowsByParent(top.getId());
+        assertThat(level).hasSize(1);
+        assertThat(level.getFirst().id()).isEqualTo(child.getId());
+        assertThat(level.getFirst().title()).isEqualTo("тело");
+        assertThat(level.getFirst().type()).isEqualTo(DocumentType.DOCUMENT);
+        assertThat(level.getFirst().updatedAt()).isNotNull();
+
+        // parentId = null покрывает корневой уровень тем же запросом.
+        assertThat(repo.findTreeRowsByParent(null))
+                .extracting(DocumentTreeRow::id)
+                .contains(top.getId());
+
+        assertThat(repo.findTreeRowById(top.getId()))
+                .get()
+                .extracting(DocumentTreeRow::type)
+                .isEqualTo(DocumentType.FOLDER);
+        assertThat(repo.findDescriptionById(child.getId())).contains("содержимое документа");
+        assertThat(repo.findMaxPosition(top.getId())).isZero();
+        assertThat(repo.findMaxPosition(child.getId())).isEqualTo(-1);
+    }
+
+    private static DocumentEntity childWithDescription(DocumentEntity entity, String description) {
+        entity.setDescription(description);
+        return entity;
     }
 
     // ── Рекурсивные CTE на реальном PostgreSQL ───────────────────────────────

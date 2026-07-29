@@ -9,26 +9,48 @@ import io.github.trialiya.kb.model.doc.dto.MoveRequest;
 import io.github.trialiya.kb.model.doc.dto.PagedChildren;
 import io.github.trialiya.kb.model.doc.dto.SearchResult;
 import io.github.trialiya.kb.model.doc.dto.UpdateDocumentRequest;
+import io.github.trialiya.kb.model.doc.entity.DocumentTreeRow;
+import io.github.trialiya.kb.model.doc.sync.ImportRequest;
 import io.github.trialiya.kb.service.DocumentExportService;
+import io.github.trialiya.kb.service.DocumentExportService.ExportEntry;
 import io.github.trialiya.kb.service.DocumentService;
+import io.github.trialiya.kb.service.DocumentSyncService;
 import io.github.trialiya.kb.service.SemanticSearchService;
+import io.github.trialiya.kb.service.SyncJobRunner;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 @RestController
 @RequestMapping("/api/documents")
 @RequiredArgsConstructor
 public class DocumentController {
 
+    /** File name offered for the whole-tree archive; a single node's name comes from its title. */
+    private static final String ARCHIVE_NAME = "knowledge-base.zip";
+
     private final DocumentService service;
     private final DocumentExportService documentExportService;
+    private final DocumentSyncService documentSyncService;
+    private final SyncJobRunner syncJobRunner;
     private final SemanticSearchService semanticSearchService;
 
     // ── Tree ──────────────────────────────────────────────────────────────────
@@ -79,6 +101,88 @@ public class DocumentController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
         return node;
+    }
+
+    /**
+     * Downloads the whole knowledge base as one {@code .zip}, in the layout the folder export
+     * writes — so unpacking it into the export folder and running a compare shows no differences.
+     *
+     * <p>Unlike {@code POST /admin/export} this writes nothing on the server and needs no {@code
+     * kb.documents.export-path} configured: the archive is assembled into the response as the tree
+     * is walked, which is the only way to get the tree out for someone with no access to the
+     * server's file system.
+     *
+     * <pre>GET /api/documents/download?meta=false</pre>
+     */
+    @GetMapping("/download")
+    public ResponseEntity<StreamingResponseBody> downloadAll(
+            @RequestParam(defaultValue = "false") boolean meta) {
+        return attachment(
+                zipOf(sink -> documentExportService.streamAll(meta, sink)),
+                ARCHIVE_NAME,
+                "application/zip");
+    }
+
+    /**
+     * Downloads a node: a <b>document</b> comes back as one {@code .md}, a <b>folder</b> as a
+     * {@code .zip} of its subtree in the export layout. Internal {@code /?doc=ID} links inside a
+     * folder archive become relative paths, so the unpacked archive is navigable on its own.
+     *
+     * <p>The archive is written straight into the response as the tree is walked — one document is
+     * rendered, zipped and forgotten before the next is fetched — so downloading a large folder
+     * does not cost the server the whole subtree in memory.
+     *
+     * <pre>GET /api/documents/{id}/download?meta=false</pre>
+     */
+    @GetMapping("/{id}/download")
+    public ResponseEntity<StreamingResponseBody> download(
+            @PathVariable long id, @RequestParam(defaultValue = "false") boolean meta) {
+
+        // Resolved before the body starts: a 404 has to be a 404, not a truncated attachment.
+        DocumentTreeRow row = documentExportService.requireRow(id);
+        String filename = documentExportService.downloadName(row);
+
+        if (!row.isFolder()) {
+            byte[] markdown =
+                    documentExportService.renderSingleDocument(id).getBytes(StandardCharsets.UTF_8);
+            return attachment(out -> out.write(markdown), filename, "text/markdown");
+        }
+        return attachment(
+                zipOf(sink -> documentExportService.streamSubtree(id, meta, sink)),
+                filename,
+                "application/zip");
+    }
+
+    /**
+     * Zips a rendered sequence of files straight into the response body: each entry is written and
+     * released before the next is asked for, so nothing but the current file is ever held.
+     */
+    private static StreamingResponseBody zipOf(Consumer<Consumer<ExportEntry>> render) {
+        return out -> {
+            try (ZipOutputStream zip = new ZipOutputStream(out, StandardCharsets.UTF_8)) {
+                render.accept(entry -> writeEntry(zip, entry));
+            }
+        };
+    }
+
+    private static void writeEntry(ZipOutputStream zip, ExportEntry entry) {
+        try {
+            zip.putNextEntry(new ZipEntry(entry.path()));
+            zip.write(entry.content().getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static ResponseEntity<StreamingResponseBody> attachment(
+            StreamingResponseBody body, String filename, String contentType) {
+        ContentDisposition disposition =
+                ContentDisposition.attachment().filename(filename, StandardCharsets.UTF_8).build();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .contentType(MediaType.parseMediaType(contentType))
+                .body(body);
     }
 
     /** История изменений описания документа (newest-first). */
@@ -216,5 +320,53 @@ public class DocumentController {
         documentExportService.exportAll(meta);
     }
 
+    /**
+     * Same export, reported as it happens: one event per node written, then a final frame with the
+     * file count. Use this from a UI — {@code POST /admin/export} above answers nothing until the
+     * last file is on disk, which on a large tree is indistinguishable from a hang.
+     *
+     * <pre>POST /api/documents/admin/export/stream?meta=true → text/event-stream</pre>
+     */
+    @PostMapping(value = "/admin/export/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter exportStream(@RequestParam(defaultValue = "true") boolean meta) {
+        return syncJobRunner.run(
+                "export", sink -> new ExportResponse(documentExportService.exportAll(meta, sink)));
+    }
+
+    /**
+     * Compares the server-side export folder against the database without writing anything, one
+     * event per node as it is decided, then a final frame tallying the statuses.
+     *
+     * <p>This is the read half of the import: the client shows the entries, the user picks, and the
+     * chosen paths go to {@link #importFromFolder}.
+     *
+     * <pre>GET /api/documents/admin/import/diff?parentId=42 → text/event-stream</pre>
+     *
+     * @param parentId subtree the export folder maps onto; omit for the tree root
+     */
+    @GetMapping(value = "/admin/import/diff", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter importDiff(@RequestParam(required = false) @Nullable Long parentId) {
+        return syncJobRunner.run("compare", sink -> documentSyncService.diff(parentId, sink));
+    }
+
+    /**
+     * Imports the selected entries of the export folder, one event per node written, then a final
+     * frame with the counts.
+     *
+     * <p>The body carries the paths from a preceding compare — see {@link ImportRequest}. An empty
+     * selection means "everything that would change"; deletions additionally require {@code
+     * deleteMissing}.
+     *
+     * <pre>POST /api/documents/admin/import → text/event-stream
+     * { "parentId": 42, "paths": ["intro", "guides/setup"], "deleteMissing": false }</pre>
+     */
+    @PostMapping(value = "/admin/import", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter importFromFolder(@RequestBody ImportRequest request) {
+        return syncJobRunner.run("import", sink -> documentSyncService.apply(request, sink));
+    }
+
     public record ReindexResponse(int indexed) {}
+
+    /** Summary frame of {@link #exportStream}. */
+    public record ExportResponse(int files) {}
 }

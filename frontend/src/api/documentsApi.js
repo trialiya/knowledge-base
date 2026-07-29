@@ -68,6 +68,58 @@ const documentsApi = {
    * (бэк отвечает 204 без тела).
    */
   exportToFolder: (meta = true) => requestRaw(`/api/documents/admin/export?meta=${meta}`, { method: 'POST' }),
+
+  // ── Выгрузка/загрузка файлов ─────────────────────────────────────────────
+
+  /**
+   * Ссылка на скачивание узла: документ отдаётся одним .md, папка — zip-архивом
+   * поддерева. Именно ссылка, а не fetch: браузер сам стримит ответ в файл, и
+   * содержимое не проходит через память вкладки.
+   */
+  downloadUrl: (id, meta = false) => `/api/documents/${id}/download?meta=${meta}`,
+
+  /**
+   * Ссылка на архив всего дерева — та же раскладка, что и у экспорта в серверную
+   * папку, но без самой папки: распаковал, поправил, положил обратно. Ссылкой,
+   * а не fetch, по той же причине, что и downloadUrl.
+   */
+  archiveUrl: (meta = false) => `/api/documents/download?meta=${meta}`,
+
+  // ── Потоковые операции администрирования ─────────────────────────────────
+  // Возвращают сырой Response с телом-потоком SSE; читает его useJobStream.
+  // Ошибку до начала потока (не задан DOCUMENTS_EXPORT_PATH и т.п.) видно по
+  // res.ok, дальше — по терминальному кадру error.
+
+  /** Экспорт в серверную папку с прогрессом по узлам. */
+  exportStream: (meta = true, signal) =>
+    requestRaw(`/api/documents/admin/export/stream?meta=${meta}`, {
+      method: 'POST',
+      headers: { Accept: 'text/event-stream' },
+      signal,
+    }),
+
+  /** Сравнение серверной папки экспорта с базой. Ничего не пишет. */
+  importDiff: (parentId, signal) => {
+    const params = new URLSearchParams();
+    if (parentId != null) params.set('parentId', parentId);
+    const query = params.toString();
+    return requestRaw(`/api/documents/admin/import/diff${query ? `?${query}` : ''}`, {
+      headers: { Accept: 'text/event-stream' },
+      signal,
+    });
+  },
+
+  /**
+   * Импорт выбранных записей сравнения.
+   * paths — пути из diff; пустой список означает «всё, что меняется».
+   */
+  importApply: ({ parentId = null, paths = null, deleteMissing = false }, signal) =>
+    requestRaw('/api/documents/admin/import', {
+      method: 'POST',
+      headers: { Accept: 'text/event-stream' },
+      signal,
+      ...json({ parentId, paths, deleteMissing }),
+    }),
 };
 
 export default documentsApi;

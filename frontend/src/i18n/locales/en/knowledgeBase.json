@@ -31,7 +31,9 @@
     "docPlaceholder": "# Markdown content...",
     "folderEmpty": "Folder is empty",
     "loading": "Loading…",
-    "fullscreenContent": "{{title}} — Content"
+    "fullscreenContent": "{{title}} — Content",
+    "downloadDocument": "Download as .md",
+    "downloadFolder": "Download folder as .zip"
   },
   "contentsTable": {
     "name": "Name",
