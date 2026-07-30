@@ -1,11 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconDoc, IconFolder, IconChevronRight, IconSparkle } from '../../icons';
-
-// URL вида ?view=knowledge&doc=N — её же строит useAppNavigation.buildSearch.
-// Нужна как реальный href, чтобы средняя кнопка / Ctrl+Cmd-клик открывали
-// документ в новой вкладке штатным механизмом браузера.
-const docHref = (id) => `${window.location.pathname}?view=knowledge&doc=${encodeURIComponent(id)}`;
+import { docPath } from '../../urlScheme';
 
 // Хлебные крошки строятся из parentList, который приходит с бэка вместе с
 // результатом (корень → непосредственный родитель, без самого документа).
@@ -61,7 +57,7 @@ const SearchResults = ({ query, results, onSelect }) => {
                 */}
                 <a
                   className="sr-card__title"
-                  href={docHref(res.id)}
+                  href={docPath(res.id)}
                   onClick={(e) => {
                     // Клик с модификатором или не левой кнопкой — отдаём браузеру
                     // (открыть в новой вкладке/окне). Средняя кнопка сюда не

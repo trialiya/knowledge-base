@@ -7,9 +7,11 @@ import FilePreviewTooltip from './FilePreviewTooltip';
 import FileFullscreenModal from './FileFullscreenModal';
 import FilePreviewModal from './FilePreviewModal';
 import gitApi from '../../api/gitApi';
+import documentsApi from '../../api/documentsApi';
 import FullscreenEditorModal from '../knowledgeBasePanel/FullscreenEditorModal';
 import { navigateToFile } from '../../fileNavigationBus';
 import { parseDocId, parseFileLink } from './docLinkParsing';
+import { docPath, filesPath } from '../../urlScheme';
 import { scrollToHeading } from './anchorScroll';
 import { TOOLTIP_WIDTH, TOOLTIP_GAP, TOOLTIP_HEIGHT_ESTIMATE } from '../../constants/ui';
 
@@ -40,6 +42,13 @@ import { TOOLTIP_WIDTH, TOOLTIP_GAP, TOOLTIP_HEIGHT_ESTIMATE } from '../../const
  * Navigation for (3)'s "Open" button goes through fileNavigationBus instead,
  * since DocLinkTooltip is too many prop layers away from App (the sole owner
  * of Files-tab navigation state) to thread an equivalent prop through cleanly.
+ *
+ * ⚠️ The rendered `href` is NOT the one from the markdown. Links are stored in
+ * their historical form (`/?doc=N`, `/files?path=P`), which a left click never
+ * follows — but the middle button and Ctrl/Cmd+click do, and they open a real
+ * browser tab on that address. So the anchor always carries the CANONICAL path
+ * (`/knowledge/doc/N`, `/files/P`, see urlScheme) while parsing keeps accepting
+ * both forms; the stored markdown is untouched.
  */
 const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
   const [visible, setVisible] = useState(false);
@@ -63,6 +72,12 @@ const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
   const fileLink = isDocLink ? null : parseFileLink(href);
   const isFileLink = fileLink !== null;
   const isHashLink = typeof href === 'string' && href.trim().startsWith('#');
+
+  // Адрес для «настоящего» перехода браузера (средняя кнопка / Ctrl+Cmd-клик):
+  // всегда каноническая схема, независимо от того, в какой форме ссылка лежит в
+  // markdown. Якорь раздела и диапазон строк файла сохраняем — они часть адреса.
+  const docHref = isDocLink ? docPath(docId) + fragmentOf(href) : null;
+  const fileHref = isFileLink ? filesPath(fileLink.path) + lineHash(fileLink) : null;
 
   const { node, loading, error } = useDocPreview(docId, tree, visible && isDocLink);
   const { file, loading: fileLoading, error: fileError } = useFilePreview(fileLink?.path, visible && isFileLink);
@@ -126,6 +141,9 @@ const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
 
   const handleClick = useCallback(
     (e) => {
+      // Клик с модификатором (или не левой кнопкой) — отдаём браузеру: он откроет
+      // href в новой вкладке/окне. Средняя кнопка сюда не приходит вовсе (auxclick).
+      if (isBrowserClick(e)) return;
       e.preventDefault();
       if (docId) navigateToDoc(docId);
     },
@@ -144,6 +162,7 @@ const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
 
   const handleFileClick = useCallback(
     (e) => {
+      if (isBrowserClick(e)) return;
       e.preventDefault();
       openFilePreview();
     },
@@ -163,10 +182,22 @@ const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
   // То же для fullscreen-превью документа, открываемого из тултипа. Узел
   // снимается в отдельный стейт, потому что node из useDocPreview обнуляется
   // вместе с visible.
+  //
+  // `_stub` — узел, взятый из уже загруженного дерева KB: бэкенд отдаёт в дереве
+  // только первые 150 символов описания (DocumentService.SNIPPET_LENGTH). Для
+  // тултипа этого хватает, а «развернуть» показывает документ целиком, поэтому
+  // полный текст дотягиваем (обычно он уже приехал фоном — тогда ветка не нужна).
   const openFullscreen = useCallback((n) => {
     clearTimeout(enterTimer.current);
     setVisible(false);
     setFullscreenNode(n);
+    if (!n?._stub) return;
+    documentsApi
+      .fetchById(n.id)
+      .then((full) => setFullscreenNode((cur) => (cur && cur.id === full.id ? full : cur)))
+      .catch(() => {
+        /* оставляем то, что есть */
+      });
   }, []);
 
   const openFileFullscreen = useCallback((f) => {
@@ -237,7 +268,7 @@ const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
       <>
         <a
           ref={linkRef}
-          href={href}
+          href={fileHref}
           className="doc-link"
           onClick={handleFileClick}
           onMouseEnter={handleMouseEnter}
@@ -299,7 +330,7 @@ const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
     <>
       <a
         ref={linkRef}
-        href={href}
+        href={docHref}
         className="doc-link"
         onClick={handleClick}
         onMouseEnter={handleMouseEnter}
@@ -338,5 +369,24 @@ const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
     </>
   );
 };
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+/** Якорь исходной ссылки (`/?doc=76#сводка` → `#сводка`), либо ''. */
+function fragmentOf(href) {
+  const i = String(href || '').indexOf('#');
+  return i === -1 ? '' : String(href).slice(i);
+}
+
+/** `#L42` / `#L42-L58` для файловой ссылки, либо '' — если строки не заданы. */
+function lineHash({ fromLine, toLine }) {
+  if (!fromLine) return '';
+  return toLine && toLine !== fromLine ? `#L${fromLine}-L${toLine}` : `#L${fromLine}`;
+}
+
+/** Клик, который должен обработать сам браузер (новая вкладка/окно), а не SPA. */
+function isBrowserClick(e) {
+  return e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0;
+}
 
 export default DocLinkTooltip;

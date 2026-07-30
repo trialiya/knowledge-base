@@ -97,6 +97,15 @@ describe('обратная совместимость со старой схем
     expect(window.history.length).toBe(before);
   });
 
+  it('открывает doc-ссылку из markdown в корне пути (`/?doc=N`)', () => {
+    // Именно эта форма лежит в описаниях документов и сообщениях чата, поэтому
+    // «открыть в новой вкладке» приземляется на неё — раздел из адреса неявный.
+    go('/?doc=70');
+    const { result } = renderHook(() => useAppNavigation());
+    expect(result.current.nav).toMatchObject({ view: 'knowledge', docId: '70' });
+    expect(url()).toBe('/knowledge/doc/70');
+  });
+
   it('открывает старую ссылку на файл', () => {
     go('/files?path=backend/pom.xml');
     const { result } = renderHook(() => useAppNavigation());
