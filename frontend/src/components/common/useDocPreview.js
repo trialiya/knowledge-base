@@ -22,22 +22,29 @@ export function invalidateDocPreviewCache(id) {
 /**
  * Fetches (or returns cached) a document preview node.
  *
- * Strategy (see usePreviewCache): instant tree lookup → module cache →
+ * Strategy (see usePreviewCache): module cache → tree stub as a seed →
  * in-flight subscribe → cancellation-aware fetch via api.fetchById.
  *
+ * The tree node is a SEED, not an answer: the backend truncates `description` to
+ * 150 characters in tree/children listings (DocumentService.SNIPPET_LENGTH), so
+ * it is enough to fill the tooltip instantly but never enough for the expanded
+ * preview — hence `_stub`, and hence the fetch that runs anyway. Short-circuiting
+ * on it (as this hook used to) is what cut expanded previews off mid-sentence
+ * once a search had pulled the linked documents into the tree.
+ *
  * @param {string|null} id       – document id to preview (null = disabled)
- * @param {Array}       tree     – KB tree for instant-lookup before fetch (chat has none)
+ * @param {Array}       tree     – KB tree used to seed the preview (chat has none)
  * @param {boolean}     enabled  – only fetch when true (hover active)
  */
 export default function useDocPreview(id, tree, enabled) {
   const treeRef = useRef(tree);
   treeRef.current = tree; // всегда последний tree, но НЕ триггер эффекта
 
-  const instantLookup = useCallback(() => {
-    const fromTree = findInTree(treeRef.current, id);
-    return fromTree && fromTree.description !== undefined ? fromTree : undefined;
-  }, [id]);
-  const options = useMemo(() => ({ instantLookup }), [instantLookup]);
+  const seed = useCallback((key) => {
+    const fromTree = findInTree(treeRef.current, key);
+    return fromTree && fromTree.description !== undefined ? { ...fromTree, _stub: true } : undefined;
+  }, []);
+  const options = useMemo(() => ({ seed }), [seed]);
 
   const { value, loading, error } = usePreviewCache(store, id, enabled, api.fetchById, options);
 

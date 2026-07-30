@@ -13,9 +13,21 @@ import { IconX } from '../../icons';
  *   savedValue  — сохранённое описание (для вычисления «грязно» в редакторе)
  *   onSave      — async (val) => void
  *   onClose     — () => void
+ *   previewOnly — только просмотр, без тулбара и правки (разворот doc-ссылки из
+ *                 тултипа: там нечего сохранять — документ даже не открыт)
  *   tree, onNavigate — пробрасываются в MarkdownEditor для DocLinkTooltip
  */
-const FullscreenEditorModal = ({ title, value, onChange, savedValue = '', onSave, onClose, tree = [], onNavigate }) => {
+const FullscreenEditorModal = ({
+  title,
+  value,
+  onChange,
+  savedValue = '',
+  onSave,
+  onClose,
+  previewOnly = false,
+  tree = [],
+  onNavigate,
+}) => {
   const { t } = useTranslation('knowledgeBase');
 
   return (
@@ -32,6 +44,7 @@ const FullscreenEditorModal = ({ title, value, onChange, savedValue = '', onSave
           onChange={onChange}
           savedValue={savedValue}
           onSave={onSave || (() => {})}
+          previewOnly={previewOnly}
           tree={tree}
           onNavigate={onNavigate}
         />

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { SEARCH_MODE } from './constants/searchMode';
 import { readPanelState, savePanelState } from './panelState';
+import { decodeSegment, chatPath, docPath, filesPath, KNOWLEDGE_PATH, SEARCH_PATH } from './urlScheme';
 
 /**
  * ──────────────────────────────────────────────────────────────────────────
@@ -54,7 +55,7 @@ import { readPanelState, savePanelState } from './panelState';
  * localStorage (panelState.js) и восстанавливается при возврате в раздел.
  *
  * ── Обратная совместимость ──────────────────────────────────────────────────
- * Старые ссылки (`/knowledge?doc=5&tab=content`, `?view=settings&chat=…`,
+ * Старые ссылки (`/?doc=5`, `/knowledge?doc=5&tab=content`, `?view=settings&chat=…`,
  * `/files?path=…`) продолжают открываться: readUrl понимает и старую форму, а
  * канонизирующий replaceState на старте переписывает адрес в новую схему.
  * Вкладки центра `?tab=` больше нет — те её значения, что переехали в правую
@@ -69,24 +70,6 @@ import { readPanelState, savePanelState } from './panelState';
 const TOP_VIEWS = ['chat', 'knowledge', 'files', 'admin', 'settings'];
 
 // ── URL <-> state ───────────────────────────────────────────────────────────
-
-/** Декодировать сегмент пути, не падая на битом percent-encoding. */
-function decodeSegment(seg) {
-  try {
-    return decodeURIComponent(seg);
-  } catch {
-    return seg;
-  }
-}
-
-/** Путь файла → сегменты URL ('a/b c.md' → 'a/b%20c.md'). */
-function encodeFilePath(path) {
-  return String(path || '')
-    .split('/')
-    .filter(Boolean)
-    .map(encodeURIComponent)
-    .join('/');
-}
 
 /** Текущий адрес целиком (путь + query) — для сравнения с целевым. */
 function currentUrl() {
@@ -124,6 +107,14 @@ function readUrl() {
       docId = p.get('doc') || null;
       if (!docId) search = p.get('search') || '';
     }
+  } else if (!view) {
+    // Legacy без раздела в пути: `/?doc=N`. Это ИСТОРИЧЕСКАЯ форма doc-ссылки —
+    // именно её хранят markdown документов и сообщения чата (DocumentLinkRewriter,
+    // системный промпт), поэтому «открыть в новой вкладке» на такой ссылке обязано
+    // показать документ, а не свалиться в чат по умолчанию. Раздел допишет
+    // initialNav/popstate: docId/search — это всегда база знаний.
+    docId = p.get('doc') || null;
+    if (!docId) search = p.get('search') || '';
   }
 
   // Файлы: /files/<path…> (legacy: ?path=).
@@ -164,22 +155,20 @@ function buildUrl(nav) {
   switch (nav.view) {
     case 'knowledge':
       if (nav.docId) {
-        path = `/knowledge/doc/${encodeURIComponent(nav.docId)}`;
+        path = docPath(nav.docId);
       } else if (nav.search) {
-        path = '/knowledge/search';
+        path = SEARCH_PATH;
         p.set('q', nav.search);
         if (nav.mode && nav.mode !== SEARCH_MODE.HYBRID) p.set('mode', nav.mode);
       } else {
-        path = '/knowledge';
+        path = KNOWLEDGE_PATH;
       }
       break;
-    case 'files': {
-      const encoded = encodeFilePath(nav.filePath);
-      path = encoded ? `/files/${encoded}` : '/files';
+    case 'files':
+      path = filesPath(nav.filePath);
       break;
-    }
     case 'chat':
-      path = nav.chatId ? `/chat/${encodeURIComponent(nav.chatId)}` : '/chat';
+      path = chatPath(nav.chatId);
       break;
     case 'admin':
       path = '/admin';

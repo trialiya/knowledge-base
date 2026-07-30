@@ -202,9 +202,14 @@ const ChatWindow = ({
           // Перезагрузка на черновике: бэк о нём ничего не знает и знать не должен.
           // Показываем свежий пустой черновик, не пытаясь его грузить (никакой ошибки).
           setChats([makeDraft(), ...chatList]);
+          if (!fromUrl) selectChat(DRAFT_CHAT_ID, { navigate: false });
         } else if (currentId && existsInList) {
           // Чат из URL/localStorage реально существует — открываем как есть.
           setChats(chatList);
+          // Если id пришёл НЕ из адреса (запомненный чат из localStorage), навигация
+          // о нём ещё не знает: без этого заход на `/` показывал бы чат, а адрес
+          // оставался бы «голым» /chat — такой ссылкой не поделиться.
+          if (!fromUrl) selectChat(currentId, { navigate: false });
         } else if (currentId && fromUrl) {
           // Явный ?chat=<id> в URL, которого больше нет (устаревшая ссылка) —
           // показываем «не найдено». Автоматически НЕ переключаемся: пользователь

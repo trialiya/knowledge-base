@@ -53,19 +53,22 @@ function isFresh(entry, ttlMs) {
  * @param {(key: *) => Promise<*>} fetcher – resolves the value for key
  * @param {object}   [options]
  * @param {number}   [options.ttlMs] – cache entry TTL; omitted = never expires
- * @param {(key: *) => *} [options.instantLookup] – synchronous pre-check that
- *   bypasses cache/fetch when it returns a non-nullish value
+ * @param {(key: *) => *} [options.seed] – synchronous lookup rendered immediately
+ *   (e.g. a stub from an already-loaded tree) so there is no loading flash. It is
+ *   a HEAD START, not a substitute: the fetch still runs and replaces it. It used
+ *   to short-circuit the fetch entirely, which is how a doc preview could end up
+ *   showing the tree's 150-char snippet as if it were the whole document.
  */
 export default function usePreviewCache(store, key, enabled, fetcher, options = {}) {
-  const { ttlMs, instantLookup } = options;
+  const { ttlMs, seed } = options;
   const [value, setValue] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const prevKeyRef = useRef(null);
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
-  const instantLookupRef = useRef(instantLookup);
-  instantLookupRef.current = instantLookup;
+  const seedRef = useRef(seed);
+  seedRef.current = seed;
 
   useEffect(() => {
     if (!key || !enabled) {
@@ -82,17 +85,9 @@ export default function usePreviewCache(store, key, enabled, fetcher, options = 
       setError(false);
     }
 
-    // 1. Instant path (e.g. lookup in an already-loaded tree)
-    const instant = instantLookupRef.current?.(key);
-    if (instant != null) {
-      setValue(instant);
-      setLoading(false);
-      return undefined;
-    }
-
     const { cache, listeners, notify } = store;
 
-    // 2. Module cache hit
+    // 1. Module cache hit — an already resolved (complete) value beats any seed
     const cached = cache.get(key);
     if (isFresh(cached, ttlMs)) {
       if (cached.value === 'error') {
@@ -105,13 +100,24 @@ export default function usePreviewCache(store, key, enabled, fetcher, options = 
       return undefined;
     }
 
+    // 2. Seed: render what we already have (a tree stub) instead of a spinner,
+    //    then fall through — the fetch below replaces it with the full value.
+    const seeded = seedRef.current?.(key);
+    if (seeded != null) setValue(seeded);
+
+    // Затравка есть — ошибку догрузки не показываем: лучше неполный, но живой
+    // предпросмотр, чем «не найдено» вместо уже показанного узла.
+    const failed = () => {
+      if (seeded == null) setError(true);
+      setLoading(false);
+    };
+
     // 3. Already in-flight — subscribe to result
     if (cached?.value === 'loading') {
-      setLoading(true);
+      setLoading(seeded == null);
       const cb = (val) => {
         if (val === 'error') {
-          setError(true);
-          setLoading(false);
+          failed();
         } else {
           setValue(val);
           setLoading(false);
@@ -125,7 +131,7 @@ export default function usePreviewCache(store, key, enabled, fetcher, options = 
     // 4. Fresh fetch (cancellation-aware)
     let cancelled = false;
     cache.set(key, { value: 'loading', fetchedAt: Date.now() });
-    setLoading(true);
+    setLoading(seeded == null);
 
     fetcherRef
       .current(key)
@@ -138,8 +144,7 @@ export default function usePreviewCache(store, key, enabled, fetcher, options = 
       .catch(() => {
         notify(key, 'error');
         if (cancelled) return;
-        setError(true);
-        setLoading(false);
+        failed();
       });
 
     return () => {

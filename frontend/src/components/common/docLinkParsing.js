@@ -1,8 +1,14 @@
+import { decodeFilePath } from '../../urlScheme';
+
+/** Канонический путь документа: /knowledge/doc/123 (см. urlScheme.docPath). */
+const DOC_PATH = /^\/knowledge\/doc\/(\d+)\/?$/;
+
 /**
  * Returns the doc id ONLY for internal KB links, i.e.:
- *   /?doc=123        (root-relative)
+ *   /?doc=123        (root-relative, the form stored inside markdown)
  *   ?doc=123         (query-only)
  *   /kb?doc=123      (relative path + query)
+ *   /knowledge/doc/123             (canonical path form — what we now render)
  *   https://<this-site>/?doc=123   (absolute, but same origin)
  *
  * Returns null for any external URL (different origin) even if it happens
@@ -18,9 +24,12 @@ export function parseDocId(href) {
     // Reject cross-origin links — they are external sites, not KB docs.
     if (url.origin !== window.location.origin) return null;
 
-    const doc = url.searchParams.get('doc');
+    const fromPath = url.pathname.match(DOC_PATH);
     // ids are numeric end-to-end now — parse the (always-string) URL param to a
     // Number here so downstream comparisons against the tree are number↔number.
+    if (fromPath) return Number(fromPath[1]);
+
+    const doc = url.searchParams.get('doc');
     return doc && /^\d+$/.test(doc) ? Number(doc) : null;
   } catch {
     return null;
@@ -29,8 +38,9 @@ export function parseDocId(href) {
 
 /**
  * Returns { path, fromLine, toLine } ONLY for internal file-browser links, i.e.:
- *   /files?path=backend/.../GitService.java
- *   /files?path=backend/.../GitService.java#L42        (single line)
+ *   /files?path=backend/.../GitService.java             (the form stored inside markdown)
+ *   /files/backend/.../GitService.java                  (canonical path form)
+ *   /files?path=backend/.../GitService.java#L42         (single line)
  *   /files?path=backend/.../GitService.java#L42-L58     (line range)
  *
  * Returns null for anything else (cross-origin, wrong pathname, missing path) — those
@@ -41,9 +51,13 @@ export function parseFileLink(href) {
   try {
     const url = new URL(href, window.location.origin);
     if (url.origin !== window.location.origin) return null;
-    if (url.pathname !== '/files') return null;
 
-    const path = url.searchParams.get('path');
+    let path;
+    if (url.pathname === '/files') {
+      path = url.searchParams.get('path');
+    } else if (url.pathname.startsWith('/files/')) {
+      path = decodeFilePath(url.pathname.slice('/files/'.length));
+    }
     if (!path) return null;
 
     let fromLine = null;
