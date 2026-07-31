@@ -81,10 +81,9 @@ public class SearchAgentService {
         this.chatModel = chatModel;
         this.toolCallingManager = toolCallingManager;
         this.config = config;
+        String basePrompt = readResource(systemPrompt);
         this.systemPrompt =
-                extraInstructions.isBlank()
-                        ? readResource(systemPrompt)
-                        : readResource(systemPrompt) + "\n\n" + extraInstructions;
+                extraInstructions.isBlank() ? basePrompt : basePrompt + "\n\n" + extraInstructions;
         this.toolCallbacks = toolCallbacks;
         log.info(
                 "SearchAgentService ready: model={}, maxIterations={}, tools={}",

@@ -142,6 +142,15 @@ class GitServiceEditTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test
+    void canonicalisingATrailingSlashOrABarePathDropsOrRejectsIt() {
+        // A trailing slash names no file any more than a leading "./" does — it must collapse the
+        // same way, not slip through the fast path unchanged.
+        assertThat(GitService.normalizePath("docs/")).isEqualTo("docs");
+        assertThatThrownBy(() -> GitService.normalizePath("."))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
     // ── editFile ─────────────────────────────────────────────────────────────
 
     @Test

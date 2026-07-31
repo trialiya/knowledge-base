@@ -1503,7 +1503,11 @@ public class GitService {
     public static String normalizePath(@NonNull String filePath) {
         String forward = toForwardSlashes(filePath.strip());
         requireSafeGitRelativePath(forward);
-        if (!forward.contains("./") && !forward.contains("//") && !forward.endsWith("/.")) {
+        if (!forward.contains("./")
+                && !forward.contains("//")
+                && !forward.endsWith("/.")
+                && !forward.endsWith("/")
+                && !forward.equals(".")) {
             return forward;
         }
         StringBuilder canonical = new StringBuilder(forward.length());

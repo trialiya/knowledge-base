@@ -236,10 +236,11 @@ public class ChatConfig {
      * allowed-tools} cannot conjure one up in a deployment that switched scripts off — which would
      * otherwise leave the sub-agent running scripts with no handbook to run them by.
      *
-     * <p>Public so {@code SearchAgentToolGuardTest} can pin it directly — the decision is one
-     * boolean, and a test that re-derived it would only be testing its own copy.
+     * <p>Package-private so {@code ChatConfigSubAgentScriptsAvailableTest} can pin it directly —
+     * the decision is one boolean, and a test that re-derived it would only be testing its own
+     * copy.
      */
-    public static boolean subAgentScriptsAvailable(
+    static boolean subAgentScriptsAvailable(
             ScriptProperties scriptProperties, SubAgentConfig subAgentConfig) {
         return scriptProperties.enabled() && subAgentConfig.allowedTools().contains("runScript");
     }
