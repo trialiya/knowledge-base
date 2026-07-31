@@ -148,14 +148,23 @@ kb:
     # can never be a way around a read-only deployment. Separate flag so a deployment can keep the
     # edit tools and still hand the model read-only scripts. See ScriptEditPolicy.
     edit-enabled: ${KB_SCRIPT_EDIT_ENABLED:true}
-    # Handbook injected into the system prompt while the tool is enabled (ScriptGuideService).
-    # Weak models cannot use runScript from its tool description alone — they need the kb reference,
-    # worked examples and the error table. Empty when enabled=false, so a model that cannot run
-    # scripts is never told about them. Budget numbers below are substituted into it, not copied.
+    # Append the tutorial half of the handbook (see below). On by default: a weak model cannot use
+    # runScript without worked examples it can copy. Switch off for a strong model — the reference
+    # half still ships, so the model keeps the kb API, the budgets and the error kinds, and only
+    # loses advice it already follows.
+    extended-guide-enabled: ${KB_SCRIPT_EXTENDED_GUIDE:true}
+    # Handbook injected into the system prompt while the tool is enabled (ScriptGuideService),
+    # in two halves. The reference half is unconditional — the kb API, the limits and the error
+    # table are what no model can guess. The extended half is the tutorial: when to prefer a
+    # script, how to structure one, examples, what not to do. Empty when enabled=false, so a model
+    # that cannot run scripts is never told about them. Budget numbers are substituted, not copied.
     guide: classpath:prompt/script-run.md
-    # Appended to the handbook only when writes are actually available — telling a model about
-    # kb.edit it cannot call wastes its attempts.
+    extended-guide: classpath:prompt/script-run-extended.md
+    # Appended only when writes are actually available — telling a model about kb.edit it cannot
+    # call wastes its attempts. Split the same way: the rules always, the examples only with
+    # extended-guide-enabled.
     edit-guide: classpath:prompt/script-run-edit.md
+    extended-edit-guide: classpath:prompt/script-run-edit-extended.md
     timeout: ${KB_SCRIPT_TIMEOUT:10s}   # default wall-clock budget for one script
     max-timeout: 30s                    # ceiling for the tool's own timeoutSeconds argument
     cancel-poll: 50ms                   # how often the watchdog rechecks deadline + stop flag

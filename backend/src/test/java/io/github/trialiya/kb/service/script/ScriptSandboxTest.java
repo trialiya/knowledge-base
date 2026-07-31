@@ -359,6 +359,9 @@ class ScriptSandboxTest {
                         new ScriptProperties(
                                 true,
                                 false,
+                                true,
+                                null,
+                                null,
                                 null,
                                 null,
                                 Duration.ofSeconds(1),
@@ -439,7 +442,8 @@ class ScriptSandboxTest {
     }
 
     private static ScriptProperties withGlobs(List<String> deny, List<String> allow) {
-        return new ScriptProperties(true, false, null, null, null, null, null, null, deny, allow);
+        return new ScriptProperties(
+                true, false, true, null, null, null, null, null, null, null, null, deny, allow);
     }
 
     private static ScriptProperties withLimits(
@@ -447,6 +451,9 @@ class ScriptSandboxTest {
         return new ScriptProperties(
                 true,
                 false,
+                true,
+                null,
+                null,
                 null,
                 null,
                 null,

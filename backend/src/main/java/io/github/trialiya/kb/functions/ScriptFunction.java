@@ -21,10 +21,11 @@ import org.springframework.ai.tool.annotation.ToolParam;
  * sub-agent's copy, refused outright (see {@link #readOnly}).
  *
  * <p><b>The description here is deliberately short.</b> The full handbook — the {@code kb}
- * reference, worked examples, the budgets, what to do about each error — is injected into the
- * system prompt by {@code ScriptGuideService} whenever this tool is present. Keeping it there
- * rather than in the annotation means one text to maintain, and one that can grow to the length a
- * weak model actually needs without bloating every tool listing.
+ * reference, the budgets, what to do about each error, and for a weak model the worked examples too
+ * — is injected into the system prompt by {@code ScriptGuideService} whenever this tool is present.
+ * Keeping it there rather than in the annotation means one text to maintain, one that can grow to
+ * the length a weak model actually needs without bloating every tool listing, and one whose
+ * tutorial half a deployment can drop (see {@code kb.script.extended-guide-enabled}).
  */
 @Slf4j
 // Private: which of the two factories was used is the whole difference between the chat's copy of
@@ -58,8 +59,8 @@ public class ScriptFunction {
                     правке ещё kb.edit и kb.create) — файловых, сетевых и Java-API нет. Результат \
                     возвращай через return. Бери, когда нужно пройтись по многим файлам и что-то \
                     сопоставить/посчитать/изменить; для одного точного поиска, чтения или правки \
-                    используй grepContent / getFileContent / editFile. Полная инструкция по kb, \
-                    примеры и лимиты — в системном промпте, раздел «Скрипты (runScript)». \
+                    используй grepContent / getFileContent / editFile. Справочник по kb и лимиты — \
+                    в системном промпте, раздел «Скрипты (runScript)». \
                     Ответ: value (то, что вернул скрипт), log, stats, filesRead, edits (диффы \
                     изменённых файлов), error (kind=SYNTAX|RUNTIME|TIMEOUT|BUDGET с подсказкой, \
                     как починить).

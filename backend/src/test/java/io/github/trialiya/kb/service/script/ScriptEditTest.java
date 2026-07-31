@@ -130,6 +130,9 @@ class ScriptEditTest {
                         new ScriptProperties(
                                 true,
                                 true,
+                                true,
+                                null,
+                                null,
                                 null,
                                 null,
                                 Duration.ofSeconds(1),
@@ -323,7 +326,19 @@ class ScriptEditTest {
     void refusesToEditAFileHiddenByTheGlobPolicy() {
         ScriptProperties hidden =
                 new ScriptProperties(
-                        true, true, null, null, null, null, null, null, List.of("src/**"), null);
+                        true,
+                        true,
+                        true,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        List.of("src/**"),
+                        null);
         runner = newRunner(true, hidden);
 
         ScriptResult result =
@@ -432,13 +447,17 @@ class ScriptEditTest {
     }
 
     private static ScriptProperties withDenyGlobs(List<String> deny) {
-        return new ScriptProperties(true, true, null, null, null, null, null, null, deny, null);
+        return new ScriptProperties(
+                true, true, true, null, null, null, null, null, null, null, null, deny, null);
     }
 
     private static ScriptProperties withEditLimits(int maxEditedFiles) {
         return new ScriptProperties(
                 true,
                 true,
+                true,
+                null,
+                null,
                 null,
                 null,
                 null,

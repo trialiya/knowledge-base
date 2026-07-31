@@ -22,7 +22,9 @@ class ScriptGuideServiceTest {
     @Test
     void saysNothingAboutScriptsWhenTheToolIsDisabled() {
         ScriptProperties disabled =
-                new ScriptProperties(false, false, null, null, null, null, null, null, null, null);
+                new ScriptProperties(
+                        false, false, true, null, null, null, null, null, null, null, null, null,
+                        null);
 
         assertThat(guide(disabled, false).instructions()).isEmpty();
     }
@@ -47,7 +49,10 @@ class ScriptGuideServiceTest {
                 new ScriptProperties(
                         true,
                         false,
+                        false,
                         guide,
+                        null,
+                        null,
                         null,
                         java.time.Duration.ofSeconds(7),
                         java.time.Duration.ofSeconds(42),
@@ -95,6 +100,38 @@ class ScriptGuideServiceTest {
         assertThat(guide(properties, true).instructions()).contains("kb.edit", "kb.create");
     }
 
+    /**
+     * The split is only worth having if the two halves are the ones described: switching the
+     * tutorial off must cost the examples and nothing else. A model that lost the {@code kb}
+     * reference or the edit rules along with them would be worse off than with no handbook at all.
+     */
+    @Test
+    void dropsTheTutorialButKeepsTheReferenceWhenTheExtendedGuideIsOff() {
+        String full = guide(ScriptProperties.enabledWithDefaults(), true).instructions();
+        String reference = guide(withoutExtendedGuide(), true).instructions();
+
+        assertThat(reference)
+                .contains(
+                        "### Справочник kb",
+                        "kb.grep",
+                        "### Лимиты одного запуска",
+                        "### Обязательные правила",
+                        "kb.edit")
+                .doesNotContain(
+                        "### Примеры",
+                        "### Чего не делать",
+                        "### Пример: массовое переименование с проверкой");
+        assertThat(full)
+                .contains(
+                        "### Примеры",
+                        "### Чего не делать",
+                        "### Пример: массовое переименование с проверкой");
+        // Substitution runs over the assembled text, so a placeholder left in an appendix would
+        // reach the model verbatim.
+        assertThat(full).doesNotContain("{{");
+        assertThat(reference).doesNotContain("{{");
+    }
+
     @Test
     void neverOffersWritesToTheSearchSubAgentEvenWhereTheMainChatMayEdit() {
         ScriptGuideService service = guide(ScriptProperties.enabledWithDefaults(), true);
@@ -103,12 +140,21 @@ class ScriptGuideServiceTest {
         assertThat(service.readOnlyInstructions()).doesNotContain("kb.edit");
     }
 
+    /** The real handbooks, with only the tutorial halves switched off. */
+    private static ScriptProperties withoutExtendedGuide() {
+        return new ScriptProperties(
+                true, true, false, null, null, null, null, null, null, null, null, null, null);
+    }
+
     /** {@code properties} with one guide and one byte budget varied; the rest stay at defaults. */
     private static ScriptProperties sized(Resource guide, DataSize maxBytesRead) {
         return new ScriptProperties(
                 true,
                 false,
+                false,
                 guide,
+                null,
+                null,
                 null,
                 null,
                 null,

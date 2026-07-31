@@ -44,6 +44,9 @@ class ScriptCancellationTest {
                 new ScriptProperties(
                         true,
                         false,
+                        true,
+                        null,
+                        null,
                         null,
                         null,
                         // A minute of budget: whatever stops the script below, it is not the

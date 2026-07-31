@@ -21,10 +21,18 @@ import org.springframework.util.unit.DataSize;
  *     not sufficient: {@code kb.git.edit-enabled} must be on and the working tree writable, exactly
  *     as for the {@code editFile} tool (see {@code ScriptEditPolicy}). Separate from that flag so a
  *     deployment can keep the edit tools and still hand the model read-only scripts
- * @param guide markdown handbook injected into the system prompt while the tool is enabled (see
- *     {@code ScriptGuideService}); weak models cannot use the tool from its description alone
- * @param editGuide appendix appended to {@code guide} only when writes are actually available —
- *     telling a model about {@code kb.edit} it cannot call wastes its attempts
+ * @param extendedGuideEnabled append the tutorial half of the handbook — when to prefer a script,
+ *     how to structure one, worked examples, what not to do. On by default: a weak model needs it.
+ *     A deployment running a strong model can switch it off and keep only the reference half, which
+ *     no model can guess — the {@code kb} API, the budgets, the error kinds
+ * @param guide the reference half of the markdown handbook, injected into the system prompt for as
+ *     long as the tool is enabled (see {@code ScriptGuideService})
+ * @param extendedGuide the tutorial half, appended to {@code guide} while {@code
+ *     extendedGuideEnabled} is on
+ * @param editGuide reference appendix, appended only when writes are actually available — telling a
+ *     model about {@code kb.edit} it cannot call wastes its attempts
+ * @param extendedEditGuide tutorial appendix for writes; needs both gates — writes available and
+ *     {@code extendedGuideEnabled} on
  * @param timeout wall-clock budget for one script when the model does not ask for a specific one
  * @param maxTimeout ceiling for the tool's own {@code timeoutSeconds} argument
  * @param cancelPoll how often the watchdog re-checks the deadline and the run's cancellation flag
@@ -38,8 +46,11 @@ import org.springframework.util.unit.DataSize;
 public record ScriptProperties(
         boolean enabled,
         boolean editEnabled,
+        boolean extendedGuideEnabled,
         Resource guide,
+        Resource extendedGuide,
         Resource editGuide,
+        Resource extendedEditGuide,
         Duration timeout,
         Duration maxTimeout,
         Duration cancelPoll,
@@ -49,14 +60,23 @@ public record ScriptProperties(
 
     private static final Resource DEFAULT_GUIDE = new ClassPathResource("prompt/script-run.md");
 
+    private static final Resource DEFAULT_EXTENDED_GUIDE =
+            new ClassPathResource("prompt/script-run-extended.md");
+
     private static final Resource DEFAULT_EDIT_GUIDE =
             new ClassPathResource("prompt/script-run-edit.md");
+
+    private static final Resource DEFAULT_EXTENDED_EDIT_GUIDE =
+            new ClassPathResource("prompt/script-run-edit-extended.md");
 
     public ScriptProperties(
             boolean enabled,
             boolean editEnabled,
+            boolean extendedGuideEnabled,
             @Nullable Resource guide,
+            @Nullable Resource extendedGuide,
             @Nullable Resource editGuide,
+            @Nullable Resource extendedEditGuide,
             @Nullable Duration timeout,
             @Nullable Duration maxTimeout,
             @Nullable Duration cancelPoll,
@@ -65,8 +85,12 @@ public record ScriptProperties(
             @Nullable List<String> allowGlobs) {
         this.enabled = enabled;
         this.editEnabled = editEnabled;
+        this.extendedGuideEnabled = extendedGuideEnabled;
         this.guide = guide != null ? guide : DEFAULT_GUIDE;
+        this.extendedGuide = extendedGuide != null ? extendedGuide : DEFAULT_EXTENDED_GUIDE;
         this.editGuide = editGuide != null ? editGuide : DEFAULT_EDIT_GUIDE;
+        this.extendedEditGuide =
+                extendedEditGuide != null ? extendedEditGuide : DEFAULT_EXTENDED_EDIT_GUIDE;
         this.timeout = timeout != null ? timeout : Duration.ofSeconds(10);
         this.maxTimeout = maxTimeout != null ? maxTimeout : Duration.ofSeconds(30);
         this.cancelPoll = cancelPoll != null ? cancelPoll : Duration.ofMillis(50);
@@ -77,7 +101,8 @@ public record ScriptProperties(
 
     /** All-defaults instance with the tool enabled — for tests and programmatic setups. */
     public static ScriptProperties enabledWithDefaults() {
-        return new ScriptProperties(true, true, null, null, null, null, null, null, null, null);
+        return new ScriptProperties(
+                true, true, true, null, null, null, null, null, null, null, null, null, null);
     }
 
     /**

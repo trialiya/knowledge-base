@@ -23,6 +23,13 @@ import org.springframework.util.unit.DataSize;
  * so a model that cannot run scripts is never told about scripts; extra instructions hurt a weak
  * model as much as missing ones.
  *
+ * <p>The handbook comes in two halves, and only the first is unconditional. The reference half —
+ * the {@code kb} API, the budgets, the error kinds — is what no model can guess, so it ships
+ * whenever the tool does. The tutorial half — when to prefer a script, how to structure one, worked
+ * examples — is the part a strong model already knows; {@code kb.script.extended-guide-enabled=
+ * false} drops it and keeps the prompt short. The same split applies to the write appendix, so
+ * turning the tutorial off cannot leave the edit rules behind.
+ *
  * <p>The budget numbers in the handbook are substituted from {@code kb.script.limits} rather than
  * written into the markdown, so lowering a limit cannot silently leave the model working from a
  * stale figure.
@@ -71,16 +78,29 @@ public class ScriptGuideService {
                         Map.entry("timeout", properties.timeout().toSeconds() + " с"),
                         Map.entry("max_timeout", properties.maxTimeout().toSeconds() + " с"));
 
-        // The write appendix is added only when kb.edit/kb.create are actually bound, so the
-        // handbook can never describe a method the sandbox does not have.
-        String text = read(properties.guide());
-        if (editEnabled) {
-            text = text + "\n\n" + read(properties.editGuide());
+        // Two independent gates. The write appendices are added only when kb.edit/kb.create are
+        // actually bound, so the handbook can never describe a method the sandbox does not have;
+        // the extended halves are added only for a deployment that asked for the tutorial.
+        boolean extended = properties.extendedGuideEnabled();
+        StringBuilder handbook = new StringBuilder(read(properties.guide()));
+        if (extended) {
+            append(handbook, properties.extendedGuide());
         }
+        if (editEnabled) {
+            append(handbook, properties.editGuide());
+            if (extended) {
+                append(handbook, properties.extendedEditGuide());
+            }
+        }
+        String text = handbook.toString();
         for (Map.Entry<String, String> entry : values.entrySet()) {
             text = text.replace("{{" + entry.getKey() + "}}", entry.getValue());
         }
         return text;
+    }
+
+    private static void append(StringBuilder handbook, Resource section) {
+        handbook.append("\n\n").append(read(section));
     }
 
     /**
