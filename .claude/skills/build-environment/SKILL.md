@@ -10,36 +10,19 @@ JDK 25, and the Claude Code web sandbox. **`run/test.sh` already applies all of
 it** — read on only when running Gradle by hand or when the wrapper itself
 misbehaves. Delete a section here once its environment is gone.
 
-## The Java 25 toolchain
+## Java 25, with a Java 21 fallback
 
-The backend targets a Java 25 toolchain, and Gradle resolves it by
-auto-detection — a JDK 25 only has to be **installed** somewhere Gradle scans
-(`/usr/lib/jvm`, SDKMAN, jenv, asdf, the macOS and Homebrew locations). The
-daemon itself may keep running on an older JVM; `JAVA_HOME` pointing at a JDK 21
-is not a problem on its own.
-
-**The web sandbox now ships a JDK 25** (`/usr/lib/jvm/java-25-openjdk-amd64`,
-and `/usr/bin/java` resolves to it), so nothing special is needed here — plain
-`gradle :backend:test` compiles at Java 25, configuration cache and all.
-
-## The Java 21 fallback (no JDK 25 anywhere)
-
-Where no JDK 25 exists at all, the build cannot resolve the toolchain. Apply the
-`gradle/java21.gradle` init script to retarget to 21 and enable preview features
-— `ToolTranslationsTest` uses unnamed variables (`_`), a Java 21 preview
-finalized in 22–25:
+The build targets Java 25. Where no JDK 25 exists, `gradle/java21.gradle`
+retargets the toolchain to 21 and enables the preview features
+`ToolTranslationsTest` needs:
 
 ```bash
 ./gradlew :backend:test --init-script gradle/java21.gradle --no-configuration-cache
 ```
 
-`--no-configuration-cache` is required. This is a local/CI fallback only — keep
+`--no-configuration-cache` is required. `run/test.sh` makes that call itself —
+force it with `KB_JAVA21=1` (always) or `KB_JAVA21=0` (never). Keep
 `backend/build.gradle` on Java 25.
-
-`run/test.sh` decides this by itself: it looks for an installed JDK 25 and adds
-both flags only when it finds none. Force the decision with `KB_JAVA21=1`
-(always) or `KB_JAVA21=0` (never) when that guess is wrong — e.g. when Gradle
-runs with toolchain auto-detection disabled.
 
 ## The Claude Code web sandbox
 
