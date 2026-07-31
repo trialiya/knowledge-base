@@ -119,12 +119,26 @@ public class GitService {
                     ".pyo", ".swp", ".swo", ".bak", ".tmp", ".orig");
 
     private final Path repoPath;
+
+    /**
+     * {@link #repoPath} with every symlink in it resolved. Comparison base for {@link
+     * #requireInsideRepo}: the repository itself may legitimately live behind a symlinked parent
+     * (a {@code /tmp} → {@code /private/tmp} style mount), in which case real paths of its own
+     * files would never start with the textual {@link #repoPath}.
+     */
+    private final Path repoRealPath;
+
     private final Repository repository;
     private final Git git;
     private final OutlineService outlineService;
 
     public GitService(GitProperties gitProperties, OutlineService outlineService) {
         this.repoPath = Path.of(gitProperties.projectPath()).toAbsolutePath().normalize();
+        try {
+            this.repoRealPath = repoPath.toRealPath();
+        } catch (IOException e) {
+            throw new IllegalStateException("Cannot resolve repository path: " + repoPath, e);
+        }
         this.outlineService = outlineService;
         try {
             this.repository = new FileRepositoryBuilder().setWorkTree(repoPath.toFile()).build();
@@ -891,10 +905,7 @@ public class GitService {
         requireSafeGitRelativePath(normalized);
 
         // Security: confine to the repo before touching the filesystem.
-        Path absolute = repoPath.resolve(normalized).normalize();
-        if (!absolute.startsWith(repoPath)) {
-            throw new IllegalArgumentException("Path traversal not allowed: " + normalized);
-        }
+        Path absolute = confineToRepo(normalized);
 
         // Only tracked files may be served. The message is the same whether the path is
         // untracked-but-present or genuinely missing, so a caller can't use it to fingerprint
@@ -1163,10 +1174,7 @@ public class GitService {
     private String validateWritablePath(String filePath) {
         String normalized = toForwardSlashes(filePath.strip());
         requireSafeGitRelativePath(normalized);
-        Path absolute = repoPath.resolve(normalized).normalize();
-        if (!absolute.startsWith(repoPath)) {
-            throw new IllegalArgumentException("Path traversal not allowed: " + normalized);
-        }
+        confineToRepo(normalized);
         if (normalized.equals(".git") || normalized.startsWith(".git/")) {
             throw new IllegalArgumentException("Writing into .git is not allowed");
         }
@@ -1404,6 +1412,44 @@ public class GitService {
         if (!SAFE_GIT_RELATIVE_PATH.matcher(path).matches()) {
             throw new IllegalArgumentException("Path contains unsupported characters: " + path);
         }
+    }
+
+    /**
+     * Resolves a repo-relative path to its absolute location and confirms it really is inside the
+     * working tree — textually first, then through the filesystem.
+     *
+     * <p>The textual check ({@link Path#normalize()} plus a prefix comparison) is not enough on its
+     * own: it rewrites the path as a string and knows nothing about symlinks. A <em>tracked</em>
+     * symlink pointing outside the repository — or a symlinked directory anywhere along the path —
+     * passes it, while the read or write itself lands wherever the link points. Resolving the
+     * deepest component that actually exists closes that: for an existing file it is the file
+     * itself (final link included), for a path being created it is the nearest existing ancestor,
+     * which is exactly what {@link #createFile} needs.
+     *
+     * @return the absolute, normalized path — link-resolution is only the check, callers keep
+     *     reading and writing through the path the repository names
+     */
+    private Path confineToRepo(String normalized) {
+        Path absolute = repoPath.resolve(normalized).normalize();
+        if (!absolute.startsWith(repoPath)) {
+            throw new IllegalArgumentException("Path traversal not allowed: " + normalized);
+        }
+        for (Path probe = absolute; probe != null; probe = probe.getParent()) {
+            Path real;
+            try {
+                real = probe.toRealPath();
+            } catch (IOException ignored) {
+                // Not on disk yet (createFile) or a dangling symlink — ask its parent instead.
+                continue;
+            }
+            if (!real.startsWith(repoRealPath)) {
+                throw new IllegalArgumentException(
+                        "Path escapes the repository via a symlink: " + normalized);
+            }
+            return absolute;
+        }
+        // Unreachable in practice: the repository root itself always resolves.
+        return absolute;
     }
 
     /** Returns {@code true} for OS/IDE artefacts that should never appear in results. */
