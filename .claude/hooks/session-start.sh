@@ -16,8 +16,12 @@ echo 'export LANG=C.utf8' >> "$CLAUDE_ENV_FILE"
 echo 'export GRADLE=/opt/gradle/bin/gradle' >> "$CLAUDE_ENV_FILE"
 
 # Warm the dependency cache and compile backend main+test classes so
-# `gradle :backend:test` / `spotlessCheck` start fast. Only JDK 21 is
-# available, hence the init script (see that skill); --no-configuration-cache
-# is required with it. Idempotent: incremental no-op on a warm cache.
-/opt/gradle/bin/gradle :backend:testClasses \
-  --init-script gradle/java21.gradle --no-configuration-cache --quiet
+# `gradle :backend:test` / `spotlessCheck` start fast. The image ships a JDK 25
+# next to the JDK 21 that JAVA_HOME points at, and Gradle auto-detects it for
+# the toolchain — so this compiles against the same Java 25 run/test.sh will
+# use, with no init script and the configuration cache left on. Idempotent:
+# incremental no-op on a warm cache. Best-effort: a warm-up that cannot run
+# must not take the session down with it — the checks themselves still work.
+if ! /opt/gradle/bin/gradle :backend:testClasses --quiet; then
+  echo "session-start: backend warm-up failed; './run/test.sh unit' will rebuild" >&2
+fi

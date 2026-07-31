@@ -10,7 +10,7 @@ PostgreSQL 17 + pgvector, H2 for local runs and tests) and a React 19 frontend
 
 **Never assemble a `gradle` command by hand — every check goes through
 `run/test.sh`** (Windows: `run\test.bat` / `run\test.ps1`). It decides the
-awkward parts itself: system Gradle vs `./gradlew`, the JDK 21 init script,
+awkward parts itself: system Gradle vs `./gradlew`, the Java 21 fallback,
 starting `dockerd` for Testcontainers.
 
 ```bash

@@ -2,7 +2,7 @@
 # Run the Knowledge Base checks on Linux or macOS.
 #
 # One entry point for every suite, so the awkward parts (system Gradle in the
-# web sandbox, the JDK 21 init script, starting dockerd for Testcontainers) are
+# web sandbox, the Java 21 fallback, starting dockerd for Testcontainers) are
 # decided here instead of being retyped every session.
 #
 # Usage:
@@ -45,8 +45,8 @@
 #   GRADLE      path to the Gradle to use (the web sandbox sets it; otherwise
 #               ./gradlew is used, falling back to gradle on PATH)
 #   KB_JAVA21   1 forces the Java 21 init script, 0 forbids it. Unset = decide by
-#               the JDK actually found (the build targets Java 25, see
-#               backend/build.gradle).
+#               whether a JDK 25 is installed anywhere Gradle looks for
+#               toolchains (the build targets Java 25, see backend/build.gradle).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -72,25 +72,52 @@ else
   exit 1
 fi
 
-# ── Java 21 workaround ────────────────────────────────────────────────────────
-# The toolchain targets Java 25; on a JDK older than that the build cannot
-# resolve it, and gradle/java21.gradle retargets to 21 with preview features on.
-# --no-configuration-cache is required with it (the toolchain override is not
-# serializable).
+# ── Java 21 fallback ──────────────────────────────────────────────────────────
+# The build targets a Java 25 toolchain (backend/build.gradle), which Gradle
+# resolves by auto-detection: it is enough for a JDK 25 to be *installed*
+# somewhere it scans — the daemon itself may keep running on an older JVM. So
+# the question is not "which JDK runs Gradle" but "is a JDK 25 present at all";
+# only when none is does gradle/java21.gradle step in and retarget to 21 with
+# preview features on. --no-configuration-cache is required with it (the
+# toolchain override is not serializable).
 java_major() {
   local java_bin="java"
   [ -n "${JAVA_HOME:-}" ] && java_bin="$JAVA_HOME/bin/java"
   "$java_bin" -version 2>&1 | sed -n 's/.*version "\([0-9]*\).*/\1/p' | head -1
 }
 
+# Major version out of a JDK's own `release` file — reads an installation
+# without paying to launch it. Silent for a directory that is not a JDK.
+jdk_home_major() {
+  [ -r "$1/release" ] || return 0
+  sed -n 's/^JAVA_VERSION="\([0-9][0-9]*\).*/\1/p' "$1/release" | head -1
+}
+
+have_jdk25() {
+  local major home
+  major="$(java_major || true)"
+  [ -n "$major" ] && [ "$major" -ge 25 ] && return 0
+  # The usual install locations, which are also the ones Gradle auto-detects.
+  # A glob matching nothing stays literal and just fails the -r test above.
+  for home in \
+    /usr/lib/jvm/* \
+    /usr/java/* \
+    "${SDKMAN_DIR:-$HOME/.sdkman}"/candidates/java/* \
+    "$HOME"/.asdf/installs/java/* \
+    "$HOME"/.jenv/versions/* \
+    /Library/Java/JavaVirtualMachines/*/Contents/Home \
+    /opt/homebrew/opt/openjdk*/libexec/openjdk.jdk/Contents/Home; do
+    major="$(jdk_home_major "$home")"
+    [ -n "$major" ] && [ "$major" -ge 25 ] && return 0
+  done
+  return 1
+}
+
 GRADLE_ARGS=()
 case "${KB_JAVA21:-auto}" in
   1) NEED_JAVA21=yes ;;
   0) NEED_JAVA21=no ;;
-  *)
-    major="$(java_major || true)"
-    if [ -n "$major" ] && [ "$major" -lt 25 ]; then NEED_JAVA21=yes; else NEED_JAVA21=no; fi
-    ;;
+  *) if have_jdk25; then NEED_JAVA21=no; else NEED_JAVA21=yes; fi ;;
 esac
 if [ "$NEED_JAVA21" = yes ]; then
   GRADLE_ARGS+=(--init-script gradle/java21.gradle --no-configuration-cache)
@@ -238,7 +265,7 @@ done
 
 echo "Knowledge Base checks"
 echo "  Gradle:  $GRADLE_BIN"
-echo "  Java 21 workaround: $NEED_JAVA21"
+echo "  Java 21 fallback: $NEED_JAVA21"
 echo "  Suites:  ${SUITES[*]}"
 if [ ${#EXTRA_ARGS[@]} -gt 0 ]; then
   echo "  Gradle args: ${EXTRA_ARGS[*]}"

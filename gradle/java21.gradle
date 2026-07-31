@@ -1,9 +1,11 @@
 // Init script: build & test the backend on a Java 21 JDK with preview features.
 //
-// The project targets a Java 25 toolchain (see backend/build.gradle). On machines
-// that only have JDK 21 available (some CI runners, sandboxes), apply this init
-// script to retarget the toolchain to 21 and enable preview language features that
-// were finalized in Java 22-25 (e.g. unnamed variables `_`).
+// The project targets a Java 25 toolchain (see backend/build.gradle), which Gradle
+// resolves by auto-detection — an installed JDK 25 is enough, even when Gradle
+// itself runs on an older JVM. Only where no JDK 25 exists at all (some CI runners,
+// older sandboxes) apply this init script to retarget the toolchain to 21 and enable
+// preview language features that were finalized in Java 22-25 (e.g. unnamed
+// variables `_`). run/test.sh makes that call for you.
 //
 // Usage:
 //   ./gradlew :backend:test --init-script gradle/java21.gradle --no-configuration-cache

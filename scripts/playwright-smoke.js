@@ -15,8 +15,8 @@
  * by 'Быстрый старт с H2') is never touched.
  *
  * The jar is built by the script itself, through `run/test.sh jar` — the same
- * wrapper every other check goes through, so the Gradle to use, the JDK 21 init
- * script and GRADLE/KB_JAVA21 are decided there and not repeated here. Pass
+ * wrapper every other check goes through, so the Gradle to use, the Java 21
+ * fallback and GRADLE/KB_JAVA21 are decided there and not repeated here. Pass
  * --no-build to run against the jar already in backend/build/libs.
  *
  * Usage:
@@ -47,8 +47,8 @@ const build = !args.includes('--no-build');
 const screenshotPath =
   args.find((a) => !a.startsWith('--')) || path.join(ROOT, 'playwright-smoke.png');
 
-// Everything the build needs to know (system Gradle vs ./gradlew, the JDK 21
-// init script) is test.sh's job; 'jar' is bootJar without the frontend tests.
+// Everything the build needs to know (system Gradle vs ./gradlew, the Java 21
+// fallback) is test.sh's job; 'jar' is bootJar without the frontend tests.
 // './run/test.sh smoke' does not pre-build — it lands here, so both entry points
 // build exactly once, the same way.
 function buildJar() {
