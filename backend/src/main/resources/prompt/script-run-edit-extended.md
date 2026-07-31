@@ -1,4 +1,5 @@
-### Пример: массовое переименование с проверкой
+### Пример: массовое переименование
+Совпадения `kb.grep` — это и есть текущий текст файлов, поэтому отдельное чтение не нужно:
 ```js
 var hits = kb.grep("OldServiceName", { glob: "**/*.java" });
 var files = {};
@@ -6,8 +7,6 @@ for (var i = 0; i < hits.length; i++) { files[hits[i].path] = true; }
 
 var changed = [];
 for (var path in files) {
-  var text = kb.read(path);                       // обязательное чтение перед правкой
-  if (text.indexOf("OldServiceName") < 0) { continue; }
   kb.edit(path, "OldServiceName", "NewServiceName", true);
   changed.push(path);
 }

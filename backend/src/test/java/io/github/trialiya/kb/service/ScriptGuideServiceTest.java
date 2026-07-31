@@ -59,9 +59,7 @@ class ScriptGuideServiceTest {
                         null,
                         new ScriptProperties.Limits(
                                 13,
-                                DataSize.ofMegabytes(4),
-                                DataSize.ofKilobytes(512),
-                                200,
+                                DataSize.ofMegabytes(32),
                                 2000,
                                 20_000,
                                 20_000,
@@ -83,13 +81,13 @@ class ScriptGuideServiceTest {
     void rendersEachSizeInAUnitThatDoesNotRoundItAway() {
         Resource guide =
                 new ByteArrayResource(
-                        "всего: {{max_bytes_read}}, файл: {{max_file_bytes}}"
+                        "всего: {{max_bytes_read}}, правки: {{max_edited_bytes}}"
                                 .getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
         assertThat(guide(sized(guide, DataSize.ofKilobytes(512)), false).instructions())
-                .isEqualTo("всего: 512 КБ, файл: 512 КБ");
-        assertThat(guide(sized(guide, DataSize.ofMegabytes(4)), false).instructions())
-                .isEqualTo("всего: 4 МБ, файл: 512 КБ");
+                .isEqualTo("всего: 512 КБ, правки: 256 КБ");
+        assertThat(guide(sized(guide, DataSize.ofMegabytes(32)), false).instructions())
+                .isEqualTo("всего: 32 МБ, правки: 256 КБ");
     }
 
     @Test
@@ -118,14 +116,10 @@ class ScriptGuideServiceTest {
                         "### Обязательные правила",
                         "kb.edit")
                 .doesNotContain(
-                        "### Примеры",
-                        "### Чего не делать",
-                        "### Пример: массовое переименование с проверкой");
+                        "### Примеры", "### Чего не делать", "### Пример: массовое переименование");
         assertThat(full)
                 .contains(
-                        "### Примеры",
-                        "### Чего не делать",
-                        "### Пример: массовое переименование с проверкой");
+                        "### Примеры", "### Чего не делать", "### Пример: массовое переименование");
         // Substitution runs over the assembled text, so a placeholder left in an appendix would
         // reach the model verbatim.
         assertThat(full).doesNotContain("{{");
@@ -160,15 +154,7 @@ class ScriptGuideServiceTest {
                 null,
                 null,
                 new ScriptProperties.Limits(
-                        200,
-                        maxBytesRead,
-                        DataSize.ofKilobytes(512),
-                        200,
-                        2000,
-                        20_000,
-                        20_000,
-                        20,
-                        DataSize.ofKilobytes(256)),
+                        2000, maxBytesRead, 2000, 20_000, 20_000, 20, DataSize.ofKilobytes(256)),
                 List.of(),
                 List.of());
     }

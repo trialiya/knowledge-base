@@ -207,7 +207,45 @@ class ScriptEditTest {
                 run("kb.edit('src/App.java', 'class App', 'class Blind'); return 'ok';");
 
         assertThat(result.error()).isNotNull();
-        assertThat(result.error().message()).contains("has not read it");
+        assertThat(result.error().message()).contains("has not looked at it");
+        assertThat(fileText(APP_JAVA)).isEqualTo(ORIGINAL);
+    }
+
+    /**
+     * A grep match is current text of the file, which is all the rule ever asked for. Demanding a
+     * whole read on top made the commonest edit — find a symbol, replace it everywhere — pay for
+     * every file twice, while granting the script strictly more than the matched line it used.
+     */
+    @Test
+    void acceptsAGrepMatchAsHavingSeenTheFile() {
+        ScriptResult result =
+                run(
+                        """
+                        var hits = kb.grep('class App', { glob: '**/*.java' });
+                        kb.edit(hits[0].path, 'class App', 'class Grepped');
+                        return hits.length;
+                        """);
+
+        assertThat(result.error()).isNull();
+        assertThat(fileText(APP_JAVA)).startsWith("class Grepped");
+        // The file was never read, so it is not reported as read — evidence is not consumption.
+        assertThat(result.filesRead()).isEmpty();
+        assertThat(result.stats().filesRead()).isZero();
+    }
+
+    /** A grep that matched elsewhere says nothing about this file. */
+    @Test
+    void aGrepMatchInOneFileDoesNotUnlockAnother() {
+        ScriptResult result =
+                run(
+                        """
+                        kb.grep('hello', { glob: '**/*.md' });
+                        kb.edit('src/App.java', 'class App', 'class Sneaky');
+                        return 'ok';
+                        """);
+
+        assertThat(result.error()).isNotNull();
+        assertThat(result.error().message()).contains("has not looked at it");
         assertThat(fileText(APP_JAVA)).isEqualTo(ORIGINAL);
     }
 
@@ -464,10 +502,8 @@ class ScriptEditTest {
                 null,
                 null,
                 new ScriptProperties.Limits(
-                        200,
-                        DataSize.ofMegabytes(4),
-                        DataSize.ofKilobytes(512),
-                        200,
+                        2000,
+                        DataSize.ofMegabytes(32),
                         2000,
                         20_000,
                         20_000,

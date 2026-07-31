@@ -169,14 +169,14 @@ kb:
     max-timeout: 30s                    # ceiling for the tool's own timeoutSeconds argument
     cancel-poll: 50ms                   # how often the watchdog rechecks deadline + stop flag
     limits:
-      # Confining a script to tracked files is authorisation; these are the meter. Without them a
-      # script could still drag the whole repository into the model's context in one call.
-      max-files-read: 200
-      # Covers kb.read and the text kb.grep hands back — a search returns file content too, and
-      # left unmetered it was the one way to pull the repository into a script for free.
-      max-bytes-read: 4MB
-      max-file-bytes: 512KB     # whole-file reads only; line ranges are exempt
-      max-grep-matches: 200   # GitService.grepContent caps here anyway — higher is a no-op
+      # These do NOT bound the model's context: what a script reads stays in the script, and the
+      # only things that reach the model are its return value and its log, capped below. What is
+      # left to bound is the backend — so they are sized to stop a runaway loop, not to stop the
+      # work. A repository-wide pass is what the tool is for; this project tracks 629 files.
+      max-files-read: 2000
+      # Covers kb.read and the text kb.grep/kb.searchDocs hand back. The nearest thing to a heap
+      # bound available: Graal's own memory limit needs Oracle GraalVM (see ScriptRunner).
+      max-bytes-read: 32MB
       max-calls: 2000           # backstop for a loop that stays under every other budget
       max-log-chars: 20000
       max-result-chars: 20000

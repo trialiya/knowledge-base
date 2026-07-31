@@ -18,8 +18,10 @@ import org.springframework.util.AntPathMatcher;
  * budget, not a global rate limit.
  *
  * <p>Together with the tracked-files rule in {@code GitService} this is the whole of "restricted
- * file access". Authorisation alone is not enough: a script confined to tracked files can still
- * pull the entire repository into the model's context, so every read is metered as well.
+ * file access" — but only the visibility half of it is authorisation. The counters are not: what a
+ * script reads never reaches the model on its own, so they meter the backend (see {@code
+ * ScriptProperties.Limits}), and they are set to catch a runaway loop rather than to make a
+ * repository-wide pass fail.
  */
 public final class ScriptSession {
 
@@ -35,6 +37,20 @@ public final class ScriptSession {
     private final List<String> allowGlobs;
 
     private final Set<String> filesRead = new LinkedHashSet<>();
+
+    /**
+     * Files whose real current text this run has been shown — everything in {@link #filesRead},
+     * plus every file a {@code kb.grep} returned a match from. What {@link #requireRead} checks.
+     *
+     * <p>Separate from {@link #filesRead} because the two answer different questions. {@code
+     * filesRead} is consumption: which files were read, reported back and charged. This is
+     * evidence: a grep match is a line of the file exactly as it stands on disk, which is all the
+     * edit rule ever wanted. Insisting on a whole read as well made the common case — grep for a
+     * symbol, then replace it everywhere — pay for the file twice while granting the script
+     * strictly more freedom than the grep line it actually used.
+     */
+    private final Set<String> filesSeen = new LinkedHashSet<>();
+
     private final List<String> log = new ArrayList<>();
     private final long startNanos = System.nanoTime();
 
@@ -119,21 +135,6 @@ public final class ScriptSession {
         }
     }
 
-    /** Rejects a file whose size alone blows the per-file budget, before any of it is read. */
-    public void checkFileSize(String path, long sizeBytes) {
-        long max = limits.maxFileBytes().toBytes();
-        if (sizeBytes > max) {
-            throw new ScriptLimitExceededException(
-                    "Budget exceeded: maxFileBytes="
-                            + max
-                            + " bytes, but "
-                            + path
-                            + " is "
-                            + sizeBytes
-                            + ". Read a line range instead: kb.read(path, from, to).");
-        }
-    }
-
     // ── Writes (buffered until the run succeeds) ────────────────────────────
 
     /**
@@ -180,9 +181,10 @@ public final class ScriptSession {
     }
 
     /**
-     * Refuses an edit to a file the script has not looked at. The same rule the {@code editFile}
-     * tool enforces through {@code ToolInvocationCollector} — which cannot see inside a script,
-     * since {@code kb.read} is not a tool call — so the session keeps its own record.
+     * Refuses an edit to a file whose current text the script has not been shown. The same rule the
+     * {@code editFile} tool enforces through {@code ToolInvocationCollector} — which cannot see
+     * inside a script, since {@code kb.read} is not a tool call — so the session keeps its own
+     * record. What satisfies it is a read <em>or</em> a grep match: see {@link #filesSeen}.
      */
     public void requireRead(String path) {
         // A file this run already wrote needs no read: the script authored its content, which is
@@ -191,13 +193,14 @@ public final class ScriptSession {
             return;
         }
         // Both sides are canonical — the caller normalises before it asks (see KbScriptApi), and
-        // filesRead holds the paths GitService reported back.
-        if (!filesRead.contains(path)) {
+        // filesSeen holds the paths GitService reported back.
+        if (!filesSeen.contains(path)) {
             throw new IllegalArgumentException(
                     "Refusing to edit "
                             + path
-                            + ": the script has not read it. Call kb.read(path) first (a line range"
-                            + " is enough) so the edit is made against real current content.");
+                            + ": the script has not looked at it. Call kb.read(path) first (a line"
+                            + " range is enough), or take oldString from a kb.grep match in this"
+                            + " file, so the edit is made against real current content.");
         }
     }
 
@@ -215,8 +218,14 @@ public final class ScriptSession {
         return pendingCreates.contains(path);
     }
 
+    /** Records that a {@code kb.grep} match came from this file — evidence, not consumption. */
+    public void noteSeen(String path) {
+        filesSeen.add(path);
+    }
+
     /** Books a completed read against the per-run file-count and byte budgets. */
     public void chargeRead(String path, long bytes) {
+        filesSeen.add(path);
         boolean newFile = filesRead.add(path);
         if (newFile && filesRead.size() > limits.maxFilesRead()) {
             throw new ScriptLimitExceededException(
@@ -260,15 +269,6 @@ public final class ScriptSession {
             throw new ScriptLimitExceededException(
                     "Budget exceeded: maxBytesRead=" + maxBytes + " bytes per run. " + advice);
         }
-    }
-
-    /** Caps how many matches one {@code kb.grep} call may ask for. */
-    public int cappedGrepLimit(Integer requested) {
-        int max = limits.maxGrepMatches();
-        if (requested == null || requested <= 0) {
-            return max;
-        }
-        return Math.min(requested, max);
     }
 
     /** Appends a {@code kb.log} line, silently dropping the overflow once the budget is spent. */

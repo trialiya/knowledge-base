@@ -133,10 +133,22 @@ public class KbScriptApi {
             // equivalent refusal in GitService, so the model sees RUNTIME and stops retrying.
             throw new IllegalArgumentException("Cannot read a binary file: " + content.path());
         }
-        // The per-file budget guards whole-file reads only — refusing a line range out of a big
-        // file would contradict the very advice its error message gives.
-        if (fromLine <= 0 && toLine <= 0) {
-            session.checkFileSize(content.path(), content.sizeBytes());
+        // GitService answers an oversized whole-file read with a head+tail excerpt. For a person
+        // reading a plaque that is a courtesy; for a script it is a wrong answer that looks like a
+        // right one — every count it goes on to make would silently be of the middle-less file. So
+        // the excerpt is refused and the script is told the one call that does return exact text.
+        // (Line ranges are exempt at the source, which is why this cannot be a size threshold: any
+        // ceiling on the file is one range loop away from being circumvented anyway.)
+        // truncated() is also set for an ordinary range read, so only a whole-file request can
+        // have been cut short against the caller's wishes.
+        if (fromLine <= 0 && toLine <= 0 && content.truncated()) {
+            throw new ScriptLimitExceededException(
+                    "Cannot read "
+                            + content.path()
+                            + " whole: it is "
+                            + content.sizeBytes()
+                            + " bytes, and a whole-file read that large comes back excerpted."
+                            + " Read line ranges instead: kb.read(path, from, to).");
         }
         String text = content.content() == null ? "" : content.content();
         session.chargeRead(content.path(), text.getBytes(StandardCharsets.UTF_8).length);
@@ -193,7 +205,9 @@ public class KbScriptApi {
                         glob,
                         regex != null && regex,
                         context != null && context > 0 ? context : 0,
-                        session.cappedGrepLimit(max));
+                        // GitService caps every caller at 200; passing the request through means a
+                        // script asking for fewer gets fewer, and asking for more is not an error.
+                        max != null && max > 0 ? max : Integer.MAX_VALUE);
 
         List<Object> rows = new ArrayList<>();
         long bytes = 0;
@@ -207,6 +221,9 @@ public class KbScriptApi {
             row.put("text", match.text());
             rows.add(ProxyObject.fromMap(row));
             bytes += match.text().getBytes(StandardCharsets.UTF_8).length;
+            // The script has now been shown current text of this file, which is what the
+            // edit rule asks for — see ScriptSession.requireRead.
+            session.noteSeen(match.path());
         }
         // Only what the script actually gets back is charged: a match inside a denied path was
         // never handed over, and charging for it would let the glob policy spend someone's budget.

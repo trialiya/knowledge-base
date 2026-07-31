@@ -393,6 +393,29 @@ class ScriptSandboxTest {
         assertThat(result.stats().filesRead()).isEqualTo(1);
     }
 
+    /**
+     * {@code GitService} answers an oversized whole-file read with a head+tail excerpt. For a
+     * person that is a courtesy; a script would go on to count over a file with its middle missing
+     * and report the answer as fact, so the excerpt is refused and the exact-text call is named.
+     */
+    @Test
+    void refusesAWholeFileReadThatWouldComeBackExcerpted() {
+        write(repoDir.resolve("big.txt"), "line\n".repeat(200_000));
+        commitAll();
+
+        ScriptResult whole = run("return kb.read('big.txt').length;");
+
+        assertThat(whole.error()).isNotNull();
+        assertThat(whole.error().kind()).isEqualTo(ScriptError.Kind.BUDGET);
+        assertThat(whole.error().message()).contains("kb.read(path, from, to)");
+
+        // The advice it gives has to work: a range out of the same file is exact and allowed.
+        ScriptResult range = run("return kb.read('big.txt', 1, 2);");
+
+        assertThat(range.error()).isNull();
+        assertThat(range.value()).isEqualTo("line\nline");
+    }
+
     @Test
     void grepReturnsPlainJsObjectsAScriptCanIterate() {
         ScriptResult result =
@@ -466,10 +489,10 @@ class ScriptSandboxTest {
 
     /** Mutable stand-in for {@link ScriptProperties.Limits}, so a test can vary one budget. */
     private static final class LimitsBuilder {
-        private int maxFilesRead = 200;
+        private int maxFilesRead = 2000;
         private int maxCalls = 2000;
         private int maxResultChars = 20_000;
-        private DataSize maxBytesRead = DataSize.ofMegabytes(4);
+        private DataSize maxBytesRead = DataSize.ofMegabytes(32);
 
         LimitsBuilder withMaxFilesRead(int value) {
             this.maxFilesRead = value;
@@ -495,8 +518,6 @@ class ScriptSandboxTest {
             return new ScriptProperties.Limits(
                     maxFilesRead,
                     maxBytesRead,
-                    DataSize.ofKilobytes(512),
-                    200,
                     maxCalls,
                     20_000,
                     maxResultChars,

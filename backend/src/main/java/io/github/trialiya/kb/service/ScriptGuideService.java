@@ -68,8 +68,6 @@ public class ScriptGuideService {
                 Map.ofEntries(
                         Map.entry("max_files_read", String.valueOf(limits.maxFilesRead())),
                         Map.entry("max_bytes_read", humanBytes(limits.maxBytesRead())),
-                        Map.entry("max_file_bytes", humanBytes(limits.maxFileBytes())),
-                        Map.entry("max_grep_matches", String.valueOf(limits.maxGrepMatches())),
                         Map.entry("max_calls", String.valueOf(limits.maxCalls())),
                         Map.entry("max_log_chars", String.valueOf(limits.maxLogChars())),
                         Map.entry("max_result_chars", String.valueOf(limits.maxResultChars())),

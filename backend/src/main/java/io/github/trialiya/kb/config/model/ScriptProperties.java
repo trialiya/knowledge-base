@@ -94,7 +94,7 @@ public record ScriptProperties(
         this.timeout = timeout != null ? timeout : Duration.ofSeconds(10);
         this.maxTimeout = maxTimeout != null ? maxTimeout : Duration.ofSeconds(30);
         this.cancelPoll = cancelPoll != null ? cancelPoll : Duration.ofMillis(50);
-        this.limits = limits != null ? limits : new Limits(0, null, null, 0, 0, 0, 0, 0, null);
+        this.limits = limits != null ? limits : new Limits(0, null, 0, 0, 0, 0, null);
         this.denyGlobs = denyGlobs != null ? List.copyOf(denyGlobs) : List.of();
         this.allowGlobs = allowGlobs != null ? List.copyOf(allowGlobs) : List.of();
     }
@@ -106,17 +106,26 @@ public record ScriptProperties(
     }
 
     /**
-     * Per-run budgets. These are the practical meaning of "restricted file access": confining a
-     * script to tracked files still lets it drag the whole repository into the model's context, so
-     * every read is metered as well as authorised. Any value left at zero/null falls back to the
-     * constant beside it.
+     * Per-run budgets, and only the ones that bound something the run can actually reach.
+     *
+     * <p>They used to be justified as context protection, which for a script they are not: what a
+     * script reads goes into its own memory and reaches the model only through the value it returns
+     * and what it logs — and those two have caps of their own. What is left for the read budgets is
+     * the backend: wall-clock (bounded by {@code timeout}), and heap, which cannot be capped on the
+     * community engine, so metering host-supplied bytes is the nearest available bound. Sized to
+     * stop a runaway loop rather than to stop the work: a repository-wide pass is the whole point
+     * of the tool, and a budget that a single honest pass exhausts is a budget in the wrong place.
+     *
+     * <p>Two former budgets are gone rather than retuned, because neither bounded anything. A
+     * per-file ceiling was one line-range loop away from being circumvented, and {@code GitService}
+     * already excerpts an oversized whole-file read on its own; a per-grep match ceiling could only
+     * ever be lowered, since {@code GitService.grepContent} caps every caller at 200, and lowering
+     * it turned one repository scan into several.
+     *
+     * <p>Any value left at zero/null falls back to the constant beside it.
      *
      * @param maxFilesRead distinct files one run may read
      * @param maxBytesRead total bytes one run may read across all files
-     * @param maxFileBytes largest single file a script may read
-     * @param maxGrepMatches matches one {@code kb.grep} call may return. Raising it above 200
-     *     changes nothing — {@code GitService.grepContent} caps there for every caller — so the
-     *     default matches that ceiling instead of promising the model a number it cannot get
      * @param maxCalls total {@code kb.*} calls per run — the backstop for a tight loop that stays
      *     under every other budget (re-reading one already-charged file, say)
      * @param maxLogChars total characters {@code kb.log} may accumulate
@@ -128,18 +137,22 @@ public record ScriptProperties(
     public record Limits(
             int maxFilesRead,
             DataSize maxBytesRead,
-            DataSize maxFileBytes,
-            int maxGrepMatches,
             int maxCalls,
             int maxLogChars,
             int maxResultChars,
             int maxEditedFiles,
             DataSize maxEditedBytes) {
 
-        private static final int DEFAULT_MAX_FILES_READ = 200;
-        private static final DataSize DEFAULT_MAX_BYTES_READ = DataSize.ofMegabytes(4);
-        private static final DataSize DEFAULT_MAX_FILE_BYTES = DataSize.ofKilobytes(512);
-        private static final int DEFAULT_MAX_GREP_MATCHES = 200;
+        /**
+         * Comfortably past a whole repository, which is the size of task the tool exists for: this
+         * project alone tracks 629 files, so the old ceiling of 200 refused "read every Java file"
+         * on the very codebase the tool was written against.
+         */
+        private static final int DEFAULT_MAX_FILES_READ = 2000;
+
+        /** Roughly ten passes over a repository of this project's size — a loop, not a job. */
+        private static final DataSize DEFAULT_MAX_BYTES_READ = DataSize.ofMegabytes(32);
+
         private static final int DEFAULT_MAX_CALLS = 2000;
         private static final int DEFAULT_MAX_LOG_CHARS = 20_000;
         private static final int DEFAULT_MAX_RESULT_CHARS = 20_000;
@@ -149,8 +162,6 @@ public record ScriptProperties(
         public Limits(
                 int maxFilesRead,
                 @Nullable DataSize maxBytesRead,
-                @Nullable DataSize maxFileBytes,
-                int maxGrepMatches,
                 int maxCalls,
                 int maxLogChars,
                 int maxResultChars,
@@ -158,8 +169,6 @@ public record ScriptProperties(
                 @Nullable DataSize maxEditedBytes) {
             this.maxFilesRead = maxFilesRead > 0 ? maxFilesRead : DEFAULT_MAX_FILES_READ;
             this.maxBytesRead = maxBytesRead != null ? maxBytesRead : DEFAULT_MAX_BYTES_READ;
-            this.maxFileBytes = maxFileBytes != null ? maxFileBytes : DEFAULT_MAX_FILE_BYTES;
-            this.maxGrepMatches = maxGrepMatches > 0 ? maxGrepMatches : DEFAULT_MAX_GREP_MATCHES;
             this.maxCalls = maxCalls > 0 ? maxCalls : DEFAULT_MAX_CALLS;
             this.maxLogChars = maxLogChars > 0 ? maxLogChars : DEFAULT_MAX_LOG_CHARS;
             this.maxResultChars = maxResultChars > 0 ? maxResultChars : DEFAULT_MAX_RESULT_CHARS;
