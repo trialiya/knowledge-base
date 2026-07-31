@@ -11,9 +11,9 @@ rem   test.bat clean build
 rem   test.bat pre-pr     (format + back + build, the gate before a pull request)
 rem   test.bat ci         (the same three, with --console=plain)
 rem
-rem This is a thin delegator to test.ps1: suite handling, the Java 21 init
-rem script and the Docker check all live there, so there is only one copy of
-rem that logic to keep correct. Run test.ps1 directly if you are in PowerShell.
+rem This is a thin delegator to test.ps1: suite handling, the Java 21 fallback
+rem and the Docker check all live there, so there is only one copy of that
+rem logic to keep correct. Run test.ps1 directly if you are in PowerShell.
 setlocal
 
 set "SCRIPT_DIR=%~dp0"
