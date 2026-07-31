@@ -165,7 +165,8 @@
     "grepContent": "Поиск по коду",
     "searchCodebase": "Умный поиск",
     "createFile": "Создание файла",
-    "editFile": "Правка файла"
+    "editFile": "Правка файла",
+    "runScript": "Скрипт"
   },
   "docChange": {
     "viewChanges": "Посмотреть изменения",

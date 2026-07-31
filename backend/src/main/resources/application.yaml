@@ -137,6 +137,36 @@ kb:
     # Expose file edit tools (createFile/editFile) to the chat model. Default off — read-only.
     # Even when true, the tools are withheld if the working tree is not writable (ro mount).
     edit-enabled: ${KB_GIT_EDIT_ENABLED:false}
+  script:
+    # The runScript tool: the model writes a short JS script that walks the repository itself,
+    # instead of a dozen grep/read round-trips. The script has NO filesystem — the engine is built
+    # without one — and reaches files only through the injected `kb` object, which goes through the
+    # same tracked-files rules as every other tool. Still an explicit opt-in: it is executed code.
+    enabled: ${KB_SCRIPT_ENABLED:false}
+    # Handbook injected into the system prompt while the tool is enabled (ScriptGuideService).
+    # Weak models cannot use runScript from its tool description alone — they need the kb reference,
+    # worked examples and the error table. Empty when enabled=false, so a model that cannot run
+    # scripts is never told about them. Budget numbers below are substituted into it, not copied.
+    guide: classpath:prompt/script-run.md
+    timeout: ${KB_SCRIPT_TIMEOUT:10s}   # default wall-clock budget for one script
+    max-timeout: 30s                    # ceiling for the tool's own timeoutSeconds argument
+    cancel-poll: 50ms                   # how often the watchdog rechecks deadline + stop flag
+    limits:
+      # Confining a script to tracked files is authorisation; these are the meter. Without them a
+      # script could still drag the whole repository into the model's context in one call.
+      max-files-read: 200
+      max-bytes-read: 4MB
+      max-file-bytes: 512KB     # whole-file reads only; line ranges are exempt
+      max-grep-matches: 500
+      max-calls: 2000           # backstop for a loop that stays under every other budget
+      max-log-chars: 20000
+      max-result-chars: 20000
+    # Optional, empty by default. Ant-style globs (**/*.pem matches at any depth, including root).
+    # deny-globs hides paths from scripts ON TOP OF .gitignore, which already excludes untracked
+    # secrets; allow-globs, when non-empty, narrows scripts to those paths only. A hidden file
+    # looks exactly like a missing one, so a script cannot probe the policy.
+    deny-globs: []      # e.g. ["**/*.pem", "**/secrets/**"]
+    allow-globs: []     # e.g. ["docs/**", "backend/src/**"]
   mcp:
     # Expose tools from external MCP (Model Context Protocol) servers to the chat model, in
     # addition to the built-in git/document tools. Default off — external MCP servers run

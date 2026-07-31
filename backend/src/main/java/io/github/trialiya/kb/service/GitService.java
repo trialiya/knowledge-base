@@ -122,9 +122,9 @@ public class GitService {
 
     /**
      * {@link #repoPath} with every symlink in it resolved. Comparison base for {@link
-     * #requireInsideRepo}: the repository itself may legitimately live behind a symlinked parent
-     * (a {@code /tmp} → {@code /private/tmp} style mount), in which case real paths of its own
-     * files would never start with the textual {@link #repoPath}.
+     * #requireInsideRepo}: the repository itself may legitimately live behind a symlinked parent (a
+     * {@code /tmp} → {@code /private/tmp} style mount), in which case real paths of its own files
+     * would never start with the textual {@link #repoPath}.
      */
     private final Path repoRealPath;
 
@@ -1317,6 +1317,15 @@ public class GitService {
             paths.add(cache.getEntry(i).getPathString());
         }
         return List.copyOf(paths);
+    }
+
+    /**
+     * Every tracked path in the repository, in {@code git ls-files} order. Exposed for {@code
+     * KbScriptApi.files()}: a script filters the list itself in one pass, where the tree tools
+     * would need one call per directory level.
+     */
+    public List<String> listTrackedFiles() {
+        return trackedPaths();
     }
 
     private boolean isTracked(String path) {

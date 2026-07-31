@@ -42,13 +42,20 @@ class SearchAgentToolGuardTest {
                     "deleteDocumentSection",
                     "renameDocumentSections",
                     "copyAttachmentToDocument",
-                    "searchCodebase");
+                    "searchCodebase",
+                    // Read-only, but still arbitrary code execution with its own budgets and its
+                    // own cancellation path. Giving it to the sub-agent is a separate decision,
+                    // not something an allow-list edit should be able to do by accident.
+                    "runScript");
 
     private static Set<String> filteredToolNames() {
         // Services are never invoked by ToolCallbacks.from (it only reflects over @Tool methods),
         // so null dependencies are safe here.
         return Stream.of(
-                        ToolCallbacks.from(new GitFunction(null), new DocumentFunction(null, null)))
+                        ToolCallbacks.from(
+                                new GitFunction(null),
+                                new DocumentFunction(null, null),
+                                new ScriptFunction(null)))
                 .map(cb -> cb.getToolDefinition().name())
                 .filter(ALLOWED::contains)
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());

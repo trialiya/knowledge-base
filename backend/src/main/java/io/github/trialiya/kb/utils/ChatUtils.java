@@ -2,6 +2,7 @@ package io.github.trialiya.kb.utils;
 
 import static io.github.trialiya.kb.functions.TopicFunction.USER_NAME;
 
+import io.github.trialiya.kb.tools.RunCancellation;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import java.util.Map;
 import java.util.Optional;
@@ -43,13 +44,28 @@ public class ChatUtils {
      */
     public static Map<String, Object> buildContext(
             String conversationId, ToolInvocationCollector toolCollector, String user) {
+        return buildContext(conversationId, toolCollector, user, RunCancellation.none());
+    }
+
+    /**
+     * Как {@link #buildContext(String, ToolInvocationCollector, String)}, плюс флаг остановки
+     * прогона. Нужен инструментам, которые работают заметное время: остановка чата рвёт подписку на
+     * стрим, но уже запущенный инструмент об этом не узнаёт (см. {@link RunCancellation}).
+     */
+    public static Map<String, Object> buildContext(
+            String conversationId,
+            ToolInvocationCollector toolCollector,
+            String user,
+            RunCancellation cancellation) {
         return Map.of(
                 ChatMemory.CONVERSATION_ID,
                 conversationId,
                 ToolInvocationCollector.KEY,
                 toolCollector,
                 USER_NAME,
-                user);
+                user,
+                RunCancellation.KEY,
+                cancellation);
     }
 
     /**

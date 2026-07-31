@@ -47,6 +47,7 @@ export const TOOL_META = {
   searchCodebase: { icon: '🧭', category: 'git' },
   createFile: { icon: '➕', category: 'git' },
   editFile: { icon: '✏️', category: 'git' },
+  runScript: { icon: '⚙️', category: 'git' },
 };
 
 /** Иконка инструмента с дефолтом для незнакомых имён. */

@@ -9,6 +9,7 @@ import io.github.trialiya.kb.functions.DocumentFunction;
 import io.github.trialiya.kb.functions.GitEditFunction;
 import io.github.trialiya.kb.functions.GitFunction;
 import io.github.trialiya.kb.functions.MessageLookupFunction;
+import io.github.trialiya.kb.functions.ScriptFunction;
 import io.github.trialiya.kb.functions.SearchAgentFunction;
 import io.github.trialiya.kb.functions.TopicFunction;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
@@ -19,6 +20,7 @@ import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.service.DocumentService;
 import io.github.trialiya.kb.service.GitService;
 import io.github.trialiya.kb.service.SearchAgentService;
+import io.github.trialiya.kb.service.script.ScriptRunner;
 import io.github.trialiya.kb.tools.RecordingToolCallback;
 import java.util.ArrayList;
 import java.util.List;
@@ -122,6 +124,22 @@ public class ChatConfig {
         return new GitEditFunction(gitService);
     }
 
+    /**
+     * The {@code runScript} tool. Off by default: a script is still executed code, so it is an
+     * explicit opt-in like {@code kb.mcp.enabled}, even though the engine it runs in has no
+     * filesystem, no host classes and no threads (see {@code ScriptRunner}).
+     *
+     * <p>Read-only in this step — the injected {@code kb} object exposes listing, reading and
+     * searching only. When the tool is absent, {@code ScriptGuideService} also yields an empty
+     * prompt fragment, so the model is never told about a tool it does not have.
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "kb.script", name = "enabled", havingValue = "true")
+    public ScriptFunction scriptFunction(ScriptRunner scriptRunner) {
+        log.info("Script tool enabled (runScript)");
+        return new ScriptFunction(scriptRunner);
+    }
+
     @Bean
     public DocumentFunction documentFunction(
             DocumentService documentService, AttachmentService attachmentService) {
@@ -173,6 +191,7 @@ public class ChatConfig {
             DocumentFunction documentFunction,
             AttachmentService attachmentService,
             ObjectProvider<SearchAgentService> searchAgentService,
+            ObjectProvider<ScriptFunction> scriptFunction,
             ChatEventService chatEventService,
             McpProperties mcpProperties,
             ObjectProvider<ToolCallbackProvider> mcpToolCallbackProvider) {
@@ -191,6 +210,8 @@ public class ChatConfig {
         // Present only when kb.git.edit-enabled=true AND the tree is writable (see gitEditFunction
         // bean) — in read-only mode the edit tools are not offered to the model at all.
         gitEditFunction.ifAvailable(functions::add);
+        // Present only when kb.script.enabled=true (see scriptFunction bean).
+        scriptFunction.ifAvailable(functions::add);
 
         // MCP-derived tools (see spring.ai.mcp.client.* connections) are merged in only when
         // kb.mcp.enabled=true — external MCP servers run arbitrary local commands or call
