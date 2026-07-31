@@ -150,7 +150,7 @@ kb:
     # bearer-tokens:
     #   atlassian: ${JIRA_MCP_TOKEN:}
   embedding:
-    # Must match spring.ai.openai.embedding.options.model.
+    # Must match spring.ai.openai.embedding.model.
     # Stored alongside every cached vector so that model upgrades invalidate old cache rows.
     # Default matches the fallback of spring.ai.openai.embedding.model above: without it the
     # h2 profile (semantic search off, AI_EMBED_* not required) leaves the placeholder

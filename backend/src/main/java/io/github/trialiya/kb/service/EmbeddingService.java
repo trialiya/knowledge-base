@@ -17,10 +17,8 @@ import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.embedding.Embedding;
-import org.springframework.ai.embedding.EmbeddingRequest;
+import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.EmbeddingResponse;
-import org.springframework.ai.openai.OpenAiEmbeddingModel;
-import org.springframework.ai.openai.OpenAiEmbeddingOptions;
 import org.springframework.stereotype.Service;
 
 /**
@@ -52,7 +50,7 @@ import org.springframework.stereotype.Service;
 public class EmbeddingService {
 
     private final boolean enabled;
-    private final OpenAiEmbeddingModel embeddingModel;
+    private final EmbeddingModel embeddingModel;
     private final EmbeddingCacheRepository cacheRepo;
     private final TextChunker chunker;
     private final boolean cacheEnabled;
@@ -65,7 +63,7 @@ public class EmbeddingService {
 
     public EmbeddingService(
             SearchConfiguration searchConfiguration,
-            OpenAiEmbeddingModel embeddingModel,
+            EmbeddingModel embeddingModel,
             EmbeddingCacheRepository cacheRepo,
             EmbeddingConfiguration embeddingConfig) {
         this.enabled = searchConfiguration.semantic().enabled();
@@ -265,8 +263,7 @@ public class EmbeddingService {
 
     private EmbeddingResponse callApi(List<String> texts) {
         log.info("Calling embedding api: {} items", texts.size());
-        return embeddingModel.call(
-                new EmbeddingRequest(texts, OpenAiEmbeddingOptions.builder().build()));
+        return embeddingModel.embedForResponse(texts);
     }
 
     // ── Utility ───────────────────────────────────────────────────────────────
