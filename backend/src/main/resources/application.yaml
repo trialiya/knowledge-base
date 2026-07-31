@@ -163,6 +163,8 @@ kb:
       # Confining a script to tracked files is authorisation; these are the meter. Without them a
       # script could still drag the whole repository into the model's context in one call.
       max-files-read: 200
+      # Covers kb.read and the text kb.grep hands back — a search returns file content too, and
+      # left unmetered it was the one way to pull the repository into a script for free.
       max-bytes-read: 4MB
       max-file-bytes: 512KB     # whole-file reads only; line ranges are exempt
       max-grep-matches: 200   # GitService.grepContent caps here anyway — higher is a no-op

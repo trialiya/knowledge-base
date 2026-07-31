@@ -22,6 +22,7 @@ import io.github.trialiya.kb.service.DocumentService;
 import io.github.trialiya.kb.service.GitService;
 import io.github.trialiya.kb.service.ScriptGuideService;
 import io.github.trialiya.kb.service.SearchAgentService;
+import io.github.trialiya.kb.service.script.ScriptCancelledException;
 import io.github.trialiya.kb.service.script.ScriptRunner;
 import io.github.trialiya.kb.tools.RecordingToolCallback;
 import java.util.ArrayList;
@@ -39,10 +40,13 @@ import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.model.tool.ToolCallingManager;
+import org.springframework.ai.model.tool.autoconfigure.ToolCallingProperties;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
+import org.springframework.ai.tool.execution.DefaultToolExecutionExceptionProcessor;
+import org.springframework.ai.tool.execution.ToolExecutionExceptionProcessor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -141,6 +145,30 @@ public class ChatConfig {
     public ScriptFunction scriptFunction(ScriptRunner scriptRunner) {
         log.info("Script tool enabled (runScript)");
         return ScriptFunction.forChat(scriptRunner);
+    }
+
+    /**
+     * Replaces Spring AI's own processor for one reason: {@link ScriptCancelledException} has to
+     * stay an exception.
+     *
+     * <p>A tool that throws is normally a tool that failed, and the default answer — hand the model
+     * the exception message as the tool's result — is the right one for a failure: the model reads
+     * what went wrong and tries something else. Cancellation is not a failure. The run it belonged
+     * to is already disposed, so a result there would restart a conversation the user stopped, at
+     * cost, with nobody reading the answer. Listing the class here makes the processor rethrow it,
+     * which is what {@code ScriptRunner} assumed all along.
+     *
+     * <p>Everything else keeps the framework's behaviour, including {@code
+     * spring.ai.tools.throw-exception-on-error} — this is one exception added to the rethrow list,
+     * not a change of policy.
+     */
+    @Bean
+    public ToolExecutionExceptionProcessor toolExecutionExceptionProcessor(
+            ToolCallingProperties properties) {
+        return DefaultToolExecutionExceptionProcessor.builder()
+                .alwaysThrow(properties.isThrowExceptionOnError())
+                .rethrowExceptions(List.of(ScriptCancelledException.class))
+                .build();
     }
 
     @Bean

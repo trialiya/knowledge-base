@@ -10,6 +10,7 @@ import io.github.trialiya.kb.model.script.ScriptResult;
 import io.github.trialiya.kb.service.DocumentService;
 import io.github.trialiya.kb.service.GitService;
 import io.github.trialiya.kb.tools.RunCancellation;
+import jakarta.annotation.PreDestroy;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,6 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 import org.graalvm.polyglot.Context;
+import org.graalvm.polyglot.Engine;
 import org.graalvm.polyglot.EnvironmentAccess;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.PolyglotException;
@@ -47,6 +49,14 @@ import org.springframework.stereotype.Service;
  * RunCancellation} and closes the context under the running script. Cancellation lands when control
  * is next inside the guest, so a script blocked in a long host call (a {@code git grep} subprocess)
  * finishes that call first — the bound is the call, not the script.
+ *
+ * <p><b>What is not bounded: heap.</b> Graal's memory limits ({@code sandbox.MaxHeapMemory}) need
+ * Oracle GraalVM; on the community engine this project ships with, there is no way to cap what a
+ * script allocates. Time is bounded, and {@code kb.script.limits} bounds every byte the {@code kb}
+ * methods hand in — but a script that generates its own data ({@code 'x'.repeat(1e10)}) can still
+ * exhaust the backend's heap before the watchdog's next poll. That makes {@code kb.script.enabled}
+ * a trust decision about the model, not only about what it can read: it is a denial-of-service
+ * surface, not a path to anyone's files.
  */
 @Slf4j
 @Service
@@ -62,18 +72,22 @@ public class ScriptRunner {
     private static final String SUFFIX = "\n})()";
 
     /** Guest-side JSON helpers, evaluated once per context (see {@link #stringify}). */
-    private static final String JSON_HELPERS =
-            """
-            ({
-              result: function (x) { return x === undefined ? null : JSON.stringify(x); },
-              log: function (x) {
-                if (typeof x === 'string') return x;
-                if (x === undefined) return 'undefined';
-                var s = JSON.stringify(x);
-                return s === undefined ? String(x) : s;
-              }
-            })
-            """;
+    private static final Source JSON_HELPERS =
+            Source.newBuilder(
+                            "js",
+                            """
+                            ({
+                              result: function (x) { return x === undefined ? null : JSON.stringify(x); },
+                              log: function (x) {
+                                if (typeof x === 'string') return x;
+                                if (x === undefined) return 'undefined';
+                                var s = JSON.stringify(x);
+                                return s === undefined ? String(x) : s;
+                              }
+                            })
+                            """,
+                            "kb-helpers.js")
+                    .buildLiteral();
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
@@ -81,6 +95,24 @@ public class ScriptRunner {
     private final DocumentService documentService;
     private final ScriptProperties properties;
     private final ScriptEditPolicy editPolicy;
+
+    /**
+     * One engine, many contexts. The sandbox is a property of the context — each run still gets a
+     * fresh one, with no filesystem and nothing shared with the run before it — while the engine
+     * holds only what is identical every time: the loaded language and the parsed code cache. Given
+     * one, building a context costs about a quarter of what it costs to stand up an engine too,
+     * which is most of a short script's wall clock.
+     *
+     * <p>Closed with the application, and not before: a context outlives nothing here, but an
+     * engine closed while a script is running would take that script down with it.
+     */
+    private final Engine engine =
+            Engine.newBuilder("js")
+                    // On a stock JDK there is no Graal compiler, so the engine warns once that it
+                    // is interpreting. Expected here: scripts are glue code, and kb.script.limits
+                    // keeps them small enough for interpretation to be irrelevant.
+                    .option("engine.WarnInterpreterOnly", "false")
+                    .build();
 
     public ScriptRunner(
             GitService gitService,
@@ -91,6 +123,11 @@ public class ScriptRunner {
         this.documentService = documentService;
         this.properties = properties;
         this.editPolicy = editPolicy;
+    }
+
+    @PreDestroy
+    void shutdown() {
+        engine.close();
     }
 
     /**
@@ -137,7 +174,7 @@ public class ScriptRunner {
         Thread watchdog =
                 startWatchdog(context, cancellation, deadlineNanos, finished, cancelReason);
         try {
-            Value helpers = context.eval("js", JSON_HELPERS);
+            Value helpers = context.eval(JSON_HELPERS);
             Value logFormatter = helpers.getMember("log");
             api.bindFormatter(value -> logFormatter.execute(value).asString());
             context.getBindings("js").putMember("kb", api);
@@ -172,8 +209,9 @@ public class ScriptRunner {
 
     // ── Sandbox ─────────────────────────────────────────────────────────────
 
-    private static Context newContext() {
+    private Context newContext() {
         return Context.newBuilder("js")
+                .engine(engine)
                 .allowIO(false)
                 .allowHostClassLookup(className -> false)
                 .allowHostAccess(HostAccess.EXPLICIT)
@@ -181,10 +219,6 @@ public class ScriptRunner {
                 .allowCreateProcess(false)
                 .allowNativeAccess(false)
                 .allowEnvironmentAccess(EnvironmentAccess.NONE)
-                // On a stock JDK there is no Graal compiler, so the engine warns once per context
-                // that it is interpreting. Expected here: scripts are glue code, and
-                // kb.script.limits keeps them small enough for interpretation to be irrelevant.
-                .option("engine.WarnInterpreterOnly", "false")
                 .build();
     }
 

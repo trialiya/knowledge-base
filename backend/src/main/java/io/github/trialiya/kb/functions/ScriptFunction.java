@@ -4,6 +4,7 @@ import io.github.trialiya.kb.model.script.ScriptResult;
 import io.github.trialiya.kb.service.script.ScriptRunner;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
 import io.github.trialiya.kb.tools.RunCancellation;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
@@ -26,7 +27,9 @@ import org.springframework.ai.tool.annotation.ToolParam;
  * weak model actually needs without bloating every tool listing.
  */
 @Slf4j
-@AllArgsConstructor
+// Private: which of the two factories was used is the whole difference between the chat's copy of
+// the tool and the sub-agent's, and a bare boolean at the call site would not say which is which.
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class ScriptFunction {
 
     private final ScriptRunner scriptRunner;

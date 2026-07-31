@@ -52,23 +52,28 @@ public final class KbEditScriptApi extends KbScriptApi {
     @HostAccess.Export
     public Object edit(String path, String oldString, String newString, boolean replaceAll) {
         session.chargeCall();
-        session.requireVisible(path);
-        session.requireRead(path);
+        // Canonical from here down: the session keys its pending text on this string, and two
+        // spellings of one file would otherwise stage two writes, the second computed from the
+        // file on disk — silently discarding the first.
+        String canonical = canonical(path);
+        session.requireVisible(canonical);
+        session.requireRead(canonical);
         if (oldString.isEmpty()) {
-            throw new IllegalArgumentException("oldString must not be empty: " + path);
+            throw new IllegalArgumentException("oldString must not be empty: " + canonical);
         }
         if (oldString.equals(newString)) {
-            throw new IllegalArgumentException("oldString and newString are identical: " + path);
+            throw new IllegalArgumentException(
+                    "oldString and newString are identical: " + canonical);
         }
 
-        String text = currentText(path);
+        String text = currentText(canonical);
         String oldLf = oldString.replace("\r\n", "\n");
         String newLf = newString.replace("\r\n", "\n");
         int occurrences = countOccurrences(text, oldLf);
         if (occurrences == 0) {
             throw new IllegalArgumentException(
                     "oldString not found in "
-                            + path
+                            + canonical
                             + ". Re-read the current content with kb.read and pass an exact,"
                             + " character-for-character fragment including whitespace.");
         }
@@ -77,14 +82,14 @@ public final class KbEditScriptApi extends KbScriptApi {
                     "oldString occurs "
                             + occurrences
                             + " times in "
-                            + path
+                            + canonical
                             + ". Extend it with surrounding lines to make it unique, or pass"
                             + " replaceAll=true as the fourth argument.");
         }
 
         String updated = replaceAll ? text.replace(oldLf, newLf) : replaceFirst(text, oldLf, newLf);
-        session.stageWrite(path, updated, false);
-        return result(path, "edit", occurrences);
+        session.stageWrite(canonical, updated, false);
+        return result(canonical, "edit", occurrences);
     }
 
     /**
@@ -95,17 +100,18 @@ public final class KbEditScriptApi extends KbScriptApi {
     @HostAccess.Export
     public Object create(String path, String content) {
         session.chargeCall();
-        session.requireVisible(path);
-        if (session.pendingText(path).isPresent()) {
+        String canonical = canonical(path);
+        session.requireVisible(canonical);
+        if (session.pendingText(canonical).isPresent()) {
             throw new IllegalArgumentException(
-                    "File already staged for writing in this run: " + path + ". Use kb.edit.");
+                    "File already staged for writing in this run: " + canonical + ". Use kb.edit.");
         }
-        if (gitService.exists(path)) {
+        if (gitService.exists(canonical)) {
             throw new IllegalArgumentException(
-                    "File already exists: " + path + ". Use kb.edit to modify it.");
+                    "File already exists: " + canonical + ". Use kb.edit to modify it.");
         }
-        session.stageWrite(path, content, true);
-        return result(path, "create", 1);
+        session.stageWrite(canonical, content, true);
+        return result(canonical, "create", 1);
     }
 
     /**

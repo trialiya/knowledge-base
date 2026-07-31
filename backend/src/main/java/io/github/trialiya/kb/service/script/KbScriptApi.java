@@ -68,6 +68,20 @@ public class KbScriptApi {
         this.formatter = formatter;
     }
 
+    /**
+     * The path as the repository spells it. Every path a script names is put through this before
+     * anything is decided about it, because the glob policy is a string match: a script asking for
+     * {@code "./secrets/key.pem"} must be answered by the same rule that covers {@code
+     * "secrets/key.pem"}, and a deny-glob written the obvious way matches only the latter.
+     *
+     * <p>It also spares the model a whole class of dead end. A leading {@code ./} is a natural
+     * thing to write and every {@code kb} method used to refuse it — reads as "File not found" for
+     * a file plainly in the listing, writes as a stranger error still.
+     */
+    static String canonical(String path) {
+        return GitService.normalizePath(path);
+    }
+
     // ── Listing ─────────────────────────────────────────────────────────────
 
     /** Every tracked path the script is allowed to see. */
@@ -109,10 +123,11 @@ public class KbScriptApi {
     @HostAccess.Export
     public String read(String path, int fromLine, int toLine) {
         session.chargeCall();
-        session.requireVisible(path);
+        String canonical = canonical(path);
+        session.requireVisible(canonical);
         GitFileContent content =
                 gitService.getFileContent(
-                        path, fromLine > 0 ? fromLine : null, toLine > 0 ? toLine : null);
+                        canonical, fromLine > 0 ? fromLine : null, toLine > 0 ? toLine : null);
         if (content.binary()) {
             // Not a budget: no limit would make this file readable. Same exception type as the
             // equivalent refusal in GitService, so the model sees RUNTIME and stops retrying.
@@ -132,8 +147,9 @@ public class KbScriptApi {
     @HostAccess.Export
     public Object outline(String path) {
         session.chargeCall();
-        session.requireVisible(path);
-        GitFileOutline outline = gitService.getFileOutline(path);
+        String canonical = canonical(path);
+        session.requireVisible(canonical);
+        GitFileOutline outline = gitService.getFileOutline(canonical);
         session.chargeRead(outline.path(), 0);
         List<Object> symbols = new ArrayList<>();
         outline.symbols()
@@ -180,6 +196,7 @@ public class KbScriptApi {
                         session.cappedGrepLimit(max));
 
         List<Object> rows = new ArrayList<>();
+        long bytes = 0;
         for (GitGrepMatch match : matches) {
             if (!session.isVisible(match.path())) {
                 continue;
@@ -189,7 +206,11 @@ public class KbScriptApi {
             row.put("line", match.matchLine());
             row.put("text", match.text());
             rows.add(ProxyObject.fromMap(row));
+            bytes += match.text().getBytes(StandardCharsets.UTF_8).length;
         }
+        // Only what the script actually gets back is charged: a match inside a denied path was
+        // never handed over, and charging for it would let the glob policy spend someone's budget.
+        session.chargeSearch(bytes);
         return ProxyArray.fromList(rows);
     }
 

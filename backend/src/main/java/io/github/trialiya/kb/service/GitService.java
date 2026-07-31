@@ -901,8 +901,7 @@ public class GitService {
      *     it is the gate that stops untracked/gitignored files from being served.
      */
     private FileBytes readTrackedFile(String filePath, boolean knownTracked) {
-        String normalized = toForwardSlashes(filePath.strip());
-        requireSafeGitRelativePath(normalized);
+        String normalized = normalizePath(filePath);
 
         // Security: confine to the repo before touching the filesystem.
         Path absolute = confineToRepo(normalized);
@@ -1200,8 +1199,7 @@ public class GitService {
      * {@code .git/} internals and junk artefacts are never writable.
      */
     private String validateWritablePath(String filePath) {
-        String normalized = toForwardSlashes(filePath.strip());
-        requireSafeGitRelativePath(normalized);
+        String normalized = normalizePath(filePath);
         confineToRepo(normalized);
         if (normalized.equals(".git") || normalized.startsWith(".git/")) {
             throw new IllegalArgumentException("Writing into .git is not allowed");
@@ -1356,9 +1354,7 @@ public class GitService {
      * refuses on, including untracked and gitignored files.
      */
     public boolean exists(@NonNull String filePath) {
-        String normalized = toForwardSlashes(filePath.strip());
-        requireSafeGitRelativePath(normalized);
-        return Files.exists(confineToRepo(normalized));
+        return Files.exists(confineToRepo(normalizePath(filePath)));
     }
 
     /**
@@ -1463,6 +1459,48 @@ public class GitService {
         if (!SAFE_GIT_RELATIVE_PATH.matcher(path).matches()) {
             throw new IllegalArgumentException("Path contains unsupported characters: " + path);
         }
+    }
+
+    /**
+     * The one spelling of a repo-relative path: backslashes turned round, and {@code ./} and
+     * doubled slashes collapsed, so {@code "./docs//a.md"} and {@code "docs/a.md"} are the same
+     * string everywhere.
+     *
+     * <p>Git's index is keyed on the canonical form, so before this every entry point disagreed
+     * with itself: {@code getFileContent("./docs/a.md")} answered "File not found" for a file that
+     * is plainly there, and {@code createFile} wrote the file to disk and only then failed to stage
+     * it — reporting a .gitignore rule that does not exist. Callers that match a path against a
+     * pattern need it too: a glob written the obvious way ({@code "secrets/**"}) does not match
+     * {@code "./secrets/key.pem"}, so any policy checked on an uncanonical path checks nothing.
+     *
+     * <p>Validation runs on the raw form first, on purpose. Canonicalising {@code "/etc/passwd"}
+     * would strip nothing but canonicalising {@code "a/../../etc"} would resolve a traversal this
+     * method must instead refuse, so the refusals happen while the path still says what the caller
+     * wrote. What is dropped afterwards — {@code "."} and empty segments — cannot change where a
+     * path points.
+     *
+     * @throws IllegalArgumentException if the path is unsafe, or names nothing once collapsed
+     */
+    public static String normalizePath(@NonNull String filePath) {
+        String forward = toForwardSlashes(filePath.strip());
+        requireSafeGitRelativePath(forward);
+        if (!forward.contains("./") && !forward.contains("//") && !forward.endsWith("/.")) {
+            return forward;
+        }
+        StringBuilder canonical = new StringBuilder(forward.length());
+        for (String segment : forward.split("/")) {
+            if (segment.isEmpty() || segment.equals(".")) {
+                continue;
+            }
+            if (!canonical.isEmpty()) {
+                canonical.append('/');
+            }
+            canonical.append(segment);
+        }
+        if (canonical.isEmpty()) {
+            throw new IllegalArgumentException("Path must name a file: " + filePath);
+        }
+        return canonical.toString();
     }
 
     /**

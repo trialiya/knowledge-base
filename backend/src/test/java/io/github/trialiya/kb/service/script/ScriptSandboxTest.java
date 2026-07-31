@@ -158,6 +158,41 @@ class ScriptSandboxTest {
         assertThat(files()).contains("src/App.java", "docs/readme.md", "secret.pem");
     }
 
+    /**
+     * The policy is a string match, so it is only as good as the spelling it is matched against:
+     * {@code ./secret.pem} names the same file and misses a glob written the obvious way. On the
+     * read path a denied respelling was already stopped one layer down, by the tracked-files rule —
+     * this pins that the policy itself stops it, which is what the write path relies on (see {@code
+     * ScriptEditTest}).
+     */
+    @Test
+    void aDeniedFileStaysDeniedHoweverThePathIsSpelled() {
+        runner = newRunner(withGlobs(List.of("secret.pem"), List.of()));
+
+        for (String spelling : List.of("secret.pem", "./secret.pem", ".//./secret.pem")) {
+            ScriptError denied = run("return kb.read(" + quote(spelling) + ");").error();
+            assertThat(denied).as(spelling).isNotNull();
+            assertThat(denied.message()).as(spelling).contains("File not found");
+            assertThat(denied.kind()).as(spelling).isEqualTo(ScriptError.Kind.RUNTIME);
+        }
+    }
+
+    /**
+     * The flip side, and the one a model actually hits: an equivalent spelling of a file it may
+     * read has to just work. A leading {@code ./} is a natural thing to write and used to be a dead
+     * end indistinguishable from the file not existing.
+     */
+    @Test
+    void anAllowedFileReadsUnderAnyEquivalentSpelling() {
+        assertThat(run("return kb.read('./docs/readme.md');").value()).isEqualTo("hello\nworld\n");
+        assertThat(run("return kb.read('docs//readme.md');").value()).isEqualTo("hello\nworld\n");
+        // And it is booked once, under one name, however it was asked for.
+        assertThat(
+                        run("kb.read('./docs/readme.md'); kb.read('docs/readme.md'); return 1;")
+                                .filesRead())
+                .containsExactly("docs/readme.md");
+    }
+
     // ── Budgets ─────────────────────────────────────────────────────────────
 
     @Test
@@ -185,6 +220,28 @@ class ScriptSandboxTest {
                 .extracting(ScriptError::kind)
                 .isEqualTo(ScriptError.Kind.BUDGET);
         assertThat(result.error().message()).contains("maxCalls");
+    }
+
+    /**
+     * A search returns file content, so it spends the content budget. Left unmetered it was the one
+     * way to pull an unbounded amount of the repository into a script while every other budget
+     * stayed unspent — {@code kb.read} is capped, but a loop of searches was free.
+     */
+    @Test
+    void searchResultsCountAgainstTheByteBudget() {
+        runner = newRunner(withLimits(limits -> limits.withMaxBytesRead(DataSize.ofBytes(40))));
+
+        ScriptResult result =
+                run("for (var i = 0; i < 100; i++) { kb.grep('class'); } return 'done';");
+
+        assertThat(result.error())
+                .isNotNull()
+                .extracting(ScriptError::kind)
+                .isEqualTo(ScriptError.Kind.BUDGET);
+        assertThat(result.error().message()).contains("maxBytesRead");
+        // Charged as bytes, not as files — a match line is not the file it came from.
+        assertThat(result.stats().filesRead()).isZero();
+        assertThat(result.stats().bytesRead()).isPositive();
     }
 
     @Test
@@ -357,9 +414,15 @@ class ScriptSandboxTest {
         private int maxFilesRead = 200;
         private int maxCalls = 2000;
         private int maxResultChars = 20_000;
+        private DataSize maxBytesRead = DataSize.ofMegabytes(4);
 
         LimitsBuilder withMaxFilesRead(int value) {
             this.maxFilesRead = value;
+            return this;
+        }
+
+        LimitsBuilder withMaxBytesRead(DataSize value) {
+            this.maxBytesRead = value;
             return this;
         }
 
@@ -376,7 +439,7 @@ class ScriptSandboxTest {
         ScriptProperties.Limits build() {
             return new ScriptProperties.Limits(
                     maxFilesRead,
-                    DataSize.ofMegabytes(4),
+                    maxBytesRead,
                     DataSize.ofKilobytes(512),
                     200,
                     maxCalls,

@@ -293,6 +293,65 @@ class ScriptEditTest {
         assertThat(fileText(APP_JAVA)).isEqualTo(ORIGINAL);
     }
 
+    // ── One spelling per path ───────────────────────────────────────────────
+
+    /**
+     * A leading {@code ./} is a natural thing for a model to write, and it used to sink the whole
+     * tool call: the file reached disk, {@code git add ./x} matched nothing, and the run died with
+     * "edits partially applied — ignored by .gitignore" about a rule that does not exist.
+     */
+    @Test
+    void createsAFileWhoseSpellingIsNotCanonical() {
+        ScriptResult result = run("kb.create('./src//Fresh.java', 'class Fresh {}\\n'); return 1;");
+
+        assertThat(result.error()).isNull();
+        assertThat(fileText("src/Fresh.java")).isEqualTo("class Fresh {}\n");
+        assertThat(result.edits())
+                .singleElement()
+                .extracting(GitEditResult::path)
+                .isEqualTo("src/Fresh.java");
+    }
+
+    /**
+     * Two spellings of one file are one file. Keyed on the raw string, the second edit was computed
+     * from the copy on disk and staged separately — quietly discarding the first.
+     */
+    @Test
+    void twoSpellingsOfOnePathAreOneStagedWrite() {
+        ScriptResult result =
+                run(
+                        """
+                        kb.read('src/App.java');
+                        kb.edit('src/App.java', 'class App', 'class AppOne');
+                        kb.edit('./src/App.java', 'void run', 'void start');
+                        return 'ok';
+                        """);
+
+        assertThat(result.error()).isNull();
+        assertThat(result.edits()).hasSize(1);
+        assertThat(result.stats().filesEdited()).isEqualTo(1);
+        // Both edits survived — the second saw the first, rather than the original on disk.
+        assertThat(fileText(APP_JAVA)).contains("class AppOne").contains("void start");
+    }
+
+    /**
+     * The glob policy is checked on the path, so it is only as strong as the spelling reaching it.
+     * {@code secrets/**} does not match {@code ./secrets/x.pem}: before the paths were canonical
+     * this slipped past the check and was stopped only by JGit declining to stage it — after the
+     * content had already been written to disk once.
+     */
+    @Test
+    void aDeniedPathCannotBeReachedByRespellingIt() {
+        runner = newRunner(true, withDenyGlobs(List.of("secrets/**")));
+
+        ScriptResult result = run("kb.create('./secrets/leak.pem', 'PRIVATE KEY'); return 1;");
+
+        assertThat(result.error()).isNotNull();
+        assertThat(result.error().message()).contains("File not found");
+        assertThat(result.error().kind()).isEqualTo(ScriptError.Kind.RUNTIME);
+        assertThat(repoDir.resolve("secrets/leak.pem")).doesNotExist();
+    }
+
     // ── Where writes are not available at all ───────────────────────────────
 
     @Test
@@ -329,6 +388,10 @@ class ScriptEditTest {
                 null,
                 properties,
                 new ScriptEditPolicy(gitProperties, properties, gitService));
+    }
+
+    private static ScriptProperties withDenyGlobs(List<String> deny) {
+        return new ScriptProperties(true, true, null, null, null, null, null, null, deny, null);
     }
 
     private static ScriptProperties withEditLimits(int maxEditedFiles) {

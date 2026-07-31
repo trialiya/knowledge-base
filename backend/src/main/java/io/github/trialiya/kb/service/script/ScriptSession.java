@@ -50,6 +50,15 @@ public final class ScriptSession {
     /** Subset of {@link #pendingText} that does not exist yet and must be created, not replaced. */
     private final Set<String> pendingCreates = new LinkedHashSet<>();
 
+    /**
+     * Encoded size of each pending file, and their running total. Kept alongside the text rather
+     * than recomputed: a script may rewrite one file many times, and re-encoding every pending file
+     * on each of those writes is quadratic in exactly the case the byte budget exists to survive.
+     */
+    private final Map<String, Integer> pendingSize = new LinkedHashMap<>();
+
+    private long pendingBytes;
+
     private long bytesRead;
     private int calls;
     private int logChars;
@@ -148,15 +157,11 @@ public final class ScriptSession {
                             + " files per run, and nothing has been written to disk. Edit fewer"
                             + " files per script, or split the work across two runScript calls.");
         }
-        pendingText.put(path, text);
-        if (created) {
-            pendingCreates.add(path);
-        }
-
-        long total = 0;
-        for (String pending : pendingText.values()) {
-            total += pending.getBytes(StandardCharsets.UTF_8).length;
-        }
+        // Both budgets are checked before anything is recorded, so a refused write leaves the run's
+        // pending state exactly as it was — the counters a failed run reports describe what it
+        // actually staged, not what it was stopped from staging.
+        int size = text.getBytes(StandardCharsets.UTF_8).length;
+        long total = pendingBytes - pendingSize.getOrDefault(path, 0) + size;
         long max = limits.maxEditedBytes().toBytes();
         if (total > max) {
             throw new ScriptLimitExceededException(
@@ -164,6 +169,13 @@ public final class ScriptSession {
                             + max
                             + " bytes per run, and nothing has been written to disk. Make smaller"
                             + " edits, or split the work across two runScript calls.");
+        }
+
+        pendingText.put(path, text);
+        pendingSize.put(path, size);
+        pendingBytes = total;
+        if (created) {
+            pendingCreates.add(path);
         }
     }
 
@@ -178,8 +190,9 @@ public final class ScriptSession {
         if (pendingText.containsKey(path)) {
             return;
         }
-        // filesRead holds paths as GitService normalised them; the script passes its own spelling.
-        if (!filesRead.contains(path.strip().replace('\\', '/'))) {
+        // Both sides are canonical — the caller normalises before it asks (see KbScriptApi), and
+        // filesRead holds the paths GitService reported back.
+        if (!filesRead.contains(path)) {
             throw new IllegalArgumentException(
                     "Refusing to edit "
                             + path
@@ -212,14 +225,31 @@ public final class ScriptSession {
                             + " files per run. Narrow the file list before reading (kb.grep with a"
                             + " glob, or kb.files with a tighter pattern).");
         }
+        chargeBytes(bytes, "Read line ranges (kb.read(path, from, to)) instead of whole files.");
+    }
+
+    /**
+     * Books the text a search returned against the byte budget, without counting the files it came
+     * from as read — a match line is not the file.
+     *
+     * <p>It is charged at all because a search returns file <em>content</em>, and content is what
+     * {@code maxBytesRead} exists to bound. Left unmetered, a loop of matching searches was the one
+     * way left to pull an unbounded amount of the repository into a script's memory while every
+     * other budget stayed comfortably unspent.
+     */
+    public void chargeSearch(long bytes) {
+        chargeBytes(
+                bytes,
+                "Narrow the search (a glob, a longer pattern, fewer context lines) or ask for"
+                        + " fewer matches with {max: N}.");
+    }
+
+    private void chargeBytes(long bytes, String advice) {
         bytesRead += bytes;
         long maxBytes = limits.maxBytesRead().toBytes();
         if (bytesRead > maxBytes) {
             throw new ScriptLimitExceededException(
-                    "Budget exceeded: maxBytesRead="
-                            + maxBytes
-                            + " bytes per run. Read line ranges (kb.read(path, from, to)) instead"
-                            + " of whole files.");
+                    "Budget exceeded: maxBytesRead=" + maxBytes + " bytes per run. " + advice);
         }
     }
 
