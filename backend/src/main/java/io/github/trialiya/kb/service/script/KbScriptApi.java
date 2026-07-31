@@ -34,11 +34,15 @@ import org.springframework.util.AntPathMatcher;
  * / {@link ProxyArray} rather than raw Java collections, so scripts see ordinary JS arrays and
  * objects and no host class ever leaks through a result.
  *
+ * <p>Not final: {@code KbEditScriptApi} extends it with the write methods, and which of the two is
+ * bound is how "may this script write" is expressed to the guest — an unavailable method is absent,
+ * not refusing.
+ *
  * <p>Overloads exist purely for the model's benefit: {@code kb.read(path)} and {@code kb.read(path,
  * from, to)} are separate methods because polyglot host calls are arity-matched, and a weak model
  * that omits an optional argument would otherwise get an unhelpful arity error.
  */
-public final class KbScriptApi {
+public class KbScriptApi {
 
     private static final AntPathMatcher MATCHER = new AntPathMatcher();
 

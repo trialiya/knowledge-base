@@ -3,6 +3,7 @@ package io.github.trialiya.kb.service.script;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.trialiya.kb.config.model.ScriptProperties;
+import io.github.trialiya.kb.model.git.dto.GitEditResult;
 import io.github.trialiya.kb.model.script.ScriptError;
 import io.github.trialiya.kb.model.script.ScriptError.Kind;
 import io.github.trialiya.kb.model.script.ScriptResult;
@@ -10,6 +11,9 @@ import io.github.trialiya.kb.service.DocumentService;
 import io.github.trialiya.kb.service.GitService;
 import io.github.trialiya.kb.tools.RunCancellation;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
@@ -76,12 +80,17 @@ public class ScriptRunner {
     private final GitService gitService;
     private final DocumentService documentService;
     private final ScriptProperties properties;
+    private final ScriptEditPolicy editPolicy;
 
     public ScriptRunner(
-            GitService gitService, DocumentService documentService, ScriptProperties properties) {
+            GitService gitService,
+            DocumentService documentService,
+            ScriptProperties properties,
+            ScriptEditPolicy editPolicy) {
         this.gitService = gitService;
         this.documentService = documentService;
         this.properties = properties;
+        this.editPolicy = editPolicy;
     }
 
     /**
@@ -97,8 +106,25 @@ public class ScriptRunner {
      */
     public ScriptResult run(
             String script, @Nullable Integer timeoutSeconds, RunCancellation cancellation) {
+        return run(script, timeoutSeconds, cancellation, false);
+    }
+
+    /**
+     * As {@link #run(String, Integer, RunCancellation)}, but {@code forceReadOnly} withholds the
+     * write methods regardless of {@code ScriptEditPolicy} — for the search sub-agent, which is
+     * read-only by construction and must stay so in a deployment where the main chat may edit.
+     */
+    public ScriptResult run(
+            String script,
+            @Nullable Integer timeoutSeconds,
+            RunCancellation cancellation,
+            boolean forceReadOnly) {
         ScriptSession session = new ScriptSession(properties);
-        KbScriptApi api = new KbScriptApi(gitService, documentService, session);
+        // Which object is bound IS the permission: with writes off, kb.edit does not exist.
+        KbScriptApi api =
+                editPolicy.enabled() && !forceReadOnly
+                        ? new KbEditScriptApi(gitService, documentService, session)
+                        : new KbScriptApi(gitService, documentService, session);
         Duration timeout = resolveTimeout(timeoutSeconds);
         long deadlineNanos = System.nanoTime() + timeout.toNanos();
 
@@ -118,7 +144,10 @@ public class ScriptRunner {
 
             Value returned = context.eval(source(script));
             Object value = stringify(helpers.getMember("result"), returned, session);
-            return success(value, session);
+            // Only now, with the script finished and its result already converted, does anything
+            // reach disk. Every earlier exit — a throw, a budget, a timeout, a user stop — leaves
+            // the working tree exactly as the run found it.
+            return success(value, session, applyPendingWrites(session));
         } catch (PolyglotException e) {
             return failure(e, session, cancelReason.get(), timeout);
         } catch (ScriptLimitExceededException e) {
@@ -202,14 +231,55 @@ public class ScriptRunner {
 
     // ── Results ─────────────────────────────────────────────────────────────
 
-    private ScriptResult success(@Nullable Object value, ScriptSession session) {
+    private ScriptResult success(
+            @Nullable Object value, ScriptSession session, List<GitEditResult> edits) {
         return new ScriptResult(
-                value, session.logLines(), session.stats(), null, session.filesRead());
+                value, session.logLines(), session.stats(), null, session.filesRead(), edits);
     }
 
     private ScriptResult failed(ScriptSession session, ScriptError error) {
         return new ScriptResult(
-                null, session.logLines(), session.stats(), error, session.filesRead());
+                null, session.logLines(), session.stats(), error, session.filesRead(), List.of());
+    }
+
+    /**
+     * Writes the run's buffered files, one atomic write and one diff per file, in the order the
+     * script first touched them. Nothing is committed — the changes stay uncommitted for the user
+     * to review, exactly like the {@code createFile}/{@code editFile} tools.
+     *
+     * <p>Atomic per file, not across files: every write was validated as the script made it, so a
+     * failure here means the tree changed underneath the run. If that does happen the files already
+     * written stay written, and the exception carries which ones — silently rolling back would be a
+     * second unreviewed change on top of the first.
+     */
+    private List<GitEditResult> applyPendingWrites(ScriptSession session) {
+        List<String> order = session.pendingWriteOrder();
+        if (order.isEmpty()) {
+            return List.of();
+        }
+        Map<String, String> writes = session.pendingWrites();
+        List<GitEditResult> applied = new ArrayList<>(order.size());
+        for (String path : order) {
+            try {
+                applied.add(
+                        session.isPendingCreate(path)
+                                ? gitService.createFile(path, writes.get(path))
+                                : gitService.replaceTrackedFile(path, writes.get(path)));
+            } catch (RuntimeException e) {
+                throw new IllegalStateException(
+                        "Script edits partially applied ("
+                                + applied.size()
+                                + " of "
+                                + order.size()
+                                + " files) — failed on "
+                                + path
+                                + ": "
+                                + e.getMessage(),
+                        e);
+            }
+        }
+        log.info("runScript applied {} file change(s)", applied.size());
+        return applied;
     }
 
     /**

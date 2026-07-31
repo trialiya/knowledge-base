@@ -19,6 +19,7 @@ import io.github.trialiya.kb.service.ChatEventService;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.service.DocumentService;
 import io.github.trialiya.kb.service.GitService;
+import io.github.trialiya.kb.service.ScriptGuideService;
 import io.github.trialiya.kb.service.SearchAgentService;
 import io.github.trialiya.kb.service.script.ScriptRunner;
 import io.github.trialiya.kb.tools.RecordingToolCallback;
@@ -129,15 +130,16 @@ public class ChatConfig {
      * explicit opt-in like {@code kb.mcp.enabled}, even though the engine it runs in has no
      * filesystem, no host classes and no threads (see {@code ScriptRunner}).
      *
-     * <p>Read-only in this step — the injected {@code kb} object exposes listing, reading and
-     * searching only. When the tool is absent, {@code ScriptGuideService} also yields an empty
-     * prompt fragment, so the model is never told about a tool it does not have.
+     * <p>Whether scripts may also write is a second decision, made by {@code ScriptEditPolicy} from
+     * {@code kb.git.edit-enabled} + a writable tree + {@code kb.script.edit-enabled}. When the tool
+     * is absent, {@code ScriptGuideService} also yields an empty prompt fragment, so the model is
+     * never told about a tool it does not have.
      */
     @Bean
     @ConditionalOnProperty(prefix = "kb.script", name = "enabled", havingValue = "true")
     public ScriptFunction scriptFunction(ScriptRunner scriptRunner) {
         log.info("Script tool enabled (runScript)");
-        return new ScriptFunction(scriptRunner);
+        return ScriptFunction.forChat(scriptRunner);
     }
 
     @Bean
@@ -165,17 +167,36 @@ public class ChatConfig {
             SubAgentConfig subAgentConfig,
             @Value("classpath:prompt/search-agent.md") Resource searchAgentPrompt,
             GitFunction gitFunction,
-            DocumentFunction documentFunction) {
+            DocumentFunction documentFunction,
+            ScriptRunner scriptRunner,
+            ScriptGuideService scriptGuideService) {
+        // The sub-agent's own copy of runScript, forced read-only: its allow-list may include the
+        // tool, but never the ability to write, whatever the main chat is allowed to do.
         ToolCallback[] readOnly =
-                Stream.of(ToolCallbacks.from(gitFunction, documentFunction))
+                Stream.of(
+                                ToolCallbacks.from(
+                                        gitFunction,
+                                        documentFunction,
+                                        ScriptFunction.readOnly(scriptRunner)))
                         .filter(
                                 cb ->
                                         subAgentConfig
                                                 .allowedTools()
                                                 .contains(cb.getToolDefinition().name()))
                         .toArray(ToolCallback[]::new);
+        // The script handbook is long; add it to the sub-agent's prompt only when it may actually
+        // call the tool.
+        String scriptInstructions =
+                subAgentConfig.allowedTools().contains("runScript")
+                        ? scriptGuideService.readOnlyInstructions()
+                        : "";
         return new SearchAgentService(
-                openAiChatModel, toolCallingManager, subAgentConfig, searchAgentPrompt, readOnly);
+                openAiChatModel,
+                toolCallingManager,
+                subAgentConfig,
+                searchAgentPrompt,
+                scriptInstructions,
+                readOnly);
     }
 
     @Bean

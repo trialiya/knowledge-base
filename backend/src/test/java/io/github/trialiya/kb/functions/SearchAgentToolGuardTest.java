@@ -20,6 +20,7 @@ class SearchAgentToolGuardTest {
     /** Mirror of {@code kb.search.subagent.allowed-tools} in application.yaml. */
     private static final Set<String> ALLOWED =
             Set.of(
+                    "runScript",
                     "grepContent",
                     "searchFiles",
                     "getFileTree",
@@ -42,11 +43,7 @@ class SearchAgentToolGuardTest {
                     "deleteDocumentSection",
                     "renameDocumentSections",
                     "copyAttachmentToDocument",
-                    "searchCodebase",
-                    // Read-only, but still arbitrary code execution with its own budgets and its
-                    // own cancellation path. Giving it to the sub-agent is a separate decision,
-                    // not something an allow-list edit should be able to do by accident.
-                    "runScript");
+                    "searchCodebase");
 
     private static Set<String> filteredToolNames() {
         // Services are never invoked by ToolCallbacks.from (it only reflects over @Tool methods),
@@ -55,7 +52,7 @@ class SearchAgentToolGuardTest {
                         ToolCallbacks.from(
                                 new GitFunction(null),
                                 new DocumentFunction(null, null),
-                                new ScriptFunction(null)))
+                                ScriptFunction.readOnly(null)))
                 .map(cb -> cb.getToolDefinition().name())
                 .filter(ALLOWED::contains)
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());

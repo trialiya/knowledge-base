@@ -1,10 +1,12 @@
 package io.github.trialiya.kb.service;
 
 import io.github.trialiya.kb.config.model.ScriptProperties;
+import io.github.trialiya.kb.service.script.ScriptEditPolicy;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StreamUtils;
 
@@ -28,9 +30,11 @@ import org.springframework.util.StreamUtils;
 public class ScriptGuideService {
 
     private final String instructions;
+    private final String readOnlyInstructions;
 
-    public ScriptGuideService(ScriptProperties properties) {
-        this.instructions = properties.enabled() ? render(properties) : "";
+    public ScriptGuideService(ScriptProperties properties, ScriptEditPolicy editPolicy) {
+        this.instructions = properties.enabled() ? render(properties, editPolicy.enabled()) : "";
+        this.readOnlyInstructions = properties.enabled() ? render(properties, false) : "";
     }
 
     /**
@@ -41,35 +45,51 @@ public class ScriptGuideService {
         return instructions;
     }
 
-    private static String render(ScriptProperties properties) {
+    /**
+     * The handbook without the write appendix, whatever the edit policy says — for the search
+     * sub-agent, which is read-only by construction and must stay that way even in a deployment
+     * where the main chat may edit files.
+     */
+    public String readOnlyInstructions() {
+        return readOnlyInstructions;
+    }
+
+    private static String render(ScriptProperties properties, boolean editEnabled) {
         ScriptProperties.Limits limits = properties.limits();
         Map<String, String> values =
-                Map.of(
-                        "max_files_read", String.valueOf(limits.maxFilesRead()),
-                        "max_bytes_read", limits.maxBytesRead().toMegabytes() + " МБ",
-                        "max_file_bytes", limits.maxFileBytes().toKilobytes() + " КБ",
-                        "max_grep_matches", String.valueOf(limits.maxGrepMatches()),
-                        "max_calls", String.valueOf(limits.maxCalls()),
-                        "max_log_chars", String.valueOf(limits.maxLogChars()),
-                        "max_result_chars", String.valueOf(limits.maxResultChars()),
-                        "timeout", properties.timeout().toSeconds() + " с",
-                        "max_timeout", properties.maxTimeout().toSeconds() + " с");
+                Map.ofEntries(
+                        Map.entry("max_files_read", String.valueOf(limits.maxFilesRead())),
+                        Map.entry("max_bytes_read", limits.maxBytesRead().toMegabytes() + " МБ"),
+                        Map.entry("max_file_bytes", limits.maxFileBytes().toKilobytes() + " КБ"),
+                        Map.entry("max_grep_matches", String.valueOf(limits.maxGrepMatches())),
+                        Map.entry("max_calls", String.valueOf(limits.maxCalls())),
+                        Map.entry("max_log_chars", String.valueOf(limits.maxLogChars())),
+                        Map.entry("max_result_chars", String.valueOf(limits.maxResultChars())),
+                        Map.entry("max_edited_files", String.valueOf(limits.maxEditedFiles())),
+                        Map.entry(
+                                "max_edited_bytes", limits.maxEditedBytes().toKilobytes() + " КБ"),
+                        Map.entry("timeout", properties.timeout().toSeconds() + " с"),
+                        Map.entry("max_timeout", properties.maxTimeout().toSeconds() + " с"));
 
-        String text = read(properties);
+        // The write appendix is added only when kb.edit/kb.create are actually bound, so the
+        // handbook can never describe a method the sandbox does not have.
+        String text = read(properties.guide());
+        if (editEnabled) {
+            text = text + "\n\n" + read(properties.editGuide());
+        }
         for (Map.Entry<String, String> entry : values.entrySet()) {
             text = text.replace("{{" + entry.getKey() + "}}", entry.getValue());
         }
         return text;
     }
 
-    private static String read(ScriptProperties properties) {
+    private static String read(Resource resource) {
         try {
-            return StreamUtils.copyToString(
-                            properties.guide().getInputStream(), StandardCharsets.UTF_8)
+            return StreamUtils.copyToString(resource.getInputStream(), StandardCharsets.UTF_8)
                     .strip();
         } catch (IOException e) {
             throw new UncheckedIOException(
-                    "Не удалось прочитать руководство по скриптам: " + properties.guide(), e);
+                    "Не удалось прочитать руководство по скриптам: " + resource, e);
         }
     }
 }

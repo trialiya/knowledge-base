@@ -17,8 +17,14 @@ import org.springframework.util.unit.DataSize;
  *
  * @param enabled expose {@code runScript} to the chat model at all; off by default — a sandbox is
  *     still code execution, so this is an explicit opt-in like {@code kb.mcp.enabled}
+ * @param editEnabled let scripts write through {@code kb.edit} / {@code kb.create}. Necessary but
+ *     not sufficient: {@code kb.git.edit-enabled} must be on and the working tree writable, exactly
+ *     as for the {@code editFile} tool (see {@code ScriptEditPolicy}). Separate from that flag so a
+ *     deployment can keep the edit tools and still hand the model read-only scripts
  * @param guide markdown handbook injected into the system prompt while the tool is enabled (see
  *     {@code ScriptGuideService}); weak models cannot use the tool from its description alone
+ * @param editGuide appendix appended to {@code guide} only when writes are actually available —
+ *     telling a model about {@code kb.edit} it cannot call wastes its attempts
  * @param timeout wall-clock budget for one script when the model does not ask for a specific one
  * @param maxTimeout ceiling for the tool's own {@code timeoutSeconds} argument
  * @param cancelPoll how often the watchdog re-checks the deadline and the run's cancellation flag
@@ -31,7 +37,9 @@ import org.springframework.util.unit.DataSize;
 @ConfigurationProperties(prefix = "kb.script")
 public record ScriptProperties(
         boolean enabled,
+        boolean editEnabled,
         Resource guide,
+        Resource editGuide,
         Duration timeout,
         Duration maxTimeout,
         Duration cancelPoll,
@@ -41,9 +49,14 @@ public record ScriptProperties(
 
     private static final Resource DEFAULT_GUIDE = new ClassPathResource("prompt/script-run.md");
 
+    private static final Resource DEFAULT_EDIT_GUIDE =
+            new ClassPathResource("prompt/script-run-edit.md");
+
     public ScriptProperties(
             boolean enabled,
+            boolean editEnabled,
             @Nullable Resource guide,
+            @Nullable Resource editGuide,
             @Nullable Duration timeout,
             @Nullable Duration maxTimeout,
             @Nullable Duration cancelPoll,
@@ -51,18 +64,20 @@ public record ScriptProperties(
             @Nullable List<String> denyGlobs,
             @Nullable List<String> allowGlobs) {
         this.enabled = enabled;
+        this.editEnabled = editEnabled;
         this.guide = guide != null ? guide : DEFAULT_GUIDE;
+        this.editGuide = editGuide != null ? editGuide : DEFAULT_EDIT_GUIDE;
         this.timeout = timeout != null ? timeout : Duration.ofSeconds(10);
         this.maxTimeout = maxTimeout != null ? maxTimeout : Duration.ofSeconds(30);
         this.cancelPoll = cancelPoll != null ? cancelPoll : Duration.ofMillis(50);
-        this.limits = limits != null ? limits : new Limits(0, null, null, 0, 0, 0, 0);
+        this.limits = limits != null ? limits : new Limits(0, null, null, 0, 0, 0, 0, 0, null);
         this.denyGlobs = denyGlobs != null ? List.copyOf(denyGlobs) : List.of();
         this.allowGlobs = allowGlobs != null ? List.copyOf(allowGlobs) : List.of();
     }
 
     /** All-defaults instance with the tool enabled — for tests and programmatic setups. */
     public static ScriptProperties enabledWithDefaults() {
-        return new ScriptProperties(true, null, null, null, null, null, null, null);
+        return new ScriptProperties(true, true, null, null, null, null, null, null, null, null);
     }
 
     /**
@@ -81,6 +96,9 @@ public record ScriptProperties(
      *     under every other budget (re-reading one already-charged file, say)
      * @param maxLogChars total characters {@code kb.log} may accumulate
      * @param maxResultChars JSON size cap for the script's return value
+     * @param maxEditedFiles files one run may create or modify — the guard against a buggy loop
+     *     rewriting the repository
+     * @param maxEditedBytes total size of the files one run may write
      */
     public record Limits(
             int maxFilesRead,
@@ -89,7 +107,9 @@ public record ScriptProperties(
             int maxGrepMatches,
             int maxCalls,
             int maxLogChars,
-            int maxResultChars) {
+            int maxResultChars,
+            int maxEditedFiles,
+            DataSize maxEditedBytes) {
 
         private static final int DEFAULT_MAX_FILES_READ = 200;
         private static final DataSize DEFAULT_MAX_BYTES_READ = DataSize.ofMegabytes(4);
@@ -98,6 +118,8 @@ public record ScriptProperties(
         private static final int DEFAULT_MAX_CALLS = 2000;
         private static final int DEFAULT_MAX_LOG_CHARS = 20_000;
         private static final int DEFAULT_MAX_RESULT_CHARS = 20_000;
+        private static final int DEFAULT_MAX_EDITED_FILES = 20;
+        private static final DataSize DEFAULT_MAX_EDITED_BYTES = DataSize.ofKilobytes(256);
 
         public Limits(
                 int maxFilesRead,
@@ -106,7 +128,9 @@ public record ScriptProperties(
                 int maxGrepMatches,
                 int maxCalls,
                 int maxLogChars,
-                int maxResultChars) {
+                int maxResultChars,
+                int maxEditedFiles,
+                @Nullable DataSize maxEditedBytes) {
             this.maxFilesRead = maxFilesRead > 0 ? maxFilesRead : DEFAULT_MAX_FILES_READ;
             this.maxBytesRead = maxBytesRead != null ? maxBytesRead : DEFAULT_MAX_BYTES_READ;
             this.maxFileBytes = maxFileBytes != null ? maxFileBytes : DEFAULT_MAX_FILE_BYTES;
@@ -114,6 +138,9 @@ public record ScriptProperties(
             this.maxCalls = maxCalls > 0 ? maxCalls : DEFAULT_MAX_CALLS;
             this.maxLogChars = maxLogChars > 0 ? maxLogChars : DEFAULT_MAX_LOG_CHARS;
             this.maxResultChars = maxResultChars > 0 ? maxResultChars : DEFAULT_MAX_RESULT_CHARS;
+            this.maxEditedFiles = maxEditedFiles > 0 ? maxEditedFiles : DEFAULT_MAX_EDITED_FILES;
+            this.maxEditedBytes =
+                    maxEditedBytes != null ? maxEditedBytes : DEFAULT_MAX_EDITED_BYTES;
         }
     }
 }

@@ -50,9 +50,13 @@ class ScriptSandboxTest {
     }
 
     private ScriptRunner newRunner(ScriptProperties properties) {
-        GitService gitService =
-                new GitService(new GitProperties(repoDir.toString(), false), new OutlineService());
-        return new ScriptRunner(gitService, null, properties);
+        GitProperties gitProperties = new GitProperties(repoDir.toString(), false);
+        GitService gitService = new GitService(gitProperties, new OutlineService());
+        return new ScriptRunner(
+                gitService,
+                null,
+                properties,
+                new ScriptEditPolicy(gitProperties, properties, gitService));
     }
 
     private ScriptResult run(String script) {
@@ -249,6 +253,8 @@ class ScriptSandboxTest {
                 newRunner(
                         new ScriptProperties(
                                 true,
+                                false,
+                                null,
                                 null,
                                 Duration.ofSeconds(1),
                                 Duration.ofSeconds(2),
@@ -328,13 +334,22 @@ class ScriptSandboxTest {
     }
 
     private static ScriptProperties withGlobs(List<String> deny, List<String> allow) {
-        return new ScriptProperties(true, null, null, null, null, null, deny, allow);
+        return new ScriptProperties(true, false, null, null, null, null, null, null, deny, allow);
     }
 
     private static ScriptProperties withLimits(
             java.util.function.UnaryOperator<LimitsBuilder> tune) {
         return new ScriptProperties(
-                true, null, null, null, null, tune.apply(new LimitsBuilder()).build(), null, null);
+                true,
+                false,
+                null,
+                null,
+                null,
+                null,
+                null,
+                tune.apply(new LimitsBuilder()).build(),
+                null,
+                null);
     }
 
     /** Mutable stand-in for {@link ScriptProperties.Limits}, so a test can vary one budget. */
@@ -363,10 +378,12 @@ class ScriptSandboxTest {
                     maxFilesRead,
                     DataSize.ofMegabytes(4),
                     DataSize.ofKilobytes(512),
-                    500,
+                    200,
                     maxCalls,
                     20_000,
-                    maxResultChars);
+                    maxResultChars,
+                    20,
+                    DataSize.ofKilobytes(256));
         }
     }
 

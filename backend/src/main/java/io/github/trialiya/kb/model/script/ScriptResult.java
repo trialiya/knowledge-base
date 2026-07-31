@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.model.script;
 
+import io.github.trialiya.kb.model.git.dto.GitEditResult;
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.model.tool.ToolCallResultMetaProvider;
 import io.github.trialiya.kb.tools.Compact;
@@ -20,13 +21,16 @@ import org.jspecify.annotations.Nullable;
  * @param stats what the run consumed; see {@link ScriptStats}
  * @param error why it stopped, or null when it completed normally
  * @param filesRead paths the run touched, in first-read order — feeds the file chips in the UI
+ * @param edits files the run created or modified, with a unified diff each; always empty for a
+ *     failed run, which writes nothing at all
  */
 public record ScriptResult(
         @Nullable Object value,
         List<String> log,
         ScriptStats stats,
         @Nullable ScriptError error,
-        List<String> filesRead)
+        List<String> filesRead,
+        List<GitEditResult> edits)
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
     /** Paths listed in the UI meta; a script may legitimately touch far more than fits a plaque. */
@@ -38,6 +42,7 @@ public record ScriptResult(
                 .add("files", stats.filesRead())
                 .add("bytes", stats.bytesRead())
                 .add("calls", stats.calls())
+                .add("edited", stats.filesEdited() > 0 ? stats.filesEdited() : null)
                 .add("ms", stats.elapsedMs())
                 .add("error", error == null ? null : error.kind())
                 .done();
@@ -51,6 +56,10 @@ public record ScriptResult(
         meta.put("calls", stats.calls());
         meta.put("elapsedMs", stats.elapsedMs());
         meta.put("paths", filesRead.stream().limit(META_PATH_LIMIT).toList());
+        if (!edits.isEmpty()) {
+            // Same shape the frontend's file-change block already reads from createFile/editFile.
+            meta.put("edits", edits.stream().map(GitEditResult::getResultMeta).toList());
+        }
         if (error != null) {
             meta.put("error", error.kind().name());
         }

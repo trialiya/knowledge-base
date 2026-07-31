@@ -76,11 +76,15 @@ public class SearchAgentService {
             ToolCallingManager toolCallingManager,
             SubAgentConfig config,
             Resource systemPrompt,
+            String extraInstructions,
             ToolCallback[] toolCallbacks) {
         this.chatModel = chatModel;
         this.toolCallingManager = toolCallingManager;
         this.config = config;
-        this.systemPrompt = readResource(systemPrompt);
+        this.systemPrompt =
+                extraInstructions.isBlank()
+                        ? readResource(systemPrompt)
+                        : readResource(systemPrompt) + "\n\n" + extraInstructions;
         this.toolCallbacks = toolCallbacks;
         log.info(
                 "SearchAgentService ready: model={}, maxIterations={}, tools={}",

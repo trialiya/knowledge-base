@@ -38,23 +38,28 @@ class ScriptCancellationTest {
         runGit("init", "-q");
         runGit("config", "user.email", "test@example.com");
         runGit("config", "user.name", "Test");
-        GitService gitService =
-                new GitService(new GitProperties(repoDir.toString(), false), new OutlineService());
+        GitProperties gitProperties = new GitProperties(repoDir.toString(), false);
+        GitService gitService = new GitService(gitProperties, new OutlineService());
+        ScriptProperties properties =
+                new ScriptProperties(
+                        true,
+                        false,
+                        null,
+                        null,
+                        // A minute of budget: whatever stops the script below, it is not the
+                        // timeout.
+                        Duration.ofMinutes(1),
+                        Duration.ofMinutes(1),
+                        Duration.ofMillis(20),
+                        null,
+                        null,
+                        null);
         runner =
                 new ScriptRunner(
                         gitService,
                         null,
-                        new ScriptProperties(
-                                true,
-                                null,
-                                // A minute of budget: whatever stops the script below, it is not
-                                // the timeout.
-                                Duration.ofMinutes(1),
-                                Duration.ofMinutes(1),
-                                Duration.ofMillis(20),
-                                null,
-                                null,
-                                null));
+                        properties,
+                        new ScriptEditPolicy(gitProperties, properties, gitService));
     }
 
     @Test

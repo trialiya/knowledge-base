@@ -1,8 +1,11 @@
 package io.github.trialiya.kb.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.config.model.ScriptProperties;
+import io.github.trialiya.kb.service.script.ScriptEditPolicy;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ByteArrayResource;
@@ -19,15 +22,14 @@ class ScriptGuideServiceTest {
     @Test
     void saysNothingAboutScriptsWhenTheToolIsDisabled() {
         ScriptProperties disabled =
-                new ScriptProperties(false, null, null, null, null, null, null, null);
+                new ScriptProperties(false, false, null, null, null, null, null, null, null, null);
 
-        assertThat(new ScriptGuideService(disabled).instructions()).isEmpty();
+        assertThat(guide(disabled, false).instructions()).isEmpty();
     }
 
     @Test
     void shipsTheRealHandbookWhenTheToolIsEnabled() {
-        String instructions =
-                new ScriptGuideService(ScriptProperties.enabledWithDefaults()).instructions();
+        String instructions = guide(ScriptProperties.enabledWithDefaults(), false).instructions();
 
         assertThat(instructions).contains("runScript", "kb.read", "kb.grep");
         // Every placeholder must have been substituted — a literal {{...}} in the system prompt is
@@ -44,7 +46,9 @@ class ScriptGuideServiceTest {
         ScriptProperties properties =
                 new ScriptProperties(
                         true,
+                        false,
                         guide,
+                        null,
                         java.time.Duration.ofSeconds(7),
                         java.time.Duration.ofSeconds(42),
                         null,
@@ -52,14 +56,38 @@ class ScriptGuideServiceTest {
                                 13,
                                 DataSize.ofMegabytes(4),
                                 DataSize.ofKilobytes(512),
-                                500,
+                                200,
                                 2000,
                                 20_000,
-                                20_000),
+                                20_000,
+                                20,
+                                DataSize.ofKilobytes(256)),
                         List.of(),
                         List.of());
 
-        assertThat(new ScriptGuideService(properties).instructions())
+        assertThat(guide(properties, false).instructions())
                 .isEqualTo("файлов: 13, время: 7 с, максимум 42 с");
+    }
+
+    @Test
+    void mentionsTheWriteMethodsOnlyWhenTheyAreActuallyBound() {
+        ScriptProperties properties = ScriptProperties.enabledWithDefaults();
+
+        assertThat(guide(properties, false).instructions()).doesNotContain("kb.edit", "kb.create");
+        assertThat(guide(properties, true).instructions()).contains("kb.edit", "kb.create");
+    }
+
+    @Test
+    void neverOffersWritesToTheSearchSubAgentEvenWhereTheMainChatMayEdit() {
+        ScriptGuideService service = guide(ScriptProperties.enabledWithDefaults(), true);
+
+        assertThat(service.instructions()).contains("kb.edit");
+        assertThat(service.readOnlyInstructions()).doesNotContain("kb.edit");
+    }
+
+    private static ScriptGuideService guide(ScriptProperties properties, boolean editEnabled) {
+        ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
+        when(policy.enabled()).thenReturn(editEnabled);
+        return new ScriptGuideService(properties, policy);
     }
 }

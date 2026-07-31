@@ -2,9 +2,12 @@ package io.github.trialiya.kb.i18n;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.service.ScriptGuideService;
+import io.github.trialiya.kb.service.script.ScriptEditPolicy;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -31,9 +34,13 @@ class SystemPromptRenderTest {
     @Test
     @Timeout(30)
     void rendersWithTheScriptHandbookInjected() throws IOException {
+        // With writes on, so the appendix — and its JavaScript examples — is in the fragment too.
+        ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
+        when(policy.enabled()).thenReturn(true);
         String handbook =
-                new ScriptGuideService(ScriptProperties.enabledWithDefaults()).instructions();
-        assertThat(handbook).contains("kb.grep", "{", "}");
+                new ScriptGuideService(ScriptProperties.enabledWithDefaults(), policy)
+                        .instructions();
+        assertThat(handbook).contains("kb.grep", "kb.edit", "{", "}");
 
         String rendered =
                 RENDERER.apply(

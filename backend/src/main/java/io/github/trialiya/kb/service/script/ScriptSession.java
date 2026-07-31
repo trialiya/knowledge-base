@@ -2,9 +2,13 @@ package io.github.trialiya.kb.service.script;
 
 import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.model.script.ScriptStats;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import org.springframework.util.AntPathMatcher;
 
@@ -33,6 +37,18 @@ public final class ScriptSession {
     private final Set<String> filesRead = new LinkedHashSet<>();
     private final List<String> log = new ArrayList<>();
     private final long startNanos = System.nanoTime();
+
+    /**
+     * Files the script has written, path → pending text, in first-write order. Nothing here has
+     * touched disk: a script that edits twenty files and then throws on the twenty-first must leave
+     * the working tree exactly as it found it, so writes are buffered until the run succeeds (see
+     * {@code ScriptRunner}). Keeping the text — rather than a list of replacements to replay — is
+     * also what makes a second edit of the same file behave the way the script expects.
+     */
+    private final Map<String, String> pendingText = new LinkedHashMap<>();
+
+    /** Subset of {@link #pendingText} that does not exist yet and must be created, not replaced. */
+    private final Set<String> pendingCreates = new LinkedHashSet<>();
 
     private long bytesRead;
     private int calls;
@@ -109,6 +125,78 @@ public final class ScriptSession {
         }
     }
 
+    // ── Writes (buffered until the run succeeds) ────────────────────────────
+
+    /**
+     * Current text of a file as the script sees it: its pending version if it has already been
+     * written in this run, otherwise absent so the caller reads from disk.
+     */
+    public Optional<String> pendingText(String path) {
+        return Optional.ofNullable(pendingText.get(path));
+    }
+
+    /**
+     * Records the new text of a file, charging the write budgets. {@code created} marks a file that
+     * does not exist yet, so the apply step knows to create rather than replace it.
+     */
+    public void stageWrite(String path, String text, boolean created) {
+        boolean newFile = !pendingText.containsKey(path);
+        if (newFile && pendingText.size() + 1 > limits.maxEditedFiles()) {
+            throw new ScriptLimitExceededException(
+                    "Budget exceeded: maxEditedFiles="
+                            + limits.maxEditedFiles()
+                            + " files per run, and nothing has been written to disk. Edit fewer"
+                            + " files per script, or split the work across two runScript calls.");
+        }
+        pendingText.put(path, text);
+        if (created) {
+            pendingCreates.add(path);
+        }
+
+        long total = 0;
+        for (String pending : pendingText.values()) {
+            total += pending.getBytes(StandardCharsets.UTF_8).length;
+        }
+        long max = limits.maxEditedBytes().toBytes();
+        if (total > max) {
+            throw new ScriptLimitExceededException(
+                    "Budget exceeded: maxEditedBytes="
+                            + max
+                            + " bytes per run, and nothing has been written to disk. Make smaller"
+                            + " edits, or split the work across two runScript calls.");
+        }
+    }
+
+    /**
+     * Refuses an edit to a file the script has not looked at. The same rule the {@code editFile}
+     * tool enforces through {@code ToolInvocationCollector} — which cannot see inside a script,
+     * since {@code kb.read} is not a tool call — so the session keeps its own record.
+     */
+    public void requireRead(String path) {
+        // filesRead holds paths as GitService normalised them; the script passes its own spelling.
+        if (!filesRead.contains(path.strip().replace('\\', '/'))) {
+            throw new IllegalArgumentException(
+                    "Refusing to edit "
+                            + path
+                            + ": the script has not read it. Call kb.read(path) first (a line range"
+                            + " is enough) so the edit is made against real current content.");
+        }
+    }
+
+    /** Files written in this run, path → final text, in first-write order. */
+    public Map<String, String> pendingWrites() {
+        return Map.copyOf(pendingText);
+    }
+
+    /** Order in which pending writes must be applied — {@link #pendingWrites} is unordered. */
+    public List<String> pendingWriteOrder() {
+        return List.copyOf(pendingText.keySet());
+    }
+
+    public boolean isPendingCreate(String path) {
+        return pendingCreates.contains(path);
+    }
+
     /** Books a completed read against the per-run file-count and byte budgets. */
     public void chargeRead(String path, long bytes) {
         boolean newFile = filesRead.add(path);
@@ -164,6 +252,10 @@ public final class ScriptSession {
 
     public ScriptStats stats() {
         return new ScriptStats(
-                filesRead.size(), bytesRead, calls, (System.nanoTime() - startNanos) / 1_000_000);
+                filesRead.size(),
+                bytesRead,
+                calls,
+                pendingText.size(),
+                (System.nanoTime() - startNanos) / 1_000_000);
     }
 }

@@ -1081,6 +1081,39 @@ public class GitService {
         }
 
         String updated = text.replace(oldLf, newLf);
+        log.info("editFile: '{}' — {} occurrence(s) replaced", fb.path(), occurrences);
+        return writeUpdatedText(fb, text, updated, crlf);
+    }
+
+    /**
+     * Replaces the whole text of a tracked file, with the same write/stage semantics and the same
+     * refusals (binary, too large) as {@link #editFile}.
+     *
+     * <p>Exists for {@code runScript}: a script may edit one file several times, and each of those
+     * edits was already validated against the pending text as it accumulated (see {@code
+     * ScriptSession}). Replaying them one by one here would re-do that work and multiply the
+     * writes; writing the final text once keeps a script's changes to one atomic write and one diff
+     * per file. Not exposed as a tool — the exact-match contract of {@link #editFile} is what
+     * forces a model to quote real content, and nothing should be able to skip it.
+     */
+    public GitEditResult replaceTrackedFile(@NonNull String filePath, @NonNull String newContent) {
+        FileBytes fb = readTrackedFile(filePath);
+        if (fb.binary()) {
+            throw new IllegalArgumentException("Cannot edit a binary file: " + fb.path());
+        }
+        if (fb.size() > MAX_FILE_SIZE) {
+            throw new IllegalArgumentException(
+                    "File too large to edit (max " + MAX_FILE_SIZE / 1024 + " KB): " + fb.path());
+        }
+        String original = new String(fb.bytes(), StandardCharsets.UTF_8);
+        boolean crlf = original.contains("\r\n");
+        String text = crlf ? original.replace("\r\n", "\n") : original;
+        return writeUpdatedText(fb, text, newContent.replace("\r\n", "\n"), crlf);
+    }
+
+    /** Shared tail of the two edit paths: diff, atomic write, stage, report. */
+    private GitEditResult writeUpdatedText(
+            FileBytes fb, String text, String updated, boolean crlf) {
         DiffStats stats = diffStrings(text, updated);
         writeAtomically(fb.path(), crlf ? updated.replace("\n", "\r\n") : updated);
 
@@ -1095,12 +1128,7 @@ public class GitService {
         }
 
         int lines = updated.isEmpty() ? 0 : updated.split("\n", -1).length;
-        log.info(
-                "editFile: '{}' — {} occurrence(s) replaced (+{}/-{})",
-                fb.path(),
-                occurrences,
-                stats.additions(),
-                stats.deletions());
+        log.info("wrote '{}' (+{}/-{})", fb.path(), stats.additions(), stats.deletions());
         return new GitEditResult(
                 "edit", fb.path(), stats.additions(), stats.deletions(), lines, stats.diff());
     }
@@ -1317,6 +1345,20 @@ public class GitService {
             paths.add(cache.getEntry(i).getPathString());
         }
         return List.copyOf(paths);
+    }
+
+    /**
+     * Whether something already occupies {@code filePath} in the working tree, tracked or not.
+     *
+     * <p>For {@code kb.create}, which needs the answer <em>before</em> the run's writes are applied
+     * — discovering the clash only at apply time would mean a script that "created" twenty files
+     * fails after some of them already exist. Deliberately mirrors what {@code createFile} itself
+     * refuses on, including untracked and gitignored files.
+     */
+    public boolean exists(@NonNull String filePath) {
+        String normalized = toForwardSlashes(filePath.strip());
+        requireSafeGitRelativePath(normalized);
+        return Files.exists(confineToRepo(normalized));
     }
 
     /**

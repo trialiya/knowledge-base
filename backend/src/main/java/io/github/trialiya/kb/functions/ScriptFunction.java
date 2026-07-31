@@ -16,8 +16,8 @@ import org.springframework.ai.tool.annotation.ToolParam;
  * round-trips of grep → outline → read.
  *
  * <p>Registered only when {@code kb.script.enabled=true} (see {@code ChatConfig#scriptFunction}).
- * Read-only: the script's {@code kb} object exposes listing, reading and searching, and nothing
- * that writes.
+ * Whether the script may also write is decided by {@code ScriptEditPolicy} — and, for the search
+ * sub-agent's copy, refused outright (see {@link #readOnly}).
  *
  * <p><b>The description here is deliberately short.</b> The full handbook — the {@code kb}
  * reference, worked examples, the budgets, what to do about each error — is injected into the
@@ -31,17 +31,35 @@ public class ScriptFunction {
 
     private final ScriptRunner scriptRunner;
 
+    /**
+     * Withholds {@code kb.edit}/{@code kb.create} whatever {@code ScriptEditPolicy} says. Set for
+     * the search sub-agent's copy of the tool, whose whole contract is that it only reads.
+     */
+    private final boolean forceReadOnly;
+
+    /** The chat model's copy: writes follow {@code ScriptEditPolicy}. */
+    public static ScriptFunction forChat(ScriptRunner scriptRunner) {
+        return new ScriptFunction(scriptRunner, false);
+    }
+
+    /** The search sub-agent's copy: never writes. */
+    public static ScriptFunction readOnly(ScriptRunner scriptRunner) {
+        return new ScriptFunction(scriptRunner, true);
+    }
+
     @Tool(
             description =
                     """
                     Выполняет JS-скрипт, который сам обходит репозиторий: доступен только объект kb \
-                    (kb.files, kb.read, kb.grep, kb.outline, kb.searchDocs, kb.log) — файловых, \
-                    сетевых и Java-API нет. Результат возвращай через return. Бери, когда нужно \
-                    пройтись по многим файлам и что-то сопоставить/посчитать; для одного точного \
-                    поиска или чтения используй grepContent / getFileContent. Полная инструкция по \
-                    kb, примеры и лимиты — в системном промпте, раздел «Скрипты (runScript)». \
-                    Ответ: value (то, что вернул скрипт), log, stats, filesRead, error \
-                    (kind=SYNTAX|RUNTIME|TIMEOUT|BUDGET с подсказкой, как починить).
+                    (kb.files, kb.read, kb.grep, kb.outline, kb.searchDocs, kb.log; при включённой \
+                    правке ещё kb.edit и kb.create) — файловых, сетевых и Java-API нет. Результат \
+                    возвращай через return. Бери, когда нужно пройтись по многим файлам и что-то \
+                    сопоставить/посчитать/изменить; для одного точного поиска, чтения или правки \
+                    используй grepContent / getFileContent / editFile. Полная инструкция по kb, \
+                    примеры и лимиты — в системном промпте, раздел «Скрипты (runScript)». \
+                    Ответ: value (то, что вернул скрипт), log, stats, filesRead, edits (диффы \
+                    изменённых файлов), error (kind=SYNTAX|RUNTIME|TIMEOUT|BUDGET с подсказкой, \
+                    как починить).
                     """,
             resultConverter = CompactToolResultConverter.class)
     public ScriptResult runScript(
@@ -60,7 +78,8 @@ public class ScriptFunction {
                     @Nullable Integer timeoutSeconds) {
         log.info("runScript called: {} chars, timeoutSeconds={}", script.length(), timeoutSeconds);
         ScriptResult result =
-                scriptRunner.run(script, timeoutSeconds, RunCancellation.from(context));
+                scriptRunner.run(
+                        script, timeoutSeconds, RunCancellation.from(context), forceReadOnly);
         log.info("runScript finished: {}", result.getFormattedResponse());
         return result;
     }
