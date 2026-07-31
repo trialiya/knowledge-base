@@ -82,12 +82,15 @@ public final class ScriptSession {
     }
 
     /**
-     * Same message whether a path is hidden by configuration or simply absent — a script must not
-     * be able to probe {@code kb.script.deny-globs} by comparing error texts.
+     * A hidden path is indistinguishable from a missing one — same message <em>and</em> same
+     * exception type as {@code GitService} raises for an untracked file, so it also reaches the
+     * model as {@code RUNTIME} rather than {@code BUDGET}. A script must not be able to probe
+     * {@code kb.script.deny-globs} by comparing errors, and the model must not be told to narrow a
+     * glob when the real answer is "that file does not exist".
      */
     public void requireVisible(String path) {
         if (!isVisible(path)) {
-            throw new ScriptLimitExceededException("File not found: " + path);
+            throw new IllegalArgumentException("File not found: " + path);
         }
     }
 

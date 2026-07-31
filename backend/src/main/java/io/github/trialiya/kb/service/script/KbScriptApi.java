@@ -110,7 +110,9 @@ public final class KbScriptApi {
                 gitService.getFileContent(
                         path, fromLine > 0 ? fromLine : null, toLine > 0 ? toLine : null);
         if (content.binary()) {
-            throw new ScriptLimitExceededException("Cannot read a binary file: " + content.path());
+            // Not a budget: no limit would make this file readable. Same exception type as the
+            // equivalent refusal in GitService, so the model sees RUNTIME and stops retrying.
+            throw new IllegalArgumentException("Cannot read a binary file: " + content.path());
         }
         // The per-file budget guards whole-file reads only — refusing a line range out of a big
         // file would contradict the very advice its error message gives.

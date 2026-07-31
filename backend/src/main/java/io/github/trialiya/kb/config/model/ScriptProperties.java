@@ -74,7 +74,9 @@ public record ScriptProperties(
      * @param maxFilesRead distinct files one run may read
      * @param maxBytesRead total bytes one run may read across all files
      * @param maxFileBytes largest single file a script may read
-     * @param maxGrepMatches matches one {@code kb.grep} call may return
+     * @param maxGrepMatches matches one {@code kb.grep} call may return. Raising it above 200
+     *     changes nothing — {@code GitService.grepContent} caps there for every caller — so the
+     *     default matches that ceiling instead of promising the model a number it cannot get
      * @param maxCalls total {@code kb.*} calls per run — the backstop for a tight loop that stays
      *     under every other budget (re-reading one already-charged file, say)
      * @param maxLogChars total characters {@code kb.log} may accumulate
@@ -92,7 +94,7 @@ public record ScriptProperties(
         private static final int DEFAULT_MAX_FILES_READ = 200;
         private static final DataSize DEFAULT_MAX_BYTES_READ = DataSize.ofMegabytes(4);
         private static final DataSize DEFAULT_MAX_FILE_BYTES = DataSize.ofKilobytes(512);
-        private static final int DEFAULT_MAX_GREP_MATCHES = 500;
+        private static final int DEFAULT_MAX_GREP_MATCHES = 200;
         private static final int DEFAULT_MAX_CALLS = 2000;
         private static final int DEFAULT_MAX_LOG_CHARS = 20_000;
         private static final int DEFAULT_MAX_RESULT_CHARS = 20_000;

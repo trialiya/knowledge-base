@@ -113,7 +113,10 @@ class ScriptSandboxTest {
     void cannotReadUntrackedFiles() {
         write(repoDir.resolve("untracked.txt"), "not in the index");
 
-        assertThat(run("return kb.read('untracked.txt');").error()).isNotNull();
+        assertThat(run("return kb.read('untracked.txt');").error())
+                .isNotNull()
+                .extracting(ScriptError::kind)
+                .isEqualTo(ScriptError.Kind.RUNTIME);
     }
 
     // ── The configured policy ───────────────────────────────────────────────
@@ -123,12 +126,14 @@ class ScriptSandboxTest {
         runner = newRunner(withGlobs(List.of("**/*.pem"), List.of()));
 
         assertThat(files()).contains("src/App.java").doesNotContain("secret.pem");
-        assertThat(run("return kb.read('secret.pem');").error())
-                .isNotNull()
-                .extracting(ScriptError::message)
-                .asString()
-                // Same wording as a genuinely missing file: the policy must not be probeable.
-                .contains("File not found");
+
+        ScriptError denied = run("return kb.read('secret.pem');").error();
+        // Indistinguishable from a genuinely missing file — same wording AND same kind, so the
+        // policy cannot be probed and the model is not told to narrow a glob it never hit.
+        assertThat(denied).isNotNull();
+        assertThat(denied.message()).contains("File not found");
+        assertThat(denied.kind()).isEqualTo(ScriptError.Kind.RUNTIME);
+
         assertThat(run("return kb.grep('PRIVATE').length;").value()).isEqualTo(0);
     }
 
@@ -137,7 +142,10 @@ class ScriptSandboxTest {
         runner = newRunner(withGlobs(List.of(), List.of("docs/**")));
 
         assertThat(files()).containsExactly("docs/readme.md");
-        assertThat(run("return kb.read('src/App.java');").error()).isNotNull();
+        assertThat(run("return kb.read('src/App.java');").error())
+                .isNotNull()
+                .extracting(ScriptError::kind)
+                .isEqualTo(ScriptError.Kind.RUNTIME);
         assertThat(run("return kb.read('docs/readme.md');").value()).isEqualTo("hello\nworld\n");
     }
 

@@ -157,7 +157,7 @@ kb:
       max-files-read: 200
       max-bytes-read: 4MB
       max-file-bytes: 512KB     # whole-file reads only; line ranges are exempt
-      max-grep-matches: 500
+      max-grep-matches: 200   # GitService.grepContent caps here anyway — higher is a no-op
       max-calls: 2000           # backstop for a loop that stays under every other budget
       max-log-chars: 20000
       max-result-chars: 20000
