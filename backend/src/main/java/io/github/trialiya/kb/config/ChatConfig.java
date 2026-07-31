@@ -3,6 +3,7 @@ package io.github.trialiya.kb.config;
 import io.github.trialiya.kb.advisor.MessageLoggingAdvisor;
 import io.github.trialiya.kb.advisor.ToolPreparingAdvisor;
 import io.github.trialiya.kb.config.model.McpProperties;
+import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.config.model.SubAgentConfig;
 import io.github.trialiya.kb.functions.AttachmentFunction;
 import io.github.trialiya.kb.functions.DocumentFunction;
@@ -168,28 +169,30 @@ public class ChatConfig {
             @Value("classpath:prompt/search-agent.md") Resource searchAgentPrompt,
             GitFunction gitFunction,
             DocumentFunction documentFunction,
+            ScriptProperties scriptProperties,
             ScriptRunner scriptRunner,
             ScriptGuideService scriptGuideService) {
-        // The sub-agent's own copy of runScript, forced read-only: its allow-list may include the
-        // tool, but never the ability to write, whatever the main chat is allowed to do.
+        // Two gates, and both matter. kb.script.enabled decides whether the tool exists anywhere —
+        // without it the sub-agent's allow-list must not be able to conjure one up. Given that, the
+        // sub-agent gets its own copy, forced read-only: its allow-list may include runScript, but
+        // never the ability to write, whatever the main chat is allowed to do.
+        boolean scriptsAvailable = subAgentScriptsAvailable(scriptProperties, subAgentConfig);
+        List<Object> functions = new ArrayList<>(List.of(gitFunction, documentFunction));
+        if (scriptsAvailable) {
+            functions.add(ScriptFunction.readOnly(scriptRunner));
+        }
         ToolCallback[] readOnly =
-                Stream.of(
-                                ToolCallbacks.from(
-                                        gitFunction,
-                                        documentFunction,
-                                        ScriptFunction.readOnly(scriptRunner)))
+                Stream.of(ToolCallbacks.from(functions.toArray()))
                         .filter(
                                 cb ->
                                         subAgentConfig
                                                 .allowedTools()
                                                 .contains(cb.getToolDefinition().name()))
                         .toArray(ToolCallback[]::new);
-        // The script handbook is long; add it to the sub-agent's prompt only when it may actually
-        // call the tool.
+        // The handbook is long, and it is also the only place the sub-agent is told scripts exist —
+        // so it goes in exactly when the tool does.
         String scriptInstructions =
-                subAgentConfig.allowedTools().contains("runScript")
-                        ? scriptGuideService.readOnlyInstructions()
-                        : "";
+                scriptsAvailable ? scriptGuideService.readOnlyInstructions() : "";
         return new SearchAgentService(
                 openAiChatModel,
                 toolCallingManager,
@@ -197,6 +200,20 @@ public class ChatConfig {
                 searchAgentPrompt,
                 scriptInstructions,
                 readOnly);
+    }
+
+    /**
+     * Whether the search sub-agent gets {@code runScript}. Both halves are load-bearing: {@code
+     * kb.script.enabled} decides whether the tool exists at all, so listing it in {@code
+     * allowed-tools} cannot conjure one up in a deployment that switched scripts off — which would
+     * otherwise leave the sub-agent running scripts with no handbook to run them by.
+     *
+     * <p>Public so {@code SearchAgentToolGuardTest} can pin it directly — the decision is one
+     * boolean, and a test that re-derived it would only be testing its own copy.
+     */
+    public static boolean subAgentScriptsAvailable(
+            ScriptProperties scriptProperties, SubAgentConfig subAgentConfig) {
+        return scriptProperties.enabled() && subAgentConfig.allowedTools().contains("runScript");
     }
 
     @Bean

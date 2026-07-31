@@ -173,6 +173,11 @@ public final class ScriptSession {
      * since {@code kb.read} is not a tool call — so the session keeps its own record.
      */
     public void requireRead(String path) {
+        // A file this run already wrote needs no read: the script authored its content, which is
+        // the whole point of the rule. Without this, create-then-edit in one script is impossible.
+        if (pendingText.containsKey(path)) {
+            return;
+        }
         // filesRead holds paths as GitService normalised them; the script passes its own spelling.
         if (!filesRead.contains(path.strip().replace('\\', '/'))) {
             throw new IllegalArgumentException(

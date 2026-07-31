@@ -223,6 +223,26 @@ class ScriptEditTest {
     }
 
     @Test
+    void allowsEditingAFileTheSameScriptJustCreated() {
+        // The read-before-edit rule exists so a model edits real content; content the script wrote
+        // itself moments ago already satisfies that.
+        ScriptResult result =
+                run(
+                        """
+                        kb.create('src/Fresh.java', 'class Fresh {}\\n');
+                        kb.edit('src/Fresh.java', 'class Fresh', 'final class Fresh');
+                        return 'ok';
+                        """);
+
+        assertThat(result.error()).isNull();
+        assertThat(fileText("src/Fresh.java")).isEqualTo("final class Fresh {}\n");
+        assertThat(result.edits())
+                .singleElement()
+                .extracting(GitEditResult::operation)
+                .isEqualTo("create");
+    }
+
+    @Test
     void refusesAnAmbiguousOldStringUnlessReplaceAllIsAsked() {
         write(repoDir.resolve("src/Twice.java"), "int a = 1;\nint a = 1;\n");
         commitAll();

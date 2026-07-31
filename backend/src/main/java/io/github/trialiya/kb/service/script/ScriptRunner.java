@@ -144,6 +144,10 @@ public class ScriptRunner {
 
             Value returned = context.eval(source(script));
             Object value = stringify(helpers.getMember("result"), returned, session);
+            // Retire the watchdog before writing: the budget it enforces is the script's, and a
+            // deadline landing mid-apply would mean a stop request that leaves files half written
+            // instead of none. Idempotent with the finally below.
+            stopWatchdog(finished, watchdog);
             // Only now, with the script finished and its result already converted, does anything
             // reach disk. Every earlier exit — a throw, a budget, a timeout, a user stop — leaves
             // the working tree exactly as the run found it.
@@ -161,8 +165,7 @@ public class ScriptRunner {
             }
             return stopped(session, cancelReason.get(), timeout);
         } finally {
-            finished.set(true);
-            watchdog.interrupt();
+            stopWatchdog(finished, watchdog);
             closeQuietly(context);
         }
     }
@@ -218,6 +221,12 @@ public class ScriptRunner {
                                 }
                             }
                         });
+    }
+
+    /** Ends the watchdog's watch. Safe to call twice — the second call is a no-op. */
+    private static void stopWatchdog(AtomicBoolean finished, Thread watchdog) {
+        finished.set(true);
+        watchdog.interrupt();
     }
 
     /** Cancels whatever the context is executing; a context already closing is not an error. */

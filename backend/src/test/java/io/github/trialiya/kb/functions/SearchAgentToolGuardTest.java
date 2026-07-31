@@ -2,6 +2,9 @@ package io.github.trialiya.kb.functions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.trialiya.kb.config.ChatConfig;
+import io.github.trialiya.kb.config.model.ScriptProperties;
+import io.github.trialiya.kb.config.model.SubAgentConfig;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -69,6 +72,29 @@ class SearchAgentToolGuardTest {
         Set<String> resolved = filteredToolNames();
         assertThat(resolved).doesNotContainAnyElementsOf(FORBIDDEN);
         assertThat(ALLOWED).doesNotContain("searchCodebase");
+    }
+
+    /**
+     * Naming {@code runScript} in the allow-list must not be able to create it. With {@code
+     * kb.script.enabled=false} the tool exists nowhere, and the sub-agent must not get a copy
+     * anyway — a global "scripts off" that still left the sub-agent running them, with no handbook
+     * to run them by, is exactly the drift this guards.
+     */
+    @Test
+    void allowListingRunScriptDoesNotConjureItWhenScriptsAreOff() {
+        SubAgentConfig config = new SubAgentConfig(true, "model", 12000, 30, ALLOWED);
+
+        assertThat(
+                        ChatConfig.subAgentScriptsAvailable(
+                                new ScriptProperties(
+                                        false, false, null, null, null, null, null, null, null,
+                                        null),
+                                config))
+                .isFalse();
+        assertThat(
+                        ChatConfig.subAgentScriptsAvailable(
+                                ScriptProperties.enabledWithDefaults(), config))
+                .isTrue();
     }
 
     @Test
