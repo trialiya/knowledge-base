@@ -110,6 +110,10 @@ public final class KbEditScriptApi extends KbScriptApi {
             throw new IllegalArgumentException(
                     "File already exists: " + canonical + ". Use kb.edit to modify it.");
         }
+        // Refused now rather than at apply time: a path createFile could never write (.git/, a
+        // junk name, oversized content) does not become writable by waiting, and finding out
+        // during the apply step would leave the run's earlier files on disk.
+        gitService.requireCreatable(canonical, content);
         session.stageWrite(canonical, content, true);
         return result(canonical, "create", 1);
     }

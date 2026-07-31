@@ -975,11 +975,7 @@ public class GitService {
      * #MAX_FILE_SIZE} bytes.
      */
     public GitEditResult createFile(@NonNull String filePath, @NonNull String content) {
-        String normalized = validateWritablePath(filePath);
-        if (content.getBytes(StandardCharsets.UTF_8).length > MAX_FILE_SIZE) {
-            throw new IllegalArgumentException(
-                    "Content too large (max " + MAX_FILE_SIZE / 1024 + " KB): " + normalized);
-        }
+        String normalized = requireCreatable(filePath, content);
 
         // Only presence on disk blocks creation. A tracked-but-deleted file (removed from the
         // working tree, still in the index) is deliberately allowed — editFile can't read it, so
@@ -1355,6 +1351,29 @@ public class GitService {
      */
     public boolean exists(@NonNull String filePath) {
         return Files.exists(confineToRepo(normalizePath(filePath)));
+    }
+
+    /**
+     * Everything {@link #createFile} refuses before it touches the disk: an unsafe or unwritable
+     * path ({@code .git/}, a junk name, an escape from the tree) and content too large to serve
+     * back afterwards.
+     *
+     * <p>Split out for {@code kb.create}, which stages its writes and applies them only once the
+     * script has finished. Those refusals do not depend on the state of the tree, so leaving them
+     * to the apply step would turn a script's own mistake — {@code kb.create('.git/hooks/x')} on
+     * the third of five files — into two files written and a run that failed anyway, which is
+     * exactly the outcome buffering exists to prevent. Checked while the script is still running,
+     * it is an ordinary {@code RUNTIME} error the model can correct, and nothing reaches disk.
+     *
+     * @return the normalized path, as {@link #createFile} will spell it
+     */
+    public String requireCreatable(@NonNull String filePath, @NonNull String content) {
+        String normalized = validateWritablePath(filePath);
+        if (content.getBytes(StandardCharsets.UTF_8).length > MAX_FILE_SIZE) {
+            throw new IllegalArgumentException(
+                    "Content too large (max " + MAX_FILE_SIZE / 1024 + " KB): " + normalized);
+        }
+        return normalized;
     }
 
     /**

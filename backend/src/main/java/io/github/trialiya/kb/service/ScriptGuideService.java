@@ -9,6 +9,7 @@ import java.util.Map;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StreamUtils;
+import org.springframework.util.unit.DataSize;
 
 /**
  * Loads the {@code runScript} handbook once at startup and hands it to the system prompt through
@@ -59,15 +60,14 @@ public class ScriptGuideService {
         Map<String, String> values =
                 Map.ofEntries(
                         Map.entry("max_files_read", String.valueOf(limits.maxFilesRead())),
-                        Map.entry("max_bytes_read", limits.maxBytesRead().toMegabytes() + " МБ"),
-                        Map.entry("max_file_bytes", limits.maxFileBytes().toKilobytes() + " КБ"),
+                        Map.entry("max_bytes_read", humanBytes(limits.maxBytesRead())),
+                        Map.entry("max_file_bytes", humanBytes(limits.maxFileBytes())),
                         Map.entry("max_grep_matches", String.valueOf(limits.maxGrepMatches())),
                         Map.entry("max_calls", String.valueOf(limits.maxCalls())),
                         Map.entry("max_log_chars", String.valueOf(limits.maxLogChars())),
                         Map.entry("max_result_chars", String.valueOf(limits.maxResultChars())),
                         Map.entry("max_edited_files", String.valueOf(limits.maxEditedFiles())),
-                        Map.entry(
-                                "max_edited_bytes", limits.maxEditedBytes().toKilobytes() + " КБ"),
+                        Map.entry("max_edited_bytes", humanBytes(limits.maxEditedBytes())),
                         Map.entry("timeout", properties.timeout().toSeconds() + " с"),
                         Map.entry("max_timeout", properties.maxTimeout().toSeconds() + " с"));
 
@@ -81,6 +81,22 @@ public class ScriptGuideService {
             text = text.replace("{{" + entry.getKey() + "}}", entry.getValue());
         }
         return text;
+    }
+
+    /**
+     * The largest unit that still spells the size exactly. Fixing the unit per limit would make the
+     * handbook lie as soon as a deployment retunes one: {@code max-bytes-read: 512KB} rendered in
+     * megabytes reads as "0 МБ", which tells the model its budget is nothing.
+     */
+    private static String humanBytes(DataSize size) {
+        long bytes = size.toBytes();
+        if (bytes >= 1024 * 1024 && bytes % (1024 * 1024) == 0) {
+            return size.toMegabytes() + " МБ";
+        }
+        if (bytes >= 1024 && bytes % 1024 == 0) {
+            return size.toKilobytes() + " КБ";
+        }
+        return bytes + " Б";
     }
 
     private static String read(Resource resource) {

@@ -244,6 +244,15 @@ public final class ScriptSession {
                         + " fewer matches with {max: N}.");
     }
 
+    /**
+     * Books the snippets a document search returned, for the same reason as {@link #chargeSearch}:
+     * {@code kb.searchDocs} hands back document <em>text</em>, and text left unmetered is a way to
+     * fill a script — and then the model's context — while every other budget stays unspent.
+     */
+    public void chargeDocSearch(long bytes) {
+        chargeBytes(bytes, "Ask for fewer hits: kb.searchDocs(query, N).");
+    }
+
     private void chargeBytes(long bytes, String advice) {
         bytesRead += bytes;
         long maxBytes = limits.maxBytesRead().toBytes();

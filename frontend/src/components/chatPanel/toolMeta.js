@@ -90,18 +90,15 @@ export const DOC_MUTATION_TOOLS = new Set([
  * на конкретную правку. `title` бэкенд кладёт в resultMeta для обоих инструментов.
  */
 // ── Файловые мутации (git) ────────────────────────────────────────────────────
-// Инструменты GitEditFunction, меняющие файлы рабочего дерева. resultMeta:
-// { path, operation, additions, deletions, lineCount, diff? }. Для них под ответом
-// ИИ показываем блок «изменённые файлы» (FileChangeBlock.jsx) с diff-модалкой.
-export const FILE_MUTATION_TOOLS = new Set(['createFile', 'editFile']);
+// Инструменты, меняющие файлы рабочего дерева. createFile/editFile правят один
+// файл и кладут его в корень resultMeta: { path, operation, additions, deletions,
+// lineCount, diff? }. runScript правит пачкой — те же записи приходят массивом в
+// resultMeta.edits. Для всех них под ответом ИИ показываем блок «изменённые
+// файлы» (FileChangeBlock.jsx) с diff-модалкой.
+export const FILE_MUTATION_TOOLS = new Set(['createFile', 'editFile', 'runScript']);
 
-/**
- * Если tc — файловая мутация с валидным resultMeta — вернуть
- * { path, operation, additions, deletions, diff, status }, иначе null.
- */
-export const getFileChangeRef = (tc) => {
-  if (!tc || !FILE_MUTATION_TOOLS.has(tc.name)) return null;
-  const meta = tc.resultMeta;
+/** Одна запись мутации → { path, operation, additions, deletions, diff, status } или null. */
+const toFileChangeRef = (meta, status) => {
   if (!meta || !meta.path) return null;
   return {
     path: String(meta.path),
@@ -109,8 +106,24 @@ export const getFileChangeRef = (tc) => {
     additions: Number(meta.additions) || 0,
     deletions: Number(meta.deletions) || 0,
     diff: typeof meta.diff === 'string' && meta.diff ? meta.diff : null,
-    status: tc.status,
+    status,
   };
+};
+
+/**
+ * Все файловые правки одного tool call. Список, а не одна запись, потому что
+ * runScript за вызов меняет несколько файлов; для createFile/editFile это всегда
+ * ноль или один элемент. Не файловая мутация или пустой resultMeta — пустой массив.
+ */
+export const getFileChangeRefs = (tc) => {
+  if (!tc || !FILE_MUTATION_TOOLS.has(tc.name)) return [];
+  const meta = tc.resultMeta;
+  if (!meta) return [];
+  if (Array.isArray(meta.edits)) {
+    return meta.edits.map((edit) => toFileChangeRef(edit, tc.status)).filter(Boolean);
+  }
+  const ref = toFileChangeRef(meta, tc.status);
+  return ref ? [ref] : [];
 };
 
 export const getDocChangeRef = (tc) => {

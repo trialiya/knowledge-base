@@ -278,6 +278,47 @@ class ScriptEditTest {
         assertThat(fileText(APP_JAVA)).isEqualTo(ORIGINAL);
     }
 
+    /**
+     * A path {@code createFile} could never write is refused while the script is still running, not
+     * when the run's writes are applied. Left to the apply step it was the one way to break
+     * all-or-nothing without the tree changing underneath: the files staged before it were already
+     * on disk by the time the bad one failed, and the script had no way to know.
+     */
+    @Test
+    void refusesAnUnwritablePathBeforeAnythingIsStaged() {
+        ScriptResult result =
+                run(
+                        """
+                        kb.create('src/First.java', 'class First {}\\n');
+                        kb.create('.git/hooks/pre-commit', 'rm -rf /');
+                        return 'ok';
+                        """);
+
+        assertThat(result.error()).isNotNull();
+        assertThat(result.error().kind()).isEqualTo(ScriptError.Kind.RUNTIME);
+        assertThat(result.error().message()).contains(".git");
+        // The point of the test: the file staged before the bad one never reached disk either.
+        assertThat(repoDir.resolve("src/First.java")).doesNotExist();
+        assertThat(repoDir.resolve(".git/hooks/pre-commit")).doesNotExist();
+        assertThat(result.edits()).isEmpty();
+    }
+
+    @Test
+    void refusesAJunkFileNameBeforeAnythingIsStaged() {
+        ScriptResult result =
+                run(
+                        """
+                        kb.create('src/First.java', 'class First {}\\n');
+                        kb.create('src/.DS_Store', 'junk');
+                        return 'ok';
+                        """);
+
+        assertThat(result.error()).isNotNull();
+        assertThat(result.error().kind()).isEqualTo(ScriptError.Kind.RUNTIME);
+        assertThat(repoDir.resolve("src/First.java")).doesNotExist();
+        assertThat(result.edits()).isEmpty();
+    }
+
     @Test
     void refusesToEditAFileHiddenByTheGlobPolicy() {
         ScriptProperties hidden =

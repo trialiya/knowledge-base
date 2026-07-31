@@ -69,6 +69,24 @@ class ScriptGuideServiceTest {
                 .isEqualTo("файлов: 13, время: 7 с, максимум 42 с");
     }
 
+    /**
+     * A size is rendered in the largest unit that still spells it exactly. Fixed at megabytes,
+     * {@code max-bytes-read: 512KB} reached the model as "0 МБ" — a budget of nothing, which is
+     * worse than no number at all.
+     */
+    @Test
+    void rendersEachSizeInAUnitThatDoesNotRoundItAway() {
+        Resource guide =
+                new ByteArrayResource(
+                        "всего: {{max_bytes_read}}, файл: {{max_file_bytes}}"
+                                .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        assertThat(guide(sized(guide, DataSize.ofKilobytes(512)), false).instructions())
+                .isEqualTo("всего: 512 КБ, файл: 512 КБ");
+        assertThat(guide(sized(guide, DataSize.ofMegabytes(4)), false).instructions())
+                .isEqualTo("всего: 4 МБ, файл: 512 КБ");
+    }
+
     @Test
     void mentionsTheWriteMethodsOnlyWhenTheyAreActuallyBound() {
         ScriptProperties properties = ScriptProperties.enabledWithDefaults();
@@ -83,6 +101,30 @@ class ScriptGuideServiceTest {
 
         assertThat(service.instructions()).contains("kb.edit");
         assertThat(service.readOnlyInstructions()).doesNotContain("kb.edit");
+    }
+
+    /** {@code properties} with one guide and one byte budget varied; the rest stay at defaults. */
+    private static ScriptProperties sized(Resource guide, DataSize maxBytesRead) {
+        return new ScriptProperties(
+                true,
+                false,
+                guide,
+                null,
+                null,
+                null,
+                null,
+                new ScriptProperties.Limits(
+                        200,
+                        maxBytesRead,
+                        DataSize.ofKilobytes(512),
+                        200,
+                        2000,
+                        20_000,
+                        20_000,
+                        20,
+                        DataSize.ofKilobytes(256)),
+                List.of(),
+                List.of());
     }
 
     private static ScriptGuideService guide(ScriptProperties properties, boolean editEnabled) {

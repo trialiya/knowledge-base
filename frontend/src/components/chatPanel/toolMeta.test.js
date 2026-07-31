@@ -1,31 +1,33 @@
-import { getFileChangeRef, getDocChangeRef, FILE_MUTATION_TOOLS, DOC_MUTATION_TOOLS } from './toolMeta';
+import { getFileChangeRefs, getDocChangeRef, FILE_MUTATION_TOOLS, DOC_MUTATION_TOOLS } from './toolMeta';
 
-describe('getFileChangeRef', () => {
-  it('returns null for non-mutation tools and missing meta', () => {
-    expect(getFileChangeRef(null)).toBeNull();
-    expect(getFileChangeRef({ name: 'getFileContent', resultMeta: { path: 'a.txt' } })).toBeNull();
-    expect(getFileChangeRef({ name: 'editFile' })).toBeNull();
-    expect(getFileChangeRef({ name: 'editFile', resultMeta: {} })).toBeNull();
+describe('getFileChangeRefs', () => {
+  it('returns nothing for non-mutation tools and missing meta', () => {
+    expect(getFileChangeRefs(null)).toEqual([]);
+    expect(getFileChangeRefs({ name: 'getFileContent', resultMeta: { path: 'a.txt' } })).toEqual([]);
+    expect(getFileChangeRefs({ name: 'editFile' })).toEqual([]);
+    expect(getFileChangeRefs({ name: 'editFile', resultMeta: {} })).toEqual([]);
   });
 
   it('maps editFile meta to a change ref', () => {
-    const ref = getFileChangeRef({
+    const refs = getFileChangeRefs({
       name: 'editFile',
       status: 'OK',
       resultMeta: { path: 'src/App.java', operation: 'edit', additions: 2, deletions: 1, diff: '@@ -1 +1 @@' },
     });
-    expect(ref).toEqual({
-      path: 'src/App.java',
-      operation: 'edit',
-      additions: 2,
-      deletions: 1,
-      diff: '@@ -1 +1 @@',
-      status: 'OK',
-    });
+    expect(refs).toEqual([
+      {
+        path: 'src/App.java',
+        operation: 'edit',
+        additions: 2,
+        deletions: 1,
+        diff: '@@ -1 +1 @@',
+        status: 'OK',
+      },
+    ]);
   });
 
   it('defaults numbers and diff for createFile without diff', () => {
-    const ref = getFileChangeRef({
+    const [ref] = getFileChangeRefs({
       name: 'createFile',
       status: 'OK',
       resultMeta: { path: 'new.txt', operation: 'create' },
@@ -36,9 +38,32 @@ describe('getFileChangeRef', () => {
     expect(ref.diff).toBeNull();
   });
 
-  it('registers both mutation tools', () => {
+  // runScript пишет пачкой: без разбора resultMeta.edits его правки не попадали
+  // бы в блок «изменённые файлы» вовсе — пользователь не увидел бы ни одного диффа.
+  it('expands the edits array a runScript call returns', () => {
+    const refs = getFileChangeRefs({
+      name: 'runScript',
+      status: 'OK',
+      resultMeta: {
+        filesRead: 3,
+        edits: [
+          { path: 'src/A.java', operation: 'edit', additions: 1, deletions: 1, diff: '@@ -1 +1 @@' },
+          { path: 'src/B.java', operation: 'create', additions: 4, deletions: 0 },
+        ],
+      },
+    });
+    expect(refs.map((r) => r.path)).toEqual(['src/A.java', 'src/B.java']);
+    expect(refs[1]).toMatchObject({ operation: 'create', additions: 4, deletions: 0, diff: null, status: 'OK' });
+  });
+
+  it('returns nothing for a runScript call that changed no files', () => {
+    expect(getFileChangeRefs({ name: 'runScript', status: 'OK', resultMeta: { filesRead: 3 } })).toEqual([]);
+  });
+
+  it('registers every mutation tool', () => {
     expect(FILE_MUTATION_TOOLS.has('createFile')).toBe(true);
     expect(FILE_MUTATION_TOOLS.has('editFile')).toBe(true);
+    expect(FILE_MUTATION_TOOLS.has('runScript')).toBe(true);
   });
 });
 

@@ -229,13 +229,16 @@ public class KbScriptApi {
         List<SearchResult> hits =
                 documentService.hybridSearch(query, null, limit > 0 ? limit : null, null, null);
         List<Object> rows = new ArrayList<>();
+        long bytes = 0;
         for (SearchResult hit : hits) {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("docId", hit.id());
             row.put("title", hit.title());
             row.put("snippet", hit.snippet());
             rows.add(ProxyObject.fromMap(row));
+            bytes += utf8Length(hit.title()) + utf8Length(hit.snippet());
         }
+        session.chargeDocSearch(bytes);
         return ProxyArray.fromList(rows);
     }
 
@@ -266,6 +269,10 @@ public class KbScriptApi {
             // the whole run for.
             return "[unserializable: " + e.getClass().getSimpleName() + "]";
         }
+    }
+
+    private static int utf8Length(@Nullable String text) {
+        return text == null ? 0 : text.getBytes(StandardCharsets.UTF_8).length;
     }
 
     private static <T> @Nullable T member(

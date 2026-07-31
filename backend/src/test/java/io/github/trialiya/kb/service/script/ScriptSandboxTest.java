@@ -1,11 +1,16 @@
 package io.github.trialiya.kb.service.script;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.config.model.ScriptProperties;
+import io.github.trialiya.kb.model.doc.dto.SearchResult;
 import io.github.trialiya.kb.model.script.ScriptError;
 import io.github.trialiya.kb.model.script.ScriptResult;
+import io.github.trialiya.kb.service.DocumentService;
 import io.github.trialiya.kb.service.GitService;
 import io.github.trialiya.kb.service.OutlineService;
 import io.github.trialiya.kb.tools.RunCancellation;
@@ -15,9 +20,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -50,11 +57,16 @@ class ScriptSandboxTest {
     }
 
     private ScriptRunner newRunner(ScriptProperties properties) {
+        return newRunner(properties, null);
+    }
+
+    private ScriptRunner newRunner(
+            ScriptProperties properties, @Nullable DocumentService documentService) {
         GitProperties gitProperties = new GitProperties(repoDir.toString(), false);
         GitService gitService = new GitService(gitProperties, new OutlineService());
         return new ScriptRunner(
                 gitService,
-                null,
+                documentService,
                 properties,
                 new ScriptEditPolicy(gitProperties, properties, gitService));
     }
@@ -240,6 +252,42 @@ class ScriptSandboxTest {
                 .isEqualTo(ScriptError.Kind.BUDGET);
         assertThat(result.error().message()).contains("maxBytesRead");
         // Charged as bytes, not as files — a match line is not the file it came from.
+        assertThat(result.stats().filesRead()).isZero();
+        assertThat(result.stats().bytesRead()).isPositive();
+    }
+
+    /**
+     * The same hole as {@link #searchResultsCountAgainstTheByteBudget}, on the other search: {@code
+     * kb.searchDocs} hands back document text too, so a loop of document searches must not be a way
+     * to fill a script with content while every other budget stays unspent.
+     */
+    @Test
+    void documentSearchResultsCountAgainstTheByteBudget() {
+        DocumentService documents = mock(DocumentService.class);
+        when(documents.hybridSearch(any(), any(), any(), any(), any()))
+                .thenReturn(
+                        List.of(
+                                new SearchResult(
+                                        1L,
+                                        "Экспорт документов",
+                                        "x".repeat(200),
+                                        LocalDateTime.now(),
+                                        null,
+                                        null)));
+        runner =
+                newRunner(
+                        withLimits(limits -> limits.withMaxBytesRead(DataSize.ofBytes(40))),
+                        documents);
+
+        ScriptResult result =
+                run("for (var i = 0; i < 100; i++) { kb.searchDocs('экспорт'); } return 'done';");
+
+        assertThat(result.error())
+                .isNotNull()
+                .extracting(ScriptError::kind)
+                .isEqualTo(ScriptError.Kind.BUDGET);
+        assertThat(result.error().message()).contains("maxBytesRead");
+        // Charged as bytes, not as files — a snippet is not a file of the repository.
         assertThat(result.stats().filesRead()).isZero();
         assertThat(result.stats().bytesRead()).isPositive();
     }
