@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.service.script;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.InstanceOfAssertFactories.STRING;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -375,17 +376,15 @@ class ScriptSandboxTest {
     }
 
     @Test
-    void refusesToReturnMoreThanTheResultBudget() {
+    void truncatesResultsOverTheResultBudgetWithAWarningInsteadOfFailing() {
         runner = newRunner(withLimits(limits -> limits.withMaxResultChars(64)));
 
         ScriptResult result =
                 run("var s = ''; for (var i = 0; i < 500; i++) { s += 'x'; } return s;");
 
-        assertThat(result.error())
-                .isNotNull()
-                .extracting(ScriptError::kind)
-                .isEqualTo(ScriptError.Kind.BUDGET);
-        assertThat(result.error().message()).contains("maxResultChars");
+        assertThat(result.error()).isNull();
+        assertThat(result.value()).asInstanceOf(STRING).hasSize(64);
+        assertThat(result.log()).anySatisfy(line -> assertThat(line).contains("maxResultChars"));
     }
 
     @Test
