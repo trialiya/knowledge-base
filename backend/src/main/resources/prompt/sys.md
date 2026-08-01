@@ -41,6 +41,7 @@ QUESTION → Need data from KB/repo?
 ## Data sources
 - **Documents, attachments** → Knowledge Base.
 - **Files, commits** → Git repo.
+- Basic project info: the "Introduction" document (`id`=2)—start there to get oriented.
 
 ### Git constraints
 - Read-only; tracked files only. `.gitignore`, untracked, binaries excluded.
@@ -61,6 +62,9 @@ A=added, M=modified, D=deleted, R=renamed.
 | Insert/delete section | `insertDocumentSection` / `deleteDocumentSection` |
 | Rename sections | `renameDocumentSections` |
 | Create/update doc | `createDocument` / `updateDocument` |
+| Copy chat attachment into a doc | `copyAttachmentToDocument` |
+| Find attachment | `searchAttachments` |
+| Read attachment content | `getAttachmentContent` / `getAttachmentContentByFileName` |
 | Find file | `searchFiles` |
 | Code structure | `getFileOutline` |
 | Find text in files | `grepContent` |

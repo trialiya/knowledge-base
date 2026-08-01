@@ -204,7 +204,11 @@ public class GitFunction {
      */
     @Tool(
             description =
-                    "Read file content (full or line range). Binary files flagged without content. Large files (>512 KB) return excerpt with truncated=true.",
+                    "Read file content (full or line range). Binary files flagged without content. "
+                            + "Large files (>512 KB) return excerpt with truncated=true. When "
+                            + "mentioning the file in your response, link it as "
+                            + "[filename](/files?path=PATH), where PATH is the path from the "
+                            + "response; append #Lfrom-Lto for a line range.",
             resultConverter = CompactToolResultConverter.class)
     public GitFileContent getFileContent(
             @ToolParam(description = "File path relative to repo root.") String filePath,

@@ -154,7 +154,8 @@ public class DocumentFunction {
      */
     @Tool(
             description =
-                    "Find document/folder by title (exact or partial match, case-insensitive).",
+                    "Find document/folder by title (exact or partial match, case-insensitive, "
+                            + "exact matches first). Matches ONLY the title, not content.",
             resultConverter = CompactToolResultConverter.class)
     public List<DocumentNode> findDocumentsByName(
             @ToolParam(description = "Document/folder title (full or partial).") String name) {
@@ -281,7 +282,8 @@ public class DocumentFunction {
                     String sectionPath,
             @ToolParam(
                             description =
-                                    "Full new section text, starting with its heading (e.g., \"## Title\").")
+                                    "Full new section text, starting with its heading (e.g., \"## Title\"). "
+                                            + "Link other documents as [Title](/?doc=ID).")
                     String newContent,
             @ToolParam(
                             description =
@@ -342,7 +344,8 @@ public class DocumentFunction {
                     InsertPosition position,
             @ToolParam(
                             description =
-                                    "Full text of new section, starting with its heading (e.g., \"## Title\").")
+                                    "Full text of new section, starting with its heading (e.g., \"## Title\"). "
+                                            + "Link other documents as [Title](/?doc=ID).")
                     String newContent,
             @ToolParam(description = "descriptionVersion from getDocumentOutline/getDocument.")
                     int expectedDescriptionVersion) {
@@ -558,7 +561,11 @@ public class DocumentFunction {
                             description = "Parent folder id (null or empty for root level).",
                             required = false)
                     @Nullable Long parentId,
-            @ToolParam(description = "Document content (text or markdown).", required = false)
+            @ToolParam(
+                            description =
+                                    "Document content (text or markdown). Link other knowledge "
+                                            + "base documents as [Title](/?doc=ID).",
+                            required = false)
                     @Nullable String description) {
 
         log.info("createDocument called: title='{}' type={} parentId={}", title, type, parentId);
@@ -598,7 +605,11 @@ public class DocumentFunction {
             @ToolParam(description = "Document id.") long documentId,
             @ToolParam(description = "New title (null to keep current).", required = false)
                     @Nullable String title,
-            @ToolParam(description = "New content (null to keep current).", required = false)
+            @ToolParam(
+                            description =
+                                    "New content (null to keep current). Link other knowledge "
+                                            + "base documents as [Title](/?doc=ID).",
+                            required = false)
                     @Nullable String description) {
 
         log.info("updateDocument called: id={} title='{}'", documentId, title);

@@ -107,13 +107,13 @@ kb:
     # (placeholder {mode_instructions} in prompt/sys.md). No mode → empty.
     modes:
       - id: analytic
-        label: Analyst
+        label: Аналитик
         prompt: classpath:prompt/mode-analytic.md
       - id: developer
-        label: Developer
+        label: Разработчик
         prompt: classpath:prompt/mode-developer.md
       - id: tester
-        label: Tester
+        label: Тестировщик
         prompt: classpath:prompt/mode-tester.md
     timeout:
       # SseEmitter timeout per browser tab subscription (replay/reconnect window).
