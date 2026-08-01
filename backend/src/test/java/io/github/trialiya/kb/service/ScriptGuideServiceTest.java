@@ -117,16 +117,16 @@ class ScriptGuideServiceTest {
 
         assertThat(reference)
                 .contains(
-                        "### Справочник kb",
+                        "### kb reference",
                         "kb.grep",
-                        "### Лимиты одного запуска",
-                        "### Обязательные правила",
+                        "### Limits per run",
+                        "### Rules",
                         "kb.edit")
                 .doesNotContain(
-                        "### Примеры", "### Чего не делать", "### Пример: массовое переименование");
+                        "### Examples", "### Pitfalls", "### Example: bulk rename");
         assertThat(full)
                 .contains(
-                        "### Примеры", "### Чего не делать", "### Пример: массовое переименование");
+                        "### Examples", "### Pitfalls", "### Example: bulk rename");
         // Substitution runs over the assembled text, so a placeholder left in an appendix would
         // reach the model verbatim.
         assertThat(full).doesNotContain("{{");
@@ -137,8 +137,8 @@ class ScriptGuideServiceTest {
     void readOnlyInstructionsAlsoTracksTheWeakFlag() {
         ScriptGuideService service = guide(ScriptProperties.enabledWithDefaults(), true);
 
-        assertThat(service.readOnlyInstructions(true)).contains("### Примеры");
-        assertThat(service.readOnlyInstructions(false)).doesNotContain("### Примеры");
+        assertThat(service.readOnlyInstructions(true)).contains("### Examples");
+        assertThat(service.readOnlyInstructions(false)).doesNotContain("### Examples");
     }
 
     @Test

@@ -103,17 +103,17 @@ kb:
 #      - id: ${KB_CHAT_MODELS_0_ID}
 #        label: ${KB_CHAT_MODELS_0_LABEL}
 #        weak: ${KB_CHAT_MODELS_0_WEAK:true}
-    # Готовые «режимы» ассистента: подставляют свой фрагмент инструкций в системный
-    # промпт (плейсхолдер {mode_instructions} в prompt/sys.md). «Без режима» — пусто.
+    # Preset assistant modes: inject instruction fragments into the system prompt
+    # (placeholder {mode_instructions} in prompt/sys.md). No mode → empty.
     modes:
       - id: analytic
-        label: Аналитик
+        label: Analyst
         prompt: classpath:prompt/mode-analytic.md
       - id: developer
-        label: Разработчик
+        label: Developer
         prompt: classpath:prompt/mode-developer.md
       - id: tester
-        label: Тестировщик
+        label: Tester
         prompt: classpath:prompt/mode-tester.md
     timeout:
       # SseEmitter timeout per browser tab subscription (replay/reconnect window).
