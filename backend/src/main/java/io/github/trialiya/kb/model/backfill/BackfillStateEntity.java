@@ -1,24 +1,58 @@
 package io.github.trialiya.kb.model.backfill;
 
 import java.time.LocalDateTime;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import org.jspecify.annotations.Nullable;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.PersistenceCreator;
+import org.springframework.data.annotation.Transient;
+import org.springframework.data.domain.Persistable;
 import org.springframework.data.relational.core.mapping.Table;
 
 /**
  * Одна строка = один выполненный run-once бэкфилл ({@code backfill_state}). Ключ — имя бэкфилла,
  * значение — момент успешного завершения. Наличие строки означает «уже сделано»: стартовая логика
  * (например, {@code ToolCallIdBackfillRunner}) пропускает прогон, не сканируя историю заново.
+ *
+ * <p>Реализует {@link Persistable} с флагом {@code isNew}: без этого Spring Data JDBC считал бы
+ * сущность с заполненным id уже существующей и {@code save()} делал бы {@code UPDATE}, а не {@code
+ * INSERT} (тот же паттерн, что у {@code ChatTopicEntity}).
  */
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
 @Table("backfill_state")
-public class BackfillStateEntity {
+public class BackfillStateEntity implements Persistable<String> {
 
-    @Id private String name;
+    @Id private final String name;
+    private final LocalDateTime doneAt;
+    @Transient private final boolean isNew;
 
-    private LocalDateTime doneAt;
+    /** Канонический конструктор. */
+    public BackfillStateEntity(String name, LocalDateTime doneAt, boolean isNew) {
+        this.name = name;
+        this.doneAt = doneAt;
+        this.isNew = isNew;
+    }
+
+    /** Гидрация строки из БД. */
+    @PersistenceCreator
+    public BackfillStateEntity(String name, LocalDateTime doneAt) {
+        this(name, doneAt, false);
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public LocalDateTime getDoneAt() {
+        return doneAt;
+    }
+
+    @Override
+    public boolean isNew() {
+        return isNew;
+    }
+
+    @Nullable
+    @Override
+    public String getId() {
+        return name;
+    }
 }

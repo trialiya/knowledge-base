@@ -598,7 +598,7 @@ public class ChatMemoryService implements ChatMemoryRepository {
         }
         final BackfillResult result = backfillToolCallIds();
         backfillStateRepository.save(
-                new BackfillStateEntity(TOOL_CALL_ID_BACKFILL_KEY, LocalDateTime.now()));
+                new BackfillStateEntity(TOOL_CALL_ID_BACKFILL_KEY, LocalDateTime.now(), true));
         return result;
     }
 
