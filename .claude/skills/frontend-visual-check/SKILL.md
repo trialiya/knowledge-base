@@ -39,6 +39,19 @@ real `local-db/h2` — so the screenshot shows real chat and document content
 instead of an empty app; pass `--no-seed` to skip that.
 
 Copy its `chromium.launch()` and env-var setup for ad hoc checks beyond a
-screenshot. Its header covers the details, including the `LANG=C.utf8` gotcha:
-the sandbox has no locale configured, so a bare JVM defaults to ASCII and
-`GitService` throws on the non-ASCII repo paths under `docs/`.
+screenshot. Its header covers the details, including two unrelated "locale"
+gotchas:
+
+- **JVM system locale.** The sandbox has no locale configured, so a bare JVM
+  defaults to ASCII and `GitService` throws on the non-ASCII repo paths under
+  `docs/`. Fixed by `LANG=C.utf8`/`LC_ALL=C.utf8` on the backend process —
+  always on, not a flag.
+- **Browser UI language.** `i18next-browser-languagedetector` reads
+  `navigator.language` when nothing is cached in `localStorage` (`kb-lang`),
+  and this sandbox's Chromium reports `en-US` with no locale set on the
+  context — so a screenshot taken without setting one comes out in English
+  even though the app's `fallbackLng` and primary audience are Russian. Fixed
+  by passing `locale: 'ru'` to `browser.newContext()`; `playwright-smoke.js`
+  does this by default (override with `--locale=en` if the check is
+  specifically about the English strings). Copy this into any ad hoc script
+  too — it will not happen on its own.

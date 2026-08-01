@@ -3,7 +3,7 @@
  * Boots the backend jar (H2 profile, no real AI backend needed) and drives it with
  * Playwright's pre-installed Chromium to confirm the SPA actually renders. This is
  * the canonical example for the frontend-visual-check skill (.claude/skills/) — see
- * there for the full explanation (locale gotcha, auth, why the jar route).
+ * there for the full explanation (the two locale gotchas, auth, why the jar route).
  *
  * By default the app is seeded with db/sample-data.sql (see .claude/rules/
  * backend-data.md) so the screenshot shows real chat/document content instead of an
@@ -19,10 +19,23 @@
  * fallback and GRADLE/KB_JAVA21 are decided there and not repeated here. Pass
  * --no-build to run against the jar already in backend/build/libs.
  *
+ * Two unrelated things are both called "locale" here, and only one of them is
+ * fixed by this script on its own:
+ *   - The JVM's system locale (LANG/LC_ALL below) — always forced to C.utf8,
+ *     because a bare JVM otherwise defaults to ASCII and GitService throws on
+ *     the non-ASCII repo paths under docs/. Not configurable, not optional.
+ *   - The browser's UI language — i18next-browser-languagedetector reads
+ *     navigator.language when nothing is cached in localStorage ('kb-lang'),
+ *     and this sandbox's Chromium reports 'en-US' with no locale set on the
+ *     context, so screenshots come out in English even though the app's
+ *     fallback and primary audience are Russian (see i18n/index.js). Fixed
+ *     explicitly below via --locale=<code>, default 'ru' — do not rely on the
+ *     browser's ambient default for this one.
+ *
  * Usage:
  *   ./run/test.sh smoke                 # the canonical form; delegates to this script
  *   NODE_PATH=/opt/node22/lib/node_modules node scripts/playwright-smoke.js \
- *     [screenshot.png] [--no-seed] [--no-build]
+ *     [screenshot.png] [--no-seed] [--no-build] [--locale=ru|en]
  *
  * Chromium and Playwright are pre-installed in the sandbox; do not run
  * `playwright install`.
@@ -46,6 +59,11 @@ const seed = !args.includes('--no-seed');
 const build = !args.includes('--no-build');
 const screenshotPath =
   args.find((a) => !a.startsWith('--')) || path.join(ROOT, 'playwright-smoke.png');
+// The app's own fallbackLng (i18n/index.js) and the primary audience for this
+// product (docs/ is Russian) — not the browser's ambient navigator.language,
+// which this sandbox reports as 'en-US' regardless of what the app expects.
+const localeArg = args.find((a) => a.startsWith('--locale='));
+const locale = localeArg ? localeArg.slice('--locale='.length) : 'ru';
 
 // Everything the build needs to know (system Gradle vs ./gradlew, the Java 21
 // fallback) is test.sh's job; 'jar' is bootJar without the frontend tests.
@@ -170,7 +188,11 @@ async function main() {
       args: ['--no-sandbox'],
     });
     try {
-      const context = await browser.newContext({ httpCredentials: AUTH });
+      // locale drives navigator.language, which i18next-browser-languagedetector
+      // reads before falling back to i18n/index.js's own fallbackLng — without
+      // this the sandbox's Chromium renders the app in English (see the header
+      // comment on the two locale gotchas).
+      const context = await browser.newContext({ httpCredentials: AUTH, locale });
       const page = await context.newPage();
       await page.goto(BASE_URL);
       await page.waitForSelector('#root > *', { timeout: 15000 }); // React mounted

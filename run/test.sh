@@ -9,21 +9,22 @@
 #   ./test.sh [suite ...] [-- <extra gradle args>]
 #
 # Suites:
-#   unit      backend unit tests (*Test) — no Docker needed
-#   it        backend integration tests (*IT) — needs Docker, started if absent
-#   back      all backend tests (unit + IT)
-#   front     frontend tests (vitest) + eslint
-#   format    spotlessCheck (Google Java Format, AOSP)
-#   build     full build (frontend bundled into the backend JAR)
-#   jar       just the runnable backend JAR (bootJar, frontend bundled, no tests)
-#   clean     gradle clean — when something is stuck in the toolchain/spotless cache
-#   smoke     drive the UI with Chromium (scripts/playwright-smoke.js); that script
-#             builds the JAR through the 'jar' suite itself, so running it directly
-#             behaves the same. Scenarios and data live in
-#             frontend/tests/visual/cases.yaml
-#   pre-pr    format + back + build — the gate before a pull request
-#   ci        the same three with --console=plain (non-interactive logs). Note: the
-#             GitHub workflows do not call this — they run ./gradlew per module.
+#   unit        backend unit tests (*Test) — no Docker needed
+#   it          backend integration tests (*IT) — needs Docker, started if absent
+#   back        all backend tests (unit + IT)
+#   front       frontend tests (vitest) + eslint
+#   format      spotlessCheck (Google Java Format, AOSP) — fails on a violation
+#   formatApply spotlessApply — same rules, rewrites the files instead of failing
+#   build       full build (frontend bundled into the backend JAR)
+#   jar         just the runnable backend JAR (bootJar, frontend bundled, no tests)
+#   clean       gradle clean — when something is stuck in the toolchain/spotless cache
+#   smoke       drive the UI with Chromium (scripts/playwright-smoke.js); that script
+#               builds the JAR through the 'jar' suite itself, so running it directly
+#               behaves the same. Scenarios and data live in
+#               frontend/tests/visual/cases.yaml
+#   pre-pr      format + back + build — the gate before a pull request
+#   ci          the same three with --console=plain (non-interactive logs). Note: the
+#               GitHub workflows do not call this — they run ./gradlew per module.
 #
 # No suite given → unit + front: the fast pair that needs neither Docker nor a JAR.
 #
@@ -195,6 +196,7 @@ run_it() {
 run_back()   { ensure_docker; gradle_run :backend:test; }
 run_front()  { gradle_run :frontend:yarnTest :frontend:yarnLint; }
 run_format() { gradle_run spotlessCheck; }
+run_format_apply() { gradle_run spotlessApply; }
 run_build()  { gradle_run build; }
 run_clean()  { gradle_run clean; }
 # Frontend tests are skipped on purpose: the JAR is wanted for looking at a
@@ -220,6 +222,7 @@ run_suite() {
     back)   run_back ;;
     front)  run_front ;;
     format) run_format ;;
+    formatApply) run_format_apply ;;
     build)  run_build ;;
     jar)    run_jar ;;
     clean)  run_clean ;;
@@ -227,7 +230,7 @@ run_suite() {
     pre-pr | ci) run_format; run_back; run_build ;;
     *)
       echo "ERROR: unknown suite '$1'." >&2
-      echo "       Known: unit it back front format build jar clean smoke pre-pr ci" >&2
+      echo "       Known: unit it back front format formatApply build jar clean smoke pre-pr ci" >&2
       exit 2
       ;;
   esac
