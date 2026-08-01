@@ -129,7 +129,7 @@ fi
 # args, and JDK 25 needing no init script.
 gradle_run() {
   echo "→ $GRADLE_BIN $*"
-  "$GRADLE_BIN" "$@" ${GRADLE_ARGS[@]+"${GRADLE_ARGS[@]}"} ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
+  "$GRADLE_BIN" "$@" ${GRADLE_ARGS[@]+"${GRADLE_ARGS[@]}"} ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"} 2>&1 | sed '/^Picked up JAVA_TOOL_OPTIONS/d'
 }
 
 # ── Docker for Testcontainers ─────────────────────────────────────────────────
