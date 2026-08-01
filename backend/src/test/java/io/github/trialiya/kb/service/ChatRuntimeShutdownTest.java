@@ -142,6 +142,7 @@ class ChatRuntimeShutdownTest {
                 mock(SummarizeService.class),
                 events,
                 mock(ScriptGuideService.class),
+                mock(SystemPromptService.class),
                 executor);
     }
 }
