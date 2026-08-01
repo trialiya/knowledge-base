@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.service;
 
+import io.github.trialiya.kb.model.backfill.BackfillStateEntity;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.ChatSearchResult;
 import io.github.trialiya.kb.model.chat.dto.MessageCursor;
@@ -14,6 +15,7 @@ import io.github.trialiya.kb.model.tool.ToolCallIndexEntity;
 import io.github.trialiya.kb.model.tool.ToolData;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
+import io.github.trialiya.kb.repository.BackfillStateRepository;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
@@ -62,6 +64,11 @@ public class ChatMemoryService implements ChatMemoryRepository {
                     "getCurrentDateTime",
                     "getOriginalMessages");
 
+    /**
+     * Ключ run-once маркера в {@code backfill_state} (см. {@link #backfillToolCallIdsIfNeeded}).
+     */
+    public static final String TOOL_CALL_ID_BACKFILL_KEY = "tool-call-id-backfill";
+
     /** Возвращает {@code true}, если детали вызова инструмента сохраняются в БД. */
     public boolean hasDetails(String toolName) {
         return !SKIP_TOOLS.contains(toolName);
@@ -74,6 +81,7 @@ public class ChatMemoryService implements ChatMemoryRepository {
     private final ChatMessageRepository chatMessageRepository;
     private final ChatEventService events;
     private final ToolCallIndexRepository toolCallIndexRepository;
+    private final BackfillStateRepository backfillStateRepository;
 
     /** Сообщение + его протокольные tool-данные, извлечённые один раз (см. toolDataOf). */
     private record Pending(Message message, @Nullable ToolData toolData) {}
@@ -578,9 +586,25 @@ public class ChatMemoryService implements ChatMemoryRepository {
     }
 
     /**
-     * Одноразовый бэкафилл для данных, сохранённых до появления {@code tool_call_index}/{@code
-     * ToolInvocationMeta#callId}. Запускается вручную ({@code kb.backfill.tool-call-ids=true}, см.
-     * {@code ToolCallIdBackfillRunner}). Две независимые части:
+     * Run-once точка входа для legacy-бэкфилла (см. {@link ToolCallIdBackfillRunner}): если в
+     * {@code backfill_state} уже есть маркер {@value #TOOL_CALL_ID_BACKFILL_KEY} — no-op, иначе
+     * выполняет {@link #backfillToolCallIds()} и сохраняет маркер в той же транзакции. Повторные
+     * старты не сканируют историю заново; флага конфигурации больше нет.
+     */
+    @Transactional
+    public BackfillResult backfillToolCallIdsIfNeeded() {
+        if (backfillStateRepository.existsById(TOOL_CALL_ID_BACKFILL_KEY)) {
+            return new BackfillResult(0, 0);
+        }
+        final BackfillResult result = backfillToolCallIds();
+        backfillStateRepository.save(
+                new BackfillStateEntity(TOOL_CALL_ID_BACKFILL_KEY, LocalDateTime.now()));
+        return result;
+    }
+
+    /**
+     * Бэкафилл для данных, сохранённых до появления {@code tool_call_index}/{@code
+     * ToolInvocationMeta#callId} (см. {@link #backfillToolCallIdsIfNeeded}). Две независимые части:
      *
      * <ol>
      *   <li>{@code tool_call_index} наполняется по всем {@code chat_message.tool_data} разговора —

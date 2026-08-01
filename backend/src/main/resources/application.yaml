@@ -132,10 +132,6 @@ kb:
   documents:
     export-path: ${DOCUMENTS_EXPORT_PATH}
     replace: true
-  backfill:
-    # One-off: backfills messageId/callId/responseMessageId into old chat_message.meta rows on
-    # startup (see ToolCallIdBackfillRunner). Off by default — flip on for one deploy, then off.
-    tool-call-ids: ${KB_BACKFILL_TOOL_CALL_IDS:false}
   git:
     # Path to the Git repository indexed and served to the chat model (GitFunction/GitEditFunction).
     project-path: ${PROJECT_PATH}

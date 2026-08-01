@@ -12,6 +12,7 @@ import io.github.trialiya.kb.model.tool.ToolCallDetail;
 import io.github.trialiya.kb.model.tool.ToolCallIndexEntity;
 import io.github.trialiya.kb.model.tool.ToolData;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
+import io.github.trialiya.kb.repository.BackfillStateRepository;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
@@ -50,13 +51,15 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
     @Autowired private ChatTopicRepository topicRepo;
     @Autowired private ChatMessageRepository messageRepo;
     @Autowired private ToolCallIndexRepository toolCallIndexRepo;
+    @Autowired private BackfillStateRepository backfillStateRepo;
 
     private ChatMemoryService memory() {
         return new ChatMemoryService(
                 topicRepo,
                 messageRepo,
                 new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))),
-                toolCallIndexRepo);
+                toolCallIndexRepo,
+                backfillStateRepo);
     }
 
     private long position = 0;

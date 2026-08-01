@@ -10,6 +10,7 @@ import io.github.trialiya.kb.config.CommonConfig;
 import io.github.trialiya.kb.config.JdbcConfig;
 import io.github.trialiya.kb.config.PgVectorJdbcConfig;
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
+import io.github.trialiya.kb.repository.BackfillStateRepository;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
@@ -64,6 +65,7 @@ class ChatModelClientIT extends AbstractPostgresIntegrationTest {
     @Autowired private ChatTopicRepository topicRepo;
     @Autowired private ChatMessageRepository messageRepo;
     @Autowired private ToolCallIndexRepository toolCallIndexRepo;
+    @Autowired private BackfillStateRepository backfillStateRepo;
 
     @Test
     void selectedModelReachesModelLayerAndReplyIsPersisted() {
@@ -75,7 +77,8 @@ class ChatModelClientIT extends AbstractPostgresIntegrationTest {
                         topicRepo,
                         messageRepo,
                         new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))),
-                        toolCallIndexRepo);
+                        toolCallIndexRepo,
+                        backfillStateRepo);
         ChatMemory chatMemory =
                 MessageWindowChatMemory.builder()
                         .chatMemoryRepository(memoryService)

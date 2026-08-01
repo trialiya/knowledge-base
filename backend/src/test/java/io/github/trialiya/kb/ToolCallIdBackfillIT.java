@@ -12,6 +12,7 @@ import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.tool.ToolCallDetail;
 import io.github.trialiya.kb.model.tool.ToolData;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
+import io.github.trialiya.kb.repository.BackfillStateRepository;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
@@ -49,13 +50,15 @@ class ToolCallIdBackfillIT extends AbstractPostgresIntegrationTest {
     @Autowired private ChatTopicRepository topicRepo;
     @Autowired private ChatMessageRepository messageRepo;
     @Autowired private ToolCallIndexRepository toolCallIndexRepo;
+    @Autowired private BackfillStateRepository backfillStateRepo;
 
     private ChatMemoryService memory() {
         return new ChatMemoryService(
                 topicRepo,
                 messageRepo,
                 new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))),
-                toolCallIndexRepo);
+                toolCallIndexRepo,
+                backfillStateRepo);
     }
 
     private long position = 0;
@@ -182,6 +185,37 @@ class ToolCallIdBackfillIT extends AbstractPostgresIntegrationTest {
         assertThat(first.invocationsFilled()).isEqualTo(1);
         assertThat(second.invocationsFilled()).isEqualTo(0);
         assertThat(second.conversationsTouched()).isEqualTo(0);
+    }
+
+    @Test
+    void ifNeededRunsOnlyOnceAndPersistsMarker() {
+        String conv = UUID.randomUUID().toString();
+        String runId = UUID.randomUUID().toString();
+        newConversation(conv);
+
+        ChatMessageEntity segment =
+                save(
+                        conv,
+                        MessageType.ASSISTANT,
+                        null,
+                        new ToolData(
+                                List.of(new ToolData.Call("call_once", "function", "first", "{}")),
+                                null));
+        messageRepo.save(
+                segment.withMeta(
+                        new ChatMessageMeta(
+                                runId,
+                                false,
+                                List.of(oldMeta("first", ToolInvocationStatus.OK, 0)))));
+
+        ChatMemoryService.BackfillResult first = memory().backfillToolCallIdsIfNeeded();
+        ChatMemoryService.BackfillResult second = memory().backfillToolCallIdsIfNeeded();
+
+        assertThat(first.invocationsFilled()).isEqualTo(1);
+        assertThat(second.invocationsFilled()).isZero();
+        assertThat(second.conversationsTouched()).isZero();
+        assertThat(backfillStateRepo.existsById(ChatMemoryService.TOOL_CALL_ID_BACKFILL_KEY))
+                .isTrue();
     }
 
     @Test

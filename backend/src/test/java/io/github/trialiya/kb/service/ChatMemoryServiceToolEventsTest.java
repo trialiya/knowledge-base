@@ -16,6 +16,7 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.tool.ToolCallIndexEntity;
 import io.github.trialiya.kb.model.tool.ToolData;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
+import io.github.trialiya.kb.repository.BackfillStateRepository;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
@@ -48,6 +49,7 @@ class ChatMemoryServiceToolEventsTest {
     private ChatMessageRepository messageRepo;
     private ChatEventService events;
     private ToolCallIndexRepository toolCallIndexRepo;
+    private BackfillStateRepository backfillStateRepo;
     private ChatMemoryService service;
 
     @BeforeEach
@@ -56,7 +58,10 @@ class ChatMemoryServiceToolEventsTest {
         messageRepo = mock(ChatMessageRepository.class);
         events = mock(ChatEventService.class);
         toolCallIndexRepo = mock(ToolCallIndexRepository.class);
-        service = new ChatMemoryService(topicRepo, messageRepo, events, toolCallIndexRepo);
+        backfillStateRepo = mock(BackfillStateRepository.class);
+        service =
+                new ChatMemoryService(
+                        topicRepo, messageRepo, events, toolCallIndexRepo, backfillStateRepo);
         // saveAll в БД возвращает сущности с проставленными id — saveAll сервиса на этом строит
         // messageId строк tool_call_index (см. ChatMemoryService#indexToolCalls).
         final java.util.concurrent.atomic.AtomicLong nextId =
