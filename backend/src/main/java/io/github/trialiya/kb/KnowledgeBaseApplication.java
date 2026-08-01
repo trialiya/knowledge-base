@@ -12,6 +12,7 @@ import io.github.trialiya.kb.config.model.SearchConfiguration;
 import io.github.trialiya.kb.config.model.SecurityProperties;
 import io.github.trialiya.kb.config.model.SubAgentConfig;
 import io.github.trialiya.kb.config.model.SummarizeProperties;
+import io.github.trialiya.kb.config.model.SystemPromptProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -31,7 +32,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
     ChatModeProperties.class,
     ChatTimeoutProperties.class,
     SecurityProperties.class,
-    SummarizeProperties.class
+    SummarizeProperties.class,
+    SystemPromptProperties.class
 })
 public class KnowledgeBaseApplication {
 
