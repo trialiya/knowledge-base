@@ -7,6 +7,7 @@ import io.github.trialiya.kb.config.model.DocumentsConfiguration;
 import io.github.trialiya.kb.config.model.EmbeddingConfiguration;
 import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.config.model.McpProperties;
+import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.config.model.SearchConfiguration;
 import io.github.trialiya.kb.config.model.SecurityProperties;
 import io.github.trialiya.kb.config.model.SubAgentConfig;
@@ -22,6 +23,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
     DocumentsConfiguration.class,
     EmbeddingConfiguration.class,
     GitProperties.class,
+    ScriptProperties.class,
     SearchConfiguration.class,
     SubAgentConfig.class,
     McpProperties.class,

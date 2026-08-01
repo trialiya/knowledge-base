@@ -5,7 +5,7 @@ import chatApi from '../../api/chatApi';
 import { DRAFT_CHAT_ID } from '../../constants/storage';
 import { CHAT_EVENT } from '../../constants/chatEventTypes';
 import { TOOL_STATUS } from '../../constants/toolStatus';
-import { getDocChangeRef, getFileChangeRef } from './toolMeta';
+import { getDocChangeRef, getFileChangeRefs } from './toolMeta';
 
 /**
  * Подписка на поток событий активного чата: стриминг ответа + синхронизация между
@@ -34,8 +34,10 @@ import { getDocChangeRef, getFileChangeRef } from './toolMeta';
  *                                           последнего, так что раздельные вызовы потеряли бы все
  *                                           мутации прогона, кроме последней, — например, при
  *                                           создании нескольких документов в одном ответе ассистента.
- * @param {Function} [p.onFileChanged]      (refs) => void — то же для file-мутаций (createFile/editFile),
- *                                           refs из getFileChangeRef
+ * @param {Function} [p.onFileChanged]      (refs) => void — то же для file-мутаций
+ *                                           (createFile/editFile/runScript), refs из getFileChangeRefs;
+ *                                           один tool call может дать несколько refs — runScript
+ *                                           применяет пачку правок за вызов.
  */
 export default function useChatEventStream({
   activeChatId,
@@ -88,8 +90,10 @@ export default function useChatEventStream({
           for (const tc of ev.payload?.toolCalls || []) {
             const docRef = getDocChangeRef(tc);
             if (docRef && docRef.status !== TOOL_STATUS.ERROR) docRefs.push(docRef);
-            const fileRef = getFileChangeRef(tc);
-            if (fileRef && fileRef.status !== TOOL_STATUS.ERROR) fileRefs.push(fileRef);
+            // Один вызов может принести несколько правок: runScript пишет пачкой.
+            for (const fileRef of getFileChangeRefs(tc)) {
+              if (fileRef.status !== TOOL_STATUS.ERROR) fileRefs.push(fileRef);
+            }
           }
           // Один вызов колбэка со ВСЕМ списком, а не по одному на tool call — см. JSDoc выше.
           if (docRefs.length > 0) onDocChanged?.(docRefs);

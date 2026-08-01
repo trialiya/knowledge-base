@@ -98,6 +98,59 @@ class GitServiceEditTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    // ── One spelling per path ────────────────────────────────────────────────
+
+    /**
+     * A leading {@code ./} used to reach the filesystem intact: the file was written, {@code git
+     * add ./x} matched nothing, and the rollback reported a .gitignore rule that did not exist.
+     */
+    @Test
+    void createFileAcceptsAnUncanonicalPathAndStagesItUnderItsRealName() {
+        GitEditResult result = service.createFile("./src//New.java", "body\n");
+
+        assertThat(result.path()).isEqualTo("src/New.java");
+        assertThat(repoDir.resolve("src/New.java")).hasContent("body\n");
+        assertThat(service.exists("src/New.java")).isTrue();
+        // Staged under the canonical name — the whole point, since the index is keyed on it.
+        assertThat(service.getFileContent("src/New.java").content()).isEqualTo("body\n");
+    }
+
+    @Test
+    void readsAndEditsAgreeOnPathSpelling() {
+        writeFile("docs/readme.md", "hello\n");
+        commitAll();
+
+        assertThat(service.getFileContent("./docs/readme.md").content()).isEqualTo("hello\n");
+        assertThat(service.exists("./docs/readme.md")).isTrue();
+
+        GitEditResult edited = service.editFile("./docs/readme.md", "hello", "bye", false);
+        assertThat(edited.path()).isEqualTo("docs/readme.md");
+        assertThat(repoDir.resolve("docs/readme.md")).hasContent("bye\n");
+    }
+
+    @Test
+    void canonicalisingAPathNeverResolvesATraversalOutOfTheRepository() {
+        // "." segments are dropped, ".." is refused — the refusal happens while the path still
+        // says what the caller wrote, so collapsing can never turn an escape into a valid path.
+        assertThat(GitService.normalizePath("./a/./b.txt")).isEqualTo("a/b.txt");
+        assertThat(GitService.normalizePath("a\\b.txt")).isEqualTo("a/b.txt");
+        assertThatThrownBy(() -> GitService.normalizePath("a/../../etc/passwd"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> GitService.normalizePath("/etc/passwd"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> GitService.normalizePath("./"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void canonicalisingATrailingSlashOrABarePathDropsOrRejectsIt() {
+        // A trailing slash names no file any more than a leading "./" does — it must collapse the
+        // same way, not slip through the fast path unchanged.
+        assertThat(GitService.normalizePath("docs/")).isEqualTo("docs");
+        assertThatThrownBy(() -> GitService.normalizePath("."))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
     // ── editFile ─────────────────────────────────────────────────────────────
 
     @Test

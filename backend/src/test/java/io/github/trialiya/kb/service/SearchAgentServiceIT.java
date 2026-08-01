@@ -96,7 +96,8 @@ class SearchAgentServiceIT {
     private SearchAgentService newService(int maxIterations) {
         SubAgentConfig cfg = new SubAgentConfig(true, "test-model", 4000, maxIterations, Set.of());
         Resource prompt = new ByteArrayResource("system".getBytes(StandardCharsets.UTF_8));
-        return new SearchAgentService(chatModel, toolCallingManager, cfg, prompt, readOnlyTools);
+        return new SearchAgentService(
+                chatModel, toolCallingManager, cfg, prompt, "", readOnlyTools);
     }
 
     @Test

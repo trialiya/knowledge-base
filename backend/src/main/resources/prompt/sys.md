@@ -133,3 +133,5 @@ A - added, M - modified, D - deleted, R - renamed, тд
 ## Ссылки на сообщения
 `[msg:XYZ]` → позиция XYZ в чате. Вызывай `getOriginalMessages` только если нужен точный текст
 сообщений, на которые ссылается summary.
+
+{script_instructions}

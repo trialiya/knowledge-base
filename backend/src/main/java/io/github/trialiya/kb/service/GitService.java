@@ -119,12 +119,26 @@ public class GitService {
                     ".pyo", ".swp", ".swo", ".bak", ".tmp", ".orig");
 
     private final Path repoPath;
+
+    /**
+     * {@link #repoPath} with every symlink in it resolved. Comparison base for {@link
+     * #requireInsideRepo}: the repository itself may legitimately live behind a symlinked parent (a
+     * {@code /tmp} → {@code /private/tmp} style mount), in which case real paths of its own files
+     * would never start with the textual {@link #repoPath}.
+     */
+    private final Path repoRealPath;
+
     private final Repository repository;
     private final Git git;
     private final OutlineService outlineService;
 
     public GitService(GitProperties gitProperties, OutlineService outlineService) {
         this.repoPath = Path.of(gitProperties.projectPath()).toAbsolutePath().normalize();
+        try {
+            this.repoRealPath = repoPath.toRealPath();
+        } catch (IOException e) {
+            throw new IllegalStateException("Cannot resolve repository path: " + repoPath, e);
+        }
         this.outlineService = outlineService;
         try {
             this.repository = new FileRepositoryBuilder().setWorkTree(repoPath.toFile()).build();
@@ -887,14 +901,10 @@ public class GitService {
      *     it is the gate that stops untracked/gitignored files from being served.
      */
     private FileBytes readTrackedFile(String filePath, boolean knownTracked) {
-        String normalized = toForwardSlashes(filePath.strip());
-        requireSafeGitRelativePath(normalized);
+        String normalized = normalizePath(filePath);
 
         // Security: confine to the repo before touching the filesystem.
-        Path absolute = repoPath.resolve(normalized).normalize();
-        if (!absolute.startsWith(repoPath)) {
-            throw new IllegalArgumentException("Path traversal not allowed: " + normalized);
-        }
+        Path absolute = confineToRepo(normalized);
 
         // Only tracked files may be served. The message is the same whether the path is
         // untracked-but-present or genuinely missing, so a caller can't use it to fingerprint
@@ -965,11 +975,7 @@ public class GitService {
      * #MAX_FILE_SIZE} bytes.
      */
     public GitEditResult createFile(@NonNull String filePath, @NonNull String content) {
-        String normalized = validateWritablePath(filePath);
-        if (content.getBytes(StandardCharsets.UTF_8).length > MAX_FILE_SIZE) {
-            throw new IllegalArgumentException(
-                    "Content too large (max " + MAX_FILE_SIZE / 1024 + " KB): " + normalized);
-        }
+        String normalized = requireCreatable(filePath, content);
 
         // Only presence on disk blocks creation. A tracked-but-deleted file (removed from the
         // working tree, still in the index) is deliberately allowed — editFile can't read it, so
@@ -1070,6 +1076,39 @@ public class GitService {
         }
 
         String updated = text.replace(oldLf, newLf);
+        log.info("editFile: '{}' — {} occurrence(s) replaced", fb.path(), occurrences);
+        return writeUpdatedText(fb, text, updated, crlf);
+    }
+
+    /**
+     * Replaces the whole text of a tracked file, with the same write/stage semantics and the same
+     * refusals (binary, too large) as {@link #editFile}.
+     *
+     * <p>Exists for {@code runScript}: a script may edit one file several times, and each of those
+     * edits was already validated against the pending text as it accumulated (see {@code
+     * ScriptSession}). Replaying them one by one here would re-do that work and multiply the
+     * writes; writing the final text once keeps a script's changes to one atomic write and one diff
+     * per file. Not exposed as a tool — the exact-match contract of {@link #editFile} is what
+     * forces a model to quote real content, and nothing should be able to skip it.
+     */
+    public GitEditResult replaceTrackedFile(@NonNull String filePath, @NonNull String newContent) {
+        FileBytes fb = readTrackedFile(filePath);
+        if (fb.binary()) {
+            throw new IllegalArgumentException("Cannot edit a binary file: " + fb.path());
+        }
+        if (fb.size() > MAX_FILE_SIZE) {
+            throw new IllegalArgumentException(
+                    "File too large to edit (max " + MAX_FILE_SIZE / 1024 + " KB): " + fb.path());
+        }
+        String original = new String(fb.bytes(), StandardCharsets.UTF_8);
+        boolean crlf = original.contains("\r\n");
+        String text = crlf ? original.replace("\r\n", "\n") : original;
+        return writeUpdatedText(fb, text, newContent.replace("\r\n", "\n"), crlf);
+    }
+
+    /** Shared tail of the two edit paths: diff, atomic write, stage, report. */
+    private GitEditResult writeUpdatedText(
+            FileBytes fb, String text, String updated, boolean crlf) {
         DiffStats stats = diffStrings(text, updated);
         writeAtomically(fb.path(), crlf ? updated.replace("\n", "\r\n") : updated);
 
@@ -1084,12 +1123,7 @@ public class GitService {
         }
 
         int lines = updated.isEmpty() ? 0 : updated.split("\n", -1).length;
-        log.info(
-                "editFile: '{}' — {} occurrence(s) replaced (+{}/-{})",
-                fb.path(),
-                occurrences,
-                stats.additions(),
-                stats.deletions());
+        log.info("wrote '{}' (+{}/-{})", fb.path(), stats.additions(), stats.deletions());
         return new GitEditResult(
                 "edit", fb.path(), stats.additions(), stats.deletions(), lines, stats.diff());
     }
@@ -1161,12 +1195,8 @@ public class GitService {
      * {@code .git/} internals and junk artefacts are never writable.
      */
     private String validateWritablePath(String filePath) {
-        String normalized = toForwardSlashes(filePath.strip());
-        requireSafeGitRelativePath(normalized);
-        Path absolute = repoPath.resolve(normalized).normalize();
-        if (!absolute.startsWith(repoPath)) {
-            throw new IllegalArgumentException("Path traversal not allowed: " + normalized);
-        }
+        String normalized = normalizePath(filePath);
+        confineToRepo(normalized);
         if (normalized.equals(".git") || normalized.startsWith(".git/")) {
             throw new IllegalArgumentException("Writing into .git is not allowed");
         }
@@ -1311,6 +1341,50 @@ public class GitService {
         return List.copyOf(paths);
     }
 
+    /**
+     * Whether something already occupies {@code filePath} in the working tree, tracked or not.
+     *
+     * <p>For {@code kb.create}, which needs the answer <em>before</em> the run's writes are applied
+     * — discovering the clash only at apply time would mean a script that "created" twenty files
+     * fails after some of them already exist. Deliberately mirrors what {@code createFile} itself
+     * refuses on, including untracked and gitignored files.
+     */
+    public boolean exists(@NonNull String filePath) {
+        return Files.exists(confineToRepo(normalizePath(filePath)));
+    }
+
+    /**
+     * Everything {@link #createFile} refuses before it touches the disk: an unsafe or unwritable
+     * path ({@code .git/}, a junk name, an escape from the tree) and content too large to serve
+     * back afterwards.
+     *
+     * <p>Split out for {@code kb.create}, which stages its writes and applies them only once the
+     * script has finished. Those refusals do not depend on the state of the tree, so leaving them
+     * to the apply step would turn a script's own mistake — {@code kb.create('.git/hooks/x')} on
+     * the third of five files — into two files written and a run that failed anyway, which is
+     * exactly the outcome buffering exists to prevent. Checked while the script is still running,
+     * it is an ordinary {@code RUNTIME} error the model can correct, and nothing reaches disk.
+     *
+     * @return the normalized path, as {@link #createFile} will spell it
+     */
+    public String requireCreatable(@NonNull String filePath, @NonNull String content) {
+        String normalized = validateWritablePath(filePath);
+        if (content.getBytes(StandardCharsets.UTF_8).length > MAX_FILE_SIZE) {
+            throw new IllegalArgumentException(
+                    "Content too large (max " + MAX_FILE_SIZE / 1024 + " KB): " + normalized);
+        }
+        return normalized;
+    }
+
+    /**
+     * Every tracked path in the repository, in {@code git ls-files} order. Exposed for {@code
+     * KbScriptApi.files()}: a script filters the list itself in one pass, where the tree tools
+     * would need one call per directory level.
+     */
+    public List<String> listTrackedFiles() {
+        return trackedPaths();
+    }
+
     private boolean isTracked(String path) {
         try {
             // getEntry(path) returns the path's first index entry — stage 0 normally, stage 1+
@@ -1404,6 +1478,90 @@ public class GitService {
         if (!SAFE_GIT_RELATIVE_PATH.matcher(path).matches()) {
             throw new IllegalArgumentException("Path contains unsupported characters: " + path);
         }
+    }
+
+    /**
+     * The one spelling of a repo-relative path: backslashes turned round, and {@code ./} and
+     * doubled slashes collapsed, so {@code "./docs//a.md"} and {@code "docs/a.md"} are the same
+     * string everywhere.
+     *
+     * <p>Git's index is keyed on the canonical form, so before this every entry point disagreed
+     * with itself: {@code getFileContent("./docs/a.md")} answered "File not found" for a file that
+     * is plainly there, and {@code createFile} wrote the file to disk and only then failed to stage
+     * it — reporting a .gitignore rule that does not exist. Callers that match a path against a
+     * pattern need it too: a glob written the obvious way ({@code "secrets/**"}) does not match
+     * {@code "./secrets/key.pem"}, so any policy checked on an uncanonical path checks nothing.
+     *
+     * <p>Validation runs on the raw form first, on purpose. Canonicalising {@code "/etc/passwd"}
+     * would strip nothing but canonicalising {@code "a/../../etc"} would resolve a traversal this
+     * method must instead refuse, so the refusals happen while the path still says what the caller
+     * wrote. What is dropped afterwards — {@code "."} and empty segments — cannot change where a
+     * path points.
+     *
+     * @throws IllegalArgumentException if the path is unsafe, or names nothing once collapsed
+     */
+    public static String normalizePath(@NonNull String filePath) {
+        String forward = toForwardSlashes(filePath.strip());
+        requireSafeGitRelativePath(forward);
+        if (!forward.contains("./")
+                && !forward.contains("//")
+                && !forward.endsWith("/.")
+                && !forward.endsWith("/")
+                && !forward.equals(".")) {
+            return forward;
+        }
+        StringBuilder canonical = new StringBuilder(forward.length());
+        for (String segment : forward.split("/")) {
+            if (segment.isEmpty() || segment.equals(".")) {
+                continue;
+            }
+            if (!canonical.isEmpty()) {
+                canonical.append('/');
+            }
+            canonical.append(segment);
+        }
+        if (canonical.isEmpty()) {
+            throw new IllegalArgumentException("Path must name a file: " + filePath);
+        }
+        return canonical.toString();
+    }
+
+    /**
+     * Resolves a repo-relative path to its absolute location and confirms it really is inside the
+     * working tree — textually first, then through the filesystem.
+     *
+     * <p>The textual check ({@link Path#normalize()} plus a prefix comparison) is not enough on its
+     * own: it rewrites the path as a string and knows nothing about symlinks. A <em>tracked</em>
+     * symlink pointing outside the repository — or a symlinked directory anywhere along the path —
+     * passes it, while the read or write itself lands wherever the link points. Resolving the
+     * deepest component that actually exists closes that: for an existing file it is the file
+     * itself (final link included), for a path being created it is the nearest existing ancestor,
+     * which is exactly what {@link #createFile} needs.
+     *
+     * @return the absolute, normalized path — link-resolution is only the check, callers keep
+     *     reading and writing through the path the repository names
+     */
+    private Path confineToRepo(String normalized) {
+        Path absolute = repoPath.resolve(normalized).normalize();
+        if (!absolute.startsWith(repoPath)) {
+            throw new IllegalArgumentException("Path traversal not allowed: " + normalized);
+        }
+        for (Path probe = absolute; probe != null; probe = probe.getParent()) {
+            Path real;
+            try {
+                real = probe.toRealPath();
+            } catch (IOException ignored) {
+                // Not on disk yet (createFile) or a dangling symlink — ask its parent instead.
+                continue;
+            }
+            if (!real.startsWith(repoRealPath)) {
+                throw new IllegalArgumentException(
+                        "Path escapes the repository via a symlink: " + normalized);
+            }
+            return absolute;
+        }
+        // Unreachable in practice: the repository root itself always resolves.
+        return absolute;
     }
 
     /** Returns {@code true} for OS/IDE artefacts that should never appear in results. */

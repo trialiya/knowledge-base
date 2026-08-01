@@ -20,6 +20,7 @@ class SearchAgentToolGuardTest {
     /** Mirror of {@code kb.search.subagent.allowed-tools} in application.yaml. */
     private static final Set<String> ALLOWED =
             Set.of(
+                    "runScript",
                     "grepContent",
                     "searchFiles",
                     "getFileTree",
@@ -48,7 +49,10 @@ class SearchAgentToolGuardTest {
         // Services are never invoked by ToolCallbacks.from (it only reflects over @Tool methods),
         // so null dependencies are safe here.
         return Stream.of(
-                        ToolCallbacks.from(new GitFunction(null), new DocumentFunction(null, null)))
+                        ToolCallbacks.from(
+                                new GitFunction(null),
+                                new DocumentFunction(null, null),
+                                ScriptFunction.readOnly(null)))
                 .map(cb -> cb.getToolDefinition().name())
                 .filter(ALLOWED::contains)
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());

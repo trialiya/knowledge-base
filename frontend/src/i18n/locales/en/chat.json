@@ -165,7 +165,8 @@
     "grepContent": "Search in code",
     "searchCodebase": "Smart search",
     "createFile": "Create file",
-    "editFile": "Edit file"
+    "editFile": "Edit file",
+    "runScript": "Script"
   },
   "docChange": {
     "viewChanges": "View changes",

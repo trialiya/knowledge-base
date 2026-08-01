@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { getFileChangeRef } from './toolMeta';
+import { getFileChangeRefs } from './toolMeta';
 import { TOOL_STATUS } from '../../constants/toolStatus';
 import { fetchContent } from './fileChips';
 import { IconChevronDown } from '../../icons';
@@ -12,7 +12,7 @@ import './styles/doc-changes.css';
 import './styles/file-changes.css';
 
 /**
- * Блок под ответом ИИ: файловые мутации (createFile/editFile) из toolCalls.
+ * Блок под ответом ИИ: файловые мутации (createFile/editFile/runScript) из toolCalls.
  * Строка на файл: путь, операция, +N/−M; клик открывает модалку со всеми
  * diff'ами правок этого файла из данного ответа (diff приходит в resultMeta —
  * работает и в live-стриме, и после перезагрузки чата, как у DocChangeBlock).
@@ -27,16 +27,18 @@ const FileChangeBlock = ({ toolCalls }) => {
   const changes = useMemo(() => {
     const byPath = new Map();
     for (const tc of toolCalls || []) {
-      const ref = getFileChangeRef(tc);
-      if (!ref || ref.status === TOOL_STATUS.ERROR) continue;
-      const cur = byPath.get(ref.path);
-      if (!cur) {
-        byPath.set(ref.path, { ...ref, diffs: ref.diff ? [ref.diff] : [] });
-      } else {
-        cur.additions += ref.additions;
-        cur.deletions += ref.deletions;
-        if (ref.operation === 'create') cur.operation = 'create';
-        if (ref.diff) cur.diffs.push(ref.diff);
+      // Один вызов может принести несколько правок: runScript пишет пачкой.
+      for (const ref of getFileChangeRefs(tc)) {
+        if (ref.status === TOOL_STATUS.ERROR) continue;
+        const cur = byPath.get(ref.path);
+        if (!cur) {
+          byPath.set(ref.path, { ...ref, diffs: ref.diff ? [ref.diff] : [] });
+        } else {
+          cur.additions += ref.additions;
+          cur.deletions += ref.deletions;
+          if (ref.operation === 'create') cur.operation = 'create';
+          if (ref.diff) cur.diffs.push(ref.diff);
+        }
       }
     }
     return [...byPath.values()];

@@ -22,6 +22,7 @@ import io.github.trialiya.kb.service.ChatEventService;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.service.ChatModeService;
 import io.github.trialiya.kb.service.ChatRunService;
+import io.github.trialiya.kb.service.ScriptGuideService;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import jakarta.annotation.Nonnull;
 import java.time.Clock;
@@ -66,6 +67,7 @@ public class ChatController {
     private final ChatMemoryService chatMemoryService;
     private final ChatRunService chatRunService;
     private final ChatEventService chatEventService;
+    private final ScriptGuideService scriptGuideService;
 
     /** Часы аудита Spring Data — ими же датируется «тронуть чат», см. JdbcConfig#clock. */
     private final Clock clock;
@@ -80,6 +82,7 @@ public class ChatController {
             ChatMemoryService chatMemoryService,
             ChatRunService chatRunService,
             ChatEventService chatEventService,
+            ScriptGuideService scriptGuideService,
             Clock clock) {
         this.chatModelProperties = chatModelProperties;
         this.chatModeProperties = chatModeProperties;
@@ -90,6 +93,7 @@ public class ChatController {
         this.chatMemoryService = chatMemoryService;
         this.chatRunService = chatRunService;
         this.chatEventService = chatEventService;
+        this.scriptGuideService = scriptGuideService;
         this.clock = clock;
     }
 
@@ -295,7 +299,12 @@ public class ChatController {
         ChatClient.ChatClientRequestSpec spec =
                 chatClient
                         .prompt()
-                        .system(sp -> sp.param("mode_instructions", modeInstructions))
+                        .system(
+                                sp ->
+                                        sp.param("mode_instructions", modeInstructions)
+                                                .param(
+                                                        "script_instructions",
+                                                        scriptGuideService.instructions()))
                         .user(userMessage)
                         .toolContext(buildContext(conversationId, toolCollector))
                         .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId));

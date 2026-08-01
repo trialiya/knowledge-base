@@ -3,12 +3,14 @@ package io.github.trialiya.kb.config;
 import io.github.trialiya.kb.advisor.MessageLoggingAdvisor;
 import io.github.trialiya.kb.advisor.ToolPreparingAdvisor;
 import io.github.trialiya.kb.config.model.McpProperties;
+import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.config.model.SubAgentConfig;
 import io.github.trialiya.kb.functions.AttachmentFunction;
 import io.github.trialiya.kb.functions.DocumentFunction;
 import io.github.trialiya.kb.functions.GitEditFunction;
 import io.github.trialiya.kb.functions.GitFunction;
 import io.github.trialiya.kb.functions.MessageLookupFunction;
+import io.github.trialiya.kb.functions.ScriptFunction;
 import io.github.trialiya.kb.functions.SearchAgentFunction;
 import io.github.trialiya.kb.functions.TopicFunction;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
@@ -18,7 +20,10 @@ import io.github.trialiya.kb.service.ChatEventService;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.service.DocumentService;
 import io.github.trialiya.kb.service.GitService;
+import io.github.trialiya.kb.service.ScriptGuideService;
 import io.github.trialiya.kb.service.SearchAgentService;
+import io.github.trialiya.kb.service.script.ScriptCancelledException;
+import io.github.trialiya.kb.service.script.ScriptRunner;
 import io.github.trialiya.kb.tools.RecordingToolCallback;
 import java.util.ArrayList;
 import java.util.List;
@@ -35,10 +40,13 @@ import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.model.tool.ToolCallingManager;
+import org.springframework.ai.model.tool.autoconfigure.ToolCallingProperties;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
+import org.springframework.ai.tool.execution.DefaultToolExecutionExceptionProcessor;
+import org.springframework.ai.tool.execution.ToolExecutionExceptionProcessor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -122,6 +130,47 @@ public class ChatConfig {
         return new GitEditFunction(gitService);
     }
 
+    /**
+     * The {@code runScript} tool. Off by default: a script is still executed code, so it is an
+     * explicit opt-in like {@code kb.mcp.enabled}, even though the engine it runs in has no
+     * filesystem, no host classes and no threads (see {@code ScriptRunner}).
+     *
+     * <p>Whether scripts may also write is a second decision, made by {@code ScriptEditPolicy} from
+     * {@code kb.git.edit-enabled} + a writable tree + {@code kb.script.edit-enabled}. When the tool
+     * is absent, {@code ScriptGuideService} also yields an empty prompt fragment, so the model is
+     * never told about a tool it does not have.
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "kb.script", name = "enabled", havingValue = "true")
+    public ScriptFunction scriptFunction(ScriptRunner scriptRunner) {
+        log.info("Script tool enabled (runScript)");
+        return ScriptFunction.forChat(scriptRunner);
+    }
+
+    /**
+     * Replaces Spring AI's own processor for one reason: {@link ScriptCancelledException} has to
+     * stay an exception.
+     *
+     * <p>A tool that throws is normally a tool that failed, and the default answer — hand the model
+     * the exception message as the tool's result — is the right one for a failure: the model reads
+     * what went wrong and tries something else. Cancellation is not a failure. The run it belonged
+     * to is already disposed, so a result there would restart a conversation the user stopped, at
+     * cost, with nobody reading the answer. Listing the class here makes the processor rethrow it,
+     * which is what {@code ScriptRunner} assumed all along.
+     *
+     * <p>Everything else keeps the framework's behaviour, including {@code
+     * spring.ai.tools.throw-exception-on-error} — this is one exception added to the rethrow list,
+     * not a change of policy.
+     */
+    @Bean
+    public ToolExecutionExceptionProcessor toolExecutionExceptionProcessor(
+            ToolCallingProperties properties) {
+        return DefaultToolExecutionExceptionProcessor.builder()
+                .alwaysThrow(properties.isThrowExceptionOnError())
+                .rethrowExceptions(List.of(ScriptCancelledException.class))
+                .build();
+    }
+
     @Bean
     public DocumentFunction documentFunction(
             DocumentService documentService, AttachmentService attachmentService) {
@@ -147,17 +196,53 @@ public class ChatConfig {
             SubAgentConfig subAgentConfig,
             @Value("classpath:prompt/search-agent.md") Resource searchAgentPrompt,
             GitFunction gitFunction,
-            DocumentFunction documentFunction) {
+            DocumentFunction documentFunction,
+            ScriptProperties scriptProperties,
+            ScriptRunner scriptRunner,
+            ScriptGuideService scriptGuideService) {
+        // Two gates, and both matter. kb.script.enabled decides whether the tool exists anywhere —
+        // without it the sub-agent's allow-list must not be able to conjure one up. Given that, the
+        // sub-agent gets its own copy, forced read-only: its allow-list may include runScript, but
+        // never the ability to write, whatever the main chat is allowed to do.
+        boolean scriptsAvailable = subAgentScriptsAvailable(scriptProperties, subAgentConfig);
+        List<Object> functions = new ArrayList<>(List.of(gitFunction, documentFunction));
+        if (scriptsAvailable) {
+            functions.add(ScriptFunction.readOnly(scriptRunner));
+        }
         ToolCallback[] readOnly =
-                Stream.of(ToolCallbacks.from(gitFunction, documentFunction))
+                Stream.of(ToolCallbacks.from(functions.toArray()))
                         .filter(
                                 cb ->
                                         subAgentConfig
                                                 .allowedTools()
                                                 .contains(cb.getToolDefinition().name()))
                         .toArray(ToolCallback[]::new);
+        // The handbook is long, and it is also the only place the sub-agent is told scripts exist —
+        // so it goes in exactly when the tool does.
+        String scriptInstructions =
+                scriptsAvailable ? scriptGuideService.readOnlyInstructions() : "";
         return new SearchAgentService(
-                openAiChatModel, toolCallingManager, subAgentConfig, searchAgentPrompt, readOnly);
+                openAiChatModel,
+                toolCallingManager,
+                subAgentConfig,
+                searchAgentPrompt,
+                scriptInstructions,
+                readOnly);
+    }
+
+    /**
+     * Whether the search sub-agent gets {@code runScript}. Both halves are load-bearing: {@code
+     * kb.script.enabled} decides whether the tool exists at all, so listing it in {@code
+     * allowed-tools} cannot conjure one up in a deployment that switched scripts off — which would
+     * otherwise leave the sub-agent running scripts with no handbook to run them by.
+     *
+     * <p>Package-private so {@code ChatConfigSubAgentScriptsAvailableTest} can pin it directly —
+     * the decision is one boolean, and a test that re-derived it would only be testing its own
+     * copy.
+     */
+    static boolean subAgentScriptsAvailable(
+            ScriptProperties scriptProperties, SubAgentConfig subAgentConfig) {
+        return scriptProperties.enabled() && subAgentConfig.allowedTools().contains("runScript");
     }
 
     @Bean
@@ -173,6 +258,7 @@ public class ChatConfig {
             DocumentFunction documentFunction,
             AttachmentService attachmentService,
             ObjectProvider<SearchAgentService> searchAgentService,
+            ObjectProvider<ScriptFunction> scriptFunction,
             ChatEventService chatEventService,
             McpProperties mcpProperties,
             ObjectProvider<ToolCallbackProvider> mcpToolCallbackProvider) {
@@ -191,6 +277,8 @@ public class ChatConfig {
         // Present only when kb.git.edit-enabled=true AND the tree is writable (see gitEditFunction
         // bean) — in read-only mode the edit tools are not offered to the model at all.
         gitEditFunction.ifAvailable(functions::add);
+        // Present only when kb.script.enabled=true (see scriptFunction bean).
+        scriptFunction.ifAvailable(functions::add);
 
         // MCP-derived tools (see spring.ai.mcp.client.* connections) are merged in only when
         // kb.mcp.enabled=true — external MCP servers run arbitrary local commands or call

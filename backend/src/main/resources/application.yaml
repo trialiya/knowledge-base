@@ -137,6 +137,57 @@ kb:
     # Expose file edit tools (createFile/editFile) to the chat model. Default off — read-only.
     # Even when true, the tools are withheld if the working tree is not writable (ro mount).
     edit-enabled: ${KB_GIT_EDIT_ENABLED:false}
+  script:
+    # The runScript tool: the model writes a short JS script that walks the repository itself,
+    # instead of a dozen grep/read round-trips. The script has NO filesystem — the engine is built
+    # without one — and reaches files only through the injected `kb` object, which goes through the
+    # same tracked-files rules as every other tool. Still an explicit opt-in: it is executed code.
+    enabled: ${KB_SCRIPT_ENABLED:false}
+    # Let scripts write (kb.edit/kb.create). Necessary but not sufficient: kb.git.edit-enabled must
+    # also be on and the working tree writable — the same two gates as the editFile tool, so scripts
+    # can never be a way around a read-only deployment. Separate flag so a deployment can keep the
+    # edit tools and still hand the model read-only scripts. See ScriptEditPolicy.
+    edit-enabled: ${KB_SCRIPT_EDIT_ENABLED:true}
+    # Append the tutorial half of the handbook (see below). On by default: a weak model cannot use
+    # runScript without worked examples it can copy. Switch off for a strong model — the reference
+    # half still ships, so the model keeps the kb API, the budgets and the error kinds, and only
+    # loses advice it already follows.
+    extended-guide-enabled: ${KB_SCRIPT_EXTENDED_GUIDE:true}
+    # Handbook injected into the system prompt while the tool is enabled (ScriptGuideService),
+    # in two halves. The reference half is unconditional — the kb API, the limits and the error
+    # table are what no model can guess. The extended half is the tutorial: when to prefer a
+    # script, how to structure one, examples, what not to do. Empty when enabled=false, so a model
+    # that cannot run scripts is never told about them. Budget numbers are substituted, not copied.
+    guide: classpath:prompt/script-run.md
+    extended-guide: classpath:prompt/script-run-extended.md
+    # Appended only when writes are actually available — telling a model about kb.edit it cannot
+    # call wastes its attempts. Split the same way: the rules always, the examples only with
+    # extended-guide-enabled.
+    edit-guide: classpath:prompt/script-run-edit.md
+    extended-edit-guide: classpath:prompt/script-run-edit-extended.md
+    timeout: ${KB_SCRIPT_TIMEOUT:10s}   # default wall-clock budget for one script
+    max-timeout: 30s                    # ceiling for the tool's own timeoutSeconds argument
+    cancel-poll: 50ms                   # how often the watchdog rechecks deadline + stop flag
+    limits:
+      # These do NOT bound the model's context: what a script reads stays in the script, and the
+      # only things that reach the model are its return value and its log, capped below. What is
+      # left to bound is the backend — so they are sized to stop a runaway loop, not to stop the
+      # work. A repository-wide pass is what the tool is for; this project tracks 629 files.
+      max-files-read: 2000
+      # Covers kb.read and the text kb.grep/kb.searchDocs hand back. The nearest thing to a heap
+      # bound available: Graal's own memory limit needs Oracle GraalVM (see ScriptRunner).
+      max-bytes-read: 32MB
+      max-calls: 2000           # backstop for a loop that stays under every other budget
+      max-log-chars: 20000
+      max-result-chars: 20000
+      max-edited-files: 20      # writes only; a buggy loop must not rewrite the repository
+      max-edited-bytes: 256KB
+    # Optional, empty by default. Ant-style globs (**/*.pem matches at any depth, including root).
+    # deny-globs hides paths from scripts ON TOP OF .gitignore, which already excludes untracked
+    # secrets; allow-globs, when non-empty, narrows scripts to those paths only. A hidden file
+    # looks exactly like a missing one, so a script cannot probe the policy.
+    deny-globs: []      # e.g. ["**/*.pem", "**/secrets/**"]
+    allow-globs: []     # e.g. ["docs/**", "backend/src/**"]
   mcp:
     # Expose tools from external MCP (Model Context Protocol) servers to the chat model, in
     # addition to the built-in git/document tools. Default off — external MCP servers run
@@ -209,7 +260,11 @@ kb:
       # Hard cap on tool-call rounds before a forced, tool-less summarization call.
       max-iterations: ${KB_SEARCH_SUBAGENT_MAX_ITERATIONS:30}
       # Read-only tools the sub-agent may call. MUST NOT include searchCodebase (recursion guard).
+      # runScript is here as the sub-agent's own forced-read-only copy (see ChatConfig): its write
+      # methods are withheld regardless of kb.script.edit-enabled. Listing it costs nothing when
+      # kb.script.enabled=false — the tool simply is not among the callbacks to filter.
       allowed-tools:
+        - runScript
         - grepContent
         - searchFiles
         - getFileTree
