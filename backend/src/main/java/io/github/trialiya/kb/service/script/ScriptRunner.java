@@ -26,6 +26,7 @@ import org.graalvm.polyglot.PolyglotException;
 import org.graalvm.polyglot.Source;
 import org.graalvm.polyglot.SourceSection;
 import org.graalvm.polyglot.Value;
+import org.graalvm.polyglot.io.IOAccess;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 
@@ -39,7 +40,7 @@ import org.springframework.stereotype.Service;
  * problems disappear when the untrusted code runs in a guest language: the context is built without
  * a filesystem at all, and {@link Context#close(boolean)} from another thread cancels execution.
  *
- * <p><b>The sandbox.</b> {@code allowIO(false)} means no {@code FileSystem} is attached; {@code
+ * <p><b>The sandbox.</b> {@link IOAccess#NONE} means no {@code FileSystem} is attached; {@code
  * allowHostClassLookup(n -> false)} removes {@code Java.type}, so {@code java.io.File} and {@code
  * Runtime} cannot be named; {@code HostAccess.EXPLICIT} exposes only the {@code @HostAccess.Export}
  * methods of {@link KbScriptApi}. No threads, no processes, no native access, no environment. What
@@ -180,7 +181,7 @@ public class ScriptRunner {
             context.getBindings("js").putMember("kb", api);
 
             Value returned = context.eval(source(script));
-            Object value = stringify(helpers.getMember("result"), returned, session);
+            Object value = stringify(helpers.getMember("result"), returned);
             // Retire the watchdog before writing: the budget it enforces is the script's, and a
             // deadline landing mid-apply would mean a stop request that leaves files half written
             // instead of none. Idempotent with the finally below.
@@ -212,7 +213,9 @@ public class ScriptRunner {
     private Context newContext() {
         return Context.newBuilder("js")
                 .engine(engine)
-                .allowIO(false)
+                // IOAccess.NONE, not the deprecated allowIO(false): same thing — no FileSystem is
+                // attached — spelled the way the 23.0 API does.
+                .allowIO(IOAccess.NONE)
                 .allowHostClassLookup(className -> false)
                 .allowHostAccess(HostAccess.EXPLICIT)
                 .allowCreateThread(false)
@@ -380,7 +383,7 @@ public class ScriptRunner {
      * JSON.stringify}: it drops functions and host leftovers by construction, and gives one place
      * to enforce the size cap before anything reaches the model's context.
      */
-    private @Nullable Object stringify(Value stringifier, Value returned, ScriptSession session) {
+    private @Nullable Object stringify(Value stringifier, Value returned) {
         Value json = stringifier.execute(returned);
         if (json == null || json.isNull() || !json.isString()) {
             return null;

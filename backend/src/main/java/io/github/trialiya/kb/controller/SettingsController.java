@@ -8,10 +8,12 @@ import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.config.model.EmbeddingConfiguration;
 import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.config.model.McpProperties;
+import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.config.model.SearchConfiguration;
 import io.github.trialiya.kb.config.model.SubAgentConfig;
 import io.github.trialiya.kb.config.model.SummarizeProperties;
 import io.github.trialiya.kb.functions.GitEditFunction;
+import io.github.trialiya.kb.service.script.ScriptEditPolicy;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -53,6 +55,14 @@ public class SettingsController {
     private final SummarizeProperties summarizeProperties;
     private final ChatTimeoutProperties chatTimeoutProperties;
     private final McpProperties mcpProperties;
+    private final ScriptProperties scriptProperties;
+
+    /**
+     * Whether scripts may actually write, as opposed to being configured to: {@code
+     * kb.script.edit-enabled} is one of three gates, and the panel reports the answer rather than
+     * the flag (see {@link ScriptEditPolicy}).
+     */
+    private final boolean scriptEditActive;
 
     /** Configured opt-in ({@code kb.git.edit-enabled}) — may be true while the tools are absent. */
     private final boolean gitEditEnabled;
@@ -84,6 +94,8 @@ public class SettingsController {
             SummarizeProperties summarizeProperties,
             ChatTimeoutProperties chatTimeoutProperties,
             McpProperties mcpProperties,
+            ScriptProperties scriptProperties,
+            ScriptEditPolicy scriptEditPolicy,
             ObjectProvider<GitEditFunction> gitEditFunction,
             ObjectProvider<McpSseClientProperties> sseProperties,
             ObjectProvider<McpStreamableHttpClientProperties> streamableHttpProperties,
@@ -104,6 +116,8 @@ public class SettingsController {
         this.summarizeProperties = summarizeProperties;
         this.chatTimeoutProperties = chatTimeoutProperties;
         this.mcpProperties = mcpProperties;
+        this.scriptProperties = scriptProperties;
+        this.scriptEditActive = scriptEditPolicy.enabled();
         this.gitEditEnabled = gitProperties.editEnabled();
         this.gitEditActive = gitEditFunction.getIfAvailable() != null;
         this.requestTimeout = requestTimeout;
@@ -149,7 +163,29 @@ public class SettingsController {
                         chatModeProperties.views(),
                         new GitToolsInfo(gitEditEnabled, gitEditActive),
                         new McpInfo(mcpProperties.enabled(), mcpConnections),
-                        new UploadLimits(maxFileSize.toBytes(), maxRequestSize.toBytes())));
+                        new UploadLimits(maxFileSize.toBytes(), maxRequestSize.toBytes())),
+                scriptSection());
+    }
+
+    private ScriptSection scriptSection() {
+        ScriptProperties.Limits limits = scriptProperties.limits();
+        return new ScriptSection(
+                scriptProperties.enabled(),
+                scriptProperties.editEnabled(),
+                scriptEditActive,
+                scriptProperties.timeout().toSeconds(),
+                scriptProperties.maxTimeout().toSeconds(),
+                scriptProperties.cancelPoll().toMillis(),
+                new ScriptLimits(
+                        limits.maxFilesRead(),
+                        limits.maxBytesRead().toBytes(),
+                        limits.maxCalls(),
+                        limits.maxLogChars(),
+                        limits.maxResultChars(),
+                        limits.maxEditedFiles(),
+                        limits.maxEditedBytes().toBytes()),
+                scriptProperties.denyGlobs(),
+                scriptProperties.allowGlobs());
     }
 
     /**
@@ -183,7 +219,8 @@ public class SettingsController {
             SearchCodebaseSection searchCodebase,
             SummarizeProperties summarize,
             SearchConfiguration search,
-            ToolsSection tools) {}
+            ToolsSection tools,
+            ScriptSection script) {}
 
     public record ChatSection(
             ModelOption defaultModel, List<ModelOption> models, ChatOptions options) {}
@@ -230,4 +267,35 @@ public class SettingsController {
     public record McpConnection(String name, String transport) {}
 
     public record UploadLimits(long maxFileSizeBytes, long maxRequestSizeBytes) {}
+
+    /**
+     * {@code kb.script.*} — the sandbox the {@code runScript} tool executes in, and the budgets one
+     * run may spend. The guide resources are deliberately absent: they are prompt text, not
+     * configuration a reader of this panel can act on.
+     *
+     * @param enabled {@code kb.script.enabled} — is {@code runScript} handed to the model at all
+     * @param editEnabled {@code kb.script.edit-enabled} — the configured opt-in for writes
+     * @param editActive whether {@code kb.edit}/{@code kb.create} are actually bound, i.e. all
+     *     three gates of {@link ScriptEditPolicy} agree
+     */
+    public record ScriptSection(
+            boolean enabled,
+            boolean editEnabled,
+            boolean editActive,
+            long timeoutSeconds,
+            long maxTimeoutSeconds,
+            long cancelPollMillis,
+            ScriptLimits limits,
+            List<String> denyGlobs,
+            List<String> allowGlobs) {}
+
+    /** {@code kb.script.limits.*}, with the two {@code DataSize} values flattened to bytes. */
+    public record ScriptLimits(
+            int maxFilesRead,
+            long maxBytesRead,
+            int maxCalls,
+            int maxLogChars,
+            int maxResultChars,
+            int maxEditedFiles,
+            long maxEditedBytes) {}
 }

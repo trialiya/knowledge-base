@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import SettingsShell from '../common/SettingsShell';
-import { IconMessage, IconSliders, IconSearch, IconTool } from '../../icons';
+import { IconMessage, IconSliders, IconSearch, IconTool, IconCodeBlock } from '../../icons';
 import PhrasesSettings from './PhrasesSettings';
 import ModelsSettings from './ModelsSettings';
 import SearchSettings from './SearchSettings';
 import ToolsSettings from './ToolsSettings';
+import ScriptsSettings from './ScriptsSettings';
 import './settingsPanel.css';
 
 // Раздел «Системный промпт» удалён: это был макет без бэкенд-эндпоинта
@@ -25,6 +26,7 @@ const SettingsPanel = ({ panels }) => {
     { key: 'models', label: t('nav.models'), icon: <IconSliders size={16} /> },
     { key: 'search', label: t('nav.search'), icon: <IconSearch size={16} /> },
     { key: 'tools', label: t('nav.tools'), icon: <IconTool size={16} /> },
+    { key: 'scripts', label: t('nav.scripts'), icon: <IconCodeBlock size={16} /> },
   ];
 
   return (
@@ -33,6 +35,7 @@ const SettingsPanel = ({ panels }) => {
       {group === 'models' && <ModelsSettings />}
       {group === 'search' && <SearchSettings />}
       {group === 'tools' && <ToolsSettings />}
+      {group === 'scripts' && <ScriptsSettings />}
     </SettingsShell>
   );
 };

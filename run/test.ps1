@@ -8,16 +8,17 @@
 #   .\test.ps1 [suite ...]
 #
 # Suites:
-#   unit      backend unit tests (*Test) — no Docker needed
-#   it        backend integration tests (*IT) — Docker Desktop must be running
-#   back      all backend tests (unit + IT)
-#   front     frontend tests (vitest) + eslint
-#   format    spotlessCheck (Google Java Format, AOSP)
-#   build     full build (frontend bundled into the backend JAR)
-#   clean     gradle clean — when something is stuck in the toolchain/spotless cache
-#   pre-pr    format + back + build — the gate before a pull request
-#   ci        the same three with --console=plain (non-interactive logs). Note: the
-#             GitHub workflows do not call this — they run ./gradlew per module.
+#   unit        backend unit tests (*Test) — no Docker needed
+#   it          backend integration tests (*IT) — Docker Desktop must be running
+#   back        all backend tests (unit + IT)
+#   front       frontend tests (vitest) + eslint
+#   format      spotlessCheck (Google Java Format, AOSP) — fails on a violation
+#   formatApply spotlessApply — same rules, rewrites the files instead of failing
+#   build       full build (frontend bundled into the backend JAR)
+#   clean       gradle clean — when something is stuck in the toolchain/spotless cache
+#   pre-pr      format + back + build — the gate before a pull request
+#   ci          the same three with --console=plain (non-interactive logs). Note: the
+#               GitHub workflows do not call this — they run ./gradlew per module.
 #
 # No suite given → unit + front. Two things test.sh has and this does not: the
 # 'smoke' suite with its 'jar' helper (scripts/playwright-smoke.js drives
@@ -127,13 +128,14 @@ function Invoke-Suite {
         'it'     { Assert-Docker; Invoke-Gradle @(':backend:test', '--tests', '*IT') }
         'back'   { Assert-Docker; Invoke-Gradle @(':backend:test') }
         'front'  { Invoke-Gradle @(':frontend:yarnTest', ':frontend:yarnLint') }
-        'format' { Invoke-Gradle @('spotlessCheck') }
+        'format'      { Invoke-Gradle @('spotlessCheck') }
+        'formatApply' { Invoke-Gradle @('spotlessApply') }
         'build'  { Invoke-Gradle @('build') }
         'clean'  { Invoke-Gradle @('clean') }
         'pre-pr' { Invoke-Suite 'format'; Invoke-Suite 'back'; Invoke-Suite 'build' }
         'ci'     { Invoke-Suite 'pre-pr' }
         default  {
-            Write-Error "Unknown suite '$Name'. Known: unit it back front format build clean pre-pr ci"
+            Write-Error "Unknown suite '$Name'. Known: unit it back front format formatApply build clean pre-pr ci"
             exit 2
         }
     }

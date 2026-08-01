@@ -490,7 +490,7 @@ runId активного прогона чата (или пустой объек
 ```json
 {
   "chat": {
-    "defaultModel": { "id": "gpt-4o", "label": "GPT-4o" },
+    "defaultModel": { "id": "gpt-4o", "label": "GPT-4o", "weak": true },
     "models": [ ... ],
     "options": { "maxTokens": 30000, "temperature": 0.1, "topP": 0.8 }
   },
@@ -510,9 +510,53 @@ runId активного прогона чата (или пустой объек
     "tokenThreshold": 3000,
     "messageCountThreshold": 20,
     "overlapMessages": 10
+  },
+  "script": {
+    "enabled": false,
+    "editEnabled": true,
+    "editActive": false,
+    "timeoutSeconds": 10,
+    "maxTimeoutSeconds": 30,
+    "cancelPollMillis": 50,
+    "limits": {
+      "maxFilesRead": 2000,
+      "maxBytesRead": 33554432,
+      "maxCalls": 2000,
+      "maxLogChars": 20000,
+      "maxResultChars": 20000,
+      "maxEditedFiles": 20,
+      "maxEditedBytes": 262144
+    },
+    "denyGlobs": [],
+    "allowGlobs": []
   }
 }
 ```
+
+`chat.defaultModel.weak` / `chat.models[].weak` — флаг модели, от которого зависит объём руководства по `runScript` в системном промпте (`ScriptGuideService`), не её доступность.
+
+`script` — снапшот `kb.script.*` для группы «Настройки → Скрипты». `editActive` — не флаг из конфига, а фактический ответ `ScriptEditPolicy`: разрешены ли записи из скриптов после всех трёх проверок. Тексты руководств (`guide`, `extended-guide`, …) в ответ не попадают — это промпт, а не конфигурация.
+
+---
+
+### POST `/api/settings/script/run`
+Пробный запуск скрипта из «Настройки → Скрипты». Тот же `ScriptRunner`, что у инструмента `runScript`, те же бюджеты и тот же формат ответа — но скрипт пишет человек, а не модель.
+
+**Body:**
+```json
+{ "script": "return kb.files('**/*.md').length;", "timeoutSeconds": 10 }
+```
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `script` | String | Тело скрипта; выполняется как тело функции — верхнеуровневый `return` разрешён |
+| `timeoutSeconds` | int? | Бюджет прогона; `null` — `kb.script.timeout`, больше `kb.script.max-timeout` — молча урезается |
+
+**Response:** `ScriptResult` — `{ value, log, stats, error, filesRead, edits }`. Упавший скрипт — это `200 OK` с заполненным `error` (`kind` = `SYNTAX|RUNTIME|TIMEOUT|BUDGET`), а не HTTP-ошибка: разбирать причину и есть смысл стенда.
+
+Запуск **всегда read-only**: `kb.edit`/`kb.create` в песочницу не привязываются, как бы ни был выставлен `kb.script.edit-enabled`, поэтому `edits` здесь всегда пуст.
+
+**Ошибки:** `409` — `kb.script.enabled=false` (скрипты выключены в деплое), `400` — пустое тело скрипта
 
 ---
 

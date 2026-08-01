@@ -653,3 +653,90 @@
     сигнатурой PK и Content-Disposition filename="knowledge-base.zip". Внутри
     архива — та же раскладка, что пишет экспорт, без папки-обёртки: корневой
     .index.md лежит в корне архива.
+
+- id: settings-models-weak-flag
+  component: ModelsSettings
+  path: frontend/src/components/settingsPanel/ModelsSettings.jsx
+  title: Модели — флаг weak строкой у основной модели и пилюлей в списке
+  status: verified
+  origin:
+    - сессия 2026-08-01, флаг weak и группа «Скрипты» в настройках
+  preconditions:
+    viewport: [1440, 1000]
+    auth: admin
+    route: /settings
+    profile: h2
+    click: список групп «Настройки» → «Модели»
+    data: |
+      Бэкенд поднят с AI_MODEL_WEAK=false и двумя доп. моделями:
+      KB_CHAT_MODELS_0_ID=strong-model (weak=false),
+      KB_CHAT_MODELS_1_ID=weak-model (weak=true).
+  fixtures: ./fixtures/aiConfig.js#strongAndWeakModels
+  expected:
+    - 'В секции «Основная модель» под строкой модели — строка «Слабая модель (weak)» бейджем «да»/«нет» (не «включён»/«отключён»): это утверждение о модели, а не состояние функции'
+    - Под ней пояснение мелким серым — что флаг меняет только объём руководства по runScript, и что по умолчанию true
+    - 'В секции «Доступные модели» пилюля «weak» стоит только у weak-model; у strong-model её нет'
+    - Пилюля «weak» и пилюля «по умолчанию» — один и тот же .config-badge и стоят в одной строке, weak первой
+  notes: |
+    Проверено на собранном jar с профилем h2 под Chromium (рецепт — в
+    scripts/playwright-smoke.js), интерфейс был в английской локали.
+    Секции «Доступные модели» на дефолтном конфиге нет вовсе: kb.chat.models
+    пуст, и список рисуется только когда в нём что-то есть.
+
+- id: settings-scripts-sandbox-snapshot
+  component: ScriptsSettings
+  path: frontend/src/components/settingsPanel/ScriptsSettings.jsx
+  title: Скрипты — состояние песочницы runScript, её время, бюджеты и видимость файлов
+  status: verified
+  origin:
+    - сессия 2026-08-01, флаг weak и группа «Скрипты» в настройках
+  preconditions:
+    viewport: [1440, 1000]
+    auth: admin
+    route: /settings
+    profile: h2
+    click: список групп «Настройки» → «Скрипты»
+    data: Бэкенд поднят с KB_SCRIPT_ENABLED=true, PROJECT_PATH=. (сам репозиторий)
+  fixtures: ./fixtures/aiConfig.js#scriptEnabled
+  expected:
+    - 'Четыре секции снимка: «Состояние», «Время выполнения», «Бюджеты одного прогона», «Видимость файлов» — и под ними «Пробный запуск»'
+    - 'Состояние: у инструмента бейдж «включён»/«отключён», у двух строк про правку — «да»/«нет»'
+    - Когда правка разрешена в конфиге, а kb.edit не привязан, под строками появляется пояснение, чего не хватает (так выглядит дефолт — kb.git.edit-enabled выключен)
+    - 'Время: 10 s, 30 s и 50 ms — секунды через общий форматтер длительности, миллисекунды сторожевого потока своей строкой'
+    - 'Бюджеты: числа с разделителями разрядов (2,000), байтовые — человекочитаемо (32.0 MB, 256.0 KB), под ними пояснение про кэш прогона'
+    - 'Видимость: оба списка масок пусты и показывают подпись вместо пустого места'
+  notes: |
+    Проверено на собранном jar (профиль h2) под Chromium, интерфейс был в
+    английской локали. Снимок читается из того же GET /api/settings/ai-config,
+    что и остальные группы, — ветка script.
+
+- id: settings-scripts-bench-run
+  component: ScriptBench
+  path: frontend/src/components/settingsPanel/ScriptBench.jsx
+  title: 'Скрипты — пробный запуск: пример в поле, счётчики, журнал и результат'
+  status: verified
+  origin:
+    - сессия 2026-08-01, флаг weak и группа «Скрипты» в настройках
+  preconditions:
+    viewport: [1440, 1000]
+    auth: admin
+    route: /settings
+    profile: h2
+    click: список групп «Настройки» → «Скрипты» → «Запустить»
+    data: Бэкенд поднят с KB_SCRIPT_ENABLED=true, PROJECT_PATH=. (сам репозиторий)
+  fixtures: ./fixtures/aiConfig.js#scriptEnabled
+  expected:
+    - Поле открыто примером из scriptExample.js — моноширинный текст, поле высотой ~320px и тянется вниз за уголок
+    - 'Под полем две кнопки: «Запустить» (primary) и «Вернуть пример» (ghost, заблокирована пока текст не менялся)'
+    - 'После прогона появляется карточка ответа: строка счётчиков (файлов, прочитано, вызовов kb.*, мс), затем «Журнал (kb.log)», затем «Результат (return)» с JSON, внизу — список прочитанных файлов'
+    - Пример находит файл с javadoc через kb.grep и возвращает непустой разбор — total > 0, byKind и первые пять комментариев
+    - Длинные строки в результате переносятся, а не уезжают вбок; высота блока ограничена, дальше своя прокрутка
+    - 'При kb.script.enabled=false кнопка «Запустить» заблокирована и рядом стоит подсказка почему; поле с примером остаётся читаемым'
+  notes: |
+    Наблюдалось на этом репозитории: kb.grep('/**', {glob: '**/*.java', max: 1})
+    привёл в MessageLoggingAdvisor.java, разбор дал 3 комментария (2 строчных,
+    1 блочный) за 3 вызова kb.*, 4.1 KB и ~1.3 s.
+
+    Ошибочный прогон в этом сеансе не снимался: ветка error рисует бейдж вида
+    (SYNTAX/RUNTIME/TIMEOUT/BUDGET) с сообщением и строкой вместо блока
+    «Результат». Кейс на неё — следующий, когда до него дойдут руки.

@@ -4,6 +4,7 @@ import { SettingsSection } from '../common/SettingsShell';
 import ConfigGroup, {
   ConfigRow,
   ConfigStatusRow,
+  ConfigBoolRow,
   ConfigTags,
   ConfigBlock,
   useDurationFormat,
@@ -60,6 +61,10 @@ const ModelsSections = ({ config }) => {
           value={defaultId}
           badge={chat.defaultModel?.label !== 'Default' ? chat.defaultModel?.label : null}
         />
+        {/* weak — свойство модели, а не деплоя: от него зависит только объём
+            руководства по runScript в системном промпте (ScriptGuideService). */}
+        <ConfigBoolRow label={t('models.chat.weak')} value={chat.defaultModel?.weak} />
+        <p className="config-note">{t('models.chat.weakNote')}</p>
       </SettingsSection>
 
       {chat.models?.length > 0 && (
@@ -68,6 +73,7 @@ const ModelsSections = ({ config }) => {
             <div key={m.id} className="model-row">
               <span className="model-row__name">{m.id}</span>
               {m.label && m.label !== m.id && <span className="model-row__label">{m.label}</span>}
+              {m.weak && <span className="config-badge">{t('models.available.weakBadge')}</span>}
               {m.id === defaultId && <span className="config-badge">{t('models.available.defaultBadge')}</span>}
             </div>
           ))}
