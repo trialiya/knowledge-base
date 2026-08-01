@@ -181,7 +181,7 @@ public class ScriptRunner {
             context.getBindings("js").putMember("kb", api);
 
             Value returned = context.eval(source(script));
-            Object value = stringify(helpers.getMember("result"), returned);
+            Object value = stringify(helpers.getMember("result"), returned, session);
             // Retire the watchdog before writing: the budget it enforces is the script's, and a
             // deadline landing mid-apply would mean a stop request that leaves files half written
             // instead of none. Idempotent with the finally below.
@@ -382,8 +382,12 @@ public class ScriptRunner {
      * Converts the script's return value to plain Java through the guest's own {@code
      * JSON.stringify}: it drops functions and host leftovers by construction, and gives one place
      * to enforce the size cap before anything reaches the model's context.
+     *
+     * <p>Oversize isn't fatal: unlike the other run budgets, the model has already done the work by
+     * the time the result is this large, so the truncated value is returned along with a log line
+     * warning about it, rather than throwing away the run.
      */
-    private @Nullable Object stringify(Value stringifier, Value returned) {
+    private @Nullable Object stringify(Value stringifier, Value returned, ScriptSession session) {
         Value json = stringifier.execute(returned);
         if (json == null || json.isNull() || !json.isString()) {
             return null;
@@ -391,13 +395,14 @@ public class ScriptRunner {
         String text = json.asString();
         int max = properties.limits().maxResultChars();
         if (text.length() > max) {
-            throw new ScriptLimitExceededException(
-                    "Budget exceeded: maxResultChars="
+            session.log(
+                    "Result truncated: maxResultChars="
                             + max
-                            + ", but the returned value is "
+                            + ", but the returned value was "
                             + text.length()
                             + " characters. Return a summary (counts, top-N) instead of raw"
-                            + " content.");
+                            + " content next time.");
+            text = text.substring(0, max);
         }
         try {
             return OBJECT_MAPPER.readValue(text, Object.class);
