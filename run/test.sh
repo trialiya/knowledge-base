@@ -129,7 +129,11 @@ fi
 # args, and JDK 25 needing no init script.
 gradle_run() {
   echo "→ $GRADLE_BIN $*"
-  "$GRADLE_BIN" "$@" ${GRADLE_ARGS[@]+"${GRADLE_ARGS[@]}"} ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"} 2>&1 | sed '/^Picked up JAVA_TOOL_OPTIONS/d'
+  "$GRADLE_BIN" "$@" ${GRADLE_ARGS[@]+"${GRADLE_ARGS[@]}"} ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"} 2>&1 | sed \
+    -e '/^Picked up JAVA_TOOL_OPTIONS/d' \
+    -e '/^OpenJDK.*Sharing is only supported/d' \
+    -e '/^WARNING: /d' \
+    -e '/HikariPool.*Shutdown/d'
 }
 
 # ── Docker for Testcontainers ─────────────────────────────────────────────────
