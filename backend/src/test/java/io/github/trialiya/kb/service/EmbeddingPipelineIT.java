@@ -2,7 +2,7 @@ package io.github.trialiya.kb.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -32,7 +32,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.embedding.Embedding;
-import org.springframework.ai.embedding.EmbeddingRequest;
 import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.ai.openai.OpenAiEmbeddingModel;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -97,7 +96,7 @@ class EmbeddingPipelineIT extends AbstractPostgresIntegrationTest {
         float[] second = service.embed(text).getResult().getOutput();
 
         assertThat(second).isEqualTo(first);
-        verify(model, times(1)).call(any(EmbeddingRequest.class));
+        verify(model, times(1)).embedForResponse(anyList());
         assertThat(cacheRepo.findByTextHashAndModel(EmbeddingService.sha256(text), MODEL_NAME))
                 .isPresent();
     }
@@ -116,10 +115,10 @@ class EmbeddingPipelineIT extends AbstractPostgresIntegrationTest {
         for (int i = 0; i < texts.size(); i++) {
             assertThat(vectors.get(i)).isEqualTo(oneHot(texts.get(i)));
         }
-        verify(model, times(1)).call(any(EmbeddingRequest.class));
+        verify(model, times(1)).embedForResponse(anyList());
 
         service.embedBatch(texts); // all cache hits now
-        verify(model, times(1)).call(any(EmbeddingRequest.class));
+        verify(model, times(1)).embedForResponse(anyList());
     }
 
     @Test
@@ -141,7 +140,7 @@ class EmbeddingPipelineIT extends AbstractPostgresIntegrationTest {
             expected[i] = (v1[i] + v2[i]) / 2f;
         }
         assertThat(pooled).isEqualTo(expected);
-        verify(model, times(1)).call(any(EmbeddingRequest.class)); // both chunks in one batch call
+        verify(model, times(1)).embedForResponse(anyList()); // both chunks in one batch call
 
         assertThat(cacheRepo.findByTextHashAndModel(EmbeddingService.sha256(chunkOne), MODEL_NAME))
                 .isPresent();
@@ -171,6 +170,8 @@ class EmbeddingPipelineIT extends AbstractPostgresIntegrationTest {
 
         assertThat(executor.availablePermits()).isEqualTo(0);
         assertThat(executor.submit(() -> {})).isFalse(); // no free permit — worker still busy
+
+        String script="var path = \"backend/src/test/java/io/github/trialiya/kb/service/EmbeddingPipelineIT.java\";\nvar text = kb.read(path);\n\nvar anchors = [\n  \"import static org.mockito.ArgumentMatchers.any;\\nimport static org.mockito.Mockito.mock;\",\n  \"import org.springframework.ai.embedding.Embedding;\\nimport org.springframework.ai.embedding.EmbeddingRequest;\\nimport org.springframework.ai.embedding.EmbeddingResponse;\",\n  \"verify(model, times(1)).call(any(EmbeddingRequest.class));\",\n  \"when(model.call(any(EmbeddingRequest.class)))\\n                .thenAnswer(EmbeddingPipelineIT::respondDeterministically);\",\n  \"when(model.call(any(EmbeddingRequest.class)))\\n                .thenAnswer(\\n                        inv -> {\",\n  \"when(model.call(any(EmbeddingRequest.class))).thenThrow(new RuntimeException(\\\"AI down\\\"));\",\n  \"EmbeddingRequest request = inv.getArgument(0);\\n        List<Embedding> embeddings =\\n                IntStream.range(0, request.getInstructions().size())\\n                        .mapToObj(i -> new Embedding(oneHot(request.getInstructions().get(i)), i))\\n                        .toList();\"\n];\nfor (var i = 0; i < anchors.length; i++) {\n  if (text.indexOf(anchors[i]) < 0) {\n    return { done: false, step: i, missing: anchors[i].slice(0, 100) };\n  }\n}\n\n// A: replace unused `any` static import with `anyList` (keeps alphabetical order)\nkb.edit(path,\n  \"import static org.mockito.ArgumentMatchers.any;\\nimport static org.mockito.Mockito.mock;\",\n  \"import static org.mockito.ArgumentMatchers.anyList;\\nimport static org.mockito.Mockito.mock;\");\n\n// B: drop now-unused EmbeddingRequest import\nkb.edit(path,\n  \"import org.springframework.ai.embedding.Embedding;\\nimport org.springframework.ai.embedding.EmbeddingRequest;\\nimport org.springframework.ai.embedding.EmbeddingResponse;\",\n  \"import org.springframework.ai.embedding.Embedding;\\nimport org.springframework.ai.embedding.EmbeddingResponse;\");\n\n// C: all verify(model, times(1)).call(...) -> embedForResponse(anyList()) (6 occurrences)\nkb.edit(path,\n  \"verify(model, times(1)).call(any(EmbeddingRequest.class));\",\n  \"verify(model, times(1)).embedForResponse(anyList());\",\n  true);\n\n// D: deterministicModel() stub\nkb.edit(path,\n  \"when(model.call(any(EmbeddingRequest.class)))\\n                .thenAnswer(EmbeddingPipelineIT::respondDeterministically);\",\n  \"when(model.embedForResponse(anyList()))\\n                .thenAnswer(EmbeddingPipelineIT::respondDeterministically);\");\n\n// E: schedulerRetriesTransientFailureThenSucceeds inline stub\nkb.edit(path,\n  \"when(model.call(any(EmbeddingRequest.class)))\\n                .thenAnswer(\\n                        inv -> {\",\n  \"when(model.embedForResponse(anyList()))\\n                .thenAnswer(\\n                        inv -> {\");\n\n// F: schedulerMarksTaskFailedAfterMaxAttemptsAndPersistsNothing stub\nkb.edit(path,\n  \"when(model.call(any(EmbeddingRequest.class))).thenThrow(new RuntimeException(\\\"AI down\\\"));\",\n  \"when(model.embedForResponse(anyList())).thenThrow(new RuntimeException(\\\"AI down\\\"));\");\n\n// G: respondDeterministically now receives List<String> instead of EmbeddingRequest\nkb.edit(path,\n  \"EmbeddingRequest request = inv.getArgument(0);\\n        List<Embedding> embeddings =\\n                IntStream.range(0, request.getInstructions().size())\\n                        .mapToObj(i -> new Embedding(oneHot(request.getInstructions().get(i)), i))\\n                        .toList();\",\n  \"List<String> texts = inv.getArgument(0);\\n        List<Embedding> embeddings =\\n                IntStream.range(0, texts.size())\\n                        .mapToObj(i -> new Embedding(oneHot(texts.get(i)), i))\\n                        .toList();\");\n\nreturn { done: true };";
 
         releaseTask.countDown();
         await().atMost(Duration.ofSeconds(5))
@@ -206,9 +207,9 @@ class EmbeddingPipelineIT extends AbstractPostgresIntegrationTest {
             assertThat(stored.getEmbedding()).hasSize(1024);
 
             // the document's title+description text is now cached from indexing above
-            verify(model, times(1)).call(any(EmbeddingRequest.class));
+            verify(model, times(1)).embedForResponse(anyList());
             embeddingService.embedDocument(doc.getTitle(), doc.getDescription());
-            verify(model, times(1)).call(any(EmbeddingRequest.class)); // still 1 -> cache hit
+            verify(model, times(1)).embedForResponse(anyList()); // still 1 -> cache hit
         } finally {
             cleanupDocument(doc.getId());
         }
@@ -222,7 +223,7 @@ class EmbeddingPipelineIT extends AbstractPostgresIntegrationTest {
 
         AtomicInteger callCount = new AtomicInteger();
         OpenAiEmbeddingModel model = mock(OpenAiEmbeddingModel.class);
-        when(model.call(any(EmbeddingRequest.class)))
+        when(model.embedForResponse(anyList()))
                 .thenAnswer(
                         inv -> {
                             if (callCount.getAndIncrement() == 0) {
@@ -261,7 +262,7 @@ class EmbeddingPipelineIT extends AbstractPostgresIntegrationTest {
         taskRepo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, doc.getId());
 
         OpenAiEmbeddingModel model = mock(OpenAiEmbeddingModel.class);
-        when(model.call(any(EmbeddingRequest.class))).thenThrow(new RuntimeException("AI down"));
+        when(model.embedForResponse(anyList())).thenThrow(new RuntimeException("AI down"));
 
         EmbeddingConfiguration config = embeddingConfig(2, 2, 512, 64); // maxAttempts=2
         EmbeddingService embeddingService =
@@ -398,17 +399,17 @@ class EmbeddingPipelineIT extends AbstractPostgresIntegrationTest {
     /** Mocked AI call: turns each input text into a deterministic one-hot vector. */
     private static OpenAiEmbeddingModel deterministicModel() {
         OpenAiEmbeddingModel model = mock(OpenAiEmbeddingModel.class);
-        when(model.call(any(EmbeddingRequest.class)))
+        when(model.embedForResponse(anyList()))
                 .thenAnswer(EmbeddingPipelineIT::respondDeterministically);
         return model;
     }
 
     private static EmbeddingResponse respondDeterministically(
             org.mockito.invocation.InvocationOnMock inv) {
-        EmbeddingRequest request = inv.getArgument(0);
+        List<String> texts = inv.getArgument(0);
         List<Embedding> embeddings =
-                IntStream.range(0, request.getInstructions().size())
-                        .mapToObj(i -> new Embedding(oneHot(request.getInstructions().get(i)), i))
+                IntStream.range(0, texts.size())
+                        .mapToObj(i -> new Embedding(oneHot(texts.get(i)), i))
                         .toList();
         return new EmbeddingResponse(embeddings);
     }
