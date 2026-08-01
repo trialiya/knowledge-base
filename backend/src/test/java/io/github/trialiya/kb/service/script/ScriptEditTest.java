@@ -130,7 +130,6 @@ class ScriptEditTest {
                         new ScriptProperties(
                                 true,
                                 true,
-                                true,
                                 null,
                                 null,
                                 null,
@@ -366,7 +365,6 @@ class ScriptEditTest {
                 new ScriptProperties(
                         true,
                         true,
-                        true,
                         null,
                         null,
                         null,
@@ -486,12 +484,11 @@ class ScriptEditTest {
 
     private static ScriptProperties withDenyGlobs(List<String> deny) {
         return new ScriptProperties(
-                true, true, true, null, null, null, null, null, null, null, null, deny, null);
+                true, true, null, null, null, null, null, null, null, null, deny, null);
     }
 
     private static ScriptProperties withEditLimits(int maxEditedFiles) {
         return new ScriptProperties(
-                true,
                 true,
                 true,
                 null,

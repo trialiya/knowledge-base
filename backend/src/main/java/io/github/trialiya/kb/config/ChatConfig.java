@@ -2,6 +2,7 @@ package io.github.trialiya.kb.config;
 
 import io.github.trialiya.kb.advisor.MessageLoggingAdvisor;
 import io.github.trialiya.kb.advisor.ToolPreparingAdvisor;
+import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.McpProperties;
 import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.config.model.SubAgentConfig;
@@ -199,7 +200,8 @@ public class ChatConfig {
             DocumentFunction documentFunction,
             ScriptProperties scriptProperties,
             ScriptRunner scriptRunner,
-            ScriptGuideService scriptGuideService) {
+            ScriptGuideService scriptGuideService,
+            ChatModelProperties chatModelProperties) {
         // Two gates, and both matter. kb.script.enabled decides whether the tool exists anywhere —
         // without it the sub-agent's allow-list must not be able to conjure one up. Given that, the
         // sub-agent gets its own copy, forced read-only: its allow-list may include runScript, but
@@ -218,9 +220,14 @@ public class ChatConfig {
                                                 .contains(cb.getToolDefinition().name()))
                         .toArray(ToolCallback[]::new);
         // The handbook is long, and it is also the only place the sub-agent is told scripts exist —
-        // so it goes in exactly when the tool does.
+        // so it goes in exactly when the tool does. The sub-agent's own model (kb.search.subagent
+        // .model-id) can differ from the main chat's, so its weak/strong flag is looked up
+        // separately rather than inherited from whichever model the current chat turn resolved to.
         String scriptInstructions =
-                scriptsAvailable ? scriptGuideService.readOnlyInstructions() : "";
+                scriptsAvailable
+                        ? scriptGuideService.readOnlyInstructions(
+                                chatModelProperties.isWeak(subAgentConfig.modelId()))
+                        : "";
         return new SearchAgentService(
                 openAiChatModel,
                 toolCallingManager,

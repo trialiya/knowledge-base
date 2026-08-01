@@ -25,7 +25,8 @@ import org.springframework.ai.tool.annotation.ToolParam;
  * — is injected into the system prompt by {@code ScriptGuideService} whenever this tool is present.
  * Keeping it there rather than in the annotation means one text to maintain, one that can grow to
  * the length a weak model actually needs without bloating every tool listing, and one whose
- * tutorial half a deployment can drop (see {@code kb.script.extended-guide-enabled}).
+ * tutorial half is dropped per model rather than per deployment (see {@code
+ * ChatModelProperties.ModelOption#weak}, {@code ScriptGuideService}).
  */
 @Slf4j
 // Private: which of the two factories was used is the whole difference between the chat's copy of

@@ -26,9 +26,14 @@ import org.springframework.util.unit.DataSize;
  * <p>The handbook comes in two halves, and only the first is unconditional. The reference half —
  * the {@code kb} API, the budgets, the error kinds — is what no model can guess, so it ships
  * whenever the tool does. The tutorial half — when to prefer a script, how to structure one, worked
- * examples — is the part a strong model already knows; {@code kb.script.extended-guide-enabled=
- * false} drops it and keeps the prompt short. The same split applies to the write appendix, so
- * turning the tutorial off cannot leave the edit rules behind.
+ * examples — is the part a strong model already knows; a run whose model is flagged {@code weak:
+ * false} ({@code ChatModelProperties.ModelOption}) gets the reference half only, which keeps its
+ * prompt short. The same split applies to the write appendix, so a strong model losing the tutorial
+ * cannot lose the edit rules along with it.
+ *
+ * <p>The four combinations (tutorial on/off × writes on/off) are rendered once at startup rather
+ * than per request: nothing in a rendering depends on the request, only on which of the two
+ * booleans applies to it, so there is no reason to redo the string work per chat turn.
  *
  * <p>The budget numbers in the handbook are substituted from {@code kb.script.limits} rather than
  * written into the markdown, so lowering a limit cannot silently leave the model working from a
@@ -37,32 +42,49 @@ import org.springframework.util.unit.DataSize;
 @Service
 public class ScriptGuideService {
 
-    private final String instructions;
-    private final String readOnlyInstructions;
+    private final String instructionsForWeakModel;
+    private final String instructionsForStrongModel;
+    private final String readOnlyInstructionsForWeakModel;
+    private final String readOnlyInstructionsForStrongModel;
 
     public ScriptGuideService(ScriptProperties properties, ScriptEditPolicy editPolicy) {
-        this.instructions = properties.enabled() ? render(properties, editPolicy.enabled()) : "";
-        this.readOnlyInstructions = properties.enabled() ? render(properties, false) : "";
+        boolean editEnabled = editPolicy.enabled();
+        this.instructionsForWeakModel =
+                properties.enabled() ? render(properties, true, editEnabled) : "";
+        this.instructionsForStrongModel =
+                properties.enabled() ? render(properties, false, editEnabled) : "";
+        this.readOnlyInstructionsForWeakModel =
+                properties.enabled() ? render(properties, true, false) : "";
+        this.readOnlyInstructionsForStrongModel =
+                properties.enabled() ? render(properties, false, false) : "";
     }
 
     /**
-     * The handbook, or {@code ""} when {@code kb.script.enabled=false}. Never null: the placeholder
-     * must always receive a value or the prompt template fails to render.
+     * The handbook for a run against the given model, or {@code ""} when {@code
+     * kb.script.enabled=false}. Never null: the placeholder must always receive a value or the
+     * prompt template fails to render.
+     *
+     * @param weak {@code ChatModelProperties.ModelOption#weak} of the model the run actually uses —
+     *     picks the tutorial-included or reference-only rendering
      */
-    public String instructions() {
-        return instructions;
+    public String instructions(boolean weak) {
+        return weak ? instructionsForWeakModel : instructionsForStrongModel;
     }
 
     /**
      * The handbook without the write appendix, whatever the edit policy says — for the search
      * sub-agent, which is read-only by construction and must stay that way even in a deployment
      * where the main chat may edit files.
+     *
+     * @param weak {@code ChatModelProperties.ModelOption#weak} of the sub-agent's own model ({@code
+     *     kb.search.subagent.model-id}), which can differ from the main chat's
      */
-    public String readOnlyInstructions() {
-        return readOnlyInstructions;
+    public String readOnlyInstructions(boolean weak) {
+        return weak ? readOnlyInstructionsForWeakModel : readOnlyInstructionsForStrongModel;
     }
 
-    private static String render(ScriptProperties properties, boolean editEnabled) {
+    private static String render(
+            ScriptProperties properties, boolean extended, boolean editEnabled) {
         ScriptProperties.Limits limits = properties.limits();
         Map<String, String> values =
                 Map.ofEntries(
@@ -78,8 +100,7 @@ public class ScriptGuideService {
 
         // Two independent gates. The write appendices are added only when kb.edit/kb.create are
         // actually bound, so the handbook can never describe a method the sandbox does not have;
-        // the extended halves are added only for a deployment that asked for the tutorial.
-        boolean extended = properties.extendedGuideEnabled();
+        // the extended halves are added only for a run whose model is flagged weak.
         StringBuilder handbook = new StringBuilder(read(properties.guide()));
         if (extended) {
             append(handbook, properties.extendedGuide());

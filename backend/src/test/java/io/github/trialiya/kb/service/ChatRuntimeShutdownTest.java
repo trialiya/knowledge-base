@@ -61,7 +61,7 @@ class ChatRuntimeShutdownTest {
     void cancelsRunsAndClosesSubscriptionsOnContextClosed() {
         runService = runService(Runnable::run);
         final SseEmitter emitter = events.subscribe(CONV, 0);
-        runService.start(CONV, USER, "привет", null, "", "msg-1");
+        runService.start(CONV, USER, "привет", null, false, "", "msg-1");
 
         assertThat(runService.activeRunCount()).isEqualTo(1);
         assertThat(events.hubCount()).isEqualTo(1);
@@ -84,7 +84,7 @@ class ChatRuntimeShutdownTest {
     @Test
     void cancelsRunThatHasNotSubscribedYet() {
         runService = runService(deferred);
-        runService.start(CONV, USER, "привет", null, "", "msg-1");
+        runService.start(CONV, USER, "привет", null, false, "", "msg-1");
 
         assertThat(runService.stopAll()).isEqualTo(1);
         assertThat(runService.activeRunCount()).isEqualTo(1); // задача ещё не стартовала

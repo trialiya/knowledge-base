@@ -39,7 +39,7 @@ class SystemPromptRenderTest {
         when(policy.enabled()).thenReturn(true);
         String handbook =
                 new ScriptGuideService(ScriptProperties.enabledWithDefaults(), policy)
-                        .instructions();
+                        .instructions(true);
         assertThat(handbook).contains("kb.grep", "kb.edit", "{", "}");
 
         String rendered =

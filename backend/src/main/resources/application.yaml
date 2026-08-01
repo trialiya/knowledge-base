@@ -95,9 +95,14 @@ kb:
     default-model:
       id: ${AI_MODEL}
       label: ${AI_MODEL_LABEL:Default}
+      # Does this model need runScript's tutorial half (script-run-extended.md and its edit
+      # counterpart) spelled out, or does it manage from the reference half alone? Defaults to
+      # true (the safe assumption) when omitted — see ScriptGuideService, ChatModelProperties.
+      weak: ${AI_MODEL_WEAK:true}
 #    models:
 #      - id: ${KB_CHAT_MODELS_0_ID}
 #        label: ${KB_CHAT_MODELS_0_LABEL}
+#        weak: ${KB_CHAT_MODELS_0_WEAK:true}
     # Готовые «режимы» ассистента: подставляют свой фрагмент инструкций в системный
     # промпт (плейсхолдер {mode_instructions} в prompt/sys.md). «Без режима» — пусто.
     modes:
@@ -148,21 +153,18 @@ kb:
     # can never be a way around a read-only deployment. Separate flag so a deployment can keep the
     # edit tools and still hand the model read-only scripts. See ScriptEditPolicy.
     edit-enabled: ${KB_SCRIPT_EDIT_ENABLED:true}
-    # Append the tutorial half of the handbook (see below). On by default: a weak model cannot use
-    # runScript without worked examples it can copy. Switch off for a strong model — the reference
-    # half still ships, so the model keeps the kb API, the budgets and the error kinds, and only
-    # loses advice it already follows.
-    extended-guide-enabled: ${KB_SCRIPT_EXTENDED_GUIDE:true}
     # Handbook injected into the system prompt while the tool is enabled (ScriptGuideService),
     # in two halves. The reference half is unconditional — the kb API, the limits and the error
     # table are what no model can guess. The extended half is the tutorial: when to prefer a
-    # script, how to structure one, examples, what not to do. Empty when enabled=false, so a model
-    # that cannot run scripts is never told about them. Budget numbers are substituted, not copied.
+    # script, how to structure one, examples, what not to do — appended only for a run whose
+    # model is flagged weak (kb.chat.default-model.weak / kb.chat.models[].weak). Empty when
+    # enabled=false, so a model that cannot run scripts is never told about them. Budget numbers
+    # are substituted, not copied.
     guide: classpath:prompt/script-run.md
     extended-guide: classpath:prompt/script-run-extended.md
     # Appended only when writes are actually available — telling a model about kb.edit it cannot
-    # call wastes its attempts. Split the same way: the rules always, the examples only with
-    # extended-guide-enabled.
+    # call wastes its attempts. Split the same way: the rules always, the examples only for a run
+    # whose model is flagged weak.
     edit-guide: classpath:prompt/script-run-edit.md
     extended-edit-guide: classpath:prompt/script-run-edit-extended.md
     timeout: ${KB_SCRIPT_TIMEOUT:10s}   # default wall-clock budget for one script
@@ -255,6 +257,8 @@ kb:
       # Search sub-agent exposed to the chat model as the `searchCodebase` tool.
       enabled: ${KB_SEARCH_SUBAGENT_ENABLED:true}
       # May differ from the main chat model (e.g. a cheaper/faster one). Defaults to the main model.
+      # Its runScript tutorial half is gated by this id's own weak flag (kb.chat.default-model.weak
+      # / kb.chat.models[].weak), not by whatever model the current chat turn happens to use.
       model-id: ${KB_SEARCH_SUBAGENT_MODEL:${AI_MODEL}}
       max-tokens: ${KB_SEARCH_SUBAGENT_MAX_TOKENS:12000}
       # Hard cap on tool-call rounds before a forced, tool-less summarization call.
