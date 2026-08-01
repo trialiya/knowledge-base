@@ -29,32 +29,30 @@ public class SearchAgentFunction {
     @Tool(
             description =
                     """
-                    Глубокий многошаговый поиск по коду репозитория и базе знаний. \
-                    На вход — развёрнутая ЗАДАЧА (что ищем и зачем; подозреваемые термины, \
-                    имена классов/методов, область). Сабагент сам итеративно вызывает grep, \
-                    обзор структуры и чтение файлов и возвращает СЖАТЫЙ отчёт с цитатами path:line. \
-                    Используй для широких/неоднозначных запросов ("где и как реализована \
-                    авторизация?"), когда одиночного grepContent недостаточно. \
-                    Для простого точного совпадения используй grepContent напрямую.
+                    Multi-step search across code and knowledge base: grep → read → analyze → report. \
+                    Pass a detailed task (what + why, suspected keywords, class/method names, scope). \
+                    The sub-agent iteratively searches, outlines structure, and reads files, \
+                    returning a compact report with path:line citations. Use for broad/ambiguous queries \
+                    ("where and how is authorization implemented?") when a single grepContent is insufficient. \
+                    For simple exact matches, use grepContent directly instead.
                     """,
             resultConverter = CompactToolResultConverter.class)
     public SearchAgentResult searchCodebase(
             ToolContext context,
             @ToolParam(
                             description =
-                                    "Подробная постановка задачи на естественном языке: что искать и"
-                                            + " зачем. Чем конкретнее (термины, имена классов/методов,"
-                                            + " область), тем лучше результат.")
+                                    "Detailed search task in natural language: what to find and why. "
+                                            + "Be specific with keywords, class/method names, or scope for best results.")
                     String task,
             @ToolParam(
                             description =
-                                    "Область поиска: \"code\" | \"docs\" | \"all\" (по умолчанию all).",
+                                    "Search scope: \"code\" | \"docs\" | \"all\" (default all).",
                             required = false)
                     @Nullable String scope,
             @ToolParam(
                             description =
-                                    "Glob для ограничения путей в коде, например \"backend/**/*.java\"."
-                                            + " null — без ограничения.",
+                                    "Glob pattern to restrict code search (e.g., \"backend/**/*.java\"). "
+                                            + "Null for no restriction.",
                             required = false)
                     @Nullable String pathGlob) {
         final String conversationId = conversationId(context);

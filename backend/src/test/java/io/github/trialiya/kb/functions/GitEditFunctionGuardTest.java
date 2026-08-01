@@ -50,7 +50,7 @@ class GitEditFunctionGuardTest {
     void editWithoutPriorSightingIsRejected() {
         assertThatThrownBy(() -> function.editFile(context, PATH, "a", "b", false))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("НЕ изменён")
+                .hasMessageContaining("was NOT modified")
                 .hasMessageContaining("getFileContent");
         verify(gitService, never()).editFile(anyString(), anyString(), anyString(), anyBoolean());
     }
