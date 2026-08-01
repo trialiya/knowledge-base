@@ -54,17 +54,12 @@ public class GitFunction {
      */
     @Tool(
             description =
-                    """
-                    Один уровень файлового дерева репозитория. Узел: path, name, \
-                    type ("file"|"directory"), size (байты, только для файлов). \
-                    Каталоги не раскрываются — вызови повторно с нужным path для следующего уровня.\
-                    """,
+                    "Browse repository one level at a time (path, name, type, size). Call again with deeper path to drill down.",
             resultConverter = CompactToolResultConverter.class)
     public List<GitFileNode> getFileTree(
             @ToolParam(
                             description =
-                                    "Путь к подкаталогу относительно корня репозитория (например, "
-                                            + "\"src/main/java\"). Пустая строка или null — корень репо.",
+                                    "Subdirectory path relative to repo root (e.g., \"src/main/java\"). Empty or null for root.",
                             required = false)
                     @Nullable String path) {
         log.info("getFileTree called: path='{}'", path);
@@ -84,23 +79,16 @@ public class GitFunction {
      */
     @Tool(
             description =
-                    """
-                    История коммитов в обратном хронологическом порядке. Коммит: hash (полный SHA), \
-                    shortHash (сокращённый, минимум 7 символов), author, email, date (ISO-8601), message. \
-                    Поле files всегда null (изменения — через getCommitDiff по shortHash).
-                    """,
+                    "Recent commit history (newest first). Commit: hash, shortHash, author, email, date (ISO-8601), message. Use getCommitDiff to see file changes.",
             resultConverter = CompactToolResultConverter.class)
     public List<GitCommit> getCommitLog(
             @ToolParam(
-                            description =
-                                    "Максимальное количество коммитов для возврата. "
-                                            + "Допустимый диапазон: 1–100, по умолчанию 20.",
+                            description = "Maximum commits to return (1–100, default 20).",
                             required = false)
                     @Nullable Integer maxCount,
             @ToolParam(
                             description =
-                                    "Путь к файлу (относительно корня репо) — вернуть только коммиты, "
-                                            + "затрагивающие этот файл. Null — вся история.",
+                                    "Optional: file path (relative to repo root) to filter commits that touched it.",
                             required = false)
                     @Nullable String filePath) {
         int limit = (maxCount != null && maxCount > 0) ? maxCount : 20;
@@ -122,29 +110,21 @@ public class GitFunction {
      */
     @Tool(
             description =
-                    """
-                    Изменённые файлы для одного/нескольких коммитов. Элемент: status (A/M/D/R), \
-                    path, oldPath (при переименовании), additions, deletions. \
-                    При includePatch=true добавляется unified diff. Хеши бери из getCommitLog.
-                    """,
+                    "Changed files and diffs for one or more commits. Include status (A/M/D/R), path, additions, deletions, and optional unified diff.",
             resultConverter = CompactToolResultConverter.class)
     public List<GitCommit> getCommitDiff(
             @ToolParam(
                             description =
-                                    "Хеш коммита (полный или короткий) или несколько хешей через запятую, "
-                                            + "например: \"abc1234\" или \"abc1234,def5678\".")
+                                    "Commit hash (full or short) or comma-separated list (e.g., \"abc1234\" or \"abc1234,def5678\").")
                     String commitHashes,
             @ToolParam(
                             description =
-                                    "Включить unified diff (patch) для каждого файла. "
-                                            + "false (по умолчанию) — только список файлов и статистика строк; "
-                                            + "true — добавляет текст изменений, увеличивает объём ответа.",
+                                    "Include unified diff for each file (false=list only, true=includes patch text).",
                             required = false)
                     @Nullable Boolean includePatch,
             @ToolParam(
                             description =
-                                    "Путь к файлу (относительно корня репо) — вернуть diff только по этому файлу. "
-                                            + "Null — все изменённые файлы коммита.",
+                                    "Optional: file path to filter diff output to only that file.",
                             required = false)
                     @Nullable String filePath) {
         boolean patch = includePatch != null && includePatch;
@@ -170,22 +150,15 @@ public class GitFunction {
      */
     @Tool(
             description =
-                    """
-                    Ищет tracked файлы по имени (fuzzy: символы запроса как подпоследовательность, \
-                    регистронезависимо — "mgi" находит MessageInput). Результаты ранжированы: \
-                    лучшее совпадение первым. Узлы: path, name, type="file", size. Ищет ТОЛЬКО по \
-                    имени/пути файла (поиск по содержимому — grepContent).
-                    """,
+                    "Fuzzy-search tracked files by name (case-insensitive subsequence; e.g., \"mgi\" → MessageInput). Results ranked by match quality.",
             resultConverter = CompactToolResultConverter.class)
     public List<GitFileNode> searchFiles(
             @ToolParam(
                             description =
-                                    "Часть имени файла, например: \"Controller\", \".yml\", "
-                                            + "\"mgi\". Регистронезависимый fuzzy-поиск.")
+                                    "Partial file name pattern (fuzzy: case-insensitive subsequence match).")
                     String pattern,
             @ToolParam(
-                            description =
-                                    "Максимальное количество результатов. Диапазон: 1–50, по умолчанию 20.",
+                            description = "Maximum results to return (1–50, default 20).",
                             required = false)
                     @Nullable Integer maxResults) {
         int limit = (maxResults != null && maxResults > 0) ? maxResults : 20;
@@ -207,19 +180,10 @@ public class GitFunction {
      */
     @Tool(
             description =
-                    """
-                    Структурный обзор файла кода БЕЗ полного текста: символы (класс, интерфейс, \
-                    метод, функция, поле и т.д.) с именем и диапазоном строк (startLine, endLine). \
-                    Поле parser — движок ("tree-sitter"|"regex"). Языки: Java, JS/TS, Python; \
-                    для остальных и бинарных — ошибка, читай через getFileContent.
-                    """,
+                    "Structural outline of source code (classes, methods, functions) with line ranges, without full text.",
             resultConverter = CompactToolResultConverter.class)
     public GitFileOutline getFileOutline(
-            @ToolParam(
-                            description =
-                                    "Точный путь к файлу относительно корня репозитория, например: "
-                                            + "\"src/main/java/com/example/App.java\".")
-                    String filePath) {
+            @ToolParam(description = "Source file path relative to repo root.") String filePath) {
         log.info("getFileOutline called: filePath='{}'", filePath);
         GitFileOutline outline = gitService.getFileOutline(filePath);
         log.info("getFileOutline called: outline={}", outline);
@@ -240,34 +204,22 @@ public class GitFunction {
      */
     @Tool(
             description =
-                    """
-                    Содержимое tracked файла. Ответ: path, content, binary, sizeBytes, \
-                    language (по расширению), lineCount, truncated, fromLine/toLine \
-                    (фактический диапазон, null если весь файл). При binary=true content=null. \
-                    Для экономии токенов укажи fromLine/toLine (например, диапазон из getFileOutline). \
-                    При упоминании файла в ответе оформи ссылку [имя-файла](/files?path=PATH), \
-                    где PATH — это path из ответа; для диапазона строк добавь #Lfrom-Lto.
-                    """,
+                    "Read file content (full or line range). Binary files flagged without content. "
+                            + "Large files (>512 KB) return excerpt with truncated=true. When "
+                            + "mentioning the file in your response, link it as "
+                            + "[filename](/files?path=PATH), where PATH is the path from the "
+                            + "response; append #Lfrom-Lto for a line range.",
             resultConverter = CompactToolResultConverter.class)
     public GitFileContent getFileContent(
+            @ToolParam(description = "File path relative to repo root.") String filePath,
             @ToolParam(
                             description =
-                                    "Точный путь к файлу относительно корня репозитория, например: "
-                                            + "\"src/main/java/com/example/App.java\". "
-                                            + "Используй getFileTree или searchFiles для уточнения пути.")
-                    String filePath,
-            @ToolParam(
-                            description =
-                                    "Первая строка для чтения (1-based, включительно). "
-                                            + "null — с начала файла. Используй вместе с toLine для "
-                                            + "чтения только нужного фрагмента большого файла.",
+                                    "First line to read (1-based, inclusive). Null for start of file.",
                             required = false)
                     @Nullable Integer fromLine,
             @ToolParam(
                             description =
-                                    "Последняя строка для чтения (1-based, включительно). "
-                                            + "null — до конца файла. Выход за пределы файла "
-                                            + "автоматически усекается.",
+                                    "Last line to read (1-based, inclusive). Null for end of file.",
                             required = false)
                     @Nullable Integer toLine) {
         log.info(
@@ -289,19 +241,12 @@ public class GitFunction {
     @Tool(
             name = "getUncommittedChanges",
             description =
-                    """
-                    Незакоммиченные изменения рабочего дерева (staged и unstaged). Запись: \
-                    status (A/M/D/R), path, oldPath (при переименовании), additions, deletions. \
-                    Untracked файлы (ещё не в git add) — статус A, patch=null. \
-                    При includePatch=true добавляется unified diff для изменённых файлов.
-                    """,
+                    "Uncommitted changes in working tree (staged and unstaged). Status: A/M/D/R. Optional: include unified diff.",
             resultConverter = CompactToolResultConverter.class)
     public List<GitDiffEntry> getUncommittedChanges(
             @ToolParam(
                             description =
-                                    "Включить unified diff для изменённых файлов. "
-                                            + "false — только список файлов и статистика строк (быстро); "
-                                            + "true — добавляет текст изменений (увеличивает объём ответа).")
+                                    "Include unified diff for changed files (false=list only, true=includes patch).")
                     boolean includePatch) {
         log.info("getUncommittedChanges called: includePatch='{}'", includePatch);
         List<GitDiffEntry> gitDiffEntries = gitService.getUncommittedChanges(includePatch);
@@ -323,40 +268,27 @@ public class GitFunction {
      */
     @Tool(
             description =
-                    """
-                    Ищет текст ВНУТРИ содержимого tracked файлов (git grep), всегда \
-                    регистронезависимо. Возвращает: path, line (1-based), text. \
-                    Для поиска по имени/пути файла используй searchFiles. \
-                    regex=false (по умолчанию) — буквальная подстрока; regex=true — POSIX ERE \
-                    (нужно при | . * ^ $). contextLines (0–10) — строки вокруг совпадения.
-                    """,
+                    "Search file content for matching lines (case-insensitive). Returns path, line number, and text.",
             resultConverter = CompactToolResultConverter.class)
     public List<GitGrepMatch> grepContent(
-            @ToolParam(
-                            description =
-                                    "Что искать. Если содержит `|`, `.*` или другие regex-символы — "
-                                            + "установи regex=true.")
+            @ToolParam(description = "Search pattern: literal string or regex (if regex=true).")
                     String pattern,
             @ToolParam(
                             description =
-                                    "Glob для ограничения по путям: \"*.java\", \"src/main/**\", "
-                                            + "\"**/*Service*.java\". null — все tracked файлы.",
+                                    "Optional: glob pattern to restrict search to certain files (e.g., \"*.java\", \"src/main/**\").",
                             required = false)
                     @Nullable String pathGlob,
             @ToolParam(
                             description =
-                                    "true (по умолчанию) — POSIX ERE (при | .* ^ $); false — "
-                                            + "буквальная подстрока.",
+                                    "Treat pattern as POSIX regex (true=regex, false=literal substring, default true).",
                             required = false)
                     @Nullable Boolean regex,
             @ToolParam(
-                            description =
-                                    "Строк контекста до/после совпадения (как grep -C). "
-                                            + "1 по умолчанию, рекомендуется 2–5. Диапазон: 0–10.",
+                            description = "Context lines before/after match (0–10, default 1).",
                             required = false)
                     @Nullable Integer contextLines,
             @ToolParam(
-                            description = "Максимум совпадений. По умолчанию 50, диапазон 1–200.",
+                            description = "Maximum matches to return (1–200, default 50).",
                             required = false)
                     @Nullable Integer maxResults) {
         boolean useRegex = regex == null || regex;

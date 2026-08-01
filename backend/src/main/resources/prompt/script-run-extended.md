@@ -1,26 +1,23 @@
-### Когда брать скрипт, а когда обычный инструмент
-| Задача | Чем делать |
+### Script vs standard tool
+| Task | Tool |
 |---|---|
-| Одно точное совпадение, один-два запроса | `grepContent` |
-| Прочитать один файл или его фрагмент | `getFileContent` |
-| Структура одного файла | `getFileOutline` |
-| **Пройтись по многим файлам и что-то посчитать/сопоставить/сверить** | `runScript` |
-| **Собрать таблицу «файл → найденное» по всему репозиторию** | `runScript` |
-| **Сверить два источника** (код и конфиг, код и документ) | `runScript` |
-| Широкий неоднозначный поиск «как это устроено» | `searchCodebase` |
+| Exact match, 1–2 queries | `grepContent` |
+| Read one file or fragment | `getFileContent` |
+| One file structure | `getFileOutline` |
+| **Iterate many files, count/compare/verify** | `runScript` |
+| **Build "file → found" table across repo** | `runScript` |
+| **Cross-reference sources** (code vs config, code vs doc) | `runScript` |
+| Broad ambiguous "how does it work" search | `searchCodebase` |
 
-### Как писать скрипт
-1. **Начни с отбора.** Сначала `kb.files(glob)` или `kb.grep(pattern, {glob})`, и только потом чтение —
-   не ради экономии бюджета (его хватит на весь репозиторий), а потому что так меньше работы и
-   быстрее ответ.
-2. **Читай точечно.** Нашёл строку через `kb.grep` — читай окрестность: `kb.read(path, line - 5, line + 30)`.
-   Целый файл читай, когда он нужен целиком: это нормально, а не крайняя мера.
-3. **Собери структуру.** Складывай результат в массив объектов — его удобно читать и тебе, и пользователю.
-4. **Верни немного.** `return` — это сводка (счётчики, top-N, таблица путей и строк), а не тексты файлов.
+### How to write scripts
+1. **Start with filtering.** `kb.files(glob)` or `kb.grep(pattern, {glob})` first, read next—not for token budget (sufficient for full repo) but less work, faster answer.
+2. **Read precisely.** Found line via grep? Read context: `kb.read(path, line - 5, line + 30)`. Read whole file when truly needed—normal, not last resort.
+3. **Build structure.** Collect results in object array—easy to read, return, use.
+4. **Return summary.** `return` is counts, top-N, path/line table—not file contents.
 
-### Примеры
+### Examples
 
-Найти все классы, реализующие интерфейс, и вернуть таблицу:
+Find all classes implementing interface, return table:
 ```js
 var hits = kb.grep("implements ToolCallResponseItem", { glob: "**/*.java" });
 var rows = [];
@@ -32,7 +29,7 @@ for (var i = 0; i < hits.length; i++) {
 return { count: rows.length, rows: rows };
 ```
 
-Проверить, что ключ конфига действительно используется в коде:
+Verify config key is used in code:
 ```js
 var keys = kb.grep("kb.script", { glob: "**/application*.yaml" });
 var out = [];
@@ -44,7 +41,7 @@ for (var i = 0; i < keys.length; i++) {
 return out;
 ```
 
-Собрать TODO/FIXME с контекстом:
+Gather TODO/FIXME with context:
 ```js
 var hits = kb.grep("TODO|FIXME", { regex: true, context: 1, max: 100 });
 return hits.map(function (h) {
@@ -52,7 +49,7 @@ return hits.map(function (h) {
 });
 ```
 
-Сверить два источника — все инструменты в коде против упомянутых в промпте:
+Cross-reference: all tool methods in code vs mention in prompts:
 ```js
 var declared = kb.grep("@Tool(", { glob: "**/functions/*.java", context: 0 });
 var files = {};
@@ -69,7 +66,7 @@ var missing = names.filter(function (n) { return prompt.indexOf(n) < 0; });
 return { total: names.length, missingInPrompt: missing };
 ```
 
-Найти самые большие файлы в каталоге:
+Find largest files in directory:
 ```js
 var paths = kb.files("backend/src/main/java/**/*.java");
 var sizes = [];
@@ -81,7 +78,7 @@ sizes.sort(function (a, b) { return b.lines - a.lines; });
 return sizes.slice(0, 10);
 ```
 
-Найти структуру большого файла и прочитать только нужный метод:
+Outline large file, read only target method:
 ```js
 var symbols = kb.outline("backend/src/main/java/io/github/trialiya/kb/service/GitService.java");
 var target = symbols.filter(function (s) { return s.name === "editFile"; })[0];
@@ -94,9 +91,9 @@ return {
 };
 ```
 
-Связать код и базу знаний:
+Link code and KB docs:
 ```js
-var docs = kb.searchDocs("экспорт документов", 5);
+var docs = kb.searchDocs("export documents", 5);
 var out = [];
 for (var i = 0; i < docs.length; i++) {
   var words = docs[i].title.split(" ")[0];
@@ -105,11 +102,9 @@ for (var i = 0; i < docs.length; i++) {
 return out;
 ```
 
-### Чего не делать
-- **Не читай файлы, которые не нужны задаче.** Обойти весь репозиторий можно и иногда нужно —
-  бюджета хватит; бессмысленно другое: читать файл целиком, когда из него нужна одна строка.
-- **Не пиши свои регулярки поверх прочитанного текста, если хватает `kb.grep`** — grep работает
-  по индексу и отдаёт только совпавшие строки, а не файл целиком.
-- **Не возвращай содержимое файлов целиком.** Возвращай пути, строки, счётчики, короткие фрагменты.
-- **Не пытайся сохранить состояние между вызовами** — его нет.
-- **Не ищи обходной путь к файловой системе.** Его нет; попытка просто потратит вызов.
+### Pitfalls
+- **Don't read unneeded files.** Traversing whole repo is fine and sometimes needed—budget sufficient. Pointless: read whole file for one line.
+- **Don't apply regex over read text if `kb.grep` works.** Grep is indexed, returns only matched lines, not file.
+- **Don't return raw file contents.** Paths, lines, counts, short snippets.
+- **Don't keep state between calls.** None exists.
+- **Don't seek filesystem workarounds.** None; attempts just waste calls.

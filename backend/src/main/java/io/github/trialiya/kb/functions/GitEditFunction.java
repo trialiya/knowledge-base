@@ -45,19 +45,19 @@ public class GitEditFunction {
     @Tool(
             description =
                     """
-                    Создать НОВЫЙ файл в рабочем дереве репозитория и добавить его в индекс \
-                    (git add). Ошибка, если файл уже существует (для правки — editFile) или путь \
-                    игнорируется .gitignore. Изменение НЕ коммитится — пользователь сам просмотрит \
-                    и закоммитит. Ответ: operation, path, additions, lineCount.
+                    Create a NEW file in the repository working tree and stage it (git add). \
+                    Fails if file exists (use editFile for modifications) or path is .gitignore'd. \
+                    Changes are NOT committed — user reviews and commits. \
+                    Returns: operation, path, additions, lineCount.
                     """,
             resultConverter = CompactToolResultConverter.class)
     public GitEditResult createFile(
             @ToolParam(
                             description =
-                                    "Путь нового файла относительно корня репозитория, например: "
-                                            + "\"src/main/java/com/example/New.java\".")
+                                    "Path of the new file relative to repo root (e.g., "
+                                            + "\"src/main/java/com/example/New.java\").")
                     String filePath,
-            @ToolParam(description = "Полное содержимое нового файла (UTF-8).") String content) {
+            @ToolParam(description = "Full content of the new file (UTF-8).") String content) {
         log.info("createFile called: filePath='{}', {} chars", filePath, content.length());
         return gitService.createFile(filePath, content);
     }
@@ -65,35 +65,31 @@ public class GitEditFunction {
     @Tool(
             description =
                     """
-                    Точечная правка существующего tracked файла: заменяет oldString на newString. \
-                    oldString должен встречаться в файле РОВНО один раз (при replaceAll=false) и \
-                    совпадать посимвольно, включая пробелы и переводы строк — сначала посмотри \
-                    актуальное содержимое (getFileContent, getFileOutline или результат поиска). \
-                    Изменение НЕ коммитится. Ответ: operation, path, additions, deletions, \
-                    lineCount, diff (unified diff правки).
+                    Surgical edit of an existing tracked file: replace oldString with newString. \
+                    oldString must appear EXACTLY once (unless replaceAll=true) and match character-for-character, \
+                    including whitespace and line breaks — read current content first (getFileContent, getFileOutline, or grep result). \
+                    Changes are NOT committed. Returns: operation, path, additions, deletions, lineCount, diff.
                     """,
             resultConverter = CompactToolResultConverter.class)
     public GitEditResult editFile(
             ToolContext context,
             @ToolParam(
                             description =
-                                    "Точный путь к файлу относительно корня репозитория, например: "
-                                            + "\"src/main/java/com/example/App.java\".")
+                                    "Exact file path relative to repo root (e.g., "
+                                            + "\"src/main/java/com/example/App.java\").")
                     String filePath,
             @ToolParam(
                             description =
-                                    "Точный существующий фрагмент файла для замены (посимвольно, "
-                                            + "с отступами). Должен быть уникален в файле — при "
-                                            + "неоднозначности добавь соседние строки.")
+                                    "Exact existing text fragment to replace (character-for-character, including whitespace). "
+                                            + "Must be unique in the file — add surrounding lines if ambiguous.")
                     String oldString,
             @ToolParam(
                             description =
-                                    "Новый текст вместо oldString. Пустая строка — удалить фрагмент.")
+                                    "New text to replace oldString. Empty string to delete the fragment.")
                     String newString,
             @ToolParam(
                             description =
-                                    "true — заменить ВСЕ вхождения oldString; false (по умолчанию) — "
-                                            + "ровно одно, иначе ошибка.",
+                                    "Replace ALL occurrences of oldString (true) or exactly one (false, default).",
                             required = false)
                     @Nullable Boolean replaceAll) {
         log.info(
@@ -136,13 +132,13 @@ public class GitEditFunction {
                                                         && inv.resultText().contains(path)));
         if (!seen) {
             throw new IllegalStateException(
-                    "Файл "
+                    "File "
                             + path
-                            + " НЕ изменён: его содержимое не было прочитано в этом ответе. "
-                            + "Сначала посмотри файл — getFileContent(filePath=\""
+                            + " was NOT modified: its content was not read in this response. "
+                            + "Read the file first — getFileContent(filePath=\""
                             + path
-                            + "\") (можно диапазон строк), getFileOutline или найди нужный "
-                            + "фрагмент через grepContent — затем повтори editFile.");
+                            + "\") (can be a line range), getFileOutline, or find the needed "
+                            + "fragment via grepContent — then retry editFile.");
         }
     }
 }

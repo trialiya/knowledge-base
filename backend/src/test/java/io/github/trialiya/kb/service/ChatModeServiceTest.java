@@ -55,9 +55,9 @@ class ChatModeServiceTest {
                                                 "tester",
                                                 new ClassPathResource("prompt/mode-tester.md")))));
 
-        assertThat(service.instructionsFor("analytic")).contains("Аналитик");
-        assertThat(service.instructionsFor("developer")).contains("Разработчик");
-        assertThat(service.instructionsFor("tester")).contains("Тестировщик");
+        assertThat(service.instructionsFor("analytic")).contains("analyst");
+        assertThat(service.instructionsFor("developer")).contains("developer");
+        assertThat(service.instructionsFor("tester")).contains("tester");
     }
 
     private static Resource res(String text) {

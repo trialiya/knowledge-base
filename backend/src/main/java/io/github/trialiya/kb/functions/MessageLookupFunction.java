@@ -22,14 +22,14 @@ public class MessageLookupFunction {
             name = "getOriginalMessages",
             description =
                     """
-            Возвращает полный текст исходных сообщений чата по их позициям. \
-            Используй когда summary ссылается на [msg:N] и нужен точный текст. \
-            Не более 10 сообщений за вызов.
+            Retrieve full text of chat messages by their positions (e.g., [msg:5]). \
+            Use when a summary references [msg:N] and you need the exact text. \
+            Max 10 messages per call.
             """,
             resultConverter = CompactToolResultConverter.class)
     public String getOriginalMessages(
             ToolContext context,
-            @ToolParam(description = "Message position to retrieve)") List<Long> positions) {
+            @ToolParam(description = "Message positions to retrieve.") List<Long> positions) {
 
         final String chatId = conversationId(context);
         log.info("[{}] Fetching original messages positions: {}", chatId, positions);

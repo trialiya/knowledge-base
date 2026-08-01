@@ -78,6 +78,7 @@ public class ChatRunService {
     private final SummarizeService summarizeService;
     private final ChatEventService events;
     private final ScriptGuideService scriptGuideService;
+    private final SystemPromptService systemPromptService;
     private final Executor executor;
 
     /** runId -&gt; дескриптор активного прогона (для остановки). */
@@ -94,6 +95,7 @@ public class ChatRunService {
             SummarizeService summarizeService,
             ChatEventService events,
             ScriptGuideService scriptGuideService,
+            SystemPromptService systemPromptService,
             @Qualifier("chatRunExecutor") Executor executor) {
         this.chatClient = chatClient;
         this.chatMemory = chatMemory;
@@ -101,6 +103,7 @@ public class ChatRunService {
         this.summarizeService = summarizeService;
         this.events = events;
         this.scriptGuideService = scriptGuideService;
+        this.systemPromptService = systemPromptService;
         this.executor = executor;
     }
 
@@ -278,6 +281,10 @@ public class ChatRunService {
                                                     .param(
                                                             "script_instructions",
                                                             scriptGuideService.instructions(
+                                                                    weakModel))
+                                                    .param(
+                                                            "system_extended",
+                                                            systemPromptService.systemExtended(
                                                                     weakModel)))
                             .user(userMessage)
                             .toolContext(

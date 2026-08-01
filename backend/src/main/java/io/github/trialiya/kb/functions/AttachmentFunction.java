@@ -36,19 +36,17 @@ public class AttachmentFunction {
 
     @Tool(
             description =
-                    "Получить список вложений (файлов) для документа по его id. "
-                            + "Возвращает метаданные: имя файла, тип, размер, краткое описание (если есть).",
+                    "List attachments (files) for a document by id. Returns metadata: file name, type, size, description.",
             resultConverter = CompactToolResultConverter.class)
     public List<Attachment> getDocumentAttachments(
-            @ToolParam(description = "ID документа") String documentId) {
+            @ToolParam(description = "Document ID.") String documentId) {
         log.info("getDocumentAttachments called: documentId={}", documentId);
         return attachmentService.findByDocument(Long.parseLong(documentId));
     }
 
     @Tool(
             description =
-                    "Получить список вложений (файлов) для чат-беседы. "
-                            + "Возвращает метаданные: имя файла, тип, размер, краткое описание (если есть).",
+                    "List attachments (files) for the current chat conversation. Returns metadata: file name, type, size, description.",
             resultConverter = CompactToolResultConverter.class)
     public List<Attachment> getChatAttachments(ToolContext context) {
         final String conversationId = conversationId(context);
@@ -60,17 +58,16 @@ public class AttachmentFunction {
 
     @Tool(
             description =
-                    "Получить полное текстовое содержимое вложения по его id. "
-                            + "Используй когда нужно проанализировать или процитировать содержимое файла.",
+                    "Read full text content of an attachment by id. Use when you need to analyze or cite file content.",
             resultConverter = CompactToolResultConverter.class)
     public String getAttachmentContent(
-            ToolContext context, @ToolParam(description = "ID вложения") String attachmentId) {
+            ToolContext context, @ToolParam(description = "Attachment ID.") String attachmentId) {
         log.info(
                 "[{}] getAttachmentContent called: attachmentId={}",
                 conversationId(context),
                 attachmentId);
         String content = attachmentService.getContent(Long.parseLong(attachmentId));
-        if (content == null) return "(пустое содержимое)";
+        if (content == null) return "(empty content)";
         return getTruncatedContent(content);
     }
 
@@ -85,13 +82,14 @@ public class AttachmentFunction {
      * @return id of the newly created attachment
      */
     @Tool(
-            description = "Создать новое вложение в текущем чате.",
+            description = "Create a new attachment in the current chat conversation.",
             resultConverter = CompactToolResultConverter.class)
     public long createAttachment(
             ToolContext context,
-            @ToolParam(description = "Название вложения - файла") String fileName,
-            @ToolParam(description = "MIME type") String contentType,
-            @ToolParam(description = "Содержимое вложения (текст, markdown, json, etc). ")
+            @ToolParam(description = "Attachment file name (e.g., 'report.md').") String fileName,
+            @ToolParam(description = "MIME type (e.g., 'text/markdown', 'application/json').")
+                    String contentType,
+            @ToolParam(description = "Attachment content (text, markdown, JSON, etc.).")
                     String content) {
         String conversationId = conversationId(context);
         log.info("[{}] createAttachment called: fileName={}", conversationId, fileName);
@@ -101,10 +99,10 @@ public class AttachmentFunction {
     }
 
     @Tool(
-            description = "Получить полное текстовое содержимое вложений по имени файла.",
+            description = "Read full text content of attachments by file name.",
             resultConverter = CompactToolResultConverter.class)
     public List<AttachmentContext> getAttachmentContentByFileName(
-            ToolContext context, @ToolParam(description = "Имя файла") String fileName) {
+            ToolContext context, @ToolParam(description = "File name.") String fileName) {
         final String conversationId = conversationId(context);
         log.info(
                 "[{}] getAttachmentContentByFileName called: fileName='{}'",
@@ -125,11 +123,10 @@ public class AttachmentFunction {
 
     @Tool(
             description =
-                    "Поиск по вложениям (файлам) в базе знаний: по имени файла, содержимому и описанию. "
-                            + "Используй когда пользователь ищет информацию, которая может быть в прикреплённых файлах.",
+                    "Search attachments by file name, content, and description. Use when the user seeks information that may be in attached files.",
             resultConverter = CompactToolResultConverter.class)
     public List<Attachment> searchAttachments(
-            ToolContext context, @ToolParam(description = "Поисковый запрос") String query) {
+            ToolContext context, @ToolParam(description = "Search query.") String query) {
         final String conversationId = conversationId(context);
         log.info("searchAttachments called: query='{}'", query);
         return attachmentService.search(conversationId, query);
@@ -139,7 +136,7 @@ public class AttachmentFunction {
         // Truncate for tool response to avoid flooding the context window
         if (content.length() > 15_000) {
             return content.substring(0, 15_000)
-                    + "\n... (содержимое обрезано, всего символов: "
+                    + "\n... (content truncated; total chars: "
                     + content.length()
                     + ")";
         }

@@ -45,7 +45,13 @@ class SystemPromptRenderTest {
         String rendered =
                 RENDERER.apply(
                         systemPrompt(),
-                        Map.of("mode_instructions", "", "script_instructions", handbook));
+                        Map.of(
+                                "mode_instructions",
+                                "",
+                                "script_instructions",
+                                handbook,
+                                "system_extended",
+                                ""));
 
         // The handbook arrives verbatim: braces inside a substituted value are content, not syntax.
         assertThat(rendered).contains(handbook);
@@ -58,16 +64,23 @@ class SystemPromptRenderTest {
                         () ->
                                 RENDERER.apply(
                                         systemPrompt(),
-                                        Map.of("mode_instructions", "", "script_instructions", "")))
+                                        Map.of(
+                                                "mode_instructions",
+                                                "",
+                                                "script_instructions",
+                                                "",
+                                                "system_extended",
+                                                "")))
                 .doesNotThrowAnyException();
     }
 
     @Test
     @Timeout(30)
-    void hasExactlyTheTwoPlaceholdersTheApplicationFills() {
-        // Every {name} in the template must be one the two call sites (ChatRunService,
-        // ChatController) actually pass — an unfilled placeholder fails the render.
-        assertThat(systemPrompt()).contains("{mode_instructions}", "{script_instructions}");
+    void hasExactlyThePlaceholdersTheApplicationFills() {
+        // Every {name} in the template must be one the call sites (ChatRunService) actually
+        // pass — an unfilled placeholder fails the render.
+        assertThat(systemPrompt())
+                .contains("{mode_instructions}", "{script_instructions}", "{system_extended}");
     }
 
     private static String systemPrompt() {

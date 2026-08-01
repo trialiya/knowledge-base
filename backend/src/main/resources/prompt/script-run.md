@@ -1,78 +1,56 @@
-## Скрипты (runScript)
+## Scripts (runScript)
 
-Инструмент `runScript` выполняет твой JavaScript-код рядом с репозиторием. Один вызов
-заменяет десяток отдельных вызовов `grepContent` → `getFileOutline` → `getFileContent`,
-потому что цикл и сопоставление данных делает сам скрипт, а не ты по шагам.
-Правило простое: одна цель — обычный инструмент; «для каждого …» — скрипт.
+`runScript` runs JavaScript (ES2023) in the repo. One call replaces many `grepContent` → `getFileOutline` → `getFileContent` because the script loops and joins—not you step-by-step. Rule: single task = normal tool; "for each X" = script.
 
-### Контракт
-- Язык — JavaScript (ES2023). Тело скрипта выполняется **как тело функции**:
-  верхнеуровневый `return` разрешён и является единственным способом вернуть результат.
-- Доступен ровно один объект — `kb`. Больше ничего нет: ни `require`, ни `import`,
-  ни `fetch`, ни `setTimeout`, ни `java.*`, ни `Java.type`, ни файловых API.
-  Попытка их использовать — ошибка `RUNTIME`, а не обход.
-- Скрипт не помнит ничего между вызовами: каждый запуск начинается с нуля.
-- Печать для себя — `kb.log(...)`; она попадает в поле `log` ответа.
-- Ответ инструмента: `value` (то, что вернул `return`), `log`, `stats`, `filesRead`, `error`.
+### Contract
+- JavaScript ES2023. Script body is a function body: top-level `return` allowed, only way to return.
+- Exactly one object: `kb`. No `require`, `import`, `fetch`, `setTimeout`, `java.*`, `Java.type`, file APIs. Attempts error as `RUNTIME`, not bypasses.
+- No state between runs—each starts fresh.
+- Debug output: `kb.log(...)`—appears in `log` field.
+- Response: `value` (return), `log`, `stats`, `filesRead`, `error`.
 
-### Справочник kb
-| Вызов | Возвращает | Замечания |
+### kb reference
+| Call | Returns | Notes |
 |---|---|---|
-| `kb.files()` | массив путей | все файлы репозитория (только tracked) |
-| `kb.files(glob)` | массив путей | glob в стиле Ant: `**/*.java`, `backend/**`, `*.yaml` |
-| `kb.read(path)` | строка | весь файл; очень большой файл целиком не отдаётся — читай диапазоном |
-| `kb.read(path, from, to)` | строка | строки с `from` по `to` включительно, 1-based; `0` — «от начала» / «до конца» |
-| `kb.grep(pattern)` | `[{path, line, text}]` | регистронезависимая **подстрока** |
+| `kb.files()` | path array | all repo files (tracked only) |
+| `kb.files(glob)` | path array | Ant glob: `**/*.java`, `backend/**`, `*.yaml` |
+| `kb.read(path)` | string | whole file; huge files use range |
+| `kb.read(path, from, to)` | string | lines from `from` to `to` inclusive, 1-based; `0`=start/end |
+| `kb.grep(pattern)` | `[{path, line, text}]` | case-insensitive **substring** |
 | `kb.grep(pattern, opts)` | `[{path, line, text}]` | `opts = {glob, regex, context, max}` |
 | `kb.outline(path)` | `[{kind, name, signature, startLine, endLine}]` | Java, JS/TS, Python, SQL |
-| `kb.searchDocs(query)` | `[{docId, title, snippet}]` | гибридный поиск по базе знаний |
+| `kb.searchDocs(query)` | `[{docId, title, snippet}]` | hybrid KB search |
 | `kb.searchDocs(query, limit)` | `[{docId, title, snippet}]` | |
-| `kb.log(x)` | — | строки как есть, объекты через JSON |
+| `kb.log(x)` | — | strings as-is, objects as JSON |
 
-`kb.grep` по умолчанию ищет **буквальную подстроку**. Для метасимволов (`|`, `.*`, `^`, `$`)
-передай `{regex: true}`. `context: 3` добавляет по три строки вокруг совпадения.
+`kb.grep` defaults to **literal substring**. Metacharacters (`|`, `.*`, `^`, `$`)? Pass `{regex: true}`. `context: 3` adds 3 lines around match.
 
-**Про число совпадений:** один `kb.grep` отдаёт не больше 200 совпадений, и молча — если вернулось
-ровно 200, считай, что есть ещё, и сузь запрос (glob, более длинный шаблон), а не делай вывод по
-неполной выборке. `{max: N}` умеет только уменьшить это число.
+**Match count:** `kb.grep` caps at 200 silent. If you got exactly 200, more exist—narrow the query (glob, longer pattern), don't conclude from partial. `{max: N}` only shrinks.
 
-**Про glob:** всегда пиши `**/` для поиска на любой глубине — `**/*.java`, а не `*.java`.
-В `kb.files` шаблон `*.java` совпадёт только с файлами в корне репозитория.
+**Glob:** always use `**/` for any depth—`**/*.java`, not `*.java`. `*.java` matches only root.
 
-**Про повторные вызовы:** `kb.files`, `kb.read`, `kb.outline`, `kb.grep`, `kb.searchDocs` с теми же
-аргументами отдаются из кэша прогона — не тратят вызов и не добавляют байтов. Своё кэширование
-поверх этого и экономия вызовов смысла не имеют.
+**Cached calls:** `kb.files`, `kb.read`, `kb.outline`, `kb.grep`, `kb.searchDocs` with identical args are cached—no cost. Don't cache yourself.
 
-### Если пришла ошибка
-Поле `error.kind` говорит, что чинить:
+### If error occurs
+`error.kind` tells you:
 
-| kind | Что случилось | Что делать |
+| kind | What happened | Fix |
 |---|---|---|
-| `SYNTAX` | скрипт не разобрался | в `error.line` — номер строки, исправь и вызови снова |
-| `RUNTIME` | скрипт упал | читай `error.message`: чаще всего это несуществующий путь или неподдерживаемый язык для `kb.outline` |
-| `BUDGET` | кончился лимит | в сообщении назван конкретный лимит — сузь glob, читай диапазоны строк, раздели на два вызова |
-| `TIMEOUT` | не уложился по времени | уменьши объём работы или передай `timeoutSeconds` (максимум {{max_timeout}}) |
+| `SYNTAX` | parse failed | `error.line` has line number, fix and retry |
+| `RUNTIME` | crash | read `error.message`: usually bad path or unsupported language for `kb.outline` |
+| `BUDGET` | limit hit | message names the limit—narrow glob, use line ranges, split into 2 calls |
+| `TIMEOUT` | too slow | reduce work or pass `timeoutSeconds` (max {{max_timeout}}) |
 
-Если ошибка повторилась дважды — не переписывай скрипт в третий раз, вернись к обычным
-инструментам (`grepContent`, `getFileContent`) и скажи пользователю, что именно не вышло.
+Error twice? Don't rewrite a third time—fall back to `grepContent`/`getFileContent` and tell user what failed.
 
-### Лимиты одного запуска
-- время: {{timeout}} по умолчанию, максимум {{max_timeout}};
-- файлов на чтение: {{max_files_read}}, суммарно {{max_bytes_read}} — в эти байты входит и текст,
-  который вернули `kb.grep` и `kb.searchDocs` (сами файлы при этом не считаются прочитанными);
-- всего вызовов `kb.*`: {{max_calls}};
-- `kb.log`: {{max_log_chars}} символов; возвращаемое значение: {{max_result_chars}} символов.
+### Limits per run
+- time: {{timeout}} default, max {{max_timeout}};
+- files to read: {{max_files_read}}, total {{max_bytes_read}}—includes text from `kb.grep`/`kb.searchDocs` (files not double-counted);
+- total `kb.*` calls: {{max_calls}};
+- `kb.log`: {{max_log_chars}} chars; return value: {{max_result_chars}} chars.
 
-Лимиты на чтение рассчитаны с запасом на обход **всего** репозитория: упереться в них — признак
-зацикленного скрипта, а не большой задачи, так что не сужай работу заранее из страха их не хватить.
-А вот два последних — реальные и узкие: всё, что скрипт прочитал, остаётся внутри скрипта, и до
-меня доходит только то, что он вернул и записал в `kb.log`.
+Read limits assume full repo traversal: hitting them means infinite loop, not big task, so don't self-limit. Last two are real: what script reads stays inside, only `return` and `kb.log` reach you.
 
-Превышение `max_result_chars` — не `error`: скрипт не падает, `value` приходит обрезанным до лимита,
-а в `log` добавляется предупреждение об этом. Увидел такое предупреждение — в следующий раз верни
-сводку (счётчики, top-N) вместо сырого содержимого, а не переписывай скрипт заново из-за ошибки,
-которой не было.
+`max_result_chars` exceeded? Not an error—script doesn't crash, `value` truncates, `log` warns. Next time return summary (counts, top-N) not raw content, don't rewrite over a non-error.
 
-Скрипт видит только те файлы, которые видят остальные инструменты: отслеживаемые git,
-без игнорируемых `.gitignore` и без того, что закрыто настройками. Недоступный файл выглядит
-как отсутствующий — это не повод искать обход.
+Script sees only tracked git files, no `.gitignore`, no access-restricted. Inaccessible file looks missing—no workaround needed.

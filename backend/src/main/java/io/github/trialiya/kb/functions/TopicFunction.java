@@ -21,19 +21,19 @@ public class TopicFunction {
     public static final String USER_NAME = "USER_NAME";
     private final ChatTopicRepository chatTopicRepository;
 
-    @Tool(description = "Возвращает id текущего чата")
+    @Tool(description = "Returns the current chat conversation ID.")
     public String getChatId(ToolContext context) {
         final String chatId = conversationId(context);
         log.info("ChatId: {}", chatId);
         return chatId;
     }
 
-    @Tool(description = "Возвращает имя пользователя")
+    @Tool(description = "Returns the current user name.")
     public String getUserName(ToolContext context) {
         return chatUser(context);
     }
 
-    @Tool(description = "Текущие дата и время в часовом поясе пользователя")
+    @Tool(description = "Returns current date and time in the user's time zone.")
     String getCurrentDateTime() {
         log.info("getCurrentDateTime called");
         return LocalDateTime.now().atZone(LocaleContextHolder.getTimeZone().toZoneId()).toString();
@@ -42,11 +42,10 @@ public class TopicFunction {
     @Tool(
             name = "recordChatInsights",
             description =
-                    "ОБЯЗАТЕЛЬНО вызывать в начале КАЖДОГО ответа. "
-                            + "Записывает тему разговора для списка чатов.")
+                    "MUST call at the start of EVERY response. Records the conversation topic for the chat list.")
     public void recordChatInsights(
             ToolContext context,
-            @ToolParam(description = "Тема чата — 3 слова, на языке пользователя") String topic) {
+            @ToolParam(description = "Chat topic: 3 words, in the user's language.") String topic) {
         String chatId = conversationId(context);
         log.info("[{}] Chat topic: {}", chatId, topic);
         Optional<ChatTopicEntity> chatTopicOptional = chatTopicRepository.findById(chatId);

@@ -88,7 +88,7 @@ server:
 
 kb:
   security:
-    # Учётные данные единственного пользователя (HTTP Basic, in-memory).
+    # User credentials for HTTP Basic authentication (in-memory).
     username: ${KB_SECURITY_USERNAME:admin}
     password: ${KB_SECURITY_PASSWORD:admin}
   chat:
@@ -103,8 +103,8 @@ kb:
 #      - id: ${KB_CHAT_MODELS_0_ID}
 #        label: ${KB_CHAT_MODELS_0_LABEL}
 #        weak: ${KB_CHAT_MODELS_0_WEAK:true}
-    # Готовые «режимы» ассистента: подставляют свой фрагмент инструкций в системный
-    # промпт (плейсхолдер {mode_instructions} в prompt/sys.md). «Без режима» — пусто.
+    # Preset assistant modes: inject instruction fragments into the system prompt
+    # (placeholder {mode_instructions} in prompt/sys.md). No mode → empty.
     modes:
       - id: analytic
         label: Аналитик
@@ -280,6 +280,12 @@ kb:
         - getDocumentOutline
         - getDocumentSection
         - getTreeSkeleton
+  system-prompt:
+    # System prompt: split into reference (for all models) and extended (tutorial for weak models).
+    # The reference half contains rules, tool selection, and concise guidance; the extended half
+    # provides decision trees, workflow examples, and common mistakes (appended only for weak models).
+    prompt: classpath:prompt/sys.md
+    extended-prompt: classpath:prompt/sys-extended.md
 
 logging:
   level:

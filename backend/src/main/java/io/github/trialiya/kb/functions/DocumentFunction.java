@@ -84,26 +84,24 @@ public class DocumentFunction {
      */
     @Tool(
             description =
-                    "Поиск документов и папок в базе знаний (гибридный поиск: keyword + semantic)",
+                    "Search knowledge base documents by topic/keywords (hybrid: keyword + semantic).",
             resultConverter = CompactToolResultConverter.class)
     public List<SearchResult> searchDocuments(
-            @ToolParam(description = "Поисковый запрос на любом языке") String query,
+            @ToolParam(description = "Search query in any language.") String query,
             @ToolParam(
-                            description = "Режим поиска: hybrid (по умолчанию), semantic, keyword",
+                            description = "Search mode: hybrid (default), semantic, keyword.",
                             required = false)
                     @Nullable String mode,
             @ToolParam(
                             description =
-                                    "Минимальный порог схожести для семантического поиска (0.0–1.0)",
+                                    "Minimum cosine similarity for semantic/hybrid search (0.0–1.0).",
                             required = false)
                     @Nullable Double threshold,
-            @ToolParam(description = "Максимальное количество результатов", required = false)
+            @ToolParam(description = "Maximum number of results.", required = false)
                     @Nullable Integer limit,
-            @ToolParam(
-                            description = "Вес ключевых слов в гибридном поиске (0.0–1.0)",
-                            required = false)
+            @ToolParam(description = "Keyword weight in hybrid mode (0.0–1.0).", required = false)
                     @Nullable Double kwWeight,
-            @ToolParam(description = "Вес семантики в гибридном поиске (0.0–1.0)", required = false)
+            @ToolParam(description = "Semantic weight in hybrid mode (0.0–1.0).", required = false)
                     @Nullable Double semWeight) {
 
         String effectiveMode = (mode != null && !mode.isBlank()) ? mode.toLowerCase() : "hybrid";
@@ -132,7 +130,7 @@ public class DocumentFunction {
      */
     @Tool(
             description =
-                    "Получить структуру базы знаний: id, title, type, parentId всех узлов (без содержимого)",
+                    "List all knowledge base nodes (id, title, type, parentId) without content.",
             resultConverter = CompactToolResultConverter.class)
     public List<DocumentNode> getTreeSkeleton() {
         log.info("getTreeSkeleton called");
@@ -156,12 +154,11 @@ public class DocumentFunction {
      */
     @Tool(
             description =
-                    """
-                    Найти документы или папки по названию (точное или частичное совпадение, \
-                    сначала точные). Матчит ТОЛЬКО title, не содержимое.""",
+                    "Find document/folder by title (exact or partial match, case-insensitive, "
+                            + "exact matches first). Matches ONLY the title, not content.",
             resultConverter = CompactToolResultConverter.class)
     public List<DocumentNode> findDocumentsByName(
-            @ToolParam(description = "Полное или частичное название документа/папки") String name) {
+            @ToolParam(description = "Document/folder title (full or partial).") String name) {
         log.info("findDocumentsByName called: name='{}'", name);
         return documentService.findByName(name);
     }
@@ -177,12 +174,10 @@ public class DocumentFunction {
      */
     @Tool(
             description =
-                    """
-                    Получить конкретный документ или папку по id, включая полное содержимое \
-                    (description) и список прямых дочерних узлов.""",
+                    "Read full document/folder content by id, including direct children (shallow).",
             resultConverter = CompactToolResultConverter.class)
     public DocumentNode getDocument(
-            @ToolParam(description = "ID документа или папки") String documentId) {
+            @ToolParam(description = "Document or folder id.") String documentId) {
         log.info("getDocument called: documentId={}", documentId);
         return documentService.getById(Long.parseLong(documentId));
     }
@@ -198,13 +193,10 @@ public class DocumentFunction {
      * @return outline with the current descriptionVersion and a flat, document-ordered section list
      */
     @Tool(
-            description =
-                    """
-                    Получить оглавление markdown-документа (секции без содержимого) — для \
-                    чтения и точечных правок отдельных секций вместо всего документа.""",
+            description = "Get markdown outline (section titles, levels, sizes) without content.",
             resultConverter = CompactToolResultConverter.class)
     public DocumentOutline getDocumentOutline(
-            @ToolParam(description = "ID документа") String documentId) {
+            @ToolParam(description = "Document id.") String documentId) {
         log.info("getDocumentOutline called: documentId={}", documentId);
         DocumentNode node = requireDocument(documentId);
         List<MarkdownSections.Section> sections = MarkdownSections.parse(descriptionOf(node));
@@ -233,16 +225,13 @@ public class DocumentFunction {
      */
     @Tool(
             description =
-                    """
-                    Прочитать одну секцию markdown-документа (заголовок + содержимое + \
-                    подсекции), не загружая весь документ.""",
+                    "Read one markdown section (heading + body + subsections) without full load.",
             resultConverter = CompactToolResultConverter.class)
     public DocumentSection getDocumentSection(
-            @ToolParam(description = "ID документа") String documentId,
+            @ToolParam(description = "Document id.") String documentId,
             @ToolParam(
                             description =
-                                    "Путь секции из getDocumentOutline, например "
-                                            + "\"Установка > Docker\"")
+                                    "Section path from getDocumentOutline (e.g., \"Setup > Docker\").")
                     String sectionPath) {
         log.info(
                 "getDocumentSection called: documentId={} sectionPath='{}'",
@@ -282,27 +271,23 @@ public class DocumentFunction {
      */
     @Tool(
             description =
-                    """
-                    Заменить одну секцию markdown-документа (заголовок + содержимое + подсекции), \
-                    не передавая весь документ. Перед правкой прочитай секцию \
-                    (getDocumentSection) или документ (getDocument) в этом же ответе. \
-                    Одна секционная операция за раз; после неё перечитай оглавление.""",
+                    "Replace one markdown section. Read the section first (getDocumentSection) or full document (getDocument) in this same response. One operation per call; re-read outline afterward.",
             resultConverter = CompactToolResultConverter.class)
     public DocumentShort updateDocumentSection(
             ToolContext context,
-            @ToolParam(description = "ID документа") long documentId,
+            @ToolParam(description = "Document id.") long documentId,
             @ToolParam(
                             description =
-                                    "Путь секции из getDocumentOutline; _preamble — текст до "
-                                            + "первого заголовка")
+                                    "Section path from getDocumentOutline; _preamble = text before first heading.")
                     String sectionPath,
             @ToolParam(
                             description =
-                                    "Полный новый текст секции, начиная с её заголовка "
-                                            + "('## Название'). Ссылки на другие документы: "
-                                            + "[Название](/?doc=ID).")
+                                    "Full new section text, starting with its heading (e.g., \"## Title\"). "
+                                            + "Link other documents as [Title](/?doc=ID).")
                     String newContent,
-            @ToolParam(description = "descriptionVersion из getDocumentOutline/getDocumentSection")
+            @ToolParam(
+                            description =
+                                    "descriptionVersion from getDocumentOutline/getDocumentSection.")
                     int expectedDescriptionVersion) {
 
         log.info(
@@ -348,27 +333,21 @@ public class DocumentFunction {
      */
     @Tool(
             description =
-                    """
-                    Вставить новую секцию в markdown-документ до или после существующей. \
-                    Перед вызовом прочитай оглавление (getDocumentOutline) или документ \
-                    (getDocument) в этом же ответе. Одна секционная операция за раз; после \
-                    вставки перечитай оглавление (пути и версия меняются) — например, перед \
-                    правкой нумерации через renameDocumentSections.""",
+                    "Insert new section before/after existing one. Read outline (getDocumentOutline) or document (getDocument) first. One operation per call; re-read outline after (paths/versions change).",
             resultConverter = CompactToolResultConverter.class)
     public DocumentShort insertDocumentSection(
             ToolContext context,
-            @ToolParam(description = "ID документа") long documentId,
-            @ToolParam(description = "Путь существующей секции-якоря из getDocumentOutline")
+            @ToolParam(description = "Document id.") long documentId,
+            @ToolParam(description = "Existing anchor section path from getDocumentOutline.")
                     String anchorSectionPath,
-            @ToolParam(description = "Куда вставить относительно якоря: before или after")
+            @ToolParam(description = "Position: BEFORE or AFTER the anchor.")
                     InsertPosition position,
             @ToolParam(
                             description =
-                                    "Полный текст новой секции, начиная с её заголовка "
-                                            + "('## Название'). Ссылки на другие документы: "
-                                            + "[Название](/?doc=ID).")
+                                    "Full text of new section, starting with its heading (e.g., \"## Title\"). "
+                                            + "Link other documents as [Title](/?doc=ID).")
                     String newContent,
-            @ToolParam(description = "descriptionVersion из getDocumentOutline/getDocument")
+            @ToolParam(description = "descriptionVersion from getDocumentOutline/getDocument.")
                     int expectedDescriptionVersion) {
 
         log.info(
@@ -412,21 +391,18 @@ public class DocumentFunction {
      */
     @Tool(
             description =
-                    """
-                    Удалить одну секцию markdown-документа (заголовок + содержимое + подсекции). \
-                    Перед удалением прочитай секцию (getDocumentSection) или документ \
-                    (getDocument) в этом же ответе. Одна секционная операция за раз; после \
-                    удаления перечитай оглавление.""",
+                    "Delete one markdown section. Read section (getDocumentSection) or document (getDocument) first. One operation per call; re-read outline after.",
             resultConverter = CompactToolResultConverter.class)
     public DocumentShort deleteDocumentSection(
             ToolContext context,
-            @ToolParam(description = "ID документа") long documentId,
+            @ToolParam(description = "Document id.") long documentId,
             @ToolParam(
                             description =
-                                    "Путь секции из getDocumentOutline; _preamble — текст до "
-                                            + "первого заголовка")
+                                    "Section path from getDocumentOutline; _preamble = text before first heading.")
                     String sectionPath,
-            @ToolParam(description = "descriptionVersion из getDocumentOutline/getDocumentSection")
+            @ToolParam(
+                            description =
+                                    "descriptionVersion from getDocumentOutline/getDocumentSection.")
                     int expectedDescriptionVersion) {
 
         log.info(
@@ -461,19 +437,14 @@ public class DocumentFunction {
      */
     @Tool(
             description =
-                    """
-                    Массово переименовать заголовки секций markdown-документа одной атомарной \
-                    операцией (уровни и содержимое не меняются) — например, поправить нумерацию \
-                    после вставки/удаления секции. Пути берутся из текущего оглавления \
-                    (getDocumentOutline или getDocument в этом же ответе). Одна секционная \
-                    операция за раз; после неё перечитай оглавление.""",
+                    "Bulk-rename section headings (atomic operation). Example: fix numbering after insert/delete. Read outline first. One operation per call; re-read afterward.",
             resultConverter = CompactToolResultConverter.class)
     public DocumentShort renameDocumentSections(
             ToolContext context,
-            @ToolParam(description = "ID документа") long documentId,
-            @ToolParam(description = "Список переименований: {sectionPath, newTitle}")
+            @ToolParam(description = "Document id.") long documentId,
+            @ToolParam(description = "List of renames: {sectionPath, newTitle}.")
                     List<SectionRename> renames,
-            @ToolParam(description = "descriptionVersion из getDocumentOutline/getDocument")
+            @ToolParam(description = "descriptionVersion from getDocumentOutline/getDocument.")
                     int expectedDescriptionVersion) {
 
         log.info(
@@ -580,25 +551,20 @@ public class DocumentFunction {
      * @return created document with its new id
      */
     @Tool(
-            description =
-                    """
-                    Создать новый документ или папку в базе знаний. Укажи title, type \
-                    (document или folder), parentId (или null для корня) и description \
-                    (содержимое).""",
+            description = "Create new document or folder in the knowledge base.",
             resultConverter = CompactToolResultConverter.class)
     public DocumentShort createDocument(
-            @ToolParam(description = "Название документа или папки") String title,
-            @ToolParam(description = "Тип: 'document' или 'folder'", required = false)
+            @ToolParam(description = "Document or folder title.") String title,
+            @ToolParam(description = "Type: 'document' or 'folder'.", required = false)
                     @Nullable String type,
             @ToolParam(
-                            description =
-                                    "ID родительской папки (null или пусто для корневого уровня)",
+                            description = "Parent folder id (null or empty for root level).",
                             required = false)
                     @Nullable Long parentId,
             @ToolParam(
                             description =
-                                    "Содержимое документа (текст, markdown). "
-                                            + "Ссылки на другие документы базы знаний оформляй как [Название](/?doc=ID).",
+                                    "Document content (text or markdown). Link other knowledge "
+                                            + "base documents as [Title](/?doc=ID).",
                             required = false)
                     @Nullable String description) {
 
@@ -632,23 +598,17 @@ public class DocumentFunction {
      */
     @Tool(
             description =
-                    """
-                    Обновить существующий документ: изменить название и/или содержимое. \
-                    Передай только те поля, которые нужно изменить. Перед изменением \
-                    содержимого документ должен быть прочитан через getDocument в этом же \
-                    ответе.""",
+                    "Update document title and/or content. Read document (getDocument) first if changing content.",
             resultConverter = CompactToolResultConverter.class)
     public DocumentShort updateDocument(
             ToolContext context,
-            @ToolParam(description = "ID документа для обновления") long documentId,
-            @ToolParam(
-                            description = "Новое название (null чтобы оставить текущее)",
-                            required = false)
+            @ToolParam(description = "Document id.") long documentId,
+            @ToolParam(description = "New title (null to keep current).", required = false)
                     @Nullable String title,
             @ToolParam(
                             description =
-                                    "Новое содержимое (null чтобы оставить текущее). "
-                                            + "Ссылки на другие документы базы знаний оформляй как [Название](/?doc=ID).",
+                                    "New content (null to keep current). Link other knowledge "
+                                            + "base documents as [Title](/?doc=ID).",
                             required = false)
                     @Nullable String description) {
 

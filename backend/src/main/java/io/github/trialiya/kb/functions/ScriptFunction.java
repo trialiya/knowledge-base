@@ -55,30 +55,25 @@ public class ScriptFunction {
     @Tool(
             description =
                     """
-                    Выполняет JS-скрипт, который сам обходит репозиторий: доступен только объект kb \
-                    (kb.files, kb.read, kb.grep, kb.outline, kb.searchDocs, kb.log; при включённой \
-                    правке ещё kb.edit и kb.create) — файловых, сетевых и Java-API нет. Результат \
-                    возвращай через return. Бери, когда нужно пройтись по многим файлам и что-то \
-                    сопоставить/посчитать/изменить; для одного точного поиска, чтения или правки \
-                    используй grepContent / getFileContent / editFile. Справочник по kb и лимиты — \
-                    в системном промпте, раздел «Скрипты (runScript)». \
-                    Ответ: value (то, что вернул скрипт), log, stats, filesRead, edits (диффы \
-                    изменённых файлов), error (kind=SYNTAX|RUNTIME|TIMEOUT|BUDGET с подсказкой, \
-                    как починить).
+                    Runs JavaScript (ES2023) that traverses the repo itself: only kb object available \
+                    (kb.files, kb.read, kb.grep, kb.outline, kb.searchDocs, kb.log; kb.edit and kb.create \
+                    when writes enabled)—no file APIs, network, or Java. Return via return statement. \
+                    Use for many-file iteration with tallying/joining/edits; for single searches, reads, \
+                    or edits use grepContent / getFileContent / editFile. Full kb reference and limits in \
+                    system prompt section "Scripts (runScript)". Returns: value (script result), log, stats, \
+                    filesRead, edits (file diffs), error (kind=SYNTAX|RUNTIME|TIMEOUT|BUDGET with fix hint).
                     """,
             resultConverter = CompactToolResultConverter.class)
     public ScriptResult runScript(
             ToolContext context,
             @ToolParam(
                             description =
-                                    "Тело скрипта на JavaScript (ES2023). Выполняется как тело "
-                                            + "функции — верхнеуровневый return разрешён и является "
-                                            + "способом вернуть результат.")
+                                    "JavaScript (ES2023) script body. Executes as function body—top-level "
+                                            + "return allowed, only way to return result.")
                     String script,
             @ToolParam(
                             description =
-                                    "Лимит времени в секундах. По умолчанию 10, максимум 30 "
-                                            + "(значения сверх максимума молча урезаются).",
+                                    "Time limit in seconds. Default 10, max 30 (values over max truncated silently).",
                             required = false)
                     @Nullable Integer timeoutSeconds) {
         log.info("runScript called: {} chars, timeoutSeconds={}", script.length(), timeoutSeconds);
