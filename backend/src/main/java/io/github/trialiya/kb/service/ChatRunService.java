@@ -112,12 +112,19 @@ public class ChatRunService {
             AtomicBoolean stopRequested,
             AtomicBoolean persisted) {}
 
-    /** Запускает генерацию в фоне и сразу возвращает runId — HTTP-запрос не держим. */
+    /**
+     * Запускает генерацию в фоне и сразу возвращает runId — HTTP-запрос не держим.
+     *
+     * @param weakModel {@code ChatModelProperties#isWeak} результата резолва {@code resolvedModel}
+     *     — решает, попадёт ли в системный промпт обучающая половина руководства по скриптам (см.
+     *     {@code ScriptGuideService})
+     */
     public String start(
             String conversationId,
             String user,
             String userMessage,
             @Nullable String resolvedModel,
+            boolean weakModel,
             String modeInstructions,
             String clientMsgId) {
         final String runId = UUID.randomUUID().toString();
@@ -143,7 +150,14 @@ public class ChatRunService {
         // ещё и явно — через toolContext (см. buildContext ниже).
         try {
             executor.execute(
-                    () -> run(handle, userMessage, resolvedModel, modeInstructions, clientMsgId));
+                    () ->
+                            run(
+                                    handle,
+                                    userMessage,
+                                    resolvedModel,
+                                    weakModel,
+                                    modeInstructions,
+                                    clientMsgId));
         } catch (RuntimeException e) {
             // например, RejectedExecutionException при остановке пула — не оставляем чат «занятым».
             cleanup(handle);
@@ -226,6 +240,7 @@ public class ChatRunService {
             RunHandle handle,
             String userMessage,
             @Nullable String resolvedModel,
+            boolean weakModel,
             String modeInstructions,
             String clientMsgId) {
         final String conversationId = handle.conversationId();
@@ -262,7 +277,8 @@ public class ChatRunService {
                                             sp.param("mode_instructions", modeInstructions)
                                                     .param(
                                                             "script_instructions",
-                                                            scriptGuideService.instructions()))
+                                                            scriptGuideService.instructions(
+                                                                    weakModel)))
                             .user(userMessage)
                             .toolContext(
                                     ChatUtils.buildContext(

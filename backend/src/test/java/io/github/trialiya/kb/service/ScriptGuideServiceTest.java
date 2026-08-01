@@ -14,8 +14,10 @@ import org.springframework.util.unit.DataSize;
 
 /**
  * The handbook is the difference between a weak model using {@code runScript} and ignoring it, so
- * two things have to hold: it is absent entirely when the tool is off, and its budget numbers come
- * from the configuration rather than from whatever was typed into the markdown.
+ * three things have to hold: it is absent entirely when the tool is off, its budget numbers come
+ * from the configuration rather than from whatever was typed into the markdown, and the tutorial
+ * half tracks the {@code weak} flag passed to {@link ScriptGuideService#instructions} rather than a
+ * deployment-wide switch.
  */
 class ScriptGuideServiceTest {
 
@@ -23,15 +25,17 @@ class ScriptGuideServiceTest {
     void saysNothingAboutScriptsWhenTheToolIsDisabled() {
         ScriptProperties disabled =
                 new ScriptProperties(
-                        false, false, true, null, null, null, null, null, null, null, null, null,
-                        null);
+                        false, false, null, null, null, null, null, null, null, null, null, null);
 
-        assertThat(guide(disabled, false).instructions()).isEmpty();
+        ScriptGuideService service = guide(disabled, false);
+        assertThat(service.instructions(true)).isEmpty();
+        assertThat(service.instructions(false)).isEmpty();
     }
 
     @Test
     void shipsTheRealHandbookWhenTheToolIsEnabled() {
-        String instructions = guide(ScriptProperties.enabledWithDefaults(), false).instructions();
+        String instructions =
+                guide(ScriptProperties.enabledWithDefaults(), false).instructions(true);
 
         assertThat(instructions).contains("runScript", "kb.read", "kb.grep");
         // Every placeholder must have been substituted — a literal {{...}} in the system prompt is
@@ -48,7 +52,6 @@ class ScriptGuideServiceTest {
         ScriptProperties properties =
                 new ScriptProperties(
                         true,
-                        false,
                         false,
                         guide,
                         null,
@@ -68,7 +71,9 @@ class ScriptGuideServiceTest {
                         List.of(),
                         List.of());
 
-        assertThat(guide(properties, false).instructions())
+        // weak=false: the real script-run-extended.md must not get appended on top of the tiny
+        // stand-in guide above, or the equality check below would see its text too.
+        assertThat(guide(properties, false).instructions(false))
                 .isEqualTo("файлов: 13, время: 7 с, максимум 42 с");
     }
 
@@ -84,9 +89,9 @@ class ScriptGuideServiceTest {
                         "всего: {{max_bytes_read}}, правки: {{max_edited_bytes}}"
                                 .getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
-        assertThat(guide(sized(guide, DataSize.ofKilobytes(512)), false).instructions())
+        assertThat(guide(sized(guide, DataSize.ofKilobytes(512)), false).instructions(false))
                 .isEqualTo("всего: 512 КБ, правки: 256 КБ");
-        assertThat(guide(sized(guide, DataSize.ofMegabytes(32)), false).instructions())
+        assertThat(guide(sized(guide, DataSize.ofMegabytes(32)), false).instructions(false))
                 .isEqualTo("всего: 32 МБ, правки: 256 КБ");
     }
 
@@ -94,19 +99,21 @@ class ScriptGuideServiceTest {
     void mentionsTheWriteMethodsOnlyWhenTheyAreActuallyBound() {
         ScriptProperties properties = ScriptProperties.enabledWithDefaults();
 
-        assertThat(guide(properties, false).instructions()).doesNotContain("kb.edit", "kb.create");
-        assertThat(guide(properties, true).instructions()).contains("kb.edit", "kb.create");
+        assertThat(guide(properties, false).instructions(true))
+                .doesNotContain("kb.edit", "kb.create");
+        assertThat(guide(properties, true).instructions(true)).contains("kb.edit", "kb.create");
     }
 
     /**
-     * The split is only worth having if the two halves are the ones described: switching the
-     * tutorial off must cost the examples and nothing else. A model that lost the {@code kb}
+     * The split is only worth having if the two halves are the ones described: a strong model
+     * losing the tutorial must cost the examples and nothing else. A model that lost the {@code kb}
      * reference or the edit rules along with them would be worse off than with no handbook at all.
      */
     @Test
-    void dropsTheTutorialButKeepsTheReferenceWhenTheExtendedGuideIsOff() {
-        String full = guide(ScriptProperties.enabledWithDefaults(), true).instructions();
-        String reference = guide(withoutExtendedGuide(), true).instructions();
+    void dropsTheTutorialForAStrongModelButKeepsTheReferenceForBoth() {
+        ScriptGuideService service = guide(ScriptProperties.enabledWithDefaults(), true);
+        String full = service.instructions(true);
+        String reference = service.instructions(false);
 
         assertThat(reference)
                 .contains(
@@ -127,24 +134,25 @@ class ScriptGuideServiceTest {
     }
 
     @Test
+    void readOnlyInstructionsAlsoTracksTheWeakFlag() {
+        ScriptGuideService service = guide(ScriptProperties.enabledWithDefaults(), true);
+
+        assertThat(service.readOnlyInstructions(true)).contains("### Примеры");
+        assertThat(service.readOnlyInstructions(false)).doesNotContain("### Примеры");
+    }
+
+    @Test
     void neverOffersWritesToTheSearchSubAgentEvenWhereTheMainChatMayEdit() {
         ScriptGuideService service = guide(ScriptProperties.enabledWithDefaults(), true);
 
-        assertThat(service.instructions()).contains("kb.edit");
-        assertThat(service.readOnlyInstructions()).doesNotContain("kb.edit");
-    }
-
-    /** The real handbooks, with only the tutorial halves switched off. */
-    private static ScriptProperties withoutExtendedGuide() {
-        return new ScriptProperties(
-                true, true, false, null, null, null, null, null, null, null, null, null, null);
+        assertThat(service.instructions(true)).contains("kb.edit");
+        assertThat(service.readOnlyInstructions(true)).doesNotContain("kb.edit");
     }
 
     /** {@code properties} with one guide and one byte budget varied; the rest stay at defaults. */
     private static ScriptProperties sized(Resource guide, DataSize maxBytesRead) {
         return new ScriptProperties(
                 true,
-                false,
                 false,
                 guide,
                 null,

@@ -304,7 +304,9 @@ public class ChatController {
                                         sp.param("mode_instructions", modeInstructions)
                                                 .param(
                                                         "script_instructions",
-                                                        scriptGuideService.instructions()))
+                                                        scriptGuideService.instructions(
+                                                                chatModelProperties.isWeak(
+                                                                        resolvedModel))))
                         .user(userMessage)
                         .toolContext(buildContext(conversationId, toolCollector))
                         .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId));
@@ -349,6 +351,7 @@ public class ChatController {
                         getUser(),
                         userMessage,
                         resolvedModel,
+                        chatModelProperties.isWeak(resolvedModel),
                         modeInstructions,
                         clientMsgId);
         return Map.of("runId", runId);
