@@ -16,7 +16,7 @@
  */
 export const defaultAiConfig = {
   chat: {
-    defaultModel: { id: 'gpt-4o-mini', label: 'GPT-4o mini' },
+    defaultModel: { id: 'gpt-4o-mini', label: 'GPT-4o mini', weak: true },
     models: [],
     options: {
       maxTokens: 30000,
@@ -74,6 +74,28 @@ export const defaultAiConfig = {
     mcp: { enabled: false, connections: [] },
     uploads: { maxFileSizeBytes: 1048576, maxRequestSizeBytes: 2097152 },
   },
+  // kb.script.* с дефолтами из application.yaml: инструмент выключен, поэтому
+  // в группе «Скрипты» видны пояснение про выключенный runScript и
+  // заблокированная кнопка запуска.
+  script: {
+    enabled: false,
+    editEnabled: true,
+    editActive: false,
+    timeoutSeconds: 10,
+    maxTimeoutSeconds: 30,
+    cancelPollMillis: 50,
+    limits: {
+      maxFilesRead: 2000,
+      maxBytesRead: 33554432,
+      maxCalls: 2000,
+      maxLogChars: 20000,
+      maxResultChars: 20000,
+      maxEditedFiles: 20,
+      maxEditedBytes: 262144,
+    },
+    denyGlobs: [],
+    allowGlobs: [],
+  },
 };
 
 /**
@@ -95,4 +117,30 @@ export const editEnabledButReadOnlyTree = {
       ],
     },
   },
+};
+
+/**
+ * Список моделей, в котором weak размечен по-разному: пилюля «weak» стоит у
+ * одной строки и отсутствует у другой. На defaultAiConfig секции «Доступные
+ * модели» нет вовсе — kb.chat.models пуст.
+ */
+export const strongAndWeakModels = {
+  ...defaultAiConfig,
+  chat: {
+    ...defaultAiConfig.chat,
+    defaultModel: { id: 'strong-model', label: 'Strong', weak: false },
+    models: [
+      { id: 'strong-model', label: 'Strong', weak: false },
+      { id: 'weak-model', label: 'Weak', weak: true },
+    ],
+  },
+};
+
+/**
+ * runScript включён (KB_SCRIPT_ENABLED=true) — единственное состояние, в
+ * котором пробный запуск действительно работает.
+ */
+export const scriptEnabled = {
+  ...defaultAiConfig,
+  script: { ...defaultAiConfig.script, enabled: true },
 };

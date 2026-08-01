@@ -1,0 +1,86 @@
+/* ═══════════════════════════════════════════════
+   SETTINGS · SCRIPTS — пробный запуск (ScriptBench)
+═══════════════════════════════════════════════ */
+
+/* Поле скрипта — общий .set-textarea, здесь только высота: пример на полсотни
+   строк, и печатать его в окне на 120px нечитаемо. Растягивать поле дальше
+   пользователь может сам (resize: vertical у .set-textarea). */
+.script-bench__editor {
+  min-height: 320px;
+}
+
+.script-bench__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.script-bench__hint {
+  font-size: 0.8rem;
+  color: var(--kb-muted);
+}
+
+/* ── Ответ прогона ── */
+.script-result {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--kb-border-light);
+  border-radius: 10px;
+  background: var(--kb-bg);
+}
+
+/* Счётчики в строку: их четыре и они короткие, но на узкой панели переносятся. */
+.script-result__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-family: var(--kb-font-mono);
+  font-size: 0.78rem;
+  color: var(--kb-muted);
+}
+
+.script-result__error {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--kb-text);
+}
+
+.script-result__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--kb-muted);
+}
+
+/* Результат и журнал — как их вернул движок: длинные строки переносятся, а не
+   уезжают в горизонтальную прокрутку, но высота ограничена, чтобы ответ на
+   тысячу строк не отодвигал всё остальное за край экрана. */
+.script-result__pre {
+  margin: 0;
+  max-height: 320px;
+  overflow: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--kb-border-light);
+  border-radius: 8px;
+  background: var(--kb-white);
+  font-family: var(--kb-font-mono);
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--kb-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.script-result__files {
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--kb-muted);
+  word-break: break-word;
+}

@@ -4,7 +4,8 @@
     "phrases": "Phrase library",
     "models": "Models",
     "search": "Search",
-    "tools": "Tools"
+    "tools": "Tools",
+    "scripts": "Scripts"
   },
   "config": {
     "loading": "Loading…",
@@ -39,11 +40,14 @@
     },
     "chat": {
       "label": "Main model (Chat)",
-      "model": "Model"
+      "model": "Model",
+      "weak": "Weak model (weak)",
+      "weakNote": "The weak flag is set per model (kb.chat.default-model.weak, kb.chat.models[].weak) and affects only how much of the runScript handbook goes into the system prompt: a weak model also gets the tutorial half with worked examples, a strong one gets the kb and limits reference alone. Defaults to true."
     },
     "available": {
       "label": "Available models",
-      "defaultBadge": "default"
+      "defaultBadge": "default",
+      "weakBadge": "weak"
     },
     "searchCodebase": {
       "label": "Search agent (searchCodebase)",
@@ -119,6 +123,62 @@
       "label": "Attachment limits",
       "maxFileSize": "Max file size",
       "maxRequestSize": "Max request size"
+    }
+  },
+  "scripts": {
+    "title": "Scripts (runScript)",
+    "subtitle": "The sandbox the model walks the repository in, its budgets, and a test run",
+    "status": {
+      "label": "Status",
+      "enabled": "The runScript tool",
+      "editEnabled": "Script edits allowed in configuration",
+      "editActive": "kb.edit / kb.create bound into the sandbox",
+      "disabledNote": "The tool is off (kb.script.enabled=false) — the model is never told about scripts, and the test run below is refused.",
+      "readOnlyNote": "Script edits are enabled in the configuration but have no effect: kb.git.edit-enabled and a writable working tree are also required."
+    },
+    "time": {
+      "label": "Execution time",
+      "timeout": "Default budget",
+      "maxTimeout": "Ceiling for timeoutSeconds",
+      "cancelPoll": "Watchdog poll interval",
+      "msValue": "{{ms}} ms"
+    },
+    "limits": {
+      "label": "Per-run budgets",
+      "maxFilesRead": "Files read",
+      "maxBytesRead": "Bytes read",
+      "maxCalls": "kb.* calls",
+      "maxLogChars": "Characters in kb.log",
+      "maxResultChars": "Characters in the result",
+      "maxEditedFiles": "Files written",
+      "maxEditedBytes": "Bytes written",
+      "note": "The budgets bound the backend, not the model's context: only the returned value and the log ever reach it. A repeat kb.* call with the same arguments is answered from the run's cache and spends nothing."
+    },
+    "globs": {
+      "label": "File visibility",
+      "deny": "Hidden paths (deny globs)",
+      "denyEmpty": "Not set — nothing is hidden on top of .gitignore",
+      "allow": "Only these paths (allow globs)",
+      "allowEmpty": "Not set — every tracked file is visible"
+    },
+    "bench": {
+      "label": "Test run",
+      "note": "The script runs on the same engine and under the same limits as the model's, but always read-only: kb.edit and kb.create are not bound. The body runs as a function body — return the result with return.",
+      "editorLabel": "Script body",
+      "run": "Run",
+      "running": "Running…",
+      "reset": "Restore the example",
+      "disabledHint": "Running is unavailable: kb.script.enabled=false",
+      "disabledError": "Scripts are disabled in the configuration (kb.script.enabled=false).",
+      "requestError": "Could not run the script — see the server log for details.",
+      "statsFiles": "files: {{files}}",
+      "statsBytes": "read: {{size}}",
+      "statsCalls": "kb.* calls: {{calls}}",
+      "statsElapsed": "{{ms}} ms",
+      "errorLine": "line {{line}}",
+      "log": "Log (kb.log)",
+      "value": "Result (return)",
+      "filesRead": "Files read: {{files}}"
     }
   },
   "admin": {
