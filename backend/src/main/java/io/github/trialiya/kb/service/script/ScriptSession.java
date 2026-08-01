@@ -83,9 +83,12 @@ public final class ScriptSession {
 
     /**
      * Memoized results of read-only {@code kb.*} calls, keyed on the call's own arguments. Safe for
-     * the run's whole lifetime because the snapshot it reads from cannot move under it: nothing
-     * this run writes reaches disk until it finishes (see {@code ScriptRunner}), and nothing else
-     * writes to the working tree while it runs. See {@link #cached}.
+     * the run's whole lifetime: nothing this run writes reaches disk until it finishes (see {@code
+     * ScriptRunner}), so a script cannot read back its own staged edits either way. A concurrent
+     * writer — another run applying its edits, the {@code editFile} tool — is not excluded, but
+     * runs are not serialised against one another to begin with: without the cache such a run would
+     * see a torn mix of before and after, and with it, the first answer for a given call. See
+     * {@link #cached}.
      */
     private final Map<List<Object>, Object> cache = new HashMap<>();
 
