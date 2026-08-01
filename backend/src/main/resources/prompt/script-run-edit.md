@@ -1,40 +1,30 @@
-### Скрипты: правка файлов
+### Scripts: file edits
 
-В этом окружении скрипту доступны ещё два метода. Они меняют рабочее дерево репозитория,
-поэтому правила жёстче, чем у чтения.
+Two more methods available here. They modify the repo worktree, so stricter rules.
 
-| Вызов | Что делает |
+| Call | Does |
 |---|---|
-| `kb.edit(path, oldString, newString)` | заменяет **одно** точное вхождение `oldString` |
-| `kb.edit(path, oldString, newString, true)` | заменяет **все** вхождения |
-| `kb.create(path, content)` | создаёт новый файл; падает, если файл уже существует |
+| `kb.edit(path, oldString, newString)` | replace **one** exact `oldString` match |
+| `kb.edit(path, oldString, newString, true)` | replace **all** matches |
+| `kb.create(path, content)` | create new file; fails if exists |
 
-Оба возвращают `{path, operation, occurrences}`. Полные диффы приходят в поле `edits` ответа
-инструмента — их увидит пользователь.
+Both return `{path, operation, occurrences}`. Full diffs in response `edits` field—user sees them.
 
-### Обязательные правила
-1. **Сначала посмотри, потом правь.** `kb.edit` по файлу, текст которого скрипт не видел, — ошибка.
-   Засчитывается любое из двух: `kb.read` (целиком или диапазоном) **или** совпадение `kb.grep`
-   в этом файле. Второе — обычный путь для массовой замены: `oldString` берётся из `hit.text`,
-   и перечитывать файл ради формальности не нужно.
-2. **`oldString` должен совпадать посимвольно** — с отступами и переводами строк, как в файле.
-   Не сочиняй его по памяти: возьми из того, что вернул `kb.read`.
-3. **`oldString` должен быть уникален** в файле. Если вхождений несколько — либо расширь его
-   соседними строками, либо передай четвёртым аргументом `true`.
-4. **Правки внутри одного скрипта видят друг друга.** Вторая правка того же файла работает уже
-   по изменённому тексту — так же, как если бы ты правил файл по очереди.
+### Rules
+1. **Read first, edit second.** `kb.edit` on unread file is error. Either `kb.read` (whole or range) **or** `kb.grep` match in file counts. Grep match is normal for bulk replace: take `oldString` from `hit.text`, no need to re-read formally.
+2. **`oldString` exact match** including whitespace and line breaks. Don't compose from memory—take from `kb.read`.
+3. **`oldString` unique in file.** Multiple matches? Extend with surrounding lines or pass `true` as 4th arg.
+4. **Edits see each other.** Second edit same file operates on changed text—like manual sequential edits.
 
-### Всё или ничего
-Ни один `kb.edit` / `kb.create` не пишет на диск сразу — изменения копятся и применяются один
-раз, когда скрипт **успешно** дошёл до конца. Если скрипт упал, не уложился в лимит или его
-остановил пользователь — на диске не меняется **ничего**. Поэтому:
+### All-or-nothing
+No `kb.edit`/`kb.create` writes disk immediately. Changes accumulate and apply once when script completes successfully. If script crashes, times out, or user stops—disk unchanged. So:
 
-- не бойся упасть на середине — незавершённых правок не останется;
-- но и не рассчитывай, что «часть уже применилась»: либо весь прогон, либо ничего.
+- Don't fear crash mid-script—no partial edits remain.
+- But don't assume "some already applied": either full run or nothing.
 
-Изменения **не коммитятся** — пользователь сам просмотрит их и решит.
+Changes **not committed**—user reviews and decides.
 
-### Лимиты правок
-- файлов на изменение за прогон: {{max_edited_files}};
-- суммарный размер изменённых файлов: {{max_edited_bytes}};
-- править можно только текстовые файлы, помещающиеся в чтение целиком.
+### Edit limits
+- files to change per run: {{max_edited_files}};
+- total changed file size: {{max_edited_bytes}};
+- text files only, readable as whole.
