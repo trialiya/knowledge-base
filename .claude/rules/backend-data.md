@@ -25,13 +25,10 @@ The least guessable part of the backend. Read this before touching
   reintroduce positional or offset arithmetic over message history.
 - **The index is filled at persist time** (`ChatMemoryService.saveAll`), not by a
   background job. Keep it in sync when changing how messages are saved.
-- **`ToolCallIdBackfillRunner` is run-once legacy support** for data recorded
-  before `tool_call_index`/`callId` existed. It runs on every startup but does
-  real work only once: a marker row in `backfill_state` (key
-  `ChatMemoryService.TOOL_CALL_ID_BACKFILL_KEY`) is written in the same
-  transaction as the backfill itself, so later starts are a cheap no-op. No
-  config flag involved. Once every environment has been backfilled it — and
-  `ChatMemoryService.backfillToolCallIds` — should be deleted, not extended.
+- **Legacy backfill for old data:** `ChatMemoryService.backfillToolCallIds`
+  fills in `tool_call_index` for chats recorded before it existed. Do not extend
+  it; plan to delete both it and `ToolCallIdBackfillRunner` once all
+  environments have backfilled.
 
 Migrations for this live in both `db/migration` (Postgres) and `db/migration-h2`.
 
