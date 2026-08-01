@@ -12,6 +12,7 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
+import io.github.trialiya.kb.repository.BackfillStateRepository;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
@@ -54,13 +55,15 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
     @Autowired private Clock clock;
     @Autowired private ChatMessageRepository messageRepo;
     @Autowired private ToolCallIndexRepository toolCallIndexRepo;
+    @Autowired private BackfillStateRepository backfillStateRepo;
 
     private ChatMemoryService memory() {
         return new ChatMemoryService(
                 topicRepo,
                 messageRepo,
                 new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))),
-                toolCallIndexRepo);
+                toolCallIndexRepo,
+                backfillStateRepo);
     }
 
     private static String newConversation() {
