@@ -117,16 +117,9 @@ class ScriptGuideServiceTest {
 
         assertThat(reference)
                 .contains(
-                        "### kb reference",
-                        "kb.grep",
-                        "### Limits per run",
-                        "### Rules",
-                        "kb.edit")
-                .doesNotContain(
-                        "### Examples", "### Pitfalls", "### Example: bulk rename");
-        assertThat(full)
-                .contains(
-                        "### Examples", "### Pitfalls", "### Example: bulk rename");
+                        "### kb reference", "kb.grep", "### Limits per run", "### Rules", "kb.edit")
+                .doesNotContain("### Examples", "### Pitfalls", "### Example: bulk rename");
+        assertThat(full).contains("### Examples", "### Pitfalls", "### Example: bulk rename");
         // Substitution runs over the assembled text, so a placeholder left in an appendix would
         // reach the model verbatim.
         assertThat(full).doesNotContain("{{");
