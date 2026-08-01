@@ -643,8 +643,10 @@ const ChatWindow = ({
         setComposerResetSignal((n) => n + 1);
         return;
       }
-      if (chats.length <= 1) return;
       const chat = chats.find((c) => c.id === id);
+      // NotFound-чат — локальная строка-заглушка битой ссылки: удалить можно даже
+      // когда он единственный (реального чата на бэкенде нет, см. confirmDeleteChat).
+      if (!chat?.notFound && chats.length <= 1) return;
       setChatDeleteConfirm({ id, title: chat?.title ?? '' });
     },
     [chats, clearDraft],
@@ -660,27 +662,46 @@ const ChatWindow = ({
     setChatDeleteConfirm(null);
     if (!target) return;
     const { id } = target;
-    locallyDeletingRef.current.add(id);
-    try {
-      const res = await chatApi.deleteChat(id);
-      if (!res.ok) {
+    // NotFound-чат (битая ссылка) на бэкенде не существует — DELETE всегда вернул
+    // бы 404, поэтому строку удаляем локально, без запроса к серверу.
+    const chat = chatsRef.current.find((c) => c.id === id);
+    const isLocalOnly = !!chat?.notFound;
+
+    if (!isLocalOnly) {
+      locallyDeletingRef.current.add(id);
+      try {
+        const res = await chatApi.deleteChat(id);
+        if (!res.ok) {
+          locallyDeletingRef.current.delete(id);
+          // 404 = чата на сервере уже нет (удалён в другой сессии / битая ссылка):
+          // локальное удаление всё равно корректно; остальные статусы — ошибка.
+          if (res.status !== 404) {
+            setDeleteErrorNotice({ status: res.status });
+            return;
+          }
+        }
+      } catch {
         locallyDeletingRef.current.delete(id);
-        setDeleteErrorNotice({ status: res.status });
+        setDeleteErrorNotice({ status: 'network' });
         return;
       }
-    } catch {
-      locallyDeletingRef.current.delete(id);
-      setDeleteErrorNotice({ status: 'network' });
-      return;
     }
     clearDraft(id); // черновик удалённого чата больше не нужен
-    setChats((prev) => prev.filter((chat) => chat.id !== id));
+    setChatErrorModal(null); // закрываем модалку «Чат не найден» для удаляемой строки
+    setChats((prev) => prev.filter((item) => item.id !== id));
     if (activeChatId === id) {
-      const remaining = chatsRef.current.filter((chat) => chat.id !== id);
+      const remaining = chatsRef.current.filter((item) => item.id !== id);
       const newActiveId = remaining[0]?.id || null;
-      selectChat(newActiveId);
+      if (newActiveId) {
+        selectChat(newActiveId);
+      } else {
+        // Чатов не осталось: стартуем свежий черновик и чистим битый id из памяти
+        // (selectChat(DRAFT_CHAT_ID) перезапишет localStorage валидным значением).
+        localStorage.removeItem(STORAGE_KEY_ACTIVE_CHAT);
+        handleNewChat();
+      }
     }
-  }, [chatDeleteConfirm, activeChatId, selectChat, clearDraft]);
+  }, [chatDeleteConfirm, activeChatId, selectChat, clearDraft, handleNewChat]);
 
   const handleSelectChat = useCallback(
     (id) => {
