@@ -16,6 +16,7 @@ import useChatMessages from './useChatMessages';
 import useChatEventStream from './useChatEventStream';
 import useInChatSearch from './useInChatSearch';
 import useChatDrafts from './useChatDrafts';
+import useChatDeletion from './useChatDeletion';
 
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
@@ -106,16 +107,12 @@ const ChatWindow = ({
   const lastModeRef = useRef(localStorage.getItem(STORAGE_KEY_LAST_MODE) || '');
   // Модалка ошибки загрузки чата: null | { notFound: bool, status }
   const [chatErrorModal, setChatErrorModal] = useState(null);
-  // Модалка подтверждения удаления чата: null | { id, title }
-  const [chatDeleteConfirm, setChatDeleteConfirm] = useState(null);
   // Уведомление «в чате уже идёт генерация» (ответ сервера 409 на старт прогона).
   const [busyNotice, setBusyNotice] = useState(false);
   // Уведомление «чат удалён в другой вкладке» (событие CHAT_DELETED из потока).
   const [deletedNotice, setDeletedNotice] = useState(false);
   // Уведомление об ошибке загрузки файла (вместо нативного alert).
   const [uploadErrorNotice, setUploadErrorNotice] = useState(false);
-  // Уведомление об ошибке удаления чата на сервере: null | { status }.
-  const [deleteErrorNotice, setDeleteErrorNotice] = useState(null);
   // chatId, для которого POST /runs уже отправлен, но runId ещё не получен.
   // Закрывает окно между кликом «отправить» и ответом сервера: isStreaming
   // становится true синхронно, и ввод блокируется сразу, а не с приходом runId.
@@ -214,7 +211,14 @@ const ChatWindow = ({
           // Явный ?chat=<id> в URL, которого больше нет (устаревшая ссылка) —
           // показываем «не найдено». Автоматически НЕ переключаемся: пользователь
           // перешёл по конкретной ссылке и должен увидеть, что чат недоступен.
-          const placeholder = { id: currentId, title: '...', messages: null, createdAt: null, model: null };
+          const placeholder = {
+            id: currentId,
+            title: '...',
+            messages: null,
+            createdAt: null,
+            model: null,
+            notFound: true,
+          };
           setChats([placeholder, ...chatList]);
         } else {
           // Чат в URL не задан (его нет вовсе, либо id из localStorage устарел) —
@@ -634,6 +638,24 @@ const ChatWindow = ({
     // (attachment panel stays as-is on new chat)
   }, [selectChat, makeDraft]);
 
+  const {
+    chatDeleteConfirm,
+    deleteErrorNotice,
+    requestDeleteChat,
+    confirmDeleteChat,
+    cancelDeleteChat,
+    dismissDeleteErrorNotice,
+  } = useChatDeletion({
+    chatsRef,
+    activeChatId,
+    selectChat,
+    setChats,
+    clearDraft,
+    handleNewChat,
+    setChatErrorModal,
+    locallyDeletingRef,
+  });
+
   const handleDeleteChat = useCallback(
     (id) => {
       if (id === DRAFT_CHAT_ID) {
@@ -643,65 +665,10 @@ const ChatWindow = ({
         setComposerResetSignal((n) => n + 1);
         return;
       }
-      const chat = chats.find((c) => c.id === id);
-      // NotFound-чат — локальная строка-заглушка битой ссылки: удалить можно даже
-      // когда он единственный (реального чата на бэкенде нет, см. confirmDeleteChat).
-      if (!chat?.notFound && chats.length <= 1) return;
-      setChatDeleteConfirm({ id, title: chat?.title ?? '' });
+      requestDeleteChat(id);
     },
-    [chats, clearDraft],
+    [clearDraft, requestDeleteChat],
   );
-
-  // Реальное удаление — после подтверждения в модалке. Помечаем как «наше»
-  // удаление ДО запроса — эхо CHAT_DELETED по потоку не покажет нам модалку
-  // «удалён в другой вкладке» — но снимаем метку обратно, если сервер отказал:
-  // иначе будущее реальное удаление этого чата (кем-то другим) молча
-  // проигнорируется, как будто это снова наше же эхо.
-  const confirmDeleteChat = useCallback(async () => {
-    const target = chatDeleteConfirm;
-    setChatDeleteConfirm(null);
-    if (!target) return;
-    const { id } = target;
-    // NotFound-чат (битая ссылка) на бэкенде не существует — DELETE всегда вернул
-    // бы 404, поэтому строку удаляем локально, без запроса к серверу.
-    const chat = chatsRef.current.find((c) => c.id === id);
-    const isLocalOnly = !!chat?.notFound;
-
-    if (!isLocalOnly) {
-      locallyDeletingRef.current.add(id);
-      try {
-        const res = await chatApi.deleteChat(id);
-        if (!res.ok) {
-          locallyDeletingRef.current.delete(id);
-          // 404 = чата на сервере уже нет (удалён в другой сессии / битая ссылка):
-          // локальное удаление всё равно корректно; остальные статусы — ошибка.
-          if (res.status !== 404) {
-            setDeleteErrorNotice({ status: res.status });
-            return;
-          }
-        }
-      } catch {
-        locallyDeletingRef.current.delete(id);
-        setDeleteErrorNotice({ status: 'network' });
-        return;
-      }
-    }
-    clearDraft(id); // черновик удалённого чата больше не нужен
-    setChatErrorModal(null); // закрываем модалку «Чат не найден» для удаляемой строки
-    setChats((prev) => prev.filter((item) => item.id !== id));
-    if (activeChatId === id) {
-      const remaining = chatsRef.current.filter((item) => item.id !== id);
-      const newActiveId = remaining[0]?.id || null;
-      if (newActiveId) {
-        selectChat(newActiveId);
-      } else {
-        // Чатов не осталось: стартуем свежий черновик и чистим битый id из памяти
-        // (selectChat(DRAFT_CHAT_ID) перезапишет localStorage валидным значением).
-        localStorage.removeItem(STORAGE_KEY_ACTIVE_CHAT);
-        handleNewChat();
-      }
-    }
-  }, [chatDeleteConfirm, activeChatId, selectChat, clearDraft, handleNewChat]);
 
   const handleSelectChat = useCallback(
     (id) => {
@@ -998,7 +965,7 @@ const ChatWindow = ({
         confirmLabel={t('deleteModal.confirm')}
         cancelLabel={t('deleteModal.cancel')}
         onConfirm={confirmDeleteChat}
-        onCancel={() => setChatDeleteConfirm(null)}
+        onCancel={cancelDeleteChat}
       />
       <ErrorModal
         open={busyNotice}
@@ -1028,7 +995,7 @@ const ChatWindow = ({
         message={t('errorModal.deleteErrorMessage', {
           suffix: deleteErrorNotice && deleteErrorNotice.status !== 'network' ? ` (${deleteErrorNotice.status})` : '',
         })}
-        onClose={() => setDeleteErrorNotice(null)}
+        onClose={dismissDeleteErrorNotice}
       />
     </>
   );
