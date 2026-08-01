@@ -4,12 +4,14 @@ import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.model.script.ScriptStats;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 import org.springframework.util.AntPathMatcher;
 
 /**
@@ -79,6 +81,14 @@ public final class ScriptSession {
     private int calls;
     private int logChars;
 
+    /**
+     * Memoized results of read-only {@code kb.*} calls, keyed on the call's own arguments. Safe for
+     * the run's whole lifetime because the snapshot it reads from cannot move under it: nothing
+     * this run writes reaches disk until it finishes (see {@code ScriptRunner}), and nothing else
+     * writes to the working tree while it runs. See {@link #cached}.
+     */
+    private final Map<List<Object>, Object> cache = new HashMap<>();
+
     public ScriptSession(ScriptProperties properties) {
         this.limits = properties.limits();
         this.denyGlobs = properties.denyGlobs();
@@ -86,9 +96,37 @@ public final class ScriptSession {
     }
 
     /**
-     * Charges one {@code kb.*} call. The backstop for a loop that stays under every other budget —
-     * re-reading an already-charged file, or grepping in circles — which would otherwise only be
-     * stopped by the wall-clock timeout.
+     * Runs {@code compute} the first time this run asks for {@code key}, and hands back the same
+     * result — without touching {@code GitService}, {@code DocumentService} or any budget — every
+     * time after. {@code key} is the call's own arguments, so two calls collide here exactly when
+     * they would have returned the same thing anyway.
+     *
+     * <p>This exists because a script that compares many files against many names naturally writes
+     * the file loop <em>inside</em> the name loop — read the whole set again for every name — and
+     * that pattern used to spend one {@code kb.*} call per repetition for work that produced
+     * nothing new after the first pass. It is not a workaround for that pattern; it is what makes
+     * the distinction between "asked something new" and "asked the same thing again" real, so a
+     * script shaped the natural way is not the one punished for it.
+     *
+     * <p>Only a successful call is memoized. {@code compute} throwing — a missing file, a bad regex
+     * — is not cached, so retrying after a fix pays for a real attempt rather than replaying the
+     * failure.
+     */
+    @SuppressWarnings("unchecked")
+    public <T> T cached(List<Object> key, Supplier<T> compute) {
+        if (cache.containsKey(key)) {
+            return (T) cache.get(key);
+        }
+        T value = compute.get();
+        cache.put(key, value);
+        return value;
+    }
+
+    /**
+     * Charges one {@code kb.*} call. The backstop for a loop that does new work on every iteration
+     * — a distinct file, a distinct search — which would otherwise only be stopped by the
+     * wall-clock timeout. A call answered from {@link #cached} never reaches here, because it never
+     * repeats work in the first place.
      */
     public void chargeCall() {
         if (++calls > limits.maxCalls()) {

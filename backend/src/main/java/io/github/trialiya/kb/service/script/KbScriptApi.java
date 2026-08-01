@@ -8,6 +8,7 @@ import io.github.trialiya.kb.service.DocumentService;
 import io.github.trialiya.kb.service.GitService;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +42,13 @@ import org.springframework.util.AntPathMatcher;
  * <p>Overloads exist purely for the model's benefit: {@code kb.read(path)} and {@code kb.read(path,
  * from, to)} are separate methods because polyglot host calls are arity-matched, and a weak model
  * that omits an optional argument would otherwise get an unhelpful arity error.
+ *
+ * <p>Every read-only method here is memoized through {@link ScriptSession#cached} on its own
+ * arguments: a second identical call is answered from the first one's result and spends nothing.
+ * Because the returned {@link ProxyArray}/{@link ProxyObject} values write through to their backing
+ * Java collections, the cache stores plain data and a fresh proxy is built around a fresh copy on
+ * every call, hit or miss — otherwise a script sorting or mutating one call's result would corrupt
+ * what a later identical call gets back.
  */
 public class KbScriptApi {
 
@@ -95,17 +103,24 @@ public class KbScriptApi {
      */
     @HostAccess.Export
     public Object files(@Nullable String glob) {
-        session.chargeCall();
-        List<Object> paths = new ArrayList<>();
-        for (String path : gitService.listTrackedFiles()) {
-            if (!session.isVisible(path)) {
-                continue;
-            }
-            if (glob == null || glob.isBlank() || MATCHER.match(glob, path)) {
-                paths.add(path);
-            }
-        }
-        return ProxyArray.fromList(paths);
+        List<String> paths =
+                session.cached(
+                        Arrays.<Object>asList("files", glob),
+                        () -> {
+                            session.chargeCall();
+                            List<String> result = new ArrayList<>();
+                            for (String path : gitService.listTrackedFiles()) {
+                                if (!session.isVisible(path)) {
+                                    continue;
+                                }
+                                if (glob == null || glob.isBlank() || MATCHER.match(glob, path)) {
+                                    result.add(path);
+                                }
+                            }
+                            return result;
+                        });
+        // Strings are immutable — a shallow copy of the list is all a fresh proxy needs.
+        return ProxyArray.fromList(new ArrayList<>(paths));
     }
 
     // ── Reading ─────────────────────────────────────────────────────────────
@@ -122,60 +137,77 @@ public class KbScriptApi {
      */
     @HostAccess.Export
     public String read(String path, int fromLine, int toLine) {
-        session.chargeCall();
         String canonical = canonical(path);
-        session.requireVisible(canonical);
-        GitFileContent content =
-                gitService.getFileContent(
-                        canonical, fromLine > 0 ? fromLine : null, toLine > 0 ? toLine : null);
-        if (content.binary()) {
-            // Not a budget: no limit would make this file readable. Same exception type as the
-            // equivalent refusal in GitService, so the model sees RUNTIME and stops retrying.
-            throw new IllegalArgumentException("Cannot read a binary file: " + content.path());
-        }
-        // GitService answers an oversized whole-file read with a head+tail excerpt. For a person
-        // reading a plaque that is a courtesy; for a script it is a wrong answer that looks like a
-        // right one — every count it goes on to make would silently be of the middle-less file. So
-        // the excerpt is refused and the script is told the one call that does return exact text.
-        // (Line ranges are exempt at the source, which is why this cannot be a size threshold: any
-        // ceiling on the file is one range loop away from being circumvented anyway.)
-        // truncated() is also set for an ordinary range read, so only a whole-file request can
-        // have been cut short against the caller's wishes.
-        if (fromLine <= 0 && toLine <= 0 && content.truncated()) {
-            throw new ScriptLimitExceededException(
-                    "Cannot read "
-                            + content.path()
-                            + " whole: it is "
-                            + content.sizeBytes()
-                            + " bytes, and a whole-file read that large comes back excerpted."
-                            + " Read line ranges instead: kb.read(path, from, to).");
-        }
-        String text = content.content() == null ? "" : content.content();
-        session.chargeRead(content.path(), text.getBytes(StandardCharsets.UTF_8).length);
-        return text;
+        return session.cached(
+                Arrays.<Object>asList("read", canonical, fromLine, toLine),
+                () -> {
+                    session.chargeCall();
+                    session.requireVisible(canonical);
+                    GitFileContent content =
+                            gitService.getFileContent(
+                                    canonical,
+                                    fromLine > 0 ? fromLine : null,
+                                    toLine > 0 ? toLine : null);
+                    if (content.binary()) {
+                        // Not a budget: no limit would make this file readable. Same exception
+                        // type as the equivalent refusal in GitService, so the model sees RUNTIME
+                        // and stops retrying.
+                        throw new IllegalArgumentException(
+                                "Cannot read a binary file: " + content.path());
+                    }
+                    // GitService answers an oversized whole-file read with a head+tail excerpt.
+                    // For a person reading a plaque that is a courtesy; for a script it is a wrong
+                    // answer that looks like a right one — every count it goes on to make would
+                    // silently be of the middle-less file. So the excerpt is refused and the
+                    // script is told the one call that does return exact text. (Line ranges are
+                    // exempt at the source, which is why this cannot be a size threshold: any
+                    // ceiling on the file is one range loop away from being circumvented anyway.)
+                    // truncated() is also set for an ordinary range read, so only a whole-file
+                    // request can have been cut short against the caller's wishes.
+                    if (fromLine <= 0 && toLine <= 0 && content.truncated()) {
+                        throw new ScriptLimitExceededException(
+                                "Cannot read "
+                                        + content.path()
+                                        + " whole: it is "
+                                        + content.sizeBytes()
+                                        + " bytes, and a whole-file read that large comes back"
+                                        + " excerpted. Read line ranges instead:"
+                                        + " kb.read(path, from, to).");
+                    }
+                    String text = content.content() == null ? "" : content.content();
+                    session.chargeRead(
+                            content.path(), text.getBytes(StandardCharsets.UTF_8).length);
+                    return text;
+                });
     }
 
     /** Structural outline (classes, methods, ...) of a tracked source file, without its text. */
     @HostAccess.Export
     public Object outline(String path) {
-        session.chargeCall();
         String canonical = canonical(path);
-        session.requireVisible(canonical);
-        GitFileOutline outline = gitService.getFileOutline(canonical);
-        session.chargeRead(outline.path(), 0);
-        List<Object> symbols = new ArrayList<>();
-        outline.symbols()
-                .forEach(
-                        symbol -> {
-                            Map<String, Object> row = new LinkedHashMap<>();
-                            row.put("kind", symbol.kind());
-                            row.put("name", symbol.name());
-                            row.put("signature", symbol.signature());
-                            row.put("startLine", symbol.startLine());
-                            row.put("endLine", symbol.endLine());
-                            symbols.add(ProxyObject.fromMap(row));
+        List<Map<String, Object>> symbols =
+                session.cached(
+                        Arrays.<Object>asList("outline", canonical),
+                        () -> {
+                            session.chargeCall();
+                            session.requireVisible(canonical);
+                            GitFileOutline outline = gitService.getFileOutline(canonical);
+                            session.chargeRead(outline.path(), 0);
+                            List<Map<String, Object>> rows = new ArrayList<>();
+                            outline.symbols()
+                                    .forEach(
+                                            symbol -> {
+                                                Map<String, Object> row = new LinkedHashMap<>();
+                                                row.put("kind", symbol.kind());
+                                                row.put("name", symbol.name());
+                                                row.put("signature", symbol.signature());
+                                                row.put("startLine", symbol.startLine());
+                                                row.put("endLine", symbol.endLine());
+                                                rows.add(row);
+                                            });
+                            return rows;
                         });
-        return ProxyArray.fromList(symbols);
+        return ProxyArray.fromList(freshRows(symbols));
     }
 
     // ── Searching ───────────────────────────────────────────────────────────
@@ -193,42 +225,50 @@ public class KbScriptApi {
      */
     @HostAccess.Export
     public Object grep(String pattern, @Nullable Value options) {
-        session.chargeCall();
         String glob = member(options, "glob", Value::isString, Value::asString);
         Boolean regex = member(options, "regex", Value::isBoolean, Value::asBoolean);
         Integer context = member(options, "context", Value::isNumber, Value::asInt);
         Integer max = member(options, "max", Value::isNumber, Value::asInt);
 
-        List<GitGrepMatch> matches =
-                gitService.grepContent(
-                        pattern,
-                        glob,
-                        regex != null && regex,
-                        context != null && context > 0 ? context : 0,
-                        // GitService caps every caller at 200; passing the request through means a
-                        // script asking for fewer gets fewer, and asking for more is not an error.
-                        max != null && max > 0 ? max : Integer.MAX_VALUE);
+        List<Map<String, Object>> rows =
+                session.cached(
+                        Arrays.<Object>asList("grep", pattern, glob, regex, context, max),
+                        () -> {
+                            session.chargeCall();
+                            List<GitGrepMatch> matches =
+                                    gitService.grepContent(
+                                            pattern,
+                                            glob,
+                                            regex != null && regex,
+                                            context != null && context > 0 ? context : 0,
+                                            // GitService caps every caller at 200; passing the
+                                            // request through means a script asking for fewer gets
+                                            // fewer, and asking for more is not an error.
+                                            max != null && max > 0 ? max : Integer.MAX_VALUE);
 
-        List<Object> rows = new ArrayList<>();
-        long bytes = 0;
-        for (GitGrepMatch match : matches) {
-            if (!session.isVisible(match.path())) {
-                continue;
-            }
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("path", match.path());
-            row.put("line", match.matchLine());
-            row.put("text", match.text());
-            rows.add(ProxyObject.fromMap(row));
-            bytes += match.text().getBytes(StandardCharsets.UTF_8).length;
-            // The script has now been shown current text of this file, which is what the
-            // edit rule asks for — see ScriptSession.requireRead.
-            session.noteSeen(match.path());
-        }
-        // Only what the script actually gets back is charged: a match inside a denied path was
-        // never handed over, and charging for it would let the glob policy spend someone's budget.
-        session.chargeSearch(bytes);
-        return ProxyArray.fromList(rows);
+                            List<Map<String, Object>> result = new ArrayList<>();
+                            long bytes = 0;
+                            for (GitGrepMatch match : matches) {
+                                if (!session.isVisible(match.path())) {
+                                    continue;
+                                }
+                                Map<String, Object> row = new LinkedHashMap<>();
+                                row.put("path", match.path());
+                                row.put("line", match.matchLine());
+                                row.put("text", match.text());
+                                result.add(row);
+                                bytes += match.text().getBytes(StandardCharsets.UTF_8).length;
+                                // The script has now been shown current text of this file, which
+                                // is what the edit rule asks for — see ScriptSession.requireRead.
+                                session.noteSeen(match.path());
+                            }
+                            // Only what the script actually gets back is charged: a match inside a
+                            // denied path was never handed over, and charging for it would let the
+                            // glob policy spend someone's budget.
+                            session.chargeSearch(bytes);
+                            return result;
+                        });
+        return ProxyArray.fromList(freshRows(rows));
     }
 
     /** Hybrid (keyword + semantic) search over the knowledge base documents. */
@@ -242,21 +282,28 @@ public class KbScriptApi {
      */
     @HostAccess.Export
     public Object searchDocs(String query, int limit) {
-        session.chargeCall();
-        List<SearchResult> hits =
-                documentService.hybridSearch(query, null, limit > 0 ? limit : null, null, null);
-        List<Object> rows = new ArrayList<>();
-        long bytes = 0;
-        for (SearchResult hit : hits) {
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("docId", hit.id());
-            row.put("title", hit.title());
-            row.put("snippet", hit.snippet());
-            rows.add(ProxyObject.fromMap(row));
-            bytes += utf8Length(hit.title()) + utf8Length(hit.snippet());
-        }
-        session.chargeDocSearch(bytes);
-        return ProxyArray.fromList(rows);
+        List<Map<String, Object>> rows =
+                session.cached(
+                        Arrays.<Object>asList("searchDocs", query, limit),
+                        () -> {
+                            session.chargeCall();
+                            List<SearchResult> hits =
+                                    documentService.hybridSearch(
+                                            query, null, limit > 0 ? limit : null, null, null);
+                            List<Map<String, Object>> result = new ArrayList<>();
+                            long bytes = 0;
+                            for (SearchResult hit : hits) {
+                                Map<String, Object> row = new LinkedHashMap<>();
+                                row.put("docId", hit.id());
+                                row.put("title", hit.title());
+                                row.put("snippet", hit.snippet());
+                                result.add(row);
+                                bytes += utf8Length(hit.title()) + utf8Length(hit.snippet());
+                            }
+                            session.chargeDocSearch(bytes);
+                            return result;
+                        });
+        return ProxyArray.fromList(freshRows(rows));
     }
 
     // ── Output ──────────────────────────────────────────────────────────────
@@ -286,6 +333,21 @@ public class KbScriptApi {
             // the whole run for.
             return "[unserializable: " + e.getClass().getSimpleName() + "]";
         }
+    }
+
+    /**
+     * A fresh {@link ProxyObject} over a fresh copy of each row, so the array handed to the guest
+     * this call shares no mutable state with a cached result a later identical call will also
+     * return. {@code ProxyArray.fromList}/{@code ProxyObject.fromMap} write through to their
+     * backing collection — a script that sorts or edits its result would otherwise reorder or
+     * rewrite the cache entry itself, corrupting what the next identical call gets back.
+     */
+    private static List<Object> freshRows(List<Map<String, Object>> rows) {
+        List<Object> copies = new ArrayList<>(rows.size());
+        for (Map<String, Object> row : rows) {
+            copies.add(ProxyObject.fromMap(new LinkedHashMap<>(row)));
+        }
+        return copies;
     }
 
     private static int utf8Length(@Nullable String text) {

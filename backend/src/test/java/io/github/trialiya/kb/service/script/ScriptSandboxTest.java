@@ -234,6 +234,80 @@ class ScriptSandboxTest {
         assertThat(result.error().message()).contains("maxCalls");
     }
 
+    // ── The in-run cache ────────────────────────────────────────────────────
+
+    /**
+     * The motivating case: a script that compares many files against many names naturally writes
+     * the file loop inside the name loop, re-reading the same handful of files once per name. That
+     * used to be indistinguishable from a genuine runaway loop — same file, over and over, one
+     * {@code kb.*} call per repetition — and could exhaust {@code maxCalls} before the script
+     * produced anything. A memoized repeat costs nothing, so the same script now finishes.
+     */
+    @Test
+    void repeatedIdenticalReadsDoNotSpendTheCallOrByteBudget() {
+        runner =
+                newRunner(
+                        withLimits(
+                                limits ->
+                                        limits.withMaxCalls(10)
+                                                .withMaxBytesRead(DataSize.ofBytes(100))));
+
+        ScriptResult result =
+                run(
+                        "var names = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];"
+                                + "var hits = 0;"
+                                + "for (var i = 0; i < names.length; i++) {"
+                                + "  var text = kb.read('src/App.java');"
+                                + "  if (text.indexOf(names[i]) >= 0) { hits++; }"
+                                + "}"
+                                + "return hits;");
+
+        assertThat(result.error()).isNull();
+        // One real read charged; the other seven names' reads were answered from the cache.
+        assertThat(result.stats().filesRead()).isEqualTo(1);
+        assertThat(result.stats().calls()).isEqualTo(1);
+    }
+
+    /**
+     * Same path, different arguments — grep options, read ranges — must not collide in the cache.
+     */
+    @Test
+    void differentArgumentsToTheSameCallAreNotTreatedAsTheSameCall() {
+        ScriptResult result =
+                run(
+                        "var whole = kb.read('src/App.java');"
+                                + "var head = kb.read('src/App.java', 1, 1);"
+                                + "return { whole: whole.length, head: head };");
+
+        assertThat(result.error()).isNull();
+        assertThat(result.stats().calls()).isEqualTo(2);
+        Map<?, ?> value = (Map<?, ?>) result.value();
+        assertThat(value.get("head")).isEqualTo("class App {");
+    }
+
+    /**
+     * {@code ProxyArray}/{@code ProxyObject} write through to their backing Java collection, so a
+     * cached result handed out by reference would let one call's in-place mutation (sort, in this
+     * case) corrupt what a later identical call gets back. Each call must see its own copy.
+     */
+    @Test
+    void mutatingOneCallsResultDoesNotAffectTheNextIdenticalCall() {
+        write(repoDir.resolve("b.txt"), "zzz\n");
+        write(repoDir.resolve("a.txt"), "aaa\n");
+        commitAll();
+
+        ScriptResult result =
+                run(
+                        "var first = kb.files('*.txt');"
+                                + "first.sort(function (a, b) { return b < a ? -1 : 1; });"
+                                + "var second = kb.files('*.txt');"
+                                + "return { first: first, second: second };");
+
+        assertThat(result.error()).isNull();
+        Map<?, ?> value = (Map<?, ?>) result.value();
+        assertThat(value.get("second")).isEqualTo(List.of("a.txt", "b.txt"));
+    }
+
     /**
      * A search returns file content, so it spends the content budget. Left unmetered it was the one
      * way to pull an unbounded amount of the repository into a script while every other budget
@@ -243,8 +317,12 @@ class ScriptSandboxTest {
     void searchResultsCountAgainstTheByteBudget() {
         runner = newRunner(withLimits(limits -> limits.withMaxBytesRead(DataSize.ofBytes(40))));
 
+        // {max: i + 1} varies the call's own arguments, so each iteration is a genuinely new call
+        // rather than one the run's cache (see ScriptSession.cached) would answer for free.
         ScriptResult result =
-                run("for (var i = 0; i < 100; i++) { kb.grep('class'); } return 'done';");
+                run(
+                        "for (var i = 0; i < 100; i++) { kb.grep('class', { max: i + 1 }); } return"
+                                + " 'done';");
 
         assertThat(result.error())
                 .isNotNull()
@@ -279,8 +357,12 @@ class ScriptSandboxTest {
                         withLimits(limits -> limits.withMaxBytesRead(DataSize.ofBytes(40))),
                         documents);
 
+        // Varying the limit argument is what keeps each iteration a genuinely new call — see
+        // ScriptSession.cached — rather than the run's cache answering repeats for free.
         ScriptResult result =
-                run("for (var i = 0; i < 100; i++) { kb.searchDocs('экспорт'); } return 'done';");
+                run(
+                        "for (var i = 0; i < 100; i++) { kb.searchDocs('экспорт', i + 1); } return"
+                                + " 'done';");
 
         assertThat(result.error())
                 .isNotNull()
