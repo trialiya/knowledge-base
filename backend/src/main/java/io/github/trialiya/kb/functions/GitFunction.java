@@ -91,6 +91,9 @@ public class GitFunction {
                                     "Optional: file path (relative to repo root) to filter commits that touched it.",
                             required = false)
                     @Nullable String filePath) {
+        if (maxCount == null || maxCount <= 0) {
+            maxCount = 20;
+        }
         int limit = (maxCount != null && maxCount > 0) ? maxCount : 20;
         log.info("getCommitLog called: maxCount={}, filePath='{}'", limit, filePath);
         List<GitCommit> commitLog = gitService.getCommitLog(limit, filePath);
@@ -127,6 +130,9 @@ public class GitFunction {
                                     "Optional: file path to filter diff output to only that file.",
                             required = false)
                     @Nullable String filePath) {
+        if (commitHashes == null || commitHashes.isBlank()) {
+            throw new IllegalArgumentException("commitHashes is required");
+        }
         boolean patch = includePatch != null && includePatch;
         log.info(
                 "getCommitDiff called: hashes='{}', includePatch={}, filePath='{}'",
@@ -161,6 +167,9 @@ public class GitFunction {
                             description = "Maximum results to return (1–50, default 20).",
                             required = false)
                     @Nullable Integer maxResults) {
+        if (pattern == null || pattern.isBlank()) {
+            throw new IllegalArgumentException("pattern is required");
+        }
         int limit = (maxResults != null && maxResults > 0) ? maxResults : 20;
         log.info("searchFiles called: pattern='{}', maxResults={}", pattern, limit);
         List<GitFileNode> gitFileNodes = gitService.searchFiles(pattern, limit);
@@ -222,6 +231,9 @@ public class GitFunction {
                                     "Last line to read (1-based, inclusive). Null for end of file.",
                             required = false)
                     @Nullable Integer toLine) {
+        if (filePath == null || filePath.isBlank()) {
+            throw new IllegalArgumentException("filePath is required");
+        }
         log.info(
                 "getFileContent called: filePath='{}', fromLine={}, toLine={}",
                 filePath,
@@ -291,9 +303,12 @@ public class GitFunction {
                             description = "Maximum matches to return (1–200, default 50).",
                             required = false)
                     @Nullable Integer maxResults) {
+        if (pattern == null || pattern.isBlank()) {
+            throw new IllegalArgumentException("pattern is required");
+        }
         boolean useRegex = regex == null || regex;
-        int ctx = contextLines != null ? contextLines : 1;
-        int limit = maxResults != null ? maxResults : 50;
+        int ctx = contextLines != null && contextLines >= 0 ? contextLines : 1;
+        int limit = maxResults != null && maxResults > 0 ? maxResults : 50;
         log.info(
                 "grepContent called: pattern='{}', pathGlob='{}', regex={}, contextLines={}, maxResults={}",
                 pattern,

@@ -76,6 +76,12 @@ public class ScriptFunction {
                                     "Time limit in seconds. Default 10, max 30 (values over max truncated silently).",
                             required = false)
                     @Nullable Integer timeoutSeconds) {
+        if (script == null || script.isBlank()) {
+            throw new IllegalArgumentException("script is required");
+        }
+        if (timeoutSeconds == null || timeoutSeconds <= 0) {
+            timeoutSeconds = 10;
+        }
         log.info("runScript called: {} chars, timeoutSeconds={}", script.length(), timeoutSeconds);
         ScriptResult result =
                 scriptRunner.run(

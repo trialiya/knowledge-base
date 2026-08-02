@@ -55,6 +55,12 @@ public class SearchAgentFunction {
                                             + "Null for no restriction.",
                             required = false)
                     @Nullable String pathGlob) {
+        if (task == null || task.isBlank()) {
+            throw new IllegalArgumentException("task is required");
+        }
+        if (scope == null || scope.isBlank()) {
+            scope = "all";
+        }
         final String conversationId = conversationId(context);
         log.info(
                 "[{}] searchCodebase called: scope={} pathGlob={}",

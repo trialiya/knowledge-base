@@ -103,7 +103,9 @@ public class DocumentFunction {
                     @Nullable Double kwWeight,
             @ToolParam(description = "Semantic weight in hybrid mode (0.0–1.0).", required = false)
                     @Nullable Double semWeight) {
-
+        if (query == null) {
+            query = "";
+        }
         String effectiveMode = (mode != null && !mode.isBlank()) ? mode.toLowerCase() : "hybrid";
         log.info(
                 "Document search: query='{}' mode={} threshold={} limit={}",
@@ -159,6 +161,9 @@ public class DocumentFunction {
             resultConverter = CompactToolResultConverter.class)
     public List<DocumentNode> findDocumentsByName(
             @ToolParam(description = "Document/folder title (full or partial).") String name) {
+        if (name == null) {
+            name = "";
+        }
         log.info("findDocumentsByName called: name='{}'", name);
         return documentService.findByName(name);
     }
@@ -178,6 +183,9 @@ public class DocumentFunction {
             resultConverter = CompactToolResultConverter.class)
     public DocumentNode getDocument(
             @ToolParam(description = "Document or folder id.") String documentId) {
+        if (documentId == null || documentId.isBlank()) {
+            throw new IllegalArgumentException("documentId is required");
+        }
         log.info("getDocument called: documentId={}", documentId);
         return documentService.getById(Long.parseLong(documentId));
     }
@@ -197,6 +205,9 @@ public class DocumentFunction {
             resultConverter = CompactToolResultConverter.class)
     public DocumentOutline getDocumentOutline(
             @ToolParam(description = "Document id.") String documentId) {
+        if (documentId == null || documentId.isBlank()) {
+            throw new IllegalArgumentException("documentId is required");
+        }
         log.info("getDocumentOutline called: documentId={}", documentId);
         DocumentNode node = requireDocument(documentId);
         List<MarkdownSections.Section> sections = MarkdownSections.parse(descriptionOf(node));
@@ -233,6 +244,12 @@ public class DocumentFunction {
                             description =
                                     "Section path from getDocumentOutline (e.g., \"Setup > Docker\").")
                     String sectionPath) {
+        if (documentId == null || documentId.isBlank()) {
+            throw new IllegalArgumentException("documentId is required");
+        }
+        if (sectionPath == null || sectionPath.isBlank()) {
+            throw new IllegalArgumentException("sectionPath is required");
+        }
         log.info(
                 "getDocumentSection called: documentId={} sectionPath='{}'",
                 documentId,
@@ -289,20 +306,26 @@ public class DocumentFunction {
                             description =
                                     "descriptionVersion from getDocumentOutline/getDocumentSection.")
                     int expectedDescriptionVersion) {
+        if (sectionPath == null || sectionPath.isBlank()) {
+            throw new IllegalArgumentException("sectionPath is required");
+        }
+        final String effectiveSectionPath = sectionPath;
+        final String effectiveNewContent = (newContent == null) ? "" : newContent;
 
         log.info(
                 "updateDocumentSection called: id={} sectionPath='{}' expectedDescVer={}",
                 documentId,
-                sectionPath,
+                effectiveSectionPath,
                 expectedDescriptionVersion);
 
-        requireSectionReadInThisResponse(context, documentId, sectionPath, "updateDocumentSection");
-        if (newContent.isBlank()) {
+        requireSectionReadInThisResponse(
+                context, documentId, effectiveSectionPath, "updateDocumentSection");
+        if (effectiveNewContent.isBlank()) {
             throw new IllegalArgumentException(
                     "newContent пуст. Передай полный новый текст секции, начиная с её заголовка.");
         }
-        if (!MarkdownSections.PREAMBLE_PATH.equals(sectionPath)) {
-            requireStartsWithHeading(newContent);
+        if (!MarkdownSections.PREAMBLE_PATH.equals(effectiveSectionPath)) {
+            requireStartsWithHeading(effectiveNewContent);
         }
 
         return documentService
@@ -312,8 +335,8 @@ public class DocumentFunction {
                         current ->
                                 MarkdownSections.replaceSection(
                                         current,
-                                        findSectionOrThrow(current, sectionPath),
-                                        newContent))
+                                        findSectionOrThrow(current, effectiveSectionPath),
+                                        effectiveNewContent))
                 .toDocumentShort();
     }
 
@@ -349,21 +372,33 @@ public class DocumentFunction {
                     String newContent,
             @ToolParam(description = "descriptionVersion from getDocumentOutline/getDocument.")
                     int expectedDescriptionVersion) {
+        if (anchorSectionPath == null || anchorSectionPath.isBlank()) {
+            throw new IllegalArgumentException("anchorSectionPath is required");
+        }
+        if (position == null) {
+            throw new IllegalArgumentException("position is required");
+        }
+        if (newContent == null || newContent.isBlank()) {
+            throw new IllegalArgumentException("newContent is required");
+        }
+        final String effectiveAnchorPath = anchorSectionPath;
+        final InsertPosition effectivePosition = position;
+        final String effectiveNewContent = newContent;
 
         log.info(
                 "insertDocumentSection called: id={} anchor='{}' position={} expectedDescVer={}",
                 documentId,
-                anchorSectionPath,
-                position,
+                effectiveAnchorPath,
+                effectivePosition,
                 expectedDescriptionVersion);
 
-        requireStructureReadInThisResponse(context, documentId, anchorSectionPath);
-        boolean before = position == InsertPosition.BEFORE;
-        if (before && MarkdownSections.PREAMBLE_PATH.equals(anchorSectionPath)) {
+        requireStructureReadInThisResponse(context, documentId, effectiveAnchorPath);
+        boolean before = effectivePosition == InsertPosition.BEFORE;
+        if (before && MarkdownSections.PREAMBLE_PATH.equals(effectiveAnchorPath)) {
             throw new IllegalArgumentException(
                     "Вставка before _preamble невозможна — используй after.");
         }
-        requireStartsWithHeading(newContent);
+        requireStartsWithHeading(effectiveNewContent);
 
         return documentService
                 .patchDescription(
@@ -372,8 +407,8 @@ public class DocumentFunction {
                         current ->
                                 MarkdownSections.insertSection(
                                         current,
-                                        findSectionOrThrow(current, anchorSectionPath),
-                                        newContent,
+                                        findSectionOrThrow(current, effectiveAnchorPath),
+                                        effectiveNewContent,
                                         before))
                 .toDocumentShort();
     }
@@ -404,14 +439,19 @@ public class DocumentFunction {
                             description =
                                     "descriptionVersion from getDocumentOutline/getDocumentSection.")
                     int expectedDescriptionVersion) {
+        if (sectionPath == null || sectionPath.isBlank()) {
+            throw new IllegalArgumentException("sectionPath is required");
+        }
+        final String effectiveSectionPath = sectionPath;
 
         log.info(
                 "deleteDocumentSection called: id={} sectionPath='{}' expectedDescVer={}",
                 documentId,
-                sectionPath,
+                effectiveSectionPath,
                 expectedDescriptionVersion);
 
-        requireSectionReadInThisResponse(context, documentId, sectionPath, "deleteDocumentSection");
+        requireSectionReadInThisResponse(
+                context, documentId, effectiveSectionPath, "deleteDocumentSection");
 
         return documentService
                 .patchDescription(
@@ -419,7 +459,9 @@ public class DocumentFunction {
                         expectedDescriptionVersion,
                         current ->
                                 MarkdownSections.replaceSection(
-                                        current, findSectionOrThrow(current, sectionPath), ""))
+                                        current,
+                                        findSectionOrThrow(current, effectiveSectionPath),
+                                        ""))
                 .toDocumentShort();
     }
 
@@ -567,6 +609,9 @@ public class DocumentFunction {
                                             + "base documents as [Title](/?doc=ID).",
                             required = false)
                     @Nullable String description) {
+        if (title == null || title.isBlank()) {
+            throw new IllegalArgumentException("title is required");
+        }
 
         log.info("createDocument called: title='{}' type={} parentId={}", title, type, parentId);
 
@@ -796,6 +841,12 @@ public class DocumentFunction {
             @ToolParam(description = "ID вложения из чата") String attachmentId,
             @ToolParam(description = "ID целевого документа в базе знаний")
                     String targetDocumentId) {
+        if (attachmentId == null || attachmentId.isBlank()) {
+            throw new IllegalArgumentException("attachmentId is required");
+        }
+        if (targetDocumentId == null || targetDocumentId.isBlank()) {
+            throw new IllegalArgumentException("targetDocumentId is required");
+        }
 
         final String conversationId = conversationId(context);
         log.info(

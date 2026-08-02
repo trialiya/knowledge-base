@@ -58,6 +58,12 @@ public class GitEditFunction {
                                             + "\"src/main/java/com/example/New.java\").")
                     String filePath,
             @ToolParam(description = "Full content of the new file (UTF-8).") String content) {
+        if (filePath == null || filePath.isBlank()) {
+            throw new IllegalArgumentException("filePath is required");
+        }
+        if (content == null) {
+            content = "";
+        }
         log.info("createFile called: filePath='{}', {} chars", filePath, content.length());
         return gitService.createFile(filePath, content);
     }
@@ -92,6 +98,18 @@ public class GitEditFunction {
                                     "Replace ALL occurrences of oldString (true) or exactly one (false, default).",
                             required = false)
                     @Nullable Boolean replaceAll) {
+        if (filePath == null || filePath.isBlank()) {
+            throw new IllegalArgumentException("filePath is required");
+        }
+        if (oldString == null || oldString.isBlank()) {
+            throw new IllegalArgumentException("oldString is required");
+        }
+        if (newString == null) {
+            newString = "";
+        }
+        if (replaceAll == null) {
+            replaceAll = false;
+        }
         log.info(
                 "editFile called: filePath='{}', old {} chars, new {} chars, replaceAll={}",
                 filePath,

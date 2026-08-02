@@ -40,6 +40,9 @@ public class AttachmentFunction {
             resultConverter = CompactToolResultConverter.class)
     public List<Attachment> getDocumentAttachments(
             @ToolParam(description = "Document ID.") String documentId) {
+        if (documentId == null || documentId.isBlank()) {
+            throw new IllegalArgumentException("documentId is required");
+        }
         log.info("getDocumentAttachments called: documentId={}", documentId);
         return attachmentService.findByDocument(Long.parseLong(documentId));
     }
@@ -62,6 +65,9 @@ public class AttachmentFunction {
             resultConverter = CompactToolResultConverter.class)
     public String getAttachmentContent(
             ToolContext context, @ToolParam(description = "Attachment ID.") String attachmentId) {
+        if (attachmentId == null || attachmentId.isBlank()) {
+            throw new IllegalArgumentException("attachmentId is required");
+        }
         log.info(
                 "[{}] getAttachmentContent called: attachmentId={}",
                 conversationId(context),
@@ -91,6 +97,15 @@ public class AttachmentFunction {
                     String contentType,
             @ToolParam(description = "Attachment content (text, markdown, JSON, etc.).")
                     String content) {
+        if (fileName == null || fileName.isBlank()) {
+            throw new IllegalArgumentException("fileName is required");
+        }
+        if (contentType == null || contentType.isBlank()) {
+            contentType = "text/plain";
+        }
+        if (content == null) {
+            content = "";
+        }
         String conversationId = conversationId(context);
         log.info("[{}] createAttachment called: fileName={}", conversationId, fileName);
         return attachmentService
@@ -103,6 +118,9 @@ public class AttachmentFunction {
             resultConverter = CompactToolResultConverter.class)
     public List<AttachmentContext> getAttachmentContentByFileName(
             ToolContext context, @ToolParam(description = "File name.") String fileName) {
+        if (fileName == null || fileName.isBlank()) {
+            throw new IllegalArgumentException("fileName is required");
+        }
         final String conversationId = conversationId(context);
         log.info(
                 "[{}] getAttachmentContentByFileName called: fileName='{}'",
@@ -127,6 +145,9 @@ public class AttachmentFunction {
             resultConverter = CompactToolResultConverter.class)
     public List<Attachment> searchAttachments(
             ToolContext context, @ToolParam(description = "Search query.") String query) {
+        if (query == null) {
+            query = "";
+        }
         final String conversationId = conversationId(context);
         log.info("searchAttachments called: query='{}'", query);
         return attachmentService.search(conversationId, query);

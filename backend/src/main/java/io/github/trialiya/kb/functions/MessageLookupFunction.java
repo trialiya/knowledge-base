@@ -30,7 +30,9 @@ public class MessageLookupFunction {
     public String getOriginalMessages(
             ToolContext context,
             @ToolParam(description = "Message positions to retrieve.") List<Long> positions) {
-
+        if (positions == null || positions.isEmpty()) {
+            throw new IllegalArgumentException("positions is required and must not be empty");
+        }
         final String chatId = conversationId(context);
         log.info("[{}] Fetching original messages positions: {}", chatId, positions);
 

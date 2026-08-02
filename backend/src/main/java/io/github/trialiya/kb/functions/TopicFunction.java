@@ -46,6 +46,9 @@ public class TopicFunction {
     public void recordChatInsights(
             ToolContext context,
             @ToolParam(description = "Chat topic: 3 words, in the user's language.") String topic) {
+        if (topic == null || topic.isBlank()) {
+            throw new IllegalArgumentException("topic is required");
+        }
         String chatId = conversationId(context);
         log.info("[{}] Chat topic: {}", chatId, topic);
         Optional<ChatTopicEntity> chatTopicOptional = chatTopicRepository.findById(chatId);
