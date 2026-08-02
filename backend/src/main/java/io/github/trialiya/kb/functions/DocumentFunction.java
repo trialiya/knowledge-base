@@ -209,7 +209,7 @@ public class DocumentFunction {
                     "Read full document/folder content by id, including direct children (shallow).",
             resultConverter = CompactToolResultConverter.class)
     public DocumentNode getDocument(
-            @ToolParam(description = "Document or folder id.") String documentId) {
+            @ToolParam(description = "Document or folder id.") Long documentId) {
         final long id = requireId(documentId, "documentId");
         log.info("getDocument called: documentId={}", id);
         return documentService.getById(id);
@@ -229,7 +229,7 @@ public class DocumentFunction {
             description = "Get markdown outline (section titles, levels, sizes) without content.",
             resultConverter = CompactToolResultConverter.class)
     public DocumentOutline getDocumentOutline(
-            @ToolParam(description = "Document id.") String documentId) {
+            @ToolParam(description = "Document id.") Long documentId) {
         final long id = requireId(documentId, "documentId");
         log.info("getDocumentOutline called: documentId={}", id);
         DocumentNode node = requireDocument(id);
@@ -262,7 +262,7 @@ public class DocumentFunction {
                     "Read one markdown section (heading + body + subsections) without full load.",
             resultConverter = CompactToolResultConverter.class)
     public DocumentSection getDocumentSection(
-            @ToolParam(description = "Document id.") String documentId,
+            @ToolParam(description = "Document id.") Long documentId,
             @ToolParam(
                             description =
                                     "Section path from getDocumentOutline (e.g., \"Setup > Docker\").")
@@ -847,9 +847,8 @@ public class DocumentFunction {
             resultConverter = CompactToolResultConverter.class)
     public String copyAttachmentToDocument(
             ToolContext context,
-            @ToolParam(description = "ID вложения из чата") String attachmentId,
-            @ToolParam(description = "ID целевого документа в базе знаний")
-                    String targetDocumentId) {
+            @ToolParam(description = "ID вложения из чата") Long attachmentId,
+            @ToolParam(description = "ID целевого документа в базе знаний") Long targetDocumentId) {
         final long sourceId = requireId(attachmentId, "attachmentId");
         final long targetId = requireId(targetDocumentId, "targetDocumentId");
 

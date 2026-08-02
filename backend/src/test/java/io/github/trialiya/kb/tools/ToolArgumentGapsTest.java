@@ -188,14 +188,17 @@ class ToolArgumentGapsTest {
     }
 
     @Test
-    void aMistypedIdIsRefusedByNameInsteadOfAsANumberFormatException() {
+    void aMistypedIdFailsThroughToolExecutionExceptionRatherThanANumberFormatException() {
+        // documentId is a Long parameter: Jackson rejects "doc-7" during argument conversion,
+        // before the method — and requireId's by-name message, covered directly in ToolArgsTest —
+        // ever runs. What matters here is that the failure still reaches the model as a tool
+        // result instead of escaping as a raw deserialization exception that kills the run.
         final ToolCallback tool = toolNamed("getDocument");
         try {
             tool.call("{\"documentId\": \"doc-7\"}", context);
             fail("expected a refusal");
         } catch (ToolExecutionException e) {
             assertThat(rootCause(e).getMessage())
-                    .contains("documentId")
                     .contains("doc-7")
                     .doesNotContain("For input string");
         }
