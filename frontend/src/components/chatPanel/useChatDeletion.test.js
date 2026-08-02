@@ -1,7 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import useChatDeletion from './useChatDeletion';
 import chatApi from '../../api/chatApi';
-import { STORAGE_KEY_ACTIVE_CHAT } from '../../constants/storage';
 
 vi.mock('../../api/chatApi', () => ({ default: { deleteChat: vi.fn() } }));
 
@@ -85,7 +84,7 @@ describe('useChatDeletion', () => {
   describe('confirmDeleteChat — реальный чат на сервере', () => {
     it('успешный DELETE убирает чат из списка', async () => {
       chatApi.deleteChat.mockResolvedValue({ ok: true, status: 204 });
-      const { result, setChats } = setup([
+      const { result, setChats, locallyDeletingRef } = setup([
         { id: 'c1', title: 'Первый' },
         { id: 'c2', title: 'Второй' },
       ]);
@@ -96,11 +95,14 @@ describe('useChatDeletion', () => {
       expect(chatApi.deleteChat).toHaveBeenCalledWith('c2');
       expect(setChats).toHaveBeenCalled();
       expect(result.current.deleteErrorNotice).toBeNull();
+      // Метка «наше удаление» остаётся: эхо CHAT_DELETED по этому чату — наше,
+      // и модалку «удалён в другой вкладке» показывать не нужно.
+      expect(locallyDeletingRef.current.has('c2')).toBe(true);
     });
 
     it('404 трактуется как «уже удалён» — чат убирается локально, ошибка не показывается', async () => {
       chatApi.deleteChat.mockResolvedValue({ ok: false, status: 404 });
-      const { result, setChats } = setup([
+      const { result, setChats, locallyDeletingRef } = setup([
         { id: 'c1', title: 'Первый' },
         { id: 'c2', title: 'Второй' },
       ]);
@@ -110,6 +112,9 @@ describe('useChatDeletion', () => {
 
       expect(setChats).toHaveBeenCalled();
       expect(result.current.deleteErrorNotice).toBeNull();
+      // Как и при успехе: строку убрали мы, поэтому метку не снимаем — иначе
+      // эхо CHAT_DELETED сработало бы как «удалён в другой вкладке».
+      expect(locallyDeletingRef.current.has('c2')).toBe(true);
     });
 
     it('прочий отказ сервера показывает ошибку и НЕ убирает чат из списка', async () => {
@@ -162,8 +167,7 @@ describe('useChatDeletion', () => {
       expect(handleNewChat).not.toHaveBeenCalled();
     });
 
-    it('стартует свежий черновик и чистит localStorage, если удалили последний (notFound) чат', async () => {
-      const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem');
+    it('стартует свежий черновик, если удалили последний (notFound) чат', async () => {
       const { result, selectChat, handleNewChat } = setup([{ id: 'c1', title: '...', notFound: true }], {
         activeChatId: 'c1',
       });
@@ -171,10 +175,10 @@ describe('useChatDeletion', () => {
       act(() => result.current.requestDeleteChat('c1'));
       await act(async () => result.current.confirmDeleteChat());
 
+      // Битый id в памяти последнего чата перезапишет сам handleNewChat через
+      // selectChat(DRAFT_CHAT_ID) — отдельной чистки localStorage тут нет.
       expect(selectChat).not.toHaveBeenCalled();
       expect(handleNewChat).toHaveBeenCalled();
-      expect(removeItemSpy).toHaveBeenCalledWith(STORAGE_KEY_ACTIVE_CHAT);
-      removeItemSpy.mockRestore();
     });
 
     it('не трогает выбор активного чата, если удалили не активный', async () => {

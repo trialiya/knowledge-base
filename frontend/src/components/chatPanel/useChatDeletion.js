@@ -1,6 +1,5 @@
 import { useCallback, useState } from 'react';
 import chatApi from '../../api/chatApi';
-import { STORAGE_KEY_ACTIVE_CHAT } from '../../constants/storage';
 
 /**
  * Владелец подтверждения и самого удаления чата. Вынесено из ChatWindow:
@@ -61,14 +60,16 @@ export default function useChatDeletion({
       locallyDeletingRef.current.add(id);
       try {
         const res = await chatApi.deleteChat(id);
-        if (!res.ok) {
+        // 404 = чата на сервере уже нет (удалён в другой сессии / битая ссылка):
+        // локальное удаление всё равно корректно; остальные статусы — ошибка.
+        // Метку «наше удаление» снимаем ТОЛЬКО на реальной ошибке: на 404 мы
+        // строку всё равно убираем, и пришедшее следом эхо CHAT_DELETED по этому
+        // чату должно остаться «нашим», иначе выскочит модалка «удалён в другой
+        // вкладке» поверх удаления, которое пользователь только что подтвердил.
+        if (!res.ok && res.status !== 404) {
           locallyDeletingRef.current.delete(id);
-          // 404 = чата на сервере уже нет (удалён в другой сессии / битая ссылка):
-          // локальное удаление всё равно корректно; остальные статусы — ошибка.
-          if (res.status !== 404) {
-            setDeleteErrorNotice({ status: res.status });
-            return;
-          }
+          setDeleteErrorNotice({ status: res.status });
+          return;
         }
       } catch {
         locallyDeletingRef.current.delete(id);
@@ -77,7 +78,9 @@ export default function useChatDeletion({
       }
     }
     clearDraft(id); // черновик удалённого чата больше не нужен
-    setChatErrorModal(null); // закрываем модалку «Чат не найден» для удаляемой строки
+    // Модалка ошибки загрузки чата всегда про активный чат и своего id не хранит:
+    // после удаления строки ей уже не о чем сообщать — закрываем.
+    setChatErrorModal(null);
     setChats((prev) => prev.filter((item) => item.id !== id));
     if (activeChatId === id) {
       const remaining = chatsRef.current.filter((item) => item.id !== id);
@@ -85,9 +88,9 @@ export default function useChatDeletion({
       if (newActiveId) {
         selectChat(newActiveId);
       } else {
-        // Чатов не осталось: стартуем свежий черновик и чистим битый id из памяти
-        // (selectChat(DRAFT_CHAT_ID) перезапишет localStorage валидным значением).
-        localStorage.removeItem(STORAGE_KEY_ACTIVE_CHAT);
+        // Чатов не осталось: стартуем свежий черновик. Битый id из памяти чистить
+        // отдельно не нужно — handleNewChat зовёт selectChat(DRAFT_CHAT_ID), а тот
+        // сразу перезаписывает localStorage валидным значением.
         handleNewChat();
       }
     }
