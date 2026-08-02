@@ -11,7 +11,7 @@ Two more methods available here. They modify the repo worktree, so stricter rule
 Both return `{path, operation, occurrences}`. Full diffs in response `edits` field—user sees them.
 
 ### Rules
-1. **Read first, edit second.** `kb.edit` on unread file is error. Either `kb.read` (whole or range) **or** `kb.grep` match in file counts. Grep match is normal for bulk replace: take `oldString` from `hit.text`, no need to re-read formally.
+1. **Read first, edit second.** `kb.edit` on unread file is error. Counts as read: `kb.read` (whole or range) or a `kb.grep` match, in this script or an earlier one; also `getFileContent`/`getFileOutline`/`editFile` called on the same path earlier this turn. So a file already opened via `getFileContent` (or by a previous `runScript` call) needs no redundant `kb.read`—edit it directly. Grep match is normal for bulk replace: take `oldString` from `hit.text`, no need to re-read formally.
 2. **`oldString` exact match** including whitespace and line breaks. Don't compose from memory—take from `kb.read`.
 3. **`oldString` unique in file.** Multiple matches? Extend with surrounding lines or pass `true` as 4th arg.
 4. **Edits see each other.** Second edit same file operates on changed text—like manual sequential edits.
