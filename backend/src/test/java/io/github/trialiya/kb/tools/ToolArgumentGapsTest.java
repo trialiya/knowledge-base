@@ -237,6 +237,16 @@ class ToolArgumentGapsTest {
      * <p>Only the exception type is asserted: the wording is the JDK's, and it has already changed
      * once ("argument type mismatch" on 21, a null-conversion {@code NullPointerException} on 25),
      * so pinning it would only break the Java 21 fallback build.
+     *
+     * <p>Filed upstream as <a
+     * href="https://github.com/spring-projects/spring-ai/issues/6723">spring-ai#6723</a>. Not the
+     * same bug as the two related issues we checked before filing: <a
+     * href="https://github.com/spring-projects/spring-ai/pull/5032">PR #5032</a> (merged, GH-3924)
+     * fixes invalid-enum conversion, and <a
+     * href="https://github.com/spring-projects/spring-ai/pull/6018">PR #6018</a> (open, GH-3884)
+     * guards blank-string-to-number conversion — both act inside {@code buildTypedArgument}'s
+     * {@code try}, which a missing primitive never reaches because the {@code value == null} check
+     * returns before it. Once #6723 is resolved, revisit this test and the no-primitives rule.
      */
     @Test
     void springAiStillCannotFillInAMissingPrimitive() {
