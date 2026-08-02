@@ -38,7 +38,7 @@ const ChatList = ({ chats, activeChatId, onSelectChat, onDeleteChat }) => {
           onClick={() => onSelectChat(chat.id)}
         >
           <span className="ws-item__label">{chat.title}</span>
-          {chats.length > 1 && (
+          {(chats.length > 1 || chat.notFound) && (
             <span className="ws-item__actions">
               <button
                 type="button"
