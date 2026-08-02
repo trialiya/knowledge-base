@@ -3,6 +3,7 @@ import {
   renderValue,
   normalizeTrailingSentinel,
   makeChipEl,
+  insertPlainText,
   getCaretOffset,
   placeCaretAtOffset,
 } from './fileChipEditorDom';
@@ -41,6 +42,28 @@ describe('normalizeTrailingSentinel', () => {
     root.appendChild(document.createTextNode('world'));
     normalizeTrailingSentinel(root);
     expect(root.innerHTML).toBe('hello<br>world');
+  });
+
+  it('keeps the very same sentinel node instead of re-creating it', () => {
+    // Ключевое свойство для Ctrl+Z: sentinel в хвосте мог создать сам браузер
+    // (filler после insertLineBreak, см. insertPlainText). Если удалять его и
+    // подставлять свой на каждом изменении, нативный стек отмены рвётся и
+    // вставка перестаёт отменяться до конца.
+    const root = makeRoot();
+    root.innerHTML = 'hello<br><br data-sentinel="1">';
+    const sentinel = root.lastChild;
+    normalizeTrailingSentinel(root);
+    expect(root.lastChild).toBe(sentinel);
+  });
+
+  it('drops a stale sentinel that is no longer in the tail but keeps the trailing one', () => {
+    const root = makeRoot();
+    root.innerHTML = 'a<br data-sentinel="1">b<br><br data-sentinel="1">';
+    const tail = root.lastChild;
+    normalizeTrailingSentinel(root);
+    expect(root.querySelectorAll('br[data-sentinel]')).toHaveLength(1);
+    expect(root.lastChild).toBe(tail);
+    expect(root.innerHTML).toBe('ab<br><br data-sentinel="1">');
   });
 
   it('skips a trailing empty text node left by Range#insertNode when the caret was mid-text', () => {
@@ -128,6 +151,96 @@ describe('renderValue + serialize round-trip', () => {
   });
 });
 
+describe('insertPlainText', () => {
+  // Модель поведения Chrome, снятая в самом Chromium: insertLineBreak ставит
+  // <br> и добавляет за ним свой filler-<br>, а следующая вставка текста этот
+  // filler убирает. Отсюда формы "a<br>b" для 'a\nb' и "a<br><br>" для 'a\n'.
+  function stubExecCommand(root) {
+    const calls = [];
+    const dropFiller = () => {
+      if (root.lastChild?.dataset?.filler) root.lastChild.remove();
+    };
+    document.queryCommandSupported = () => true;
+    document.execCommand = (cmd, _ui, arg) => {
+      calls.push(cmd === 'insertText' ? `insertText:${arg}` : cmd);
+      dropFiller();
+      if (cmd === 'insertText') {
+        root.appendChild(document.createTextNode(arg));
+      } else {
+        root.appendChild(document.createElement('br'));
+        const filler = document.createElement('br');
+        filler.dataset.filler = '1';
+        root.appendChild(filler);
+      }
+      return true;
+    };
+    return calls;
+  }
+
+  afterEach(() => {
+    delete document.execCommand;
+    delete document.queryCommandSupported;
+  });
+
+  it('inserts a single-line paste with one insertText and reports success', () => {
+    const root = makeRoot();
+    const calls = stubExecCommand(root);
+    expect(insertPlainText(root, 'hello')).toBe(true);
+    expect(calls).toEqual(['insertText:hello']);
+    expect(serialize(root)).toBe('hello');
+  });
+
+  it('splits a multi-line paste into insertText / insertLineBreak commands', () => {
+    // Каждая строка — отдельная команда execCommand, чтобы вся вставка легла в
+    // нативный стек отмены и при этом оставила плоский DOM (текст + <br>), а не
+    // блочные <div>, которыми execCommand('insertText') оформляет переносы.
+    const root = makeRoot();
+    const calls = stubExecCommand(root);
+    expect(insertPlainText(root, 'a\nb\nc')).toBe(true);
+    expect(calls).toEqual(['insertText:a', 'insertLineBreak', 'insertText:b', 'insertLineBreak', 'insertText:c']);
+    expect(serialize(root)).toBe('a\nb\nc');
+  });
+
+  it('marks the filler <br> after a trailing newline as the sentinel', () => {
+    // Без этого serialize прочитала бы filler вторым '\n', а
+    // normalizeTrailingSentinel добавила бы поверх ещё один <br>.
+    const root = makeRoot();
+    stubExecCommand(root);
+    insertPlainText(root, 'a\n');
+    expect(root.lastChild.dataset.sentinel).toBe('1');
+    expect(serialize(root)).toBe('a\n');
+    normalizeTrailingSentinel(root);
+    expect(serialize(root)).toBe('a\n');
+  });
+
+  it('leaves an untouched trailing <br> alone when the paste has no trailing newline', () => {
+    const root = makeRoot();
+    stubExecCommand(root);
+    insertPlainText(root, 'a\nb');
+    expect(root.querySelector('br[data-sentinel]')).toBeNull();
+    expect(serialize(root)).toBe('a\nb');
+  });
+
+  it('declines a multi-line paste where insertLineBreak is unsupported, without inserting anything', () => {
+    // Firefox: вызывающий код должен уйти на резервный путь (одна insertText +
+    // перерисовка), поэтому важно, чтобы до отказа в DOM ничего не попало.
+    const root = makeRoot();
+    const calls = stubExecCommand(root);
+    document.queryCommandSupported = () => false;
+    expect(insertPlainText(root, 'a\nb')).toBe(false);
+    expect(calls).toEqual([]);
+    expect(root.childNodes).toHaveLength(0);
+  });
+
+  it('still handles a single-line paste where insertLineBreak is unsupported', () => {
+    const root = makeRoot();
+    stubExecCommand(root);
+    document.queryCommandSupported = () => false;
+    expect(insertPlainText(root, 'hello')).toBe(true);
+    expect(serialize(root)).toBe('hello');
+  });
+});
+
 function setCaret(node, offset) {
   const sel = window.getSelection();
   const range = document.createRange();
@@ -167,6 +280,21 @@ describe('getCaretOffset + placeCaretAtOffset (paste normalization round-trip)',
     // before the caret is "a" + "b" — the caret sits right after "b", same as
     // before flattening.
     expect(pre.toString()).toBe('ab');
+    root.remove();
+  });
+
+  it('puts the caret BEFORE a leading chip at offset 0, not after it', () => {
+    // Значение начинается с чипа, каретка — в самом начале. Текстовой ноды
+    // слева нет, поэтому этот случай ловит только ветка чипа; без явной
+    // проверки нуля курсор уезжал за чип.
+    const root = makeRoot();
+    document.body.appendChild(root);
+    renderValue(root, '⟦file:a.js⟧ tail');
+    placeCaretAtOffset(root, 0);
+
+    const range = window.getSelection().getRangeAt(0);
+    expect(range.startContainer).toBe(root);
+    expect(range.startOffset).toBe(0);
     root.remove();
   });
 

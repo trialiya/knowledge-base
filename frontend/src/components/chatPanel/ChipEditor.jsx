@@ -5,6 +5,7 @@ import {
   renderValue,
   placeCaretEnd,
   normalizeTrailingSentinel,
+  insertPlainText,
   getCaretOffset,
   placeCaretAtOffset,
 } from './fileChipEditorDom';
@@ -23,6 +24,9 @@ import useChipPreview from './useChipPreview';
 const ChipEditor = forwardRef(function ChipEditor({ value, onChange, onSend, disabled, placeholder, chatId }, ref) {
   const editorRef = useRef(null);
   const internalRef = useRef(value);
+  // Идёт программная вставка (handlePaste): её промежуточные input-события
+  // пропускаем, см. handleInput.
+  const pastingRef = useRef(false);
 
   const { picker, triggerRef, detectTrigger, dismissPicker, moveSelection, tokenFor } = useChipPicker();
 
@@ -68,6 +72,12 @@ const ChipEditor = forwardRef(function ChipEditor({ value, onChange, onSend, dis
   });
 
   const handleInput = useCallback(() => {
+    // Вставка идёт несколькими execCommand подряд, и каждая шлёт свой input.
+    // Обрабатывать их по одному нельзя: normalizeTrailingSentinel внутри
+    // emitChange дописывала бы sentinel-<br> в середину незаконченной вставки, а
+    // следующая команда печатала бы уже мимо него — многострочный текст приезжал
+    // с лишним переносом в конце. Ждём конца вставки, handlePaste позовёт сам.
+    if (pastingRef.current) return;
     emitChange();
     // Chrome auto-inserts a bare <br> when all content is deleted. serialize()
     // strips the leading \n so value becomes "" — but the <br> (плюс sentinel,
@@ -123,16 +133,25 @@ const ChipEditor = forwardRef(function ChipEditor({ value, onChange, onSend, dis
   const insertItemWithContent = useCallback((item) => doInsert(tokenFor(item, true)), [doInsert, tokenFor]);
 
   // Сбрасываем форматирование при вставке — вставляем только plain text.
-  // Используем execCommand('insertText') (а не ручную вставку через Range), чтобы
-  // вставка попадала в нативный стек отмены — Ctrl+Z отменяет вставленный текст.
-  // Побочный эффект: для многострочного текста Chrome оформляет переносы через
-  // блочные <div>-обёртки, а не плоские text+<br> — это ломает
-  // normalizeTrailingSentinel и Shift+Enter-обработчик ниже, которые смотрят
-  // только на прямых детей root (плоский DOM). Поэтому сразу после вставки
-  // пересобираем DOM в плоский вид из того же value: снимаем смещение каретки
-  // в терминах value ДО перерисовки (пока ещё виден "грязный" DOM с <div>),
-  // рисуем плоский DOM через renderValue и ставим курсор обратно по тому же
-  // смещению.
+  // insertPlainText делает это через execCommand, поэтому вставка попадает в
+  // нативный стек отмены и Ctrl+Z её отменяет — целиком, одним шагом.
+  //
+  // НЕ ВОЗВРАЩАТЬ СЮДА renderValue НА ОСНОВНОМ ПУТИ. Она пересобирает поле
+  // через `textContent = ''`, а браузер выбрасывает стек отмены, как только
+  // скрипт заменяет узлы, на которые ссылаются его шаги. Ровно так уже вышло:
+  // #130 сделал вставку отменяемой, #147 добавил здесь пересборку ради плоского
+  // DOM — и молча отменил цель #130, оставив комментарий, что Ctrl+Z работает.
+  // Плоский DOM теперь обеспечивает сама вставка, пересобирать нечего.
+  //
+  // Резервный путь (браузер без 'insertLineBreak', то есть Firefox на
+  // многострочном тексте): вставляем весь текст одной командой и пересобираем
+  // DOM в плоский вид, потому что на многострочном тексте execCommand('insertText')
+  // заворачивает строки в блочные <div>, а normalizeTrailingSentinel,
+  // Shift+Enter-обработчик и placeCaretAtOffset смотрят только на прямых детей
+  // root. Смещение каретки снимаем в терминах value ДО перерисовки (пока виден
+  // "грязный" DOM с <div>), рисуем плоский DOM через renderValue и ставим курсор
+  // обратно по тому же смещению. Ценой отмены: renderValue пересобирает узлы
+  // руками, а это стирает нативный стек — здесь иначе никак.
   const handlePaste = useCallback(
     (e) => {
       e.preventDefault();
@@ -140,6 +159,19 @@ const ChipEditor = forwardRef(function ChipEditor({ value, onChange, onSend, dis
       if (!text) return;
       const root = editorRef.current;
       if (!root) return;
+
+      pastingRef.current = true;
+      let inserted;
+      try {
+        inserted = insertPlainText(root, text);
+      } finally {
+        pastingRef.current = false;
+      }
+      if (inserted) {
+        handleInput(); // один проход на готовом плоском DOM, вместо пропущенных
+        return;
+      }
+
       document.execCommand('insertText', false, text);
       const offset = getCaretOffset(root);
       const v = serialize(root);
@@ -148,7 +180,7 @@ const ChipEditor = forwardRef(function ChipEditor({ value, onChange, onSend, dis
       internalRef.current = v;
       onChange(v);
     },
-    [onChange],
+    [onChange, handleInput],
   );
 
   const handleKeyDown = useCallback(
