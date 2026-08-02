@@ -59,7 +59,7 @@ public class RecordingToolCallback implements ToolCallback {
     }
 
     @Override
-    public String call(String toolInput, ToolContext toolContext) {
+    public String call(String toolInput, @Nullable ToolContext toolContext) {
         final String name = delegate.getToolDefinition().name();
         final ToolInvocationCollector collector = collectorFrom(toolContext);
         final Map<Object, Object> toolInputMap = parseToolInput(toolInput);
@@ -67,7 +67,15 @@ public class RecordingToolCallback implements ToolCallback {
         if (collector != null) {
             collector.record(
                     new ToolInvocation(
-                            name, toolInputMap, STARTED, null, null, null, null, null, callIdx));
+                            name,
+                            toolInputMap,
+                            STARTED,
+                            null,
+                            null,
+                            null,
+                            toolInput,
+                            null,
+                            callIdx));
         }
         try {
             CURRENT_RESULT.remove();
@@ -106,7 +114,8 @@ public class RecordingToolCallback implements ToolCallback {
         }
     }
 
-    private static ToolInvocationCollector collectorFrom(ToolContext toolContext) {
+    private static @Nullable ToolInvocationCollector collectorFrom(
+            @Nullable ToolContext toolContext) {
         return ToolInvocationCollector.from(toolContext);
     }
 
@@ -156,7 +165,7 @@ public class RecordingToolCallback implements ToolCallback {
         return Map.of();
     }
 
-    private String getGist(Object result) {
+    private @Nullable String getGist(Object result) {
         if (result instanceof ToolCallResponseItem item) {
             return item.getFormattedResponse();
         } else if (result instanceof Collection<?> col

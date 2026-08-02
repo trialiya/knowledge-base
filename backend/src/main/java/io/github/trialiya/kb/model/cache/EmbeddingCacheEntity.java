@@ -16,6 +16,8 @@ import org.springframework.data.relational.core.mapping.Table;
  * least-recently-used eviction policy can be applied by {@code EmbeddingCacheCleanupTask}.
  */
 @Data
+// Hydrated by Spring Data JDBC via the no-args constructor + setters; see DocumentEmbeddingEntity.
+@SuppressWarnings("NullAway.Init")
 @NoArgsConstructor
 @AllArgsConstructor
 @Table("embedding_cache")

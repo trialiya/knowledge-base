@@ -10,6 +10,6 @@ public record ChatMessage(
         String content,
         String type,
         LocalDateTime timestamp,
-        List<ToolInvocationMeta> toolInvocationMetas,
+        @Nullable List<ToolInvocationMeta> toolInvocationMetas,
         @Nullable String runId,
         boolean toolCalls) {}

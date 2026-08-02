@@ -1,6 +1,8 @@
 package io.github.trialiya.kb.config;
 
+import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -62,7 +64,11 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleResponseStatusException(ResponseStatusException ex) {
         log.error(ex.getMessage(), ex);
         ErrorResponse error =
-                new ErrorResponse(HttpStatus.resolve(ex.getStatusCode().value()), ex.getMessage());
+                new ErrorResponse(
+                        Objects.requireNonNullElse(
+                                HttpStatus.resolve(ex.getStatusCode().value()),
+                                HttpStatus.INTERNAL_SERVER_ERROR),
+                        ex.getMessage());
         return new ResponseEntity<>(error, ex.getStatusCode());
     }
 
@@ -76,5 +82,5 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
-    private record ErrorResponse(HttpStatus status, String message) {}
+    private record ErrorResponse(HttpStatus status, @Nullable String message) {}
 }

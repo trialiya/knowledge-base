@@ -150,15 +150,15 @@ public class DocumentService {
                 .map(
                         e ->
                                 new DocumentNode(
-                                        e.getId(),
+                                        Objects.requireNonNull(e.getId()),
                                         e.getTitle(),
                                         e.getType().getValue(),
                                         e.getParentId(),
                                         e.getVersion(),
-                                        null,
+                                        "", // description omitted in skeleton
                                         e.getDescriptionVersion(),
                                         null, // createdAt omitted in skeleton
-                                        null,
+                                        null, // updatedAt omitted in skeleton
                                         Collections.emptyList(),
                                         parentIds.contains(e.getId()),
                                         e.isSystem(),
@@ -173,16 +173,16 @@ public class DocumentService {
     /** Full shallow node: entity + its direct children (used by getById). */
     private DocumentNode toShallowNode(DocumentEntity e) {
         List<DocumentNode> children =
-                repo.findByParentId(e.getId()).stream()
+                repo.findByParentId(Objects.requireNonNull(e.getId())).stream()
                         .map(
                                 c ->
                                         new DocumentNode(
-                                                c.getId(),
+                                                Objects.requireNonNull(c.getId()),
                                                 c.getTitle(),
                                                 c.getType().getValue(),
                                                 c.getParentId(),
                                                 c.getVersion(),
-                                                null,
+                                                "",
                                                 c.getDescriptionVersion(),
                                                 // description/updatedAt/createdAt all
                                                 // deliberately omitted here — this is a stub
@@ -193,7 +193,7 @@ public class DocumentService {
                                                 null,
                                                 null,
                                                 Collections.emptyList(),
-                                                repo.hasChildren(c.getId()),
+                                                repo.hasChildren(Objects.requireNonNull(c.getId())),
                                                 c.isSystem(),
                                                 // children in the list carry their own summary
                                                 // state so the UI can show badges in the tree
@@ -202,7 +202,7 @@ public class DocumentService {
                                                 c.getSummarySourceVersion()))
                         .collect(Collectors.toList());
         return new DocumentNode(
-                e.getId(),
+                Objects.requireNonNull(e.getId()),
                 e.getTitle(),
                 e.getType().getValue(),
                 e.getParentId(),
@@ -220,14 +220,14 @@ public class DocumentService {
     }
 
     private DocumentNode toStubNode(DocumentEntity e) {
-        boolean hc = repo.hasChildren(e.getId());
+        boolean hc = repo.hasChildren(Objects.requireNonNull(e.getId()));
         return new DocumentNode(
-                e.getId(),
+                Objects.requireNonNull(e.getId()),
                 e.getTitle(),
                 e.getType().getValue(),
                 e.getParentId(),
                 e.getVersion(),
-                snippetOf(e.getDescription()),
+                Objects.requireNonNullElse(snippetOf(e.getDescription()), ""),
                 e.getDescriptionVersion(),
                 e.getCreatedAt(),
                 e.getUpdatedAt(),
@@ -251,14 +251,14 @@ public class DocumentService {
                 byParent.getOrDefault(e.getId(), Collections.emptyList()).stream()
                         .map(child -> buildNode(child, byParent))
                         .collect(Collectors.toList());
-        boolean hc = !children.isEmpty() || repo.hasChildren(e.getId());
+        boolean hc = !children.isEmpty() || repo.hasChildren(Objects.requireNonNull(e.getId()));
         return new DocumentNode(
-                e.getId(),
+                Objects.requireNonNull(e.getId()),
                 e.getTitle(),
                 e.getType().getValue(),
                 e.getParentId(),
                 e.getVersion(),
-                null, // description omitted — fetch via GET /api/documents/{id}
+                "", // description omitted — fetch via GET /api/documents/{id}
                 e.getDescriptionVersion(),
                 e.getCreatedAt(),
                 e.getUpdatedAt(),
@@ -285,7 +285,7 @@ public class DocumentService {
                         req.getTitle(),
                         type,
                         req.getParentId(),
-                        req.getDescription(),
+                        Objects.requireNonNullElse(req.getDescription(), ""),
                         now, // createdAt — set once, never updated afterwards
                         now,
                         nextPos,
@@ -298,7 +298,7 @@ public class DocumentService {
 
         historyRepo.save(snapshotOf(saved));
 
-        tryIndex(saved.getId(), saved.getTitle(), saved.getDescription());
+        tryIndex(Objects.requireNonNull(saved.getId()), saved.getTitle(), saved.getDescription());
         return toDto(saved);
     }
 
@@ -370,7 +370,7 @@ public class DocumentService {
         // ── 4. Persist snapshot of current state (always, as before) ──────────
         historyRepo.save(snapshotOf(saved));
 
-        tryIndex(saved.getId(), saved.getTitle(), saved.getDescription());
+        tryIndex(Objects.requireNonNull(saved.getId()), saved.getTitle(), saved.getDescription());
         return toDto(saved);
     }
 
@@ -595,7 +595,7 @@ public class DocumentService {
      * must not be the node itself or any of its descendants (cycle check). {@code null} target
      * (root level) is always valid.
      */
-    private void validateTargetParent(long id, Long targetParentId) {
+    private void validateTargetParent(long id, @Nullable Long targetParentId) {
         if (targetParentId == null) return;
 
         DocumentEntity targetFolder =
@@ -653,7 +653,11 @@ public class DocumentService {
     }
 
     private record RawSearchResult(
-            long id, String title, String snippet, LocalDateTime updatedAt, String summary) {}
+            long id,
+            String title,
+            String snippet,
+            LocalDateTime updatedAt,
+            @Nullable String summary) {}
 
     /** Keyword hits without breadcrumbs — shared building block for {@link #hybridSearch}. */
     private List<RawSearchResult> keywordHits(String q) {
@@ -661,7 +665,7 @@ public class DocumentService {
                 .map(
                         e ->
                                 new RawSearchResult(
-                                        e.getId(),
+                                        Objects.requireNonNull(e.getId()),
                                         e.getTitle(),
                                         generateSnippet(e.getDescription(), q.toLowerCase()),
                                         e.getUpdatedAt(),
@@ -825,7 +829,7 @@ public class DocumentService {
     private DocumentHistoryEntity snapshotOf(DocumentEntity entity) {
         return new DocumentHistoryEntity(
                 null,
-                entity.getId(),
+                Objects.requireNonNull(entity.getId()),
                 entity.getVersion(),
                 entity.getTitle(),
                 entity.getType().getValue(),
@@ -838,7 +842,7 @@ public class DocumentService {
 
     private Document toDto(DocumentEntity e) {
         return new Document(
-                e.getId(),
+                Objects.requireNonNull(e.getId()),
                 e.getTitle(),
                 e.getType().getValue(),
                 e.getParentId(),

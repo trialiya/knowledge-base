@@ -52,7 +52,7 @@ public class ChatEventService {
     public ChatEvent publish(
             String conversationId,
             ChatEventType type,
-            String runId,
+            @Nullable String runId,
             @Nullable String clientMsgId,
             @Nullable Object payload) {
         return hub(conversationId).publish(type, runId, clientMsgId, payload);
@@ -66,7 +66,7 @@ public class ChatEventService {
     public void publishIfPresent(
             String conversationId,
             ChatEventType type,
-            String runId,
+            @Nullable String runId,
             @Nullable String clientMsgId,
             @Nullable Object payload) {
         final ConversationHub hub = hubs.get(conversationId);

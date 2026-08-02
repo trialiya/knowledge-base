@@ -18,6 +18,8 @@ import org.springframework.data.relational.core.mapping.Table;
  * <p>Rows are never mutated after insertion; there is no {@code @Version} here.
  */
 @Data
+// Hydrated by Spring Data JDBC via the no-args constructor + setters; see DocumentEmbeddingEntity.
+@SuppressWarnings("NullAway.Init")
 @NoArgsConstructor
 @AllArgsConstructor
 @Table("document_history")
@@ -37,7 +39,7 @@ public class DocumentHistoryEntity {
     private String type;
     private String description;
     private LocalDateTime updatedAt;
-    private String summary;
+    @Nullable private String summary;
     @Nullable private Integer summarySourceVersion;
     private int descriptionVersion;
 }

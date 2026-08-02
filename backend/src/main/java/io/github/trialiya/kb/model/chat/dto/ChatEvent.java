@@ -16,5 +16,5 @@ public record ChatEvent(
         long seq,
         ChatEventType type,
         @Nullable String runId,
-        String clientMsgId,
+        @Nullable String clientMsgId,
         @Nullable Object payload) {}

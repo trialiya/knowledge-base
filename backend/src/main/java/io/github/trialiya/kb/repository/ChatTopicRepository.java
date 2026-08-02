@@ -3,6 +3,7 @@ package io.github.trialiya.kb.repository;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import java.time.LocalDateTime;
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 import org.springframework.data.jdbc.repository.query.Modifying;
 import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.CrudRepository;
@@ -37,11 +38,11 @@ public interface ChatTopicRepository extends CrudRepository<ChatTopicEntity, Str
 
     @Modifying
     @Query("UPDATE chat_topic SET model = :model WHERE conversation_id = :convId")
-    void updateModel(@Param("convId") String convId, @Param("model") String model);
+    void updateModel(@Param("convId") String convId, @Param("model") @Nullable String model);
 
     @Modifying
     @Query("UPDATE chat_topic SET mode = :mode WHERE conversation_id = :convId")
-    void updateMode(@Param("convId") String convId, @Param("mode") String mode);
+    void updateMode(@Param("convId") String convId, @Param("mode") @Nullable String mode);
 
     /**
      * Чаты пользователя, чьё название содержит q (поиск по чатам). Ищет по отображаемому названию —

@@ -12,6 +12,9 @@ import org.springframework.data.relational.core.mapping.Table;
 @NoArgsConstructor
 @AllArgsConstructor
 @Table("document_embeddings")
+// Spring Data JDBC hydrates rows through the no-args constructor + setters, invisible to
+// NullAway's initialization check; @AllArgsConstructor is the one path the analysis can see.
+@SuppressWarnings("NullAway.Init")
 public class DocumentEmbeddingEntity {
 
     @Id @Nullable private Long id;

@@ -235,9 +235,9 @@ public class SettingsController {
      * summarization thresholds already reported in {@code summarize}.
      */
     public record ChatOptions(
-            Integer maxTokens,
-            Double temperature,
-            Double topP,
+            @Nullable Integer maxTokens,
+            @Nullable Double temperature,
+            @Nullable Double topP,
             long requestTimeoutSeconds,
             int retryMaxAttempts,
             long sseTimeoutSeconds) {}

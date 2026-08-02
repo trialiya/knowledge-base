@@ -18,6 +18,7 @@ import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.model.tool.ToolCallingManager;
@@ -186,7 +187,8 @@ public class SearchAgentService {
             hops++;
         }
 
-        final String text = response == null ? null : response.getResult().getOutput().getText();
+        final Generation result = response == null ? null : response.getResult();
+        final String text = result == null ? null : result.getOutput().getText();
         if (text == null || text.isBlank()) {
             // Model stopped without producing prose — ask it to summarize the gathered evidence.
             String summary = summarize(prompt, conversationId, fullTask, SUMMARIZE_DONE, usage);
@@ -257,7 +259,8 @@ public class SearchAgentService {
         try {
             final ChatResponse summary = chatModel.call(new Prompt(messages, finalOptions));
             usage.add(summary);
-            final String text = summary.getResult().getOutput().getText();
+            final Generation result = summary.getResult();
+            final String text = result == null ? null : result.getOutput().getText();
             return (text == null || text.isBlank()) ? "Поиск не дал результатов." : text;
         } catch (Exception e) {
             log.error("[{}] search sub-agent summarization failed", conversationId, e);

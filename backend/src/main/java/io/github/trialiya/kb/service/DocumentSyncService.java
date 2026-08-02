@@ -30,6 +30,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
@@ -610,7 +611,9 @@ public class DocumentSyncService {
         }
 
         static DiskEntry ofDocument(Path file, String segment) {
-            return new DiskEntry(file.getParent(), file, segment, segment, false);
+            // file is always nested under the export root, so it always has a parent.
+            return new DiskEntry(
+                    Objects.requireNonNull(file.getParent()), file, segment, segment, false);
         }
 
         DiskEntry withTitle(String title) {
