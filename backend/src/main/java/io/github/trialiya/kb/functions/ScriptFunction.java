@@ -7,6 +7,7 @@ import io.github.trialiya.kb.model.script.ScriptResult;
 import io.github.trialiya.kb.service.script.ScriptRunner;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
 import io.github.trialiya.kb.tools.RunCancellation;
+import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -83,7 +84,12 @@ public class ScriptFunction {
         final int timeout = positiveOrDefault(timeoutSeconds, 10);
         log.info("runScript called: {} chars, timeoutSeconds={}", script.length(), timeout);
         ScriptResult result =
-                scriptRunner.run(script, timeout, RunCancellation.from(context), forceReadOnly);
+                scriptRunner.run(
+                        script,
+                        timeout,
+                        RunCancellation.from(context),
+                        forceReadOnly,
+                        ToolInvocationCollector.from(context));
         log.info("runScript finished: {}", result.getFormattedResponse());
         return result;
     }

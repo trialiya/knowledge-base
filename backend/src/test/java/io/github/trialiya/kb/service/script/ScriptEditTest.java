@@ -7,9 +7,11 @@ import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.model.git.dto.GitEditResult;
 import io.github.trialiya.kb.model.script.ScriptError;
 import io.github.trialiya.kb.model.script.ScriptResult;
+import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.service.GitService;
 import io.github.trialiya.kb.service.OutlineService;
 import io.github.trialiya.kb.tools.RunCancellation;
+import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -18,6 +20,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -204,6 +207,90 @@ class ScriptEditTest {
     void refusesToEditAFileTheScriptHasNotRead() {
         ScriptResult result =
                 run("kb.edit('src/App.java', 'class App', 'class Blind'); return 'ok';");
+
+        assertThat(result.error()).isNotNull();
+        assertThat(result.error().message()).contains("has not looked at it");
+        assertThat(fileText(APP_JAVA)).isEqualTo(ORIGINAL);
+    }
+
+    /**
+     * The read-before-edit rule is about the model, not about this one script: if {@code
+     * getFileContent} already showed it the file earlier in the same chat-response, a script that
+     * edits the same file without reading it again is not blind — it is reusing what the model
+     * already saw through another tool.
+     */
+    @Test
+    void acceptsAFileReadByAnotherToolEarlierInTheSameResponse() {
+        ToolInvocationCollector collector = new ToolInvocationCollector();
+        collector.record(
+                new ToolInvocation(
+                        "getFileContent",
+                        Map.of("filePath", APP_JAVA),
+                        ToolInvocationCollector.ToolInvocationStatus.OK,
+                        null,
+                        null,
+                        null,
+                        null,
+                        ORIGINAL,
+                        collector.nextCallIndex()));
+
+        ScriptResult result =
+                run(
+                        "kb.edit('src/App.java', 'class App', 'class SeenElsewhere'); return 'ok';",
+                        collector);
+
+        assertThat(result.error()).isNull();
+        assertThat(fileText(APP_JAVA)).startsWith("class SeenElsewhere");
+    }
+
+    /**
+     * The same session guard also covers a second {@code runScript} call: a file an earlier script
+     * only read (never edited) still shows up in that call's own result as {@code filesRead}, and a
+     * later script in the same response can build on it without reading the file all over again.
+     */
+    @Test
+    void acceptsAFileReadByAnEarlierRunScriptCallInTheSameResponse() {
+        ToolInvocationCollector collector = new ToolInvocationCollector();
+        collector.record(
+                new ToolInvocation(
+                        "runScript",
+                        Map.of("script", "kb.read('src/App.java'); return 'ok';"),
+                        ToolInvocationCollector.ToolInvocationStatus.OK,
+                        null,
+                        null,
+                        null,
+                        null,
+                        "{\"value\":\"ok\",\"filesRead\":[\"src/App.java\"]}",
+                        collector.nextCallIndex()));
+
+        ScriptResult result =
+                run(
+                        "kb.edit('src/App.java', 'class App', 'class FromEarlierScript'); return"
+                                + " 'ok';",
+                        collector);
+
+        assertThat(result.error()).isNull();
+        assertThat(fileText(APP_JAVA)).startsWith("class FromEarlierScript");
+    }
+
+    /** Only a completed read counts — a call still in flight has not shown the model anything. */
+    @Test
+    void ignoresAToolCallStillInFlight() {
+        ToolInvocationCollector collector = new ToolInvocationCollector();
+        collector.record(
+                new ToolInvocation(
+                        "getFileContent",
+                        Map.of("filePath", APP_JAVA),
+                        ToolInvocationCollector.ToolInvocationStatus.STARTED,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        collector.nextCallIndex()));
+
+        ScriptResult result =
+                run("kb.edit('src/App.java', 'class App', 'class Blind'); return 'ok';", collector);
 
         assertThat(result.error()).isNotNull();
         assertThat(result.error().message()).contains("has not looked at it");
@@ -470,6 +557,10 @@ class ScriptEditTest {
 
     private ScriptResult run(String script) {
         return runner.run(script, null, RunCancellation.none());
+    }
+
+    private ScriptResult run(String script, ToolInvocationCollector priorInvocations) {
+        return runner.run(script, null, RunCancellation.none(), false, priorInvocations);
     }
 
     private ScriptRunner newRunner(boolean editEnabled, ScriptProperties properties) {
