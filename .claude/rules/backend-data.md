@@ -10,21 +10,9 @@ The least guessable part of the backend. Read this before touching
 
 ## `@Tool` signatures
 
-- **Never declare a primitive parameter on a `@Tool` method.** A weak model that
-  omits an argument leaves Spring AI passing `null` to `Method.invoke`; for a
-  primitive that throws `IllegalArgumentException("argument type mismatch")`
-  from `invoke` itself, so it is *not* a `ToolExecutionException`, the exception
-  processor never sees it, and the whole chat run dies instead of one call. Use
-  `Long`/`Integer`/`Boolean` and answer the `null`.
-- **Answer every gap through `ToolArgs`** (`kb.tools`): `orDefault` /
-  `positiveOrDefault` for arguments the tool can do without (`required = false`
-  in the schema), `require*` for the ones it cannot — the thrown message names
-  the argument and comes back to the model as the tool result. `requireText`
-  treats blank as missing (ids, paths, queries); `requireContent` only rejects
-  `null`, because an explicit `""` is a real instruction (empty file, deleted
-  fragment).
-- `ToolArgumentGapsTest` calls every `@Tool` with `{}` through a real
-  `MethodToolCallback` and fails on anything that escapes that channel.
+No primitive parameters, and every missing argument answered on purpose through
+`ToolArgs` (`kb.tools`). `ToolArgumentGapsTest` scans for the tools and enforces
+both — read its javadoc for the why before writing a new `@Tool`.
 
 ## Tool-call storage
 

@@ -9,10 +9,10 @@ import org.jspecify.annotations.Nullable;
  * <p>Weak models routinely omit arguments the schema marks as required. Spring AI does not defend
  * against that: {@code MethodToolCallback} looks the name up in the argument map, gets {@code
  * null}, and passes it straight to {@code Method.invoke}. For a wrapper type that is a {@code null}
- * reference the tool body can inspect; for a <b>primitive</b> parameter reflection throws {@code
- * IllegalArgumentException("argument type mismatch")} — and because that is thrown by {@code
- * invoke} itself rather than by the tool, it is not wrapped in {@code ToolExecutionException} and
- * never reaches the exception processor. One missing {@code boolean} takes down the whole chat run.
+ * reference the tool body can inspect; for a <b>primitive</b> parameter reflection cannot unbox it
+ * and throws {@code IllegalArgumentException} — and because that is thrown by {@code invoke} itself
+ * rather than by the tool, it is not wrapped in {@code ToolExecutionException} and never reaches
+ * the exception processor. One missing {@code boolean} takes down the whole chat run.
  *
  * <p>Hence the two halves of the policy, which every tool in {@code functions} follows:
  *
