@@ -1,7 +1,15 @@
 package io.github.trialiya.kb.functions;
 
+import static io.github.trialiya.kb.tools.ToolArgs.orDefault;
+import static io.github.trialiya.kb.tools.ToolArgs.requireContent;
+import static io.github.trialiya.kb.tools.ToolArgs.requireId;
+import static io.github.trialiya.kb.tools.ToolArgs.requireInt;
+import static io.github.trialiya.kb.tools.ToolArgs.requireNonEmpty;
+import static io.github.trialiya.kb.tools.ToolArgs.requireText;
+import static io.github.trialiya.kb.tools.ToolArgs.requireValue;
 import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import io.github.trialiya.kb.model.doc.dto.CreateDocumentRequest;
 import io.github.trialiya.kb.model.doc.dto.DocumentNode;
 import io.github.trialiya.kb.model.doc.dto.DocumentOutline;
@@ -67,6 +75,26 @@ public class DocumentFunction {
     public enum InsertPosition {
         BEFORE,
         AFTER;
+
+        /**
+         * Accepts the casing the model actually sent. The schema advertises the constants in upper
+         * case, but weak models answer "before" or " After" often enough that the strict Jackson
+         * default — a deserialization failure whose message names neither the argument nor the
+         * accepted values — is a worse answer than simply understanding them.
+         */
+        @JsonCreator
+        static InsertPosition parse(String raw) {
+            final String value = raw == null ? "" : raw.strip().toUpperCase();
+            return switch (value) {
+                case "BEFORE" -> BEFORE;
+                case "AFTER" -> AFTER;
+                default ->
+                        throw new IllegalArgumentException(
+                                "Tool argument 'position' must be BEFORE or AFTER, got \""
+                                        + raw
+                                        + "\".");
+            };
+        }
     }
 
     // ── Search ────────────────────────────────────────────────────────────────
@@ -103,8 +131,10 @@ public class DocumentFunction {
                     @Nullable Double kwWeight,
             @ToolParam(description = "Semantic weight in hybrid mode (0.0–1.0).", required = false)
                     @Nullable Double semWeight) {
-
-        String effectiveMode = (mode != null && !mode.isBlank()) ? mode.toLowerCase() : "hybrid";
+        // No empty-query fallback: semantic and hybrid both embed the query, and the embedding API
+        // rejects an empty string — the "safe" default would fail deeper down with a worse message.
+        requireText(query, "query");
+        final String effectiveMode = orDefault(mode, "hybrid").toLowerCase();
         log.info(
                 "Document search: query='{}' mode={} threshold={} limit={}",
                 query,
@@ -159,6 +189,8 @@ public class DocumentFunction {
             resultConverter = CompactToolResultConverter.class)
     public List<DocumentNode> findDocumentsByName(
             @ToolParam(description = "Document/folder title (full or partial).") String name) {
+        // "" matches every title; the model that wants the whole list has getTreeSkeleton for it.
+        requireText(name, "name");
         log.info("findDocumentsByName called: name='{}'", name);
         return documentService.findByName(name);
     }
@@ -178,8 +210,9 @@ public class DocumentFunction {
             resultConverter = CompactToolResultConverter.class)
     public DocumentNode getDocument(
             @ToolParam(description = "Document or folder id.") String documentId) {
-        log.info("getDocument called: documentId={}", documentId);
-        return documentService.getById(Long.parseLong(documentId));
+        final long id = requireId(documentId, "documentId");
+        log.info("getDocument called: documentId={}", id);
+        return documentService.getById(id);
     }
 
     // ── Markdown sections ─────────────────────────────────────────────────────
@@ -197,8 +230,9 @@ public class DocumentFunction {
             resultConverter = CompactToolResultConverter.class)
     public DocumentOutline getDocumentOutline(
             @ToolParam(description = "Document id.") String documentId) {
-        log.info("getDocumentOutline called: documentId={}", documentId);
-        DocumentNode node = requireDocument(documentId);
+        final long id = requireId(documentId, "documentId");
+        log.info("getDocumentOutline called: documentId={}", id);
+        DocumentNode node = requireDocument(id);
         List<MarkdownSections.Section> sections = MarkdownSections.parse(descriptionOf(node));
         return new DocumentOutline(
                 node.id(),
@@ -233,11 +267,10 @@ public class DocumentFunction {
                             description =
                                     "Section path from getDocumentOutline (e.g., \"Setup > Docker\").")
                     String sectionPath) {
-        log.info(
-                "getDocumentSection called: documentId={} sectionPath='{}'",
-                documentId,
-                sectionPath);
-        DocumentNode node = requireDocument(documentId);
+        final long id = requireId(documentId, "documentId");
+        requireText(sectionPath, "sectionPath");
+        log.info("getDocumentSection called: documentId={} sectionPath='{}'", id, sectionPath);
+        DocumentNode node = requireDocument(id);
         String description = descriptionOf(node);
         MarkdownSections.Section section = findSectionOrThrow(description, sectionPath);
         return new DocumentSection(
@@ -275,7 +308,7 @@ public class DocumentFunction {
             resultConverter = CompactToolResultConverter.class)
     public DocumentShort updateDocumentSection(
             ToolContext context,
-            @ToolParam(description = "Document id.") long documentId,
+            @ToolParam(description = "Document id.") Long documentId,
             @ToolParam(
                             description =
                                     "Section path from getDocumentOutline; _preamble = text before first heading.")
@@ -288,15 +321,19 @@ public class DocumentFunction {
             @ToolParam(
                             description =
                                     "descriptionVersion from getDocumentOutline/getDocumentSection.")
-                    int expectedDescriptionVersion) {
+                    Integer expectedDescriptionVersion) {
+        final long id = requireId(documentId, "documentId");
+        requireText(sectionPath, "sectionPath");
+        requireContent(newContent, "newContent");
+        final int version = requireInt(expectedDescriptionVersion, "expectedDescriptionVersion");
 
         log.info(
                 "updateDocumentSection called: id={} sectionPath='{}' expectedDescVer={}",
-                documentId,
+                id,
                 sectionPath,
-                expectedDescriptionVersion);
+                version);
 
-        requireSectionReadInThisResponse(context, documentId, sectionPath, "updateDocumentSection");
+        requireSectionReadInThisResponse(context, id, sectionPath, "updateDocumentSection");
         if (newContent.isBlank()) {
             throw new IllegalArgumentException(
                     "newContent пуст. Передай полный новый текст секции, начиная с её заголовка.");
@@ -307,8 +344,8 @@ public class DocumentFunction {
 
         return documentService
                 .patchDescription(
-                        documentId,
-                        expectedDescriptionVersion,
+                        id,
+                        version,
                         current ->
                                 MarkdownSections.replaceSection(
                                         current,
@@ -337,7 +374,7 @@ public class DocumentFunction {
             resultConverter = CompactToolResultConverter.class)
     public DocumentShort insertDocumentSection(
             ToolContext context,
-            @ToolParam(description = "Document id.") long documentId,
+            @ToolParam(description = "Document id.") Long documentId,
             @ToolParam(description = "Existing anchor section path from getDocumentOutline.")
                     String anchorSectionPath,
             @ToolParam(description = "Position: BEFORE or AFTER the anchor.")
@@ -348,16 +385,21 @@ public class DocumentFunction {
                                             + "Link other documents as [Title](/?doc=ID).")
                     String newContent,
             @ToolParam(description = "descriptionVersion from getDocumentOutline/getDocument.")
-                    int expectedDescriptionVersion) {
+                    Integer expectedDescriptionVersion) {
+        final long id = requireId(documentId, "documentId");
+        requireText(anchorSectionPath, "anchorSectionPath");
+        requireValue(position, "position");
+        requireText(newContent, "newContent");
+        final int version = requireInt(expectedDescriptionVersion, "expectedDescriptionVersion");
 
         log.info(
                 "insertDocumentSection called: id={} anchor='{}' position={} expectedDescVer={}",
-                documentId,
+                id,
                 anchorSectionPath,
                 position,
-                expectedDescriptionVersion);
+                version);
 
-        requireStructureReadInThisResponse(context, documentId, anchorSectionPath);
+        requireStructureReadInThisResponse(context, id, anchorSectionPath);
         boolean before = position == InsertPosition.BEFORE;
         if (before && MarkdownSections.PREAMBLE_PATH.equals(anchorSectionPath)) {
             throw new IllegalArgumentException(
@@ -367,8 +409,8 @@ public class DocumentFunction {
 
         return documentService
                 .patchDescription(
-                        documentId,
-                        expectedDescriptionVersion,
+                        id,
+                        version,
                         current ->
                                 MarkdownSections.insertSection(
                                         current,
@@ -395,7 +437,7 @@ public class DocumentFunction {
             resultConverter = CompactToolResultConverter.class)
     public DocumentShort deleteDocumentSection(
             ToolContext context,
-            @ToolParam(description = "Document id.") long documentId,
+            @ToolParam(description = "Document id.") Long documentId,
             @ToolParam(
                             description =
                                     "Section path from getDocumentOutline; _preamble = text before first heading.")
@@ -403,20 +445,23 @@ public class DocumentFunction {
             @ToolParam(
                             description =
                                     "descriptionVersion from getDocumentOutline/getDocumentSection.")
-                    int expectedDescriptionVersion) {
+                    Integer expectedDescriptionVersion) {
+        final long id = requireId(documentId, "documentId");
+        requireText(sectionPath, "sectionPath");
+        final int version = requireInt(expectedDescriptionVersion, "expectedDescriptionVersion");
 
         log.info(
                 "deleteDocumentSection called: id={} sectionPath='{}' expectedDescVer={}",
-                documentId,
+                id,
                 sectionPath,
-                expectedDescriptionVersion);
+                version);
 
-        requireSectionReadInThisResponse(context, documentId, sectionPath, "deleteDocumentSection");
+        requireSectionReadInThisResponse(context, id, sectionPath, "deleteDocumentSection");
 
         return documentService
                 .patchDescription(
-                        documentId,
-                        expectedDescriptionVersion,
+                        id,
+                        version,
                         current ->
                                 MarkdownSections.replaceSection(
                                         current, findSectionOrThrow(current, sectionPath), ""))
@@ -441,22 +486,22 @@ public class DocumentFunction {
             resultConverter = CompactToolResultConverter.class)
     public DocumentShort renameDocumentSections(
             ToolContext context,
-            @ToolParam(description = "Document id.") long documentId,
+            @ToolParam(description = "Document id.") Long documentId,
             @ToolParam(description = "List of renames: {sectionPath, newTitle}.")
                     List<SectionRename> renames,
             @ToolParam(description = "descriptionVersion from getDocumentOutline/getDocument.")
-                    int expectedDescriptionVersion) {
+                    Integer expectedDescriptionVersion) {
+        final long id = requireId(documentId, "documentId");
+        final int version = requireInt(expectedDescriptionVersion, "expectedDescriptionVersion");
 
         log.info(
                 "renameDocumentSections called: id={} renames={} expectedDescVer={}",
-                documentId,
+                id,
                 renames == null ? null : renames.size(),
-                expectedDescriptionVersion);
+                version);
 
-        requireStructureReadInThisResponse(context, documentId, null);
-        if (renames == null || renames.isEmpty()) {
-            throw new IllegalArgumentException("renames пуст. Передай хотя бы одну пару.");
-        }
+        requireStructureReadInThisResponse(context, id, null);
+        requireNonEmpty(renames, "renames");
         if (renames.stream().map(SectionRename::sectionPath).distinct().count() != renames.size()) {
             throw new IllegalArgumentException("Пути секций в renames должны быть уникальными.");
         }
@@ -475,8 +520,8 @@ public class DocumentFunction {
 
         return documentService
                 .patchDescription(
-                        documentId,
-                        expectedDescriptionVersion,
+                        id,
+                        version,
                         current -> {
                             // Resolve every path against the same text, then splice from the
                             // bottom of the document up so a rename never shifts the offsets of
@@ -509,8 +554,8 @@ public class DocumentFunction {
     }
 
     /** Loads a node by id or fails with a model-readable error (getById returns null quietly). */
-    private DocumentNode requireDocument(String documentId) {
-        DocumentNode node = documentService.getById(Long.parseLong(documentId));
+    private DocumentNode requireDocument(long documentId) {
+        DocumentNode node = documentService.getById(documentId);
         if (node == null) {
             throw new IllegalArgumentException("Документ id=" + documentId + " не найден.");
         }
@@ -567,6 +612,7 @@ public class DocumentFunction {
                                             + "base documents as [Title](/?doc=ID).",
                             required = false)
                     @Nullable String description) {
+        requireText(title, "title");
 
         log.info("createDocument called: title='{}' type={} parentId={}", title, type, parentId);
 
@@ -602,7 +648,7 @@ public class DocumentFunction {
             resultConverter = CompactToolResultConverter.class)
     public DocumentShort updateDocument(
             ToolContext context,
-            @ToolParam(description = "Document id.") long documentId,
+            @ToolParam(description = "Document id.") Long documentId,
             @ToolParam(description = "New title (null to keep current).", required = false)
                     @Nullable String title,
             @ToolParam(
@@ -611,18 +657,26 @@ public class DocumentFunction {
                                             + "base documents as [Title](/?doc=ID).",
                             required = false)
                     @Nullable String description) {
+        final long id = requireId(documentId, "documentId");
 
-        log.info("updateDocument called: id={} title='{}'", documentId, title);
+        log.info("updateDocument called: id={} title='{}'", id, title);
 
+        // Both fields optional by design ("null to keep current") — but a call that fills in
+        // neither changes nothing at all, which is a dropped instruction rather than a no-op.
+        if (title == null && description == null) {
+            throw new IllegalArgumentException(
+                    "Neither 'title' nor 'description' was given, so there is nothing to update. "
+                            + "Call the tool again with the field you want to change.");
+        }
         if (description != null) {
-            requireReadInThisResponse(context, documentId);
+            requireReadInThisResponse(context, id);
         }
 
         UpdateDocumentRequest req = new UpdateDocumentRequest();
         req.setTitle(title);
         req.setDescription(description);
 
-        return documentService.update(documentId, req).toDocumentShort();
+        return documentService.update(id, req).toDocumentShort();
     }
 
     /**
@@ -796,17 +850,17 @@ public class DocumentFunction {
             @ToolParam(description = "ID вложения из чата") String attachmentId,
             @ToolParam(description = "ID целевого документа в базе знаний")
                     String targetDocumentId) {
+        final long sourceId = requireId(attachmentId, "attachmentId");
+        final long targetId = requireId(targetDocumentId, "targetDocumentId");
 
         final String conversationId = conversationId(context);
         log.info(
                 "[{}] copyAttachmentToDocument called: attachmentId={} targetDocumentId={}",
                 conversationId,
-                attachmentId,
-                targetDocumentId);
+                sourceId,
+                targetId);
 
-        var newAttachment =
-                attachmentService.copyToDocument(
-                        Long.parseLong(attachmentId), Long.parseLong(targetDocumentId));
+        var newAttachment = attachmentService.copyToDocument(sourceId, targetId);
 
         return "Вложение '"
                 + newAttachment.fileName()

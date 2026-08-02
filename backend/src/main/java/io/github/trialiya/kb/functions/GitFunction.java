@@ -1,5 +1,9 @@
 package io.github.trialiya.kb.functions;
 
+import static io.github.trialiya.kb.tools.ToolArgs.orDefault;
+import static io.github.trialiya.kb.tools.ToolArgs.positiveOrDefault;
+import static io.github.trialiya.kb.tools.ToolArgs.requireText;
+
 import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
@@ -91,7 +95,7 @@ public class GitFunction {
                                     "Optional: file path (relative to repo root) to filter commits that touched it.",
                             required = false)
                     @Nullable String filePath) {
-        int limit = (maxCount != null && maxCount > 0) ? maxCount : 20;
+        final int limit = positiveOrDefault(maxCount, 20);
         log.info("getCommitLog called: maxCount={}, filePath='{}'", limit, filePath);
         List<GitCommit> commitLog = gitService.getCommitLog(limit, filePath);
         log.info("getCommitLog called: commitLog={}", commitLog);
@@ -127,7 +131,8 @@ public class GitFunction {
                                     "Optional: file path to filter diff output to only that file.",
                             required = false)
                     @Nullable String filePath) {
-        boolean patch = includePatch != null && includePatch;
+        requireText(commitHashes, "commitHashes");
+        final boolean patch = orDefault(includePatch, false);
         log.info(
                 "getCommitDiff called: hashes='{}', includePatch={}, filePath='{}'",
                 commitHashes,
@@ -161,7 +166,8 @@ public class GitFunction {
                             description = "Maximum results to return (1–50, default 20).",
                             required = false)
                     @Nullable Integer maxResults) {
-        int limit = (maxResults != null && maxResults > 0) ? maxResults : 20;
+        requireText(pattern, "pattern");
+        final int limit = positiveOrDefault(maxResults, 20);
         log.info("searchFiles called: pattern='{}', maxResults={}", pattern, limit);
         List<GitFileNode> gitFileNodes = gitService.searchFiles(pattern, limit);
         log.info("searchFiles called: gitFileNodes={}", gitFileNodes);
@@ -184,6 +190,7 @@ public class GitFunction {
             resultConverter = CompactToolResultConverter.class)
     public GitFileOutline getFileOutline(
             @ToolParam(description = "Source file path relative to repo root.") String filePath) {
+        requireText(filePath, "filePath");
         log.info("getFileOutline called: filePath='{}'", filePath);
         GitFileOutline outline = gitService.getFileOutline(filePath);
         log.info("getFileOutline called: outline={}", outline);
@@ -222,6 +229,7 @@ public class GitFunction {
                                     "Last line to read (1-based, inclusive). Null for end of file.",
                             required = false)
                     @Nullable Integer toLine) {
+        requireText(filePath, "filePath");
         log.info(
                 "getFileContent called: filePath='{}', fromLine={}, toLine={}",
                 filePath,
@@ -236,7 +244,7 @@ public class GitFunction {
      * Returns uncommitted changes in the working tree, excluding files matched by {@code
      * .gitignore}.
      *
-     * @param includePatch whether to include unified diff text for modified files
+     * @param includePatch whether to include unified diff text for modified files (default false)
      */
     @Tool(
             name = "getUncommittedChanges",
@@ -246,10 +254,12 @@ public class GitFunction {
     public List<GitDiffEntry> getUncommittedChanges(
             @ToolParam(
                             description =
-                                    "Include unified diff for changed files (false=list only, true=includes patch).")
-                    boolean includePatch) {
-        log.info("getUncommittedChanges called: includePatch='{}'", includePatch);
-        List<GitDiffEntry> gitDiffEntries = gitService.getUncommittedChanges(includePatch);
+                                    "Include unified diff for changed files (false=list only, true=includes patch, default false).",
+                            required = false)
+                    @Nullable Boolean includePatch) {
+        final boolean patch = orDefault(includePatch, false);
+        log.info("getUncommittedChanges called: includePatch='{}'", patch);
+        List<GitDiffEntry> gitDiffEntries = gitService.getUncommittedChanges(patch);
         log.info("getUncommittedChanges called: gitDiffEntries='{}'", gitDiffEntries);
         return gitDiffEntries;
     }
@@ -262,7 +272,7 @@ public class GitFunction {
      * @param pattern literal string (or regex when {@code regex=true}) to search for
      * @param pathGlob optional glob pattern to restrict which files are searched
      * @param regex if true, treat pattern as an extended regular expression
-     * @param contextLines lines of context before/after each match (0–10, default 0)
+     * @param contextLines lines of context before/after each match (0–10, default 1)
      * @param maxResults maximum number of matches to return (1–200, default 50)
      * @return list of matches with file path, line number, and line text
      */
@@ -291,9 +301,12 @@ public class GitFunction {
                             description = "Maximum matches to return (1–200, default 50).",
                             required = false)
                     @Nullable Integer maxResults) {
-        boolean useRegex = regex == null || regex;
-        int ctx = contextLines != null ? contextLines : 1;
-        int limit = maxResults != null ? maxResults : 50;
+        requireText(pattern, "pattern");
+        final boolean useRegex = orDefault(regex, true);
+        // contextLines defaults through orDefault rather than positiveOrDefault: 0 means "the
+        // matching line only", a real answer the model can give. GitService clamps to 0–10.
+        final int ctx = orDefault(contextLines, 1);
+        final int limit = positiveOrDefault(maxResults, 50);
         log.info(
                 "grepContent called: pattern='{}', pathGlob='{}', regex={}, contextLines={}, maxResults={}",
                 pattern,

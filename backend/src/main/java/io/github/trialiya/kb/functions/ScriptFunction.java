@@ -1,5 +1,8 @@
 package io.github.trialiya.kb.functions;
 
+import static io.github.trialiya.kb.tools.ToolArgs.positiveOrDefault;
+import static io.github.trialiya.kb.tools.ToolArgs.requireText;
+
 import io.github.trialiya.kb.model.script.ScriptResult;
 import io.github.trialiya.kb.service.script.ScriptRunner;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
@@ -76,10 +79,11 @@ public class ScriptFunction {
                                     "Time limit in seconds. Default 10, max 30 (values over max truncated silently).",
                             required = false)
                     @Nullable Integer timeoutSeconds) {
-        log.info("runScript called: {} chars, timeoutSeconds={}", script.length(), timeoutSeconds);
+        requireText(script, "script");
+        final int timeout = positiveOrDefault(timeoutSeconds, 10);
+        log.info("runScript called: {} chars, timeoutSeconds={}", script.length(), timeout);
         ScriptResult result =
-                scriptRunner.run(
-                        script, timeoutSeconds, RunCancellation.from(context), forceReadOnly);
+                scriptRunner.run(script, timeout, RunCancellation.from(context), forceReadOnly);
         log.info("runScript finished: {}", result.getFormattedResponse());
         return result;
     }

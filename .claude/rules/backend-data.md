@@ -8,6 +8,12 @@ paths:
 The least guessable part of the backend. Read this before touching
 `ChatMemoryService`, chat persistence, or the tool-call UI endpoints.
 
+## `@Tool` signatures
+
+No primitive parameters, and every missing argument answered on purpose through
+`ToolArgs` (`kb.tools`). `ToolArgumentGapsTest` scans for the tools and enforces
+both — read its javadoc for the why before writing a new `@Tool`.
+
 ## Tool-call storage
 
 - **There is no tool-call table.** Protocol tool data — the assistant's calls and
