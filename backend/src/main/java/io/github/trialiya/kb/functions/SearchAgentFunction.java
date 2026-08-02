@@ -1,5 +1,7 @@
 package io.github.trialiya.kb.functions;
 
+import static io.github.trialiya.kb.tools.ToolArgs.orDefault;
+import static io.github.trialiya.kb.tools.ToolArgs.requireText;
 import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
 
 import io.github.trialiya.kb.model.search.SearchAgentResult;
@@ -55,18 +57,14 @@ public class SearchAgentFunction {
                                             + "Null for no restriction.",
                             required = false)
                     @Nullable String pathGlob) {
-        if (task == null || task.isBlank()) {
-            throw new IllegalArgumentException("task is required");
-        }
-        if (scope == null || scope.isBlank()) {
-            scope = "all";
-        }
+        requireText(task, "task");
+        final String effectiveScope = orDefault(scope, "all");
         final String conversationId = conversationId(context);
         log.info(
                 "[{}] searchCodebase called: scope={} pathGlob={}",
                 conversationId,
-                scope,
+                effectiveScope,
                 pathGlob);
-        return searchAgent.run(task, scope, pathGlob, context);
+        return searchAgent.run(task, effectiveScope, pathGlob, context);
     }
 }

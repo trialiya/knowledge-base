@@ -1,5 +1,7 @@
 package io.github.trialiya.kb.functions;
 
+import static io.github.trialiya.kb.tools.ToolArgs.requireText;
+
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.utils.ChatUtils;
@@ -46,9 +48,7 @@ public class TopicFunction {
     public void recordChatInsights(
             ToolContext context,
             @ToolParam(description = "Chat topic: 3 words, in the user's language.") String topic) {
-        if (topic == null || topic.isBlank()) {
-            throw new IllegalArgumentException("topic is required");
-        }
+        requireText(topic, "topic");
         String chatId = conversationId(context);
         log.info("[{}] Chat topic: {}", chatId, topic);
         Optional<ChatTopicEntity> chatTopicOptional = chatTopicRepository.findById(chatId);

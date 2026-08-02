@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.functions;
 
+import static io.github.trialiya.kb.tools.ToolArgs.requireNonEmpty;
 import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
 
 import io.github.trialiya.kb.repository.ChatMessageRepository;
@@ -30,9 +31,7 @@ public class MessageLookupFunction {
     public String getOriginalMessages(
             ToolContext context,
             @ToolParam(description = "Message positions to retrieve.") List<Long> positions) {
-        if (positions == null || positions.isEmpty()) {
-            throw new IllegalArgumentException("positions is required and must not be empty");
-        }
+        requireNonEmpty(positions, "positions");
         final String chatId = conversationId(context);
         log.info("[{}] Fetching original messages positions: {}", chatId, positions);
 

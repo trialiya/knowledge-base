@@ -458,7 +458,7 @@ class DocumentFunctionSectionToolsTest {
         void emptyRenamesAreRejected() {
             assertThatThrownBy(() -> function.renameDocumentSections(context, DOC_ID, List.of(), 3))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("пуст");
+                    .hasMessageContaining("'renames'");
         }
 
         @Test

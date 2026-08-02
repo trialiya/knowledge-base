@@ -1,5 +1,9 @@
 package io.github.trialiya.kb.functions;
 
+import static io.github.trialiya.kb.tools.ToolArgs.orDefault;
+import static io.github.trialiya.kb.tools.ToolArgs.requireContent;
+import static io.github.trialiya.kb.tools.ToolArgs.requireText;
+
 import io.github.trialiya.kb.model.git.dto.GitEditResult;
 import io.github.trialiya.kb.service.GitService;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
@@ -58,12 +62,10 @@ public class GitEditFunction {
                                             + "\"src/main/java/com/example/New.java\").")
                     String filePath,
             @ToolParam(description = "Full content of the new file (UTF-8).") String content) {
-        if (filePath == null || filePath.isBlank()) {
-            throw new IllegalArgumentException("filePath is required");
-        }
-        if (content == null) {
-            content = "";
-        }
+        requireText(filePath, "filePath");
+        // "" is a deliberate empty file; absent means the model forgot the body, and writing the
+        // file empty would look like success while losing everything it meant to put there.
+        requireContent(content, "content");
         log.info("createFile called: filePath='{}', {} chars", filePath, content.length());
         return gitService.createFile(filePath, content);
     }
@@ -98,26 +100,22 @@ public class GitEditFunction {
                                     "Replace ALL occurrences of oldString (true) or exactly one (false, default).",
                             required = false)
                     @Nullable Boolean replaceAll) {
-        if (filePath == null || filePath.isBlank()) {
-            throw new IllegalArgumentException("filePath is required");
-        }
-        if (oldString == null || oldString.isBlank()) {
-            throw new IllegalArgumentException("oldString is required");
-        }
-        if (newString == null) {
-            newString = "";
-        }
-        if (replaceAll == null) {
-            replaceAll = false;
-        }
+        requireText(filePath, "filePath");
+        // Not requireText: a fragment made only of whitespace is a legitimate (if unlikely) edit,
+        // and the exactly-once rule below rejects it far more precisely than a blank check would.
+        requireContent(oldString, "oldString");
+        // Empty newString deletes the fragment — documented, and the reason absent cannot mean the
+        // same thing: defaulting it to "" would turn a forgotten argument into a silent deletion.
+        requireContent(newString, "newString");
+        final boolean all = orDefault(replaceAll, false);
         log.info(
                 "editFile called: filePath='{}', old {} chars, new {} chars, replaceAll={}",
                 filePath,
                 oldString.length(),
                 newString.length(),
-                replaceAll);
+                all);
         requireFileSeenInThisResponse(context, filePath);
-        return gitService.editFile(filePath, oldString, newString, Boolean.TRUE.equals(replaceAll));
+        return gitService.editFile(filePath, oldString, newString, all);
     }
 
     /**
