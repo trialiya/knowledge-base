@@ -2,6 +2,7 @@ package io.github.trialiya.kb.service.script;
 
 import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.model.script.ScriptStats;
+import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -12,6 +13,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
+import org.jspecify.annotations.Nullable;
 import org.springframework.util.AntPathMatcher;
 
 /**
@@ -53,6 +55,26 @@ public final class ScriptSession {
      */
     private final Set<String> filesSeen = new LinkedHashSet<>();
 
+    /**
+     * Tools whose {@code filePath} argument means the model deliberately looked at this file —
+     * mirrors {@code GitEditFunction.PATH_ARG_READ_TOOLS}, the same rule applied to the {@code
+     * editFile} tool. Kept as its own copy rather than shared: the two call sites read it for the
+     * same reason but from opposite sides of the sandbox boundary.
+     */
+    private static final Set<String> PATH_ARG_READ_TOOLS =
+            Set.of("getFileContent", "getFileOutline", "editFile");
+
+    /**
+     * The chat-response session's tool history, if this run has one — every {@code getFileContent},
+     * {@code getFileOutline}, {@code editFile} and earlier {@code runScript} call the model made
+     * before this script, regardless of which tool made it. Consulted by {@link #requireRead} so a
+     * file the model already looked at through another tool — or through an earlier script in the
+     * same response — does not have to be re-read with {@code kb.read} just to satisfy this run's
+     * own bookkeeping. Null for a run with no such session (background jobs, tests): then only what
+     * this run itself read or grepped counts.
+     */
+    private final @Nullable ToolInvocationCollector priorInvocations;
+
     private final List<String> log = new ArrayList<>();
     private final long startNanos = System.nanoTime();
 
@@ -93,9 +115,19 @@ public final class ScriptSession {
     private final Map<List<Object>, Object> cache = new HashMap<>();
 
     public ScriptSession(ScriptProperties properties) {
+        this(properties, null);
+    }
+
+    /**
+     * @param priorInvocations the chat-response session's tool history, or null when this run has
+     *     none (background jobs, tests) — see {@link #priorInvocations}.
+     */
+    public ScriptSession(
+            ScriptProperties properties, @Nullable ToolInvocationCollector priorInvocations) {
         this.limits = properties.limits();
         this.denyGlobs = properties.denyGlobs();
         this.allowGlobs = properties.allowGlobs();
+        this.priorInvocations = priorInvocations;
     }
 
     /**
@@ -223,9 +255,12 @@ public final class ScriptSession {
 
     /**
      * Refuses an edit to a file whose current text the script has not been shown. The same rule the
-     * {@code editFile} tool enforces through {@code ToolInvocationCollector} — which cannot see
-     * inside a script, since {@code kb.read} is not a tool call — so the session keeps its own
-     * record. What satisfies it is a read <em>or</em> a grep match: see {@link #filesSeen}.
+     * {@code editFile} tool enforces through {@code ToolInvocationCollector} — extended here to
+     * actually consult it, not just imitate it, since a read inside <em>this</em> script is not the
+     * only way the model could have looked at the file: a read <em>or</em> a grep match this run
+     * made (see {@link #filesSeen}), or a {@code getFileContent}/{@code getFileOutline}/{@code
+     * editFile}/earlier-{@code runScript} call made anywhere else in the same chat-response session
+     * (see {@link #priorInvocations}), both count.
      */
     public void requireRead(String path) {
         // A file this run already wrote needs no read: the script authored its content, which is
@@ -235,14 +270,41 @@ public final class ScriptSession {
         }
         // Both sides are canonical — the caller normalises before it asks (see KbScriptApi), and
         // filesSeen holds the paths GitService reported back.
-        if (!filesSeen.contains(path)) {
-            throw new IllegalArgumentException(
-                    "Refusing to edit "
-                            + path
-                            + ": the script has not looked at it. Call kb.read(path) first (a line"
-                            + " range is enough), or take oldString from a kb.grep match in this"
-                            + " file, so the edit is made against real current content.");
+        if (filesSeen.contains(path)) {
+            return;
         }
+        if (seenElsewhereInThisResponse(path)) {
+            return;
+        }
+        throw new IllegalArgumentException(
+                "Refusing to edit "
+                        + path
+                        + ": the script has not looked at it. Call kb.read(path) first (a line"
+                        + " range is enough), or take oldString from a kb.grep match in this"
+                        + " file, so the edit is made against real current content.");
+    }
+
+    /**
+     * Whether some other tool call in this chat-response session already showed the model {@code
+     * path} — a successful {@code getFileContent}/{@code getFileOutline}/{@code editFile} call
+     * naming it, or any successful tool result (including an earlier {@code runScript}'s {@code
+     * filesRead}) that mentions it. False when this run has no session to consult ({@link
+     * #priorInvocations} is null).
+     */
+    private boolean seenElsewhereInThisResponse(String path) {
+        if (priorInvocations == null) {
+            return false;
+        }
+        return priorInvocations.snapshot().stream()
+                .filter(inv -> ToolInvocationCollector.ToolInvocationStatus.OK == inv.status())
+                .anyMatch(
+                        inv ->
+                                (PATH_ARG_READ_TOOLS.contains(inv.name())
+                                                && path.equals(
+                                                        String.valueOf(
+                                                                inv.arguments().get("filePath"))))
+                                        || (inv.resultText() != null
+                                                && inv.resultText().contains(path)));
     }
 
     /** Files written in this run, path → final text, in first-write order. */

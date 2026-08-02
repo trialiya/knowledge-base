@@ -10,6 +10,7 @@ import io.github.trialiya.kb.model.script.ScriptResult;
 import io.github.trialiya.kb.service.DocumentService;
 import io.github.trialiya.kb.service.GitService;
 import io.github.trialiya.kb.tools.RunCancellation;
+import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import jakarta.annotation.PreDestroy;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -157,7 +158,24 @@ public class ScriptRunner {
             @Nullable Integer timeoutSeconds,
             RunCancellation cancellation,
             boolean forceReadOnly) {
-        ScriptSession session = new ScriptSession(properties);
+        return run(script, timeoutSeconds, cancellation, forceReadOnly, null);
+    }
+
+    /**
+     * As {@link #run(String, Integer, RunCancellation, boolean)}, but also hands the run's {@link
+     * ScriptSession} the chat-response session's tool history, so {@code kb.edit}'s
+     * read-before-edit check (see {@code ScriptSession#requireRead}) also honours a file the model
+     * already looked at through another tool — or an earlier {@code runScript} call — in this same
+     * response, not only what this one script itself read. Null when there is no such session
+     * (background jobs, tests).
+     */
+    public ScriptResult run(
+            String script,
+            @Nullable Integer timeoutSeconds,
+            RunCancellation cancellation,
+            boolean forceReadOnly,
+            @Nullable ToolInvocationCollector priorInvocations) {
+        ScriptSession session = new ScriptSession(properties, priorInvocations);
         // Which object is bound IS the permission: with writes off, kb.edit does not exist.
         KbScriptApi api =
                 editPolicy.enabled() && !forceReadOnly
