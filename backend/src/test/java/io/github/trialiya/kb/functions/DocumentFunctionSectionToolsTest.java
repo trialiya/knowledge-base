@@ -98,7 +98,7 @@ class DocumentFunctionSectionToolsTest {
 
         @Test
         void outlineListsSectionsWithoutContent() {
-            DocumentOutline outline = function.getDocumentOutline(String.valueOf(DOC_ID));
+            DocumentOutline outline = function.getDocumentOutline(DOC_ID);
 
             assertThat(outline.id()).isEqualTo(DOC_ID);
             assertThat(outline.descriptionVersion()).isEqualTo(3);
@@ -109,8 +109,7 @@ class DocumentFunctionSectionToolsTest {
 
         @Test
         void sectionReturnsSubtreeContentAndVersion() {
-            DocumentSection section =
-                    function.getDocumentSection(String.valueOf(DOC_ID), "Гайд > Установка");
+            DocumentSection section = function.getDocumentSection(DOC_ID, "Гайд > Установка");
 
             assertThat(section.content()).isEqualTo("## Установка\nold install\n");
             assertThat(section.descriptionVersion()).isEqualTo(3);
@@ -118,7 +117,7 @@ class DocumentFunctionSectionToolsTest {
 
         @Test
         void unknownSectionFailsWithAvailablePaths() {
-            assertThatThrownBy(() -> function.getDocumentSection(String.valueOf(DOC_ID), "Нет"))
+            assertThatThrownBy(() -> function.getDocumentSection(DOC_ID, "Нет"))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("не найдена")
                     .hasMessageContaining("Гайд > Установка");
@@ -128,7 +127,7 @@ class DocumentFunctionSectionToolsTest {
         void missingDocumentFails() {
             when(documentService.getById(7L)).thenReturn(null);
 
-            assertThatThrownBy(() -> function.getDocumentOutline("7"))
+            assertThatThrownBy(() -> function.getDocumentOutline(7L))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("не найден");
         }

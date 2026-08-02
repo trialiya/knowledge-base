@@ -43,7 +43,7 @@ public class AttachmentFunction {
                     "List attachments (files) for a document by id. Returns metadata: file name, type, size, description.",
             resultConverter = CompactToolResultConverter.class)
     public List<Attachment> getDocumentAttachments(
-            @ToolParam(description = "Document ID.") String documentId) {
+            @ToolParam(description = "Document ID.") Long documentId) {
         final long id = requireId(documentId, "documentId");
         log.info("getDocumentAttachments called: documentId={}", id);
         return attachmentService.findByDocument(id);
@@ -66,7 +66,7 @@ public class AttachmentFunction {
                     "Read full text content of an attachment by id. Use when you need to analyze or cite file content.",
             resultConverter = CompactToolResultConverter.class)
     public String getAttachmentContent(
-            ToolContext context, @ToolParam(description = "Attachment ID.") String attachmentId) {
+            ToolContext context, @ToolParam(description = "Attachment ID.") Long attachmentId) {
         final long id = requireId(attachmentId, "attachmentId");
         log.info("[{}] getAttachmentContent called: attachmentId={}", conversationId(context), id);
         String content = attachmentService.getContent(id);
