@@ -120,16 +120,39 @@ function appendWithBreaks(parent, text) {
  * строки виден сразу.
  */
 export function normalizeTrailingSentinel(root) {
-  root.querySelectorAll('br[data-sentinel]').forEach((s) => s.remove());
-  // Пропускаем хвостовые пустые текстовые узлы: Range#insertNode при каретке
-  // внутри текста расщепляет его, оставляя после вставленного <br> пустой
-  // #text — при реальной печати каретка всегда внутри текста, и без пропуска
-  // хвостовой <br> оставался без sentinel (невидимым).
+  // Идём с конца, пропуская то, что не считается хвостом:
+  //  • пустые текстовые узлы — Range#insertNode при каретке внутри текста
+  //    расщепляет его, оставляя после вставленного <br> пустой #text (при
+  //    реальной печати каретка всегда внутри текста, и без пропуска хвостовой
+  //    <br> оставался без sentinel, то есть невидимым);
+  //  • уже стоящие sentinel'ы — их наличие и решаем ниже.
+  let existing = null;
   let last = root.lastChild;
-  while (last && last.nodeType === Node.TEXT_NODE && !last.nodeValue) {
-    last = last.previousSibling;
+  while (last) {
+    if (last.nodeType === Node.TEXT_NODE && !last.nodeValue) {
+      last = last.previousSibling;
+      continue;
+    }
+    if (last.nodeName === 'BR' && last.dataset?.sentinel) {
+      if (!existing) existing = last;
+      last = last.previousSibling;
+      continue;
+    }
+    break;
   }
-  if (last && last.nodeName === 'BR') {
+  const needed = last?.nodeName === 'BR';
+
+  // Уже стоящий в хвосте sentinel оставляем как есть, а не пересоздаём:
+  // удалить его — значит выдернуть узел, который мог создать сам браузер в ходе
+  // редактирующей команды (filler после insertLineBreak, см. insertPlainText).
+  // Такое удаление рвёт нативный стек отмены, и Ctrl+Z перестаёт доматывать
+  // вставку до конца.
+  const keep = needed ? existing : null;
+  root.querySelectorAll('br[data-sentinel]').forEach((s) => {
+    if (s !== keep) s.remove();
+  });
+
+  if (needed && !keep) {
     const sentinel = document.createElement('br');
     sentinel.dataset.sentinel = '1';
     root.appendChild(sentinel);
@@ -148,6 +171,47 @@ export function renderValue(root, value) {
   if (last < value.length) appendWithBreaks(root, value.slice(last));
   // Trailing \n needs a sentinel <br> so the cursor sits visibly on the new line.
   normalizeTrailingSentinel(root);
+}
+
+/**
+ * Вставить plain-text в позицию каретки, не потеряв нативный стек отмены.
+ *
+ * Вставка идёт ТОЛЬКО через execCommand: браузер выбрасывает стек отмены, как
+ * только скрипт сам пересобирает узлы, на которые ссылаются его шаги, — а
+ * renderValue со своим `textContent = ''` делает ровно это, и Ctrl+Z после
+ * вставки переставал что-либо отменять.
+ *
+ * Переносы строк тоже ставит execCommand — 'insertLineBreak' вместо '\n' в
+ * тексте, потому что на многострочном тексте execCommand('insertText')
+ * заворачивает строки в блочные <div>, а плоский DOM (текст + <br>) нужен и
+ * normalizeTrailingSentinel, и Shift+Enter-обработчику, и placeCaretAtOffset.
+ * Идущие подряд команды браузер склеивает в один шаг отмены, так что вся
+ * вставка отменяется одним Ctrl+Z.
+ *
+ * @returns {boolean} false — многострочный текст там, где 'insertLineBreak' не
+ *   поддержан (Firefox); вставку в этом случае делает вызывающий код сам.
+ */
+export function insertPlainText(root, text) {
+  const lines = text.split('\n');
+  if (lines.length > 1 && !document.queryCommandSupported?.('insertLineBreak')) return false;
+
+  const tailBefore = root.lastChild;
+  lines.forEach((line, i) => {
+    if (i > 0) document.execCommand('insertLineBreak');
+    if (line) document.execCommand('insertText', false, line);
+  });
+
+  // Хвостовой перенос браузер дополняет своим filler-<br> — тем же по смыслу,
+  // что наш sentinel (без следующего узла пустая строка не видна). Помечаем его
+  // как sentinel, иначе serialize прочитает filler вторым '\n', а
+  // normalizeTrailingSentinel добавит поверх ещё один <br>. Filler узнаём по
+  // тому, что хвостом редактора этот <br> раньше не был.
+  const tail = root.lastChild;
+  if (text.endsWith('\n') && tail !== tailBefore && tail?.nodeName === 'BR') {
+    tail.dataset.sentinel = '1';
+  }
+
+  return true;
 }
 
 export function placeCaretEnd(root) {
@@ -210,6 +274,16 @@ export function placeCaretAtOffset(root, offset) {
     }
     if (node.nodeType === Node.ELEMENT_NODE && node.classList?.contains('file-chip')) {
       const len = (node.dataset.token || '').length;
+      // Ровно на границе перед чипом каретка встаёт ПЕРЕД ним: иначе вставка в
+      // самое начало значения, которое начинается с чипа, уводила курсор за чип
+      // (текстовой ноды слева, которая поймала бы этот случай раньше, там нет).
+      if (remaining <= 0) {
+        range.setStartBefore(node);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        return;
+      }
       if (remaining <= len) {
         range.setStartAfter(node);
         range.collapse(true);
