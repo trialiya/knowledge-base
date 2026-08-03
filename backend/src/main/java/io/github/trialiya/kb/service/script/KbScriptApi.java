@@ -43,7 +43,7 @@ import org.springframework.util.AntPathMatcher;
  * from, to)} are separate methods because polyglot host calls are arity-matched, and a weak model
  * that omits an optional argument would otherwise get an unhelpful arity error.
  *
- * <p>Every read-only method here is memoized through {@link ScriptSession#cached} on its own
+ * <p>Every read-only method here is memoized through {@link ScriptSession#call} on its own
  * arguments: a second identical call is answered from the first one's result and spends nothing.
  * Because the returned {@link ProxyArray}/{@link ProxyObject} values write through to their backing
  * Java collections, the cache stores plain data and a fresh proxy is built around a fresh copy on
@@ -104,10 +104,9 @@ public class KbScriptApi {
     @HostAccess.Export
     public Object files(@Nullable String glob) {
         List<String> paths =
-                session.cached(
+                session.call(
                         Arrays.<Object>asList("files", glob),
                         () -> {
-                            session.chargeCall();
                             List<String> result = new ArrayList<>();
                             for (String path : gitService.listTrackedFiles()) {
                                 if (!session.isVisible(path)) {
@@ -138,10 +137,9 @@ public class KbScriptApi {
     @HostAccess.Export
     public String read(String path, int fromLine, int toLine) {
         String canonical = canonical(path);
-        return session.cached(
+        return session.call(
                 Arrays.<Object>asList("read", canonical, fromLine, toLine),
                 () -> {
-                    session.chargeCall();
                     session.requireVisible(canonical);
                     GitFileContent content =
                             gitService.getFileContent(
@@ -186,10 +184,9 @@ public class KbScriptApi {
     public Object outline(String path) {
         String canonical = canonical(path);
         List<Map<String, Object>> symbols =
-                session.cached(
+                session.call(
                         Arrays.<Object>asList("outline", canonical),
                         () -> {
-                            session.chargeCall();
                             session.requireVisible(canonical);
                             GitFileOutline outline = gitService.getFileOutline(canonical);
                             session.chargeRead(outline.path(), 0);
@@ -231,10 +228,9 @@ public class KbScriptApi {
         Integer max = member(options, "max", Value::isNumber, Value::asInt);
 
         List<Map<String, Object>> rows =
-                session.cached(
+                session.call(
                         Arrays.<Object>asList("grep", pattern, glob, regex, context, max),
                         () -> {
-                            session.chargeCall();
                             List<GitGrepMatch> matches =
                                     gitService.grepContent(
                                             pattern,
@@ -283,10 +279,9 @@ public class KbScriptApi {
     @HostAccess.Export
     public Object searchDocs(String query, int limit) {
         List<Map<String, Object>> rows =
-                session.cached(
+                session.call(
                         Arrays.<Object>asList("searchDocs", query, limit),
                         () -> {
-                            session.chargeCall();
                             List<SearchResult> hits =
                                     documentService.hybridSearch(
                                             query, null, limit > 0 ? limit : null, null, null);

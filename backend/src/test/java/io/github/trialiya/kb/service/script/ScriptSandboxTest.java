@@ -319,7 +319,7 @@ class ScriptSandboxTest {
         runner = newRunner(withLimits(limits -> limits.withMaxBytesRead(DataSize.ofBytes(40))));
 
         // {max: i + 1} varies the call's own arguments, so each iteration is a genuinely new call
-        // rather than one the run's cache (see ScriptSession.cached) would answer for free.
+        // rather than one the run's cache (see ScriptSession.call) would answer for free.
         ScriptResult result =
                 run(
                         "for (var i = 0; i < 100; i++) { kb.grep('class', { max: i + 1 }); } return"
@@ -359,7 +359,7 @@ class ScriptSandboxTest {
                         documents);
 
         // Varying the limit argument is what keeps each iteration a genuinely new call — see
-        // ScriptSession.cached — rather than the run's cache answering repeats for free.
+        // ScriptSession.call — rather than the run's cache answering repeats for free.
         ScriptResult result =
                 run(
                         "for (var i = 0; i < 100; i++) { kb.searchDocs('экспорт', i + 1); } return"

@@ -88,7 +88,7 @@ public final class KbEditScriptApi extends KbScriptApi {
         }
 
         String updated = replaceAll ? text.replace(oldLf, newLf) : replaceFirst(text, oldLf, newLf);
-        session.stageWrite(canonical, updated, false);
+        session.stageEdit(canonical, updated);
         return result(canonical, "edit", occurrences);
     }
 
@@ -114,7 +114,7 @@ public final class KbEditScriptApi extends KbScriptApi {
         // junk name, oversized content) does not become writable by waiting, and finding out
         // during the apply step would leave the run's earlier files on disk.
         gitService.requireCreatable(canonical, content);
-        session.stageWrite(canonical, content, true);
+        session.stageCreate(canonical, content);
         return result(canonical, "create", 1);
     }
 

@@ -8,7 +8,6 @@ import io.github.trialiya.kb.model.git.dto.GitEditResult;
 import io.github.trialiya.kb.service.GitService;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
-import java.util.Set;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
@@ -39,10 +38,6 @@ import org.springframework.ai.tool.annotation.ToolParam;
 @Slf4j
 @AllArgsConstructor
 public class GitEditFunction {
-
-    /** Tools whose {@code filePath} argument means the model deliberately looked at this file. */
-    private static final Set<String> PATH_ARG_READ_TOOLS =
-            Set.of("getFileContent", "getFileOutline", "editFile");
 
     private final GitService gitService;
 
@@ -120,10 +115,8 @@ public class GitEditFunction {
 
     /**
      * Rejects an edit when nothing in this chat-response session shows the model has actually seen
-     * the target file. Counts as "seen": a successful read-tool call with the same {@code filePath}
-     * argument, or any successful tool call whose raw result text contains the path (covers grep,
-     * search, diffs, tree listings — including partial reads of a single method). Skipped when no
-     * {@link ToolInvocationCollector} is present (background jobs, tests).
+     * the target file — see {@link ToolInvocationCollector#hasSeenFile} for what counts as seen.
+     * Skipped when no {@link ToolInvocationCollector} is present (background jobs, tests).
      */
     private static void requireFileSeenInThisResponse(ToolContext context, String filePath) {
         final ToolInvocationCollector collector = ToolInvocationCollector.from(context);
@@ -131,22 +124,7 @@ public class GitEditFunction {
             return;
         }
         final String path = filePath.strip().replace('\\', '/');
-        final boolean seen =
-                collector.snapshot().stream()
-                        .filter(
-                                inv ->
-                                        ToolInvocationCollector.ToolInvocationStatus.OK
-                                                == inv.status())
-                        .anyMatch(
-                                inv ->
-                                        (PATH_ARG_READ_TOOLS.contains(inv.name())
-                                                        && path.equals(
-                                                                String.valueOf(
-                                                                        inv.arguments()
-                                                                                .get("filePath"))))
-                                                || (inv.resultText() != null
-                                                        && inv.resultText().contains(path)));
-        if (!seen) {
+        if (!collector.hasSeenFile(path)) {
             throw new IllegalStateException(
                     "File "
                             + path
