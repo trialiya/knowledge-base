@@ -97,7 +97,11 @@ public class ConversationHub {
         return emitter;
     }
 
-    public ChatEvent publish(ChatEventType type, String runId, String clientMsgId, Object payload) {
+    public ChatEvent publish(
+            ChatEventType type,
+            @Nullable String runId,
+            @Nullable String clientMsgId,
+            @Nullable Object payload) {
         lock.lock();
         try {
             final ChatEvent event = new ChatEvent(++seq, type, runId, clientMsgId, payload);

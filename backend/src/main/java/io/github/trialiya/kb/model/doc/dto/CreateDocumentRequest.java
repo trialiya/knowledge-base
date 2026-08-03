@@ -5,6 +5,9 @@ import lombok.Data;
 import org.jspecify.annotations.Nullable;
 
 @Data
+// Bound from the request body by Jackson via the no-args constructor + setters, invisible to
+// NullAway's initialization check.
+@SuppressWarnings("NullAway.Init")
 public class CreateDocumentRequest {
     private String title;
     @Nullable private DocumentType type;

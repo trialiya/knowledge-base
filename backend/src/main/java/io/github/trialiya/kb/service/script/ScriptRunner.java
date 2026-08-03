@@ -16,6 +16,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
@@ -212,7 +213,7 @@ public class ScriptRunner {
             return failure(e, session, cancelReason.get(), timeout);
         } catch (ScriptLimitExceededException e) {
             // A budget blown outside guest code (converting the return value, say).
-            return failed(session, ScriptError.of(Kind.BUDGET, e.getMessage()));
+            return failed(session, ScriptError.of(Kind.BUDGET, String.valueOf(e.getMessage())));
         } catch (IllegalStateException e) {
             // The watchdog closed the context while this thread was between guest calls, so the
             // cancellation surfaces as "context is closed" rather than as a guest exception.
@@ -325,10 +326,13 @@ public class ScriptRunner {
         List<GitEditResult> applied = new ArrayList<>(order.size());
         for (String path : order) {
             try {
+                // order is writes.keySet() (see ScriptSession.pendingWriteOrder), so every path
+                // here has an entry.
+                String content = Objects.requireNonNull(writes.get(path));
                 applied.add(
                         session.isPendingCreate(path)
-                                ? gitService.createFile(path, writes.get(path))
-                                : gitService.replaceTrackedFile(path, writes.get(path)));
+                                ? gitService.createFile(path, content)
+                                : gitService.replaceTrackedFile(path, content));
             } catch (RuntimeException e) {
                 throw new IllegalStateException(
                         "Script edits partially applied ("
@@ -360,7 +364,7 @@ public class ScriptRunner {
         }
         if (e.isHostException()
                 && e.asHostException() instanceof ScriptLimitExceededException limit) {
-            return failed(session, ScriptError.of(Kind.BUDGET, limit.getMessage()));
+            return failed(session, ScriptError.of(Kind.BUDGET, String.valueOf(limit.getMessage())));
         }
         if (e.isHostException()) {
             // A tool-level failure surfaced through the guest: an unknown path, an unsupported

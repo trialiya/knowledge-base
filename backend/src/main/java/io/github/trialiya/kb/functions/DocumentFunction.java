@@ -212,7 +212,7 @@ public class DocumentFunction {
             @ToolParam(description = "Document or folder id.") Long documentId) {
         final long id = requireId(documentId, "documentId");
         log.info("getDocument called: documentId={}", id);
-        return documentService.getById(id);
+        return requireDocument(id);
     }
 
     // ── Markdown sections ─────────────────────────────────────────────────────

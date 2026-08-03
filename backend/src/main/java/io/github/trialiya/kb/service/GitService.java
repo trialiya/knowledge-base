@@ -31,6 +31,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -242,7 +243,7 @@ public class GitService {
     public GitPathView browsePath(@Nullable String path, boolean includeAncestors) {
         String target = normalizeSub(path);
         List<String> tracked = trackedPaths();
-        FileEntryType type = resolvePathType(target, tracked);
+        @Nullable FileEntryType type = resolvePathType(target, tracked);
 
         List<String> ancestors = includeAncestors ? ancestorDirs(target) : List.of();
         Set<String> bases = new LinkedHashSet<>(ancestors);
@@ -270,7 +271,7 @@ public class GitService {
     /**
      * {@code FILE}, {@code DIRECTORY} or {@code null} for missing — the repo root is a directory.
      */
-    private static FileEntryType resolvePathType(String path, List<String> tracked) {
+    private static @Nullable FileEntryType resolvePathType(String path, List<String> tracked) {
         if (path.isEmpty()) return FileEntryType.DIRECTORY;
         String prefix = path + "/";
         for (String candidate : tracked) {
@@ -344,7 +345,7 @@ public class GitService {
      *     null or blank means the whole commit
      */
     public List<GitCommit> getCommitDiff(
-            @NonNull String commitHashes, boolean includePatch, String filePath) {
+            @NonNull String commitHashes, boolean includePatch, @Nullable String filePath) {
         String spec =
                 (filePath == null || filePath.isBlank())
                         ? null
@@ -358,7 +359,8 @@ public class GitService {
         return result;
     }
 
-    private GitCommit diffForSingleCommit(String hash, boolean includePatch, String filePath) {
+    private GitCommit diffForSingleCommit(
+            String hash, boolean includePatch, @Nullable String filePath) {
         try (RevWalk revWalk = new RevWalk(repository);
                 ObjectReader reader = repository.newObjectReader()) {
             RevCommit commit = revWalk.parseCommit(resolveCommitId(hash));
@@ -852,7 +854,7 @@ public class GitService {
         if (fb.binary()) {
             throw new IllegalArgumentException("Cannot outline a binary file: " + fb.path());
         }
-        if (!outlineService.isLanguageSupported(language)) {
+        if (language == null || !outlineService.isLanguageSupported(language)) {
             throw new IllegalArgumentException(
                     "Unsupported language for outline: "
                             + (language == null ? "unknown" : language)
@@ -1396,7 +1398,8 @@ public class GitService {
     }
 
     private static GitCommit toGitCommit(
-            RevCommit commit, List<GitDiffEntry> files, ObjectReader reader) throws IOException {
+            RevCommit commit, @Nullable List<GitDiffEntry> files, ObjectReader reader)
+            throws IOException {
         PersonIdent author = commit.getAuthorIdent();
         OffsetDateTime date =
                 author.getWhenAsInstant().atZone(author.getZoneId()).toOffsetDateTime();
@@ -1422,8 +1425,8 @@ public class GitService {
             boolean includePatch,
             ByteArrayOutputStream patchOut)
             throws IOException {
-        String oldPath = normalizedDiffPath(entry.getOldPath());
-        String newPath = normalizedDiffPath(entry.getNewPath());
+        @Nullable String oldPath = normalizedDiffPath(entry.getOldPath());
+        @Nullable String newPath = normalizedDiffPath(entry.getNewPath());
 
         String status =
                 switch (entry.getChangeType()) {
@@ -1433,7 +1436,10 @@ public class GitService {
                     case COPY -> "C";
                     default -> "M";
                 };
-        String path = "D".equals(status) ? oldPath : newPath;
+        // JGit only reports /dev/null (→ null, see normalizedDiffPath) for the side that doesn't
+        // exist: oldPath for ADD, newPath for DELETE/everything else — so whichever side `status`
+        // picks is always real.
+        String path = Objects.requireNonNull("D".equals(status) ? oldPath : newPath);
         // Renames AND copies both carry a meaningful source path; everything else has none.
         String reportedOldPath = "R".equals(status) || "C".equals(status) ? oldPath : null;
 
@@ -1461,7 +1467,7 @@ public class GitService {
         return new GitDiffEntry(status, path, reportedOldPath, add, del, patch);
     }
 
-    private static String normalizedDiffPath(String path) {
+    private static @Nullable String normalizedDiffPath(String path) {
         return DiffEntry.DEV_NULL.equals(path) ? null : path;
     }
 

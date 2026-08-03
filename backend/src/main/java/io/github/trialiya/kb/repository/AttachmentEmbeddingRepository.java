@@ -84,9 +84,8 @@ public class AttachmentEmbeddingRepository {
                                 rs.getLong("attachment_id"),
                                 rs.getString("title"),
                                 rs.getString("description"),
-                                rs.getTimestamp("updated_at") != null
-                                        ? rs.getTimestamp("updated_at").toLocalDateTime()
-                                        : null,
+                                // attachments.updated_at is NOT NULL
+                                rs.getTimestamp("updated_at").toLocalDateTime(),
                                 rs.getString("summary"),
                                 rs.getDouble("similarity")));
     }

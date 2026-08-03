@@ -22,6 +22,8 @@ import org.springframework.data.relational.core.mapping.Table;
  * io.github.trialiya.kb.service.AttachmentService#summarize}.
  */
 @Data
+// Hydrated by Spring Data JDBC via the no-args constructor + setters; see DocumentEmbeddingEntity.
+@SuppressWarnings("NullAway.Init")
 @NoArgsConstructor
 @AllArgsConstructor
 @Table("attachments")

@@ -14,6 +14,8 @@ import org.springframework.data.relational.core.mapping.Table;
  * messageId/callId/responseMessageId-in-meta design needed.
  */
 @Data
+// Hydrated by Spring Data JDBC via the no-args constructor + setters; see DocumentEmbeddingEntity.
+@SuppressWarnings("NullAway.Init")
 @NoArgsConstructor
 @Table("tool_call_index")
 public class ToolCallIndexEntity {

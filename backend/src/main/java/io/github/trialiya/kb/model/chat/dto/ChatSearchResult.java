@@ -6,7 +6,7 @@ import org.jspecify.annotations.Nullable;
 /** Один чат в результатах поиска по названию и/или содержимому сообщений. */
 public record ChatSearchResult(
         String conversationId,
-        String topic,
+        @Nullable String topic,
         LocalDateTime updatedAt,
         boolean titleMatched,
         int messageMatchCount,

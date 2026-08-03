@@ -60,8 +60,14 @@ public class TopicFunction {
                         topic,
                         chatTopicOptional.map(ChatTopicEntity::getModel).orElse(null),
                         chatTopicOptional.map(ChatTopicEntity::getMode).orElse(null),
-                        chatTopicOptional.map(ChatTopicEntity::getCreatedAt).orElse(null),
-                        chatTopicOptional.map(ChatTopicEntity::getUpdatedAt).orElse(null),
+                        // overwritten by @CreatedDate/@LastModifiedDate auditing before insert
+                        // when there's no existing row to keep the timestamp from
+                        chatTopicOptional
+                                .map(ChatTopicEntity::getCreatedAt)
+                                .orElse(LocalDateTime.now()),
+                        chatTopicOptional
+                                .map(ChatTopicEntity::getUpdatedAt)
+                                .orElse(LocalDateTime.now()),
                         chatTopicOptional.isEmpty()));
     }
 

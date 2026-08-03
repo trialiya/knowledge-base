@@ -28,6 +28,7 @@ import org.jspecify.annotations.Nullable;
  * @param createdAt When the node was created. {@code null} in the lightweight projections (tree,
  *     skeleton) that deliberately omit per-node metadata — the "Info" panel reads it from {@code
  *     GET /api/documents/{id}}.
+ * @param updatedAt {@code null} in the same lightweight projections as {@link #createdAt}.
  */
 public record DocumentNode(
         long id,
@@ -38,7 +39,7 @@ public record DocumentNode(
         String description,
         int descriptionVersion,
         @Nullable LocalDateTime createdAt,
-        LocalDateTime updatedAt,
+        @Nullable LocalDateTime updatedAt,
         @Nullable List<DocumentNode> children,
         boolean hasChildren,
         boolean system,

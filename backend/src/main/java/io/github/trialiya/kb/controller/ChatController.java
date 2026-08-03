@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -168,7 +169,7 @@ public class ChatController {
             @RequestParam(name = "includeMessages", defaultValue = "true")
                     final boolean includeMessages) {
         final ChatTopicEntity chatTopicEntity = getChatTopic(conversationId);
-        final List<ChatMessage> messages =
+        final @Nullable List<ChatMessage> messages =
                 includeMessages
                         ? Optional.ofNullable(
                                         chatMemoryService.findChatMessageByConversationId(
@@ -271,8 +272,10 @@ public class ChatController {
                                                 null,
                                                 null,
                                                 null,
-                                                null,
-                                                null,
+                                                // overwritten by @CreatedDate/@LastModifiedDate
+                                                // auditing before insert
+                                                LocalDateTime.now(),
+                                                LocalDateTime.now(),
                                                 true)));
     }
 
@@ -463,12 +466,14 @@ public class ChatController {
                                                 null,
                                                 null,
                                                 null,
-                                                null,
-                                                null,
+                                                // overwritten by @CreatedDate/@LastModifiedDate
+                                                // auditing before insert
+                                                LocalDateTime.now(),
+                                                LocalDateTime.now(),
                                                 true)));
     }
 
-    private Chat toChat(ChatTopicEntity entity, List<ChatMessage> messages) {
+    private Chat toChat(ChatTopicEntity entity, @Nullable List<ChatMessage> messages) {
         return new Chat(
                 entity.getConversationId(),
                 entity.getUser(),
@@ -514,7 +519,7 @@ public class ChatController {
      * Параметр запроса → сохранённая модель чата → null. {@code null} означает «не переопределять»,
      * т.е. едем на модели из application.yaml.
      */
-    private String resolveModel(final String conversationId, final String requested) {
+    private @Nullable String resolveModel(final String conversationId, final String requested) {
         if (StringUtils.hasText(requested)) {
             if (!chatModelProperties.isAllowed(requested)) {
                 throw new ResponseStatusException(BAD_REQUEST, "Unknown model: " + requested);
@@ -536,7 +541,7 @@ public class ChatController {
      * (плейсхолдер {@code mode_instructions} заполняется пустой строкой). Параллель {@link
      * #resolveModel}.
      */
-    private String resolveMode(final String conversationId, final String requested) {
+    private @Nullable String resolveMode(final String conversationId, final String requested) {
         if (StringUtils.hasText(requested)) {
             if (!chatModeProperties.isAllowed(requested)) {
                 throw new ResponseStatusException(BAD_REQUEST, "Unknown mode: " + requested);
