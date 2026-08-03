@@ -40,8 +40,7 @@ public final class ToolInvocationCollector {
     }
 
     /** Достаёт коллектор из {@link ToolContext}; {@code null}, если его там нет. */
-    @Nullable
-    public static ToolInvocationCollector from(@Nullable ToolContext context) {
+    public static @Nullable ToolInvocationCollector from(@Nullable ToolContext context) {
         if (context == null) {
             return null;
         }

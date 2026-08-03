@@ -298,8 +298,11 @@ public class ChatMemoryService implements ChatMemoryRepository {
                                         && !last.getToolData().toolCalls().isEmpty())
                 .ifPresent(
                         last -> {
+                            final List<ToolData.Call> calls =
+                                    Objects.requireNonNull(
+                                            Objects.requireNonNull(last.getToolData()).toolCalls());
                             final List<ToolData.Response> responses =
-                                    last.getToolData().toolCalls().stream()
+                                    calls.stream()
                                             .map(
                                                     c ->
                                                             new ToolData.Response(
@@ -456,7 +459,11 @@ public class ChatMemoryService implements ChatMemoryRepository {
                         : null;
         return Optional.of(
                 new ToolCallDetail(
-                        invocation != null ? invocation.name() : call.name(),
+                        // call==null && invocation==null already returned above, so if
+                        // invocation is null here, call is not.
+                        invocation != null
+                                ? invocation.name()
+                                : Objects.requireNonNull(call).name(),
                         call != null ? call.arguments() : null,
                         invocation != null ? invocation.status() : ToolInvocationStatus.OK,
                         invocation != null ? invocation.error() : null,
@@ -564,7 +571,10 @@ public class ChatMemoryService implements ChatMemoryRepository {
         final List<ToolInvocationMeta> allMetas = new ArrayList<>();
         int cursor = 0;
         for (ChatMessageEntity segment : segments) {
-            final List<ToolData.Call> segmentCalls = segment.getToolData().toolCalls();
+            // segments was filtered above for getToolData() != null && toolCalls() != null.
+            final List<ToolData.Call> segmentCalls =
+                    Objects.requireNonNull(
+                            Objects.requireNonNull(segment.getToolData()).toolCalls());
             final int end = Math.min(cursor + segmentCalls.size(), toolCalls.size());
             if (cursor >= end) {
                 break;

@@ -13,6 +13,8 @@ import org.springframework.data.relational.core.mapping.Table;
  * io.github.trialiya.kb.model.doc.entity.DocumentEmbeddingEntity}.
  */
 @Data
+// Hydrated by Spring Data JDBC via the no-args constructor + setters; see DocumentEmbeddingEntity.
+@SuppressWarnings("NullAway.Init")
 @NoArgsConstructor
 @AllArgsConstructor
 @Table("attachment_embeddings")

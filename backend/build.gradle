@@ -3,6 +3,7 @@ plugins {
     id 'org.springframework.boot' version '4.1.0'
     id 'io.spring.dependency-management' version '1.1.7'
     id 'com.diffplug.spotless'
+    id 'net.ltgt.errorprone'
 }
 
 group = 'io.github.trialiya.kb'
@@ -14,11 +15,10 @@ java {
     }
 }
 
-configurations {
-    compileOnly {
-        extendsFrom annotationProcessor
-    }
-}
+// Никакого `compileOnly.extendsFrom annotationProcessor`: net.ltgt.errorprone вешает свою
+// конфигурацию errorprone на annotationProcessor, и через такое наследование error_prone_core
+// со всеми транзитивными зависимостями (guava, protobuf, google-java-format) уехал бы в
+// compileClasspath. Lombok и так объявлен в обеих конфигурациях явно — см. dependencies.
 
 repositories {
     mavenCentral()
@@ -83,6 +83,8 @@ dependencies {
     implementation 'org.graalvm.polyglot:js-community:25.2.4'
 
     implementation 'org.jspecify:jspecify:1.0.0'
+    errorprone 'com.google.errorprone:error_prone_core:2.50.0'
+    errorprone 'com.uber.nullaway:nullaway:0.13.8'
     // In-process Git access for GitService (file tree, log, diff, status). git grep has no JGit
     // equivalent, so that one operation still shells out to the git binary.
     implementation 'org.eclipse.jgit:org.eclipse.jgit:7.7.0.202606012155-r'
@@ -120,6 +122,22 @@ spotless {
         removeUnusedImports()
         endWithNewline()
     }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.errorprone {
+        disableAllChecks = true
+        error('NullAway')
+        option('NullAway:OnlyNullMarked', 'true')
+        option('NullAway:JSpecifyMode', 'true')
+    }
+}
+
+// NullAway still checks calls FROM test code INTO @NullMarked production code (OnlyNullMarked
+// only exempts unmarked code from having its *own* nullness checked, not from being a caller) —
+// tests deliberately pass null to exercise edge cases, so that call-site check is just noise here.
+tasks.named('compileTestJava') {
+    options.errorprone.enabled = false
 }
 
 tasks.named('test') {

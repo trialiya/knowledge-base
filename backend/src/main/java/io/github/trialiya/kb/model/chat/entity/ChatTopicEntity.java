@@ -66,7 +66,18 @@ public class ChatTopicEntity implements Persistable<String> {
             @Nullable String aiTopic,
             @Nullable String model,
             boolean isNew) {
-        this(conversationId, user, userTopic, aiTopic, model, null, null, null, isNew);
+        // createdAt/updatedAt are placeholders: @CreatedDate/@LastModifiedDate auditing
+        // overwrites them before the row is actually inserted.
+        this(
+                conversationId,
+                user,
+                userTopic,
+                aiTopic,
+                model,
+                null,
+                LocalDateTime.now(),
+                LocalDateTime.now(),
+                isNew);
     }
 
     public String getConversationId() {

@@ -211,7 +211,7 @@ public class ScriptRunner {
             return failure(e, session, cancelReason.get(), timeout);
         } catch (ScriptLimitExceededException e) {
             // A budget blown outside guest code (converting the return value, say).
-            return failed(session, ScriptError.of(Kind.BUDGET, e.getMessage()));
+            return failed(session, ScriptError.of(Kind.BUDGET, String.valueOf(e.getMessage())));
         } catch (IllegalStateException e) {
             // The watchdog closed the context while this thread was between guest calls, so the
             // cancellation surfaces as "context is closed" rather than as a guest exception.
@@ -358,7 +358,7 @@ public class ScriptRunner {
         }
         if (e.isHostException()
                 && e.asHostException() instanceof ScriptLimitExceededException limit) {
-            return failed(session, ScriptError.of(Kind.BUDGET, limit.getMessage()));
+            return failed(session, ScriptError.of(Kind.BUDGET, String.valueOf(limit.getMessage())));
         }
         if (e.isHostException()) {
             // A tool-level failure surfaced through the guest: an unknown path, an unsupported

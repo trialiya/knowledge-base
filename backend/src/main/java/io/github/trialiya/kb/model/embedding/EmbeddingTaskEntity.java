@@ -9,6 +9,8 @@ import org.springframework.data.relational.core.mapping.Table;
 
 /** One row in the {@code embedding_tasks} outbox table. */
 @Data
+// Hydrated by Spring Data JDBC via the no-args constructor + setters; see DocumentEmbeddingEntity.
+@SuppressWarnings("NullAway.Init")
 @NoArgsConstructor
 @Table("embedding_tasks")
 public class EmbeddingTaskEntity {

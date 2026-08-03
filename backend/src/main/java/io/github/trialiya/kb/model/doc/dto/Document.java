@@ -9,9 +9,9 @@ import org.jspecify.annotations.Nullable;
 /**
  * Lightweight document DTO returned by create / update / move operations.
  *
- * <p>Note: {@code description} is intentionally {@code null} here to keep mutation-response
- * payloads small — fetch the full document via {@code GET /api/documents/{id}} to get description
- * and children.
+ * <p>Note: {@code description} and {@code children} are intentionally {@code null} here to keep
+ * mutation-response payloads small — fetch the full document via {@code GET /api/documents/{id}} to
+ * get description and children.
  *
  * <p>Summary fields are always populated so the UI can reflect stale state after a save without
  * requiring a separate GET.
@@ -33,7 +33,7 @@ public record Document(
         @Nullable String description,
         @Nullable LocalDateTime createdAt,
         LocalDateTime updatedAt,
-        List<Document> children,
+        @Nullable List<Document> children,
         @Nullable String summary,
         boolean summaryStale,
         @Nullable Integer summarySourceVersion)

@@ -203,14 +203,14 @@ public interface DocumentRepository
           AND id <> :movedId
         """)
     void shiftPositionsFrom(
-            @Param("parentId") Long parentId,
+            @Param("parentId") @Nullable Long parentId,
             @Param("fromPosition") int fromPosition,
             @Param("movedId") long movedId);
 
     /** Smallest position in a level (0 when the level is empty) — used to insert first. */
     @Query(
             "SELECT COALESCE(MIN(position), 0) FROM documents WHERE parent_id IS NOT DISTINCT FROM :parentId")
-    int findMinPosition(@Param("parentId") Long parentId);
+    int findMinPosition(@Param("parentId") @Nullable Long parentId);
 
     /**
      * Windowed shift for moving a node UP within its own level: every sibling in {@code [newPos,
@@ -229,7 +229,7 @@ public interface DocumentRepository
           AND position < :oldPos
         """)
     void shiftWindowUp(
-            @Param("parentId") Long parentId,
+            @Param("parentId") @Nullable Long parentId,
             @Param("newPos") int newPos,
             @Param("oldPos") int oldPos);
 
@@ -249,7 +249,7 @@ public interface DocumentRepository
           AND position <= :anchorPos
         """)
     void shiftWindowDown(
-            @Param("parentId") Long parentId,
+            @Param("parentId") @Nullable Long parentId,
             @Param("oldPos") int oldPos,
             @Param("anchorPos") int anchorPos);
 }

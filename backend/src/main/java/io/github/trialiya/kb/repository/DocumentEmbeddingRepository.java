@@ -81,9 +81,8 @@ public class DocumentEmbeddingRepository {
                                 rs.getLong("document_id"),
                                 rs.getString("title"),
                                 rs.getString("description"),
-                                rs.getTimestamp("updated_at") != null
-                                        ? rs.getTimestamp("updated_at").toLocalDateTime()
-                                        : null,
+                                // documents.updated_at is NOT NULL
+                                rs.getTimestamp("updated_at").toLocalDateTime(),
                                 rs.getString("summary"),
                                 rs.getDouble("similarity")));
     }

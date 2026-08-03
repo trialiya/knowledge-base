@@ -16,6 +16,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.embedding.EmbeddingResponse;
@@ -172,14 +173,23 @@ public class SemanticSearchService {
     private int enqueueAllDocuments() {
         List<DocumentEntity> all = new ArrayList<>();
         documentRepo.findAll().forEach(all::add);
-        all.forEach(doc -> taskRepo.enqueueIfAbsent(EmbeddingEntityType.DOCUMENT, doc.getId()));
+        // Fetched rows always have an id.
+        all.forEach(
+                doc ->
+                        taskRepo.enqueueIfAbsent(
+                                EmbeddingEntityType.DOCUMENT, Objects.requireNonNull(doc.getId())));
         return all.size();
     }
 
     private int enqueueAllAttachments() {
         List<AttachmentEntity> all = new ArrayList<>();
         attachmentRepo.findAll().forEach(all::add);
-        all.forEach(att -> taskRepo.enqueueIfAbsent(EmbeddingEntityType.ATTACHMENT, att.getId()));
+        // Fetched rows always have an id.
+        all.forEach(
+                att ->
+                        taskRepo.enqueueIfAbsent(
+                                EmbeddingEntityType.ATTACHMENT,
+                                Objects.requireNonNull(att.getId())));
         return all.size();
     }
 

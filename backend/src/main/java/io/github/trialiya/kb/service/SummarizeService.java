@@ -196,10 +196,10 @@ public class SummarizeService implements DisposableBean {
         // if this round's new summary would otherwise push the count to summaryCollapseThreshold.
         final boolean collapseSummaries =
                 existingSummaries.size() + 1 >= summarizeProperties.summaryCollapseThreshold();
-        final String summaryContent =
+        final @Nullable String summaryContent =
                 generateSummary(
                         conversationId, existingSummaries, toCompress, cutoff, collapseSummaries);
-        if (Strings.isBlank(summaryContent)) {
+        if (summaryContent == null || summaryContent.isBlank()) {
             log.error(
                     "[{}] Summarization produced an empty result, skipping this round",
                     conversationId);
@@ -277,7 +277,7 @@ public class SummarizeService implements DisposableBean {
         return chars;
     }
 
-    private String generateSummary(
+    private @Nullable String generateSummary(
             String conversationId,
             List<ChatMessageEntity> existingSummaries,
             List<ChatMessageEntity> toCompress,

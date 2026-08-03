@@ -13,6 +13,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import lombok.extern.slf4j.Slf4j;
@@ -53,6 +54,7 @@ public class AttachmentService implements DisposableBean {
 
     private static final int PROMPT_MAX_CHARS = 12_000;
     private static final String DEFAULT_CONTENT_TYPE = "text/plain";
+    private static final String DEFAULT_FILE_NAME = "unnamed";
     private static final java.util.Set<String> KNOWN_TEXT_MIME_TYPES =
             java.util.Set.of(
                     "application/json",
@@ -187,7 +189,7 @@ public class AttachmentService implements DisposableBean {
                 saved.getId(),
                 targetDocumentId);
 
-        indexAsync(saved.getId());
+        indexAsync(Objects.requireNonNull(saved.getId()));
 
         return toDto(saved);
     }
@@ -226,7 +228,7 @@ public class AttachmentService implements DisposableBean {
     /** Returns the raw text content of an attachment (for download / AI tool). */
     public String getContent(Long id) {
         AttachmentEntity entity = findOrThrow(id);
-        return entity.getContent();
+        return Objects.requireNonNullElse(entity.getContent(), "");
     }
 
     // ── Delete ────────────────────────────────────────────────────────────────
@@ -273,7 +275,7 @@ public class AttachmentService implements DisposableBean {
         attachmentRepo.save(entity);
 
         // Re-index asynchronously with updated summary
-        indexAsync(entity.getId());
+        indexAsync(Objects.requireNonNull(entity.getId()));
 
         log.info("Summarized attachment id={} fileName='{}'", id, entity.getFileName());
         return toDto(entity);
@@ -312,8 +314,8 @@ public class AttachmentService implements DisposableBean {
 
     private Attachment upload(
             AttachmentOwnerType ownerType,
-            Long documentId,
-            String conversationId,
+            @Nullable Long documentId,
+            @Nullable String conversationId,
             MultipartFile file) {
         validateTextFile(file);
 
@@ -328,7 +330,7 @@ public class AttachmentService implements DisposableBean {
                 ownerType,
                 documentId,
                 conversationId,
-                file.getOriginalFilename(),
+                Objects.requireNonNullElse(file.getOriginalFilename(), DEFAULT_FILE_NAME),
                 file.getContentType(),
                 content,
                 file.getSize());
@@ -369,7 +371,7 @@ public class AttachmentService implements DisposableBean {
                 saved.getFileSize());
 
         // Index asynchronously — does not block the upload response
-        indexAsync(saved.getId());
+        indexAsync(Objects.requireNonNull(saved.getId()));
 
         return toDto(saved);
     }
@@ -416,13 +418,14 @@ public class AttachmentService implements DisposableBean {
         if (resp.getResults().isEmpty()) {
             return;
         }
+        Long attachmentId = Objects.requireNonNull(entity.getId());
         AttachmentEmbeddingEntity emb =
                 embeddingRepo
-                        .findByAttachmentId(entity.getId())
+                        .findByAttachmentId(attachmentId)
                         .orElseGet(
                                 () -> {
                                     AttachmentEmbeddingEntity e = new AttachmentEmbeddingEntity();
-                                    e.setAttachmentId(entity.getId());
+                                    e.setAttachmentId(attachmentId);
                                     return e;
                                 });
 
@@ -478,7 +481,7 @@ public class AttachmentService implements DisposableBean {
 
     private Attachment toDto(AttachmentEntity e) {
         return new Attachment(
-                e.getId(),
+                Objects.requireNonNull(e.getId()),
                 e.getOwnerType(),
                 e.getDocumentId(),
                 e.getConversationId(),
