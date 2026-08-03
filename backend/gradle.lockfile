@@ -1,6 +1,7 @@
 # This is a Gradle generated file for dependency locking.
 # Manual edits can break the build and are not advised.
 # This file is expected to be part of source control.
+# To regenerate this file, run: ./gradlew :backend:dependencies --write-locks
 biz.aQute.bnd:biz.aQute.bnd.annotation:7.1.0=compileClasspath,testCompileClasspath
 ch.qos.logback:logback-classic:1.5.34=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 ch.qos.logback:logback-core:1.5.34=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
@@ -119,7 +120,7 @@ org.assertj:assertj-core:3.27.7=testCompileClasspath,testRuntimeClasspath
 org.awaitility:awaitility:4.3.0=testCompileClasspath,testRuntimeClasspath
 org.checkerframework:checker-qual:4.0.0=annotationProcessor,testAnnotationProcessor
 org.checkerframework:dataflow-nullaway:4.0.0=annotationProcessor,testAnnotationProcessor
-org.eclipse.jgit:org.eclipse.jgit:7.7.0.202606012155-r=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+org.eclipse.jgit:org.eclipse.jgit:7.7.1.202607240634-r=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 org.flywaydb:flyway-core:12.4.0=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 org.flywaydb:flyway-database-postgresql:12.4.0=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 org.graalvm.js:js-community:25.2.4=productionRuntimeClasspath,runtimeClasspath,testRuntimeClasspath
@@ -147,7 +148,8 @@ org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.3.21=compileClasspath,productionRuntim
 org.jetbrains.kotlin:kotlin-stdlib:2.3.21=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 org.jetbrains:annotations:13.0=compileClasspath,productionRuntimeClasspath,runtimeClasspath
 org.jetbrains:annotations:17.0.0=testCompileClasspath,testRuntimeClasspath
-org.jspecify:jspecify:1.0.0=annotationProcessor,compileClasspath,productionRuntimeClasspath,runtimeClasspath,testAnnotationProcessor,testCompileClasspath,testRuntimeClasspath
+org.jspecify:jspecify:1.0.0=annotationProcessor,testAnnotationProcessor
+org.jspecify:jspecify:1.0.1=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 org.junit.jupiter:junit-jupiter-api:6.0.3=testCompileClasspath,testRuntimeClasspath
 org.junit.jupiter:junit-jupiter-engine:6.0.3=testRuntimeClasspath
 org.junit.jupiter:junit-jupiter-params:6.0.3=testCompileClasspath,testRuntimeClasspath
