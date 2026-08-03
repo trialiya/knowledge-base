@@ -9,7 +9,7 @@ package io.github.trialiya.kb.model.script;
  * @param bytesRead total bytes those reads returned
  * @param calls {@code kb.*} calls that actually did work — a repeat with the same arguments as an
  *     earlier call in this run is answered from the run's cache and does not add to this count (see
- *     {@code ScriptSession#cached})
+ *     {@code ScriptSession#call})
  * @param filesEdited files created or modified — zero for a read-only run
  * @param elapsedMs wall-clock duration of the run
  */

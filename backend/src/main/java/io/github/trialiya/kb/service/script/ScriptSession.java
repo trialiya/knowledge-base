@@ -40,6 +40,16 @@ public final class ScriptSession {
     private final List<String> denyGlobs;
     private final List<String> allowGlobs;
 
+    /**
+     * The chat-response session's tool history, if this run has one — every tool call the model
+     * made before this script, regardless of which tool made it. Consulted by {@link #requireRead}
+     * so a file the model already looked at through another tool — or through an earlier script in
+     * the same response — does not have to be re-read with {@code kb.read} just to satisfy this
+     * run's own bookkeeping. Null for a run with no such session (background jobs, tests): then
+     * only what this run itself read or grepped counts.
+     */
+    private final @Nullable ToolInvocationCollector priorInvocations;
+
     private final Set<String> filesRead = new LinkedHashSet<>();
 
     /**
@@ -55,47 +65,17 @@ public final class ScriptSession {
      */
     private final Set<String> filesSeen = new LinkedHashSet<>();
 
-    /**
-     * Tools whose {@code filePath} argument means the model deliberately looked at this file —
-     * mirrors {@code GitEditFunction.PATH_ARG_READ_TOOLS}, the same rule applied to the {@code
-     * editFile} tool. Kept as its own copy rather than shared: the two call sites read it for the
-     * same reason but from opposite sides of the sandbox boundary.
-     */
-    private static final Set<String> PATH_ARG_READ_TOOLS =
-            Set.of("getFileContent", "getFileOutline", "editFile");
-
-    /**
-     * The chat-response session's tool history, if this run has one — every {@code getFileContent},
-     * {@code getFileOutline}, {@code editFile} and earlier {@code runScript} call the model made
-     * before this script, regardless of which tool made it. Consulted by {@link #requireRead} so a
-     * file the model already looked at through another tool — or through an earlier script in the
-     * same response — does not have to be re-read with {@code kb.read} just to satisfy this run's
-     * own bookkeeping. Null for a run with no such session (background jobs, tests): then only what
-     * this run itself read or grepped counts.
-     */
-    private final @Nullable ToolInvocationCollector priorInvocations;
-
     private final List<String> log = new ArrayList<>();
     private final long startNanos = System.nanoTime();
 
     /**
-     * Files the script has written, path → pending text, in first-write order. Nothing here has
+     * Files the script has written, path → pending write, in first-write order. Nothing here has
      * touched disk: a script that edits twenty files and then throws on the twenty-first must leave
      * the working tree exactly as it found it, so writes are buffered until the run succeeds (see
      * {@code ScriptRunner}). Keeping the text — rather than a list of replacements to replay — is
      * also what makes a second edit of the same file behave the way the script expects.
      */
-    private final Map<String, String> pendingText = new LinkedHashMap<>();
-
-    /** Subset of {@link #pendingText} that does not exist yet and must be created, not replaced. */
-    private final Set<String> pendingCreates = new LinkedHashSet<>();
-
-    /**
-     * Encoded size of each pending file, and their running total. Kept alongside the text rather
-     * than recomputed: a script may rewrite one file many times, and re-encoding every pending file
-     * on each of those writes is quadratic in exactly the case the byte budget exists to survive.
-     */
-    private final Map<String, Integer> pendingSize = new LinkedHashMap<>();
+    private final Map<String, PendingWrite> pending = new LinkedHashMap<>();
 
     private long pendingBytes;
 
@@ -110,13 +90,9 @@ public final class ScriptSession {
      * writer — another run applying its edits, the {@code editFile} tool — is not excluded, but
      * runs are not serialised against one another to begin with: without the cache such a run would
      * see a torn mix of before and after, and with it, the first answer for a given call. See
-     * {@link #cached}.
+     * {@link #call}.
      */
     private final Map<List<Object>, Object> cache = new HashMap<>();
-
-    public ScriptSession(ScriptProperties properties) {
-        this(properties, null);
-    }
 
     /**
      * @param priorInvocations the chat-response session's tool history, or null when this run has
@@ -130,15 +106,20 @@ public final class ScriptSession {
         this.priorInvocations = priorInvocations;
     }
 
+    // ── Calls (charged once, then answered from the run's cache) ─────────────
+
     /**
-     * Runs {@code compute} the first time this run asks for {@code key}, and hands back the same
-     * result — without touching {@code GitService}, {@code DocumentService} or any budget — every
-     * time after. {@code key} is the call's own arguments, so two calls collide here exactly when
-     * they would have returned the same thing anyway.
+     * One read-only {@code kb.*} call: charged against {@link #chargeCall} and run the first time
+     * this run asks for {@code key}, then handed back — without touching {@code GitService}, {@code
+     * DocumentService} or any budget — every time after. {@code key} is the call's own arguments,
+     * so two calls collide here exactly when they would have returned the same thing anyway.
      *
-     * <p>This exists because a script that compares many files against many names naturally writes
-     * the file loop <em>inside</em> the name loop — read the whole set again for every name — and
-     * that pattern used to spend one {@code kb.*} call per repetition for work that produced
+     * <p>Charging lives here rather than in each caller so that "a repeat costs nothing" is
+     * structural: the only calls that spend budget are the ones that reach {@code compute}.
+     *
+     * <p>The cache exists because a script that compares many files against many names naturally
+     * writes the file loop <em>inside</em> the name loop — read the whole set again for every name
+     * — and that pattern used to spend one {@code kb.*} call per repetition for work that produced
      * nothing new after the first pass. It is not a workaround for that pattern; it is what makes
      * the distinction between "asked something new" and "asked the same thing again" real, so a
      * script shaped the natural way is not the one punished for it.
@@ -148,30 +129,33 @@ public final class ScriptSession {
      * failure.
      */
     @SuppressWarnings("unchecked")
-    public <T> T cached(List<Object> key, Supplier<T> compute) {
+    public <T> T call(List<Object> key, Supplier<T> compute) {
         if (cache.containsKey(key)) {
             return (T) cache.get(key);
         }
+        chargeCall();
         T value = compute.get();
         cache.put(key, value);
         return value;
     }
 
     /**
-     * Charges one {@code kb.*} call. The backstop for a loop that does new work on every iteration
-     * — a distinct file, a distinct search — which would otherwise only be stopped by the
-     * wall-clock timeout. A call answered from {@link #cached} never reaches here, because it never
-     * repeats work in the first place.
+     * Charges one {@code kb.*} call that is not memoizable ({@code kb.log}, the write methods); the
+     * memoized ones are charged by {@link #call}. The backstop for a loop that does new work on
+     * every iteration — a distinct file, a distinct search — which would otherwise only be stopped
+     * by the wall-clock timeout.
      */
     public void chargeCall() {
         if (++calls > limits.maxCalls()) {
-            throw new ScriptLimitExceededException(
-                    "Budget exceeded: maxCalls="
-                            + limits.maxCalls()
-                            + " kb.* calls per run. Do less work per script, or split the task"
-                            + " across two runScript calls.");
+            throw budgetExceeded(
+                    "maxCalls",
+                    limits.maxCalls(),
+                    "kb.* calls per run. Do less work per script, or split the task across two"
+                            + " runScript calls.");
         }
     }
+
+    // ── Visibility ──────────────────────────────────────────────────────────
 
     /**
      * Whether a path is visible to scripts at all. Applied to every path a script names
@@ -208,118 +192,7 @@ public final class ScriptSession {
         }
     }
 
-    // ── Writes (buffered until the run succeeds) ────────────────────────────
-
-    /**
-     * Current text of a file as the script sees it: its pending version if it has already been
-     * written in this run, otherwise absent so the caller reads from disk.
-     */
-    public Optional<String> pendingText(String path) {
-        return Optional.ofNullable(pendingText.get(path));
-    }
-
-    /**
-     * Records the new text of a file, charging the write budgets. {@code created} marks a file that
-     * does not exist yet, so the apply step knows to create rather than replace it.
-     */
-    public void stageWrite(String path, String text, boolean created) {
-        boolean newFile = !pendingText.containsKey(path);
-        if (newFile && pendingText.size() + 1 > limits.maxEditedFiles()) {
-            throw new ScriptLimitExceededException(
-                    "Budget exceeded: maxEditedFiles="
-                            + limits.maxEditedFiles()
-                            + " files per run, and nothing has been written to disk. Edit fewer"
-                            + " files per script, or split the work across two runScript calls.");
-        }
-        // Both budgets are checked before anything is recorded, so a refused write leaves the run's
-        // pending state exactly as it was — the counters a failed run reports describe what it
-        // actually staged, not what it was stopped from staging.
-        int size = text.getBytes(StandardCharsets.UTF_8).length;
-        long total = pendingBytes - pendingSize.getOrDefault(path, 0) + size;
-        long max = limits.maxEditedBytes().toBytes();
-        if (total > max) {
-            throw new ScriptLimitExceededException(
-                    "Budget exceeded: maxEditedBytes="
-                            + max
-                            + " bytes per run, and nothing has been written to disk. Make smaller"
-                            + " edits, or split the work across two runScript calls.");
-        }
-
-        pendingText.put(path, text);
-        pendingSize.put(path, size);
-        pendingBytes = total;
-        if (created) {
-            pendingCreates.add(path);
-        }
-    }
-
-    /**
-     * Refuses an edit to a file whose current text the script has not been shown. The same rule the
-     * {@code editFile} tool enforces through {@code ToolInvocationCollector} — extended here to
-     * actually consult it, not just imitate it, since a read inside <em>this</em> script is not the
-     * only way the model could have looked at the file: a read <em>or</em> a grep match this run
-     * made (see {@link #filesSeen}), or a {@code getFileContent}/{@code getFileOutline}/{@code
-     * editFile}/earlier-{@code runScript} call made anywhere else in the same chat-response session
-     * (see {@link #priorInvocations}), both count.
-     */
-    public void requireRead(String path) {
-        // A file this run already wrote needs no read: the script authored its content, which is
-        // the whole point of the rule. Without this, create-then-edit in one script is impossible.
-        if (pendingText.containsKey(path)) {
-            return;
-        }
-        // Both sides are canonical — the caller normalises before it asks (see KbScriptApi), and
-        // filesSeen holds the paths GitService reported back.
-        if (filesSeen.contains(path)) {
-            return;
-        }
-        if (seenElsewhereInThisResponse(path)) {
-            return;
-        }
-        throw new IllegalArgumentException(
-                "Refusing to edit "
-                        + path
-                        + ": the script has not looked at it. Call kb.read(path) first (a line"
-                        + " range is enough), or take oldString from a kb.grep match in this"
-                        + " file, so the edit is made against real current content.");
-    }
-
-    /**
-     * Whether some other tool call in this chat-response session already showed the model {@code
-     * path} — a successful {@code getFileContent}/{@code getFileOutline}/{@code editFile} call
-     * naming it, or any successful tool result (including an earlier {@code runScript}'s {@code
-     * filesRead}) that mentions it. False when this run has no session to consult ({@link
-     * #priorInvocations} is null).
-     */
-    private boolean seenElsewhereInThisResponse(String path) {
-        if (priorInvocations == null) {
-            return false;
-        }
-        return priorInvocations.snapshot().stream()
-                .filter(inv -> ToolInvocationCollector.ToolInvocationStatus.OK == inv.status())
-                .anyMatch(
-                        inv ->
-                                (PATH_ARG_READ_TOOLS.contains(inv.name())
-                                                && path.equals(
-                                                        String.valueOf(
-                                                                inv.arguments().get("filePath"))))
-                                        || (inv.resultText() != null
-                                                && inv.resultText().contains(path)));
-    }
-
-    /** Files written in this run, path → final text, in first-write order. */
-    public Map<String, String> pendingWrites() {
-        return Map.copyOf(pendingText);
-    }
-
-    /** Order in which pending writes must be applied — {@link #pendingWrites} is unordered. */
-    public List<String> pendingWriteOrder() {
-        return List.copyOf(pendingText.keySet());
-    }
-
-    public boolean isPendingCreate(String path) {
-        return pendingCreates.contains(path);
-    }
+    // ── Reads ───────────────────────────────────────────────────────────────
 
     /** Records that a {@code kb.grep} match came from this file — evidence, not consumption. */
     public void noteSeen(String path) {
@@ -331,11 +204,11 @@ public final class ScriptSession {
         filesSeen.add(path);
         boolean newFile = filesRead.add(path);
         if (newFile && filesRead.size() > limits.maxFilesRead()) {
-            throw new ScriptLimitExceededException(
-                    "Budget exceeded: maxFilesRead="
-                            + limits.maxFilesRead()
-                            + " files per run. Narrow the file list before reading (kb.grep with a"
-                            + " glob, or kb.files with a tighter pattern).");
+            throw budgetExceeded(
+                    "maxFilesRead",
+                    limits.maxFilesRead(),
+                    "files per run. Narrow the file list before reading (kb.grep with a glob, or"
+                            + " kb.files with a tighter pattern).");
         }
         chargeBytes(bytes, "Read line ranges (kb.read(path, from, to)) instead of whole files.");
     }
@@ -369,10 +242,111 @@ public final class ScriptSession {
         bytesRead += bytes;
         long maxBytes = limits.maxBytesRead().toBytes();
         if (bytesRead > maxBytes) {
-            throw new ScriptLimitExceededException(
-                    "Budget exceeded: maxBytesRead=" + maxBytes + " bytes per run. " + advice);
+            throw budgetExceeded("maxBytesRead", maxBytes, "bytes per run. " + advice);
         }
     }
+
+    public List<String> filesRead() {
+        return List.copyOf(filesRead);
+    }
+
+    // ── Writes (buffered until the run succeeds) ────────────────────────────
+
+    /**
+     * A file this run has written, as it will be applied once the script finishes successfully.
+     *
+     * @param created the file does not exist yet and must be created, not replaced
+     * @param sizeBytes encoded size of {@link #text}, carried rather than recomputed: a script may
+     *     rewrite one file many times, and re-encoding every pending file on each of those writes
+     *     is quadratic in exactly the case the byte budget exists to survive
+     */
+    public record PendingWrite(String path, String text, boolean created, int sizeBytes) {}
+
+    /**
+     * Current text of a file as the script sees it: its pending version if it has already been
+     * written in this run, otherwise absent so the caller reads from disk.
+     */
+    public Optional<String> pendingText(String path) {
+        return Optional.ofNullable(pending.get(path)).map(PendingWrite::text);
+    }
+
+    /** Records the new text of an existing file, charging the write budgets. */
+    public void stageEdit(String path, String text) {
+        stage(path, text, false);
+    }
+
+    /**
+     * As {@link #stageEdit}, for a file that does not exist yet — so the apply step knows to create
+     * rather than replace it. Editing a created file afterwards leaves it a creation.
+     */
+    public void stageCreate(String path, String text) {
+        stage(path, text, true);
+    }
+
+    private void stage(String path, String text, boolean created) {
+        PendingWrite previous = pending.get(path);
+        if (previous == null && pending.size() + 1 > limits.maxEditedFiles()) {
+            throw budgetExceeded(
+                    "maxEditedFiles",
+                    limits.maxEditedFiles(),
+                    "files per run, and nothing has been written to disk. Edit fewer files per"
+                            + " script, or split the work across two runScript calls.");
+        }
+        // Both budgets are checked before anything is recorded, so a refused write leaves the run's
+        // pending state exactly as it was — the counters a failed run reports describe what it
+        // actually staged, not what it was stopped from staging.
+        int size = text.getBytes(StandardCharsets.UTF_8).length;
+        long total = pendingBytes - (previous == null ? 0 : previous.sizeBytes()) + size;
+        long max = limits.maxEditedBytes().toBytes();
+        if (total > max) {
+            throw budgetExceeded(
+                    "maxEditedBytes",
+                    max,
+                    "bytes per run, and nothing has been written to disk. Make smaller edits, or"
+                            + " split the work across two runScript calls.");
+        }
+
+        boolean isCreate = created || (previous != null && previous.created());
+        pending.put(path, new PendingWrite(path, text, isCreate, size));
+        pendingBytes = total;
+    }
+
+    /**
+     * Refuses an edit to a file whose current text the script has not been shown. The same rule the
+     * {@code editFile} tool enforces through {@code ToolInvocationCollector} — extended here to
+     * actually consult it, not just imitate it, since a read inside <em>this</em> script is not the
+     * only way the model could have looked at the file: a read <em>or</em> a grep match this run
+     * made (see {@link #filesSeen}), or a read/edit call made anywhere else in the same
+     * chat-response session (see {@link #priorInvocations}), both count.
+     */
+    public void requireRead(String path) {
+        // A file this run already wrote needs no read: the script authored its content, which is
+        // the whole point of the rule. Without this, create-then-edit in one script is impossible.
+        if (pending.containsKey(path)) {
+            return;
+        }
+        // Both sides are canonical — the caller normalises before it asks (see KbScriptApi), and
+        // filesSeen holds the paths GitService reported back.
+        if (filesSeen.contains(path)) {
+            return;
+        }
+        if (priorInvocations != null && priorInvocations.hasSeenFile(path)) {
+            return;
+        }
+        throw new IllegalArgumentException(
+                "Refusing to edit "
+                        + path
+                        + ": the script has not looked at it. Call kb.read(path) first (a line"
+                        + " range is enough), or take oldString from a kb.grep match in this"
+                        + " file, so the edit is made against real current content.");
+    }
+
+    /** Files written in this run, in the order they must be applied — first-write order. */
+    public List<PendingWrite> pendingWrites() {
+        return List.copyOf(pending.values());
+    }
+
+    // ── Output ──────────────────────────────────────────────────────────────
 
     /** Appends a {@code kb.log} line, silently dropping the overflow once the budget is spent. */
     public void log(String text) {
@@ -393,16 +367,23 @@ public final class ScriptSession {
         return List.copyOf(log);
     }
 
-    public List<String> filesRead() {
-        return List.copyOf(filesRead);
-    }
-
     public ScriptStats stats() {
         return new ScriptStats(
                 filesRead.size(),
                 bytesRead,
                 calls,
-                pendingText.size(),
+                pending.size(),
                 (System.nanoTime() - startNanos) / 1_000_000);
+    }
+
+    /**
+     * Every budget refusal in one shape: the limit as {@code ScriptProperties.Limits} names it, the
+     * value it was configured to, and what the model should do differently. The name is what the
+     * model matches on — the guide it was given lists these — so it stays verbatim.
+     */
+    private static ScriptLimitExceededException budgetExceeded(
+            String limit, Object max, String advice) {
+        return new ScriptLimitExceededException(
+                "Budget exceeded: " + limit + "=" + max + " " + advice);
     }
 }

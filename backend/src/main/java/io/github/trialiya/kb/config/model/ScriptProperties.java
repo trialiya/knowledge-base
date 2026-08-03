@@ -123,8 +123,8 @@ public record ScriptProperties(
      * @param maxBytesRead total bytes one run may read across all files
      * @param maxCalls {@code kb.*} calls per run that actually did work — a repeat with the same
      *     arguments is answered from the run's cache and does not count (see {@code
-     *     ScriptSession#cached}). The backstop for a loop that does something new every iteration
-     *     and still stays under every other budget
+     *     ScriptSession#call}). The backstop for a loop that does something new every iteration and
+     *     still stays under every other budget
      * @param maxLogChars total characters {@code kb.log} may accumulate
      * @param maxResultChars JSON size cap for the script's return value
      * @param maxEditedFiles files one run may create or modify — the guard against a buggy loop

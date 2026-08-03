@@ -15,8 +15,6 @@ import jakarta.annotation.PreDestroy;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
@@ -318,29 +316,25 @@ public class ScriptRunner {
      * second unreviewed change on top of the first.
      */
     private List<GitEditResult> applyPendingWrites(ScriptSession session) {
-        List<String> order = session.pendingWriteOrder();
-        if (order.isEmpty()) {
+        List<ScriptSession.PendingWrite> writes = session.pendingWrites();
+        if (writes.isEmpty()) {
             return List.of();
         }
-        Map<String, String> writes = session.pendingWrites();
-        List<GitEditResult> applied = new ArrayList<>(order.size());
-        for (String path : order) {
+        List<GitEditResult> applied = new ArrayList<>(writes.size());
+        for (ScriptSession.PendingWrite write : writes) {
             try {
-                // order is writes.keySet() (see ScriptSession.pendingWriteOrder), so every path
-                // here has an entry.
-                String content = Objects.requireNonNull(writes.get(path));
                 applied.add(
-                        session.isPendingCreate(path)
-                                ? gitService.createFile(path, content)
-                                : gitService.replaceTrackedFile(path, content));
+                        write.created()
+                                ? gitService.createFile(write.path(), write.text())
+                                : gitService.replaceTrackedFile(write.path(), write.text()));
             } catch (RuntimeException e) {
                 throw new IllegalStateException(
                         "Script edits partially applied ("
                                 + applied.size()
                                 + " of "
-                                + order.size()
+                                + writes.size()
                                 + " files) — failed on "
-                                + path
+                                + write.path()
                                 + ": "
                                 + e.getMessage(),
                         e);
