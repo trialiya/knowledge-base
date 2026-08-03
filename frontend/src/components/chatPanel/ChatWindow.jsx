@@ -431,10 +431,28 @@ const ChatWindow = ({
         clientMsgId,
       });
       const runId = res?.runId;
+      // id сохранённого вопроса: проставляем оптимистичному пузырю как dbId — якорь для
+      // поиска по чату (find-бар). Своё эхо USER_MESSAGE эта вкладка гасит по clientMsgId,
+      // так что другого источника id у неё нет. На повторе (handleRetryMessage) пузырь несёт
+      // прежний clientMsgId и патч не срабатывает — там dbId приедет с перезагрузкой.
+      const dbId = Number(res?.messageId);
+      const patchedId = Number.isFinite(dbId) ? dbId : null;
       // Помечаем чат активным прогоном → кнопка «остановить», блокировка ввода.
       // (RUN_STARTED из потока проставит то же самое, если опередит.)
       if (runId) {
-        setChats((prev) => prev.map((c) => (c.id === conversationId ? { ...c, runId } : c)));
+        setChats((prev) =>
+          prev.map((c) =>
+            c.id === conversationId
+              ? {
+                  ...c,
+                  runId,
+                  messages: patchedId
+                    ? (c.messages || []).map((m) => (m.clientMsgId === clientMsgId ? { ...m, dbId: patchedId } : m))
+                    : c.messages,
+                }
+              : c,
+          ),
+        );
       }
     } catch (error) {
       // Не наша заявка — генерация уже идёт (часто из другой вкладки). Откатываем

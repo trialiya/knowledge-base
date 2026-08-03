@@ -86,6 +86,42 @@ public class ChatMemoryService implements ChatMemoryRepository {
     /** Сообщение + его протокольные tool-данные, извлечённые один раз (см. toolDataOf). */
     private record Pending(Message message, @Nullable ToolData toolData) {}
 
+    /**
+     * Сохраняет сообщение пользователя ДО обращения к модели — прогон его уже не записывает (см.
+     * {@code ChatRunService.start}). Что это даёт: id сообщения известен сразу (его возвращает
+     * эндпоинт и несёт событие {@code USER_MESSAGE}), а сам вопрос переживает падение прогона до
+     * подписки на стрим — раньше в этом случае он терялся совсем.
+     *
+     * <p>Записанный ряд подхватит advisor памяти как обычную историю, поэтому прогон НЕ передаёт
+     * своё {@code .user(...)}: иначе то же сообщение сохранилось бы вторым рядом. Инвариант
+     * закреплён в {@code PrePersistedUserMessageTest}.
+     *
+     * <p>Транзакция обязана закрыться до старта стрима: {@code BaseAdvisor.adviseStream} исполняет
+     * {@code before()} через {@code publishOn(scheduler)}, то есть на другом потоке и другом
+     * соединении, и незакоммиченную строку он не увидел бы — модель получила бы диалог без
+     * последнего вопроса.
+     */
+    @Transactional
+    public ChatMessageEntity saveUserMessage(String conversationId, String text) {
+        final long position =
+                chatMessageRepository
+                                .findFirstByConversationIdOrderByPositionDesc(conversationId)
+                                .map(ChatMessageEntity::getPosition)
+                                .orElse(0L)
+                        + 1;
+        return chatMessageRepository.save(
+                new ChatMessageEntity(
+                        0,
+                        conversationId,
+                        text,
+                        MessageType.USER,
+                        position,
+                        false,
+                        false,
+                        LocalDateTime.now(),
+                        null));
+    }
+
     @Override
     public void deleteByConversationId(String conversationId) {
         chatMessageRepository.deleteChatMessageByConversationId(conversationId);

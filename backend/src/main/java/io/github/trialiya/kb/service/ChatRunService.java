@@ -14,12 +14,12 @@ import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.StreamMessage;
 import io.github.trialiya.kb.model.chat.dto.ToolCallsMessage;
 import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
+import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.tools.RunCancellation;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import io.github.trialiya.kb.utils.ChatUtils;
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -122,7 +122,7 @@ public class ChatRunService {
      *     — решает, попадёт ли в системный промпт обучающая половина руководства по скриптам (см.
      *     {@code ScriptGuideService})
      */
-    public String start(
+    public StartedRun start(
             String conversationId,
             String user,
             String userMessage,
@@ -136,6 +136,20 @@ public class ChatRunService {
         if (activeByConversation.putIfAbsent(conversationId, runId) != null) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT, "A response is already being generated for this chat");
+        }
+        final ChatMessageEntity userRow;
+        try {
+            // Прошлый прогон могли оборвать во время выполнения инструментов (в т.ч. падением
+            // процесса) — тогда в хвосте истории висит assistant.tool_calls без TOOL-ответа,
+            // и модель отвергла бы такой диалог. Достраиваем пару СТРОГО ДО записи вопроса:
+            // repairDanglingToolCalls смотрит только на последнюю строку, и записанное первым
+            // сообщение пользователя навсегда спрятало бы от неё оборванную пару.
+            chatMemoryService.repairDanglingToolCalls(conversationId);
+            userRow = chatMemoryService.saveUserMessage(conversationId, userMessage);
+        } catch (RuntimeException e) {
+            // Заявку на чат не удерживаем: генерация так и не началась.
+            activeByConversation.remove(conversationId, runId);
+            throw e;
         }
         final RunHandle handle =
                 new RunHandle(
@@ -156,18 +170,27 @@ public class ChatRunService {
                     () ->
                             run(
                                     handle,
-                                    userMessage,
+                                    userRow,
                                     resolvedModel,
                                     weakModel,
                                     modeInstructions,
                                     clientMsgId));
         } catch (RuntimeException e) {
             // например, RejectedExecutionException при остановке пула — не оставляем чат «занятым».
+            // Сообщение пользователя при этом уже сохранено и останется в истории: вопрос без
+            // ответа честнее молча потерянного вопроса.
             cleanup(handle);
             throw e;
         }
-        return runId;
+        return new StartedRun(runId, userRow.getId());
     }
+
+    /**
+     * Результат запуска: id прогона и id уже сохранённого сообщения пользователя. Второй нужен
+     * отправившей вкладке — она гасит своё эхо по {@code clientMsgId} и иначе узнала бы id
+     * сообщения только после перезагрузки страницы.
+     */
+    public record StartedRun(String runId, Long userMessageId) {}
 
     /** Останавливает прогон: dispose → CANCEL → частичное сохранение + событие RUN_STOPPED. */
     public boolean stop(String conversationId, String runId) {
@@ -241,7 +264,7 @@ public class ChatRunService {
 
     private void run(
             RunHandle handle,
-            String userMessage,
+            ChatMessageEntity userRow,
             @Nullable String resolvedModel,
             boolean weakModel,
             String modeInstructions,
@@ -264,14 +287,11 @@ public class ChatRunService {
                 USER_MESSAGE,
                 runId,
                 clientMsgId,
-                new UserMessagePayload(userMessage, LocalDateTime.now()));
+                new UserMessagePayload(
+                        userRow.getId(), userRow.getContent(), userRow.getCreatedAt()));
         events.publish(conversationId, RUN_STARTED, runId, clientMsgId, null);
 
         try {
-            // Прошлый прогон могли оборвать во время выполнения инструментов (в т.ч. падением
-            // процесса) — тогда в хвосте истории висит assistant.tool_calls без TOOL-ответа,
-            // и модель отвергла бы такой диалог. Достраиваем пару до старта.
-            chatMemoryService.repairDanglingToolCalls(conversationId);
             ChatClient.ChatClientRequestSpec spec =
                     chatClient
                             .prompt()
@@ -286,7 +306,10 @@ public class ChatRunService {
                                                             "system_extended",
                                                             systemPromptService.systemExtended(
                                                                     weakModel)))
-                            .user(userMessage)
+                            // Своего .user(...) здесь намеренно нет: вопрос уже сохранён в
+                            // истории (см. ChatMemoryService.saveUserMessage), и его подмешает
+                            // advisor памяти. Передать его ещё и сюда — значит сохранить вторым
+                            // рядом; см. PrePersistedUserMessageTest.
                             .toolContext(
                                     ChatUtils.buildContext(
                                             conversationId,

@@ -330,15 +330,20 @@ public class ChatController {
     // ---------------------------------------------------------------------
 
     /**
-     * Запускает генерацию ответа как фоновую задачу и сразу возвращает {@code runId}. Сам ответ
-     * приходит не в этом запросе, а потоком событий через {@link #events}. Это и есть развязка
-     * «обработка ≠ HTTP-запрос»: ответ переживает перезагрузку страницы и виден всем вкладкам.
+     * Запускает генерацию ответа как фоновую задачу и сразу возвращает {@code runId} и {@code
+     * messageId} сохранённого вопроса. Сам ответ приходит не в этом запросе, а потоком событий
+     * через {@link #events}. Это и есть развязка «обработка ≠ HTTP-запрос»: ответ переживает
+     * перезагрузку страницы и виден всем вкладкам.
+     *
+     * <p>Вопрос пользователя сохраняется синхронно, до старта генерации (см. {@link
+     * ChatMemoryService#saveUserMessage}), поэтому ошибка записи — это ошибка этого запроса, а не
+     * тихо потерянное сообщение.
      *
      * @param clientMsgId идентификатор клиента — чтобы вкладка-отправитель не задвоила свой
      *     оптимистично показанный пузырь, получив его же эхом
      */
     @PostMapping("/{conversationId}/runs")
-    public Map<String, String> startRun(
+    public Map<String, Object> startRun(
             @PathVariable final String conversationId,
             @RequestParam(name = "model", required = false) final String model,
             @RequestParam(name = "mode", required = false) final String mode,
@@ -348,7 +353,7 @@ public class ChatController {
         final String resolvedModel = resolveModel(conversationId, model);
         final String modeInstructions =
                 chatModeService.instructionsFor(resolveMode(conversationId, mode));
-        final String runId =
+        final ChatRunService.StartedRun started =
                 chatRunService.start(
                         conversationId,
                         getUser(),
@@ -357,7 +362,7 @@ public class ChatController {
                         chatModelProperties.isWeak(resolvedModel),
                         modeInstructions,
                         clientMsgId);
-        return Map.of("runId", runId);
+        return Map.of("runId", started.runId(), "messageId", started.userMessageId());
     }
 
     /**

@@ -127,6 +127,50 @@ describe('applyChatEvent', () => {
     expect(after).toBe(before); // no change
   });
 
+  test('USER_MESSAGE carries the persisted message id onto the bubble', () => {
+    // Бэк сохраняет вопрос до обращения к модели, поэтому id есть уже в событии —
+    // пузырь получает якорь для поиска по чату сразу, а не после перезагрузки.
+    const chat = { id: 'c', runId: null, messages: [] };
+    const next = applyChatEvent(
+      chat,
+      { type: 'USER_MESSAGE', clientMsgId: 'other-tab', payload: { id: 42, text: 'вопрос' } },
+      ctx,
+    );
+    expect(next.messages).toHaveLength(1);
+    expect(next.messages[0]).toMatchObject({ sender: 'user', text: 'вопрос', dbId: 42 });
+  });
+
+  test('USER_MESSAGE backfills dbId on a matching bubble loaded without it', () => {
+    const chat = {
+      id: 'c',
+      runId: null,
+      messages: [{ mid: 1, text: 'вопрос', sender: 'user' }],
+    };
+    const next = applyChatEvent(
+      chat,
+      { type: 'USER_MESSAGE', clientMsgId: 'other-tab', payload: { id: 7, text: 'вопрос' } },
+      ctx,
+    );
+    expect(next.messages).toHaveLength(1);
+    expect(next.messages[0].dbId).toBe(7);
+  });
+
+  test('USER_MESSAGE with a different id is a new question even when the text repeats', () => {
+    // «Повторить» шлёт тот же текст: текстовая сверка приняла бы это за уже показанный
+    // вопрос и молча проглотила бы новый ход.
+    const chat = {
+      id: 'c',
+      runId: null,
+      messages: [{ mid: 1, dbId: 10, text: 'повтори', sender: 'user' }],
+    };
+    const next = applyChatEvent(
+      chat,
+      { type: 'USER_MESSAGE', clientMsgId: 'other-tab', payload: { id: 11, text: 'повтори' } },
+      ctx,
+    );
+    expect(next.messages.filter((m) => m.sender === 'user').map((m) => m.dbId)).toEqual([10, 11]);
+  });
+
   test('TOOL_CALLS metas with distinct callIndex stay separate even with identical args', () => {
     let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
     const meta = { name: 'getDocument', arguments: { id: 5 }, status: 'OK' };

@@ -125,6 +125,10 @@ export function applyChatEvent(chat, ev, ctx) {
       // Своё эхо — уже показано оптимистично.
       if (clientMsgId && ctx.isLocal?.(clientMsgId)) return chat;
       const text = payload?.text || '';
+      // id сохранённого сообщения: бэк пишет вопрос до обращения к модели, поэтому он есть
+      // уже в событии. Событиям, отреплеенным из прогонов до этого изменения, его взять
+      // неоткуда — там остаётся null, и сверка ниже падает обратно на текст.
+      const dbId = payload?.id ?? null;
       // Дубликат после перезагрузки: наш вопрос уже в истории (подгружен из БД). Ищем
       // ПОСЛЕДНЕЕ USER-сообщение — если оно совпало по тексту, это оно и есть, а всё,
       // что идёт после него, — частично сохранённые сегменты текущего (ещё идущего)
@@ -136,14 +140,22 @@ export function applyChatEvent(chat, ev, ctx) {
       // реплей после reload и эхо чужих вкладок.)
       for (let i = msgs.length - 1; i >= 0; i--) {
         if (msgs[i].sender === SENDER.USER) {
-          if (msgs[i].text === text) {
-            return i === msgs.length - 1 ? chat : { ...chat, messages: msgs.slice(0, i + 1) };
+          // Сверяем по dbId, когда он есть с обеих сторон: два одинаковых вопроса подряд
+          // (частый случай — «Повторить») текстовая сверка приняла бы за одно сообщение.
+          const sameMessage = dbId != null && msgs[i].dbId != null ? msgs[i].dbId === dbId : msgs[i].text === text;
+          if (sameMessage) {
+            // Пузырь из истории мог прийти без dbId (реплей после reload) — дополняем.
+            const needsId = dbId != null && msgs[i].dbId == null;
+            if (needsId) msgs[i] = { ...msgs[i], dbId };
+            if (i === msgs.length - 1) return needsId ? { ...chat, messages: msgs } : chat;
+            return { ...chat, messages: msgs.slice(0, i + 1) };
           }
           break; // последний вопрос не совпал — это действительно новое сообщение
         }
       }
       msgs.push({
         mid: nextMessageId(),
+        dbId,
         text,
         sender: SENDER.USER,
         timestamp: new Date().toISOString(),
