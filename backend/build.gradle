@@ -82,12 +82,12 @@ dependencies {
     implementation 'org.graalvm.polyglot:polyglot:25.2.4'
     implementation 'org.graalvm.polyglot:js-community:25.2.4'
 
-    implementation 'org.jspecify:jspecify:1.0.0'
+    implementation 'org.jspecify:jspecify:1.0.1'
     errorprone 'com.google.errorprone:error_prone_core:2.50.0'
     errorprone 'com.uber.nullaway:nullaway:0.13.8'
     // In-process Git access for GitService (file tree, log, diff, status). git grep has no JGit
     // equivalent, so that one operation still shells out to the git binary.
-    implementation 'org.eclipse.jgit:org.eclipse.jgit:7.7.0.202606012155-r'
+    implementation 'org.eclipse.jgit:org.eclipse.jgit:7.7.1.202607240634-r'
     compileOnly 'org.projectlombok:lombok'
 
 //	developmentOnly 'org.springframework.boot:spring-boot-devtools'
