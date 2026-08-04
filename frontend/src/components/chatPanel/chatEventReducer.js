@@ -11,6 +11,7 @@
 import { nextMessageId } from './messageId';
 import { CHAT_EVENT, FINISH_REASON } from '../../constants/chatEventTypes';
 import { SENDER } from '../../constants/messageSender';
+import { RETRY_MODE } from '../../constants/retryMode';
 
 // Совпадение вызовов. Когда callIndex известен у обоих — он однозначен (имя +
 // порядковый номер в прогоне); иначе фолбэк на name+arguments. Фолбэк нужен для
@@ -268,16 +269,28 @@ export function applyChatEvent(chat, ev, ctx) {
     }
 
     case CHAT_EVENT.RUN_ERROR: {
-      // Помечаем пузырь error:true — под ним покажем кнопку «Повторить» (см. Message.jsx).
-      // Если ассистент ещё не появился (ошибка до первого чанка) — заводим пустой,
-      // чтобы было к чему прицепить ошибку и повтор.
+      // Помечаем пузырь error:true — под ним может появиться кнопка «Повторить»
+      // (см. MessageList/Message.jsx). Если ассистент ещё не появился (ошибка до первого
+      // чанка) — заводим пустой, чтобы было к чему прицепить ошибку.
       let idx = lastAiIndexForRun(msgs, runId);
       if (idx < 0) idx = pushAi(msgs, runId);
       const partial = (msgs[idx].text || '').trimEnd();
+      // Повтор предлагаем, только пока модель ничего не выдала: ни текста, ни вызова
+      // инструмента ни в одном сегменте прогона. Тогда вопрос в истории остался
+      // неотвеченным и прогон можно просто запустить заново (RETRY_MODE.CONTINUE) —
+      // без второго USER-сообщения. Если ответ уже начался, переиграть ход молча
+      // нельзя: пришлось бы либо задвоить вопрос, либо стереть сделанное моделью
+      // (включая побочные эффекты уже выполненных инструментов). Тот же инвариант
+      // проверяет бэк — ChatMemoryService.unansweredUserMessage.
+      const produced = msgs.some(
+        (m) =>
+          m.sender === SENDER.AI && m.runId === runId && ((m.text || '').trim() !== '' || (m.toolCalls || []).length),
+      );
       msgs[idx] = {
         ...msgs[idx],
         text: partial ? partial + ctx.interruptedNote : ctx.errorLabel,
         error: true,
+        ...(produced ? {} : { retryMode: RETRY_MODE.CONTINUE }),
       };
       finalize(msgs, runId);
       return { ...chat, messages: msgs, runId: null };

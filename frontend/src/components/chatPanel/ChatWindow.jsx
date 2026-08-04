@@ -30,6 +30,7 @@ import WorkspaceLayout from '../common/WorkspaceLayout';
 import useAttachmentCount from '../common/useAttachmentCount';
 import { IconInfo, IconPaperclip, IconPlus } from '../../icons';
 import { RIGHT_TAB } from '../../constants/rightTabs';
+import { RETRY_MODE } from '../../constants/retryMode';
 import './chatWindow.css';
 import ErrorModal from '../common/ErrorModal';
 import ConfirmModal from '../common/ConfirmModal';
@@ -109,6 +110,8 @@ const ChatWindow = ({
   const [chatErrorModal, setChatErrorModal] = useState(null);
   // Уведомление «в чате уже идёт генерация» (ответ сервера 409 на старт прогона).
   const [busyNotice, setBusyNotice] = useState(false);
+  // Повтор пришёл слишком поздно: бэк ответил 422 — модель уже начала отвечать.
+  const [retryUnavailableNotice, setRetryUnavailableNotice] = useState(false);
   // Уведомление «чат удалён в другой вкладке» (событие CHAT_DELETED из потока).
   const [deletedNotice, setDeletedNotice] = useState(false);
   // Уведомление об ошибке загрузки файла (вместо нативного alert).
@@ -400,103 +403,150 @@ const ChatWindow = ({
     [modeOptions],
   );
 
+  // Идёт ли в чате прогон прямо сейчас. Локального runId недостаточно: он мог не успеть
+  // приехать потоком, поэтому переспрашиваем бэк. Нужно там, где сбой запроса ещё не
+  // означает, что генерация не началась (см. runConversation).
+  const hasActiveRun = useCallback(async (conversationId) => {
+    if (chatsRef.current.find((c) => c.id === conversationId)?.runId) return true;
+    try {
+      const active = await chatApi.getActiveRun(conversationId);
+      return !!active?.runId;
+    } catch {
+      return false;
+    }
+  }, []);
+
   // Старт фонового прогона для уже показанного вопроса. Общий код для первой отправки
   // и для «Повторить»: бьёт POST /runs и обрабатывает исход — runId (идёт генерация),
-  // 409 (занято) или ошибку (помечаем пузырь error+retryText, чтобы можно было повторить).
-  const runConversation = useCallback(async (conversationId, text, clientMsgId, modelForSend, modeForSend) => {
-    // Запоминаем как «последнюю» — новый чат стартует именно с неё.
-    if (modelForSend) {
-      lastModelRef.current = modelForSend;
+  // 409 (занято), 422 (повторять нечего) или сбой запроса.
+  //
+  // retry: true — повтор упавшего прогона (RETRY_MODE.CONTINUE). Текста не передаём:
+  // вопрос уже сохранён на бэке, ходом остаётся он же. Оптимистичного пузыря здесь нет
+  // и clientMsgId не нужен — ошибочный пузырь снимет эхо USER_MESSAGE, одинаково во всех
+  // вкладках. retryMid — пузырь, из которого нажали повтор: с него снимаем кнопку, если
+  // бэк ответил «повторять уже нечего».
+  const runConversation = useCallback(
+    async (conversationId, { text = null, clientMsgId = null, model, mode, retry = false, retryMid = null }) => {
+      // Запоминаем как «последнюю» — новый чат стартует именно с неё.
+      if (model) {
+        lastModelRef.current = model;
+        try {
+          localStorage.setItem(STORAGE_KEY_LAST_MODEL, model);
+        } catch {
+          /* ignore quota errors */
+        }
+      }
+      // Режим запоминаем всегда (в т.ч. '' — сознательный сброс к «без режима»).
+      lastModeRef.current = mode || '';
       try {
-        localStorage.setItem(STORAGE_KEY_LAST_MODEL, modelForSend);
+        localStorage.setItem(STORAGE_KEY_LAST_MODE, mode || '');
       } catch {
         /* ignore quota errors */
       }
-    }
-    // Режим запоминаем всегда (в т.ч. '' — сознательный сброс к «без режима»).
-    lastModeRef.current = modeForSend || '';
-    try {
-      localStorage.setItem(STORAGE_KEY_LAST_MODE, modeForSend || '');
-    } catch {
-      /* ignore quota errors */
-    }
-    // Блокируем ввод сразу, не дожидаясь runId от сервера. Снимается в finally:
-    // при успехе к этому моменту у чата уже стоит runId (isStreaming не мигает),
-    // при 409/ошибке ввод разблокируется — отправку можно повторить.
-    setPendingRunChatId(conversationId);
-    try {
-      const res = await chatApi.startRun(conversationId, text, {
-        model: modelForSend,
-        mode: modeForSend,
-        clientMsgId,
-      });
-      const runId = res?.runId;
-      // id сохранённого вопроса: проставляем оптимистичному пузырю как dbId — якорь для
-      // поиска по чату (find-бар). Своё эхо USER_MESSAGE эта вкладка гасит по clientMsgId,
-      // так что другого источника id у неё нет. На повторе (handleRetryMessage) пузырь несёт
-      // прежний clientMsgId и патч не срабатывает — там dbId приедет с перезагрузкой.
-      const dbId = Number(res?.messageId);
-      const patchedId = Number.isFinite(dbId) ? dbId : null;
-      // Помечаем чат активным прогоном → кнопка «остановить», блокировка ввода.
-      // (RUN_STARTED из потока проставит то же самое, если опередит.)
-      if (runId) {
+      // Блокируем ввод сразу, не дожидаясь runId от сервера. Снимается в finally:
+      // при успехе к этому моменту у чата уже стоит runId (isStreaming не мигает),
+      // при 409/ошибке ввод разблокируется — отправку можно повторить.
+      setPendingRunChatId(conversationId);
+      try {
+        const res = await chatApi.startRun(conversationId, text, { model, mode, clientMsgId, retry });
+        const runId = res?.runId;
+        // id сохранённого вопроса: проставляем оптимистичному пузырю как dbId — якорь для
+        // поиска по чату (find-бар). Своё эхо USER_MESSAGE эта вкладка гасит по clientMsgId,
+        // так что другого источника id у неё нет. На повторе оптимистичного пузыря нет —
+        // там id уже стоит с первой отправки (или приедет эхом, которое ничем не гасится).
+        const dbId = Number(res?.messageId);
+        const patchedId = clientMsgId && Number.isFinite(dbId) ? dbId : null;
+        // Помечаем чат активным прогоном → кнопка «остановить», блокировка ввода.
+        // (RUN_STARTED из потока проставит то же самое, если опередит.)
+        if (runId) {
+          setChats((prev) =>
+            prev.map((c) =>
+              c.id === conversationId
+                ? {
+                    ...c,
+                    runId,
+                    messages: patchedId
+                      ? (c.messages || []).map((m) => (m.clientMsgId === clientMsgId ? { ...m, dbId: patchedId } : m))
+                      : c.messages,
+                  }
+                : c,
+            ),
+          );
+        }
+      } catch (error) {
+        // Не наша заявка — генерация уже идёт (часто из другой вкладки). Откатываем
+        // оптимистичный пузырь (если был) и сообщаем пользователю. Текущий прогон всё
+        // равно «прилетит» потоком событий (RUN_STARTED) и покажет «остановить».
+        if (error?.status === 409) {
+          if (clientMsgId) {
+            localClientIdsRef.current.delete(clientMsgId);
+            setChats((prev) =>
+              prev.map((c) =>
+                c.id === conversationId
+                  ? { ...c, messages: (c.messages || []).filter((m) => m.clientMsgId !== clientMsgId) }
+                  : c,
+              ),
+            );
+          }
+          setBusyNotice(true);
+          return;
+        }
+        console.error('Failed to start run:', error);
+        // 422 — повторять уже нечего: чат ушёл вперёд (другая вкладка, гонка с событием).
+        // Снимаем кнопку с этого пузыря: дальше диалог продолжается обычным сообщением.
+        if (error?.status === 422) {
+          setChats((prev) =>
+            prev.map((c) =>
+              c.id === conversationId
+                ? {
+                    ...c,
+                    messages: (c.messages || []).map((m) => (m.mid === retryMid ? { ...m, retryMode: undefined } : m)),
+                  }
+                : c,
+            ),
+          );
+          setRetryUnavailableNotice(true);
+          return;
+        }
+        // Запрос не удался — но прогон мог всё-таки стартовать: POST дошёл, а ответ до нас
+        // нет (обрыв, прокси, спящая вкладка). Тогда вопрос уже сохранён и генерация идёт,
+        // а пузырь «ошибка + повторить» предложил бы отправить тот же вопрос второй раз.
+        if (await hasActiveRun(conversationId)) return;
+        // На повторе показывать нечего: пузырь с ошибкой и его кнопка никуда не делись —
+        // состояние чата не изменилось, повтор можно нажать ещё раз.
+        if (retry) return;
+        // Прогон не идёт, но он мог успеть и стартовать, и завершиться. Снимаем гашение
+        // своего эха: если события с вопросом и ответом всё-таки придут, USER_MESSAGE
+        // опознает наш пузырь по тексту и срежет всё, что показано после него, — вместе
+        // с этой ошибкой. Не придут — останется ошибка с повтором по тексту вопроса.
+        localClientIdsRef.current.delete(clientMsgId);
         setChats((prev) =>
           prev.map((c) =>
             c.id === conversationId
               ? {
                   ...c,
-                  runId,
-                  messages: patchedId
-                    ? (c.messages || []).map((m) => (m.clientMsgId === clientMsgId ? { ...m, dbId: patchedId } : m))
-                    : c.messages,
+                  runId: null,
+                  messages: [
+                    ...(c.messages || []),
+                    {
+                      mid: nextMessageId(),
+                      text: tRef.current('window.genericError'),
+                      sender: 'ai',
+                      error: true,
+                      retryMode: RETRY_MODE.RESEND,
+                      retryText: text,
+                    },
+                  ],
                 }
               : c,
           ),
         );
+      } finally {
+        setPendingRunChatId((cur) => (cur === conversationId ? null : cur));
       }
-    } catch (error) {
-      // Не наша заявка — генерация уже идёт (часто из другой вкладки). Откатываем
-      // оптимистичный пузырь (если был) и сообщаем пользователю. Текущий прогон всё
-      // равно «прилетит» потоком событий (RUN_STARTED) и покажет «остановить».
-      if (error?.status === 409) {
-        localClientIdsRef.current.delete(clientMsgId);
-        setChats((prev) =>
-          prev.map((c) =>
-            c.id === conversationId
-              ? { ...c, messages: (c.messages || []).filter((m) => m.clientMsgId !== clientMsgId) }
-              : c,
-          ),
-        );
-        setBusyNotice(true);
-        return;
-      }
-      // Сетевой сбой / 5xx — POST не стартовал прогон. Показываем пузырь с ошибкой и
-      // retryText, чтобы пользователь мог переотправить тот же вопрос (см. Message.jsx).
-      console.error('Failed to start run:', error);
-      setChats((prev) =>
-        prev.map((c) =>
-          c.id === conversationId
-            ? {
-                ...c,
-                runId: null,
-                messages: [
-                  ...(c.messages || []),
-                  {
-                    mid: nextMessageId(),
-                    text: tRef.current('window.genericError'),
-                    sender: 'ai',
-                    error: true,
-                    retryText: text,
-                  },
-                ],
-              }
-            : c,
-        ),
-      );
-    } finally {
-      setPendingRunChatId((cur) => (cur === conversationId ? null : cur));
-    }
-  }, []);
+    },
+    [hasActiveRun],
+  );
 
   // Отправка сообщения. Больше НЕ стримит ответ из этого запроса: лишь запускает
   // фоновый прогон (POST /runs) и оптимистично показывает свой вопрос. Сам ответ
@@ -554,16 +604,24 @@ const ChatWindow = ({
       // Сообщение ушло — черновик этого чата больше не нужен.
       clearDraft(activeChatId);
 
-      await runConversation(conversationId, text, clientMsgId, modelForSend, modeForSend);
+      await runConversation(conversationId, {
+        text,
+        clientMsgId,
+        model: modelForSend,
+        mode: modeForSend,
+      });
     },
     [activeChatId, selectChat, resolveModelForSend, resolveModeForSend, runConversation, clearDraft],
   );
 
-  // Переотправить вопрос после ошибки: убираем ошибочный AI-пузырь и заново запускаем
-  // прогон по тому же тексту. Пузырь пользователя уже на месте — новый не добавляем,
-  // эхо USER_MESSAGE гасится по clientMsgId. Чистый случай (без дублей на бэке) —
-  // сбой самого POST /runs: прогон не стартовал и вопрос ещё не сохранён. Для
-  // асинхронной RUN_ERROR вопрос уже в памяти чата, поэтому повтор создаёт новый ход.
+  // Повтор после ошибки. Что именно значит «Повторить», решено ещё в момент ошибки
+  // (constants/retryMode.js) — только там известно, доехал ли вопрос до бэка:
+  //   • CONTINUE — вопрос сохранён, а ответа нет ни одного: прогон запускается поверх той
+  //     же истории, второго USER-сообщения не появляется. Ошибочный пузырь снимет эхо
+  //     USER_MESSAGE — сразу во всех вкладках, поэтому локально его не трогаем.
+  //   • RESEND — сбой самого POST /runs: вопрос не сохранён, отправляем его текст заново.
+  //     Пузырь пользователя уже на месте — новый не добавляем, эхо гасится по clientMsgId.
+  // Пузырей без retryMode здесь не бывает: у них нет и кнопки (см. MessageList).
   // Пузырь ищем по mid, а не по индексу в массиве: догрузка старых страниц
   // добавляет сообщения В НАЧАЛО списка, и индекс из замыкания рендера успел бы
   // устареть — фильтр по индексу снял бы не тот пузырь.
@@ -573,20 +631,17 @@ const ChatWindow = ({
       // Во время генерации/ожидания старта В ЭТОМ чате повтор недоступен;
       // pending в другом чате повтору здесь не мешает (как и в isStreaming).
       if (!chat || chat.runId || pendingRunChatId === activeChatId) return;
-      const msgs = chat.messages || [];
-      const index = msgs.findIndex((m) => m.mid === mid);
-      const target = index >= 0 ? msgs[index] : null;
+      const target = (chat.messages || []).find((m) => m.mid === mid);
       if (!target || target.sender !== 'ai' || !target.error) return;
-      // Текст для повтора: явный retryText или ближайший пузырь пользователя выше.
-      let text = target.retryText || null;
-      if (!text) {
-        for (let i = index - 1; i >= 0; i--) {
-          if (msgs[i].sender === 'user') {
-            text = msgs[i].text;
-            break;
-          }
-        }
+      const model = resolveModelForSend(chat);
+      const mode = resolveModeForSend(chat);
+
+      if (target.retryMode === RETRY_MODE.CONTINUE) {
+        runConversation(activeChatId, { retry: true, retryMid: mid, model, mode });
+        return;
       }
+      if (target.retryMode !== RETRY_MODE.RESEND) return;
+      const text = target.retryText;
       if (!text || !text.trim()) return;
       const clientMsgId = generateUUID();
       localClientIdsRef.current.add(clientMsgId);
@@ -596,7 +651,7 @@ const ChatWindow = ({
           c.id === activeChatId ? { ...c, messages: (c.messages || []).filter((m) => m.mid !== mid) } : c,
         ),
       );
-      runConversation(activeChatId, text, clientMsgId, resolveModelForSend(chat), resolveModeForSend(chat));
+      runConversation(activeChatId, { text, clientMsgId, model, mode });
     },
     [activeChatId, pendingRunChatId, resolveModelForSend, resolveModeForSend, runConversation],
   );
@@ -991,6 +1046,13 @@ const ChatWindow = ({
         title={t('errorModal.busyTitle')}
         message={t('errorModal.busyMessage')}
         onClose={() => setBusyNotice(false)}
+      />
+      <ErrorModal
+        open={retryUnavailableNotice}
+        icon="↻"
+        title={t('errorModal.retryUnavailableTitle')}
+        message={t('errorModal.retryUnavailableMessage')}
+        onClose={() => setRetryUnavailableNotice(false)}
       />
       <ErrorModal
         open={deletedNotice}

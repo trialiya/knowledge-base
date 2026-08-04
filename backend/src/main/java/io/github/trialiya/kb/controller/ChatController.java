@@ -339,6 +339,10 @@ public class ChatController {
      * ChatMemoryService#saveUserMessage}), поэтому ошибка записи — это ошибка этого запроса, а не
      * тихо потерянное сообщение.
      *
+     * @param retry повтор упавшего прогона: тело не нужно, новое сообщение не появляется — ходом
+     *     остаётся последний неотвеченный вопрос. Если модель уже начала отвечать, повторять
+     *     нечего: 422, дальше пользователь пишет сам (см. {@link
+     *     ChatMemoryService#unansweredUserMessage})
      * @param clientMsgId идентификатор клиента — чтобы вкладка-отправитель не задвоила свой
      *     оптимистично показанный пузырь, получив его же эхом
      */
@@ -348,7 +352,11 @@ public class ChatController {
             @RequestParam(name = "model", required = false) final String model,
             @RequestParam(name = "mode", required = false) final String mode,
             @RequestParam(name = "clientMsgId", required = false) final String clientMsgId,
-            @RequestBody final String userMessage) {
+            @RequestParam(name = "retry", defaultValue = "false") final boolean retry,
+            @RequestBody(required = false) final String userMessage) {
+        if (!retry && !StringUtils.hasText(userMessage)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Empty message");
+        }
         checkChat(conversationId, true);
         final String resolvedModel = resolveModel(conversationId, model);
         final String modeInstructions =
@@ -357,7 +365,7 @@ public class ChatController {
                 chatRunService.start(
                         conversationId,
                         getUser(),
-                        userMessage,
+                        retry ? null : userMessage,
                         resolvedModel,
                         chatModelProperties.isWeak(resolvedModel),
                         modeInstructions,

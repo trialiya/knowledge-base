@@ -100,17 +100,21 @@ const chatApi = {
    * к модели. Отправившая вкладка гасит своё эхо USER_MESSAGE по clientMsgId, поэтому id
    * она узнаёт только отсюда — без него якорь поиска по чату появился бы у пузыря лишь
    * после перезагрузки страницы.
+   *
+   * retry — повтор упавшего прогона: текст не передаём вовсе, ходом остаётся уже сохранённый
+   * вопрос. Если модель успела начать ответ, бэк отвечает 422 — повторять нечего.
    */
-  startRun: (id, text, { model, mode, clientMsgId } = {}) => {
+  startRun: (id, text, { model, mode, clientMsgId, retry } = {}) => {
     const params = new URLSearchParams();
     if (model) params.set('model', model);
     if (mode) params.set('mode', mode);
     if (clientMsgId) params.set('clientMsgId', clientMsgId);
+    if (retry) params.set('retry', 'true');
     const qs = params.toString();
     return request(`/api/chats/${enc(id)}/runs${qs ? `?${qs}` : ''}`, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-      body: text,
+      ...(retry ? {} : { body: text }),
     });
   },
 

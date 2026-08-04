@@ -250,7 +250,9 @@ const MessageList = ({
                 toolCallsRunId={msg.toolCallsRunId ?? msg.runId}
                 preparing={msg.preparing}
                 error={msg.error}
-                onRetry={onRetry && msg.error ? () => onRetry(msg.mid) : undefined}
+                // Кнопку повтора показываем только у ошибок с известным режимом повтора
+                // (см. constants/retryMode.js): после начатого ответа модели её нет вовсе.
+                onRetry={onRetry && msg.error && msg.retryMode ? () => onRetry(msg.mid) : undefined}
                 conversationId={conversationId}
                 onNavigateToDoc={onNavigateToDoc}
                 mid={msg.mid}

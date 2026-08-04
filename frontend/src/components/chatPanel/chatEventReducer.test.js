@@ -35,12 +35,45 @@ describe('applyChatEvent', () => {
     expect(chat.runId).toBeNull();
     expect(ai.runId).toBeUndefined(); // finalize drops the transient runId
     expect(ai.toolCallsRunId).toBe('r1');
+    // Ответ уже начался — повторять ход нельзя, кнопки под пузырём не будет.
+    expect(ai.retryMode).toBeUndefined();
   });
 
   test('RUN_ERROR before any chunk creates an error bubble with the error label', () => {
     const chat = applyChatEvent({ ...userChat(), runId: 'r2' }, { type: 'RUN_ERROR', runId: 'r2', payload: {} }, ctx);
     const ai = last(chat);
-    expect(ai).toMatchObject({ sender: 'ai', error: true, text: 'Ошибка' });
+    // Модель не выдала ничего — вопрос в истории остался неотвеченным, повтор
+    // просто запустит прогон заново, без второго USER-сообщения.
+    expect(ai).toMatchObject({ sender: 'ai', error: true, text: 'Ошибка', retryMode: 'continue' });
+  });
+
+  test('RUN_ERROR after a tool call offers no retry even without any text', () => {
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(
+      chat,
+      { type: 'TOOL_CALL', runId: 'r1', payload: { toolCall: { name: 'listFiles', status: 'OK' } } },
+      ctx,
+    );
+    chat = applyChatEvent(chat, { type: 'RUN_ERROR', runId: 'r1', payload: {} }, ctx);
+
+    // Инструмент отработал — это уже начатый ответ (и, возможно, побочные эффекты).
+    expect(last(chat).error).toBe(true);
+    expect(last(chat).retryMode).toBeUndefined();
+  });
+
+  test('RUN_ERROR in a later segment offers no retry, even if that segment is empty', () => {
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'думаю' } }, ctx);
+    chat = applyChatEvent(
+      chat,
+      { type: 'TOOL_CALL', runId: 'r1', payload: { toolCall: { name: 'listFiles', status: 'OK' } } },
+      ctx,
+    );
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'вторая часть' } }, ctx);
+    chat = applyChatEvent(chat, { type: 'RUN_ERROR', runId: 'r1', payload: {} }, ctx);
+
+    // Ошибка садится на последний пузырь прогона, но решение смотрит на весь прогон.
+    expect(chat.messages.filter((m) => m.retryMode)).toHaveLength(0);
   });
 
   test('RUN_DONE finalizes without an error flag', () => {

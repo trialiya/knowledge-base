@@ -54,6 +54,9 @@ import reactor.core.publisher.Flux;
  * Если своего user-сообщения в промпте нет, последним оказывается наш предсохранённый ряд — и
  * повторно он не пишется. Тесты пиннят именно это: сломается версия Spring AI — упадёт здесь, а не
  * дублями в проде.
+ *
+ * <p>Здесь же — окно повтора ({@link ChatMemoryService#unansweredUserMessage}): тот же ряд служит
+ * ходом при повторе упавшего прогона, но только пока модель не ответила ничем.
  */
 @ActiveProfiles("h2")
 @DataJdbcTest(
@@ -250,6 +253,66 @@ class PrePersistedUserMessageTest {
         assertThat(promptCaptor.getValue().getInstructions())
                 .filteredOn(m -> QUESTION.equals(m.getText()))
                 .hasSize(1);
+    }
+
+    /**
+     * Тот же предсохранённый ряд служит ходом и на повторе упавшего прогона — {@link
+     * ChatMemoryService#unansweredUserMessage} возвращает именно его, второго вопроса не заводится.
+     */
+    @Test
+    void unansweredQuestionIsTheRowRetryReuses() {
+        String conversationId = UUID.randomUUID().toString();
+        long userMessageId = prePersistUser(conversationId, QUESTION);
+
+        assertThat(memoryService().unansweredUserMessage(conversationId))
+                .get()
+                .extracting(ChatMessageEntity::getId, ChatMessageEntity::getContent)
+                .containsExactly(userMessageId, QUESTION);
+    }
+
+    /** Ответ начался — повторять нечего: в хвосте уже стоит ASSISTANT. */
+    @Test
+    void startedAnswerClosesTheRetryWindow() {
+        String conversationId = UUID.randomUUID().toString();
+        ChatMemoryService memory = memoryService();
+
+        prePersistUser(conversationId, QUESTION);
+        memory.saveAll(conversationId, List.of(new AssistantMessage("Начал отвеч")));
+
+        assertThat(memory.unansweredUserMessage(conversationId)).isEmpty();
+    }
+
+    /**
+     * Прогон упал во время вызова инструмента: в хвосте — {@code assistant.tool_calls} без ответа.
+     * Это тоже начатый ответ, и достроенный ремонтом TOOL-ряд закрывает окно повтора. Порядок
+     * важен: {@code repairDanglingToolCalls} обязана отработать ДО решения о повторе.
+     */
+    @Test
+    void repairedToolCallTailClosesTheRetryWindow() {
+        String conversationId = UUID.randomUUID().toString();
+        ChatMemoryService memory = memoryService();
+
+        prePersistUser(conversationId, QUESTION);
+        memory.saveAll(
+                conversationId,
+                List.of(
+                        AssistantMessage.builder()
+                                .content("смотрю файлы")
+                                .toolCalls(
+                                        List.of(
+                                                new AssistantMessage.ToolCall(
+                                                        "call-1", "function", "listFiles", "{}")))
+                                .build()));
+
+        memory.repairDanglingToolCalls(conversationId);
+
+        assertThat(memory.unansweredUserMessage(conversationId)).isEmpty();
+    }
+
+    /** Пустой чат повторять нечего — ряда с вопросом просто нет. */
+    @Test
+    void emptyConversationHasNothingToRetry() {
+        assertThat(memoryService().unansweredUserMessage(UUID.randomUUID().toString())).isEmpty();
     }
 
     /**

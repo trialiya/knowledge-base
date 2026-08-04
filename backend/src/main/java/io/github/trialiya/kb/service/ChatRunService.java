@@ -118,6 +118,10 @@ public class ChatRunService {
     /**
      * Запускает генерацию в фоне и сразу возвращает runId — HTTP-запрос не держим.
      *
+     * @param userMessage вопрос пользователя; {@code null} — это повтор упавшего прогона: нового
+     *     сообщения не появляется, ходом становится последний неотвеченный вопрос из истории (см.
+     *     {@link ChatMemoryService#unansweredUserMessage}). Повтор поверх начатого ответа модели
+     *     запрещён — 422.
      * @param weakModel {@code ChatModelProperties#isWeak} результата резолва {@code resolvedModel}
      *     — решает, попадёт ли в системный промпт обучающая половина руководства по скриптам (см.
      *     {@code ScriptGuideService})
@@ -125,7 +129,7 @@ public class ChatRunService {
     public StartedRun start(
             String conversationId,
             String user,
-            String userMessage,
+            @Nullable String userMessage,
             @Nullable String resolvedModel,
             boolean weakModel,
             String modeInstructions,
@@ -145,7 +149,20 @@ public class ChatRunService {
             // repairDanglingToolCalls смотрит только на последнюю строку, и записанное первым
             // сообщение пользователя навсегда спрятало бы от неё оборванную пару.
             chatMemoryService.repairDanglingToolCalls(conversationId);
-            userRow = chatMemoryService.saveUserMessage(conversationId, userMessage);
+            userRow =
+                    userMessage != null
+                            ? chatMemoryService.saveUserMessage(conversationId, userMessage)
+                            // Повтор: вопрос уже в истории, ходом остаётся он же. Проверку делаем
+                            // ПОСЛЕ ремонта хвоста — достроенный TOOL-ответ как раз и означает,
+                            // что модель уже начала отвечать, и повторять этот ход нельзя.
+                            : chatMemoryService
+                                    .unansweredUserMessage(conversationId)
+                                    .orElseThrow(
+                                            () ->
+                                                    new ResponseStatusException(
+                                                            HttpStatus.UNPROCESSABLE_CONTENT,
+                                                            "Nothing to retry: the last message is"
+                                                                    + " not an unanswered question"));
         } catch (RuntimeException e) {
             // Заявку на чат не удерживаем: генерация так и не началась.
             activeByConversation.remove(conversationId, runId);
@@ -282,6 +299,9 @@ public class ChatRunService {
         final ToolInvocationCollector toolCollector =
                 new ToolInvocationCollector(() -> buffer.setLength(0));
 
+        // На повторе сообщение не новое, но событие всё равно нужно: вкладки сверяют пузырь по id
+        // и срезают всё, что стоит после него, — так пузырь с ошибкой упавшего прогона исчезает
+        // везде, а не только там, где нажали «Повторить».
         events.publish(
                 conversationId,
                 USER_MESSAGE,

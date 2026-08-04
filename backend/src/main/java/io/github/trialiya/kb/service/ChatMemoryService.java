@@ -122,6 +122,24 @@ public class ChatMemoryService implements ChatMemoryRepository {
                         null));
     }
 
+    /**
+     * Последнее сообщение чата — но только если это вопрос пользователя, на который модель ещё
+     * ничего не ответила. Единственное состояние, из которого «Повторить» означает продолжить тот
+     * же ход: дописывать в историю нечего, прогон просто запускается заново поверх неё (см. {@code
+     * ChatRunService.start} в режиме повтора).
+     *
+     * <p>Как только в хвосте появился ASSISTANT или TOOL — пусть даже оборванный сегмент упавшего
+     * прогона, — повтор запрещён. Молча «переиграть» ход модели можно было бы только одним из двух
+     * способов: задвоив вопрос вторым USER-рядом или удалив то, что модель успела сделать (включая
+     * побочные эффекты уже выполненных инструментов). Оба варианта хуже прямого продолжения
+     * диалога, поэтому дальше пользователь пишет сам.
+     */
+    public Optional<ChatMessageEntity> unansweredUserMessage(String conversationId) {
+        return chatMessageRepository
+                .findFirstByConversationIdOrderByPositionDesc(conversationId)
+                .filter(last -> last.getType() == MessageType.USER);
+    }
+
     @Override
     public void deleteByConversationId(String conversationId) {
         chatMessageRepository.deleteChatMessageByConversationId(conversationId);

@@ -41,6 +41,8 @@
     "loadErrorMessage": "Error while loading the chat{{suffix}}. Try again later.",
     "busyTitle": "Generation in progress",
     "busyMessage": "A response is already being generated in this chat (possibly in another tab). Wait for it to finish or stop it before sending a new message.",
+    "retryUnavailableTitle": "Retry no longer possible",
+    "retryUnavailableMessage": "The model already started answering, so this turn cannot be retried. Send a message instead — for example, “continue”.",
     "deletedTitle": "Chat deleted",
     "deletedMessage": "This chat was deleted in another tab or session.",
     "uploadTitle": "Upload failed",
