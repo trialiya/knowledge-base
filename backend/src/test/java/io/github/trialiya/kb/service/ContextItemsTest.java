@@ -2,6 +2,9 @@ package io.github.trialiya.kb.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -9,18 +12,23 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.trialiya.kb.config.CommonConfig;
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.convert.ChatMessageMetaToJsonConverter;
-import io.github.trialiya.kb.model.attachment.dto.Attachment;
+import io.github.trialiya.kb.model.attachment.dto.AttachmentSummary;
+import io.github.trialiya.kb.model.attachment.entity.AttachmentEntity;
 import io.github.trialiya.kb.model.attachment.entity.AttachmentOwnerType;
 import io.github.trialiya.kb.model.chat.dto.ContextItemRequest;
+import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.chat.entity.ContextItemKind;
+import io.github.trialiya.kb.repository.AttachmentRepository;
 import io.github.trialiya.kb.repository.BackfillStateRepository;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -64,6 +72,7 @@ class ContextItemsTest {
     @Autowired private ChatMessageRepository messageRepo;
     @Autowired private ToolCallIndexRepository toolCallIndexRepo;
     @Autowired private BackfillStateRepository backfillStateRepo;
+    @Autowired private AttachmentRepository attachmentRepo;
 
     private AttachmentService attachmentService;
     private ContextItemService contextItemService;
@@ -83,19 +92,13 @@ class ContextItemsTest {
                         contextItemService);
     }
 
-    private static Attachment attachment(String conversationId, String fileName) {
-        return new Attachment(
-                ATTACHMENT_ID,
-                AttachmentOwnerType.CHAT,
-                null,
-                conversationId,
-                fileName,
-                "text/markdown",
-                1234,
-                null,
-                null,
-                OffsetDateTime.now(),
-                OffsetDateTime.now());
+    /** Вложение чата видно только своему чату — этим и занимается запрос за метаданными. */
+    private void haveAttachment(String conversationId, String fileName) {
+        when(attachmentService.findSummaries(eq(conversationId), any()))
+                .thenReturn(
+                        List.of(
+                                new AttachmentSummary(
+                                        ATTACHMENT_ID, fileName, "text/markdown", 1234, null)));
     }
 
     private static ContextItemRequest attachmentRequest() {
@@ -107,8 +110,7 @@ class ContextItemsTest {
     @Test
     void labelComesFromTheAttachmentNotFromTheClient() {
         String conversationId = UUID.randomUUID().toString();
-        when(attachmentService.getById(ATTACHMENT_ID))
-                .thenReturn(attachment(conversationId, "report.md"));
+        haveAttachment(conversationId, "report.md");
 
         assertThat(contextItemService.resolve(conversationId, List.of(attachmentRequest())))
                 .singleElement()
@@ -122,8 +124,8 @@ class ContextItemsTest {
     /** Иначе id чужого вложения был бы способом прочитать его содержимое через свой чат. */
     @Test
     void attachmentOfAnotherChatIsRejected() {
-        when(attachmentService.getById(ATTACHMENT_ID))
-                .thenReturn(attachment("someone-elses-chat", "secret.md"));
+        // Запрос за метаданными ограничен своим чатом, поэтому чужой id просто не вернётся.
+        when(attachmentService.findSummaries(anyString(), any())).thenReturn(List.of());
 
         assertThatThrownBy(
                         () ->
@@ -157,8 +159,7 @@ class ContextItemsTest {
     @Test
     void attachedContextTravelsThroughMetaIntoThePrompt() {
         String conversationId = UUID.randomUUID().toString();
-        when(attachmentService.getById(ATTACHMENT_ID))
-                .thenReturn(attachment(conversationId, "report.md"));
+        haveAttachment(conversationId, "report.md");
 
         var saved =
                 memoryService.saveUserMessage(
@@ -205,13 +206,11 @@ class ContextItemsTest {
     @Test
     void deletedAttachmentQuietlyLeavesThePrompt() {
         String conversationId = UUID.randomUUID().toString();
-        when(attachmentService.getById(ATTACHMENT_ID))
-                .thenReturn(attachment(conversationId, "report.md"));
+        haveAttachment(conversationId, "report.md");
         var items = contextItemService.resolve(conversationId, List.of(attachmentRequest()));
         memoryService.saveUserMessage(conversationId, QUESTION, items);
 
-        when(attachmentService.getById(ATTACHMENT_ID))
-                .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "gone"));
+        when(attachmentService.findSummaries(anyString(), any())).thenReturn(List.of());
 
         assertThat(memoryService.findByConversationId(conversationId))
                 .singleElement()
@@ -229,6 +228,52 @@ class ContextItemsTest {
         assertThat(memoryService.findByConversationId(conversationId))
                 .singleElement()
                 .satisfies(message -> assertThat(message.getText()).isEqualTo(QUESTION));
+    }
+
+    /**
+     * Запрос за метаданными идёт мимо {@code content} и мимо чужих чатов — проверяем его на
+     * настоящей БД, а не на моке: и проекция в record, и {@code IN (:ids)} ломаются именно в
+     * рантайме, а вся опись приложенного стоит на этом одном запросе.
+     */
+    @Test
+    void summaryQuerySkipsContentAndForeignChats() {
+        String conversationId = UUID.randomUUID().toString();
+        long mine = insertAttachment(conversationId, "report.md", "x".repeat(50_000));
+        long theirs = insertAttachment(UUID.randomUUID().toString(), "secret.md", "shh");
+
+        assertThat(attachmentRepo.findSummaries(conversationId, List.of(mine, theirs)))
+                .singleElement()
+                .satisfies(
+                        found -> {
+                            assertThat(found.id()).isEqualTo(mine);
+                            assertThat(found.fileName()).isEqualTo("report.md");
+                            assertThat(found.fileSize()).isEqualTo(50_000);
+                        });
+    }
+
+    private long insertAttachment(String conversationId, String fileName, String content) {
+        // conversation_id — внешний ключ на chat_topic, поэтому чат должен существовать.
+        topicRepo.save(
+                new ChatTopicEntity(
+                        conversationId,
+                        "admin",
+                        null,
+                        null,
+                        null,
+                        null,
+                        LocalDateTime.now(),
+                        LocalDateTime.now(),
+                        true));
+        final AttachmentEntity entity = new AttachmentEntity();
+        entity.setOwnerType(AttachmentOwnerType.CHAT);
+        entity.setConversationId(conversationId);
+        entity.setFileName(fileName);
+        entity.setContentType("text/markdown");
+        entity.setFileSize(content.length());
+        entity.setContent(content);
+        entity.setCreatedAt(OffsetDateTime.now());
+        entity.setUpdatedAt(OffsetDateTime.now());
+        return Objects.requireNonNull(attachmentRepo.save(entity).getId());
     }
 
     /**

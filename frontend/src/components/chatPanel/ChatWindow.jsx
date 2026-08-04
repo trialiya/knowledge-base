@@ -944,7 +944,7 @@ const ChatWindow = ({
           // У черновика чата на бэке ещё нет — вложению не к чему прикрепиться.
           onAttach={activeChatId === DRAFT_CHAT_ID ? undefined : () => attachFileRef.current?.click()}
           staged={getStagedFor(activeChatId)}
-          onUnstage={(item) => unstageContextItem(activeChatId, item.ref)}
+          onUnstage={(item) => unstageContextItem(activeChatId, item)}
           isEmpty={isChatEmpty && !loadingMessages}
           resetSignal={composerResetSignal}
           focusSignal={composerFocusSignal}

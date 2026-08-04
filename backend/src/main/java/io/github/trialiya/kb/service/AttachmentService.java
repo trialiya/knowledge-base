@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.service;
 
 import io.github.trialiya.kb.model.attachment.dto.Attachment;
+import io.github.trialiya.kb.model.attachment.dto.AttachmentSummary;
 import io.github.trialiya.kb.model.attachment.entity.AttachmentEmbeddingEntity;
 import io.github.trialiya.kb.model.attachment.entity.AttachmentEntity;
 import io.github.trialiya.kb.model.attachment.entity.AttachmentOwnerType;
@@ -12,6 +13,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
@@ -223,6 +225,14 @@ public class AttachmentService implements DisposableBean {
 
     public Attachment getById(Long id) {
         return toDto(findOrThrow(id));
+    }
+
+    /**
+     * Метаданные вложений чата по id — без содержимого. Отсутствующие в ответе id либо не
+     * существуют, либо принадлежат другому чату; различать эти случаи снаружи незачем.
+     */
+    public List<AttachmentSummary> findSummaries(String conversationId, Collection<Long> ids) {
+        return ids.isEmpty() ? List.of() : attachmentRepo.findSummaries(conversationId, ids);
     }
 
     /** Returns the raw text content of an attachment (for download / AI tool). */

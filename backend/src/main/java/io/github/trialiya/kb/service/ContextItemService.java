@@ -3,12 +3,18 @@ package io.github.trialiya.kb.service;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
-import io.github.trialiya.kb.model.attachment.dto.Attachment;
+import io.github.trialiya.kb.model.attachment.dto.AttachmentSummary;
 import io.github.trialiya.kb.model.chat.dto.ContextItemRequest;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.chat.entity.ContextItemKind;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
@@ -16,7 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Контекст, приложенный пользователем к сообщению: проверка того, что прислал клиент, и рендер для
+ * Контекст, приложенный пользователем к сообщению: проверка того, что прислал клиент, и опись для
  * модели.
  *
  * <p>Две вещи здесь сознательно не доверены фронту. Первая — принадлежность объекта чату: без
@@ -24,9 +30,10 @@ import org.springframework.web.server.ResponseStatusException;
  * подпись: она берётся с самого объекта, поэтому в истории остаётся имя файла, а не то, что клиент
  * решил про него написать.
  *
- * <p>Рендер идёт при каждом чтении истории, а не один раз при записи. Поэтому переименованное
+ * <p>Опись собирается при каждом чтении истории, а не один раз при записи. Поэтому переименованное
  * вложение попадает в промпт под новым именем, а удалённое просто исчезает из него — вместо вечного
- * обещания файла, которого больше нет.
+ * обещания файла, которого больше нет. Плата за это — запрос на каждое построение промпта, то есть
+ * на каждую итерацию tool-цикла, поэтому запрос ровно один и без колонки {@code content}.
  */
 @Slf4j
 @AllArgsConstructor
@@ -52,49 +59,38 @@ public class ContextItemService {
             throw new ResponseStatusException(
                     BAD_REQUEST, "Too many context items: " + requested.size());
         }
-        return requested.stream()
-                .distinct()
-                .map(request -> resolveOne(conversationId, request))
+        final List<ContextItemRequest> unique =
+                List.copyOf(new LinkedHashSet<>(requested)); // порядок сохраняем, дубли снимаем
+        unique.forEach(request -> kindOf(request.kind())); // ранний отказ на неизвестном виде
+
+        final Map<Long, AttachmentSummary> attachments =
+                attachmentsOf(conversationId, requestedAttachmentIds(unique));
+
+        return unique.stream()
+                .map(
+                        request ->
+                                switch (kindOf(request.kind())) {
+                                    case ATTACHMENT -> {
+                                        final AttachmentSummary found =
+                                                attachments.get(attachmentId(request.ref()));
+                                        if (found == null) {
+                                            // Не существует или чужое — снаружи это один и тот же
+                                            // ответ: существование чужих объектов не подтверждаем.
+                                            throw new ResponseStatusException(
+                                                    NOT_FOUND,
+                                                    "Attachment not found: " + request.ref());
+                                        }
+                                        yield new ContextItem(
+                                                ContextItemKind.ATTACHMENT,
+                                                request.ref(),
+                                                found.fileName());
+                                    }
+                                })
                 .toList();
     }
 
-    private ContextItem resolveOne(String conversationId, ContextItemRequest request) {
-        final ContextItemKind kind = kindOf(request.kind());
-        return switch (kind) {
-            case ATTACHMENT -> {
-                final Attachment attachment = attachment(request.ref());
-                if (!conversationId.equals(attachment.conversationId())) {
-                    // Вложение чужого чата: 404, а не 403 — существование чужих объектов не
-                    // подтверждаем.
-                    throw new ResponseStatusException(
-                            NOT_FOUND, "Attachment not found: " + request.ref());
-                }
-                yield new ContextItem(kind, request.ref(), attachment.fileName());
-            }
-        };
-    }
-
-    private Attachment attachment(String ref) {
-        final long id;
-        try {
-            id = Long.parseLong(ref);
-        } catch (NumberFormatException e) {
-            throw new ResponseStatusException(BAD_REQUEST, "Not an attachment id: " + ref);
-        }
-        return attachmentService.getById(id);
-    }
-
-    private static ContextItemKind kindOf(String raw) {
-        for (ContextItemKind candidate : ContextItemKind.values()) {
-            if (candidate.name().equalsIgnoreCase(raw)) {
-                return candidate;
-            }
-        }
-        throw new ResponseStatusException(BAD_REQUEST, "Unknown context item kind: " + raw);
-    }
-
     /**
-     * Блок для модели: что именно приложено к этому сообщению и как это прочитать. Содержимое сюда
+     * Опись для модели: что именно приложено к этому сообщению и как это прочитать. Содержимое сюда
      * не разворачивается — файл может быть на мегабайт, и в истории он остался бы навсегда. Модель
      * читает его инструментом ровно тогда, когда оно понадобилось.
      *
@@ -104,9 +100,11 @@ public class ContextItemService {
         if (items.isEmpty()) {
             return "";
         }
+        final Map<Long, AttachmentSummary> attachments =
+                attachmentsOf(conversationId, storedAttachmentIds(items));
         final List<String> lines =
                 items.stream()
-                        .map(item -> renderOne(conversationId, item))
+                        .map(item -> renderOne(item, attachments))
                         .flatMap(Optional::stream)
                         .toList();
         if (lines.isEmpty()) {
@@ -118,16 +116,14 @@ public class ContextItemService {
                 + "\n</attached-context>";
     }
 
-    private Optional<String> renderOne(String conversationId, ContextItem item) {
+    private Optional<String> renderOne(ContextItem item, Map<Long, AttachmentSummary> attachments) {
         return switch (item.kind()) {
             case ATTACHMENT -> {
-                final Attachment attachment;
-                try {
-                    attachment = attachment(item.ref());
-                } catch (RuntimeException e) {
+                final AttachmentSummary attachment =
+                        attachments.get(attachmentIdOrNull(item.ref()));
+                if (attachment == null) {
                     // Вложение удалили после отправки. Молчать честнее, чем звать модель читать
                     // то, чего нет: инструмент всё равно вернул бы ошибку.
-                    log.debug("[{}] context attachment {} is gone", conversationId, item.ref());
                     yield Optional.empty();
                 }
                 yield Optional.of(
@@ -144,5 +140,52 @@ public class ContextItemService {
                                         : " summary=\"" + attachment.summary() + "\""));
             }
         };
+    }
+
+    /** Один запрос на всю опись: метаданные вложений чата по всем упомянутым id. */
+    private Map<Long, AttachmentSummary> attachmentsOf(String conversationId, Set<Long> ids) {
+        return attachmentService.findSummaries(conversationId, ids).stream()
+                .collect(Collectors.toMap(AttachmentSummary::id, Function.identity()));
+    }
+
+    private Set<Long> requestedAttachmentIds(List<ContextItemRequest> requests) {
+        return requests.stream()
+                .filter(request -> kindOf(request.kind()) == ContextItemKind.ATTACHMENT)
+                .map(request -> attachmentId(request.ref()))
+                .collect(Collectors.toSet());
+    }
+
+    private static Set<Long> storedAttachmentIds(List<ContextItem> items) {
+        return items.stream()
+                .filter(item -> item.kind() == ContextItemKind.ATTACHMENT)
+                .map(item -> attachmentIdOrNull(item.ref()))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+    }
+
+    /** Ссылка на вложение — только число; всё остальное клиент прислал зря. */
+    private static long attachmentId(String ref) {
+        final Long id = attachmentIdOrNull(ref);
+        if (id == null) {
+            throw new ResponseStatusException(BAD_REQUEST, "Not an attachment id: " + ref);
+        }
+        return id;
+    }
+
+    private static @Nullable Long attachmentIdOrNull(String ref) {
+        try {
+            return Long.parseLong(ref);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static ContextItemKind kindOf(String raw) {
+        for (ContextItemKind candidate : ContextItemKind.values()) {
+            if (candidate.name().equalsIgnoreCase(raw)) {
+                return candidate;
+            }
+        }
+        throw new ResponseStatusException(BAD_REQUEST, "Unknown context item kind: " + raw);
     }
 }

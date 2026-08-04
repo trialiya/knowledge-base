@@ -44,14 +44,18 @@ export default function useChatDrafts() {
     });
   }, []);
 
-  /** Отложить вложение к следующему сообщению чата (повторное — no-op). */
+  // Элемент опознаётся парой kind+ref: ref уникален только внутри своего вида,
+  // и вложение №7 не должно схлопываться с документом №7.
+  const sameItem = (a, b) => a.kind === b.kind && a.ref === b.ref;
+
+  /** Отложить элемент к следующему сообщению чата (повторный — no-op). */
   const stageContextItem = useCallback(
-    (id, item) => updateStaged(id, (list) => (list.some((i) => i.ref === item.ref) ? list : [...list, item])),
+    (id, item) => updateStaged(id, (list) => (list.some((i) => sameItem(i, item)) ? list : [...list, item])),
     [updateStaged],
   );
 
   const unstageContextItem = useCallback(
-    (id, ref) => updateStaged(id, (list) => list.filter((i) => i.ref !== ref)),
+    (id, item) => updateStaged(id, (list) => list.filter((i) => !sameItem(i, item))),
     [updateStaged],
   );
 
