@@ -14,14 +14,18 @@ import io.github.trialiya.kb.model.chat.dto.ChatMessage;
 import io.github.trialiya.kb.model.chat.dto.ChatSearchResult;
 import io.github.trialiya.kb.model.chat.dto.MessagePage;
 import io.github.trialiya.kb.model.chat.dto.MessageSearchHit;
+import io.github.trialiya.kb.model.chat.dto.StartRunRequest;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
+import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.tool.ToolCallDetail;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.ChatEventService;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.service.ChatModeService;
 import io.github.trialiya.kb.service.ChatRunService;
+import io.github.trialiya.kb.service.ChatTopicService;
+import io.github.trialiya.kb.service.ContextItemService;
 import io.github.trialiya.kb.service.ScriptGuideService;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import jakarta.annotation.Nonnull;
@@ -69,6 +73,8 @@ public class ChatController {
     private final ChatRunService chatRunService;
     private final ChatEventService chatEventService;
     private final ScriptGuideService scriptGuideService;
+    private final ContextItemService contextItemService;
+    private final ChatTopicService chatTopicService;
 
     /** Часы аудита Spring Data — ими же датируется «тронуть чат», см. JdbcConfig#clock. */
     private final Clock clock;
@@ -84,6 +90,8 @@ public class ChatController {
             ChatRunService chatRunService,
             ChatEventService chatEventService,
             ScriptGuideService scriptGuideService,
+            ContextItemService contextItemService,
+            ChatTopicService chatTopicService,
             Clock clock) {
         this.chatModelProperties = chatModelProperties;
         this.chatModeProperties = chatModeProperties;
@@ -95,6 +103,8 @@ public class ChatController {
         this.chatRunService = chatRunService;
         this.chatEventService = chatEventService;
         this.scriptGuideService = scriptGuideService;
+        this.contextItemService = contextItemService;
+        this.chatTopicService = chatTopicService;
         this.clock = clock;
     }
 
@@ -212,7 +222,8 @@ public class ChatController {
                                                 chatMemoryService.invocationsFor(
                                                         e, page.messages()),
                                                 e.getMeta() != null ? e.getMeta().runId() : null,
-                                                isToolCalls(e)))
+                                                isToolCalls(e),
+                                                e.getContextItems()))
                         .toList();
         return new MessagePage(dtos, page.hasMore(), page.oldestCursor());
     }
@@ -330,34 +341,60 @@ public class ChatController {
     // ---------------------------------------------------------------------
 
     /**
-     * Запускает генерацию ответа как фоновую задачу и сразу возвращает {@code runId}. Сам ответ
-     * приходит не в этом запросе, а потоком событий через {@link #events}. Это и есть развязка
-     * «обработка ≠ HTTP-запрос»: ответ переживает перезагрузку страницы и виден всем вкладкам.
+     * Запускает генерацию ответа как фоновую задачу и сразу возвращает {@code runId} и {@code
+     * messageId} сохранённого вопроса. Сам ответ приходит не в этом запросе, а потоком событий
+     * через {@link #events}. Это и есть развязка «обработка ≠ HTTP-запрос»: ответ переживает
+     * перезагрузку страницы и виден всем вкладкам.
      *
+     * <p>Вопрос пользователя сохраняется синхронно, до старта генерации (см. {@link
+     * ChatMemoryService#saveUserMessage}), поэтому ошибка записи — это ошибка этого запроса, а не
+     * тихо потерянное сообщение.
+     *
+     * <p>Тело — {@link StartRunRequest}: текст вопроса и приложенный к нему контекст (вложения).
+     * Ссылки на контекст проверяются здесь же и уходят в {@code meta} того же ряда, поэтому
+     * привязка не требует ни знания id заранее, ни второго запроса.
+     *
+     * @param retry повтор упавшего прогона: тело не нужно, новое сообщение не появляется — ходом
+     *     остаётся последний неотвеченный вопрос. Если модель уже начала отвечать, повторять
+     *     нечего: 422, дальше пользователь пишет сам (см. {@link
+     *     ChatMemoryService#unansweredUserMessage})
      * @param clientMsgId идентификатор клиента — чтобы вкладка-отправитель не задвоила свой
      *     оптимистично показанный пузырь, получив его же эхом
      */
     @PostMapping("/{conversationId}/runs")
-    public Map<String, String> startRun(
+    public Map<String, Object> startRun(
             @PathVariable final String conversationId,
             @RequestParam(name = "model", required = false) final String model,
             @RequestParam(name = "mode", required = false) final String mode,
             @RequestParam(name = "clientMsgId", required = false) final String clientMsgId,
-            @RequestBody final String userMessage) {
+            @RequestParam(name = "retry", defaultValue = "false") final boolean retry,
+            @RequestBody(required = false) final StartRunRequest body) {
+        final String userMessage = body == null ? null : body.text();
+        if (!retry && !StringUtils.hasText(userMessage)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Empty message");
+        }
         checkChat(conversationId, true);
+        // Проверяем приложенное ДО заявки на чат: 404 на чужое вложение не должен оставлять
+        // за собой ни занятый чат, ни записанный вопрос.
+        final List<ContextItem> contextItems =
+                retry
+                        ? List.of()
+                        : contextItemService.resolve(
+                                conversationId, body == null ? null : body.contextItems());
         final String resolvedModel = resolveModel(conversationId, model);
         final String modeInstructions =
                 chatModeService.instructionsFor(resolveMode(conversationId, mode));
-        final String runId =
+        final ChatRunService.StartedRun started =
                 chatRunService.start(
                         conversationId,
                         getUser(),
-                        userMessage,
+                        retry ? null : userMessage,
+                        contextItems,
                         resolvedModel,
                         chatModelProperties.isWeak(resolvedModel),
                         modeInstructions,
                         clientMsgId);
-        return Map.of("runId", runId);
+        return Map.of("runId", started.runId(), "messageId", started.userMessageId());
     }
 
     /**
@@ -445,32 +482,11 @@ public class ChatController {
     }
 
     private void checkChat(@Nonnull final String conversationId, boolean update) {
-        chatTopicRepository
-                .findById(conversationId)
-                .ifPresentOrElse(
-                        chatTopicEntity -> {
-                            if (!chatTopicEntity.getUser().equals(getUser())) {
-                                throw new ResponseStatusException(FORBIDDEN, "Forbidden");
-                            }
-                            if (update) {
-                                chatTopicRepository.updateUpdatedAt(
-                                        conversationId, LocalDateTime.now(clock));
-                            }
-                        },
-                        () ->
-                                chatTopicRepository.save(
-                                        new ChatTopicEntity(
-                                                conversationId,
-                                                getUser(),
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                // overwritten by @CreatedDate/@LastModifiedDate
-                                                // auditing before insert
-                                                LocalDateTime.now(),
-                                                LocalDateTime.now(),
-                                                true)));
+        // Заведение чата — общее с загрузкой вложений (см. ChatTopicService): вложение тоже
+        // может оказаться первым, что делают в ещё не начатом разговоре.
+        if (chatTopicService.ensureExists(conversationId) && update) {
+            chatTopicRepository.updateUpdatedAt(conversationId, LocalDateTime.now(clock));
+        }
     }
 
     private Chat toChat(ChatTopicEntity entity, @Nullable List<ChatMessage> messages) {
@@ -507,7 +523,8 @@ public class ChatController {
                 chatMessageEntity.getCreatedAt(),
                 chatMessageEntity.getInvocations(),
                 chatMessageEntity.getMeta() != null ? chatMessageEntity.getMeta().runId() : null,
-                isToolCalls(chatMessageEntity));
+                isToolCalls(chatMessageEntity),
+                chatMessageEntity.getContextItems());
     }
 
     /** «Крошка» вызовов инструментов — служебное сообщение, которое не показываем пользователю. */

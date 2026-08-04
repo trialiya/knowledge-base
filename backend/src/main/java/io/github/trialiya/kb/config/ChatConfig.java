@@ -19,6 +19,7 @@ import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.AttachmentService;
 import io.github.trialiya.kb.service.ChatEventService;
 import io.github.trialiya.kb.service.ChatMemoryService;
+import io.github.trialiya.kb.service.ContextItemService;
 import io.github.trialiya.kb.service.DocumentService;
 import io.github.trialiya.kb.service.GitService;
 import io.github.trialiya.kb.service.ScriptGuideService;
@@ -264,6 +265,7 @@ public class ChatConfig {
             ObjectProvider<GitEditFunction> gitEditFunction,
             DocumentFunction documentFunction,
             AttachmentService attachmentService,
+            ContextItemService contextItemService,
             ObjectProvider<SearchAgentService> searchAgentService,
             ObjectProvider<ScriptFunction> scriptFunction,
             ChatEventService chatEventService,
@@ -275,7 +277,8 @@ public class ChatConfig {
                 new ArrayList<>(
                         List.of(
                                 new TopicFunction(chatTopicRepository),
-                                new MessageLookupFunction(chatMessageRepository),
+                                new MessageLookupFunction(
+                                        chatMessageRepository, contextItemService),
                                 documentFunction,
                                 gitFunction,
                                 new AttachmentFunction(attachmentService)));

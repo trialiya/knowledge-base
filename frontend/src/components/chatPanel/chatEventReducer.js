@@ -11,6 +11,7 @@
 import { nextMessageId } from './messageId';
 import { CHAT_EVENT, FINISH_REASON } from '../../constants/chatEventTypes';
 import { SENDER } from '../../constants/messageSender';
+import { RETRY_MODE } from '../../constants/retryMode';
 
 // Совпадение вызовов. Когда callIndex известен у обоих — он однозначен (имя +
 // порядковый номер в прогоне); иначе фолбэк на name+arguments. Фолбэк нужен для
@@ -125,6 +126,13 @@ export function applyChatEvent(chat, ev, ctx) {
       // Своё эхо — уже показано оптимистично.
       if (clientMsgId && ctx.isLocal?.(clientMsgId)) return chat;
       const text = payload?.text || '';
+      // id сохранённого сообщения: бэк пишет вопрос до обращения к модели, поэтому он есть
+      // уже в событии. Событиям, отреплеенным из прогонов до этого изменения, его взять
+      // неоткуда — там остаётся null, и сверка ниже падает обратно на текст.
+      const dbId = payload?.id ?? null;
+      // Приложенное к вопросу приезжает вместе с ним — чипы появляются и в других
+      // вкладках, не дожидаясь перезагрузки.
+      const contextItems = payload?.contextItems?.length ? payload.contextItems : null;
       // Дубликат после перезагрузки: наш вопрос уже в истории (подгружен из БД). Ищем
       // ПОСЛЕДНЕЕ USER-сообщение — если оно совпало по тексту, это оно и есть, а всё,
       // что идёт после него, — частично сохранённые сегменты текущего (ещё идущего)
@@ -136,16 +144,30 @@ export function applyChatEvent(chat, ev, ctx) {
       // реплей после reload и эхо чужих вкладок.)
       for (let i = msgs.length - 1; i >= 0; i--) {
         if (msgs[i].sender === SENDER.USER) {
-          if (msgs[i].text === text) {
-            return i === msgs.length - 1 ? chat : { ...chat, messages: msgs.slice(0, i + 1) };
+          // Сверяем по dbId, когда он есть с обеих сторон: два одинаковых вопроса подряд
+          // (частый случай — «Повторить») текстовая сверка приняла бы за одно сообщение.
+          const sameMessage = dbId != null && msgs[i].dbId != null ? msgs[i].dbId === dbId : msgs[i].text === text;
+          if (sameMessage) {
+            // Пузырь из истории мог прийти без dbId или без чипов (реплей после
+            // reload, эхо своей же отправки) — дополняем тем, чего не хватает.
+            const patch = {
+              ...(dbId != null && msgs[i].dbId == null ? { dbId } : {}),
+              ...(contextItems && !msgs[i].contextItems?.length ? { contextItems } : {}),
+            };
+            const patched = Object.keys(patch).length > 0;
+            if (patched) msgs[i] = { ...msgs[i], ...patch };
+            if (i === msgs.length - 1) return patched ? { ...chat, messages: msgs } : chat;
+            return { ...chat, messages: msgs.slice(0, i + 1) };
           }
           break; // последний вопрос не совпал — это действительно новое сообщение
         }
       }
       msgs.push({
         mid: nextMessageId(),
+        dbId,
         text,
         sender: SENDER.USER,
+        ...(contextItems ? { contextItems } : {}),
         timestamp: new Date().toISOString(),
       });
       return { ...chat, messages: msgs };
@@ -256,16 +278,28 @@ export function applyChatEvent(chat, ev, ctx) {
     }
 
     case CHAT_EVENT.RUN_ERROR: {
-      // Помечаем пузырь error:true — под ним покажем кнопку «Повторить» (см. Message.jsx).
-      // Если ассистент ещё не появился (ошибка до первого чанка) — заводим пустой,
-      // чтобы было к чему прицепить ошибку и повтор.
+      // Помечаем пузырь error:true — под ним может появиться кнопка «Повторить»
+      // (см. MessageList/Message.jsx). Если ассистент ещё не появился (ошибка до первого
+      // чанка) — заводим пустой, чтобы было к чему прицепить ошибку.
       let idx = lastAiIndexForRun(msgs, runId);
       if (idx < 0) idx = pushAi(msgs, runId);
       const partial = (msgs[idx].text || '').trimEnd();
+      // Повтор предлагаем, только пока модель ничего не выдала: ни текста, ни вызова
+      // инструмента ни в одном сегменте прогона. Тогда вопрос в истории остался
+      // неотвеченным и прогон можно просто запустить заново (RETRY_MODE.CONTINUE) —
+      // без второго USER-сообщения. Если ответ уже начался, переиграть ход молча
+      // нельзя: пришлось бы либо задвоить вопрос, либо стереть сделанное моделью
+      // (включая побочные эффекты уже выполненных инструментов). Тот же инвариант
+      // проверяет бэк — ChatMemoryService.unansweredUserMessage.
+      const produced = msgs.some(
+        (m) =>
+          m.sender === SENDER.AI && m.runId === runId && ((m.text || '').trim() !== '' || (m.toolCalls || []).length),
+      );
       msgs[idx] = {
         ...msgs[idx],
         text: partial ? partial + ctx.interruptedNote : ctx.errorLabel,
         error: true,
+        ...(produced ? {} : { retryMode: RETRY_MODE.CONTINUE }),
       };
       finalize(msgs, runId);
       return { ...chat, messages: msgs, runId: null };

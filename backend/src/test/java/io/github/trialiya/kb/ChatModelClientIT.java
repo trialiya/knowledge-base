@@ -14,8 +14,10 @@ import io.github.trialiya.kb.repository.BackfillStateRepository;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
+import io.github.trialiya.kb.service.AttachmentService;
 import io.github.trialiya.kb.service.ChatEventService;
 import io.github.trialiya.kb.service.ChatMemoryService;
+import io.github.trialiya.kb.service.ContextItemService;
 import io.github.trialiya.kb.support.AbstractPostgresIntegrationTest;
 import java.time.Duration;
 import java.util.List;
@@ -78,7 +80,8 @@ class ChatModelClientIT extends AbstractPostgresIntegrationTest {
                         messageRepo,
                         new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))),
                         toolCallIndexRepo,
-                        backfillStateRepo);
+                        backfillStateRepo,
+                        new ContextItemService(mock(AttachmentService.class)));
         ChatMemory chatMemory =
                 MessageWindowChatMemory.builder()
                         .chatMemoryRepository(memoryService)

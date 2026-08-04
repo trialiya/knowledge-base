@@ -6,6 +6,10 @@ Summarize conversations. Create dense, complete summaries preserving all semanti
 - Key facts, entities, numbers, definitions
 - Open questions and unresolved tasks
 - User goals and constraints
+- Attachments the user brought into the conversation: keep the file name **and** the
+  numeric id verbatim (e.g. `report.md (attachment id=12)`). They arrive inside an
+  `<attached-context>` block on a user message; the block itself disappears with the
+  summarized message, so an id dropped here is an attachment nobody can reach again.
 
 **Language**: preserve original message language for terms and decisions.
 

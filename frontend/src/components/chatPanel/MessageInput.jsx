@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import Phrases from './Phrases';
 import ChipEditor from './ChipEditor';
 import ComposerToolbar from './ComposerToolbar';
+import ContextChips from './ContextChips';
 import { expandTokensForSend } from './fileChips';
 
 // isEmpty — true когда в чате ещё нет сообщений; тогда показываем git-подсказки.
@@ -21,6 +22,8 @@ const MessageInput = ({
   onTextChange,
   model,
   mode,
+  staged,
+  onUnstage,
 }) => {
   const { t } = useTranslation('chat');
   // Текст инициализируем из сохранённого черновика активного чата.
@@ -83,6 +86,8 @@ const MessageInput = ({
     <div className="message-input-area">
       {/* Блок git-фраз — только когда чат пустой */}
       {isEmpty && <Phrases onSelect={handleSelectPhrase} />}
+
+      <ContextChips items={staged} onRemove={onUnstage} ariaLabel={t('contextItems.staged')} />
 
       <div className="message-input-wrapper">
         <ChipEditor

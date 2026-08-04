@@ -4,6 +4,7 @@ import static io.github.trialiya.kb.tools.ToolArgs.requireNonEmpty;
 import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
 
 import io.github.trialiya.kb.repository.ChatMessageRepository;
+import io.github.trialiya.kb.service.ContextItemService;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -18,6 +19,7 @@ import org.springframework.ai.tool.annotation.ToolParam;
 public class MessageLookupFunction {
 
     private final ChatMessageRepository chatMessageRepository;
+    private final ContextItemService contextItemService;
 
     @Tool(
             name = "getOriginalMessages",
@@ -48,6 +50,11 @@ public class MessageLookupFunction {
                                                 + m.getMessageType()
                                                 + ": <msg>\n"
                                                 + m.getText()
+                                                // Приложенное к вопросу живёт в meta, а не в
+                                                // тексте: без этого «точный текст сообщения»
+                                                // молча терял бы упоминание вложения.
+                                                + contextItemService.render(
+                                                        chatId, m.getContextItems())
                                                 + "\n</msg>")
                         .collect(Collectors.toList());
 

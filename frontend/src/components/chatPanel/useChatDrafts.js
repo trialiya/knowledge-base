@@ -1,18 +1,24 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { loadDrafts, saveDrafts, getDraft, setDraft } from './chatDrafts';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { loadDrafts, saveDrafts, getDraft, setDraft, loadStaged, saveStaged, getStaged, setStaged } from './chatDrafts';
 
 const PERSIST_DEBOUNCE_MS = 400;
 
 /**
- * Владелец черновиков композера по чатам ({ chatId: text }, localStorage).
+ * Владелец черновиков композера по чатам (localStorage).
  * Вынесено из ChatWindow: рефы карты, отложенная запись (на каждый keystroke
  * писать не нужно) и гарантированный flush — при размонтировании и на
  * beforeunload (полная перезагрузка/закрытие вкладки не запускает cleanup
  * эффекта, поэтому одного его недостаточно).
+ *
+ * Черновик — это две вещи: набранный текст и отложенные к отправке вложения.
+ * Текст живёт в рефе (его владелец — само поле ввода, родителю на каждый
+ * keystroke ре-рендериться незачем), а отложенные вложения — в state: их видят
+ * и композер (чипы), и отправка, и меняются они по клику, а не по букве.
  */
 export default function useChatDrafts() {
   const draftsRef = useRef(loadDrafts());
   const persistTimerRef = useRef(null);
+  const [stagedByChat, setStagedByChat] = useState(loadStaged);
 
   const schedulePersist = useCallback(() => {
     clearTimeout(persistTimerRef.current);
@@ -28,11 +34,64 @@ export default function useChatDrafts() {
     [schedulePersist],
   );
 
-  /** Полностью убрать черновик чата (после отправки / удаления) и сохранить сразу. */
-  const clearDraft = useCallback((id) => {
-    setDraft(draftsRef.current, id, '');
-    saveDrafts(draftsRef.current);
+  // Отложенные вложения меняются по клику, а не по букве, поэтому пишем сразу.
+  const updateStaged = useCallback((id, next) => {
+    setStagedByChat((prev) => {
+      const map = { ...prev };
+      setStaged(map, id, next(getStaged(map, id)));
+      saveStaged(map);
+      return map;
+    });
   }, []);
+
+  // Элемент опознаётся парой kind+ref: ref уникален только внутри своего вида,
+  // и вложение №7 не должно схлопываться с документом №7.
+  const sameItem = (a, b) => a.kind === b.kind && a.ref === b.ref;
+
+  /** Отложить элемент к следующему сообщению чата (повторный — no-op). */
+  const stageContextItem = useCallback(
+    (id, item) => updateStaged(id, (list) => (list.some((i) => sameItem(i, item)) ? list : [...list, item])),
+    [updateStaged],
+  );
+
+  const unstageContextItem = useCallback(
+    (id, item) => updateStaged(id, (list) => list.filter((i) => !sameItem(i, item))),
+    [updateStaged],
+  );
+
+  /**
+   * Перенести черновик чата на другой id — и текст, и отложенные вложения.
+   *
+   * Нужно ровно в одном месте: чат «new» — выдумка фронта, и в момент, когда у него
+   * появляется настоящий conversationId (файл приложили до первого сообщения),
+   * набранное должно переехать вместе с чатом. Иначе поле ввода очистится: его
+   * содержимое MessageInput берёт по chatId.
+   */
+  const moveDraft = useCallback((fromId, toId) => {
+    if (!fromId || !toId || fromId === toId) return;
+    const text = getDraft(draftsRef.current, fromId);
+    setDraft(draftsRef.current, fromId, '');
+    setDraft(draftsRef.current, toId, text);
+    saveDrafts(draftsRef.current);
+    setStagedByChat((prev) => {
+      const map = { ...prev };
+      const items = getStaged(map, fromId);
+      setStaged(map, fromId, []);
+      setStaged(map, toId, items);
+      saveStaged(map);
+      return map;
+    });
+  }, []);
+
+  /** Полностью убрать черновик чата (после отправки / удаления) и сохранить сразу. */
+  const clearDraft = useCallback(
+    (id) => {
+      setDraft(draftsRef.current, id, '');
+      saveDrafts(draftsRef.current);
+      updateStaged(id, () => []);
+    },
+    [updateStaged],
+  );
 
   /** Немедленно сбросить отложенную запись на диск (например, перед сменой чата). */
   const flushDrafts = useCallback(() => {
@@ -43,6 +102,9 @@ export default function useChatDrafts() {
   /** Текущий черновик чата ('' если нет). */
   const getDraftFor = useCallback((id) => getDraft(draftsRef.current, id), []);
 
+  /** Отложенные вложения чата (стабильный пустой массив, если их нет). */
+  const getStagedFor = useCallback((id) => getStaged(stagedByChat, id), [stagedByChat]);
+
   useEffect(() => {
     window.addEventListener('beforeunload', flushDrafts);
     return () => {
@@ -51,5 +113,14 @@ export default function useChatDrafts() {
     };
   }, [flushDrafts]);
 
-  return { getDraftFor, handleTextChange, clearDraft, flushDrafts };
+  return {
+    getDraftFor,
+    handleTextChange,
+    clearDraft,
+    flushDrafts,
+    getStagedFor,
+    stageContextItem,
+    unstageContextItem,
+    moveDraft,
+  };
 }

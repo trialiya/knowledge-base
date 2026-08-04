@@ -30,6 +30,8 @@ import WorkspaceLayout from '../common/WorkspaceLayout';
 import useAttachmentCount from '../common/useAttachmentCount';
 import { IconInfo, IconPaperclip, IconPlus } from '../../icons';
 import { RIGHT_TAB } from '../../constants/rightTabs';
+import { RETRY_MODE } from '../../constants/retryMode';
+import { CONTEXT_KIND } from '../../constants/contextKind';
 import './chatWindow.css';
 import ErrorModal from '../common/ErrorModal';
 import ConfirmModal from '../common/ConfirmModal';
@@ -90,9 +92,6 @@ const ChatWindow = ({
     }),
     [],
   );
-  // Вложения живут в правой панели рабочей области — её состояние приходит из
-  // навигации (URL), поэтому локального attachPanelOpen здесь больше нет.
-  const openAttachments = panels?.onRightTabChange;
   // Счётчик для бейджа. У черновика чата на бэке ещё нет — считать нечего.
   const [attachCount, setAttachCount] = useAttachmentCount(
     OWNER_TYPE.CHAT,
@@ -109,10 +108,15 @@ const ChatWindow = ({
   const [chatErrorModal, setChatErrorModal] = useState(null);
   // Уведомление «в чате уже идёт генерация» (ответ сервера 409 на старт прогона).
   const [busyNotice, setBusyNotice] = useState(false);
+  // Повтор пришёл слишком поздно: бэк ответил 422 — модель уже начала отвечать.
+  const [retryUnavailableNotice, setRetryUnavailableNotice] = useState(false);
   // Уведомление «чат удалён в другой вкладке» (событие CHAT_DELETED из потока).
   const [deletedNotice, setDeletedNotice] = useState(false);
   // Уведомление об ошибке загрузки файла (вместо нативного alert).
   const [uploadErrorNotice, setUploadErrorNotice] = useState(false);
+  // Bump → перечитать список в открытой панели вложений. Панель грузит его один раз
+  // на чат и о том, что файл приложили (или отменили) из композера, сама не узнает.
+  const [attachRefreshSignal, setAttachRefreshSignal] = useState(0);
   // chatId, для которого POST /runs уже отправлен, но runId ещё не получен.
   // Закрывает окно между кликом «отправить» и ответом сервера: isStreaming
   // становится true синхронно, и ввод блокируется сразу, а не с приходом runId.
@@ -123,7 +127,16 @@ const ChatWindow = ({
   const [composerFocusSignal, setComposerFocusSignal] = useState(0);
   // Неотправленные черновики по чатам ({ chatId: text }, localStorage) — вынесено
   // в useChatDrafts (отложенная запись + flush на beforeunload/размонтирование).
-  const { getDraftFor, handleTextChange: handleComposerTextChange, clearDraft, flushDrafts } = useChatDrafts();
+  const {
+    getDraftFor,
+    handleTextChange: handleComposerTextChange,
+    clearDraft,
+    flushDrafts,
+    getStagedFor,
+    stageContextItem,
+    unstageContextItem,
+    moveDraft,
+  } = useChatDrafts();
   // clientMsgId-ы сообщений, отправленных ИЗ ЭТОЙ вкладки. Нужны, чтобы не задвоить
   // свой оптимистично показанный пузырь, получив его же эхом из потока событий.
   const localClientIdsRef = useRef(new Set());
@@ -400,85 +413,160 @@ const ChatWindow = ({
     [modeOptions],
   );
 
+  // Идёт ли в чате прогон прямо сейчас. Локального runId недостаточно: он мог не успеть
+  // приехать потоком, поэтому переспрашиваем бэк. Нужно там, где сбой запроса ещё не
+  // означает, что генерация не началась (см. runConversation).
+  const hasActiveRun = useCallback(async (conversationId) => {
+    if (chatsRef.current.find((c) => c.id === conversationId)?.runId) return true;
+    try {
+      const active = await chatApi.getActiveRun(conversationId);
+      return !!active?.runId;
+    } catch {
+      return false;
+    }
+  }, []);
+
   // Старт фонового прогона для уже показанного вопроса. Общий код для первой отправки
   // и для «Повторить»: бьёт POST /runs и обрабатывает исход — runId (идёт генерация),
-  // 409 (занято) или ошибку (помечаем пузырь error+retryText, чтобы можно было повторить).
-  const runConversation = useCallback(async (conversationId, text, clientMsgId, modelForSend, modeForSend) => {
-    // Запоминаем как «последнюю» — новый чат стартует именно с неё.
-    if (modelForSend) {
-      lastModelRef.current = modelForSend;
+  // 409 (занято), 422 (повторять нечего) или сбой запроса.
+  //
+  // retry: true — повтор упавшего прогона (RETRY_MODE.CONTINUE). Текста не передаём:
+  // вопрос уже сохранён на бэке, ходом остаётся он же. Оптимистичного пузыря здесь нет
+  // и clientMsgId не нужен — ошибочный пузырь снимет эхо USER_MESSAGE, одинаково во всех
+  // вкладках. retryMid — пузырь, из которого нажали повтор: с него снимаем кнопку, если
+  // бэк ответил «повторять уже нечего».
+  const runConversation = useCallback(
+    async (
+      conversationId,
+      { text = null, clientMsgId = null, model, mode, retry = false, retryMid = null, contextItems = [] },
+    ) => {
+      // Запоминаем как «последнюю» — новый чат стартует именно с неё.
+      if (model) {
+        lastModelRef.current = model;
+        try {
+          localStorage.setItem(STORAGE_KEY_LAST_MODEL, model);
+        } catch {
+          /* ignore quota errors */
+        }
+      }
+      // Режим запоминаем всегда (в т.ч. '' — сознательный сброс к «без режима»).
+      lastModeRef.current = mode || '';
       try {
-        localStorage.setItem(STORAGE_KEY_LAST_MODEL, modelForSend);
+        localStorage.setItem(STORAGE_KEY_LAST_MODE, mode || '');
       } catch {
         /* ignore quota errors */
       }
-    }
-    // Режим запоминаем всегда (в т.ч. '' — сознательный сброс к «без режима»).
-    lastModeRef.current = modeForSend || '';
-    try {
-      localStorage.setItem(STORAGE_KEY_LAST_MODE, modeForSend || '');
-    } catch {
-      /* ignore quota errors */
-    }
-    // Блокируем ввод сразу, не дожидаясь runId от сервера. Снимается в finally:
-    // при успехе к этому моменту у чата уже стоит runId (isStreaming не мигает),
-    // при 409/ошибке ввод разблокируется — отправку можно повторить.
-    setPendingRunChatId(conversationId);
-    try {
-      const res = await chatApi.startRun(conversationId, text, {
-        model: modelForSend,
-        mode: modeForSend,
-        clientMsgId,
-      });
-      const runId = res?.runId;
-      // Помечаем чат активным прогоном → кнопка «остановить», блокировка ввода.
-      // (RUN_STARTED из потока проставит то же самое, если опередит.)
-      if (runId) {
-        setChats((prev) => prev.map((c) => (c.id === conversationId ? { ...c, runId } : c)));
-      }
-    } catch (error) {
-      // Не наша заявка — генерация уже идёт (часто из другой вкладки). Откатываем
-      // оптимистичный пузырь (если был) и сообщаем пользователю. Текущий прогон всё
-      // равно «прилетит» потоком событий (RUN_STARTED) и покажет «остановить».
-      if (error?.status === 409) {
+      // Блокируем ввод сразу, не дожидаясь runId от сервера. Снимается в finally:
+      // при успехе к этому моменту у чата уже стоит runId (isStreaming не мигает),
+      // при 409/ошибке ввод разблокируется — отправку можно повторить.
+      setPendingRunChatId(conversationId);
+      try {
+        const res = await chatApi.startRun(conversationId, text, {
+          model,
+          mode,
+          clientMsgId,
+          retry,
+          contextItems,
+        });
+        const runId = res?.runId;
+        // id сохранённого вопроса: проставляем оптимистичному пузырю как dbId — якорь для
+        // поиска по чату (find-бар). Своё эхо USER_MESSAGE эта вкладка гасит по clientMsgId,
+        // так что другого источника id у неё нет. На повторе оптимистичного пузыря нет —
+        // там id уже стоит с первой отправки (или приедет эхом, которое ничем не гасится).
+        const dbId = Number(res?.messageId);
+        const patchedId = clientMsgId && Number.isFinite(dbId) ? dbId : null;
+        // Помечаем чат активным прогоном → кнопка «остановить», блокировка ввода.
+        // (RUN_STARTED из потока проставит то же самое, если опередит.)
+        if (runId) {
+          setChats((prev) =>
+            prev.map((c) =>
+              c.id === conversationId
+                ? {
+                    ...c,
+                    runId,
+                    messages: patchedId
+                      ? (c.messages || []).map((m) => (m.clientMsgId === clientMsgId ? { ...m, dbId: patchedId } : m))
+                      : c.messages,
+                  }
+                : c,
+            ),
+          );
+        }
+      } catch (error) {
+        // Не наша заявка — генерация уже идёт (часто из другой вкладки). Откатываем
+        // оптимистичный пузырь (если был) и сообщаем пользователю. Текущий прогон всё
+        // равно «прилетит» потоком событий (RUN_STARTED) и покажет «остановить».
+        if (error?.status === 409) {
+          if (clientMsgId) {
+            localClientIdsRef.current.delete(clientMsgId);
+            setChats((prev) =>
+              prev.map((c) =>
+                c.id === conversationId
+                  ? { ...c, messages: (c.messages || []).filter((m) => m.clientMsgId !== clientMsgId) }
+                  : c,
+              ),
+            );
+          }
+          setBusyNotice(true);
+          return;
+        }
+        console.error('Failed to start run:', error);
+        // 422 — повторять уже нечего: чат ушёл вперёд (другая вкладка, гонка с событием).
+        // Снимаем кнопку с этого пузыря: дальше диалог продолжается обычным сообщением.
+        if (error?.status === 422) {
+          setChats((prev) =>
+            prev.map((c) =>
+              c.id === conversationId
+                ? {
+                    ...c,
+                    messages: (c.messages || []).map((m) => (m.mid === retryMid ? { ...m, retryMode: undefined } : m)),
+                  }
+                : c,
+            ),
+          );
+          setRetryUnavailableNotice(true);
+          return;
+        }
+        // Запрос не удался — но прогон мог всё-таки стартовать: POST дошёл, а ответ до нас
+        // нет (обрыв, прокси, спящая вкладка). Тогда вопрос уже сохранён и генерация идёт,
+        // а пузырь «ошибка + повторить» предложил бы отправить тот же вопрос второй раз.
+        if (await hasActiveRun(conversationId)) return;
+        // На повторе показывать нечего: пузырь с ошибкой и его кнопка никуда не делись —
+        // состояние чата не изменилось, повтор можно нажать ещё раз.
+        if (retry) return;
+        // Прогон не идёт, но он мог успеть и стартовать, и завершиться. Снимаем гашение
+        // своего эха: если события с вопросом и ответом всё-таки придут, USER_MESSAGE
+        // опознает наш пузырь по тексту и срежет всё, что показано после него, — вместе
+        // с этой ошибкой. Не придут — останется ошибка с повтором по тексту вопроса.
         localClientIdsRef.current.delete(clientMsgId);
         setChats((prev) =>
           prev.map((c) =>
             c.id === conversationId
-              ? { ...c, messages: (c.messages || []).filter((m) => m.clientMsgId !== clientMsgId) }
+              ? {
+                  ...c,
+                  runId: null,
+                  messages: [
+                    ...(c.messages || []),
+                    {
+                      mid: nextMessageId(),
+                      text: tRef.current('window.genericError'),
+                      sender: 'ai',
+                      error: true,
+                      retryMode: RETRY_MODE.RESEND,
+                      retryText: text,
+                      retryContextItems: contextItems,
+                    },
+                  ],
+                }
               : c,
           ),
         );
-        setBusyNotice(true);
-        return;
+      } finally {
+        setPendingRunChatId((cur) => (cur === conversationId ? null : cur));
       }
-      // Сетевой сбой / 5xx — POST не стартовал прогон. Показываем пузырь с ошибкой и
-      // retryText, чтобы пользователь мог переотправить тот же вопрос (см. Message.jsx).
-      console.error('Failed to start run:', error);
-      setChats((prev) =>
-        prev.map((c) =>
-          c.id === conversationId
-            ? {
-                ...c,
-                runId: null,
-                messages: [
-                  ...(c.messages || []),
-                  {
-                    mid: nextMessageId(),
-                    text: tRef.current('window.genericError'),
-                    sender: 'ai',
-                    error: true,
-                    retryText: text,
-                  },
-                ],
-              }
-            : c,
-        ),
-      );
-    } finally {
-      setPendingRunChatId((cur) => (cur === conversationId ? null : cur));
-    }
-  }, []);
+    },
+    [hasActiveRun],
+  );
 
   // Отправка сообщения. Больше НЕ стримит ответ из этого запроса: лишь запускает
   // фоновый прогон (POST /runs) и оптимистично показывает свой вопрос. Сам ответ
@@ -507,6 +595,9 @@ const ChatWindow = ({
       localClientIdsRef.current.add(clientMsgId);
       const modelForSend = resolveModelForSend(chatForSend);
       const modeForSend = resolveModeForSend(chatForSend);
+      // Отложенные вложения этого чата уходят с сообщением: бэк проверит ссылки
+      // и запишет их в meta того же ряда (см. ContextItemService).
+      const contextItems = getStagedFor(activeChatId);
 
       // Оптимистично: промоутим черновик и показываем пузырь пользователя.
       // AI-пузырь не добавляем — его создаст событие RUN_STARTED.
@@ -515,7 +606,14 @@ const ChatWindow = ({
         if (!found) return prev;
         const newMessages = [
           ...(found.messages || []),
-          { mid: nextMessageId(), text, sender: 'user', clientMsgId, timestamp: new Date().toISOString() },
+          {
+            mid: nextMessageId(),
+            text,
+            sender: 'user',
+            clientMsgId,
+            contextItems,
+            timestamp: new Date().toISOString(),
+          },
         ];
         const updatedChat = {
           ...found,
@@ -536,16 +634,25 @@ const ChatWindow = ({
       // Сообщение ушло — черновик этого чата больше не нужен.
       clearDraft(activeChatId);
 
-      await runConversation(conversationId, text, clientMsgId, modelForSend, modeForSend);
+      await runConversation(conversationId, {
+        text,
+        clientMsgId,
+        contextItems,
+        model: modelForSend,
+        mode: modeForSend,
+      });
     },
-    [activeChatId, selectChat, resolveModelForSend, resolveModeForSend, runConversation, clearDraft],
+    [activeChatId, selectChat, resolveModelForSend, resolveModeForSend, runConversation, clearDraft, getStagedFor],
   );
 
-  // Переотправить вопрос после ошибки: убираем ошибочный AI-пузырь и заново запускаем
-  // прогон по тому же тексту. Пузырь пользователя уже на месте — новый не добавляем,
-  // эхо USER_MESSAGE гасится по clientMsgId. Чистый случай (без дублей на бэке) —
-  // сбой самого POST /runs: прогон не стартовал и вопрос ещё не сохранён. Для
-  // асинхронной RUN_ERROR вопрос уже в памяти чата, поэтому повтор создаёт новый ход.
+  // Повтор после ошибки. Что именно значит «Повторить», решено ещё в момент ошибки
+  // (constants/retryMode.js) — только там известно, доехал ли вопрос до бэка:
+  //   • CONTINUE — вопрос сохранён, а ответа нет ни одного: прогон запускается поверх той
+  //     же истории, второго USER-сообщения не появляется. Ошибочный пузырь снимет эхо
+  //     USER_MESSAGE — сразу во всех вкладках, поэтому локально его не трогаем.
+  //   • RESEND — сбой самого POST /runs: вопрос не сохранён, отправляем его текст заново.
+  //     Пузырь пользователя уже на месте — новый не добавляем, эхо гасится по clientMsgId.
+  // Пузырей без retryMode здесь не бывает: у них нет и кнопки (см. MessageList).
   // Пузырь ищем по mid, а не по индексу в массиве: догрузка старых страниц
   // добавляет сообщения В НАЧАЛО списка, и индекс из замыкания рендера успел бы
   // устареть — фильтр по индексу снял бы не тот пузырь.
@@ -555,20 +662,17 @@ const ChatWindow = ({
       // Во время генерации/ожидания старта В ЭТОМ чате повтор недоступен;
       // pending в другом чате повтору здесь не мешает (как и в isStreaming).
       if (!chat || chat.runId || pendingRunChatId === activeChatId) return;
-      const msgs = chat.messages || [];
-      const index = msgs.findIndex((m) => m.mid === mid);
-      const target = index >= 0 ? msgs[index] : null;
+      const target = (chat.messages || []).find((m) => m.mid === mid);
       if (!target || target.sender !== 'ai' || !target.error) return;
-      // Текст для повтора: явный retryText или ближайший пузырь пользователя выше.
-      let text = target.retryText || null;
-      if (!text) {
-        for (let i = index - 1; i >= 0; i--) {
-          if (msgs[i].sender === 'user') {
-            text = msgs[i].text;
-            break;
-          }
-        }
+      const model = resolveModelForSend(chat);
+      const mode = resolveModeForSend(chat);
+
+      if (target.retryMode === RETRY_MODE.CONTINUE) {
+        runConversation(activeChatId, { retry: true, retryMid: mid, model, mode });
+        return;
       }
+      if (target.retryMode !== RETRY_MODE.RESEND) return;
+      const text = target.retryText;
       if (!text || !text.trim()) return;
       const clientMsgId = generateUUID();
       localClientIdsRef.current.add(clientMsgId);
@@ -578,7 +682,13 @@ const ChatWindow = ({
           c.id === activeChatId ? { ...c, messages: (c.messages || []).filter((m) => m.mid !== mid) } : c,
         ),
       );
-      runConversation(activeChatId, text, clientMsgId, resolveModelForSend(chat), resolveModeForSend(chat));
+      runConversation(activeChatId, {
+        text,
+        clientMsgId,
+        model,
+        mode,
+        contextItems: target.retryContextItems || [],
+      });
     },
     [activeChatId, pendingRunChatId, resolveModelForSend, resolveModeForSend, runConversation],
   );
@@ -730,21 +840,78 @@ const ChatWindow = ({
     [activeChatId],
   );
 
-  // Quick file upload from message input area
+  // Прикрепить файл из композера. Файл сразу становится вложением чата (модель
+  // сможет прочитать его инструментом в любой момент), но вдобавок откладывается
+  // чипом к следующему сообщению — чтобы модель узнала о нём, не спрашивая.
+  // Правую панель при этом не раскрываем: чип над полем ввода — более точная
+  // обратная связь, чем открывшийся список всех вложений чата.
+  //
+  // В черновике настоящий conversationId рождается прямо здесь — как и при отправке
+  // первого сообщения. Заводить чат отдельным запросом не нужно: строку в chat_topic
+  // создаёт сама загрузка вложения (ChatTopicService), в одной транзакции с файлом.
   const handleAttachFile = useCallback(
     async (file) => {
       if (!activeChatId || !file) return;
+      const isDraft = activeChatId === DRAFT_CHAT_ID;
+      const conversationId = isDraft ? generateUUID() : activeChatId;
       try {
-        await attachmentApi.upload('chat', activeChatId, file);
-        setAttachCount((n) => n + 1);
-        // Показываем загруженный файл — раскрываем правую панель на вложениях.
-        openAttachments?.(RIGHT_TAB.ATTACHMENTS);
+        const uploaded = await attachmentApi.upload(OWNER_TYPE.CHAT, conversationId, file);
+        if (isDraft) {
+          setChats((prev) => {
+            const found = prev.find((c) => c.id === DRAFT_CHAT_ID);
+            if (!found) return prev;
+            return [
+              // messages: [] — не null: иначе useChatMessages пойдёт грузить историю,
+              // которой у только что заведённого чата ещё нет.
+              { ...found, id: conversationId, draft: false, messages: found.messages || [] },
+              ...prev.filter((c) => c.id !== DRAFT_CHAT_ID),
+            ];
+          });
+          moveDraft(DRAFT_CHAT_ID, conversationId);
+          selectChat(conversationId);
+          // Счётчик бейджа не трогаем: у чата сменился id, и useAttachmentCount
+          // перечитает его сам — иначе прибавка либо потеряется, либо задвоится.
+        } else {
+          setAttachCount((n) => n + 1);
+        }
+        stageContextItem(conversationId, {
+          kind: CONTEXT_KIND.ATTACHMENT,
+          ref: String(uploaded.id),
+          label: uploaded.fileName,
+        });
+        setAttachRefreshSignal((n) => n + 1);
       } catch (err) {
         console.error('Upload error:', err);
         setUploadErrorNotice(true);
       }
     },
-    [activeChatId, openAttachments, setAttachCount],
+    [activeChatId, setAttachCount, stageContextItem, moveDraft, selectChat],
+  );
+
+  // Снять чип из композера. К этому моменту файл уже лежит вложением чата, и чип —
+  // единственный его след на экране: оставить файл значит оставить незамеченным то,
+  // что пользователь только что отменил. Поэтому «убрать чип» — это удалить вложение.
+  const handleUnstageContext = useCallback(
+    async (item) => {
+      unstageContextItem(activeChatId, item);
+      if (item.kind !== CONTEXT_KIND.ATTACHMENT) return;
+      try {
+        const res = await attachmentApi.delete(item.ref);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        setAttachCount((n) => Math.max(0, n - 1));
+        setAttachRefreshSignal((n) => n + 1);
+      } catch (err) {
+        console.error('Ошибка удаления вложения:', err);
+      }
+    },
+    [activeChatId, unstageContextItem, setAttachCount],
+  );
+
+  // Файл удалили из панели вложений, а он всё ещё отложен чипом к следующему сообщению.
+  // Снимаем чип: иначе отправка упала бы на 404 из-за ссылки на то, чего уже нет.
+  const handleAttachmentDeleted = useCallback(
+    (id) => unstageContextItem(activeChatId, { kind: CONTEXT_KIND.ATTACHMENT, ref: String(id) }),
+    [activeChatId, unstageContextItem],
   );
 
   // Суффикс с кодом ошибки для сообщения модалки (если это не сетевой сбой).
@@ -829,6 +996,8 @@ const ChatWindow = ({
           onStop={handleStopGeneration}
           disabled={isStreaming}
           onAttach={() => attachFileRef.current?.click()}
+          staged={getStagedFor(activeChatId)}
+          onUnstage={handleUnstageContext}
           isEmpty={isChatEmpty && !loadingMessages}
           resetSignal={composerResetSignal}
           focusSignal={composerFocusSignal}
@@ -902,19 +1071,35 @@ const ChatWindow = ({
         label: t('window.attachments'),
         icon: <IconPaperclip size={16} />,
         badge: attachCount,
-        content: activeChatId ? (
-          <AttachmentPanel
-            key={activeChatId}
-            ownerType={OWNER_TYPE.CHAT}
-            ownerId={activeChatId}
-            onCountChange={setAttachCount}
-          />
-        ) : (
-          <p className="chat-empty-note">{t('window.selectChat')}</p>
-        ),
+        // Черновика на бэке ещё нет, и загружать в него нельзя: «new» — выдумка фронта,
+        // а загрузка вложения заводит чат с тем id, который ей дали. Чат рождается с
+        // настоящим UUID — из композера (скрепка) или с первого сообщения.
+        content:
+          !activeChatId || activeChatId === DRAFT_CHAT_ID ? (
+            <p className="chat-empty-note">{activeChatId ? t('window.attachmentsInDraft') : t('window.selectChat')}</p>
+          ) : (
+            <AttachmentPanel
+              key={activeChatId}
+              ownerType={OWNER_TYPE.CHAT}
+              ownerId={activeChatId}
+              onCountChange={setAttachCount}
+              refreshSignal={attachRefreshSignal}
+              onDeleted={handleAttachmentDeleted}
+            />
+          ),
       },
     ],
-    [t, attachCount, activeChatId, setAttachCount, infoChat, selectedModelLabel, selectedModeLabel],
+    [
+      t,
+      attachCount,
+      activeChatId,
+      setAttachCount,
+      attachRefreshSignal,
+      handleAttachmentDeleted,
+      infoChat,
+      selectedModelLabel,
+      selectedModeLabel,
+    ],
   );
 
   return (
@@ -973,6 +1158,13 @@ const ChatWindow = ({
         title={t('errorModal.busyTitle')}
         message={t('errorModal.busyMessage')}
         onClose={() => setBusyNotice(false)}
+      />
+      <ErrorModal
+        open={retryUnavailableNotice}
+        icon="↻"
+        title={t('errorModal.retryUnavailableTitle')}
+        message={t('errorModal.retryUnavailableMessage')}
+        onClose={() => setRetryUnavailableNotice(false)}
       />
       <ErrorModal
         open={deletedNotice}

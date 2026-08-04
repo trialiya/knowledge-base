@@ -3,6 +3,7 @@ package io.github.trialiya.kb.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -10,7 +11,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
+import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
@@ -23,6 +26,7 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.context.ApplicationContext;
@@ -53,6 +57,20 @@ class ChatRuntimeShutdownTest {
     void setUp() {
         chatMemory = mock(ChatMemory.class);
         chatMemoryService = mock(ChatMemoryService.class);
+        // Вопрос пользователя сохраняется до старта прогона — прогон берёт из ряда id и текст.
+        when(chatMemoryService.saveUserMessage(anyString(), anyString(), anyList()))
+                .thenAnswer(
+                        inv ->
+                                new ChatMessageEntity(
+                                        1L,
+                                        inv.getArgument(0),
+                                        inv.getArgument(1),
+                                        MessageType.USER,
+                                        1,
+                                        false,
+                                        false,
+                                        LocalDateTime.now(),
+                                        null));
         events = new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1)));
         pending.clear();
     }
@@ -61,7 +79,7 @@ class ChatRuntimeShutdownTest {
     void cancelsRunsAndClosesSubscriptionsOnContextClosed() {
         runService = runService(Runnable::run);
         final SseEmitter emitter = events.subscribe(CONV, 0);
-        runService.start(CONV, USER, "привет", null, false, "", "msg-1");
+        runService.start(CONV, USER, "привет", List.of(), null, false, "", "msg-1");
 
         assertThat(runService.activeRunCount()).isEqualTo(1);
         assertThat(events.hubCount()).isEqualTo(1);
@@ -84,7 +102,7 @@ class ChatRuntimeShutdownTest {
     @Test
     void cancelsRunThatHasNotSubscribedYet() {
         runService = runService(deferred);
-        runService.start(CONV, USER, "привет", null, false, "", "msg-1");
+        runService.start(CONV, USER, "привет", List.of(), null, false, "", "msg-1");
 
         assertThat(runService.stopAll()).isEqualTo(1);
         assertThat(runService.activeRunCount()).isEqualTo(1); // задача ещё не стартовала
@@ -122,7 +140,6 @@ class ChatRuntimeShutdownTest {
         final ChatClient.StreamResponseSpec stream = mock(ChatClient.StreamResponseSpec.class);
         when(chatClient.prompt()).thenReturn(spec);
         when(spec.system(any(Consumer.class))).thenReturn(spec);
-        when(spec.user(anyString())).thenReturn(spec);
         when(spec.toolContext(any())).thenReturn(spec);
         when(spec.advisors(any(Consumer.class))).thenReturn(spec);
         when(spec.stream()).thenReturn(stream);

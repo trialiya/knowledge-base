@@ -9,7 +9,9 @@ import io.github.trialiya.kb.model.chat.dto.ToolCallMessage;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
+import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.chat.spring.IMessage;
+import io.github.trialiya.kb.model.chat.spring.UserChatMessage;
 import io.github.trialiya.kb.model.tool.ToolCallDetail;
 import io.github.trialiya.kb.model.tool.ToolCallIndexEntity;
 import io.github.trialiya.kb.model.tool.ToolData;
@@ -82,9 +84,70 @@ public class ChatMemoryService implements ChatMemoryRepository {
     private final ChatEventService events;
     private final ToolCallIndexRepository toolCallIndexRepository;
     private final BackfillStateRepository backfillStateRepository;
+    private final ContextItemService contextItemService;
 
     /** Сообщение + его протокольные tool-данные, извлечённые один раз (см. toolDataOf). */
     private record Pending(Message message, @Nullable ToolData toolData) {}
+
+    /**
+     * Сохраняет сообщение пользователя ДО обращения к модели — прогон его уже не записывает (см.
+     * {@code ChatRunService.start}). Что это даёт: id сообщения известен сразу (его возвращает
+     * эндпоинт и несёт событие {@code USER_MESSAGE}), а сам вопрос переживает падение прогона до
+     * подписки на стрим — раньше в этом случае он терялся совсем.
+     *
+     * <p>Записанный ряд подхватит advisor памяти как обычную историю, поэтому прогон НЕ передаёт
+     * своё {@code .user(...)}: иначе то же сообщение сохранилось бы вторым рядом. Инвариант
+     * закреплён в {@code PrePersistedUserMessageTest}.
+     *
+     * <p>Транзакция обязана закрыться до старта стрима: {@code BaseAdvisor.adviseStream} исполняет
+     * {@code before()} через {@code publishOn(scheduler)}, то есть на другом потоке и другом
+     * соединении, и незакоммиченную строку он не увидел бы — модель получила бы диалог без
+     * последнего вопроса.
+     *
+     * <p>{@code contextItems} — приложенное к вопросу (вложения); уходит в {@code meta} той же
+     * записью, поэтому привязка не требует ни второго запроса, ни знания id заранее.
+     */
+    @Transactional
+    public ChatMessageEntity saveUserMessage(
+            String conversationId, String text, List<ContextItem> contextItems) {
+        final long position =
+                chatMessageRepository
+                                .findFirstByConversationIdOrderByPositionDesc(conversationId)
+                                .map(ChatMessageEntity::getPosition)
+                                .orElse(0L)
+                        + 1;
+        return chatMessageRepository.save(
+                new ChatMessageEntity(
+                        0,
+                        conversationId,
+                        text,
+                        MessageType.USER,
+                        position,
+                        false,
+                        false,
+                        LocalDateTime.now(),
+                        contextItems.isEmpty()
+                                ? null
+                                : ChatMessageMeta.ofContextItems(contextItems)));
+    }
+
+    /**
+     * Последнее сообщение чата — но только если это вопрос пользователя, на который модель ещё
+     * ничего не ответила. Единственное состояние, из которого «Повторить» означает продолжить тот
+     * же ход: дописывать в историю нечего, прогон просто запускается заново поверх неё (см. {@code
+     * ChatRunService.start} в режиме повтора).
+     *
+     * <p>Как только в хвосте появился ASSISTANT или TOOL — пусть даже оборванный сегмент упавшего
+     * прогона, — повтор запрещён. Молча «переиграть» ход модели можно было бы только одним из двух
+     * способов: задвоив вопрос вторым USER-рядом или удалив то, что модель успела сделать (включая
+     * побочные эффекты уже выполненных инструментов). Оба варианта хуже прямого продолжения
+     * диалога, поэтому дальше пользователь пишет сам.
+     */
+    public Optional<ChatMessageEntity> unansweredUserMessage(String conversationId) {
+        return chatMessageRepository
+                .findFirstByConversationIdOrderByPositionDesc(conversationId)
+                .filter(last -> last.getType() == MessageType.USER);
+    }
 
     @Override
     public void deleteByConversationId(String conversationId) {
@@ -348,9 +411,26 @@ public class ChatMemoryService implements ChatMemoryRepository {
                 .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
                         conversationId)
                 .stream()
-                .map(ChatMessageEntity::getMessage)
-                .map(Message.class::cast)
+                .map(entity -> toPromptMessage(conversationId, entity))
                 .toList();
+    }
+
+    /**
+     * Ряд истории в том виде, в каком его увидит модель. Отличие от {@link
+     * ChatMessageEntity#getMessage()} одно: к вопросу с приложенным контекстом дописывается блок с
+     * описью приложенного (см. {@link ContextItemService#render}). Блок собирается здесь, при
+     * каждом чтении, и в БД не попадает — иначе удалённое вложение осталось бы в истории вечным
+     * обещанием файла, которого больше нет.
+     */
+    private Message toPromptMessage(String conversationId, ChatMessageEntity entity) {
+        if (entity.getType() != MessageType.USER || entity.getMeta() == null) {
+            return entity.getMessage();
+        }
+        final String context =
+                contextItemService.render(conversationId, entity.getMeta().contextItems());
+        return context.isEmpty()
+                ? entity.getMessage()
+                : new UserChatMessage(entity, entity.getContent() + context);
     }
 
     @Override

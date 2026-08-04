@@ -35,12 +35,67 @@ describe('applyChatEvent', () => {
     expect(chat.runId).toBeNull();
     expect(ai.runId).toBeUndefined(); // finalize drops the transient runId
     expect(ai.toolCallsRunId).toBe('r1');
+    // Ответ уже начался — повторять ход нельзя, кнопки под пузырём не будет.
+    expect(ai.retryMode).toBeUndefined();
   });
 
   test('RUN_ERROR before any chunk creates an error bubble with the error label', () => {
     const chat = applyChatEvent({ ...userChat(), runId: 'r2' }, { type: 'RUN_ERROR', runId: 'r2', payload: {} }, ctx);
     const ai = last(chat);
-    expect(ai).toMatchObject({ sender: 'ai', error: true, text: 'Ошибка' });
+    // Модель не выдала ничего — вопрос в истории остался неотвеченным, повтор
+    // просто запустит прогон заново, без второго USER-сообщения.
+    expect(ai).toMatchObject({ sender: 'ai', error: true, text: 'Ошибка', retryMode: 'continue' });
+  });
+
+  test('RUN_ERROR after a tool call offers no retry even without any text', () => {
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(
+      chat,
+      { type: 'TOOL_CALL', runId: 'r1', payload: { toolCall: { name: 'listFiles', status: 'OK' } } },
+      ctx,
+    );
+    chat = applyChatEvent(chat, { type: 'RUN_ERROR', runId: 'r1', payload: {} }, ctx);
+
+    // Инструмент отработал — это уже начатый ответ (и, возможно, побочные эффекты).
+    expect(last(chat).error).toBe(true);
+    expect(last(chat).retryMode).toBeUndefined();
+  });
+
+  test('RUN_ERROR in a later segment offers no retry, even if that segment is empty', () => {
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'думаю' } }, ctx);
+    chat = applyChatEvent(
+      chat,
+      { type: 'TOOL_CALL', runId: 'r1', payload: { toolCall: { name: 'listFiles', status: 'OK' } } },
+      ctx,
+    );
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'вторая часть' } }, ctx);
+    chat = applyChatEvent(chat, { type: 'RUN_ERROR', runId: 'r1', payload: {} }, ctx);
+
+    // Ошибка садится на последний пузырь прогона, но решение смотрит на весь прогон.
+    expect(chat.messages.filter((m) => m.retryMode)).toHaveLength(0);
+  });
+
+  test('USER_MESSAGE from another tab carries the attached context items', () => {
+    const items = [{ kind: 'ATTACHMENT', ref: '12', label: 'report.md' }];
+    const chat = applyChatEvent(
+      { id: 'c', messages: [], runId: null },
+      { type: 'USER_MESSAGE', payload: { id: 5, text: 'посмотри', contextItems: items } },
+      ctx,
+    );
+    expect(last(chat)).toMatchObject({ sender: 'user', dbId: 5, contextItems: items });
+  });
+
+  test('USER_MESSAGE backfills context items onto a bubble that arrived without them', () => {
+    const items = [{ kind: 'ATTACHMENT', ref: '12', label: 'report.md' }];
+    // Пузырь из истории: догрузился без чипов, эхо прогона их приносит.
+    const chat = applyChatEvent(
+      { id: 'c', messages: [{ text: 'посмотри', sender: 'user', dbId: 5 }], runId: null },
+      { type: 'USER_MESSAGE', payload: { id: 5, text: 'посмотри', contextItems: items } },
+      ctx,
+    );
+    expect(chat.messages).toHaveLength(1);
+    expect(last(chat).contextItems).toEqual(items);
   });
 
   test('RUN_DONE finalizes without an error flag', () => {
@@ -125,6 +180,50 @@ describe('applyChatEvent', () => {
       localCtx,
     );
     expect(after).toBe(before); // no change
+  });
+
+  test('USER_MESSAGE carries the persisted message id onto the bubble', () => {
+    // Бэк сохраняет вопрос до обращения к модели, поэтому id есть уже в событии —
+    // пузырь получает якорь для поиска по чату сразу, а не после перезагрузки.
+    const chat = { id: 'c', runId: null, messages: [] };
+    const next = applyChatEvent(
+      chat,
+      { type: 'USER_MESSAGE', clientMsgId: 'other-tab', payload: { id: 42, text: 'вопрос' } },
+      ctx,
+    );
+    expect(next.messages).toHaveLength(1);
+    expect(next.messages[0]).toMatchObject({ sender: 'user', text: 'вопрос', dbId: 42 });
+  });
+
+  test('USER_MESSAGE backfills dbId on a matching bubble loaded without it', () => {
+    const chat = {
+      id: 'c',
+      runId: null,
+      messages: [{ mid: 1, text: 'вопрос', sender: 'user' }],
+    };
+    const next = applyChatEvent(
+      chat,
+      { type: 'USER_MESSAGE', clientMsgId: 'other-tab', payload: { id: 7, text: 'вопрос' } },
+      ctx,
+    );
+    expect(next.messages).toHaveLength(1);
+    expect(next.messages[0].dbId).toBe(7);
+  });
+
+  test('USER_MESSAGE with a different id is a new question even when the text repeats', () => {
+    // «Повторить» шлёт тот же текст: текстовая сверка приняла бы это за уже показанный
+    // вопрос и молча проглотила бы новый ход.
+    const chat = {
+      id: 'c',
+      runId: null,
+      messages: [{ mid: 1, dbId: 10, text: 'повтори', sender: 'user' }],
+    };
+    const next = applyChatEvent(
+      chat,
+      { type: 'USER_MESSAGE', clientMsgId: 'other-tab', payload: { id: 11, text: 'повтори' } },
+      ctx,
+    );
+    expect(next.messages.filter((m) => m.sender === 'user').map((m) => m.dbId)).toEqual([10, 11]);
   });
 
   test('TOOL_CALLS metas with distinct callIndex stay separate even with identical args', () => {

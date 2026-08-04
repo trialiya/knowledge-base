@@ -170,6 +170,11 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
         return meta != null ? meta.invocations() : null;
     }
 
+    /** Приложенное к сообщению (вложения и т.п.); пустой список, если меты нет. */
+    public List<ContextItem> getContextItems() {
+        return meta != null ? meta.contextItems() : List.of();
+    }
+
     public IMessage getMessage() {
         return switch (type) {
             case TOOL -> new ToolChatMessage(this);

@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.service;
 
 import io.github.trialiya.kb.model.attachment.dto.Attachment;
+import io.github.trialiya.kb.model.attachment.dto.AttachmentSummary;
 import io.github.trialiya.kb.model.attachment.entity.AttachmentEmbeddingEntity;
 import io.github.trialiya.kb.model.attachment.entity.AttachmentEntity;
 import io.github.trialiya.kb.model.attachment.entity.AttachmentOwnerType;
@@ -12,6 +13,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
@@ -83,6 +85,7 @@ public class AttachmentService implements DisposableBean {
     private final AttachmentRepository attachmentRepo;
     private final AttachmentEmbeddingRepository embeddingRepo;
     private final EmbeddingService embeddingService;
+    private final ChatTopicService chatTopicService;
     private final ChatClient chatClient;
     private final ExecutorService indexingExecutor;
 
@@ -90,10 +93,12 @@ public class AttachmentService implements DisposableBean {
             AttachmentRepository attachmentRepo,
             AttachmentEmbeddingRepository embeddingRepo,
             EmbeddingService embeddingService,
+            ChatTopicService chatTopicService,
             OpenAiChatModel openAiChatModel) {
         this.attachmentRepo = attachmentRepo;
         this.embeddingRepo = embeddingRepo;
         this.embeddingService = embeddingService;
+        this.chatTopicService = chatTopicService;
         this.chatClient = ChatClient.builder(openAiChatModel).build();
         this.indexingExecutor = Executors.newVirtualThreadPerTaskExecutor();
     }
@@ -120,12 +125,17 @@ public class AttachmentService implements DisposableBean {
     /**
      * Uploads a text file and attaches it to a chat conversation.
      *
+     * <p>The chat is created when it isn't there yet: a file can be the very first thing a user
+     * does in a brand-new chat, and the attachment needs an owning row to point at. Both happen in
+     * one transaction, so a rejected file leaves no empty chat behind.
+     *
      * @param conversationId owning conversation id
      * @param file multipart file (must be text-based)
      * @return persisted attachment DTO
      */
     @Transactional
     public Attachment uploadForChat(String conversationId, MultipartFile file) {
+        chatTopicService.ensureExists(conversationId);
         return upload(AttachmentOwnerType.CHAT, null, conversationId, file);
     }
 
@@ -223,6 +233,14 @@ public class AttachmentService implements DisposableBean {
 
     public Attachment getById(Long id) {
         return toDto(findOrThrow(id));
+    }
+
+    /**
+     * Метаданные вложений чата по id — без содержимого. Отсутствующие в ответе id либо не
+     * существуют, либо принадлежат другому чату; различать эти случаи снаружи незачем.
+     */
+    public List<AttachmentSummary> findSummaries(String conversationId, Collection<Long> ids) {
+        return ids.isEmpty() ? List.of() : attachmentRepo.findSummaries(conversationId, ids);
     }
 
     /** Returns the raw text content of an attachment (for download / AI tool). */

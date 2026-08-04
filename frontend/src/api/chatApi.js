@@ -3,7 +3,7 @@
 // Поток событий (GET /events) живёт отдельно в chatEvents.js — там нужен прямой
 // доступ к response.body для побайтового SSE-чтения.
 
-import { request, requestRaw } from './client';
+import { request, requestRaw, json } from './client';
 
 const enc = (id) => encodeURIComponent(id);
 
@@ -92,20 +92,31 @@ const chatApi = {
     }),
 
   /**
-   * Запустить генерацию ответа как фоновую задачу. Возвращает { runId }.
+   * Запустить генерацию ответа как фоновую задачу. Возвращает { runId, messageId }.
    * Сам ответ приходит не здесь, а потоком событий (chatEvents.js).
    * clientMsgId — чтобы не задвоить свой оптимистичный пузырь при получении эха.
+   *
+   * messageId — id уже сохранённого сообщения пользователя: бэк пишет его до обращения
+   * к модели. Отправившая вкладка гасит своё эхо USER_MESSAGE по clientMsgId, поэтому id
+   * она узнаёт только отсюда — без него якорь поиска по чату появился бы у пузыря лишь
+   * после перезагрузки страницы.
+   *
+   * contextItems — что приложено к этому сообщению: [{ kind, ref }]. Бэк проверяет ссылки,
+   * сам проставляет подписи и кладёт результат в meta того же ряда.
+   *
+   * retry — повтор упавшего прогона: тела не передаём вовсе, ходом остаётся уже сохранённый
+   * вопрос со своим контекстом. Если модель успела начать ответ, бэк отвечает 422.
    */
-  startRun: (id, text, { model, mode, clientMsgId } = {}) => {
+  startRun: (id, text, { model, mode, clientMsgId, retry, contextItems } = {}) => {
     const params = new URLSearchParams();
     if (model) params.set('model', model);
     if (mode) params.set('mode', mode);
     if (clientMsgId) params.set('clientMsgId', clientMsgId);
+    if (retry) params.set('retry', 'true');
     const qs = params.toString();
     return request(`/api/chats/${enc(id)}/runs${qs ? `?${qs}` : ''}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-      body: text,
+      ...(retry ? {} : json({ text, contextItems: contextItems || [] })),
     });
   },
 

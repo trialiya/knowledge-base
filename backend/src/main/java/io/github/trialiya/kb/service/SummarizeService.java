@@ -45,6 +45,7 @@ public class SummarizeService implements DisposableBean {
     private final ExecutorService executorService;
     private final TransactionTemplate transactionTemplate;
     private final SummarizeProperties summarizeProperties;
+    private final ContextItemService contextItemService;
 
     private final Striped<Lock> locks = Striped.lock(1024);
 
@@ -53,13 +54,17 @@ public class SummarizeService implements DisposableBean {
             ChatMessageRepository chatMessageRepository,
             @Value("classpath:prompt/summarizer.md") Resource summarizerPrompt,
             PlatformTransactionManager transactionManager,
-            SummarizeProperties summarizeProperties) {
+            SummarizeProperties summarizeProperties,
+            ContextItemService contextItemService) {
         this.chatClient =
                 ChatClient.builder(openAiChatModel)
                         .defaultSystem(summarizerPrompt)
-                        .defaultTools(new MessageLookupFunction(chatMessageRepository))
+                        .defaultTools(
+                                new MessageLookupFunction(
+                                        chatMessageRepository, contextItemService))
                         .build();
         this.chatMessageRepository = chatMessageRepository;
+        this.contextItemService = contextItemService;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.executorService = Executors.newVirtualThreadPerTaskExecutor();
         this.summarizeProperties = summarizeProperties;
@@ -311,6 +316,11 @@ public class SummarizeService implements DisposableBean {
                             .append(m.getMessageType())
                             .append(": <msg>\n")
                             .append(m.getText())
+                            // Опись приложенного дописывается к вопросу при чтении истории и в
+                            // content не лежит. Без неё summarizer.md требует сохранить то, чего
+                            // в его входе нет, — а вместе со сжатым сообщением исчезал бы и
+                            // единственный след вложения в диалоге.
+                            .append(contextItemService.render(conversationId, m.getContextItems()))
                             .append("\n</msg>\n");
                     appendToolCalls(prompt, m.getInvocations());
                 });

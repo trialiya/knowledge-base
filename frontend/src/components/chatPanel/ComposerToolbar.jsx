@@ -5,9 +5,12 @@ import ModeSelector from './ModeSelector';
 import { IconSend, IconStop, IconPaperclip } from '../../icons';
 
 /**
- * Панель под полем ввода: слева — селекторы модели и режима, справа — кнопки
- * «прикрепить файл» и «отправить/остановить». Раньше кнопки жили внутри
- * MessageInput, а модель — в шапке чата; здесь всё сведено в один ряд.
+ * Панель под полем ввода: слева — скрепка и селекторы модели и режима, справа —
+ * «отправить/остановить». Раньше кнопки жили внутри MessageInput, а модель — в
+ * шапке чата; здесь всё сведено в один ряд.
+ *
+ * Скрепка стоит у левого края намеренно: рядом с «отправить» её задевали, и вместо
+ * отправки открывался выбор файла.
  *
  * Props:
  *   model    — { config, options, selected, onChange } (может отсутствовать)
@@ -23,6 +26,18 @@ const ComposerToolbar = ({ model, mode, disabled, sendDisabled, onAttach, onStop
 
   return (
     <div className="composer-toolbar">
+      {onAttach && (
+        <button
+          type="button"
+          className="icon-btn composer-toolbar__attach"
+          onClick={onAttach}
+          title={t('input.attach')}
+          tabIndex={-1}
+        >
+          <IconPaperclip />
+        </button>
+      )}
+
       <div className="composer-toolbar__selectors">
         {model && model.options?.length > 0 && (
           <ModelSelector
@@ -39,17 +54,6 @@ const ComposerToolbar = ({ model, mode, disabled, sendDisabled, onAttach, onStop
       </div>
 
       <div className="composer-toolbar__actions">
-        {onAttach && (
-          <button
-            type="button"
-            className="icon-btn composer-toolbar__attach"
-            onClick={onAttach}
-            title={t('input.attach')}
-            tabIndex={-1}
-          >
-            <IconPaperclip />
-          </button>
-        )}
         <button
           type="button"
           className={
