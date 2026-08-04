@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.trialiya.kb.config.CommonConfig;
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.convert.ChatMessageMetaToJsonConverter;
+import io.github.trialiya.kb.functions.MessageLookupFunction;
 import io.github.trialiya.kb.model.attachment.dto.AttachmentSummary;
 import io.github.trialiya.kb.model.attachment.entity.AttachmentEntity;
 import io.github.trialiya.kb.model.attachment.entity.AttachmentOwnerType;
@@ -28,11 +29,14 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.MessageType;
+import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.data.jdbc.test.autoconfigure.DataJdbcTest;
@@ -240,6 +244,32 @@ class ContextItemsTest {
         assertThat(memoryService.findByConversationId(conversationId))
                 .singleElement()
                 .satisfies(message -> assertThat(message.getText()).isEqualTo(QUESTION));
+    }
+
+    /**
+     * Опись дописывается к вопросу при чтении истории, а в {@code content} её нет. Значит, каждый,
+     * кто читает сообщения мимо {@code findByConversationId}, обязан позвать {@code render} сам —
+     * иначе упоминание вложения молча исчезает. Так уже случилось: {@code summarizer.md} требует
+     * сохранять имя и id вложения, а на вход суммаризатору опись не подавалась вовсе. {@code
+     * getOriginalMessages} — второй такой читатель, и он здесь и проверяется.
+     */
+    @Test
+    void originalMessagesLookupKeepsTheAttachedContext() {
+        String conversationId = UUID.randomUUID().toString();
+        haveAttachment(conversationId, "report.md");
+        var saved =
+                memoryService.saveUserMessage(
+                        conversationId,
+                        QUESTION,
+                        contextItemService.resolve(conversationId, List.of(attachmentRequest())));
+
+        final String lookup =
+                new MessageLookupFunction(messageRepo, contextItemService)
+                        .getOriginalMessages(
+                                new ToolContext(Map.of(ChatMemory.CONVERSATION_ID, conversationId)),
+                                List.of(saved.getPosition()));
+
+        assertThat(lookup).contains(QUESTION).contains("report.md").contains("id=" + ATTACHMENT_ID);
     }
 
     /** Сообщение без приложенного не обрастает ни метой, ни лишним блоком в промпте. */
