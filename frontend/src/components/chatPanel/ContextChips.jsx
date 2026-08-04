@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { CONTEXT_KIND } from '../../constants/contextKind';
 
 // Иконка по виду контекста. Неизвестный вид (запись из более новой версии) рисуем
@@ -15,6 +16,7 @@ const ICONS = {
  * поэтому это один компонент с двумя необязательными обработчиками.
  */
 const ContextChips = ({ items, onRemove, onOpen, ariaLabel }) => {
+  const { t } = useTranslation('chat');
   if (!items || items.length === 0) return null;
   return (
     <ul className="context-chips" aria-label={ariaLabel}>
@@ -38,8 +40,8 @@ const ContextChips = ({ items, onRemove, onOpen, ariaLabel }) => {
                 type="button"
                 className="context-chip__remove"
                 onClick={() => onRemove(item)}
-                title={label}
-                aria-label={label}
+                title={t('contextItems.remove', { label })}
+                aria-label={t('contextItems.remove', { label })}
               >
                 ×
               </button>

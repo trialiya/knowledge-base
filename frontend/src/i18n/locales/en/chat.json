@@ -198,6 +198,7 @@
   },
   "contextItems": {
     "staged": "Attached to this message",
-    "inMessage": "Attached files"
+    "inMessage": "Attached files",
+    "remove": "Remove “{{label}}” from this message"
   }
 }

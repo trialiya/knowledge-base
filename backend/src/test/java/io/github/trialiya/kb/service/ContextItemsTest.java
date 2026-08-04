@@ -200,6 +200,31 @@ class ContextItemsTest {
     }
 
     /**
+     * Самый молчаливый способ всё сломать: опись, дописанная к вопросу для модели, уезжает обратно
+     * в БД. Держится это на том, что {@code UserChatMessage} — это {@code IMessage}, и {@link
+     * ChatMemoryService#saveAll} такие сообщения пропускает. Advisor памяти отдаёт в {@code
+     * saveAll} ровно то, что взял из истории, — это здесь и воспроизводится.
+     */
+    @Test
+    void renderedContextNeverTravelsBackIntoTheDatabase() {
+        String conversationId = UUID.randomUUID().toString();
+        haveAttachment(conversationId, "report.md");
+        memoryService.saveUserMessage(
+                conversationId,
+                QUESTION,
+                contextItemService.resolve(conversationId, List.of(attachmentRequest())));
+
+        memoryService.saveAll(conversationId, memoryService.findByConversationId(conversationId));
+
+        assertThat(
+                        messageRepo
+                                .findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAtAscPositionAsc(
+                                        conversationId))
+                .singleElement()
+                .satisfies(row -> assertThat(row.getContent()).isEqualTo(QUESTION));
+    }
+
+    /**
      * Вложение удалили после отправки. Ссылка в мете остаётся, но в промпт не попадает: звать
      * модель читать несуществующий файл — хуже, чем промолчать.
      */
