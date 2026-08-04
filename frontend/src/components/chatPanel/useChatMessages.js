@@ -78,6 +78,8 @@ export const transformPage = (rawMsgs) => {
       text: m.content,
       sender: type === 'user' ? SENDER.USER : SENDER.AI,
       timestamp: m.timestamp || null,
+      // Приложенное к вопросу (вложения) — чипы под текстом пузыря.
+      ...(m.contextItems?.length ? { contextItems: m.contextItems } : {}),
       // Вызовы инструментов этого сегмента (раздельное сохранение): плашки под пузырём.
       ...(metas.length && type !== 'user'
         ? { toolCalls: metas.map(metaToCall), ...(m.runId ? { toolCallsRunId: m.runId } : {}) }

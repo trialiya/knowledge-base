@@ -9,7 +9,9 @@ import io.github.trialiya.kb.model.chat.dto.ToolCallMessage;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
+import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.chat.spring.IMessage;
+import io.github.trialiya.kb.model.chat.spring.UserChatMessage;
 import io.github.trialiya.kb.model.tool.ToolCallDetail;
 import io.github.trialiya.kb.model.tool.ToolCallIndexEntity;
 import io.github.trialiya.kb.model.tool.ToolData;
@@ -82,6 +84,7 @@ public class ChatMemoryService implements ChatMemoryRepository {
     private final ChatEventService events;
     private final ToolCallIndexRepository toolCallIndexRepository;
     private final BackfillStateRepository backfillStateRepository;
+    private final ContextItemService contextItemService;
 
     /** Сообщение + его протокольные tool-данные, извлечённые один раз (см. toolDataOf). */
     private record Pending(Message message, @Nullable ToolData toolData) {}
@@ -100,9 +103,13 @@ public class ChatMemoryService implements ChatMemoryRepository {
      * {@code before()} через {@code publishOn(scheduler)}, то есть на другом потоке и другом
      * соединении, и незакоммиченную строку он не увидел бы — модель получила бы диалог без
      * последнего вопроса.
+     *
+     * <p>{@code contextItems} — приложенное к вопросу (вложения); уходит в {@code meta} той же
+     * записью, поэтому привязка не требует ни второго запроса, ни знания id заранее.
      */
     @Transactional
-    public ChatMessageEntity saveUserMessage(String conversationId, String text) {
+    public ChatMessageEntity saveUserMessage(
+            String conversationId, String text, List<ContextItem> contextItems) {
         final long position =
                 chatMessageRepository
                                 .findFirstByConversationIdOrderByPositionDesc(conversationId)
@@ -119,7 +126,9 @@ public class ChatMemoryService implements ChatMemoryRepository {
                         false,
                         false,
                         LocalDateTime.now(),
-                        null));
+                        contextItems.isEmpty()
+                                ? null
+                                : ChatMessageMeta.ofContextItems(contextItems)));
     }
 
     /**
@@ -402,9 +411,26 @@ public class ChatMemoryService implements ChatMemoryRepository {
                 .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
                         conversationId)
                 .stream()
-                .map(ChatMessageEntity::getMessage)
-                .map(Message.class::cast)
+                .map(entity -> toPromptMessage(conversationId, entity))
                 .toList();
+    }
+
+    /**
+     * Ряд истории в том виде, в каком его увидит модель. Отличие от {@link
+     * ChatMessageEntity#getMessage()} одно: к вопросу с приложенным контекстом дописывается блок с
+     * описью приложенного (см. {@link ContextItemService#render}). Блок собирается здесь, при
+     * каждом чтении, и в БД не попадает — иначе удалённое вложение осталось бы в истории вечным
+     * обещанием файла, которого больше нет.
+     */
+    private Message toPromptMessage(String conversationId, ChatMessageEntity entity) {
+        if (entity.getType() != MessageType.USER || entity.getMeta() == null) {
+            return entity.getMessage();
+        }
+        final String context =
+                contextItemService.render(conversationId, entity.getMeta().contextItems());
+        return context.isEmpty()
+                ? entity.getMessage()
+                : new UserChatMessage(entity, entity.getContent() + context);
     }
 
     @Override

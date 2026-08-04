@@ -1,0 +1,69 @@
+/* Чипы приложенного к сообщению контекста: над полем ввода и под вопросом в ленте */
+.context-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 6px;
+  padding: 0;
+  list-style: none;
+}
+.context-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 320px;
+  border: 1px solid var(--kb-border);
+  border-radius: 6px;
+  background: var(--kb-accent-light);
+  color: var(--kb-accent);
+  font-size: 0.82em;
+  line-height: 1.5;
+}
+.context-chip__open {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 2px 6px;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.context-chip__open--static {
+  cursor: default;
+}
+.context-chip__open:not(.context-chip__open--static):hover {
+  background: rgba(91, 79, 207, 0.12);
+}
+.context-chip__icon {
+  flex-shrink: 0;
+}
+.context-chip__label {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.context-chip__remove {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--kb-muted);
+  font-size: 1.05em;
+  line-height: 1;
+  padding: 0 4px 0 2px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.context-chip__remove:hover {
+  color: #e84d6a;
+  background: rgba(232, 77, 106, 0.12);
+}
+
+/* В пузыре вопроса чипы идут под текстом и наследуют его цвет фона */
+.message.user .context-chips {
+  margin: 6px 0 0;
+}

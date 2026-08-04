@@ -1,6 +1,7 @@
 package io.github.trialiya.kb;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 import io.github.trialiya.kb.config.CommonConfig;
 import io.github.trialiya.kb.config.JdbcConfig;
@@ -16,8 +17,10 @@ import io.github.trialiya.kb.repository.BackfillStateRepository;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
+import io.github.trialiya.kb.service.AttachmentService;
 import io.github.trialiya.kb.service.ChatEventService;
 import io.github.trialiya.kb.service.ChatMemoryService;
+import io.github.trialiya.kb.service.ContextItemService;
 import io.github.trialiya.kb.support.AbstractPostgresIntegrationTest;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
 import java.time.Duration;
@@ -59,7 +62,8 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
                 messageRepo,
                 new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))),
                 toolCallIndexRepo,
-                backfillStateRepo);
+                backfillStateRepo,
+                new ContextItemService(mock(AttachmentService.class)));
     }
 
     private long position = 0;

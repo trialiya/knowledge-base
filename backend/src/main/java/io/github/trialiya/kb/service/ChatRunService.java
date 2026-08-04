@@ -15,6 +15,7 @@ import io.github.trialiya.kb.model.chat.dto.StreamMessage;
 import io.github.trialiya.kb.model.chat.dto.ToolCallsMessage;
 import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
+import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.tools.RunCancellation;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
@@ -122,6 +123,8 @@ public class ChatRunService {
      *     сообщения не появляется, ходом становится последний неотвеченный вопрос из истории (см.
      *     {@link ChatMemoryService#unansweredUserMessage}). Повтор поверх начатого ответа модели
      *     запрещён — 422.
+     * @param contextItems приложенное к вопросу (вложения) — уже проверенное {@code
+     *     ContextItemService}. На повторе игнорируется: контекст записан вместе с сообщением
      * @param weakModel {@code ChatModelProperties#isWeak} результата резолва {@code resolvedModel}
      *     — решает, попадёт ли в системный промпт обучающая половина руководства по скриптам (см.
      *     {@code ScriptGuideService})
@@ -130,6 +133,7 @@ public class ChatRunService {
             String conversationId,
             String user,
             @Nullable String userMessage,
+            List<ContextItem> contextItems,
             @Nullable String resolvedModel,
             boolean weakModel,
             String modeInstructions,
@@ -151,7 +155,8 @@ public class ChatRunService {
             chatMemoryService.repairDanglingToolCalls(conversationId);
             userRow =
                     userMessage != null
-                            ? chatMemoryService.saveUserMessage(conversationId, userMessage)
+                            ? chatMemoryService.saveUserMessage(
+                                    conversationId, userMessage, contextItems)
                             // Повтор: вопрос уже в истории, ходом остаётся он же. Проверку делаем
                             // ПОСЛЕ ремонта хвоста — достроенный TOOL-ответ как раз и означает,
                             // что модель уже начала отвечать, и повторять этот ход нельзя.
@@ -308,7 +313,10 @@ public class ChatRunService {
                 runId,
                 clientMsgId,
                 new UserMessagePayload(
-                        userRow.getId(), userRow.getContent(), userRow.getCreatedAt()));
+                        userRow.getId(),
+                        userRow.getContent(),
+                        userRow.getCreatedAt(),
+                        userRow.getContextItems()));
         events.publish(conversationId, RUN_STARTED, runId, clientMsgId, null);
 
         try {

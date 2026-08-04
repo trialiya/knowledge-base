@@ -130,6 +130,9 @@ export function applyChatEvent(chat, ev, ctx) {
       // уже в событии. Событиям, отреплеенным из прогонов до этого изменения, его взять
       // неоткуда — там остаётся null, и сверка ниже падает обратно на текст.
       const dbId = payload?.id ?? null;
+      // Приложенное к вопросу приезжает вместе с ним — чипы появляются и в других
+      // вкладках, не дожидаясь перезагрузки.
+      const contextItems = payload?.contextItems?.length ? payload.contextItems : null;
       // Дубликат после перезагрузки: наш вопрос уже в истории (подгружен из БД). Ищем
       // ПОСЛЕДНЕЕ USER-сообщение — если оно совпало по тексту, это оно и есть, а всё,
       // что идёт после него, — частично сохранённые сегменты текущего (ещё идущего)
@@ -145,10 +148,15 @@ export function applyChatEvent(chat, ev, ctx) {
           // (частый случай — «Повторить») текстовая сверка приняла бы за одно сообщение.
           const sameMessage = dbId != null && msgs[i].dbId != null ? msgs[i].dbId === dbId : msgs[i].text === text;
           if (sameMessage) {
-            // Пузырь из истории мог прийти без dbId (реплей после reload) — дополняем.
-            const needsId = dbId != null && msgs[i].dbId == null;
-            if (needsId) msgs[i] = { ...msgs[i], dbId };
-            if (i === msgs.length - 1) return needsId ? { ...chat, messages: msgs } : chat;
+            // Пузырь из истории мог прийти без dbId или без чипов (реплей после
+            // reload, эхо своей же отправки) — дополняем тем, чего не хватает.
+            const patch = {
+              ...(dbId != null && msgs[i].dbId == null ? { dbId } : {}),
+              ...(contextItems && !msgs[i].contextItems?.length ? { contextItems } : {}),
+            };
+            const patched = Object.keys(patch).length > 0;
+            if (patched) msgs[i] = { ...msgs[i], ...patch };
+            if (i === msgs.length - 1) return patched ? { ...chat, messages: msgs } : chat;
             return { ...chat, messages: msgs.slice(0, i + 1) };
           }
           break; // последний вопрос не совпал — это действительно новое сообщение
@@ -159,6 +167,7 @@ export function applyChatEvent(chat, ev, ctx) {
         dbId,
         text,
         sender: SENDER.USER,
+        ...(contextItems ? { contextItems } : {}),
         timestamp: new Date().toISOString(),
       });
       return { ...chat, messages: msgs };

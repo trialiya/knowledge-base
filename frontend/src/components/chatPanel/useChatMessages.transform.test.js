@@ -19,6 +19,17 @@ describe('transformPage', () => {
     expect(bubbles[2].toolCalls).toBeUndefined();
   });
 
+  test('carries attached context items onto the user bubble', () => {
+    const items = [{ kind: 'ATTACHMENT', ref: '12', label: 'report.md' }];
+    const { bubbles } = transformPage([
+      { id: 1, content: 'посмотри', type: 'USER', contextItems: items },
+      { id: 2, content: 'смотрю', type: 'ASSISTANT' },
+    ]);
+    expect(bubbles[0].contextItems).toEqual(items);
+    // Пузырь без приложенного поля не заводит вовсе — иначе чипы рисовались бы пустым рядом.
+    expect(bubbles[1]).not.toHaveProperty('contextItems');
+  });
+
   test('renders a tool-calls-only segment (empty text, has metas) as a plates-only bubble', () => {
     const { bubbles } = transformPage([
       { id: 1, content: '', type: 'ASSISTANT', runId: 'r1', toolInvocationMetas: [meta('searchDocs')] },

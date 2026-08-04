@@ -76,6 +76,28 @@ describe('applyChatEvent', () => {
     expect(chat.messages.filter((m) => m.retryMode)).toHaveLength(0);
   });
 
+  test('USER_MESSAGE from another tab carries the attached context items', () => {
+    const items = [{ kind: 'ATTACHMENT', ref: '12', label: 'report.md' }];
+    const chat = applyChatEvent(
+      { id: 'c', messages: [], runId: null },
+      { type: 'USER_MESSAGE', payload: { id: 5, text: 'посмотри', contextItems: items } },
+      ctx,
+    );
+    expect(last(chat)).toMatchObject({ sender: 'user', dbId: 5, contextItems: items });
+  });
+
+  test('USER_MESSAGE backfills context items onto a bubble that arrived without them', () => {
+    const items = [{ kind: 'ATTACHMENT', ref: '12', label: 'report.md' }];
+    // Пузырь из истории: догрузился без чипов, эхо прогона их приносит.
+    const chat = applyChatEvent(
+      { id: 'c', messages: [{ text: 'посмотри', sender: 'user', dbId: 5 }], runId: null },
+      { type: 'USER_MESSAGE', payload: { id: 5, text: 'посмотри', contextItems: items } },
+      ctx,
+    );
+    expect(chat.messages).toHaveLength(1);
+    expect(last(chat).contextItems).toEqual(items);
+  });
+
   test('RUN_DONE finalizes without an error flag', () => {
     let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r3' }, ctx);
     chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r3', payload: { message: 'ответ' } }, ctx);

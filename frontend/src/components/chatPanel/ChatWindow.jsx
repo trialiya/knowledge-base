@@ -31,6 +31,7 @@ import useAttachmentCount from '../common/useAttachmentCount';
 import { IconInfo, IconPaperclip, IconPlus } from '../../icons';
 import { RIGHT_TAB } from '../../constants/rightTabs';
 import { RETRY_MODE } from '../../constants/retryMode';
+import { CONTEXT_KIND } from '../../constants/contextKind';
 import './chatWindow.css';
 import ErrorModal from '../common/ErrorModal';
 import ConfirmModal from '../common/ConfirmModal';
@@ -91,9 +92,6 @@ const ChatWindow = ({
     }),
     [],
   );
-  // Вложения живут в правой панели рабочей области — её состояние приходит из
-  // навигации (URL), поэтому локального attachPanelOpen здесь больше нет.
-  const openAttachments = panels?.onRightTabChange;
   // Счётчик для бейджа. У черновика чата на бэке ещё нет — считать нечего.
   const [attachCount, setAttachCount] = useAttachmentCount(
     OWNER_TYPE.CHAT,
@@ -126,7 +124,15 @@ const ChatWindow = ({
   const [composerFocusSignal, setComposerFocusSignal] = useState(0);
   // Неотправленные черновики по чатам ({ chatId: text }, localStorage) — вынесено
   // в useChatDrafts (отложенная запись + flush на beforeunload/размонтирование).
-  const { getDraftFor, handleTextChange: handleComposerTextChange, clearDraft, flushDrafts } = useChatDrafts();
+  const {
+    getDraftFor,
+    handleTextChange: handleComposerTextChange,
+    clearDraft,
+    flushDrafts,
+    getStagedFor,
+    stageContextItem,
+    unstageContextItem,
+  } = useChatDrafts();
   // clientMsgId-ы сообщений, отправленных ИЗ ЭТОЙ вкладки. Нужны, чтобы не задвоить
   // свой оптимистично показанный пузырь, получив его же эхом из потока событий.
   const localClientIdsRef = useRef(new Set());
@@ -426,7 +432,10 @@ const ChatWindow = ({
   // вкладках. retryMid — пузырь, из которого нажали повтор: с него снимаем кнопку, если
   // бэк ответил «повторять уже нечего».
   const runConversation = useCallback(
-    async (conversationId, { text = null, clientMsgId = null, model, mode, retry = false, retryMid = null }) => {
+    async (
+      conversationId,
+      { text = null, clientMsgId = null, model, mode, retry = false, retryMid = null, contextItems = [] },
+    ) => {
       // Запоминаем как «последнюю» — новый чат стартует именно с неё.
       if (model) {
         lastModelRef.current = model;
@@ -448,7 +457,13 @@ const ChatWindow = ({
       // при 409/ошибке ввод разблокируется — отправку можно повторить.
       setPendingRunChatId(conversationId);
       try {
-        const res = await chatApi.startRun(conversationId, text, { model, mode, clientMsgId, retry });
+        const res = await chatApi.startRun(conversationId, text, {
+          model,
+          mode,
+          clientMsgId,
+          retry,
+          contextItems,
+        });
         const runId = res?.runId;
         // id сохранённого вопроса: проставляем оптимистичному пузырю как dbId — якорь для
         // поиска по чату (find-бар). Своё эхо USER_MESSAGE эта вкладка гасит по clientMsgId,
@@ -535,6 +550,7 @@ const ChatWindow = ({
                       error: true,
                       retryMode: RETRY_MODE.RESEND,
                       retryText: text,
+                      retryContextItems: contextItems,
                     },
                   ],
                 }
@@ -575,6 +591,9 @@ const ChatWindow = ({
       localClientIdsRef.current.add(clientMsgId);
       const modelForSend = resolveModelForSend(chatForSend);
       const modeForSend = resolveModeForSend(chatForSend);
+      // Отложенные вложения этого чата уходят с сообщением: бэк проверит ссылки
+      // и запишет их в meta того же ряда (см. ContextItemService).
+      const contextItems = getStagedFor(activeChatId);
 
       // Оптимистично: промоутим черновик и показываем пузырь пользователя.
       // AI-пузырь не добавляем — его создаст событие RUN_STARTED.
@@ -583,7 +602,14 @@ const ChatWindow = ({
         if (!found) return prev;
         const newMessages = [
           ...(found.messages || []),
-          { mid: nextMessageId(), text, sender: 'user', clientMsgId, timestamp: new Date().toISOString() },
+          {
+            mid: nextMessageId(),
+            text,
+            sender: 'user',
+            clientMsgId,
+            contextItems,
+            timestamp: new Date().toISOString(),
+          },
         ];
         const updatedChat = {
           ...found,
@@ -607,11 +633,12 @@ const ChatWindow = ({
       await runConversation(conversationId, {
         text,
         clientMsgId,
+        contextItems,
         model: modelForSend,
         mode: modeForSend,
       });
     },
-    [activeChatId, selectChat, resolveModelForSend, resolveModeForSend, runConversation, clearDraft],
+    [activeChatId, selectChat, resolveModelForSend, resolveModeForSend, runConversation, clearDraft, getStagedFor],
   );
 
   // Повтор после ошибки. Что именно значит «Повторить», решено ещё в момент ошибки
@@ -651,7 +678,13 @@ const ChatWindow = ({
           c.id === activeChatId ? { ...c, messages: (c.messages || []).filter((m) => m.mid !== mid) } : c,
         ),
       );
-      runConversation(activeChatId, { text, clientMsgId, model, mode });
+      runConversation(activeChatId, {
+        text,
+        clientMsgId,
+        model,
+        mode,
+        contextItems: target.retryContextItems || [],
+      });
     },
     [activeChatId, pendingRunChatId, resolveModelForSend, resolveModeForSend, runConversation],
   );
@@ -803,21 +836,28 @@ const ChatWindow = ({
     [activeChatId],
   );
 
-  // Quick file upload from message input area
+  // Прикрепить файл из композера. Файл сразу становится вложением чата (модель
+  // сможет прочитать его инструментом в любой момент), но вдобавок откладывается
+  // чипом к следующему сообщению — чтобы модель узнала о нём, не спрашивая.
+  // Правую панель при этом не раскрываем: чип над полем ввода — более точная
+  // обратная связь, чем открывшийся список всех вложений чата.
   const handleAttachFile = useCallback(
     async (file) => {
-      if (!activeChatId || !file) return;
+      if (!activeChatId || activeChatId === DRAFT_CHAT_ID || !file) return;
       try {
-        await attachmentApi.upload('chat', activeChatId, file);
+        const uploaded = await attachmentApi.upload('chat', activeChatId, file);
         setAttachCount((n) => n + 1);
-        // Показываем загруженный файл — раскрываем правую панель на вложениях.
-        openAttachments?.(RIGHT_TAB.ATTACHMENTS);
+        stageContextItem(activeChatId, {
+          kind: CONTEXT_KIND.ATTACHMENT,
+          ref: String(uploaded.id),
+          label: uploaded.fileName,
+        });
       } catch (err) {
         console.error('Upload error:', err);
         setUploadErrorNotice(true);
       }
     },
-    [activeChatId, openAttachments, setAttachCount],
+    [activeChatId, setAttachCount, stageContextItem],
   );
 
   // Суффикс с кодом ошибки для сообщения модалки (если это не сетевой сбой).
@@ -901,7 +941,10 @@ const ChatWindow = ({
           onSend={handleSendMessage}
           onStop={handleStopGeneration}
           disabled={isStreaming}
-          onAttach={() => attachFileRef.current?.click()}
+          // У черновика чата на бэке ещё нет — вложению не к чему прикрепиться.
+          onAttach={activeChatId === DRAFT_CHAT_ID ? undefined : () => attachFileRef.current?.click()}
+          staged={getStagedFor(activeChatId)}
+          onUnstage={(item) => unstageContextItem(activeChatId, item.ref)}
           isEmpty={isChatEmpty && !loadingMessages}
           resetSignal={composerResetSignal}
           focusSignal={composerFocusSignal}

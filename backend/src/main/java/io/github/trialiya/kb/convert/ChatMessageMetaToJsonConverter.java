@@ -5,8 +5,12 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
+import io.github.trialiya.kb.model.chat.entity.ContextItem;
+import io.github.trialiya.kb.model.chat.entity.ContextItemKind;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import org.jspecify.annotations.Nullable;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.data.convert.ReadingConverter;
@@ -19,7 +23,45 @@ public final class ChatMessageMetaToJsonConverter {
     private record MetaJson(
             @Nullable String runId,
             @Nullable Boolean toolCalls,
-            List<ToolInvocationMeta> invocations) {}
+            List<ToolInvocationMeta> invocations,
+            @Nullable List<ContextItemJson> contextItems) {}
+
+    /**
+     * {@code kind} читается строкой, а не сразу {@link ContextItemKind}: вид, которого эта версия
+     * ещё (или уже) не знает, обязан просто выпасть из списка. Иначе откат приложения после
+     * появления нового вида превращался бы в отказ читать историю целиком — на каждом открытии
+     * чата, где такой элемент записан.
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record ContextItemJson(
+            @Nullable String kind,
+            @Nullable String ref,
+            @Nullable String label,
+            @Nullable Map<String, Object> payload) {
+
+        Optional<ContextItem> toItem() {
+            if (kind == null || ref == null) {
+                return Optional.empty();
+            }
+            final Map<String, Object> safePayload = payload == null ? Map.of() : payload;
+            return kindOf(kind).map(k -> new ContextItem(k, ref, label, safePayload));
+        }
+
+        private static Optional<ContextItemKind> kindOf(String raw) {
+            for (ContextItemKind candidate : ContextItemKind.values()) {
+                if (candidate.name().equals(raw)) {
+                    return Optional.of(candidate);
+                }
+            }
+            return Optional.empty();
+        }
+    }
+
+    private static List<ContextItem> contextItemsOf(@Nullable List<ContextItemJson> raw) {
+        return raw == null
+                ? List.of()
+                : raw.stream().map(ContextItemJson::toItem).flatMap(Optional::stream).toList();
+    }
 
     @ReadingConverter
     public static class Reader implements Converter<String, ChatMessageMeta> {
@@ -45,7 +87,10 @@ public final class ChatMessageMetaToJsonConverter {
                 // проставлено и в новых записях, и в старых (см. миграцию backfill).
                 MetaJson json = objectMapper.readValue(trimmed, MetaJson.class);
                 return new ChatMessageMeta(
-                        json.runId(), Boolean.TRUE.equals(json.toolCalls()), json.invocations());
+                        json.runId(),
+                        Boolean.TRUE.equals(json.toolCalls()),
+                        json.invocations(),
+                        contextItemsOf(json.contextItems()));
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to deserialize chat message meta", e);
             }
@@ -65,7 +110,19 @@ public final class ChatMessageMetaToJsonConverter {
         public String convert(ChatMessageMeta source) {
             try {
                 return objectMapper.writeValueAsString(
-                        new MetaJson(source.runId(), source.toolCalls(), source.invocations()));
+                        new MetaJson(
+                                source.runId(),
+                                source.toolCalls(),
+                                source.invocations(),
+                                source.contextItems().stream()
+                                        .map(
+                                                i ->
+                                                        new ContextItemJson(
+                                                                i.kind().name(),
+                                                                i.ref(),
+                                                                i.label(),
+                                                                i.payload()))
+                                        .toList()));
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to serialize chat message meta", e);
             }

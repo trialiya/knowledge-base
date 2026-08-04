@@ -14,14 +14,17 @@ import io.github.trialiya.kb.model.chat.dto.ChatMessage;
 import io.github.trialiya.kb.model.chat.dto.ChatSearchResult;
 import io.github.trialiya.kb.model.chat.dto.MessagePage;
 import io.github.trialiya.kb.model.chat.dto.MessageSearchHit;
+import io.github.trialiya.kb.model.chat.dto.StartRunRequest;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
+import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.tool.ToolCallDetail;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.ChatEventService;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.service.ChatModeService;
 import io.github.trialiya.kb.service.ChatRunService;
+import io.github.trialiya.kb.service.ContextItemService;
 import io.github.trialiya.kb.service.ScriptGuideService;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import jakarta.annotation.Nonnull;
@@ -69,6 +72,7 @@ public class ChatController {
     private final ChatRunService chatRunService;
     private final ChatEventService chatEventService;
     private final ScriptGuideService scriptGuideService;
+    private final ContextItemService contextItemService;
 
     /** Часы аудита Spring Data — ими же датируется «тронуть чат», см. JdbcConfig#clock. */
     private final Clock clock;
@@ -84,6 +88,7 @@ public class ChatController {
             ChatRunService chatRunService,
             ChatEventService chatEventService,
             ScriptGuideService scriptGuideService,
+            ContextItemService contextItemService,
             Clock clock) {
         this.chatModelProperties = chatModelProperties;
         this.chatModeProperties = chatModeProperties;
@@ -95,6 +100,7 @@ public class ChatController {
         this.chatRunService = chatRunService;
         this.chatEventService = chatEventService;
         this.scriptGuideService = scriptGuideService;
+        this.contextItemService = contextItemService;
         this.clock = clock;
     }
 
@@ -212,7 +218,8 @@ public class ChatController {
                                                 chatMemoryService.invocationsFor(
                                                         e, page.messages()),
                                                 e.getMeta() != null ? e.getMeta().runId() : null,
-                                                isToolCalls(e)))
+                                                isToolCalls(e),
+                                                e.getContextItems()))
                         .toList();
         return new MessagePage(dtos, page.hasMore(), page.oldestCursor());
     }
@@ -339,6 +346,10 @@ public class ChatController {
      * ChatMemoryService#saveUserMessage}), поэтому ошибка записи — это ошибка этого запроса, а не
      * тихо потерянное сообщение.
      *
+     * <p>Тело — {@link StartRunRequest}: текст вопроса и приложенный к нему контекст (вложения).
+     * Ссылки на контекст проверяются здесь же и уходят в {@code meta} того же ряда, поэтому
+     * привязка не требует ни знания id заранее, ни второго запроса.
+     *
      * @param retry повтор упавшего прогона: тело не нужно, новое сообщение не появляется — ходом
      *     остаётся последний неотвеченный вопрос. Если модель уже начала отвечать, повторять
      *     нечего: 422, дальше пользователь пишет сам (см. {@link
@@ -353,11 +364,19 @@ public class ChatController {
             @RequestParam(name = "mode", required = false) final String mode,
             @RequestParam(name = "clientMsgId", required = false) final String clientMsgId,
             @RequestParam(name = "retry", defaultValue = "false") final boolean retry,
-            @RequestBody(required = false) final String userMessage) {
+            @RequestBody(required = false) final StartRunRequest body) {
+        final String userMessage = body == null ? null : body.text();
         if (!retry && !StringUtils.hasText(userMessage)) {
             throw new ResponseStatusException(BAD_REQUEST, "Empty message");
         }
         checkChat(conversationId, true);
+        // Проверяем приложенное ДО заявки на чат: 404 на чужое вложение не должен оставлять
+        // за собой ни занятый чат, ни записанный вопрос.
+        final List<ContextItem> contextItems =
+                retry
+                        ? List.of()
+                        : contextItemService.resolve(
+                                conversationId, body == null ? null : body.contextItems());
         final String resolvedModel = resolveModel(conversationId, model);
         final String modeInstructions =
                 chatModeService.instructionsFor(resolveMode(conversationId, mode));
@@ -366,6 +385,7 @@ public class ChatController {
                         conversationId,
                         getUser(),
                         retry ? null : userMessage,
+                        contextItems,
                         resolvedModel,
                         chatModelProperties.isWeak(resolvedModel),
                         modeInstructions,
@@ -520,7 +540,8 @@ public class ChatController {
                 chatMessageEntity.getCreatedAt(),
                 chatMessageEntity.getInvocations(),
                 chatMessageEntity.getMeta() != null ? chatMessageEntity.getMeta().runId() : null,
-                isToolCalls(chatMessageEntity));
+                isToolCalls(chatMessageEntity),
+                chatMessageEntity.getContextItems());
     }
 
     /** «Крошка» вызовов инструментов — служебное сообщение, которое не показываем пользователю. */

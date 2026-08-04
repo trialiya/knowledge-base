@@ -6,6 +6,7 @@ import DocLinkTooltip from '../common/DocLinkTooltip';
 import './message.css';
 import CodeBlock from '../common/CodeBlock';
 import ToolCallNotifications from './ToolCallNotifications';
+import MessageContextItems from './MessageContextItems';
 import { IconCopySmall, IconCopied } from '../../icons';
 import useCopyFeedback from '../../hooks/useCopyFeedback';
 import { SENDER } from '../../constants/messageSender';
@@ -134,6 +135,7 @@ const Message = ({
   timestamp,
   mid,
   searchActive,
+  contextItems,
 }) => {
   const { t, i18n } = useTranslation('chat');
   const [showSource, setShowSource] = useState(false);
@@ -166,7 +168,10 @@ const Message = ({
           </div>
         )
       ) : (
-        <div className="user-message-text">{text}</div>
+        <>
+          <div className="user-message-text">{text}</div>
+          <MessageContextItems items={contextItems} />
+        </>
       )}
     </div>
   );

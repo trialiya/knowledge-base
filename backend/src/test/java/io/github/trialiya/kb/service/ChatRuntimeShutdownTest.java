@@ -3,6 +3,7 @@ package io.github.trialiya.kb.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -57,7 +58,7 @@ class ChatRuntimeShutdownTest {
         chatMemory = mock(ChatMemory.class);
         chatMemoryService = mock(ChatMemoryService.class);
         // Вопрос пользователя сохраняется до старта прогона — прогон берёт из ряда id и текст.
-        when(chatMemoryService.saveUserMessage(anyString(), anyString()))
+        when(chatMemoryService.saveUserMessage(anyString(), anyString(), anyList()))
                 .thenAnswer(
                         inv ->
                                 new ChatMessageEntity(
@@ -78,7 +79,7 @@ class ChatRuntimeShutdownTest {
     void cancelsRunsAndClosesSubscriptionsOnContextClosed() {
         runService = runService(Runnable::run);
         final SseEmitter emitter = events.subscribe(CONV, 0);
-        runService.start(CONV, USER, "привет", null, false, "", "msg-1");
+        runService.start(CONV, USER, "привет", List.of(), null, false, "", "msg-1");
 
         assertThat(runService.activeRunCount()).isEqualTo(1);
         assertThat(events.hubCount()).isEqualTo(1);
@@ -101,7 +102,7 @@ class ChatRuntimeShutdownTest {
     @Test
     void cancelsRunThatHasNotSubscribedYet() {
         runService = runService(deferred);
-        runService.start(CONV, USER, "привет", null, false, "", "msg-1");
+        runService.start(CONV, USER, "привет", List.of(), null, false, "", "msg-1");
 
         assertThat(runService.stopAll()).isEqualTo(1);
         assertThat(runService.activeRunCount()).isEqualTo(1); // задача ещё не стартовала

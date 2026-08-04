@@ -3,7 +3,7 @@
 // Поток событий (GET /events) живёт отдельно в chatEvents.js — там нужен прямой
 // доступ к response.body для побайтового SSE-чтения.
 
-import { request, requestRaw } from './client';
+import { request, requestRaw, json } from './client';
 
 const enc = (id) => encodeURIComponent(id);
 
@@ -101,10 +101,13 @@ const chatApi = {
    * она узнаёт только отсюда — без него якорь поиска по чату появился бы у пузыря лишь
    * после перезагрузки страницы.
    *
-   * retry — повтор упавшего прогона: текст не передаём вовсе, ходом остаётся уже сохранённый
-   * вопрос. Если модель успела начать ответ, бэк отвечает 422 — повторять нечего.
+   * contextItems — что приложено к этому сообщению: [{ kind, ref }]. Бэк проверяет ссылки,
+   * сам проставляет подписи и кладёт результат в meta того же ряда.
+   *
+   * retry — повтор упавшего прогона: тела не передаём вовсе, ходом остаётся уже сохранённый
+   * вопрос со своим контекстом. Если модель успела начать ответ, бэк отвечает 422.
    */
-  startRun: (id, text, { model, mode, clientMsgId, retry } = {}) => {
+  startRun: (id, text, { model, mode, clientMsgId, retry, contextItems } = {}) => {
     const params = new URLSearchParams();
     if (model) params.set('model', model);
     if (mode) params.set('mode', mode);
@@ -113,8 +116,7 @@ const chatApi = {
     const qs = params.toString();
     return request(`/api/chats/${enc(id)}/runs${qs ? `?${qs}` : ''}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-      ...(retry ? {} : { body: text }),
+      ...(retry ? {} : json({ text, contextItems: contextItems || [] })),
     });
   },
 

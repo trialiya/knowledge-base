@@ -91,7 +91,8 @@ class PrePersistedUserMessageTest {
                 messageRepo,
                 new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))),
                 toolCallIndexRepo,
-                backfillStateRepo);
+                backfillStateRepo,
+                new ContextItemService(mock(AttachmentService.class)));
     }
 
     private static ChatModel stubModel() {

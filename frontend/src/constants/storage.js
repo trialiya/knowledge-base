@@ -15,6 +15,14 @@ export const STORAGE_KEY_LAST_MODE = 'chat_lastMode';
 export const STORAGE_KEY_CHAT_DRAFTS = 'chat_drafts';
 
 /**
+ * localStorage: вложения, отложенные к отправке, по чатам — JSON-объект
+ * `{ [chatId]: [{ kind, ref, label }] }`. Часть того же черновика, что и текст:
+ * файл уже загружен в чат, откладывается только решение приложить его к
+ * следующему сообщению (см. chatDrafts.js).
+ */
+export const STORAGE_KEY_CHAT_STAGED = 'chat_stagedContext';
+
+/**
  * localStorage: состояние боковых панелей рабочей области по разделам —
  * JSON-объект `{ [view]: { leftCollapsed, rightTab } }`. Источник правды для
  * ТЕКУЩЕГО раздела — URL; здесь хранится раскладка остальных, чтобы она не

@@ -61,7 +61,12 @@ class ChatMemoryServiceToolEventsTest {
         backfillStateRepo = mock(BackfillStateRepository.class);
         service =
                 new ChatMemoryService(
-                        topicRepo, messageRepo, events, toolCallIndexRepo, backfillStateRepo);
+                        topicRepo,
+                        messageRepo,
+                        events,
+                        toolCallIndexRepo,
+                        backfillStateRepo,
+                        new ContextItemService(mock(AttachmentService.class)));
         // saveAll в БД возвращает сущности с проставленными id — saveAll сервиса на этом строит
         // messageId строк tool_call_index (см. ChatMemoryService#indexToolCalls).
         final java.util.concurrent.atomic.AtomicLong nextId =

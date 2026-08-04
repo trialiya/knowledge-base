@@ -195,5 +195,9 @@
   "mode": {
     "aria": "Mode",
     "none": "No mode"
+  },
+  "contextItems": {
+    "staged": "Attached to this message",
+    "inMessage": "Attached files"
   }
 }
