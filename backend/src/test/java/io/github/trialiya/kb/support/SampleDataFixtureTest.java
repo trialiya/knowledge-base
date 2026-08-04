@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.trialiya.kb.config.CommonConfig;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
+import io.github.trialiya.kb.model.chat.entity.ContextItemKind;
 import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.DocumentRepository;
@@ -76,6 +77,18 @@ class SampleDataFixtureTest {
         assertThat(toolBreadcrumb.getInvocations()).hasSize(1);
         assertThat(toolBreadcrumb.getToolData()).isNotNull();
         assertThat(toolBreadcrumb.getToolData().toolCalls()).hasSize(2);
+
+        // Вопрос с приложенным вложением: в сообщении лежит ссылка, а не содержимое файла.
+        ChatMessageEntity question =
+                messages.stream().filter(m -> m.getId() == 1638).findFirst().orElseThrow();
+        assertThat(question.getContextItems())
+                .singleElement()
+                .satisfies(
+                        item -> {
+                            assertThat(item.kind()).isEqualTo(ContextItemKind.ATTACHMENT);
+                            assertThat(item.ref()).isEqualTo("1");
+                            assertThat(item.label()).isEqualTo("gradle-build-error.log");
+                        });
     }
 
     @Test

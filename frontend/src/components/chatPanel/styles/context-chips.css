@@ -63,7 +63,17 @@
   background: rgba(232, 77, 106, 0.12);
 }
 
-/* В пузыре вопроса чипы идут под текстом и наследуют его цвет фона */
+/* В пузыре вопроса чипы идут под текстом. Акцентная палитра рассчитана на светлый
+   фон композера и на заливке пузыря теряет контраст, поэтому здесь чип строится
+   на цвете текста самого пузыря. */
 .message.user .context-chips {
   margin: 6px 0 0;
+}
+.message.user .context-chip {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: var(--kb-user-bubble-color);
+}
+.message.user .context-chip__open:not(.context-chip__open--static):hover {
+  background: rgba(255, 255, 255, 0.28);
 }
