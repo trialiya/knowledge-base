@@ -59,6 +59,12 @@ public class AttachmentEntity {
     /** AI-generated summary / description. */
     @Nullable private String summary;
 
+    /**
+     * Structural outline computed at upload time: markdown headings, or symbol names for a
+     * supported source language. Null when the file has neither (plain text, unsupported language).
+     */
+    @Nullable private String outline;
+
     // ── Source ────────────────────────────────────────────────────────────────
 
     /**

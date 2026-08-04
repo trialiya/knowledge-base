@@ -135,6 +135,9 @@ public class ContextItemService {
                                 + attachment.contentType()
                                 + " size="
                                 + attachment.fileSize()
+                                + (attachment.outline() == null
+                                        ? ""
+                                        : " outline=\"" + attachment.outline() + "\"")
                                 + (attachment.summary() == null
                                         ? ""
                                         : " summary=\"" + attachment.summary() + "\""));

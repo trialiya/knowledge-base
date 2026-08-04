@@ -862,3 +862,44 @@
     Панель вложений в черновике намеренно выключена — вместо неё пояснение
     (window.attachmentsInDraft). Загрузка заводит чат с тем id, который ей дали,
     и черновичный «new» стал бы настоящим чатом с таким именем.
+
+
+- id: attach-multiple-disabled-and-outline
+  component: ComposerToolbar + ContextChips + AttachmentService
+  path: frontend/src/components/chatPanel/ChatWindow.jsx
+  title: Несколько файлов за раз, скрепка недоступна при стриминге, у вложения — короткая опись
+  status: verified
+  origin:
+    - сессия 2026-08-04, три правки после ручного тестирования: множественный выбор,
+      блокировка скрепки во время ответа модели, опись (outline) в информации о вложении
+  preconditions:
+    viewport: [1280, 720]
+    auth: admin
+    route: /chat
+    data: |
+      sample-data.sql. Playwright: «Новый чат» → page.setInputFiles на скрытый
+      input[type=file] сразу с тремя путями (массивом) — так же, как это делает
+      системный диалог выбора нескольких файлов, который в headless Chromium не
+      открывается. Файлы: notes.md (два markdown-заголовка), Greeter.java (класс
+      с одним методом), plain.txt (без структуры).
+  expected:
+    - Три файла, выбранные разом, дают три чипа над полем ввода и не заводят три
+      разных чата — все три вложения лежат под одним новым conversationId
+    - 'GET /api/chats/<id>/attachments: у notes.md outline = "# Заметки / ## Раздел А"'
+    - 'у Greeter.java outline содержит имя класса и имя метода'
+    - у plain.txt (нет структуры, нет поддерживаемого языка) outline = null
+    - Скрепка (.composer-toolbar__attach) не disabled в состоянии покоя
+    - Как только уходит сообщение (появляется кнопка «остановить»), скрепка
+      становится disabled — до этой сессии кнопка была всегда кликабельна
+  notes: |
+    Опись считается один раз при загрузке (AttachmentService.computeOutline),
+    не при каждом чтении истории — ContextItemService.render() по архитектуре не
+    трогает колонку content на каждой итерации tool-цикла, а outline готовый
+    текст, как summary. Заголовки markdown — MarkdownSections.parse (те же секции,
+    что использует редактирование документов), символы кода — OutlineService
+    (tree-sitter/regex), только для java/javascript/typescript/python/sql.
+
+    Множественный выбор: conversationId для черновика генерируется один раз до
+    цикла загрузки, а не на каждый файл — иначе второй файл в той же пачке завёл
+    бы второй чат. Промоушен черновика (переезд в список слева, перенос текста и
+    чипов) происходит один раз, на первой успешной загрузке.

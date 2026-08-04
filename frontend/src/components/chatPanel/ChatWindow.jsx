@@ -840,52 +840,59 @@ const ChatWindow = ({
     [activeChatId],
   );
 
-  // Прикрепить файл из композера. Файл сразу становится вложением чата (модель
-  // сможет прочитать его инструментом в любой момент), но вдобавок откладывается
-  // чипом к следующему сообщению — чтобы модель узнала о нём, не спрашивая.
-  // Правую панель при этом не раскрываем: чип над полем ввода — более точная
-  // обратная связь, чем открывшийся список всех вложений чата.
+  // Прикрепить файлы из композера — один или сразу несколько. Каждый сразу
+  // становится вложением чата (модель сможет прочитать его инструментом в любой
+  // момент), но вдобавок откладывается чипом к следующему сообщению — чтобы модель
+  // узнала о нём, не спрашивая. Правую панель при этом не раскрываем: чипы над
+  // полем ввода — более точная обратная связь, чем открывшийся список всех
+  // вложений чата.
   //
   // В черновике настоящий conversationId рождается прямо здесь — как и при отправке
-  // первого сообщения. Заводить чат отдельным запросом не нужно: строку в chat_topic
-  // создаёт сама загрузка вложения (ChatTopicService), в одной транзакции с файлом.
-  const handleAttachFile = useCallback(
-    async (file) => {
-      if (!activeChatId || !file) return;
+  // первого сообщения — один раз на весь выбор файлов, а не на каждый: иначе второй
+  // файл в том же выборе завёл бы второй чат. Заводить чат отдельным запросом не
+  // нужно: строку в chat_topic создаёт сама загрузка первого вложения
+  // (ChatTopicService), в одной транзакции с файлом.
+  const handleAttachFiles = useCallback(
+    async (files) => {
+      if (!activeChatId || !files || files.length === 0 || isStreaming) return;
       const isDraft = activeChatId === DRAFT_CHAT_ID;
       const conversationId = isDraft ? generateUUID() : activeChatId;
-      try {
-        const uploaded = await attachmentApi.upload(OWNER_TYPE.CHAT, conversationId, file);
-        if (isDraft) {
-          setChats((prev) => {
-            const found = prev.find((c) => c.id === DRAFT_CHAT_ID);
-            if (!found) return prev;
-            return [
-              // messages: [] — не null: иначе useChatMessages пойдёт грузить историю,
-              // которой у только что заведённого чата ещё нет.
-              { ...found, id: conversationId, draft: false, messages: found.messages || [] },
-              ...prev.filter((c) => c.id !== DRAFT_CHAT_ID),
-            ];
+      let promoted = false; // черновик уже перевели на conversationId?
+      for (const file of files) {
+        try {
+          const uploaded = await attachmentApi.upload(OWNER_TYPE.CHAT, conversationId, file);
+          if (isDraft && !promoted) {
+            setChats((prev) => {
+              const found = prev.find((c) => c.id === DRAFT_CHAT_ID);
+              if (!found) return prev;
+              return [
+                // messages: [] — не null: иначе useChatMessages пойдёт грузить историю,
+                // которой у только что заведённого чата ещё нет.
+                { ...found, id: conversationId, draft: false, messages: found.messages || [] },
+                ...prev.filter((c) => c.id !== DRAFT_CHAT_ID),
+              ];
+            });
+            moveDraft(DRAFT_CHAT_ID, conversationId);
+            selectChat(conversationId);
+            promoted = true;
+            // Счётчик бейджа не трогаем: у чата сменился id, и useAttachmentCount
+            // перечитает его сам — иначе прибавка либо потеряется, либо задвоится.
+          } else {
+            setAttachCount((n) => n + 1);
+          }
+          stageContextItem(conversationId, {
+            kind: CONTEXT_KIND.ATTACHMENT,
+            ref: String(uploaded.id),
+            label: uploaded.fileName,
           });
-          moveDraft(DRAFT_CHAT_ID, conversationId);
-          selectChat(conversationId);
-          // Счётчик бейджа не трогаем: у чата сменился id, и useAttachmentCount
-          // перечитает его сам — иначе прибавка либо потеряется, либо задвоится.
-        } else {
-          setAttachCount((n) => n + 1);
+        } catch (err) {
+          console.error('Upload error:', err);
+          setUploadErrorNotice(true);
         }
-        stageContextItem(conversationId, {
-          kind: CONTEXT_KIND.ATTACHMENT,
-          ref: String(uploaded.id),
-          label: uploaded.fileName,
-        });
-        setAttachRefreshSignal((n) => n + 1);
-      } catch (err) {
-        console.error('Upload error:', err);
-        setUploadErrorNotice(true);
       }
+      setAttachRefreshSignal((n) => n + 1);
     },
-    [activeChatId, setAttachCount, stageContextItem, moveDraft, selectChat],
+    [activeChatId, isStreaming, setAttachCount, stageContextItem, moveDraft, selectChat],
   );
 
   // Снять чип из композера. К этому моменту файл уже лежит вложением чата, и чип —
@@ -976,11 +983,12 @@ const ChatWindow = ({
       <input
         ref={attachFileRef}
         type="file"
+        multiple
         style={{ display: 'none' }}
         accept="text/*,.md,.json,.yaml,.yml,.xml,.csv,.log,.sql,.java,.js,.jsx,.ts,.tsx,.py,.go,.rs,.html,.css"
         onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) handleAttachFile(file);
+          const files = Array.from(e.target.files || []);
+          if (files.length > 0) handleAttachFiles(files);
           e.target.value = '';
         }}
       />

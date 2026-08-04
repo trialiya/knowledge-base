@@ -29,7 +29,7 @@ public interface AttachmentRepository extends CrudRepository<AttachmentEntity, L
      */
     @Query(
             """
-        SELECT id, file_name, content_type, file_size, summary
+        SELECT id, file_name, content_type, file_size, summary, outline
         FROM attachments
         WHERE conversation_id = :convId AND id IN (:ids)
         """)

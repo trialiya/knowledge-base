@@ -31,6 +31,7 @@ const ComposerToolbar = ({ model, mode, disabled, sendDisabled, onAttach, onStop
           type="button"
           className="icon-btn composer-toolbar__attach"
           onClick={onAttach}
+          disabled={disabled}
           title={t('input.attach')}
           tabIndex={-1}
         >

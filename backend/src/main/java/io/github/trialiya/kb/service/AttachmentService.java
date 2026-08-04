@@ -5,9 +5,12 @@ import io.github.trialiya.kb.model.attachment.dto.AttachmentSummary;
 import io.github.trialiya.kb.model.attachment.entity.AttachmentEmbeddingEntity;
 import io.github.trialiya.kb.model.attachment.entity.AttachmentEntity;
 import io.github.trialiya.kb.model.attachment.entity.AttachmentOwnerType;
+import io.github.trialiya.kb.model.git.dto.GitSymbol;
 import io.github.trialiya.kb.model.search.SemanticSearchResult;
 import io.github.trialiya.kb.repository.AttachmentEmbeddingRepository;
 import io.github.trialiya.kb.repository.AttachmentRepository;
+import io.github.trialiya.kb.service.outline.LanguageDetector;
+import io.github.trialiya.kb.utils.MarkdownSections;
 import jakarta.annotation.Nonnull;
 import java.io.IOException;
 import java.io.InputStream;
@@ -15,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -55,6 +59,8 @@ import org.springframework.web.server.ResponseStatusException;
 public class AttachmentService implements DisposableBean {
 
     private static final int PROMPT_MAX_CHARS = 12_000;
+    private static final int OUTLINE_MAX_ITEMS = 20;
+    private static final int OUTLINE_MAX_CHARS = 500;
     private static final String DEFAULT_CONTENT_TYPE = "text/plain";
     private static final String DEFAULT_FILE_NAME = "unnamed";
     private static final java.util.Set<String> KNOWN_TEXT_MIME_TYPES =
@@ -86,6 +92,7 @@ public class AttachmentService implements DisposableBean {
     private final AttachmentEmbeddingRepository embeddingRepo;
     private final EmbeddingService embeddingService;
     private final ChatTopicService chatTopicService;
+    private final OutlineService outlineService;
     private final ChatClient chatClient;
     private final ExecutorService indexingExecutor;
 
@@ -94,11 +101,13 @@ public class AttachmentService implements DisposableBean {
             AttachmentEmbeddingRepository embeddingRepo,
             EmbeddingService embeddingService,
             ChatTopicService chatTopicService,
+            OutlineService outlineService,
             OpenAiChatModel openAiChatModel) {
         this.attachmentRepo = attachmentRepo;
         this.embeddingRepo = embeddingRepo;
         this.embeddingService = embeddingService;
         this.chatTopicService = chatTopicService;
+        this.outlineService = outlineService;
         this.chatClient = ChatClient.builder(openAiChatModel).build();
         this.indexingExecutor = Executors.newVirtualThreadPerTaskExecutor();
     }
@@ -188,6 +197,7 @@ public class AttachmentService implements DisposableBean {
         copy.setFileSize(source.getFileSize());
         copy.setContent(source.getContent());
         copy.setSummary(source.getSummary());
+        copy.setOutline(source.getOutline());
         copy.setSourceUrl(source.getSourceUrl());
         copy.setCreatedAt(now);
         copy.setUpdatedAt(now);
@@ -376,6 +386,7 @@ public class AttachmentService implements DisposableBean {
         entity.setContentType(contentType != null ? contentType : DEFAULT_CONTENT_TYPE);
         entity.setFileSize(fileSize != null ? fileSize : content.length());
         entity.setContent(content);
+        entity.setOutline(computeOutline(fileName, content));
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
 
@@ -507,6 +518,7 @@ public class AttachmentService implements DisposableBean {
                 e.getContentType(),
                 e.getFileSize(),
                 e.getSummary(),
+                e.getOutline(),
                 e.getSourceUrl(),
                 e.getCreatedAt(),
                 e.getUpdatedAt());
@@ -518,5 +530,67 @@ public class AttachmentService implements DisposableBean {
         int cut = text.lastIndexOf(' ', maxChars);
         if (cut <= 0) cut = maxChars;
         return text.substring(0, cut) + "\n... (truncated)";
+    }
+
+    /**
+     * A cheap structural preview computed once at upload time, so the model gets more than a bare
+     * file name without paying for a full read: markdown headings for {@code .md}/{@code .markdown}
+     * files, top-level symbol names for a source language {@link OutlineService} supports. Neither
+     * involves an LLM call — both are pure parsing, unlike {@link #summarize}.
+     *
+     * @return short outline, or {@code null} when the file is neither markdown nor a supported
+     *     source language
+     */
+    private @Nullable String computeOutline(String fileName, String content) {
+        if (content.isBlank()) {
+            return null;
+        }
+        String lower = fileName.toLowerCase(Locale.ROOT);
+        if (lower.endsWith(".md") || lower.endsWith(".markdown")) {
+            return outlineFromMarkdown(content);
+        }
+        String language = LanguageDetector.detect(fileName);
+        if (language != null && outlineService.isLanguageSupported(language)) {
+            return outlineFromCode(language, content);
+        }
+        return null;
+    }
+
+    private static @Nullable String outlineFromMarkdown(String content) {
+        List<MarkdownSections.Section> sections = MarkdownSections.parse(content);
+        StringBuilder sb = new StringBuilder();
+        int count = 0;
+        for (MarkdownSections.Section section : sections) {
+            if (section.path().equals(MarkdownSections.PREAMBLE_PATH)
+                    || count >= OUTLINE_MAX_ITEMS) {
+                continue;
+            }
+            if (count > 0) {
+                sb.append(" / ");
+            }
+            sb.append("#".repeat(section.level())).append(' ').append(section.title());
+            count++;
+        }
+        return count == 0 ? null : truncateForPrompt(sb.toString(), OUTLINE_MAX_CHARS);
+    }
+
+    private @Nullable String outlineFromCode(String language, String content) {
+        List<GitSymbol> symbols = outlineService.outline(language, content).symbols();
+        if (symbols.isEmpty()) {
+            return null;
+        }
+        StringBuilder sb = new StringBuilder();
+        int count = 0;
+        for (GitSymbol symbol : symbols) {
+            if (count >= OUTLINE_MAX_ITEMS) {
+                break;
+            }
+            if (count > 0) {
+                sb.append(", ");
+            }
+            sb.append(symbol.kind()).append(' ').append(symbol.name());
+            count++;
+        }
+        return truncateForPrompt(sb.toString(), OUTLINE_MAX_CHARS);
     }
 }

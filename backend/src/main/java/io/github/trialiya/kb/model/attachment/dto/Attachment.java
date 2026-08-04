@@ -17,6 +17,8 @@ import org.jspecify.annotations.Nullable;
  * @param contentType MIME type
  * @param fileSize size in bytes
  * @param summary AI-generated summary (null until requested)
+ * @param outline structural preview (markdown headings / source symbol names) computed at upload
+ *     time; null when the file is neither markdown nor a supported source language
  * @param sourceUrl source url
  * @param createdAt upload timestamp
  * @param updatedAt last modification timestamp
@@ -30,6 +32,7 @@ public record Attachment(
         String contentType,
         long fileSize,
         @Nullable String summary,
+        @Nullable String outline,
         @Nullable String sourceUrl,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt)
@@ -44,6 +47,7 @@ public record Attachment(
                 .add("owner", ownerType)
                 .add("conversation", conversationId)
                 .add("doc", documentId)
+                .add("outline", Compact.truncate(outline, 50))
                 .add("sum", Compact.truncate(summary, 50))
                 .done();
     }

@@ -98,11 +98,20 @@ class ContextItemsTest {
 
     /** Вложение чата видно только своему чату — этим и занимается запрос за метаданными. */
     private void haveAttachment(String conversationId, String fileName) {
+        haveAttachment(conversationId, fileName, null);
+    }
+
+    private void haveAttachment(String conversationId, String fileName, String outline) {
         when(attachmentService.findSummaries(eq(conversationId), any()))
                 .thenReturn(
                         List.of(
                                 new AttachmentSummary(
-                                        ATTACHMENT_ID, fileName, "text/markdown", 1234, null)));
+                                        ATTACHMENT_ID,
+                                        fileName,
+                                        "text/markdown",
+                                        1234,
+                                        null,
+                                        outline)));
     }
 
     private static ContextItemRequest attachmentRequest() {
@@ -201,6 +210,24 @@ class ContextItemsTest {
                                     .contains("report.md")
                                     .contains("getAttachmentContent");
                         });
+    }
+
+    /** Короткая структурная опись (заголовки/символы) едет в промпт вместе с остальными полями. */
+    @Test
+    void attachedContextIncludesOutlineWhenPresent() {
+        String conversationId = UUID.randomUUID().toString();
+        haveAttachment(conversationId, "report.md", "# Title / ## Section");
+        memoryService.saveUserMessage(
+                conversationId,
+                QUESTION,
+                contextItemService.resolve(conversationId, List.of(attachmentRequest())));
+
+        assertThat(memoryService.findByConversationId(conversationId))
+                .singleElement()
+                .satisfies(
+                        message ->
+                                assertThat(message.getText())
+                                        .contains("outline=\"# Title / ## Section\""));
     }
 
     /**

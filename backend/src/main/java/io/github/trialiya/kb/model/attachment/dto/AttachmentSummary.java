@@ -11,6 +11,13 @@ import org.jspecify.annotations.Nullable;
  * нельзя.
  *
  * @param summary AI-описание вложения, если его запрашивали
+ * @param outline структурная опись (заголовки markdown / имена символов кода), посчитанная при
+ *     загрузке; null, если файлу она не идёт
  */
 public record AttachmentSummary(
-        Long id, String fileName, String contentType, long fileSize, @Nullable String summary) {}
+        Long id,
+        String fileName,
+        String contentType,
+        long fileSize,
+        @Nullable String summary,
+        @Nullable String outline) {}
