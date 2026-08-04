@@ -13,6 +13,7 @@
     "renameHint": "Click to rename",
     "attachments": "Attachments",
     "selectChat": "Select a chat",
+    "attachmentsInDraft": "The chat starts with its first file or message — attach a file with the paperclip next to the input.",
     "loadingMessages": "Loading messages...",
     "notFoundTitle": "Chat not found",
     "loadErrorTitle": "Failed to load chat",

@@ -24,6 +24,7 @@ import io.github.trialiya.kb.service.ChatEventService;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.service.ChatModeService;
 import io.github.trialiya.kb.service.ChatRunService;
+import io.github.trialiya.kb.service.ChatTopicService;
 import io.github.trialiya.kb.service.ContextItemService;
 import io.github.trialiya.kb.service.ScriptGuideService;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
@@ -73,6 +74,7 @@ public class ChatController {
     private final ChatEventService chatEventService;
     private final ScriptGuideService scriptGuideService;
     private final ContextItemService contextItemService;
+    private final ChatTopicService chatTopicService;
 
     /** Часы аудита Spring Data — ими же датируется «тронуть чат», см. JdbcConfig#clock. */
     private final Clock clock;
@@ -89,6 +91,7 @@ public class ChatController {
             ChatEventService chatEventService,
             ScriptGuideService scriptGuideService,
             ContextItemService contextItemService,
+            ChatTopicService chatTopicService,
             Clock clock) {
         this.chatModelProperties = chatModelProperties;
         this.chatModeProperties = chatModeProperties;
@@ -101,6 +104,7 @@ public class ChatController {
         this.chatEventService = chatEventService;
         this.scriptGuideService = scriptGuideService;
         this.contextItemService = contextItemService;
+        this.chatTopicService = chatTopicService;
         this.clock = clock;
     }
 
@@ -478,32 +482,11 @@ public class ChatController {
     }
 
     private void checkChat(@Nonnull final String conversationId, boolean update) {
-        chatTopicRepository
-                .findById(conversationId)
-                .ifPresentOrElse(
-                        chatTopicEntity -> {
-                            if (!chatTopicEntity.getUser().equals(getUser())) {
-                                throw new ResponseStatusException(FORBIDDEN, "Forbidden");
-                            }
-                            if (update) {
-                                chatTopicRepository.updateUpdatedAt(
-                                        conversationId, LocalDateTime.now(clock));
-                            }
-                        },
-                        () ->
-                                chatTopicRepository.save(
-                                        new ChatTopicEntity(
-                                                conversationId,
-                                                getUser(),
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                // overwritten by @CreatedDate/@LastModifiedDate
-                                                // auditing before insert
-                                                LocalDateTime.now(),
-                                                LocalDateTime.now(),
-                                                true)));
+        // Заведение чата — общее с загрузкой вложений (см. ChatTopicService): вложение тоже
+        // может оказаться первым, что делают в ещё не начатом разговоре.
+        if (chatTopicService.ensureExists(conversationId) && update) {
+            chatTopicRepository.updateUpdatedAt(conversationId, LocalDateTime.now(clock));
+        }
     }
 
     private Chat toChat(ChatTopicEntity entity, @Nullable List<ChatMessage> messages) {

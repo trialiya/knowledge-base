@@ -59,6 +59,30 @@ export default function useChatDrafts() {
     [updateStaged],
   );
 
+  /**
+   * Перенести черновик чата на другой id — и текст, и отложенные вложения.
+   *
+   * Нужно ровно в одном месте: чат «new» — выдумка фронта, и в момент, когда у него
+   * появляется настоящий conversationId (файл приложили до первого сообщения),
+   * набранное должно переехать вместе с чатом. Иначе поле ввода очистится: его
+   * содержимое MessageInput берёт по chatId.
+   */
+  const moveDraft = useCallback((fromId, toId) => {
+    if (!fromId || !toId || fromId === toId) return;
+    const text = getDraft(draftsRef.current, fromId);
+    setDraft(draftsRef.current, fromId, '');
+    setDraft(draftsRef.current, toId, text);
+    saveDrafts(draftsRef.current);
+    setStagedByChat((prev) => {
+      const map = { ...prev };
+      const items = getStaged(map, fromId);
+      setStaged(map, fromId, []);
+      setStaged(map, toId, items);
+      saveStaged(map);
+      return map;
+    });
+  }, []);
+
   /** Полностью убрать черновик чата (после отправки / удаления) и сохранить сразу. */
   const clearDraft = useCallback(
     (id) => {
@@ -97,5 +121,6 @@ export default function useChatDrafts() {
     getStagedFor,
     stageContextItem,
     unstageContextItem,
+    moveDraft,
   };
 }

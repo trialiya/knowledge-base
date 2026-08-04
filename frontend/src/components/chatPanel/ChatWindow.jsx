@@ -114,6 +114,9 @@ const ChatWindow = ({
   const [deletedNotice, setDeletedNotice] = useState(false);
   // Уведомление об ошибке загрузки файла (вместо нативного alert).
   const [uploadErrorNotice, setUploadErrorNotice] = useState(false);
+  // Bump → перечитать список в открытой панели вложений. Панель грузит его один раз
+  // на чат и о том, что файл приложили (или отменили) из композера, сама не узнает.
+  const [attachRefreshSignal, setAttachRefreshSignal] = useState(0);
   // chatId, для которого POST /runs уже отправлен, но runId ещё не получен.
   // Закрывает окно между кликом «отправить» и ответом сервера: isStreaming
   // становится true синхронно, и ввод блокируется сразу, а не с приходом runId.
@@ -132,6 +135,7 @@ const ChatWindow = ({
     getStagedFor,
     stageContextItem,
     unstageContextItem,
+    moveDraft,
   } = useChatDrafts();
   // clientMsgId-ы сообщений, отправленных ИЗ ЭТОЙ вкладки. Нужны, чтобы не задвоить
   // свой оптимистично показанный пузырь, получив его же эхом из потока событий.
@@ -841,23 +845,73 @@ const ChatWindow = ({
   // чипом к следующему сообщению — чтобы модель узнала о нём, не спрашивая.
   // Правую панель при этом не раскрываем: чип над полем ввода — более точная
   // обратная связь, чем открывшийся список всех вложений чата.
+  //
+  // В черновике настоящий conversationId рождается прямо здесь — как и при отправке
+  // первого сообщения. Заводить чат отдельным запросом не нужно: строку в chat_topic
+  // создаёт сама загрузка вложения (ChatTopicService), в одной транзакции с файлом.
   const handleAttachFile = useCallback(
     async (file) => {
-      if (!activeChatId || activeChatId === DRAFT_CHAT_ID || !file) return;
+      if (!activeChatId || !file) return;
+      const isDraft = activeChatId === DRAFT_CHAT_ID;
+      const conversationId = isDraft ? generateUUID() : activeChatId;
       try {
-        const uploaded = await attachmentApi.upload('chat', activeChatId, file);
-        setAttachCount((n) => n + 1);
-        stageContextItem(activeChatId, {
+        const uploaded = await attachmentApi.upload(OWNER_TYPE.CHAT, conversationId, file);
+        if (isDraft) {
+          setChats((prev) => {
+            const found = prev.find((c) => c.id === DRAFT_CHAT_ID);
+            if (!found) return prev;
+            return [
+              // messages: [] — не null: иначе useChatMessages пойдёт грузить историю,
+              // которой у только что заведённого чата ещё нет.
+              { ...found, id: conversationId, draft: false, messages: found.messages || [] },
+              ...prev.filter((c) => c.id !== DRAFT_CHAT_ID),
+            ];
+          });
+          moveDraft(DRAFT_CHAT_ID, conversationId);
+          selectChat(conversationId);
+          // Счётчик бейджа не трогаем: у чата сменился id, и useAttachmentCount
+          // перечитает его сам — иначе прибавка либо потеряется, либо задвоится.
+        } else {
+          setAttachCount((n) => n + 1);
+        }
+        stageContextItem(conversationId, {
           kind: CONTEXT_KIND.ATTACHMENT,
           ref: String(uploaded.id),
           label: uploaded.fileName,
         });
+        setAttachRefreshSignal((n) => n + 1);
       } catch (err) {
         console.error('Upload error:', err);
         setUploadErrorNotice(true);
       }
     },
-    [activeChatId, setAttachCount, stageContextItem],
+    [activeChatId, setAttachCount, stageContextItem, moveDraft, selectChat],
+  );
+
+  // Снять чип из композера. К этому моменту файл уже лежит вложением чата, и чип —
+  // единственный его след на экране: оставить файл значит оставить незамеченным то,
+  // что пользователь только что отменил. Поэтому «убрать чип» — это удалить вложение.
+  const handleUnstageContext = useCallback(
+    async (item) => {
+      unstageContextItem(activeChatId, item);
+      if (item.kind !== CONTEXT_KIND.ATTACHMENT) return;
+      try {
+        const res = await attachmentApi.delete(item.ref);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        setAttachCount((n) => Math.max(0, n - 1));
+        setAttachRefreshSignal((n) => n + 1);
+      } catch (err) {
+        console.error('Ошибка удаления вложения:', err);
+      }
+    },
+    [activeChatId, unstageContextItem, setAttachCount],
+  );
+
+  // Файл удалили из панели вложений, а он всё ещё отложен чипом к следующему сообщению.
+  // Снимаем чип: иначе отправка упала бы на 404 из-за ссылки на то, чего уже нет.
+  const handleAttachmentDeleted = useCallback(
+    (id) => unstageContextItem(activeChatId, { kind: CONTEXT_KIND.ATTACHMENT, ref: String(id) }),
+    [activeChatId, unstageContextItem],
   );
 
   // Суффикс с кодом ошибки для сообщения модалки (если это не сетевой сбой).
@@ -941,10 +995,9 @@ const ChatWindow = ({
           onSend={handleSendMessage}
           onStop={handleStopGeneration}
           disabled={isStreaming}
-          // У черновика чата на бэке ещё нет — вложению не к чему прикрепиться.
-          onAttach={activeChatId === DRAFT_CHAT_ID ? undefined : () => attachFileRef.current?.click()}
+          onAttach={() => attachFileRef.current?.click()}
           staged={getStagedFor(activeChatId)}
-          onUnstage={(item) => unstageContextItem(activeChatId, item)}
+          onUnstage={handleUnstageContext}
           isEmpty={isChatEmpty && !loadingMessages}
           resetSignal={composerResetSignal}
           focusSignal={composerFocusSignal}
@@ -1018,19 +1071,35 @@ const ChatWindow = ({
         label: t('window.attachments'),
         icon: <IconPaperclip size={16} />,
         badge: attachCount,
-        content: activeChatId ? (
-          <AttachmentPanel
-            key={activeChatId}
-            ownerType={OWNER_TYPE.CHAT}
-            ownerId={activeChatId}
-            onCountChange={setAttachCount}
-          />
-        ) : (
-          <p className="chat-empty-note">{t('window.selectChat')}</p>
-        ),
+        // Черновика на бэке ещё нет, и загружать в него нельзя: «new» — выдумка фронта,
+        // а загрузка вложения заводит чат с тем id, который ей дали. Чат рождается с
+        // настоящим UUID — из композера (скрепка) или с первого сообщения.
+        content:
+          !activeChatId || activeChatId === DRAFT_CHAT_ID ? (
+            <p className="chat-empty-note">{activeChatId ? t('window.attachmentsInDraft') : t('window.selectChat')}</p>
+          ) : (
+            <AttachmentPanel
+              key={activeChatId}
+              ownerType={OWNER_TYPE.CHAT}
+              ownerId={activeChatId}
+              onCountChange={setAttachCount}
+              refreshSignal={attachRefreshSignal}
+              onDeleted={handleAttachmentDeleted}
+            />
+          ),
       },
     ],
-    [t, attachCount, activeChatId, setAttachCount, infoChat, selectedModelLabel, selectedModeLabel],
+    [
+      t,
+      attachCount,
+      activeChatId,
+      setAttachCount,
+      attachRefreshSignal,
+      handleAttachmentDeleted,
+      infoChat,
+      selectedModelLabel,
+      selectedModeLabel,
+    ],
   );
 
   return (

@@ -18,8 +18,12 @@ import './attachmentPanel.css';
  *   ownerId    — document id (number/string) or conversationId (string)
  *   compact    — if true, renders a minimal list (for summary tab)
  *   onCountChange — optional callback (count) when attachment count changes
+ *   refreshSignal — bump to re-read the list: the owner's attachments changed
+ *                   somewhere else (the chat composer attaches and cancels files too)
+ *   onDeleted  — optional callback (id) after a file is actually gone, for whoever
+ *                still holds a reference to it (the chat composer's staged chips)
  */
-const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange }) => {
+const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange, refreshSignal = 0, onDeleted }) => {
   const { t } = useTranslation();
   const [attachments, setAttachments] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -66,6 +70,13 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
     loadedOwnerRef.current = ownerKey;
     loadAttachments();
   }, [ownerType, ownerId, loadAttachments]);
+
+  // Список загружается один раз на владельца, поэтому о файле, приложённом (или
+  // отменённом) мимо панели, она узнаёт только так. Ноль — начальное значение,
+  // на него не перечитываем: загрузку уже сделал эффект выше.
+  useEffect(() => {
+    if (refreshSignal) loadAttachments();
+  }, [refreshSignal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Upload ──────────────────────────────────────────────────────────────
 
@@ -120,6 +131,7 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange })
         onCountChange?.(next.length);
         return next;
       });
+      onDeleted?.(id);
     } catch {
       setError(t('attachments.errorDelete'));
     }

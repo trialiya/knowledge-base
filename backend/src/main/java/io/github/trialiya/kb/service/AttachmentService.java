@@ -85,6 +85,7 @@ public class AttachmentService implements DisposableBean {
     private final AttachmentRepository attachmentRepo;
     private final AttachmentEmbeddingRepository embeddingRepo;
     private final EmbeddingService embeddingService;
+    private final ChatTopicService chatTopicService;
     private final ChatClient chatClient;
     private final ExecutorService indexingExecutor;
 
@@ -92,10 +93,12 @@ public class AttachmentService implements DisposableBean {
             AttachmentRepository attachmentRepo,
             AttachmentEmbeddingRepository embeddingRepo,
             EmbeddingService embeddingService,
+            ChatTopicService chatTopicService,
             OpenAiChatModel openAiChatModel) {
         this.attachmentRepo = attachmentRepo;
         this.embeddingRepo = embeddingRepo;
         this.embeddingService = embeddingService;
+        this.chatTopicService = chatTopicService;
         this.chatClient = ChatClient.builder(openAiChatModel).build();
         this.indexingExecutor = Executors.newVirtualThreadPerTaskExecutor();
     }
@@ -122,12 +125,17 @@ public class AttachmentService implements DisposableBean {
     /**
      * Uploads a text file and attaches it to a chat conversation.
      *
+     * <p>The chat is created when it isn't there yet: a file can be the very first thing a user
+     * does in a brand-new chat, and the attachment needs an owning row to point at. Both happen in
+     * one transaction, so a rejected file leaves no empty chat behind.
+     *
      * @param conversationId owning conversation id
      * @param file multipart file (must be text-based)
      * @return persisted attachment DTO
      */
     @Transactional
     public Attachment uploadForChat(String conversationId, MultipartFile file) {
+        chatTopicService.ensureExists(conversationId);
         return upload(AttachmentOwnerType.CHAT, null, conversationId, file);
     }
 
