@@ -31,6 +31,14 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class SummarizeService implements DisposableBean {
 
+    /**
+     * Flat per-message protocol overhead charged by {@code messageChars}, in characters — roughly
+     * four tokens at the default {@code chars-per-token}, which is about what a role plus the JSON
+     * envelope around one message costs in an OpenAI-shaped request. Deliberately not a configured
+     * property: it describes the wire format, not a preference anyone should be tuning.
+     */
+    private static final int PER_MESSAGE_CHARS = 16;
+
     private static final String COLLAPSE_HEADER =
             "The following are consecutive summaries of a long conversation:\n";
     private static final String CONTEXT_HEADER =
@@ -125,11 +133,18 @@ public class SummarizeService implements DisposableBean {
                                                         && !m.getInvocations().isEmpty()))
                         .toList();
 
+        // One line per AI reply, so the second half is spelled out only when it says something the
+        // first does not: the two differ exactly when the window carries empty TOOL protocol rows,
+        // which are context the model pays for but the summarizer prompt never sees.
+        final MessageMix liveMix = MessageMix.of(allLive);
+        final MessageMix promptMix = MessageMix.of(liveMessages);
         log.info(
-                "[{}] Summarization check — live context: {}; of them prompt-eligible: {}",
+                "[{}] Summarization check — live context: {}{}",
                 conversationId,
-                MessageMix.of(allLive),
-                MessageMix.of(liveMessages));
+                liveMix,
+                liveMix.total() == promptMix.total()
+                        ? ""
+                        : "; of them prompt-eligible: " + promptMix);
 
         // 2. Determine the slice to compress: everything before the live tail. Three rules shape
         // the boundary and they are not peers. Two are preferences about what the tail should
@@ -239,11 +254,23 @@ public class SummarizeService implements DisposableBean {
 
         final List<ChatMessageEntity> toCompress = liveMessages.subList(0, cutoff);
 
+        // The range that will actually be marked summarized. liveMessages excludes empty TOOL
+        // protocol rows, so the range must run up to (but not including) the first KEPT message —
+        // otherwise the trailing protocol rows of the last compressed turn would stay live and
+        // orphaned. When everything is compressed (no kept message), the range must cover those
+        // trailing rows too, and only allLive — not toCompress — holds the true last position.
+        // Logged rather than toCompress.getLast(), which stops at the last prompt-eligible row and
+        // so under-reports every turn that ended in tool traffic.
+        final long endPosition =
+                cutoffPosition == Long.MAX_VALUE
+                        ? allLive.getLast().getPosition()
+                        : cutoffPosition - 1;
+
         log.info(
                 "[{}] Compressing positions {}-{}: {}; keeping live: {}",
                 conversationId,
                 toCompress.getFirst().getPosition(),
-                toCompress.getLast().getPosition(),
+                endPosition,
                 MessageMix.of(toCompress),
                 MessageMix.of(liveMessages.subList(cutoff, liveMessages.size())));
 
@@ -284,16 +311,6 @@ public class SummarizeService implements DisposableBean {
                 summaryText.length() / summarizeProperties.charsPerToken());
 
         // 7. Persist: mark compressed messages as summarized, insert new summary row.
-        // liveMessages still excludes empty TOOL protocol rows, so the marked range must run up to
-        // (but not including) the first KEPT message — otherwise the trailing protocol rows of the
-        // last compressed turn would stay live and orphaned. When everything is compressed (no kept
-        // message), the range must cover trailing protocol rows too — allLive, not toCompress,
-        // holds
-        // the true last position.
-        final long endPosition =
-                cutoffPosition == Long.MAX_VALUE
-                        ? allLive.getLast().getPosition()
-                        : cutoffPosition - 1;
         persistSummary(
                 conversationId,
                 toCompress,
@@ -431,15 +448,25 @@ public class SummarizeService implements DisposableBean {
      * threshold check; no need for a full tokenizer here.
      */
     private int estimateTokens(List<ChatMessageEntity> messages, long beforePosition) {
-        return messages.stream()
-                        .filter(m -> m.getPosition() < beforePosition)
-                        .mapToInt(SummarizeService::messageChars)
-                        .sum()
-                / summarizeProperties.charsPerToken();
+        return (int)
+                (messages.stream()
+                                .filter(m -> m.getPosition() < beforePosition)
+                                .mapToLong(SummarizeService::messageChars)
+                                .sum()
+                        / summarizeProperties.charsPerToken());
     }
 
-    private static int messageChars(ChatMessageEntity message) {
-        int chars = message.getText() == null ? 0 : message.getText().length();
+    /**
+     * What one message costs the request, in characters. Every message carries protocol framing on
+     * top of its payload — its role, the JSON envelope around it, the tool_call_id on a TOOL row —
+     * and {@code PER_MESSAGE_CHARS} charges a flat approximation of it. Without that charge an
+     * empty TOOL row costs literally nothing and a window of a thousand short rows estimates as
+     * nearly free, which is the difference between a token budget that bounds the window and one
+     * that can be walked around by splitting the same context across more messages.
+     */
+    private static long messageChars(ChatMessageEntity message) {
+        long chars = PER_MESSAGE_CHARS;
+        chars += message.getText() == null ? 0 : message.getText().length();
         final ToolData toolData = message.getToolData();
         if (toolData != null) {
             if (toolData.toolCalls() != null) {

@@ -198,9 +198,32 @@ class SummarizeOverlapTest {
         service(new SummarizeProperties(30_000, 50, 30, 5, 5, 4)).doSummarize(CONV);
 
         // Правило по вопросам дало бы границу 1 (пятый с конца вопрос стоит на позиции 1), и раунд
-        // не стартовал бы вовсе: 1 < 50 сообщений. Бюджет требует сжать всё до позиции 759 —
-        // живыми остаются ровно 240 сообщений, те самые 120 000 символов бюджета.
-        verify(repository).updateSummarized(CONV, 0L, 759L);
+        // не стартовал бы вовсе: 1 < 50 сообщений. Бюджет требует сжать всё до позиции 767 —
+        // живыми остаются 232 сообщения по 516 символов (500 текста плюс протокольная надбавка),
+        // то есть 119 712 из 120 000 символов бюджета: следующее сообщение в него уже не влезло бы.
+        verify(repository).updateSummarized(CONV, 0L, 767L);
+    }
+
+    /**
+     * Оборотная сторона того же контрпримера и граница политики: то же окно на тысячу сообщений, но
+     * сообщения короткие — всё окно укладывается в бюджет. Сжатия не происходит, и это не утечка:
+     * инвариант заявлен в токенах, а тысяча коротких строк модели стоит меньше тридцати тысяч
+     * токенов. Порог по числу сообщений границу не двигает — он только запускает раунд.
+     */
+    @Test
+    void aThousandShortMessagesStayLiveWhileTheWindowFitsTheBudget() {
+        final List<ChatMessageEntity> live = new ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            live.add(message(i, MessageType.USER));
+        }
+        for (int i = 6; i < 1000; i++) {
+            live.add(message(i, MessageType.ASSISTANT));
+        }
+        givenLive(live);
+
+        service(new SummarizeProperties(30_000, 50, 30, 5, 5, 4)).doSummarize(CONV);
+
+        verify(repository, never()).updateSummarized(anyString(), anyLong(), anyLong());
     }
 
     // -------------------------------------------------------------------------
