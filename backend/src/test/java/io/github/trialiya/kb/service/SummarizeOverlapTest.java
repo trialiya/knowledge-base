@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 import io.github.trialiya.kb.config.model.SummarizeProperties;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
+import io.github.trialiya.kb.service.ChatMemoryService.PromptRow;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -50,20 +51,18 @@ class SummarizeOverlapTest {
     private static final int BUDGET = 100_000;
 
     private ChatMessageRepository repository;
+    private ChatMemoryService chatMemoryService;
     private OpenAiChatModel chatModel;
 
     @BeforeEach
     void setUp() {
         repository = mock(ChatMessageRepository.class);
+        chatMemoryService = mock(ChatMemoryService.class);
         chatModel = mock(OpenAiChatModel.class);
         when(chatModel.getOptions()).thenReturn(OpenAiChatOptions.builder().build());
         when(chatModel.call(any(Prompt.class)))
                 .thenReturn(
                         new ChatResponse(List.of(new Generation(new AssistantMessage("gist")))));
-        when(repository
-                        .findChatMessageByConversationIdAndSummarizedFalseAndSummaryTrueOrderByCreatedAtAscPositionAsc(
-                                anyString()))
-                .thenReturn(List.of());
     }
 
     /**
@@ -229,10 +228,11 @@ class SummarizeOverlapTest {
     // -------------------------------------------------------------------------
 
     private void givenLive(List<ChatMessageEntity> live) {
-        when(repository
-                        .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
-                                eq(CONV)))
-                .thenReturn(live);
+        when(chatMemoryService.promptRows(eq(CONV)))
+                .thenReturn(
+                        live.stream()
+                                .map(entity -> new PromptRow(entity, entity.getContent()))
+                                .toList());
     }
 
     private static ChatMessageEntity message(long position, MessageType type) {
@@ -269,6 +269,7 @@ class SummarizeOverlapTest {
         return new SummarizeService(
                 chatModel,
                 repository,
+                chatMemoryService,
                 new ByteArrayResource("summarize".getBytes()),
                 transactionManager(),
                 properties,

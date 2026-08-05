@@ -405,32 +405,56 @@ public class ChatMemoryService implements ChatMemoryRepository {
         return null;
     }
 
+    /**
+     * Ряд истории в том виде, в каком его увидит модель: сама строка и её текст в промпте.
+     *
+     * <p>Текст — не то же самое, что {@code chat_message.content}: к вопросу с приложенным
+     * контекстом дописывается блок описи (см. {@link ContextItemService#renderAll}), который
+     * собирается при каждом чтении и в БД не попадает — иначе удалённое вложение осталось бы в
+     * истории вечным обещанием файла, которого больше нет.
+     *
+     * <p>Пара нужна затем, что вес истории считают не только по её тексту: {@code SummarizeService}
+     * решает по нему, что сжимать, а метить сжатое умеет только по позициям из {@code entity}.
+     */
+    public record PromptRow(ChatMessageEntity entity, String text) {
+
+        public Message toMessage() {
+            // Описью обрастает только вопрос — у остальных типов текст равен content, и обёртка
+            // им не нужна ни по смыслу, ни по типу.
+            return entity.getType() == MessageType.USER && !text.equals(entity.getContent())
+                    ? new UserChatMessage(entity, text)
+                    : entity.getMessage();
+        }
+    }
+
     @Override
     public List<Message> findByConversationId(String conversationId) {
-        return chatMessageRepository
-                .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
-                        conversationId)
-                .stream()
-                .map(entity -> toPromptMessage(conversationId, entity))
-                .toList();
+        return promptRows(conversationId).stream().map(PromptRow::toMessage).toList();
     }
 
     /**
-     * Ряд истории в том виде, в каком его увидит модель. Отличие от {@link
-     * ChatMessageEntity#getMessage()} одно: к вопросу с приложенным контекстом дописывается блок с
-     * описью приложенного (см. {@link ContextItemService#render}). Блок собирается здесь, при
-     * каждом чтении, и в БД не попадает — иначе удалённое вложение осталось бы в истории вечным
-     * обещанием файла, которого больше нет.
+     * Живая (несжатая) история вместе с текстом, который реально уедет модели. Единственный
+     * источник правды об этом тексте: и промпт, и оценка веса окна в {@code SummarizeService}
+     * строятся отсюда, поэтому разойтись в том, «что именно видит модель», они не могут. Ровно один
+     * запрос за описями на всё окно.
+     *
+     * <p>Строки-сводки ({@code summary = true}) остаются в выборке: они тоже уезжают модели в
+     * каждом запросе, значит тоже занимают бюджет.
      */
-    private Message toPromptMessage(String conversationId, ChatMessageEntity entity) {
-        if (entity.getType() != MessageType.USER || entity.getMeta() == null) {
-            return entity.getMessage();
-        }
-        final String context =
-                contextItemService.render(conversationId, entity.getMeta().contextItems());
-        return context.isEmpty()
-                ? entity.getMessage()
-                : new UserChatMessage(entity, entity.getContent() + context);
+    public List<PromptRow> promptRows(String conversationId) {
+        final List<ChatMessageEntity> rows =
+                chatMessageRepository
+                        .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
+                                conversationId);
+        final Map<Long, String> context = contextItemService.renderAll(conversationId, rows);
+        return rows.stream()
+                .map(
+                        entity ->
+                                new PromptRow(
+                                        entity,
+                                        entity.getContent()
+                                                + context.getOrDefault(entity.getId(), "")))
+                .toList();
     }
 
     @Override

@@ -9,11 +9,14 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.tool.ToolData;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
+import io.github.trialiya.kb.service.ChatMemoryService.PromptRow;
 import jakarta.annotation.Nonnull;
 import java.util.List;
+import java.util.OptionalInt;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.locks.Lock;
+import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.util.Strings;
 import org.jspecify.annotations.Nullable;
@@ -50,16 +53,17 @@ public class SummarizeService implements DisposableBean {
 
     private final ChatClient chatClient;
     private final ChatMessageRepository chatMessageRepository;
+    private final ChatMemoryService chatMemoryService;
     private final ExecutorService executorService;
     private final TransactionTemplate transactionTemplate;
     private final SummarizeProperties summarizeProperties;
-    private final ContextItemService contextItemService;
 
     private final Striped<Lock> locks = Striped.lock(1024);
 
     public SummarizeService(
             OpenAiChatModel openAiChatModel,
             ChatMessageRepository chatMessageRepository,
+            ChatMemoryService chatMemoryService,
             @Value("classpath:prompt/summarizer.md") Resource summarizerPrompt,
             PlatformTransactionManager transactionManager,
             SummarizeProperties summarizeProperties,
@@ -72,7 +76,7 @@ public class SummarizeService implements DisposableBean {
                                         chatMessageRepository, contextItemService))
                         .build();
         this.chatMessageRepository = chatMessageRepository;
-        this.contextItemService = contextItemService;
+        this.chatMemoryService = chatMemoryService;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.executorService = Executors.newVirtualThreadPerTaskExecutor();
         this.summarizeProperties = summarizeProperties;
@@ -108,29 +112,42 @@ public class SummarizeService implements DisposableBean {
     // -------------------------------------------------------------------------
 
     public void doSummarize(@Nonnull final String conversationId) {
-        // 1. Fetch all live (non-summarized) rows, excluding summary rows. This includes blank-text
-        // TOOL protocol rows with no invocations — their payloads still occupy the model's context
-        // window on every follow-up request, so they must count toward the token estimate below
-        // even though they're excluded from liveMessages/the prompt.
-        final List<ChatMessageEntity> allLive =
-                chatMessageRepository
-                        .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
-                                conversationId)
-                        .stream()
-                        .filter(m -> !m.isSummary())
+        // 1. The live history as the model receives it. Every row here carries the text that will
+        // actually be sent, not the text that happens to be stored: the attachment inventory is
+        // appended when history is read and never lands in chat_message.content, so measuring the
+        // entity would under-count the window by however long the attachments' summaries are.
+        // ChatMemoryService#promptRows is the one place that answers "what does the model see",
+        // and it answers it for the prompt and for this budget alike.
+        final List<PromptRow> promptRows = chatMemoryService.promptRows(conversationId);
+
+        // Summaries ride along in every request but are not part of the window this round may
+        // compress — they are already-compressed past. So they leave the window and take their
+        // share of the budget with them, below.
+        final List<ChatMessageEntity> existingSummaries =
+                promptRows.stream()
+                        .map(PromptRow::entity)
+                        .filter(ChatMessageEntity::isSummary)
                         .toList();
+
+        // allLive keeps the blank-text TOOL protocol rows: their payloads occupy the model's
+        // context on every follow-up request, so they weigh on the budget even though the
+        // summarizer prompt never sees them.
+        final List<PromptRow> allLive =
+                promptRows.stream().filter(row -> !row.entity().isSummary()).toList();
 
         // liveMessages: the subset used to pick the cutoff and build the LLM prompt — anything
         // with text, or a tool-calls-only ASSISTANT segment (blank text but non-empty invocations).
         // Only truly-empty TOOL protocol rows are excluded: their info is already exposed via the
         // owning ASSISTANT segment's invocations/resultGist.
-        final List<ChatMessageEntity> liveMessages =
+        final List<PromptRow> liveMessages =
                 allLive.stream()
                         .filter(
-                                m ->
-                                        Strings.isNotBlank(m.getText())
-                                                || (m.getInvocations() != null
-                                                        && !m.getInvocations().isEmpty()))
+                                row ->
+                                        Strings.isNotBlank(row.entity().getText())
+                                                || (row.entity().getInvocations() != null
+                                                        && !row.entity()
+                                                                .getInvocations()
+                                                                .isEmpty()))
                         .toList();
 
         // One line per AI reply, so the second half is spelled out only when it says something the
@@ -146,69 +163,46 @@ public class SummarizeService implements DisposableBean {
                         ? ""
                         : "; of them prompt-eligible: " + promptMix);
 
-        // 2. Determine the slice to compress: everything before the live tail. Three rules shape
-        // the boundary and they are not peers. Two are preferences about what the tail should
-        // hold — at least overlapMessages messages of any kind AND at least overlapUserMessages
-        // USER messages — so the earlier of those two boundaries wins. The count rule alone would
-        // let a single question followed by a long tool marathon push the user's own recent
-        // questions into the summary; the user rule alone would let a burst of short questions
-        // shrink the live tail to almost nothing. The third rule, applied below, is not a
-        // preference but a floor: whatever the tail is, it must still fit the token budget.
+        // 2. Determine the slice to compress: everything before the live tail. Four rules shape the
+        // boundary and they are not peers.
+        //
+        // Three are PREFERENCES about what the tail should hold, and each is only an upper bound on
+        // how much may be compressed: at least overlapMessages messages of any kind, at least
+        // overlapUserMessages USER messages, and the tail should open on a whole turn. A preference
+        // that cannot be satisfied simply does not apply — it never forces the boundary anywhere,
+        // which is why none of them needs a fallback branch to rescue it.
+        //
+        // One is a FLOOR, and it is the only rule that bounds anything: whatever the tail is, it
+        // must fit the token budget. The preferences can move the boundary earlier and never
+        // later, so on their own they let the window grow to whatever the last few turns produce.
         final int overlapMessages = summarizeProperties.overlapMessages();
         final int overlapUserMessages = summarizeProperties.overlapUserMessages();
-        final int countCutoff = liveMessages.size() - overlapMessages;
-        final int userCutoff = userMessageCutoff(liveMessages, overlapUserMessages);
-        final int rawCutoff = Math.min(countCutoff, userCutoff);
 
-        // The first KEPT message must be a USER message: assistant tool-call segments and their
-        // TOOL responses form indivisible pairs, so we only compress whole turns. Otherwise a
-        // kept TOOL row could lose its assistant counterpart (the model rejects orphaned tool
-        // messages). userCutoff already lands on one; countCutoff generally does not.
-        int cutoff = rawCutoff;
-        while (cutoff > 0
-                && cutoff < liveMessages.size()
-                && liveMessages.get(cutoff).getType() != MessageType.USER) {
-            cutoff--;
-        }
-        if (cutoff <= 0 && countCutoff > 0) {
-            // Ни одно USER-сообщение не может открыть хвост, хотя сообщений уже больше окна. Причин
-            // три, и снаружи они неразличимы: в окне нет ни одного USER (один вопрос → длинный
-            // tool-марафон); USER-сообщений меньше, чем требует overlap-user-messages; либо все они
-            // лежат позже границы по числу сообщений. Без запасного варианта сжатие не запустилось
-            // бы никогда, и контекст рос бы неограниченно, поэтому здесь правило по числу
-            // USER-сообщений отступает: удержать их столько, сколько диалог не содержит, всё равно
-            // нельзя. Резать по countCutoff безопасно: первым ОСТАВЛЕННЫМ окажется текстовый
-            // ASSISTANT-сегмент (протокольные TOOL-строки пусты и в liveMessages не входят),
-            // а пометка summarized идёт по позициям — парные TOOL-строки уходят в summary
-            // вместе со своими assistant-сегментами, ответ на tool_calls сегмента-границы
-            // остаётся живым вместе с ним.
-            log.info(
-                    "[{}] No USER message can open the live tail (window: {}; overlap rules ask for"
-                            + " {} messages and {} user messages) — falling back to the"
-                            + " message-count boundary {}",
-                    conversationId,
-                    MessageMix.of(liveMessages),
-                    overlapMessages,
-                    overlapUserMessages,
-                    countCutoff);
-            cutoff = countCutoff;
-        }
+        int preferred = liveMessages.size() - overlapMessages;
+        preferred =
+                Math.min(
+                        preferred,
+                        userBoundary(liveMessages, overlapUserMessages).orElse(preferred));
+        preferred = turnBoundary(liveMessages, preferred).orElse(preferred);
 
-        // Both preferences may only move the boundary earlier, so on their own they bound nothing:
-        // five questions that produced a thousand tool rows keep all thousand live for ever. The
-        // budget floor is what actually caps the window — it moves the boundary back to wherever
-        // the kept tail starts fitting the token budget, and it outranks both preferences because
-        // a tail the model cannot be sent is worth less than the questions kept inside it.
-        final int budgetCutoff = tokenBudgetCutoff(allLive, liveMessages);
-        if (budgetCutoff > 0 && budgetCutoff > cutoff) {
+        // The budget takes its share from the summaries first: they are sent with every request
+        // just like the window is, so the window's real allowance is what they leave behind.
+        final long budgetChars =
+                (long) summarizeProperties.tokenThreshold() * summarizeProperties.charsPerToken()
+                        - charsOf(promptRows.stream().filter(row -> row.entity().isSummary()));
+        final int windowBudgetTokens = (int) (budgetChars / summarizeProperties.charsPerToken());
+        final int floor = tokenBudgetCutoff(allLive, liveMessages, budgetChars);
+
+        final int cutoff = Math.max(floor, preferred);
+        if (floor > preferred) {
             log.info(
-                    "[{}] Live tail is over the {}-token budget — the overlap rules stopped at {},"
-                            + " the budget needs {}",
+                    "[{}] Live tail is over its {}-token share of the {}-token budget — the"
+                            + " preferences stopped at {}, the budget needs {}",
                     conversationId,
+                    windowBudgetTokens,
                     summarizeProperties.tokenThreshold(),
-                    cutoff,
-                    budgetCutoff);
-            cutoff = budgetCutoff;
+                    preferred,
+                    floor);
         }
         if (cutoff <= 0) {
             log.info(
@@ -226,7 +220,7 @@ public class SummarizeService implements DisposableBean {
         // this round. Reused both for the token estimate and, below, for marking rows summarized.
         final long cutoffPosition =
                 cutoff < liveMessages.size()
-                        ? liveMessages.get(cutoff).getPosition()
+                        ? liveMessages.get(cutoff).entity().getPosition()
                         : Long.MAX_VALUE;
 
         // 3. Decide whether this round is worth running at all. Each threshold measures the thing
@@ -240,19 +234,19 @@ public class SummarizeService implements DisposableBean {
         // a large tool result occupies the context exactly like a large assistant reply.
         final int sliceTokens = estimateTokens(allLive, cutoffPosition);
         final int messageCountThreshold = summarizeProperties.messageCountThreshold();
-        if (cutoff < messageCountThreshold && budgetCutoff == 0) {
+        if (cutoff < messageCountThreshold && floor == 0) {
             log.info(
                     "[{}] Skipping summarization — compressible: {} < threshold: {}, and the live"
-                            + " window ({} tokens) is within the {}-token budget",
+                            + " window ({} tokens) is within its {}-token share of the budget",
                     conversationId,
                     MessageMix.of(liveMessages.subList(0, cutoff)),
                     messageCountThreshold,
                     estimateTokens(allLive, Long.MAX_VALUE),
-                    summarizeProperties.tokenThreshold());
+                    windowBudgetTokens);
             return;
         }
 
-        final List<ChatMessageEntity> toCompress = liveMessages.subList(0, cutoff);
+        final List<PromptRow> toCompress = liveMessages.subList(0, cutoff);
 
         // The range that will actually be marked summarized. liveMessages excludes empty TOOL
         // protocol rows, so the range must run up to (but not including) the first KEPT message —
@@ -263,24 +257,18 @@ public class SummarizeService implements DisposableBean {
         // so under-reports every turn that ended in tool traffic.
         final long endPosition =
                 cutoffPosition == Long.MAX_VALUE
-                        ? allLive.getLast().getPosition()
+                        ? allLive.getLast().entity().getPosition()
                         : cutoffPosition - 1;
 
         log.info(
                 "[{}] Compressing positions {}-{}: {}; keeping live: {}",
                 conversationId,
-                toCompress.getFirst().getPosition(),
+                toCompress.getFirst().entity().getPosition(),
                 endPosition,
                 MessageMix.of(toCompress),
                 MessageMix.of(liveMessages.subList(cutoff, liveMessages.size())));
 
-        // 4. Load existing summaries to give the LLM prior context.
-        final List<ChatMessageEntity> existingSummaries =
-                chatMessageRepository
-                        .findChatMessageByConversationIdAndSummarizedFalseAndSummaryTrueOrderByCreatedAtAscPositionAsc(
-                                conversationId);
-
-        // 5. Generate summary text via LLM. Collapse existing summaries into one meta-summary
+        // 4. Generate summary text via LLM. Collapse existing summaries into one meta-summary
         // if this round's new summary would otherwise push the count to summaryCollapseThreshold.
         final boolean collapseSummaries =
                 existingSummaries.size() + 1 >= summarizeProperties.summaryCollapseThreshold();
@@ -294,14 +282,14 @@ public class SummarizeService implements DisposableBean {
             return;
         }
 
-        // 6. Build the summary message stored as ASSISTANT context.
+        // 5. Build the summary message stored as ASSISTANT context.
         final String summaryText =
                 collapseSummaries
                         ? buildMetaSummaryText(summaryContent)
                         : buildSummaryText(
                                 summaryContent,
-                                toCompress.getFirst().getPosition(),
-                                toCompress.getLast().getPosition());
+                                toCompress.getFirst().entity().getPosition(),
+                                toCompress.getLast().entity().getPosition());
 
         log.info(
                 "[{}] Summarization finished — compressed {} (~{} tokens) into ~{} tokens",
@@ -339,28 +327,29 @@ public class SummarizeService implements DisposableBean {
      * overlap-messages} — "does the tail still fit" has one honest answer and {@code
      * token-threshold} already states it.
      *
-     * <p>The result is deliberately not aligned onto a USER message the way the overlap rules are:
-     * the floor exists for windows where the nearest USER row is far behind, and aligning would
-     * hand the budget straight back. It is safe for the same reason the count-boundary fallback in
-     * {@code doSummarize} is safe — only truly-empty TOOL rows are missing from {@code
-     * liveMessages}, and rows are marked summarized by position, so a tool pair is never split
-     * across the boundary. The newest message always stays live: summarizing the question that was
-     * just asked would buy nothing.
+     * <p>The result is deliberately not aligned onto a USER message the way {@link #turnBoundary}
+     * asks for: the floor exists for windows where the nearest USER row is far behind, and aligning
+     * would hand the budget straight back. Nothing breaks — the tool-pair invariant does not come
+     * from alignment at all, see where {@code endPosition} is computed. The newest message always
+     * stays live: summarizing the question that was just asked would buy nothing.
+     *
+     * @param budgetChars what the window may spend, i.e. the configured budget minus what the
+     *     summaries already take. Non-positive means the summaries alone are over budget, and every
+     *     row overflows at once — the window is squeezed to its newest message, which is the most
+     *     this rule can do.
      */
-    private int tokenBudgetCutoff(
-            List<ChatMessageEntity> allLive, List<ChatMessageEntity> liveMessages) {
+    private static int tokenBudgetCutoff(
+            List<PromptRow> allLive, List<PromptRow> liveMessages, long budgetChars) {
         if (liveMessages.isEmpty()) {
             return 0;
         }
-        final long budgetChars =
-                (long) summarizeProperties.tokenThreshold() * summarizeProperties.charsPerToken();
         long chars = 0;
         long overflowPosition = 0;
         boolean overflowed = false;
         for (int i = allLive.size() - 1; i >= 0; i--) {
             chars += messageChars(allLive.get(i));
             if (chars > budgetChars) {
-                overflowPosition = allLive.get(i).getPosition();
+                overflowPosition = allLive.get(i).entity().getPosition();
                 overflowed = true;
                 break;
             }
@@ -370,32 +359,57 @@ public class SummarizeService implements DisposableBean {
         }
         int cutoff = 0;
         while (cutoff < liveMessages.size()
-                && liveMessages.get(cutoff).getPosition() <= overflowPosition) {
+                && liveMessages.get(cutoff).entity().getPosition() <= overflowPosition) {
             cutoff++;
         }
         return Math.min(cutoff, liveMessages.size() - 1);
     }
 
     /**
-     * Index of the first message of the tail that holds {@code keepUserMessages} USER messages —
-     * i.e. the index of the N-th USER message counted from the end. {@code 0} means "compress
-     * nothing", and it deliberately covers two cases at once: the N-th USER message really is the
-     * very first row of the window, and the window holds fewer than N USER messages. Both say the
-     * same thing to the caller — this rule cannot free anything — and {@code doSummarize} decides
-     * whether to honour that or fall back to the count boundary.
+     * Preference: the tail should hold {@code keepUserMessages} USER messages, so the boundary may
+     * not go past the N-th USER message counted from the end. Empty when the window does not hold
+     * that many — keeping five questions where the conversation only ever had one is not something
+     * a boundary can arrange, so the preference stands aside instead of forcing one.
+     *
+     * <p>Index {@code 0} is a real answer here, not a failure: it says the N-th question from the
+     * end opens the window, so this preference would have nothing compressed. The floor is what
+     * decides whether the window may stay that way.
      */
-    private static int userMessageCutoff(
-            List<ChatMessageEntity> liveMessages, int keepUserMessages) {
+    private static OptionalInt userBoundary(List<PromptRow> liveMessages, int keepUserMessages) {
         if (keepUserMessages <= 0) {
-            return liveMessages.size();
+            return OptionalInt.empty();
         }
         int seen = 0;
         for (int i = liveMessages.size() - 1; i >= 0; i--) {
-            if (liveMessages.get(i).getType() == MessageType.USER && ++seen == keepUserMessages) {
-                return i;
+            if (liveMessages.get(i).entity().getType() == MessageType.USER
+                    && ++seen == keepUserMessages) {
+                return OptionalInt.of(i);
             }
         }
-        return 0;
+        return OptionalInt.empty();
+    }
+
+    /**
+     * Preference: the tail should open on a whole turn, so the boundary is walked back from {@code
+     * upperBound} to the nearest USER message. Empty when there is none to walk back to, and when
+     * the bound already covers the whole window (nothing is being kept, so nothing needs opening).
+     *
+     * <p>This is taste, not protocol. It is tempting to read it as the rule that keeps an ASSISTANT
+     * tool-call segment together with its TOOL responses, and the code used to say so — but that
+     * invariant is held by position-based marking instead, and holds with or without this
+     * preference. Treating it as load-bearing is what once made an unsatisfiable alignment collapse
+     * the boundary to zero and need a fallback branch to rescue it.
+     */
+    private static OptionalInt turnBoundary(List<PromptRow> liveMessages, int upperBound) {
+        if (upperBound <= 0 || upperBound >= liveMessages.size()) {
+            return OptionalInt.empty();
+        }
+        for (int i = upperBound; i > 0; i--) {
+            if (liveMessages.get(i).entity().getType() == MessageType.USER) {
+                return OptionalInt.of(i);
+            }
+        }
+        return OptionalInt.empty();
     }
 
     /**
@@ -409,13 +423,14 @@ public class SummarizeService implements DisposableBean {
     private record MessageMix(
             int total, int user, int assistant, int tool, int other, int toolCalls) {
 
-        private static MessageMix of(List<ChatMessageEntity> messages) {
+        private static MessageMix of(List<PromptRow> rows) {
             int user = 0;
             int assistant = 0;
             int tool = 0;
             int other = 0;
             int toolCalls = 0;
-            for (ChatMessageEntity message : messages) {
+            for (PromptRow row : rows) {
+                final ChatMessageEntity message = row.entity();
                 switch (message.getType()) {
                     case USER -> user++;
                     case ASSISTANT -> assistant++;
@@ -426,7 +441,7 @@ public class SummarizeService implements DisposableBean {
                     toolCalls += message.getInvocations().size();
                 }
             }
-            return new MessageMix(messages.size(), user, assistant, tool, other, toolCalls);
+            return new MessageMix(rows.size(), user, assistant, tool, other, toolCalls);
         }
 
         @Override
@@ -447,27 +462,33 @@ public class SummarizeService implements DisposableBean {
      * (text + tool_calls arguments + tool response payloads) / charsPerToken. Good enough for a
      * threshold check; no need for a full tokenizer here.
      */
-    private int estimateTokens(List<ChatMessageEntity> messages, long beforePosition) {
+    private int estimateTokens(List<PromptRow> rows, long beforePosition) {
         return (int)
-                (messages.stream()
-                                .filter(m -> m.getPosition() < beforePosition)
-                                .mapToLong(SummarizeService::messageChars)
-                                .sum()
+                (charsOf(rows.stream().filter(row -> row.entity().getPosition() < beforePosition))
                         / summarizeProperties.charsPerToken());
     }
 
+    private static long charsOf(Stream<PromptRow> rows) {
+        return rows.mapToLong(SummarizeService::messageChars).sum();
+    }
+
     /**
-     * What one message costs the request, in characters. Every message carries protocol framing on
-     * top of its payload — its role, the JSON envelope around it, the tool_call_id on a TOOL row —
-     * and {@code PER_MESSAGE_CHARS} charges a flat approximation of it. Without that charge an
-     * empty TOOL row costs literally nothing and a window of a thousand short rows estimates as
-     * nearly free, which is the difference between a token budget that bounds the window and one
-     * that can be walked around by splitting the same context across more messages.
+     * What one message costs the request, in characters — measured on the text that will be sent,
+     * {@link PromptRow#text()}, not on {@code chat_message.content}. The two differ by the
+     * attachment inventory, which is rendered at read time and stored nowhere; counting the stored
+     * column instead would leave the whole inventory outside the budget, and an attachment summary
+     * has no length limit.
+     *
+     * <p>Every message also carries protocol framing on top of its payload — its role, the JSON
+     * envelope around it, the tool_call_id on a TOOL row — and {@code PER_MESSAGE_CHARS} charges a
+     * flat approximation of it. Without that charge an empty TOOL row costs literally nothing and a
+     * window of a thousand short rows estimates as nearly free, which is the difference between a
+     * token budget that bounds the window and one that can be walked around by splitting the same
+     * context across more messages.
      */
-    private static long messageChars(ChatMessageEntity message) {
-        long chars = PER_MESSAGE_CHARS;
-        chars += message.getText() == null ? 0 : message.getText().length();
-        final ToolData toolData = message.getToolData();
+    private static long messageChars(PromptRow row) {
+        long chars = PER_MESSAGE_CHARS + row.text().length();
+        final ToolData toolData = row.entity().getToolData();
         if (toolData != null) {
             if (toolData.toolCalls() != null) {
                 for (ToolData.Call call : toolData.toolCalls()) {
@@ -486,7 +507,7 @@ public class SummarizeService implements DisposableBean {
     private @Nullable String generateSummary(
             String conversationId,
             List<ChatMessageEntity> existingSummaries,
-            List<ChatMessageEntity> toCompress,
+            List<PromptRow> toCompress,
             int count,
             boolean collapseSummaries) {
         final StringBuilder prompt = new StringBuilder();
@@ -510,20 +531,19 @@ public class SummarizeService implements DisposableBean {
 
         prompt.append("Summarize the following ").append(count).append(" messages:\n");
         toCompress.forEach(
-                m -> {
+                row -> {
+                    // row.text() — уже с описью приложенного: она дописывается при чтении истории
+                    // и в content не лежит. Без неё summarizer.md требует сохранить то, чего в его
+                    // входе нет, — а вместе со сжатым сообщением исчезал бы и единственный след
+                    // вложения в диалоге.
                     prompt.append("[msg:")
-                            .append(m.getPosition())
+                            .append(row.entity().getPosition())
                             .append("] ")
-                            .append(m.getMessageType())
+                            .append(row.entity().getMessageType())
                             .append(": <msg>\n")
-                            .append(m.getText())
-                            // Опись приложенного дописывается к вопросу при чтении истории и в
-                            // content не лежит. Без неё summarizer.md требует сохранить то, чего
-                            // в его входе нет, — а вместе со сжатым сообщением исчезал бы и
-                            // единственный след вложения в диалоге.
-                            .append(contextItemService.render(conversationId, m.getContextItems()))
+                            .append(row.text())
                             .append("\n</msg>\n");
-                    appendToolCalls(prompt, m.getInvocations());
+                    appendToolCalls(prompt, row.entity().getInvocations());
                 });
         if (collapseSummaries) {
             prompt.append(COLLAPSE_FOOTER);
@@ -591,7 +611,7 @@ public class SummarizeService implements DisposableBean {
     /** Marks old messages as summarized and inserts the new summary row, atomically. */
     private void persistSummary(
             String conversationId,
-            List<ChatMessageEntity> oldMessages,
+            List<PromptRow> oldMessages,
             List<ChatMessageEntity> existingSummaries,
             boolean collapseSummaries,
             String metaSummaryText,
@@ -600,8 +620,8 @@ public class SummarizeService implements DisposableBean {
             return;
         }
         final ChatMessageEntity firstMsg =
-                collapseSummaries ? existingSummaries.getFirst() : oldMessages.getFirst();
-        final ChatMessageEntity lastMsg = oldMessages.getLast();
+                collapseSummaries ? existingSummaries.getFirst() : oldMessages.getFirst().entity();
+        final ChatMessageEntity lastMsg = oldMessages.getLast().entity();
 
         transactionTemplate.executeWithoutResult(
                 s -> {

@@ -21,11 +21,6 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
             findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
                     @Param("conversationId") String conversationId);
 
-    // findSummaries
-    List<ChatMessageEntity>
-            findChatMessageByConversationIdAndSummarizedFalseAndSummaryTrueOrderByCreatedAtAscPositionAsc(
-                    @Param("conversationId") String conversationId);
-
     @Modifying
     @Query(
             """

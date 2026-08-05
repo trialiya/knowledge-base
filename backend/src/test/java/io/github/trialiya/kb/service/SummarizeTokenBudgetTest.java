@@ -16,6 +16,7 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.chat.entity.ContextItemKind;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
+import io.github.trialiya.kb.service.ChatMemoryService.PromptRow;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -73,20 +74,18 @@ class SummarizeTokenBudgetTest {
     private static final int ATTACHMENT_SUMMARY_CHARS = 3_800;
 
     private ChatMessageRepository repository;
+    private ChatMemoryService chatMemoryService;
     private OpenAiChatModel chatModel;
 
     @BeforeEach
     void setUp() {
         repository = mock(ChatMessageRepository.class);
+        chatMemoryService = mock(ChatMemoryService.class);
         chatModel = mock(OpenAiChatModel.class);
         when(chatModel.getOptions()).thenReturn(OpenAiChatOptions.builder().build());
         when(chatModel.call(any(Prompt.class)))
                 .thenReturn(
                         new ChatResponse(List.of(new Generation(new AssistantMessage("gist")))));
-        when(repository
-                        .findChatMessageByConversationIdAndSummarizedFalseAndSummaryTrueOrderByCreatedAtAscPositionAsc(
-                                anyString()))
-                .thenReturn(List.of());
     }
 
     /**
@@ -149,10 +148,21 @@ class SummarizeTokenBudgetTest {
     }
 
     private void givenLive(List<ChatMessageEntity> live) {
-        when(repository
-                        .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
-                                eq(CONV)))
-                .thenReturn(live);
+        when(chatMemoryService.promptRows(eq(CONV)))
+                .thenReturn(live.stream().map(SummarizeTokenBudgetTest::promptRow).toList());
+    }
+
+    /**
+     * То же, что делает {@code ChatMemoryService#promptRows}: к вопросу с приложенным контекстом
+     * дописывается блок описи. Здесь это моделируется явно, потому что именно эта разница между
+     * сохранённым content и текстом промпта и есть предмет теста.
+     */
+    private static PromptRow promptRow(ChatMessageEntity entity) {
+        return new PromptRow(
+                entity,
+                entity.getContextItems().isEmpty()
+                        ? entity.getContent()
+                        : entity.getContent() + renderedContextBlock());
     }
 
     private static ChatMessageEntity questionWithAttachment(long position) {
@@ -176,6 +186,7 @@ class SummarizeTokenBudgetTest {
         return new SummarizeService(
                 chatModel,
                 repository,
+                chatMemoryService,
                 new ByteArrayResource("summarize".getBytes()),
                 transactionManager(),
                 new SummarizeProperties(
