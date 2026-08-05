@@ -119,35 +119,29 @@ public class SummarizeService implements DisposableBean {
                 liveMix.total() == promptMix.total()
                         ? ""
                         : "; of them prompt-eligible: " + promptMix);
-        if (window.budgetForcedTheBoundary()) {
+        if (!window.worthARound()) {
             log.info(
-                    "[{}] Live tail is over its {}-token share of the {}-token budget — the"
-                            + " preferences stopped at {}, the budget needs {}",
-                    conversationId,
-                    window.budgetTokens(),
-                    summarizeProperties.tokenThreshold(),
-                    window.preferred(),
-                    window.floor());
-        }
-        if (window.notWorthARound()) {
-            log.info(
-                    "[{}] Skipping summarization — compressible: {} < threshold: {}, and the live"
-                            + " window (~{} tokens) is within its {}-token share of the budget",
+                    "[{}] Skipping summarization — compressible: {}, ~{} tokens; neither threshold"
+                            + " reached ({} messages / {} tokens). Live window: ~{} tokens",
                     conversationId,
                     MessageMix.of(window.toCompress()),
+                    window.sliceTokens(),
                     summarizeProperties.messageCountThreshold(),
-                    window.windowTokens(),
-                    window.budgetTokens());
+                    summarizeProperties.tokenThreshold(),
+                    window.windowTokens());
             return;
         }
 
         final List<PromptRow> toCompress = window.toCompress();
         log.info(
-                "[{}] Compressing positions {}-{}: {}; keeping live: {}",
+                "[{}] Compressing positions {}-{} ({} reached the threshold): {}, ~{} tokens;"
+                        + " keeping live: {}",
                 conversationId,
                 toCompress.getFirst().entity().getPosition(),
                 window.endPosition(),
+                window.trigger(),
                 MessageMix.of(toCompress),
+                window.sliceTokens(),
                 MessageMix.of(window.kept()));
 
         // Generate the summary text via LLM. Collapse existing summaries into one meta-summary if

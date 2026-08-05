@@ -1,12 +1,12 @@
 package io.github.trialiya.kb.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.atMostOnce;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -36,21 +35,18 @@ import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.SimpleTransactionStatus;
 
 /**
- * {@code token-threshold} объявлен единственным жёстким потолком живого окна и меряет, по
- * собственному javadoc, «то, что уезжает модели в каждом следующем запросе». Этот тест проверяет
- * ровно заявленное — и показывает, что счёт ведётся не по тому тексту.
+ * Порог по токенам обязан мерить то, что реально уезжает модели.
  *
- * <p>{@code ChatMemoryService#toPromptMessage} дописывает к каждому вопросу с вложением блок {@code
- * <attached-context>} ({@link ContextItemService#render}) — рамку и строку на вложение, внутри
- * которой лежит {@code summary} вложения целиком. Блок собирается при каждом чтении истории и
- * уходит модели в каждом запросе, но в БД не хранится: в {@code chat_message.content} его нет.
- * {@code SummarizeService.messageChars} считает как раз {@code content} плюс {@code tool_data} —
- * описи приложенного он не видит совсем.
+ * <p>К вопросу с вложением при чтении истории дописывается блок {@code <attached-context>} — опись
+ * приложенного. Она уходит в каждый запрос, но в {@code chat_message.content} её нет, а длина
+ * {@code summary} вложения ничем не ограничена: {@code AttachmentService#summarize} кладёт в поле
+ * ответ модели как есть. Считать сохранённую колонку значит не видеть описи вовсе, а с ней —
+ * произвольную долю окна.
  *
- * <p>Длина {@code summary} ничем не ограничена: {@code AttachmentService#summarize} кладёт в поле
- * ответ модели как есть, без обрезки. Поэтому недосчёт не постоянная поправка, а произвольная доля
- * бюджета — окно из вопросов с вложениями может весить кратно больше, чем «видит» пол по бюджету, и
- * тогда сжатие не запускается вовсе.
+ * <p>Два теста здесь — одна пара: одно и то же окно из 58 вопросов срабатывает по порогу, когда к
+ * вопросам приложены документы, и не срабатывает, когда их текст тот же, но вложений нет. По
+ * сохранённому тексту оба окна весят ~3 600 токенов при пороге 30 000 — разделить их может только
+ * оценка, считающая текст промпта.
  */
 class SummarizeTokenBudgetTest {
 
@@ -64,10 +60,14 @@ class SummarizeTokenBudgetTest {
     private static final int OVERLAP_USER_MESSAGES = 5;
     private static final int CHARS_PER_TOKEN = 4;
 
-    /** Бюджет в символах — та же арифметика, что и в {@code tokenBudgetCutoff}. */
-    private static final long BUDGET_CHARS = (long) TOKEN_THRESHOLD * CHARS_PER_TOKEN;
+    /**
+     * 58 вопросов при {@code overlap-messages: 30} дают срез ровно в 28 сообщений — меньше {@code
+     * message-count-threshold}, поэтому порог по числу сообщений заведомо молчит и о раунде может
+     * попросить только оценка токенов.
+     */
+    private static final int QUESTIONS = 58;
 
-    private static final int QUESTIONS = 40;
+    private static final int SLICE = QUESTIONS - OVERLAP_MESSAGES;
     private static final int TEXT_CHARS = 500;
 
     /** Сводка вложения — единственная часть описи, размер которой задаёт модель, а не формат. */
@@ -89,49 +89,61 @@ class SummarizeTokenBudgetTest {
     }
 
     /**
-     * Диалог, где к каждому вопросу приложен документ со сводкой. По {@code content} окно весит
-     * пятую часть бюджета, по тому, что реально уедет модели — полтора бюджета. Пол по бюджету
-     * считает первое, поэтому раунд не стартует и живым остаётся окно, которое в бюджет не влезает.
+     * К каждому вопросу приложен документ. Срез из 28 сообщений весит по сохранённому тексту ~3 600
+     * токенов, а по тому, что уедет модели, — ~31 900: порог перейдён только вместе с описью.
      */
     @Test
-    void theBudgetMustCountTheAttachmentInventoryTheModelActuallyReceives() {
-        final List<ChatMessageEntity> live = new ArrayList<>();
-        for (int i = 0; i < QUESTIONS; i++) {
-            live.add(questionWithAttachment(i));
-        }
-        givenLive(live);
+    void theTokenTriggerCountsTheAttachmentInventoryTheModelActuallyReceives() {
+        givenLive(questions(true));
 
         service().doSummarize(CONV);
 
-        // Что осталось живым: позиции строго больше последней помеченной summarized. Раунда могло
-        // и не быть — тогда живым остаётся всё окно.
-        final ArgumentCaptor<Long> endPosition = ArgumentCaptor.forClass(Long.class);
-        verify(repository, atMostOnce())
-                .updateSummarized(eq(CONV), any(Long.class), endPosition.capture());
-        final long lastSummarized =
-                endPosition.getAllValues().isEmpty() ? -1L : endPosition.getValue();
-
-        final long tailChars =
-                live.stream()
-                        .filter(m -> m.getPosition() > lastSummarized)
-                        .mapToLong(SummarizeTokenBudgetTest::charsSentToTheModel)
-                        .sum();
-
-        assertThat(tailChars)
-                .as(
-                        "живой хвост, каким его получит модель: %d сообщений по %d символов текста"
-                                + " плюс опись приложенного",
-                        live.size(), TEXT_CHARS)
-                .isLessThanOrEqualTo(BUDGET_CHARS);
+        // Срез — вопросы 0..27, хвост открывается на 28-м.
+        verify(repository).updateSummarized(CONV, 0L, (long) SLICE - 1);
     }
 
     /**
-     * Во что превращается сообщение по дороге к модели: {@code content} плюс блок описи, который
-     * {@code ChatMemoryService} дописывает при чтении. Протокольную надбавку на сообщение здесь не
-     * добавляем — оценка заведомо ниже настоящей, и этого достаточно.
+     * То же окно и тот же сохранённый текст, но без вложений: описи нет, и в этом случае раунда
+     * действительно быть не должно. Пара с предыдущим тестом: одна оценка обязана различать эти два
+     * окна, и различает она их ровно на вес описи.
      */
-    private static long charsSentToTheModel(ChatMessageEntity message) {
-        return message.getText().length() + renderedContextBlock().length();
+    @Test
+    void theSameWindowWithoutAttachmentsStaysBelowTheTrigger() {
+        givenLive(questions(false));
+
+        service().doSummarize(CONV);
+
+        verify(repository, never()).updateSummarized(anyString(), anyLong(), anyLong());
+    }
+
+    // -------------------------------------------------------------------------
+
+    private static List<ChatMessageEntity> questions(boolean withAttachment) {
+        final List<ChatMessageEntity> live = new ArrayList<>();
+        for (int i = 0; i < QUESTIONS; i++) {
+            live.add(question(i, withAttachment));
+        }
+        return live;
+    }
+
+    /**
+     * То же, что делает {@code ChatMemoryService#promptRows}: к вопросу с приложенным контекстом
+     * дописывается блок описи. Здесь это моделируется явно, потому что именно эта разница между
+     * сохранённым content и текстом промпта и есть предмет теста.
+     */
+    private void givenLive(List<ChatMessageEntity> live) {
+        when(chatMemoryService.promptRows(eq(CONV)))
+                .thenReturn(
+                        live.stream()
+                                .map(
+                                        entity ->
+                                                new PromptRow(
+                                                        entity,
+                                                        entity.getContextItems().isEmpty()
+                                                                ? entity.getContent()
+                                                                : entity.getContent()
+                                                                        + renderedContextBlock()))
+                                .toList());
     }
 
     /**
@@ -147,25 +159,7 @@ class SummarizeTokenBudgetTest {
                 + " attachment.\n</attached-context>";
     }
 
-    private void givenLive(List<ChatMessageEntity> live) {
-        when(chatMemoryService.promptRows(eq(CONV)))
-                .thenReturn(live.stream().map(SummarizeTokenBudgetTest::promptRow).toList());
-    }
-
-    /**
-     * То же, что делает {@code ChatMemoryService#promptRows}: к вопросу с приложенным контекстом
-     * дописывается блок описи. Здесь это моделируется явно, потому что именно эта разница между
-     * сохранённым content и текстом промпта и есть предмет теста.
-     */
-    private static PromptRow promptRow(ChatMessageEntity entity) {
-        return new PromptRow(
-                entity,
-                entity.getContextItems().isEmpty()
-                        ? entity.getContent()
-                        : entity.getContent() + renderedContextBlock());
-    }
-
-    private static ChatMessageEntity questionWithAttachment(long position) {
+    private static ChatMessageEntity question(long position, boolean withAttachment) {
         final String text = "question " + position;
         return new ChatMessageEntity(
                 position + 1,
@@ -176,8 +170,12 @@ class SummarizeTokenBudgetTest {
                 false,
                 false,
                 LocalDateTime.now(),
-                ChatMessageMeta.ofContextItems(
-                        List.of(new ContextItem(ContextItemKind.ATTACHMENT, "1", "spec.md"))));
+                withAttachment
+                        ? ChatMessageMeta.ofContextItems(
+                                List.of(
+                                        new ContextItem(
+                                                ContextItemKind.ATTACHMENT, "1", "spec.md")))
+                        : null);
     }
 
     private SummarizeService service() {

@@ -17,21 +17,22 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *       chars-per-token: 4
  * </pre>
  *
- * @param tokenThreshold approximate token budget for the "live" messages window. When the total
- *     estimated tokens across unsummarized messages exceeds this value, a new summarization round
- *     is triggered <em>and</em> the round is forced to compress far enough back for the surviving
- *     tail to fit the budget again — the overlap parameters below give way to it, since they can
- *     only move the boundary earlier and so bound nothing on their own. The one hard ceiling on the
- *     live window. Rule of thumb: 1 token ≈ 4 characters (English/code mix).
- * @param messageCountThreshold minimum number of compressible messages before summarization kicks
- *     in. Unlike {@code tokenThreshold} this one measures the slice about to be compressed, and it
- *     only starts rounds — it never decides how far back the boundary goes.
+ * @param tokenThreshold estimated tokens in the compressible slice that trigger a round. Measured
+ *     on the slice — the messages older than the live tail — not on the whole window: it asks "is
+ *     there enough here to be worth compressing", which is the same question {@code
+ *     messageCountThreshold} asks by count, and either answer is enough to start a round. Rule of
+ *     thumb: 1 token ≈ 4 characters (English/code mix).
+ * @param messageCountThreshold number of compressible messages that trigger a round. The cheap half
+ *     of the pair above: it catches long dialogues that are not yet heavy in tokens.
  * @param overlapMessages number of recent messages kept *outside* the summarized window so the
  *     model always has some live context to anchor against.
  * @param overlapUserMessages minimum number of recent <em>user</em> messages kept outside the
  *     summarized window. Applied together with {@code overlapMessages}, not instead of it: the live
  *     tail must satisfy both, so a turn that produced a long tool marathon cannot push the user's
- *     own last questions into the summary just because the raw message count already fits.
+ *     own last questions into the summary just because the raw message count already fits. Note
+ *     that the tail rules only ever move the boundary earlier, so none of them bounds the size of
+ *     the live window — a marathon inside the last few turns stays live until later questions push
+ *     it out.
  * @param summaryCollapseThreshold when the number of stored summary messages would reach this
  *     value, they are collapsed into a single meta-summary instead.
  * @param charsPerToken how many characters are used per estimated token. Lower it to 3 for

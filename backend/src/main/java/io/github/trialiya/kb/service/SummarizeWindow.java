@@ -11,33 +11,42 @@ import org.apache.logging.log4j.util.Strings;
 import org.springframework.ai.chat.messages.MessageType;
 
 /**
- * The live window of a conversation and the boundary of its compressible slice — all of {@code
- * SummarizeService}'s arithmetic with no side effects: rows of history as the model receives them
- * in ({@link ChatMemoryService#promptRows}), "what to compress, what to keep and why" out.
+ * The live window of a conversation cut in two — all of {@code SummarizeService}'s arithmetic with
+ * no side effects: rows of history as the model receives them in ({@link
+ * ChatMemoryService#promptRows}), "what to compress, what to keep, and whether it is worth a round"
+ * out.
  *
- * <p>Four rules shape the boundary and they are not peers. Three are PREFERENCES about what the
- * live tail should hold, and each is only an upper bound on how much may be compressed: at least
- * {@code overlap-messages} messages of any kind, at least {@code overlap-user-messages} USER
- * messages, and the tail should open on a whole turn. A preference that cannot be satisfied simply
- * does not apply — it never forces the boundary anywhere, which is why none of them needs a
- * fallback branch to rescue it. One rule is a FLOOR, and it is the only one that bounds anything:
- * whatever the tail is, it must fit the {@code token-threshold} budget. The cutoff is {@code
- * max(floor, preferred)}.
+ * <p><b>The live tail</b> ({@link #kept()}) is what this round may not touch, and three rules say
+ * how far back it reaches — the earliest of them wins: it holds at least {@code
+ * overlap-user-messages} USER messages, at least {@code overlap-messages} messages of any kind, and
+ * it opens on a whole turn (walk back to the nearest USER message). A rule that cannot be satisfied
+ * simply does not apply — keeping five questions where the conversation only ever had one is not
+ * something a boundary can arrange — so none of them needs a fallback branch to rescue it.
  *
- * <p>Two views of the window matter and they differ exactly by the empty TOOL protocol rows: {@link
- * #allLive()} keeps them because their payloads occupy the model's context on every request, so
- * they weigh on the budget; {@link #prompt()} drops them because the summarizer prompt has nothing
- * to quote from a blank row — their info is already exposed via the owning ASSISTANT segment's
- * invocations. The boundary is picked over {@link #prompt()}, the budget is measured over {@link
- * #allLive()}, and marking runs by positions so the two never disagree about tool pairs.
+ * <p><b>Everything older</b> ({@link #toCompress()}) is the slice this round would compress, all of
+ * it or none. Two thresholds ask whether that is worth doing and either one is enough: the slice
+ * holds {@code message-count-threshold} messages, or it weighs {@code token-threshold} tokens. Both
+ * measure the same thing — the slice — so they cannot disagree about what they trigger on.
+ *
+ * <p><b>Summaries take no part in this arithmetic.</b> They are already-compressed past: they ride
+ * along in every request and are handed to the summarizer as context (see {@link #summaries()}),
+ * but they are neither compressed again nor counted against either threshold.
+ *
+ * <p>What this deliberately does <em>not</em> promise: a bound on the size of the live tail. All
+ * three rules can only move the boundary earlier, so a single turn that produces a thousand tool
+ * rows keeps all thousand live until five more questions push them out of the tail. The window
+ * drains as the conversation moves on rather than being clamped — the price of a boundary a reader
+ * can predict without simulating it.
  */
 final class SummarizeWindow {
 
     /**
-     * Flat per-message protocol overhead charged by {@code messageChars}, in characters — roughly
+     * Flat per-message protocol overhead charged by {@link #messageChars}, in characters — roughly
      * four tokens at the default {@code chars-per-token}, which is about what a role plus the JSON
      * envelope around one message costs in an OpenAI-shaped request. Deliberately not a configured
-     * property: it describes the wire format, not a preference anyone should be tuning.
+     * property: it describes the wire format, not a preference anyone should be tuning. Without it
+     * an empty TOOL row weighs literally nothing and a slice of a thousand short rows estimates as
+     * nearly free.
      */
     private static final int PER_MESSAGE_CHARS = 16;
 
@@ -45,33 +54,46 @@ final class SummarizeWindow {
     private final List<ChatMessageEntity> summaries;
     private final List<PromptRow> allLive;
     private final List<PromptRow> prompt;
-    private final long budgetChars;
-    private final int preferred;
-    private final int floor;
     private final int cutoff;
+    private final long cutoffPosition;
+    private final int sliceTokens;
 
     SummarizeWindow(List<PromptRow> rows, SummarizeProperties properties) {
         this.properties = properties;
-        // Summaries ride along in every request but are not part of the window this round may
-        // compress — they are already-compressed past. So they leave the window and take their
-        // share of the budget with them: the window's real allowance is what they leave behind.
         this.summaries =
                 rows.stream().map(PromptRow::entity).filter(ChatMessageEntity::isSummary).toList();
+        // allLive keeps the blank-text TOOL protocol rows: their payloads occupy the model's
+        // context on every follow-up request, so they weigh on the slice even though the summarizer
+        // prompt never sees them. prompt drops them — a blank row gives the summarizer nothing to
+        // quote, and its information is already exposed via the owning ASSISTANT segment.
         this.allLive = rows.stream().filter(row -> !row.entity().isSummary()).toList();
         this.prompt = allLive.stream().filter(SummarizeWindow::saysAnything).toList();
 
-        int preferred = prompt.size() - properties.overlapMessages();
-        preferred =
-                Math.min(
-                        preferred,
-                        userBoundary(prompt, properties.overlapUserMessages()).orElse(preferred));
-        this.preferred = turnBoundary(prompt, preferred).orElse(preferred);
+        this.cutoff = Math.max(0, tailStart(prompt, properties));
+        this.cutoffPosition =
+                cutoff < prompt.size() ? prompt.get(cutoff).entity().getPosition() : Long.MAX_VALUE;
+        this.sliceTokens =
+                tokens(
+                        charsOf(
+                                allLive.stream()
+                                        .filter(
+                                                row ->
+                                                        row.entity().getPosition()
+                                                                < cutoffPosition)));
+    }
 
-        this.budgetChars =
-                (long) properties.tokenThreshold() * properties.charsPerToken()
-                        - charsOf(rows.stream().filter(row -> row.entity().isSummary()));
-        this.floor = tokenBudgetCutoff(allLive, prompt, budgetChars);
-        this.cutoff = Math.max(floor, this.preferred);
+    /**
+     * Where the live tail begins — the earliest boundary the three rules allow. Each is only an
+     * upper bound on how much may be compressed, so the minimum wins, and a rule that does not
+     * apply yields to the others instead of forcing a boundary of its own.
+     */
+    private static int tailStart(List<PromptRow> prompt, SummarizeProperties properties) {
+        int start = prompt.size() - properties.overlapMessages();
+        start =
+                Math.min(
+                        start,
+                        userBoundary(prompt, properties.overlapUserMessages()).orElse(start));
+        return turnBoundary(prompt, start).orElse(start);
     }
 
     /**
@@ -91,7 +113,7 @@ final class SummarizeWindow {
     // What the service asks
     // -------------------------------------------------------------------------
 
-    /** The live window including empty TOOL protocol rows — what the budget weighs. */
+    /** The live window including empty TOOL protocol rows — what the estimate weighs. */
     List<PromptRow> allLive() {
         return allLive;
     }
@@ -101,72 +123,60 @@ final class SummarizeWindow {
         return prompt;
     }
 
-    /** Existing summary rows, oldest first — context for the next summary, collapsible past. */
+    /**
+     * Existing summaries, oldest first — context for the next summary and the collapsible past.
+     * Neither compressed again nor counted against either threshold.
+     */
     List<ChatMessageEntity> summaries() {
         return summaries;
     }
 
-    /**
-     * Whether this round should run at all. Each threshold measures the thing its own name is
-     * about: {@code message-count-threshold} the slice that would be compressed, {@code
-     * token-threshold} the whole live window. Asking the budget question through the floor keeps
-     * the trigger and the boundary from disagreeing at the edge: over budget the floor hands the
-     * round real work, under it there is nothing to free — so the only reason left to run is a
-     * slice that grew big enough by count.
-     */
-    boolean notWorthARound() {
-        return cutoff <= 0 || (floor == 0 && cutoff < properties.messageCountThreshold());
-    }
-
-    /**
-     * True when the budget pushed the boundary past every preference — worth a log line.
-     *
-     * <p>The {@code floor > 0} half is not redundant: {@code 0} is the floor's "the window fits"
-     * sentinel, not a boundary it chose, while {@code preferred} goes negative on any conversation
-     * shorter than {@code overlap-messages} — there, {@code floor > preferred} is {@code 0 > -25},
-     * which is every short chat announcing that a budget it is nowhere near forced a boundary.
-     */
-    boolean budgetForcedTheBoundary() {
-        return floor > 0 && floor > preferred;
-    }
-
-    int preferred() {
-        return preferred;
-    }
-
-    int floor() {
-        return floor;
-    }
-
+    /** The slice this round would compress: everything older than the live tail. */
     List<PromptRow> toCompress() {
-        return prompt.subList(0, Math.max(cutoff, 0));
+        return prompt.subList(0, cutoff);
     }
 
+    /** The live tail, kept whole. */
     List<PromptRow> kept() {
         return prompt.subList(cutoff, prompt.size());
     }
 
     /**
-     * The last position this round marks summarized. {@code prompt} excludes empty TOOL protocol
+     * Whether the slice has grown enough to be worth a round. Either threshold is enough, and both
+     * measure the slice: {@code message-count-threshold} how many messages it holds, {@code
+     * token-threshold} what it weighs.
+     */
+    boolean worthARound() {
+        return cutoff > 0
+                && (cutoff >= properties.messageCountThreshold()
+                        || sliceTokens >= properties.tokenThreshold());
+    }
+
+    /** Which threshold called this round — for the log line that explains it. */
+    String trigger() {
+        return cutoff >= properties.messageCountThreshold() ? "message count" : "token estimate";
+    }
+
+    /**
+     * The last position this round marks summarized. {@link #prompt} excludes empty TOOL protocol
      * rows, so the range must run up to (but not including) the first KEPT message — otherwise the
      * trailing protocol rows of the last compressed turn would stay live and orphaned. When
      * everything is compressed (no kept message), the range must cover those trailing rows too, and
-     * only {@code allLive} — not {@code toCompress} — holds the true last position.
+     * only {@link #allLive} — not {@link #toCompress} — holds the true last position.
+     *
+     * <p>This, and not the turn alignment below, is what keeps an ASSISTANT tool-call segment
+     * together with its TOOL responses: marking runs by position through the first kept message, so
+     * the boundary cannot fall between a segment and its answers no matter which rule picked it.
      */
     long endPosition() {
-        final long cutoffPosition = cutoffPosition();
         return cutoffPosition == Long.MAX_VALUE
                 ? allLive.getLast().entity().getPosition()
                 : cutoffPosition - 1;
     }
 
-    /** Estimated tokens of the compressible slice, empty TOOL protocol rows included. */
+    /** Estimated tokens of the slice, empty TOOL protocol rows included. */
     int sliceTokens() {
-        final long cutoffPosition = cutoffPosition();
-        return tokens(
-                charsOf(
-                        allLive.stream()
-                                .filter(row -> row.entity().getPosition() < cutoffPosition)));
+        return sliceTokens;
     }
 
     /** Estimated tokens of the whole live window — what every follow-up request sends. */
@@ -174,87 +184,21 @@ final class SummarizeWindow {
         return tokens(charsOf(allLive.stream()));
     }
 
-    /** The window's share of the token budget: the configured budget minus the summaries' take. */
-    int budgetTokens() {
-        return tokens(budgetChars);
-    }
-
-    /**
-     * Position boundary of the compressible slice: everything positioned before it (in {@code
-     * allLive}, so including interleaved TOOL protocol rows) belongs to this round.
-     */
-    private long cutoffPosition() {
-        return cutoff < prompt.size() ? prompt.get(cutoff).entity().getPosition() : Long.MAX_VALUE;
-    }
-
     private int tokens(long chars) {
         return (int) (chars / properties.charsPerToken());
     }
 
     // -------------------------------------------------------------------------
-    // The four boundary rules
+    // The three tail rules
     // -------------------------------------------------------------------------
 
     /**
-     * The floor under the cutoff: the earliest boundary whose KEPT tail still fits the budget.
-     * Walks back from the newest row adding up characters until the budget is spent — everything at
-     * or before the row that overflows it has to be compressed. Returns {@code 0} while the whole
-     * window fits, which is also the answer to "is this conversation over budget at all", and
-     * {@link #notWorthARound} uses it as exactly that.
-     *
-     * <p>This is the only rule that bounds the live window. The preferences can move the boundary
-     * earlier and never later, so on their own they let the window grow to whatever the last few
-     * turns happen to produce: five questions answered by a thousand tool rows would keep all
-     * thousand rows live, the compressible slice a couple of messages wide, and no round would ever
-     * run.
-     *
-     * <p>The result is deliberately not aligned onto a USER message the way {@link #turnBoundary}
-     * asks for: the floor exists for windows where the nearest USER row is far behind, and aligning
-     * would hand the budget straight back. Nothing breaks — the tool-pair invariant does not come
-     * from alignment at all, see {@link #endPosition}. The newest message always stays live:
-     * summarizing the question that was just asked would buy nothing.
-     *
-     * @param budgetChars what the window may spend, i.e. the configured budget minus what the
-     *     summaries already take. Non-positive means the summaries alone are over budget, and every
-     *     row overflows at once — the window is squeezed to its newest message, which is the most
-     *     this rule can do.
-     */
-    private static int tokenBudgetCutoff(
-            List<PromptRow> allLive, List<PromptRow> prompt, long budgetChars) {
-        if (prompt.isEmpty()) {
-            return 0;
-        }
-        long chars = 0;
-        long overflowPosition = 0;
-        boolean overflowed = false;
-        for (int i = allLive.size() - 1; i >= 0; i--) {
-            chars += messageChars(allLive.get(i));
-            if (chars > budgetChars) {
-                overflowPosition = allLive.get(i).entity().getPosition();
-                overflowed = true;
-                break;
-            }
-        }
-        if (!overflowed) {
-            return 0;
-        }
-        int cutoff = 0;
-        while (cutoff < prompt.size()
-                && prompt.get(cutoff).entity().getPosition() <= overflowPosition) {
-            cutoff++;
-        }
-        return Math.min(cutoff, prompt.size() - 1);
-    }
-
-    /**
-     * Preference: the tail should hold {@code keepUserMessages} USER messages, so the boundary may
-     * not go past the N-th USER message counted from the end. Empty when the window does not hold
-     * that many — keeping five questions where the conversation only ever had one is not something
-     * a boundary can arrange, so the preference stands aside instead of forcing one.
+     * The tail should hold {@code keepUserMessages} USER messages, so the boundary may not go past
+     * the N-th USER message counted from the end. Empty when the window does not hold that many —
+     * the rule stands aside rather than forcing a boundary it cannot justify.
      *
      * <p>Index {@code 0} is a real answer here, not a failure: it says the N-th question from the
-     * end opens the window, so this preference would have nothing compressed. The floor is what
-     * decides whether the window may stay that way.
+     * end opens the window, so nothing older than the tail exists and this round has no work.
      */
     private static OptionalInt userBoundary(List<PromptRow> prompt, int keepUserMessages) {
         if (keepUserMessages <= 0) {
@@ -271,16 +215,13 @@ final class SummarizeWindow {
     }
 
     /**
-     * Preference: the tail should open on a whole turn, so the boundary is walked back from {@code
-     * upperBound} to the nearest USER message. Empty when there is none to walk back to, and when
-     * the bound already covers the whole window (nothing is being kept, so nothing needs opening).
+     * The tail should open on a whole turn, so the boundary is walked back from {@code upperBound}
+     * to the nearest USER message. Empty when there is none to walk back to, and when the bound
+     * already covers the whole window (nothing is being kept, so nothing needs opening).
      *
-     * <p>This is taste, not protocol. It is tempting to read it as the rule that keeps an ASSISTANT
-     * tool-call segment together with its TOOL responses, and the code used to say so — but that
-     * invariant is held by position-based marking instead (see {@link #endPosition}), and holds
-     * with or without this preference. Treating it as load-bearing is what once made an
-     * unsatisfiable alignment collapse the boundary to zero and need a fallback branch to rescue
-     * it.
+     * <p>This is about what the model reads, not about protocol integrity: a tail that starts
+     * mid-turn opens on an answer to a question the model can no longer see. Tool-call pairing is
+     * held by position-based marking instead — see {@link #endPosition}.
      */
     private static OptionalInt turnBoundary(List<PromptRow> prompt, int upperBound) {
         if (upperBound <= 0 || upperBound >= prompt.size()) {
@@ -306,15 +247,8 @@ final class SummarizeWindow {
      * What one message costs the request, in characters — measured on the text that will be sent,
      * {@link PromptRow#text()}, not on {@code chat_message.content}. The two differ by the
      * attachment inventory, which is rendered at read time and stored nowhere; counting the stored
-     * column instead would leave the whole inventory outside the budget, and an attachment summary
-     * has no length limit.
-     *
-     * <p>Every message also carries protocol framing on top of its payload — its role, the JSON
-     * envelope around it, the tool_call_id on a TOOL row — and {@code PER_MESSAGE_CHARS} charges a
-     * flat approximation of it. Without that charge an empty TOOL row costs literally nothing and a
-     * window of a thousand short rows estimates as nearly free, which is the difference between a
-     * token budget that bounds the window and one that can be walked around by splitting the same
-     * context across more messages.
+     * column instead would leave the whole inventory outside the estimate, and an attachment
+     * summary has no length limit.
      */
     private static long messageChars(PromptRow row) {
         long chars = PER_MESSAGE_CHARS + row.text().length();

@@ -33,21 +33,24 @@ import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.SimpleTransactionStatus;
 
 /**
- * Граница живого хвоста в {@code SummarizeService}: два правила перекрытия работают в И, а не в ИЛИ
- * — хвост обязан удержать и {@code overlap-messages} сообщений любого рода, и {@code
- * overlap-user-messages} сообщений пользователя.
+ * Граница живого хвоста в {@code SummarizeWindow}: правила перекрытия работают в И, а не в ИЛИ —
+ * хвост обязан удержать и {@code overlap-messages} сообщений любого рода, и {@code
+ * overlap-user-messages} сообщений пользователя, и открыться целым ходом.
  *
  * <p>Цена ошибки — молчаливая и односторонняя: сжатие не падает, а увозит в сводку последние
  * вопросы пользователя, после чего модель отвечает на них по пересказу вместо оригинала.
+ *
+ * <p>Здесь же закреплена и обратная сторона такой границы: все правила двигают её только назад,
+ * поэтому жёсткого потолка над живым окном нет — см. {@code aToolMarathonInsideTheLastFiveTurns*}.
  */
 class SummarizeOverlapTest {
 
     private static final String CONV = "conv-1";
 
     /**
-     * Токенный бюджет, в который окно теста заведомо помещается: эти тесты про границу по
-     * перекрытию, а бюджет — отдельное правило со своим полом, и он не должен вмешиваться. Порог
-     * запуска в них снят до 1 сообщения, иначе раунд бы вовсе не стартовал.
+     * Порог по токенам, до которого срез в этих тестах заведомо не дотягивается: они про то, где
+     * проходит граница, а не про то, что запускает раунд. Порог по числу сообщений в них снят до 1,
+     * иначе раунд бы вовсе не стартовал.
      */
     private static final int BUDGET = 100_000;
 
@@ -175,16 +178,19 @@ class SummarizeOverlapTest {
     }
 
     /**
-     * Контрпример на боевых порогах: шесть вопросов и tool-марафон на тысячу строк. Оба правила
-     * перекрытия умеют двигать границу только назад, поэтому сжимаемый срез замерзает на паре
-     * сообщений, порог запуска по числу сообщений не достигается никогда — а живое окно продолжает
-     * расти. Ловит это только пол по токенному бюджету: он один считает не срез, а хвост, который
-     * реально уезжает модели.
+     * Заявленная граница политики, а не упущение: tool-марафон внутри последних пяти вопросов
+     * остаётся живым целиком. Все три правила хвоста двигают границу только назад, поэтому шесть
+     * вопросов с тысячей строк ответов дают срез в одно сообщение — ни порог по числу, ни порог по
+     * токенам до него не дотягиваются, ведь оба меряют срез.
+     *
+     * <p>Окно не заперто навсегда: каждый следующий вопрос сдвигает пятый-с-конца вперёд, и марафон
+     * уезжает в срез сам. Пока этого не случилось, живое окно больше {@code token-threshold} — это
+     * осознанный размен на предсказуемую границу, а не гарантия, которую здесь дают.
      */
     @Test
-    void tokenBudgetCapsAWindowTheOverlapRulesCannotBound() {
+    void aToolMarathonInsideTheLastFiveTurnsStaysLive() {
         // 6 вопросов подряд, дальше — только ответы модели. По 500 символов на сообщение:
-        // окно 500 000 символов = 125 000 токенов при бюджете 30 000.
+        // окно 500 000 символов = 125 000 токенов при пороге 30 000.
         final List<ChatMessageEntity> live = new ArrayList<>();
         for (int i = 0; i < 6; i++) {
             live.add(message(i, MessageType.USER, 500));
@@ -197,45 +203,61 @@ class SummarizeOverlapTest {
         // Боевые значения из application.yaml.
         service(new SummarizeProperties(30_000, 50, 30, 5, 5, 4)).doSummarize(CONV);
 
-        // Правило по вопросам дало бы границу 1 (пятый с конца вопрос стоит на позиции 1), и раунд
-        // не стартовал бы вовсе: 1 < 50 сообщений. Бюджет требует сжать всё до позиции 767 —
-        // живыми остаются 232 сообщения по 516 символов (500 текста плюс протокольная надбавка),
-        // то есть 119 712 из 120 000 символов бюджета: следующее сообщение в него уже не влезло бы.
-        verify(repository).updateSummarized(CONV, 0L, 767L);
+        // Пятый с конца вопрос стоит на позиции 1 — срез это ровно одно сообщение (~129 токенов).
+        verify(repository, never()).updateSummarized(anyString(), anyLong(), anyLong());
     }
 
     /**
-     * Оборотная сторона того же контрпримера и граница политики: то же окно на тысячу сообщений, но
-     * сообщения короткие — всё окно укладывается в бюджет. Сжатия не происходит, и это не утечка:
-     * инвариант заявлен в токенах, а тысяча коротких строк модели стоит меньше тридцати тысяч
-     * токенов. Порог по числу сообщений границу не двигает — он только запускает раунд.
+     * Тот же марафон, но диалог пошёл дальше: новые вопросы вытеснили его из хвоста, и он целиком
+     * стал срезом. Окно освобождается само по ходу разговора — это и есть ответ на предыдущий тест,
+     * из-за него отсутствие жёсткого потолка не означает, что окно растёт вечно.
      */
     @Test
-    void aThousandShortMessagesStayLiveWhileTheWindowFitsTheBudget() {
+    void theMarathonIsCompressedOnceLaterQuestionsPushItOutOfTheTail() {
+        // 0 — вопрос, 1..99 — марафон ответов, дальше 30 сообщений обычного диалога.
         final List<ChatMessageEntity> live = new ArrayList<>();
-        for (int i = 0; i < 6; i++) {
-            live.add(message(i, MessageType.USER));
-        }
-        for (int i = 6; i < 1000; i++) {
+        live.add(message(0, MessageType.USER));
+        for (int i = 1; i < 100; i++) {
             live.add(message(i, MessageType.ASSISTANT));
+        }
+        for (int i = 100; i < 130; i++) {
+            live.add(message(i, i % 2 == 0 ? MessageType.USER : MessageType.ASSISTANT));
         }
         givenLive(live);
 
         service(new SummarizeProperties(30_000, 50, 30, 5, 5, 4)).doSummarize(CONV);
 
-        verify(repository, never()).updateSummarized(anyString(), anyLong(), anyLong());
+        // Правило по числу сообщений даёт 130 - 30 = 100, правило по вопросам — 120 (пятый с конца
+        // вопрос); побеждает раннее, а 100 и так открывает ход. Весь марафон уходит в сводку.
+        verify(repository).updateSummarized(CONV, 0L, 99L);
     }
 
     /**
-     * Короткий диалог не должен рапортовать, что упёрся в бюджет. {@code preferred} уходит в минус
-     * на любом окне короче {@code overlap-messages} — то есть почти на каждом живом чате, — а пол
-     * возвращает 0 в смысле «окно помещается целиком». Сравнивать их напрямую значит читать этот
-     * ноль как выбранную границу: после каждого ответа AI в лог шла строка «хвост вышел за бюджет,
-     * преференции остановились на -25, бюджету нужно 0», сразу за ней — противоположная ей строка о
-     * том, что окно в бюджет укладывается.
+     * Тысяча коротких сообщений: срез дорастает до порога по числу сообщений задолго до того, как
+     * наберёт токены. Раунд стартует по счётчику — этим порог по числу и полезен, он ловит длинные
+     * дешёвые диалоги, которые по токенам ещё не тяжёлые.
      */
     @Test
-    void aShortWindowDoesNotClaimTheBudgetForcedItsBoundary() {
+    void aLongCheapDialogueIsTriggeredByTheMessageCount() {
+        final List<ChatMessageEntity> live = new ArrayList<>();
+        for (int i = 0; i < 1000; i++) {
+            live.add(message(i, i % 2 == 0 ? MessageType.USER : MessageType.ASSISTANT));
+        }
+        givenLive(live);
+
+        service(new SummarizeProperties(30_000, 50, 30, 5, 5, 4)).doSummarize(CONV);
+
+        // 1000 - 30 = 970 по числу сообщений; правило по вопросам дало бы 990. Граница 970 — USER.
+        verify(repository).updateSummarized(CONV, 0L, 969L);
+    }
+
+    /**
+     * Короткий диалог: сжимать нечего, и это не должно выглядеть как «пороги не достигнуты». Пять
+     * сообщений при {@code overlap-messages: 30} дают отрицательную границу — она обязана
+     * прижиматься к нулю, иначе срез уехал бы в отрицательный индекс.
+     */
+    @Test
+    void aShortWindowHasNothingToCompress() {
         final List<PromptRow> live = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             live.add(
@@ -244,13 +266,12 @@ class SummarizeOverlapTest {
                             "hi"));
         }
 
-        // Пять сообщений при overlap-messages: 30 — преференция по числу сообщений даёт -25.
         final SummarizeWindow window =
                 new SummarizeWindow(live, new SummarizeProperties(30_000, 50, 30, 5, 5, 4));
 
-        assertThat(window.preferred()).isNegative();
-        assertThat(window.floor()).isZero();
-        assertThat(window.budgetForcedTheBoundary()).isFalse();
+        assertThat(window.toCompress()).isEmpty();
+        assertThat(window.kept()).hasSize(5);
+        assertThat(window.worthARound()).isFalse();
     }
 
     // -------------------------------------------------------------------------
