@@ -136,14 +136,16 @@ public class SummarizeService implements DisposableBean {
                 promptRows.stream().filter(row -> !row.entity().isSummary()).toList();
 
         // liveMessages: the subset used to pick the cutoff and build the LLM prompt — anything
-        // with text, or a tool-calls-only ASSISTANT segment (blank text but non-empty invocations).
-        // Only truly-empty TOOL protocol rows are excluded: their info is already exposed via the
-        // owning ASSISTANT segment's invocations/resultGist.
+        // whose prompt text is non-blank, or a tool-calls-only ASSISTANT segment (blank text but
+        // non-empty invocations). Judged on row.text() — the same text generateSummary sends — not
+        // on the stored column: a second way to ask "does this row say anything" is exactly the
+        // split this class exists to prevent. Only truly-empty TOOL protocol rows are excluded:
+        // their info is already exposed via the owning ASSISTANT segment's invocations/resultGist.
         final List<PromptRow> liveMessages =
                 allLive.stream()
                         .filter(
                                 row ->
-                                        Strings.isNotBlank(row.entity().getText())
+                                        Strings.isNotBlank(row.text())
                                                 || (row.entity().getInvocations() != null
                                                         && !row.entity()
                                                                 .getInvocations()
@@ -298,7 +300,7 @@ public class SummarizeService implements DisposableBean {
                 sliceTokens,
                 summaryText.length() / summarizeProperties.charsPerToken());
 
-        // 7. Persist: mark compressed messages as summarized, insert new summary row.
+        // 6. Persist: mark compressed messages as summarized, insert new summary row.
         persistSummary(
                 conversationId,
                 toCompress,
