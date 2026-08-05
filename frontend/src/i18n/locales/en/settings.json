@@ -66,6 +66,7 @@
       "tokenThreshold": "Token threshold",
       "messageThreshold": "Message threshold",
       "overlap": "Live message buffer",
+      "overlapUser": "Live user message buffer",
       "collapseThreshold": "Summary collapse threshold",
       "summariesValue": "{{count}} summaries",
       "charsPerToken": "Characters per token (estimate)",

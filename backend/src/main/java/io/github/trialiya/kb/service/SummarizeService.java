@@ -125,35 +125,60 @@ public class SummarizeService implements DisposableBean {
                                                         && !m.getInvocations().isEmpty()))
                         .toList();
 
-        // 2. Determine the slice to compress: everything except the last overlapMessages.
+        log.info(
+                "[{}] Summarization check — live context: {}; of them prompt-eligible: {}",
+                conversationId,
+                MessageMix.of(allLive),
+                MessageMix.of(liveMessages));
+
+        // 2. Determine the slice to compress: everything before the live tail. The tail must
+        // satisfy BOTH overlap rules at once — at least overlapMessages messages of any kind AND
+        // at least overlapUserMessages USER messages — so the earlier of the two boundaries wins.
+        // The count rule alone would let a single question followed by a long tool marathon push
+        // the user's own recent questions into the summary; the user rule alone would let a burst
+        // of short questions shrink the live tail to almost nothing.
+        final int overlapMessages = summarizeProperties.overlapMessages();
+        final int overlapUserMessages = summarizeProperties.overlapUserMessages();
+        final int countCutoff = liveMessages.size() - overlapMessages;
+        final int userCutoff = userMessageCutoff(liveMessages, overlapUserMessages);
+        final int rawCutoff = Math.min(countCutoff, userCutoff);
+
         // The first KEPT message must be a USER message: assistant tool-call segments and their
         // TOOL responses form indivisible pairs, so we only compress whole turns. Otherwise a
         // kept TOOL row could lose its assistant counterpart (the model rejects orphaned tool
-        // messages).
-        final int overlapMessages = summarizeProperties.overlapMessages();
-        final int rawCutoff = liveMessages.size() - overlapMessages;
+        // messages). userCutoff already lands on one; countCutoff generally does not.
         int cutoff = rawCutoff;
         while (cutoff > 0
                 && cutoff < liveMessages.size()
                 && liveMessages.get(cutoff).getType() != MessageType.USER) {
             cutoff--;
         }
-        if (cutoff <= 0 && rawCutoff > 0) {
-            // В окне нет ни одного USER (один вопрос → длинный tool-марафон): без запасного
-            // варианта сжатие не запустилось бы никогда, и контекст рос бы неограниченно.
-            // Резать по исходному cutoff безопасно: первым ОСТАВЛЕННЫМ окажется текстовый
+        if (cutoff <= 0 && countCutoff > 0) {
+            // Оба правила перекрытия не дали границы, хотя сообщений уже больше окна: либо в окне
+            // нет ни одного USER (один вопрос → длинный tool-марафон), либо их меньше, чем требует
+            // overlap-user-messages. Без запасного варианта сжатие не запустилось бы никогда, и
+            // контекст рос бы неограниченно, поэтому здесь правило по числу USER-сообщений
+            // отступает: удержать их столько, сколько диалог не содержит, всё равно нельзя.
+            // Резать по countCutoff безопасно: первым ОСТАВЛЕННЫМ окажется текстовый
             // ASSISTANT-сегмент (протокольные TOOL-строки пусты и в liveMessages не входят),
             // а пометка summarized идёт по позициям — парные TOOL-строки уходят в summary
             // вместе со своими assistant-сегментами, ответ на tool_calls сегмента-границы
             // остаётся живым вместе с ним.
-            cutoff = rawCutoff;
+            log.info(
+                    "[{}] Live tail holds fewer than {} user messages — falling back to the message-count boundary ({})",
+                    conversationId,
+                    overlapUserMessages,
+                    countCutoff);
+            cutoff = countCutoff;
         }
         if (cutoff <= 0) {
             log.info(
-                    "[{}] Not enough messages to compress (live={}, overlap={})",
+                    "[{}] Not enough messages to compress: the live tail must keep {} messages and"
+                            + " {} user messages, live={}",
                     conversationId,
-                    liveMessages.size(),
-                    overlapMessages);
+                    overlapMessages,
+                    overlapUserMessages,
+                    MessageMix.of(liveMessages));
             return;
         }
 
@@ -174,9 +199,10 @@ public class SummarizeService implements DisposableBean {
         final int tokenThreshold = summarizeProperties.tokenThreshold();
         if (cutoff < messageCountThreshold && estimatedTokens < tokenThreshold) {
             log.info(
-                    "[{}] Skipping summarization. Messages: {} < threshold: {}. Estimated tokens: {} < threshold: {}",
+                    "[{}] Skipping summarization — compressible: {} < threshold: {}. Estimated"
+                            + " tokens: {} < threshold: {}",
                     conversationId,
-                    cutoff,
+                    MessageMix.of(liveMessages.subList(0, cutoff)),
                     messageCountThreshold,
                     estimatedTokens,
                     tokenThreshold);
@@ -186,10 +212,12 @@ public class SummarizeService implements DisposableBean {
         final List<ChatMessageEntity> toCompress = liveMessages.subList(0, cutoff);
 
         log.info(
-                "[{}] Compressing: {} - {}",
+                "[{}] Compressing positions {}-{}: {}; keeping live: {}",
                 conversationId,
                 toCompress.getFirst().getPosition(),
-                toCompress.getLast().getPosition());
+                toCompress.getLast().getPosition(),
+                MessageMix.of(toCompress),
+                MessageMix.of(liveMessages.subList(cutoff, liveMessages.size())));
 
         // 4. Load existing summaries to give the LLM prior context.
         final List<ChatMessageEntity> existingSummaries =
@@ -221,9 +249,9 @@ public class SummarizeService implements DisposableBean {
                                 toCompress.getLast().getPosition());
 
         log.info(
-                "[{}] Summarization finished ({} messages ({} tokens) compressed) -> {} tokens",
+                "[{}] Summarization finished — compressed {} (~{} tokens) into ~{} tokens",
                 conversationId,
-                cutoff,
+                MessageMix.of(toCompress),
                 estimatedTokens,
                 summaryText.length() / summarizeProperties.charsPerToken());
 
@@ -250,6 +278,60 @@ public class SummarizeService implements DisposableBean {
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    /**
+     * Index of the first message of the tail that holds {@code keepUserMessages} USER messages —
+     * i.e. the position of the N-th USER message counted from the end. Returns {@code 0} when the
+     * window does not contain that many USER messages at all: nothing may be compressed then, and
+     * {@code doSummarize} decides whether to honour that or fall back to the count boundary.
+     */
+    private static int userMessageCutoff(
+            List<ChatMessageEntity> liveMessages, int keepUserMessages) {
+        if (keepUserMessages <= 0) {
+            return liveMessages.size();
+        }
+        int seen = 0;
+        for (int i = liveMessages.size() - 1; i >= 0; i--) {
+            if (liveMessages.get(i).getType() == MessageType.USER && ++seen == keepUserMessages) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    /**
+     * How many messages a slice holds and of what kind — what the log needs to answer "how much
+     * context is this, and whose". {@code toolCalls} counts the individual tool invocations carried
+     * by the ASSISTANT segments, not the segments themselves: a single segment can fire several
+     * tools, and it is the invocations that fill the context window.
+     */
+    private record MessageMix(int total, int user, int assistant, int tool, int toolCalls) {
+
+        private static MessageMix of(List<ChatMessageEntity> messages) {
+            int user = 0;
+            int assistant = 0;
+            int tool = 0;
+            int toolCalls = 0;
+            for (ChatMessageEntity message : messages) {
+                switch (message.getType()) {
+                    case USER -> user++;
+                    case ASSISTANT -> assistant++;
+                    case TOOL -> tool++;
+                    default -> {}
+                }
+                if (message.getInvocations() != null) {
+                    toolCalls += message.getInvocations().size();
+                }
+            }
+            return new MessageMix(messages.size(), user, assistant, tool, toolCalls);
+        }
+
+        @Override
+        public String toString() {
+            return "%d messages (user=%d, assistant=%d, tool=%d, tool calls=%d)"
+                    .formatted(total, user, assistant, tool, toolCalls);
+        }
+    }
 
     /**
      * Rough token estimate for messages positioned before {@code beforePosition}: total characters

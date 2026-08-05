@@ -12,6 +12,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *       token-threshold: 3000
  *       message-count-threshold: 20
  *       overlap-messages: 10
+ *       overlap-user-messages: 5
  *       summary-collapse-threshold: 5
  *       chars-per-token: 4
  * </pre>
@@ -23,6 +24,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *     in.
  * @param overlapMessages number of recent messages kept *outside* the summarized window so the
  *     model always has some live context to anchor against.
+ * @param overlapUserMessages minimum number of recent <em>user</em> messages kept outside the
+ *     summarized window. Applied together with {@code overlapMessages}, not instead of it: the live
+ *     tail must satisfy both, so a turn that produced a long tool marathon cannot push the user's
+ *     own last questions into the summary just because the raw message count already fits.
  * @param summaryCollapseThreshold when the number of stored summary messages would reach this
  *     value, they are collapsed into a single meta-summary instead.
  * @param charsPerToken how many characters are used per estimated token. Lower it to 3 for
@@ -33,5 +38,6 @@ public record SummarizeProperties(
         int tokenThreshold,
         int messageCountThreshold,
         int overlapMessages,
+        int overlapUserMessages,
         int summaryCollapseThreshold,
         int charsPerToken) {}
