@@ -42,6 +42,13 @@ class SummarizeOverlapTest {
 
     private static final String CONV = "conv-1";
 
+    /**
+     * Токенный бюджет, в который окно теста заведомо помещается: эти тесты про границу по
+     * перекрытию, а бюджет — отдельное правило со своим полом, и он не должен вмешиваться. Порог
+     * запуска в них снят до 1 сообщения, иначе раунд бы вовсе не стартовал.
+     */
+    private static final int BUDGET = 100_000;
+
     private ChatMessageRepository repository;
     private OpenAiChatModel chatModel;
 
@@ -76,7 +83,7 @@ class SummarizeOverlapTest {
         }
         givenLive(live);
 
-        service(properties(10, 5, 1, 1)).doSummarize(CONV);
+        service(properties(10, 5, 1, BUDGET)).doSummarize(CONV);
 
         // Правило по числу сообщений дало бы границу 50 → после выравнивания на USER — 38.
         // Пятый с конца вопрос стоит на 30 — он и становится первым живым сообщением.
@@ -97,7 +104,7 @@ class SummarizeOverlapTest {
         }
         givenLive(live);
 
-        service(properties(10, 5, 1, 1)).doSummarize(CONV);
+        service(properties(10, 5, 1, BUDGET)).doSummarize(CONV);
 
         verify(repository).updateSummarized(CONV, 0L, 49L);
     }
@@ -119,7 +126,7 @@ class SummarizeOverlapTest {
         }
         givenLive(live);
 
-        service(properties(10, 5, 50, 100_000)).doSummarize(CONV);
+        service(properties(10, 5, 50, BUDGET)).doSummarize(CONV);
 
         verify(repository, never()).updateSummarized(anyString(), anyLong(), anyLong());
         verify(chatModel, never()).call(any(Prompt.class));
@@ -140,7 +147,7 @@ class SummarizeOverlapTest {
         givenLive(live);
 
         // Правило по вопросам дало бы границу 54, по числу сообщений — 50; 50 и есть USER.
-        service(properties(10, 3, 1, 1)).doSummarize(CONV);
+        service(properties(10, 3, 1, BUDGET)).doSummarize(CONV);
 
         verify(repository).updateSummarized(CONV, 0L, 49L);
     }
@@ -161,10 +168,39 @@ class SummarizeOverlapTest {
         }
         givenLive(live);
 
-        service(properties(10, 0, 1, 1)).doSummarize(CONV);
+        service(properties(10, 0, 1, BUDGET)).doSummarize(CONV);
 
         // Граница 50 выравнивается вниз до ближайшего USER — это индекс 38.
         verify(repository).updateSummarized(CONV, 0L, 37L);
+    }
+
+    /**
+     * Контрпример на боевых порогах: шесть вопросов и tool-марафон на тысячу строк. Оба правила
+     * перекрытия умеют двигать границу только назад, поэтому сжимаемый срез замерзает на паре
+     * сообщений, порог запуска по числу сообщений не достигается никогда — а живое окно продолжает
+     * расти. Ловит это только пол по токенному бюджету: он один считает не срез, а хвост, который
+     * реально уезжает модели.
+     */
+    @Test
+    void tokenBudgetCapsAWindowTheOverlapRulesCannotBound() {
+        // 6 вопросов подряд, дальше — только ответы модели. По 500 символов на сообщение:
+        // окно 500 000 символов = 125 000 токенов при бюджете 30 000.
+        final List<ChatMessageEntity> live = new ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            live.add(message(i, MessageType.USER, 500));
+        }
+        for (int i = 6; i < 1000; i++) {
+            live.add(message(i, MessageType.ASSISTANT, 500));
+        }
+        givenLive(live);
+
+        // Боевые значения из application.yaml.
+        service(new SummarizeProperties(30_000, 50, 30, 5, 5, 4)).doSummarize(CONV);
+
+        // Правило по вопросам дало бы границу 1 (пятый с конца вопрос стоит на позиции 1), и раунд
+        // не стартовал бы вовсе: 1 < 50 сообщений. Бюджет требует сжать всё до позиции 759 —
+        // живыми остаются ровно 240 сообщений, те самые 120 000 символов бюджета.
+        verify(repository).updateSummarized(CONV, 0L, 759L);
     }
 
     // -------------------------------------------------------------------------
@@ -177,10 +213,16 @@ class SummarizeOverlapTest {
     }
 
     private static ChatMessageEntity message(long position, MessageType type) {
+        return message(position, type, 0);
+    }
+
+    /** {@code chars} — длина текста: она и есть вес сообщения для токенного бюджета. */
+    private static ChatMessageEntity message(long position, MessageType type, int chars) {
+        final String text = "message " + position;
         return new ChatMessageEntity(
                 position + 1,
                 CONV,
-                "message " + position,
+                text.length() >= chars ? text : text + "x".repeat(chars - text.length()),
                 type,
                 position,
                 false,

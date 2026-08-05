@@ -19,9 +19,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * @param tokenThreshold approximate token budget for the "live" messages window. When the total
  *     estimated tokens across unsummarized messages exceeds this value, a new summarization round
- *     is triggered. Rule of thumb: 1 token ≈ 4 characters (English/code mix).
+ *     is triggered <em>and</em> the round is forced to compress far enough back for the surviving
+ *     tail to fit the budget again — the overlap parameters below give way to it, since they can
+ *     only move the boundary earlier and so bound nothing on their own. The one hard ceiling on the
+ *     live window. Rule of thumb: 1 token ≈ 4 characters (English/code mix).
  * @param messageCountThreshold minimum number of compressible messages before summarization kicks
- *     in.
+ *     in. Unlike {@code tokenThreshold} this one measures the slice about to be compressed, and it
+ *     only starts rounds — it never decides how far back the boundary goes.
  * @param overlapMessages number of recent messages kept *outside* the summarized window so the
  *     model always has some live context to anchor against.
  * @param overlapUserMessages minimum number of recent <em>user</em> messages kept outside the

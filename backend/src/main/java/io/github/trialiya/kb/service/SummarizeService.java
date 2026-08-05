@@ -131,12 +131,14 @@ public class SummarizeService implements DisposableBean {
                 MessageMix.of(allLive),
                 MessageMix.of(liveMessages));
 
-        // 2. Determine the slice to compress: everything before the live tail. The tail must
-        // satisfy BOTH overlap rules at once — at least overlapMessages messages of any kind AND
-        // at least overlapUserMessages USER messages — so the earlier of the two boundaries wins.
-        // The count rule alone would let a single question followed by a long tool marathon push
-        // the user's own recent questions into the summary; the user rule alone would let a burst
-        // of short questions shrink the live tail to almost nothing.
+        // 2. Determine the slice to compress: everything before the live tail. Three rules shape
+        // the boundary and they are not peers. Two are preferences about what the tail should
+        // hold — at least overlapMessages messages of any kind AND at least overlapUserMessages
+        // USER messages — so the earlier of those two boundaries wins. The count rule alone would
+        // let a single question followed by a long tool marathon push the user's own recent
+        // questions into the summary; the user rule alone would let a burst of short questions
+        // shrink the live tail to almost nothing. The third rule, applied below, is not a
+        // preference but a floor: whatever the tail is, it must still fit the token budget.
         final int overlapMessages = summarizeProperties.overlapMessages();
         final int overlapUserMessages = summarizeProperties.overlapUserMessages();
         final int countCutoff = liveMessages.size() - overlapMessages;
@@ -176,6 +178,23 @@ public class SummarizeService implements DisposableBean {
                     countCutoff);
             cutoff = countCutoff;
         }
+
+        // Both preferences may only move the boundary earlier, so on their own they bound nothing:
+        // five questions that produced a thousand tool rows keep all thousand live for ever. The
+        // budget floor is what actually caps the window — it moves the boundary back to wherever
+        // the kept tail starts fitting the token budget, and it outranks both preferences because
+        // a tail the model cannot be sent is worth less than the questions kept inside it.
+        final int budgetCutoff = tokenBudgetCutoff(allLive, liveMessages);
+        if (budgetCutoff > 0 && budgetCutoff > cutoff) {
+            log.info(
+                    "[{}] Live tail is over the {}-token budget — the overlap rules stopped at {},"
+                            + " the budget needs {}",
+                    conversationId,
+                    summarizeProperties.tokenThreshold(),
+                    cutoff,
+                    budgetCutoff);
+            cutoff = budgetCutoff;
+        }
         if (cutoff <= 0) {
             log.info(
                     "[{}] Not enough messages to compress: the live tail must keep {} messages and"
@@ -195,22 +214,26 @@ public class SummarizeService implements DisposableBean {
                         ? liveMessages.get(cutoff).getPosition()
                         : Long.MAX_VALUE;
 
-        // 3. Decide whether the token budget for the compressible slice is exceeded. Counts text
-        // AND tool call arguments / tool response payloads — both are sent to the model as context
-        // on every follow-up request, so a large tool result must weigh into the decision just like
-        // a large assistant reply would.
-        final int estimatedTokens = estimateTokens(allLive, cutoffPosition);
+        // 3. Decide whether this round is worth running at all. Each threshold measures the thing
+        // its own name is about: message-count-threshold the slice that would be compressed,
+        // token-threshold the whole live window — the window is what every follow-up request
+        // sends to the model, and the property has always been documented as its budget. Asking
+        // the budget question through budgetCutoff rather than through a second comparison keeps
+        // the trigger and the floor from disagreeing at the boundary: over budget the floor has
+        // real work to hand this round, under it there is nothing for the round to free.
+        // Both counts include tool call arguments and tool response payloads, not just text —
+        // a large tool result occupies the context exactly like a large assistant reply.
+        final int sliceTokens = estimateTokens(allLive, cutoffPosition);
         final int messageCountThreshold = summarizeProperties.messageCountThreshold();
-        final int tokenThreshold = summarizeProperties.tokenThreshold();
-        if (cutoff < messageCountThreshold && estimatedTokens < tokenThreshold) {
+        if (cutoff < messageCountThreshold && budgetCutoff == 0) {
             log.info(
-                    "[{}] Skipping summarization — compressible: {} < threshold: {}. Estimated"
-                            + " tokens: {} < threshold: {}",
+                    "[{}] Skipping summarization — compressible: {} < threshold: {}, and the live"
+                            + " window ({} tokens) is within the {}-token budget",
                     conversationId,
                     MessageMix.of(liveMessages.subList(0, cutoff)),
                     messageCountThreshold,
-                    estimatedTokens,
-                    tokenThreshold);
+                    estimateTokens(allLive, Long.MAX_VALUE),
+                    summarizeProperties.tokenThreshold());
             return;
         }
 
@@ -257,7 +280,7 @@ public class SummarizeService implements DisposableBean {
                 "[{}] Summarization finished — compressed {} (~{} tokens) into ~{} tokens",
                 conversationId,
                 MessageMix.of(toCompress),
-                estimatedTokens,
+                sliceTokens,
                 summaryText.length() / summarizeProperties.charsPerToken());
 
         // 7. Persist: mark compressed messages as summarized, insert new summary row.
@@ -283,6 +306,58 @@ public class SummarizeService implements DisposableBean {
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    /**
+     * The floor under the cutoff: the earliest boundary whose KEPT tail still fits {@code
+     * token-threshold}. Walks back from the newest row adding up characters until the budget is
+     * spent — everything at or before the row that overflows it has to be compressed. Returns
+     * {@code 0} while the whole window fits, which is also the answer to "is this conversation over
+     * budget at all", and {@code doSummarize} uses it as exactly that.
+     *
+     * <p>This is the only rule that bounds the live window. The two overlap rules can move the
+     * boundary earlier and never later, so on their own they let the window grow to whatever the
+     * last few turns happen to produce: five questions answered by a thousand tool rows keep all
+     * thousand rows live, the compressible slice stays a couple of messages wide, and no round ever
+     * runs. The floor is derived from the configured budget rather than from a factor over {@code
+     * overlap-messages} — "does the tail still fit" has one honest answer and {@code
+     * token-threshold} already states it.
+     *
+     * <p>The result is deliberately not aligned onto a USER message the way the overlap rules are:
+     * the floor exists for windows where the nearest USER row is far behind, and aligning would
+     * hand the budget straight back. It is safe for the same reason the count-boundary fallback in
+     * {@code doSummarize} is safe — only truly-empty TOOL rows are missing from {@code
+     * liveMessages}, and rows are marked summarized by position, so a tool pair is never split
+     * across the boundary. The newest message always stays live: summarizing the question that was
+     * just asked would buy nothing.
+     */
+    private int tokenBudgetCutoff(
+            List<ChatMessageEntity> allLive, List<ChatMessageEntity> liveMessages) {
+        if (liveMessages.isEmpty()) {
+            return 0;
+        }
+        final long budgetChars =
+                (long) summarizeProperties.tokenThreshold() * summarizeProperties.charsPerToken();
+        long chars = 0;
+        long overflowPosition = 0;
+        boolean overflowed = false;
+        for (int i = allLive.size() - 1; i >= 0; i--) {
+            chars += messageChars(allLive.get(i));
+            if (chars > budgetChars) {
+                overflowPosition = allLive.get(i).getPosition();
+                overflowed = true;
+                break;
+            }
+        }
+        if (!overflowed) {
+            return 0;
+        }
+        int cutoff = 0;
+        while (cutoff < liveMessages.size()
+                && liveMessages.get(cutoff).getPosition() <= overflowPosition) {
+            cutoff++;
+        }
+        return Math.min(cutoff, liveMessages.size() - 1);
+    }
 
     /**
      * Index of the first message of the tail that holds {@code keepUserMessages} USER messages —
