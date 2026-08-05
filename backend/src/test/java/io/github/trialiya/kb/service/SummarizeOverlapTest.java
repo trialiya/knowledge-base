@@ -125,6 +125,48 @@ class SummarizeOverlapTest {
         verify(chatModel, never()).call(any(Prompt.class));
     }
 
+    /**
+     * Второе правило — потолок, а не замена первому: когда вопросы идут ровно, граница по числу
+     * сообщений оказывается раньше и она же побеждает, а хвост всё равно уносит больше
+     * USER-сообщений, чем требует {@code overlap-user-messages}.
+     */
+    @Test
+    void countOverlapStillWinsWhenItIsTheEarlierBoundary() {
+        // Чередование вопрос/ответ на всём окне: USER стоят на всех чётных индексах.
+        final List<ChatMessageEntity> live = new ArrayList<>();
+        for (int i = 0; i < 60; i++) {
+            live.add(message(i, i % 2 == 0 ? MessageType.USER : MessageType.ASSISTANT));
+        }
+        givenLive(live);
+
+        // Правило по вопросам дало бы границу 54, по числу сообщений — 50; 50 и есть USER.
+        service(properties(10, 3, 1, 1)).doSummarize(CONV);
+
+        verify(repository).updateSummarized(CONV, 0L, 49L);
+    }
+
+    /**
+     * {@code overlap-user-messages: 0} выключает правило целиком и возвращает поведение до его
+     * появления — только граница по числу сообщений, выровненная на ближайшее USER-сообщение.
+     */
+    @Test
+    void zeroUserOverlapDisablesTheRule() {
+        // То же окно, что и в первом тесте, где правило по вопросам сдвигало границу на 30.
+        final List<ChatMessageEntity> live = new ArrayList<>();
+        for (int i = 0; i < 40; i++) {
+            live.add(message(i, i % 2 == 0 ? MessageType.USER : MessageType.ASSISTANT));
+        }
+        for (int i = 40; i < 60; i++) {
+            live.add(message(i, MessageType.ASSISTANT));
+        }
+        givenLive(live);
+
+        service(properties(10, 0, 1, 1)).doSummarize(CONV);
+
+        // Граница 50 выравнивается вниз до ближайшего USER — это индекс 38.
+        verify(repository).updateSummarized(CONV, 0L, 37L);
+    }
+
     // -------------------------------------------------------------------------
 
     private void givenLive(List<ChatMessageEntity> live) {

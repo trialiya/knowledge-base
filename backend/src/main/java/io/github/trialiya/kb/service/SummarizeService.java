@@ -154,19 +154,24 @@ public class SummarizeService implements DisposableBean {
             cutoff--;
         }
         if (cutoff <= 0 && countCutoff > 0) {
-            // Оба правила перекрытия не дали границы, хотя сообщений уже больше окна: либо в окне
-            // нет ни одного USER (один вопрос → длинный tool-марафон), либо их меньше, чем требует
-            // overlap-user-messages. Без запасного варианта сжатие не запустилось бы никогда, и
-            // контекст рос бы неограниченно, поэтому здесь правило по числу USER-сообщений
-            // отступает: удержать их столько, сколько диалог не содержит, всё равно нельзя.
-            // Резать по countCutoff безопасно: первым ОСТАВЛЕННЫМ окажется текстовый
+            // Ни одно USER-сообщение не может открыть хвост, хотя сообщений уже больше окна. Причин
+            // три, и снаружи они неразличимы: в окне нет ни одного USER (один вопрос → длинный
+            // tool-марафон); USER-сообщений меньше, чем требует overlap-user-messages; либо все они
+            // лежат позже границы по числу сообщений. Без запасного варианта сжатие не запустилось
+            // бы никогда, и контекст рос бы неограниченно, поэтому здесь правило по числу
+            // USER-сообщений отступает: удержать их столько, сколько диалог не содержит, всё равно
+            // нельзя. Резать по countCutoff безопасно: первым ОСТАВЛЕННЫМ окажется текстовый
             // ASSISTANT-сегмент (протокольные TOOL-строки пусты и в liveMessages не входят),
             // а пометка summarized идёт по позициям — парные TOOL-строки уходят в summary
             // вместе со своими assistant-сегментами, ответ на tool_calls сегмента-границы
             // остаётся живым вместе с ним.
             log.info(
-                    "[{}] Live tail holds fewer than {} user messages — falling back to the message-count boundary ({})",
+                    "[{}] No USER message can open the live tail (window: {}; overlap rules ask for"
+                            + " {} messages and {} user messages) — falling back to the"
+                            + " message-count boundary {}",
                     conversationId,
+                    MessageMix.of(liveMessages),
+                    overlapMessages,
                     overlapUserMessages,
                     countCutoff);
             cutoff = countCutoff;
@@ -281,9 +286,11 @@ public class SummarizeService implements DisposableBean {
 
     /**
      * Index of the first message of the tail that holds {@code keepUserMessages} USER messages —
-     * i.e. the position of the N-th USER message counted from the end. Returns {@code 0} when the
-     * window does not contain that many USER messages at all: nothing may be compressed then, and
-     * {@code doSummarize} decides whether to honour that or fall back to the count boundary.
+     * i.e. the index of the N-th USER message counted from the end. {@code 0} means "compress
+     * nothing", and it deliberately covers two cases at once: the N-th USER message really is the
+     * very first row of the window, and the window holds fewer than N USER messages. Both say the
+     * same thing to the caller — this rule cannot free anything — and {@code doSummarize} decides
+     * whether to honour that or fall back to the count boundary.
      */
     private static int userMessageCutoff(
             List<ChatMessageEntity> liveMessages, int keepUserMessages) {
@@ -303,33 +310,43 @@ public class SummarizeService implements DisposableBean {
      * How many messages a slice holds and of what kind — what the log needs to answer "how much
      * context is this, and whose". {@code toolCalls} counts the individual tool invocations carried
      * by the ASSISTANT segments, not the segments themselves: a single segment can fire several
-     * tools, and it is the invocations that fill the context window.
+     * tools, and it is the invocations that fill the context window. {@code other} catches the
+     * types that are neither of the three (a live SYSTEM row, say) so the breakdown always adds up
+     * to {@code total} — a log line whose numbers silently don't sum is worse than no log line.
      */
-    private record MessageMix(int total, int user, int assistant, int tool, int toolCalls) {
+    private record MessageMix(
+            int total, int user, int assistant, int tool, int other, int toolCalls) {
 
         private static MessageMix of(List<ChatMessageEntity> messages) {
             int user = 0;
             int assistant = 0;
             int tool = 0;
+            int other = 0;
             int toolCalls = 0;
             for (ChatMessageEntity message : messages) {
                 switch (message.getType()) {
                     case USER -> user++;
                     case ASSISTANT -> assistant++;
                     case TOOL -> tool++;
-                    default -> {}
+                    default -> other++;
                 }
                 if (message.getInvocations() != null) {
                     toolCalls += message.getInvocations().size();
                 }
             }
-            return new MessageMix(messages.size(), user, assistant, tool, toolCalls);
+            return new MessageMix(messages.size(), user, assistant, tool, other, toolCalls);
         }
 
         @Override
         public String toString() {
-            return "%d messages (user=%d, assistant=%d, tool=%d, tool calls=%d)"
-                    .formatted(total, user, assistant, tool, toolCalls);
+            return "%d messages (user=%d, assistant=%d, tool=%d%s, tool calls=%d)"
+                    .formatted(
+                            total,
+                            user,
+                            assistant,
+                            tool,
+                            other == 0 ? "" : ", other=%d".formatted(other),
+                            toolCalls);
         }
     }
 
