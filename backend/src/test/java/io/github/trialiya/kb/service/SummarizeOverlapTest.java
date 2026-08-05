@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -223,6 +224,33 @@ class SummarizeOverlapTest {
         service(new SummarizeProperties(30_000, 50, 30, 5, 5, 4)).doSummarize(CONV);
 
         verify(repository, never()).updateSummarized(anyString(), anyLong(), anyLong());
+    }
+
+    /**
+     * Короткий диалог не должен рапортовать, что упёрся в бюджет. {@code preferred} уходит в минус
+     * на любом окне короче {@code overlap-messages} — то есть почти на каждом живом чате, — а пол
+     * возвращает 0 в смысле «окно помещается целиком». Сравнивать их напрямую значит читать этот
+     * ноль как выбранную границу: после каждого ответа AI в лог шла строка «хвост вышел за бюджет,
+     * преференции остановились на -25, бюджету нужно 0», сразу за ней — противоположная ей строка о
+     * том, что окно в бюджет укладывается.
+     */
+    @Test
+    void aShortWindowDoesNotClaimTheBudgetForcedItsBoundary() {
+        final List<PromptRow> live = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            live.add(
+                    new PromptRow(
+                            message(i, i % 2 == 0 ? MessageType.USER : MessageType.ASSISTANT),
+                            "hi"));
+        }
+
+        // Пять сообщений при overlap-messages: 30 — преференция по числу сообщений даёт -25.
+        final SummarizeWindow window =
+                new SummarizeWindow(live, new SummarizeProperties(30_000, 50, 30, 5, 5, 4));
+
+        assertThat(window.preferred()).isNegative();
+        assertThat(window.floor()).isZero();
+        assertThat(window.budgetForcedTheBoundary()).isFalse();
     }
 
     // -------------------------------------------------------------------------

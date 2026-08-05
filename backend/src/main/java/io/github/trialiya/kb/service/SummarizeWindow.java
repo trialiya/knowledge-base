@@ -118,9 +118,16 @@ final class SummarizeWindow {
         return cutoff <= 0 || (floor == 0 && cutoff < properties.messageCountThreshold());
     }
 
-    /** True when the budget pushed the boundary past every preference — worth a log line. */
+    /**
+     * True when the budget pushed the boundary past every preference — worth a log line.
+     *
+     * <p>The {@code floor > 0} half is not redundant: {@code 0} is the floor's "the window fits"
+     * sentinel, not a boundary it chose, while {@code preferred} goes negative on any conversation
+     * shorter than {@code overlap-messages} — there, {@code floor > preferred} is {@code 0 > -25},
+     * which is every short chat announcing that a budget it is nowhere near forced a boundary.
+     */
     boolean budgetForcedTheBoundary() {
-        return floor > preferred;
+        return floor > 0 && floor > preferred;
     }
 
     int preferred() {
