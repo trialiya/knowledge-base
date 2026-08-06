@@ -98,18 +98,15 @@ public class SummarizeService implements DisposableBean {
     }
 
     public void doSummarize(@Nonnull final String conversationId) {
-        // The live history as the model receives it: every row carries the text that will actually
-        // be sent, not the text that happens to be stored — the attachment inventory is appended
-        // at read time and never lands in chat_message.content. ChatMemoryService#promptRows is
-        // the one place that answers "what does the model see"; the summarizer prompt below and
-        // the budget inside SummarizeWindow both measure exactly that.
+        // promptRows is the one place that answers "what does the model see": every row carries the
+        // text that will be sent, inventory included, not the text that happens to be stored. The
+        // prompt below and the estimate inside SummarizeWindow both measure exactly that.
         final SummarizeWindow window =
                 new SummarizeWindow(
                         chatMemoryService.promptRows(conversationId), summarizeProperties);
 
-        // One line per check. The second half is spelled out only when it says something the first
-        // does not: the two mixes differ exactly when the window carries empty TOOL protocol rows,
-        // which are context the model pays for but the summarizer prompt never sees.
+        // The second mix is spelled out only when it differs — that is, when the window carries
+        // empty TOOL protocol rows: context the model pays for but the summarizer never sees.
         final MessageMix liveMix = MessageMix.of(window.allLive());
         final MessageMix promptMix = MessageMix.of(window.prompt());
         log.info(
@@ -144,8 +141,8 @@ public class SummarizeService implements DisposableBean {
                 window.sliceTokens(),
                 MessageMix.of(window.kept()));
 
-        // Generate the summary text via LLM. Collapse existing summaries into one meta-summary if
-        // this round's new summary would otherwise push the count to summaryCollapseThreshold.
+        // Collapse existing summaries into one meta-summary if this round's new summary would
+        // otherwise push the count to summaryCollapseThreshold.
         final List<ChatMessageEntity> existingSummaries = window.summaries();
         final boolean collapseSummaries =
                 existingSummaries.size() + 1 >= summarizeProperties.summaryCollapseThreshold();
@@ -164,7 +161,7 @@ public class SummarizeService implements DisposableBean {
                         : buildSummaryText(
                                 summaryContent,
                                 toCompress.getFirst().entity().getPosition(),
-                                toCompress.getLast().entity().getPosition());
+                                window.endPosition());
 
         log.info(
                 "[{}] Summarization finished — compressed {} (~{} tokens) into ~{} tokens",
@@ -213,10 +210,10 @@ public class SummarizeService implements DisposableBean {
         prompt.append("Summarize the following ").append(toCompress.size()).append(" messages:\n");
         toCompress.forEach(
                 row -> {
-                    // row.text() — уже с описью приложенного: она дописывается при чтении истории
-                    // и в content не лежит. Без неё summarizer.md требует сохранить то, чего в его
-                    // входе нет, — а вместе со сжатым сообщением исчезал бы и единственный след
-                    // вложения в диалоге.
+                    // row.text() already carries the attachment inventory: it is appended at read
+                    // time and never stored. Without it summarizer.md would be asked to preserve
+                    // what its own input never showed, and the last trace of an attachment would
+                    // vanish together with the message that carried it.
                     prompt.append("[msg:")
                             .append(row.entity().getPosition())
                             .append("] ")
@@ -238,11 +235,10 @@ public class SummarizeService implements DisposableBean {
     }
 
     /**
-     * Appends a compact "which tools ran here and what they returned" block for a segment, using
-     * {@code resultGist} (a short human-readable preview, not the full tool response) — the
-     * summarizer needs to know *what happened* during a tool call, not replay its raw payload.
-     * Without this the model only sees the assistant's prose and has no idea tools were even
-     * invoked, since tool_calls/tool responses live in {@code tool_data}, not in message text.
+     * Appends a compact "which tools ran here and what they returned" block, using {@code
+     * resultGist} — a short preview, not the raw payload: the summarizer needs to know *what
+     * happened*, not to replay it. Without this the model sees only the assistant's prose and has
+     * no idea tools ran at all, since tool_calls/responses live in {@code tool_data}, not in text.
      */
     private static void appendToolCalls(
             StringBuilder prompt, @Nullable List<ToolInvocationMeta> invocations) {
@@ -266,6 +262,11 @@ public class SummarizeService implements DisposableBean {
         }
     }
 
+    /**
+     * {@code lastPosition} is the last position this round <em>marks</em>, not the last one the
+     * summarizer read: empty TOOL protocol rows trail the final compressed turn and are marked with
+     * it, so "continue from N+1" has to clear them or it points at a summarized row.
+     */
     private String buildSummaryText(String content, long firstPosition, long lastPosition) {
         return "Earlier conversation summary (messages "
                 + firstPosition

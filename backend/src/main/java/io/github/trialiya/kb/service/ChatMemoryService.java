@@ -447,14 +447,17 @@ public class ChatMemoryService implements ChatMemoryRepository {
                         .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
                                 conversationId);
         final Map<Long, String> context = contextItemService.renderAll(conversationId, rows);
-        return rows.stream()
-                .map(
-                        entity ->
-                                new PromptRow(
-                                        entity,
-                                        entity.getContent()
-                                                + context.getOrDefault(entity.getId(), "")))
-                .toList();
+        return rows.stream().map(entity -> promptRow(entity, context.get(entity.getId()))).toList();
+    }
+
+    /**
+     * Сообщения без описи (все, кроме вопросов с вложениями) отдают {@code content} как есть: этот
+     * путь проходят все строки окна на каждой итерации tool-цикла, и склейка с пустой строкой
+     * заводила бы новую копию текста на каждую.
+     */
+    private static PromptRow promptRow(ChatMessageEntity entity, @Nullable String inventory) {
+        return new PromptRow(
+                entity, inventory == null ? entity.getContent() : entity.getContent() + inventory);
     }
 
     @Override

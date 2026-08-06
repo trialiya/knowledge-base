@@ -11,42 +11,34 @@ import org.apache.logging.log4j.util.Strings;
 import org.springframework.ai.chat.messages.MessageType;
 
 /**
- * The live window of a conversation cut in two — all of {@code SummarizeService}'s arithmetic with
- * no side effects: rows of history as the model receives them in ({@link
- * ChatMemoryService#promptRows}), "what to compress, what to keep, and whether it is worth a round"
- * out.
+ * The live window of a conversation cut in two — all of {@code SummarizeService}'s arithmetic, with
+ * no side effects. In: history as the model receives it ({@link ChatMemoryService#promptRows}).
+ * Out: what to compress, what to keep, and whether it is worth a round.
  *
- * <p><b>The live tail</b> ({@link #kept()}) is what this round may not touch, and three rules say
- * how far back it reaches — the earliest of them wins: it holds at least {@code
- * overlap-user-messages} USER messages, at least {@code overlap-messages} messages of any kind, and
- * it opens on a whole turn (walk back to the nearest USER message). A rule that cannot be satisfied
- * simply does not apply — keeping five questions where the conversation only ever had one is not
- * something a boundary can arrange — so none of them needs a fallback branch to rescue it.
+ * <p><b>The live tail</b> ({@link #kept()}) is untouchable, and three rules say how far back it
+ * reaches — the earliest wins: at least {@code overlap-user-messages} USER messages, at least
+ * {@code overlap-messages} messages of any kind, and it opens on a whole turn. A rule that cannot
+ * be satisfied stands aside instead of forcing a boundary, so none of them needs a fallback branch.
  *
- * <p><b>Everything older</b> ({@link #toCompress()}) is the slice this round would compress, all of
- * it or none. Two thresholds ask whether that is worth doing and either one is enough: the slice
- * holds {@code message-count-threshold} messages, or it weighs {@code token-threshold} tokens. Both
- * measure the same thing — the slice — so they cannot disagree about what they trigger on.
+ * <p><b>Everything older</b> ({@link #toCompress()}) is the slice, compressed whole or not at all.
+ * Either threshold starts a round, and both measure the slice: {@code message-count-threshold} by
+ * count, {@code token-threshold} by weight.
  *
- * <p><b>Summaries take no part in this arithmetic.</b> They are already-compressed past: they ride
- * along in every request and are handed to the summarizer as context (see {@link #summaries()}),
- * but they are neither compressed again nor counted against either threshold.
+ * <p><b>Summaries take no part in this.</b> They are already-compressed past: handed to the
+ * summarizer as context ({@link #summaries()}), never compressed again, never counted.
  *
- * <p>What this deliberately does <em>not</em> promise: a bound on the size of the live tail. All
- * three rules can only move the boundary earlier, so a single turn that produces a thousand tool
- * rows keeps all thousand live until five more questions push them out of the tail. The window
- * drains as the conversation moves on rather than being clamped — the price of a boundary a reader
- * can predict without simulating it.
+ * <p>Deliberately not promised: a bound on the live tail. Every rule only moves the boundary
+ * earlier, so a tool marathon inside the last few turns stays live until later questions push it
+ * out. The window drains as the conversation moves on rather than being clamped — the price of a
+ * boundary a reader can predict without simulating it.
  */
 final class SummarizeWindow {
 
     /**
-     * Flat per-message protocol overhead charged by {@link #messageChars}, in characters — roughly
-     * four tokens at the default {@code chars-per-token}, which is about what a role plus the JSON
-     * envelope around one message costs in an OpenAI-shaped request. Deliberately not a configured
-     * property: it describes the wire format, not a preference anyone should be tuning. Without it
-     * an empty TOOL row weighs literally nothing and a slice of a thousand short rows estimates as
-     * nearly free.
+     * Flat per-message protocol overhead in characters — the role plus the JSON envelope around one
+     * message, about four tokens at the default {@code chars-per-token}. Not a property: it
+     * describes the wire format, not a preference. Without it an empty TOOL row weighs nothing and
+     * a slice of a thousand short rows estimates as nearly free.
      */
     private static final int PER_MESSAGE_CHARS = 16;
 
@@ -62,10 +54,10 @@ final class SummarizeWindow {
         this.properties = properties;
         this.summaries =
                 rows.stream().map(PromptRow::entity).filter(ChatMessageEntity::isSummary).toList();
-        // allLive keeps the blank-text TOOL protocol rows: their payloads occupy the model's
-        // context on every follow-up request, so they weigh on the slice even though the summarizer
-        // prompt never sees them. prompt drops them — a blank row gives the summarizer nothing to
-        // quote, and its information is already exposed via the owning ASSISTANT segment.
+        // allLive keeps the blank-text TOOL protocol rows — their payloads occupy the model's
+        // context on every request, so they weigh on the slice. prompt drops them: a blank row
+        // gives the summarizer nothing to quote, and its content is already exposed through the
+        // owning ASSISTANT segment.
         this.allLive = rows.stream().filter(row -> !row.entity().isSummary()).toList();
         this.prompt = allLive.stream().filter(SummarizeWindow::saysAnything).toList();
 
@@ -84,8 +76,7 @@ final class SummarizeWindow {
 
     /**
      * Where the live tail begins — the earliest boundary the three rules allow. Each is only an
-     * upper bound on how much may be compressed, so the minimum wins, and a rule that does not
-     * apply yields to the others instead of forcing a boundary of its own.
+     * upper bound on how much may be compressed, so the minimum wins.
      */
     private static int tailStart(List<PromptRow> prompt, SummarizeProperties properties) {
         int start = prompt.size() - properties.overlapMessages();
@@ -98,10 +89,9 @@ final class SummarizeWindow {
 
     /**
      * Prompt-eligible: a row with something to tell the summarizer — non-blank prompt text, or a
-     * tool-calls-only ASSISTANT segment (blank text but non-empty invocations). Judged on {@link
-     * PromptRow#text()} — the same text the summarizer prompt sends — not on the stored column: a
-     * second way to ask "does this row say anything" is exactly the split {@code PromptRow} exists
-     * to prevent.
+     * tool-calls-only ASSISTANT segment. Judged on {@link PromptRow#text()}, the text the prompt
+     * actually sends, not on the stored column — a second way to ask "does this row say anything"
+     * is exactly the split {@code PromptRow} exists to prevent.
      */
     private static boolean saysAnything(PromptRow row) {
         return Strings.isNotBlank(row.text())
@@ -141,11 +131,7 @@ final class SummarizeWindow {
         return prompt.subList(cutoff, prompt.size());
     }
 
-    /**
-     * Whether the slice has grown enough to be worth a round. Either threshold is enough, and both
-     * measure the slice: {@code message-count-threshold} how many messages it holds, {@code
-     * token-threshold} what it weighs.
-     */
+    /** Whether the slice has grown enough to be worth a round — either threshold is enough. */
     boolean worthARound() {
         return cutoff > 0
                 && (cutoff >= properties.messageCountThreshold()
@@ -158,15 +144,13 @@ final class SummarizeWindow {
     }
 
     /**
-     * The last position this round marks summarized. {@link #prompt} excludes empty TOOL protocol
-     * rows, so the range must run up to (but not including) the first KEPT message — otherwise the
-     * trailing protocol rows of the last compressed turn would stay live and orphaned. When
-     * everything is compressed (no kept message), the range must cover those trailing rows too, and
-     * only {@link #allLive} — not {@link #toCompress} — holds the true last position.
+     * The last position this round marks summarized: everything up to, but not including, the first
+     * KEPT message. {@link #prompt} excludes empty TOOL protocol rows, so a range ending at the
+     * last compressed row would leave the trailing protocol rows of that turn live and orphaned.
+     * When nothing is kept, only {@link #allLive} holds the true last position.
      *
      * <p>This, and not the turn alignment below, is what keeps an ASSISTANT tool-call segment
-     * together with its TOOL responses: marking runs by position through the first kept message, so
-     * the boundary cannot fall between a segment and its answers no matter which rule picked it.
+     * together with its TOOL responses — whichever rule picked the boundary.
      */
     long endPosition() {
         return cutoffPosition == Long.MAX_VALUE
@@ -197,8 +181,8 @@ final class SummarizeWindow {
      * the N-th USER message counted from the end. Empty when the window does not hold that many —
      * the rule stands aside rather than forcing a boundary it cannot justify.
      *
-     * <p>Index {@code 0} is a real answer here, not a failure: it says the N-th question from the
-     * end opens the window, so nothing older than the tail exists and this round has no work.
+     * <p>Index {@code 0} is a real answer here, not a failure: the N-th question from the end opens
+     * the window, so nothing older than the tail exists and this round has no work.
      */
     private static OptionalInt userBoundary(List<PromptRow> prompt, int keepUserMessages) {
         if (keepUserMessages <= 0) {
@@ -216,8 +200,14 @@ final class SummarizeWindow {
 
     /**
      * The tail should open on a whole turn, so the boundary is walked back from {@code upperBound}
-     * to the nearest USER message. Empty when there is none to walk back to, and when the bound
-     * already covers the whole window (nothing is being kept, so nothing needs opening).
+     * to the nearest USER message. Empty when the bound already covers the whole window (nothing is
+     * kept, so nothing needs opening) or when there is no USER message to walk back to.
+     *
+     * <p>Unlike {@link #userBoundary}, index {@code 0} is <em>not</em> an answer here: the search
+     * stops short of it, so a window whose only question is its very first message yields empty and
+     * the boundary stays where the count rule put it. That is the one case where the tail may open
+     * mid-turn, and it is the intended trade — the alternative is a single question followed by an
+     * unbounded tool marathon that can never be compressed at all.
      *
      * <p>This is about what the model reads, not about protocol integrity: a tail that starts
      * mid-turn opens on an answer to a question the model can no longer see. Tool-call pairing is
@@ -244,11 +234,10 @@ final class SummarizeWindow {
     }
 
     /**
-     * What one message costs the request, in characters — measured on the text that will be sent,
-     * {@link PromptRow#text()}, not on {@code chat_message.content}. The two differ by the
-     * attachment inventory, which is rendered at read time and stored nowhere; counting the stored
-     * column instead would leave the whole inventory outside the estimate, and an attachment
-     * summary has no length limit.
+     * What one message costs the request, in characters — measured on {@link PromptRow#text()}, the
+     * text that will be sent, not on {@code chat_message.content}. The two differ by the attachment
+     * inventory, rendered at read time and stored nowhere; counting the stored column would leave
+     * the whole inventory outside the estimate, and an attachment summary has no length limit.
      */
     private static long messageChars(PromptRow row) {
         long chars = PER_MESSAGE_CHARS + row.text().length();
@@ -270,11 +259,10 @@ final class SummarizeWindow {
 
     /**
      * How many messages a slice holds and of what kind — what the log needs to answer "how much
-     * context is this, and whose". {@code toolCalls} counts the individual tool invocations carried
-     * by the ASSISTANT segments, not the segments themselves: a single segment can fire several
-     * tools, and it is the invocations that fill the context window. {@code other} catches the
-     * types that are neither of the three (a live SYSTEM row, say) so the breakdown always adds up
-     * to {@code total} — a log line whose numbers silently don't sum is worse than no log line.
+     * context is this, and whose". {@code toolCalls} counts individual invocations, not the
+     * ASSISTANT segments carrying them: one segment can fire several tools, and it is the
+     * invocations that fill the context window. {@code other} catches the remaining types (a live
+     * SYSTEM row, say) so the breakdown always adds up to {@code total}.
      */
     record MessageMix(int total, int user, int assistant, int tool, int other, int toolCalls) {
 
