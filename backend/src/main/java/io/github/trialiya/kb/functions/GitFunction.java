@@ -241,15 +241,16 @@ public class GitFunction {
     }
 
     /**
-     * Returns uncommitted changes in the working tree, excluding files matched by {@code
-     * .gitignore}.
+     * Returns uncommitted changes to tracked files in the working tree. Untracked files (including
+     * those matched by {@code .gitignore}) are not reported — same tracked-only rule the read tools
+     * enforce.
      *
      * @param includePatch whether to include unified diff text for modified files (default false)
      */
     @Tool(
             name = "getUncommittedChanges",
             description =
-                    "Uncommitted changes in working tree (staged and unstaged). Status: A/M/D/R. Optional: include unified diff.",
+                    "Uncommitted changes to tracked files in working tree (staged and unstaged); untracked files excluded. Status: A/M/D/R. Optional: include unified diff.",
             resultConverter = CompactToolResultConverter.class)
     public List<GitDiffEntry> getUncommittedChanges(
             @ToolParam(

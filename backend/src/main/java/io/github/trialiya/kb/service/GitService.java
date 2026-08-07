@@ -18,7 +18,6 @@ import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
@@ -1232,14 +1231,12 @@ public class GitService {
      * Returns uncommitted changes in the working tree, excluding files matched by {@code
      * .gitignore}.
      *
-     * <p>Covers three categories:
-     *
-     * <ul>
-     *   <li><b>Modified/deleted tracked files</b> (both staged and unstaged) — diffed directly
-     *       against HEAD, mirroring {@code git diff HEAD}
-     *   <li><b>New untracked files</b> not ignored — from {@code Status.getUntracked()}, mirroring
-     *       {@code git ls-files --others --exclude-standard}
-     * </ul>
+     * <p>Only files known to Git are reported: added/modified/deleted tracked files (both staged
+     * and unstaged), diffed directly against HEAD, mirroring {@code git diff HEAD}. Untracked files
+     * are never returned — they carry no Git history, so the rest of the tool surface can't read
+     * them either ({@link #getFileContent} refuses them), and reporting them would advertise files
+     * no follow-up call can open. Files staged by {@link #createFile}/{@link #editFile} are in the
+     * index and therefore still show up as {@code A}.
      *
      * @param includePatch whether to include unified diff text for modified files
      */
@@ -1284,26 +1281,6 @@ public class GitService {
             } catch (IOException e) {
                 throw new IllegalStateException("Failed to diff working tree against HEAD", e);
             }
-        }
-
-        // Untracked files (not ignored by .gitignore) — patch is never populated for these, only
-        // a line count, same as before.
-        for (String path : status.getUntracked()) {
-            if (isJunkFile(path)) continue;
-
-            long size = fileSize(path);
-            int lineCount = 0;
-            if (size > 0 && size <= MAX_FILE_SIZE) {
-                try {
-                    lineCount =
-                            (int)
-                                    Files.lines(repoPath.resolve(path), StandardCharsets.UTF_8)
-                                            .count();
-                } catch (IOException | UncheckedIOException ignored) {
-                    // binary or unreadable — leave lineCount as 0
-                }
-            }
-            entries.add(new GitDiffEntry("A", path, null, lineCount, 0, null));
         }
 
         return entries;
