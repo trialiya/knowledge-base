@@ -194,7 +194,7 @@ class GitServiceTest {
     }
 
     @Test
-    void uncommittedChangesSeparatesTrackedEditsFromUntrackedNewFiles() {
+    void uncommittedChangesSkipsUntrackedFiles() {
         writeFile("tracked.txt", "hello\n");
         commitAll();
 
@@ -202,24 +202,30 @@ class GitServiceTest {
         writeFile("new-file.txt", "brand new");
 
         List<GitDiffEntry> changes = service.getUncommittedChanges(true);
-        assertThat(changes).hasSize(2);
 
-        GitDiffEntry modified =
-                changes.stream()
-                        .filter(e -> e.path().equals("tracked.txt"))
-                        .findFirst()
-                        .orElseThrow();
-        assertThat(modified.status()).isEqualTo("M");
-        assertThat(modified.patch()).contains("+world");
+        // Only the tracked edit — an untracked file has no Git history and no read tool can open
+        // it, so it never appears here.
+        assertThat(changes).hasSize(1);
+        assertThat(changes.get(0).path()).isEqualTo("tracked.txt");
+        assertThat(changes.get(0).status()).isEqualTo("M");
+        assertThat(changes.get(0).patch()).contains("+world");
+    }
 
-        GitDiffEntry added =
-                changes.stream()
-                        .filter(e -> e.path().equals("new-file.txt"))
-                        .findFirst()
-                        .orElseThrow();
+    @Test
+    void uncommittedChangesReportsStagedNewFileAsAdded() {
+        writeFile("tracked.txt", "hello\n");
+        commitAll();
+
+        writeFile("new-file.txt", "brand new\n");
+        runGit("add", "new-file.txt");
+
+        List<GitDiffEntry> changes = service.getUncommittedChanges(true);
+        assertThat(changes).hasSize(1);
+
+        GitDiffEntry added = changes.get(0);
+        assertThat(added.path()).isEqualTo("new-file.txt");
         assertThat(added.status()).isEqualTo("A");
-        // Untracked files never get patch content — only a line count.
-        assertThat(added.patch()).isNull();
+        assertThat(added.patch()).contains("+brand new");
     }
 
     @Test
