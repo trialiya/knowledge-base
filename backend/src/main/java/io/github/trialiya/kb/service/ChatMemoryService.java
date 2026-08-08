@@ -418,12 +418,15 @@ public class ChatMemoryService implements ChatMemoryRepository {
      */
     public record PromptRow(ChatMessageEntity entity, String text) {
 
+        /**
+         * Промпт строится по тому же {@link #text}, по которому считается вес окна: второго способа
+         * узнать текст сообщения здесь нет. Обёртка нужна ровно тогда, когда текст разошёлся с
+         * сохранённой строкой, — а разойтись он может только у вопроса (см. {@code promptRow}).
+         */
         public Message toMessage() {
-            // Описью обрастает только вопрос — у остальных типов текст равен content, и обёртка
-            // им не нужна ни по смыслу, ни по типу.
-            return entity.getType() == MessageType.USER && !text.equals(entity.getContent())
-                    ? new UserChatMessage(entity, text)
-                    : entity.getMessage();
+            return text.equals(entity.getContent())
+                    ? entity.getMessage()
+                    : new UserChatMessage(entity, text);
         }
     }
 
@@ -451,13 +454,21 @@ public class ChatMemoryService implements ChatMemoryRepository {
     }
 
     /**
-     * Сообщения без описи (все, кроме вопросов с вложениями) отдают {@code content} как есть: этот
-     * путь проходят все строки окна на каждой итерации tool-цикла, и склейка с пустой строкой
-     * заводила бы новую копию текста на каждую.
+     * Единственное место, где решается, обрастает ли строка описью: от него зависят обе стороны
+     * сразу — и промпт, и оценка веса окна. Проверь тип во второй раз ниже по течению, и стороны
+     * разойдутся, а расхождение будет тихим.
+     *
+     * <p>Опись получает только вопрос: блок говорит о том, что приложил пользователь, и на ответе
+     * модели был бы просто неправдой. Остальные отдают {@code content} как есть — этот путь
+     * проходят все строки окна на каждой итерации tool-цикла, и склейка с пустой строкой заводила
+     * бы новую копию текста на каждую.
      */
     private static PromptRow promptRow(ChatMessageEntity entity, @Nullable String inventory) {
         return new PromptRow(
-                entity, inventory == null ? entity.getContent() : entity.getContent() + inventory);
+                entity,
+                inventory == null || entity.getType() != MessageType.USER
+                        ? entity.getContent()
+                        : entity.getContent() + inventory);
     }
 
     @Override

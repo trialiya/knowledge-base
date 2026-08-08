@@ -105,6 +105,24 @@ class PromptRowSourceOfTruthTest {
         verify(contextItemService, never()).render(anyString(), anyList());
     }
 
+    /**
+     * Описью обрастает только вопрос — и решает это одно место, до того как строка разойдётся на
+     * промпт и на весы. Пока проверка типа стояла ниже по течению, в сборке сообщения, опись
+     * приложенного к ответу модели попадала в вес окна и не попадала в промпт: оценка завышалась на
+     * длину описи, у которой нет верхнего предела.
+     */
+    @Test
+    void onlyAQuestionCarriesTheInventoryAndBothSidesAgreeOnThat() {
+        givenStored(List.of(row(0, "по файлу вижу", MessageType.ASSISTANT, true)));
+
+        final List<PromptRow> rows = service.promptRows(CONV);
+        final List<Message> messages = service.findByConversationId(CONV);
+
+        assertThat(rows.getFirst().text()).isEqualTo("по файлу вижу");
+        assertThat(messages.getFirst().getText()).isEqualTo(rows.getFirst().text());
+        assertThat(messages.getFirst().getMessageType()).isEqualTo(MessageType.ASSISTANT);
+    }
+
     private void givenStored(List<ChatMessageEntity> rows) {
         when(chatMessageRepository
                         .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
@@ -120,11 +138,16 @@ class PromptRowSourceOfTruthTest {
     }
 
     private static ChatMessageEntity question(long position, String text, boolean withAttachment) {
+        return row(position, text, MessageType.USER, withAttachment);
+    }
+
+    private static ChatMessageEntity row(
+            long position, String text, MessageType type, boolean withAttachment) {
         return new ChatMessageEntity(
                 position + 1,
                 CONV,
                 text,
-                MessageType.USER,
+                type,
                 position,
                 false,
                 false,
