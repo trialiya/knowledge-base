@@ -5,7 +5,7 @@ import { STORAGE_KEY_PANELS } from './constants/storage';
 /** Текущий адрес в том же виде, в каком его строит хук. */
 const url = () => window.location.pathname + window.location.search;
 
-/** Переставить jsdom на нужный адрес до монтирования хука. */
+/** Переставить DOM-окружение на нужный адрес до монтирования хука. */
 const go = (href) => window.history.replaceState({}, '', href);
 
 beforeEach(() => {

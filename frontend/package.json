@@ -25,7 +25,8 @@
     "production": [
       ">0.2%",
       "not dead",
-      "not op_mini all"
+      "not op_mini all",
+      "not ios_saf 11"
     ],
     "development": [
       "last 1 chrome version",
@@ -40,14 +41,11 @@
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@vitejs/plugin-react": "^5.2.0",
-    "autoprefixer": "^10.4.21",
-    "esbuild": "^0.28.0",
     "eslint": "^10.8.1",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.9.0",
-    "jsdom": "^30.0.1",
-    "postcss": "^8.5.25",
+    "happy-dom": "^20.11.2",
     "vite": "^8.2.0",
     "vitest": "^4.1.10"
   }
