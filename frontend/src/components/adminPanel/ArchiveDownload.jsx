@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import OperationRow from '../common/OperationRow';
 import { IconArchive } from '../../icons';

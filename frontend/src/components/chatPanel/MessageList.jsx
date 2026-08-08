@@ -1,5 +1,5 @@
 // MessageList.jsx
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Message from './Message';
 import DocChangeBlock from './DocChangeBlock';
@@ -241,7 +241,7 @@ const MessageList = ({
             }
           }
           return (
-            <React.Fragment key={msg.mid ?? index}>
+            <Fragment key={msg.mid ?? index}>
               <Message
                 text={msg.text}
                 sender={msg.sender}
@@ -265,7 +265,7 @@ const MessageList = ({
                   <FileChangeBlock toolCalls={groupToolCalls} />
                 </>
               )}
-            </React.Fragment>
+            </Fragment>
           );
         })}
       </div>

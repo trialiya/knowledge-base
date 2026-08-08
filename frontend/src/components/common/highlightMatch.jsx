@@ -1,5 +1,3 @@
-import React from 'react';
-
 /**
  * Подсветка совпадений поискового запроса в результатах (FileSearch,
  * FilePickerDropdown). Логика матчинга зеркалит бэкенд:
@@ -37,7 +35,7 @@ export function matchIndices(text, query) {
 /**
  * Разбить text на чередование строк и <mark class="search-match"> по индексам
  * совпавших символов (соседние индексы сливаются в один <mark>).
- * @returns {React.ReactNode} исходная строка, если индексов нет
+ * @returns {import('react').ReactNode} исходная строка, если индексов нет
  */
 export function renderHighlighted(text, indices) {
   if (!indices || indices.length === 0) return text;
@@ -91,7 +89,7 @@ export function highlightSubstring(text, query) {
  * Подсветка результата поиска файла, где имя и каталог рендерятся отдельными
  * строками. Как на бэкенде: сначала матчим имя; если имя не совпало — матчим
  * полный путь и раскладываем совпавшие индексы на части dir и name.
- * @returns {{ name: React.ReactNode, dir: React.ReactNode }}
+ * @returns {{ name: import('react').ReactNode, dir: import('react').ReactNode }}
  */
 export function highlightFileMatch(name, path, query) {
   const dir = path.length > name.length ? path.slice(0, path.length - name.length - 1) : '';

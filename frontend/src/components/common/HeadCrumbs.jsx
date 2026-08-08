@@ -1,4 +1,4 @@
-import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconChevronRight } from '../../icons';
 import { collapseCrumbs } from '../../utils/breadcrumbs';
@@ -96,7 +96,7 @@ const HeadCrumbs = ({ items, trailingSep = false, label }) => {
   return (
     <nav ref={ref} className="workspace__head-crumbs" aria-label={label}>
       {shown.map((item, i) => (
-        <React.Fragment key={item.key}>
+        <Fragment key={item.key}>
           {item.ellipsis ? (
             <button
               type="button"
@@ -119,7 +119,7 @@ const HeadCrumbs = ({ items, trailingSep = false, label }) => {
               <IconChevronRight size={11} />
             </span>
           )}
-        </React.Fragment>
+        </Fragment>
       ))}
     </nav>
   );

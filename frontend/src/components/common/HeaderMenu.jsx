@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconRefresh, IconCheck, IconChevron, IconDots, IconWorld, IconTool, IconSettings } from '../../icons';
 import './headerMenu.css';

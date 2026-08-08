@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconSearch, IconSliders, IconCheck } from '../../icons';
 import { SEARCH_MODES } from '../../constants/searchMode';

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import HistoryModal from '../knowledgeBasePanel/HistoryModal';
 import { getDocChangeRef } from './toolMeta';

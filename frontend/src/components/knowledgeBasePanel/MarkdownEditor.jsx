@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Fragment, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -414,12 +414,12 @@ const MarkdownEditor = ({
       <div className="md-toolbar">
         <div className="md-toolbar__group">
           {toolbarGroups.map((group, gi) => (
-            <React.Fragment key={gi}>
+            <Fragment key={gi}>
               {gi > 0 && <span className="md-toolbar__sep" />}
               {group.map(({ icon, title, action }) => (
                 <ToolbarBtn key={title} icon={icon} title={title} onClick={action} disabled={preview} />
               ))}
-            </React.Fragment>
+            </Fragment>
           ))}
         </div>
         <div className="md-toolbar__group md-toolbar__group--right">

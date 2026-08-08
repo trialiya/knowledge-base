@@ -55,7 +55,7 @@ function scrollRowIntoView(row) {
  * Раскрытием заведует сама строка: хук кликает по её шеврону
  * (`[data-ws-chevron]`), а не дублирует логику загрузки детей.
  *
- * @returns {(e: React.KeyboardEvent) => void} обработчик для onKeyDown контейнера
+ * @returns {(e: import('react').KeyboardEvent) => void} обработчик для onKeyDown контейнера
  */
 export default function useListNavigation() {
   return useCallback((e) => {

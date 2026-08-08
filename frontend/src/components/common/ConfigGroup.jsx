@@ -1,4 +1,3 @@
-import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { SettingsContentHead } from './SettingsShell';
 import { splitDuration } from '../../utils/formatting';

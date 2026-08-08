@@ -12,8 +12,8 @@ export default [
   { ignores: ['build/**', 'node_modules/**'] },
 
   js.configs.recommended,
-  // Нужен ради jsx-uses-vars/jsx-uses-react: без них no-unused-vars не видит,
-  // что импорт использован в JSX, и ругается на каждый компонент.
+  // Нужен ради jsx-uses-vars: без него no-unused-vars не видит, что импорт
+  // использован в JSX, и ругается на каждый компонент.
   react.configs.flat.recommended,
 
   {
@@ -40,10 +40,12 @@ export default [
       'no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       // PropTypes в проекте не используются (как и в eslint-config-react-app).
       'react/prop-types': 'off',
-      // Автоматический JSX-рантайм: React импортировать не обязательно. Но
-      // jsx-uses-react из recommended оставляем включённым, иначе там, где
-      // `import React` всё-таки есть, no-unused-vars посчитает его мёртвым.
+      // Автоматический JSX-рантайм: React импортировать не нужно. Оба правила
+      // держим выключенными вместе — react-in-jsx-scope не требует импорт, а
+      // без jsx-uses-react no-unused-vars ловит `import React`, если его всё
+      // же завезли. Нужен Fragment/StrictMode — импортируйте их поимённо.
       'react/react-in-jsx-scope': 'off',
+      'react/jsx-uses-react': 'off',
     },
   },
 

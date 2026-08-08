@@ -1,4 +1,3 @@
-import React from 'react';
 import { useTranslation } from 'react-i18next';
 import FileTreeNode from './FileTreeNode';
 import useListNavigation from '../../hooks/useListNavigation';

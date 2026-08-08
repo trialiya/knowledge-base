@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconTrash, IconDoc, IconEye, IconUpload, IconSummarize } from '../../icons';
 import attachmentApi from '../../api/attachmentApi';
