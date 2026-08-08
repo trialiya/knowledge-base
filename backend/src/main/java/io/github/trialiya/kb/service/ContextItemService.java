@@ -5,8 +5,10 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 import io.github.trialiya.kb.model.attachment.dto.AttachmentSummary;
 import io.github.trialiya.kb.model.chat.dto.ContextItemRequest;
+import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.chat.entity.ContextItemKind;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -32,8 +34,9 @@ import org.springframework.web.server.ResponseStatusException;
  *
  * <p>Опись собирается при каждом чтении истории, а не один раз при записи. Поэтому переименованное
  * вложение попадает в промпт под новым именем, а удалённое просто исчезает из него — вместо вечного
- * обещания файла, которого больше нет. Плата за это — запрос на каждое построение промпта, то есть
- * на каждую итерацию tool-цикла, поэтому запрос ровно один и без колонки {@code content}.
+ * обещания файла, которого больше нет. Плата за это — поход в БД на каждое построение промпта, то
+ * есть на каждую итерацию tool-цикла, поэтому запрос идёт без колонки {@code content}, а на целое
+ * окно сообщений он ровно один — см. {@link #renderAll}.
  */
 @Slf4j
 @AllArgsConstructor
@@ -100,8 +103,48 @@ public class ContextItemService {
         if (items.isEmpty()) {
             return "";
         }
-        final Map<Long, AttachmentSummary> attachments =
-                attachmentsOf(conversationId, storedAttachmentIds(items));
+        return renderItems(items, attachmentsOf(conversationId, storedAttachmentIds(items)));
+    }
+
+    /**
+     * Опись сразу для окна сообщений — один запрос на всё окно вместо запроса на сообщение. {@link
+     * #render} собирает описи по одному, и путь чтения истории вызывает его на каждый вопрос с
+     * вложением: на длинном диалоге это запрос на сообщение при каждом построении промпта, то есть
+     * на каждой итерации tool-цикла.
+     *
+     * <p>Второй, не менее важный смысл — общая правда о весе описи. Опись уезжает модели, но в БД
+     * не лежит, поэтому всякий, кто считает вес живого окна (см. {@code SummarizeService}), обязан
+     * мерить именно её, а не {@code chat_message.content}. Пока источник у обоих один, разойтись
+     * они не могут.
+     *
+     * @return отображение id сообщения → приписка к его тексту; сообщения без описи в нём
+     *     отсутствуют
+     */
+    public Map<Long, String> renderAll(String conversationId, List<ChatMessageEntity> messages) {
+        final List<ChatMessageEntity> withItems =
+                messages.stream().filter(m -> !m.getContextItems().isEmpty()).toList();
+        if (withItems.isEmpty()) {
+            return Map.of();
+        }
+        final Set<Long> ids =
+                withItems.stream()
+                        .map(ChatMessageEntity::getContextItems)
+                        .flatMap(items -> storedAttachmentIds(items).stream())
+                        .collect(Collectors.toSet());
+        final Map<Long, AttachmentSummary> attachments = attachmentsOf(conversationId, ids);
+
+        final Map<Long, String> rendered = new LinkedHashMap<>();
+        for (ChatMessageEntity message : withItems) {
+            final String block = renderItems(message.getContextItems(), attachments);
+            if (!block.isEmpty()) {
+                rendered.put(message.getId(), block);
+            }
+        }
+        return rendered;
+    }
+
+    /** Общая сборка блока для {@link #render} и {@link #renderAll} — формат описи ровно один. */
+    private String renderItems(List<ContextItem> items, Map<Long, AttachmentSummary> attachments) {
         final List<String> lines =
                 items.stream()
                         .map(item -> renderOne(item, attachments))

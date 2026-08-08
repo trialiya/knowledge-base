@@ -56,6 +56,7 @@ export const defaultAiConfig = {
     tokenThreshold: 30000,
     messageCountThreshold: 50,
     overlapMessages: 30,
+    overlapUserMessages: 5,
     summaryCollapseThreshold: 5,
     charsPerToken: 4,
   },

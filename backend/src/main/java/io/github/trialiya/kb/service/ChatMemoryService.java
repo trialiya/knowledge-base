@@ -405,32 +405,70 @@ public class ChatMemoryService implements ChatMemoryRepository {
         return null;
     }
 
+    /**
+     * Ряд истории в том виде, в каком его увидит модель: сама строка и её текст в промпте.
+     *
+     * <p>Текст — не то же самое, что {@code chat_message.content}: к вопросу с приложенным
+     * контекстом дописывается блок описи (см. {@link ContextItemService#renderAll}), который
+     * собирается при каждом чтении и в БД не попадает — иначе удалённое вложение осталось бы в
+     * истории вечным обещанием файла, которого больше нет.
+     *
+     * <p>Пара нужна затем, что вес истории считают не только по её тексту: {@code SummarizeService}
+     * решает по нему, что сжимать, а метить сжатое умеет только по позициям из {@code entity}.
+     */
+    public record PromptRow(ChatMessageEntity entity, String text) {
+
+        /**
+         * Промпт строится по тому же {@link #text}, по которому считается вес окна: второго способа
+         * узнать текст сообщения здесь нет. Обёртка нужна ровно тогда, когда текст разошёлся с
+         * сохранённой строкой, — а разойтись он может только у вопроса (см. {@code promptRow}).
+         */
+        public Message toMessage() {
+            return text.equals(entity.getContent())
+                    ? entity.getMessage()
+                    : new UserChatMessage(entity, text);
+        }
+    }
+
     @Override
     public List<Message> findByConversationId(String conversationId) {
-        return chatMessageRepository
-                .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
-                        conversationId)
-                .stream()
-                .map(entity -> toPromptMessage(conversationId, entity))
-                .toList();
+        return promptRows(conversationId).stream().map(PromptRow::toMessage).toList();
     }
 
     /**
-     * Ряд истории в том виде, в каком его увидит модель. Отличие от {@link
-     * ChatMessageEntity#getMessage()} одно: к вопросу с приложенным контекстом дописывается блок с
-     * описью приложенного (см. {@link ContextItemService#render}). Блок собирается здесь, при
-     * каждом чтении, и в БД не попадает — иначе удалённое вложение осталось бы в истории вечным
-     * обещанием файла, которого больше нет.
+     * Живая (несжатая) история вместе с текстом, который реально уедет модели. Единственный
+     * источник правды об этом тексте: и промпт, и оценка веса окна в {@code SummarizeService}
+     * строятся отсюда, поэтому разойтись в том, «что именно видит модель», они не могут. Ровно один
+     * запрос за описями на всё окно.
+     *
+     * <p>Строки-сводки ({@code summary = true}) остаются в выборке: они тоже уезжают модели в
+     * каждом запросе, значит тоже занимают бюджет.
      */
-    private Message toPromptMessage(String conversationId, ChatMessageEntity entity) {
-        if (entity.getType() != MessageType.USER || entity.getMeta() == null) {
-            return entity.getMessage();
-        }
-        final String context =
-                contextItemService.render(conversationId, entity.getMeta().contextItems());
-        return context.isEmpty()
-                ? entity.getMessage()
-                : new UserChatMessage(entity, entity.getContent() + context);
+    public List<PromptRow> promptRows(String conversationId) {
+        final List<ChatMessageEntity> rows =
+                chatMessageRepository
+                        .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
+                                conversationId);
+        final Map<Long, String> context = contextItemService.renderAll(conversationId, rows);
+        return rows.stream().map(entity -> promptRow(entity, context.get(entity.getId()))).toList();
+    }
+
+    /**
+     * Единственное место, где решается, обрастает ли строка описью: от него зависят обе стороны
+     * сразу — и промпт, и оценка веса окна. Проверь тип во второй раз ниже по течению, и стороны
+     * разойдутся, а расхождение будет тихим.
+     *
+     * <p>Опись получает только вопрос: блок говорит о том, что приложил пользователь, и на ответе
+     * модели был бы просто неправдой. Остальные отдают {@code content} как есть — этот путь
+     * проходят все строки окна на каждой итерации tool-цикла, и склейка с пустой строкой заводила
+     * бы новую копию текста на каждую.
+     */
+    private static PromptRow promptRow(ChatMessageEntity entity, @Nullable String inventory) {
+        return new PromptRow(
+                entity,
+                inventory == null || entity.getType() != MessageType.USER
+                        ? entity.getContent()
+                        : entity.getContent() + inventory);
     }
 
     @Override

@@ -112,6 +112,13 @@ const ModelsSections = ({ config }) => {
           label={t('models.summarize.overlap')}
           value={t('config.messagesValue', { count: summarize.overlapMessages })}
         />
+        {/* Второе условие того же перекрытия, а не альтернатива ему: живой хвост обязан
+            удовлетворять обоим порогам сразу, иначе длинный tool-марафон вытеснил бы
+            в сводку последние вопросы пользователя. */}
+        <ConfigRow
+          label={t('models.summarize.overlapUser')}
+          value={t('config.messagesValue', { count: summarize.overlapUserMessages })}
+        />
         <ConfigRow
           label={t('models.summarize.collapseThreshold')}
           value={t('models.summarize.summariesValue', { count: summarize.summaryCollapseThreshold })}

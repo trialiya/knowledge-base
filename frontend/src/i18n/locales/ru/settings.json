@@ -66,6 +66,7 @@
       "tokenThreshold": "Порог токенов",
       "messageThreshold": "Порог сообщений",
       "overlap": "Буфер живых сообщений",
+      "overlapUser": "Буфер живых сообщений пользователя",
       "collapseThreshold": "Порог схлопывания сводок",
       "summariesValue": "{{count}} сводок",
       "charsPerToken": "Символов на токен (оценка)",

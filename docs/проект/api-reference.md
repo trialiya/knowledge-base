@@ -532,7 +532,10 @@ runId активного прогона чата (или пустой объек
   "summarize": {
     "tokenThreshold": 3000,
     "messageCountThreshold": 20,
-    "overlapMessages": 10
+    "overlapMessages": 10,
+    "overlapUserMessages": 5,
+    "summaryCollapseThreshold": 5,
+    "charsPerToken": 4
   },
   "script": {
     "enabled": false,
