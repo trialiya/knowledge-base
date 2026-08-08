@@ -165,7 +165,7 @@ public class DocumentExportService {
         DocumentTreeRow root = requireRow(rootId);
         if (!root.isFolder()) {
             throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_ENTITY, "Subtree download requires a folder");
+                    HttpStatus.UNPROCESSABLE_CONTENT, "Subtree download requires a folder");
         }
         String base = DocumentTreeReader.safeName(root.title());
 
@@ -379,7 +379,7 @@ public class DocumentExportService {
         String path = config.exportPath();
         if (path == null || path.isBlank()) {
             throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    HttpStatus.UNPROCESSABLE_CONTENT,
                     "Export path is not configured (kb.documents.export-path)");
         }
         return path;

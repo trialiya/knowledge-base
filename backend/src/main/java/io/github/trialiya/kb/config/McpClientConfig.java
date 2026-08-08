@@ -22,7 +22,12 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class McpClientConfig {
 
+    // HttpClientSseClientTransport is deprecated in favor of the Streamable HTTP transport (MCP
+    // spec 2025-03-26), but legacy HTTP+SSE servers configured under
+    // spring.ai.mcp.client.sse.connections still need this customizer — there is no
+    // Streamable-HTTP-only replacement that keeps them working.
     @Bean
+    @SuppressWarnings("deprecation")
     public McpClientCustomizer<HttpClientSseClientTransport.Builder> mcpSseBearerAuthCustomizer(
             McpProperties mcpProperties) {
         return (name, builder) ->

@@ -272,7 +272,8 @@ public class AttachmentService implements DisposableBean {
         AttachmentEntity entity = findOrThrow(id);
         if (entity.getContent() == null || entity.getContent().isBlank()) {
             throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_ENTITY, "Attachment has no text content to summarize");
+                    HttpStatus.UNPROCESSABLE_CONTENT,
+                    "Attachment has no text content to summarize");
         }
 
         String truncated = truncateForPrompt(entity.getContent(), PROMPT_MAX_CHARS);
