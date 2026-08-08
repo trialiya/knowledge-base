@@ -51,11 +51,14 @@ export const i18nReady = i18n
 
 // index.html жёстко объявляет lang="ru" (значение до загрузки JS, совпадает с fallbackLng).
 // Без синхронизации английский интерфейс остаётся размеченным как русский: скринридер читает
-// его с русской фонетикой, а браузер предлагает «перевести страницу».
+// его с русской фонетикой, а браузер предлагает «перевести страницу». init() асинхронный
+// (словарь грузит backend), поэтому resolvedLanguage в момент вызова ещё не определён —
+// languageChanged закрывает и первую расстановку, и переключения; i18nReady.then — подстраховка
+// на случай, если первый emit чем-то подавлен.
 const syncHtmlLang = (lng) => {
   if (lng) document.documentElement.lang = lng;
 };
-syncHtmlLang(i18n.resolvedLanguage);
 i18n.on('languageChanged', syncHtmlLang);
+i18nReady.then(() => syncHtmlLang(i18n.resolvedLanguage));
 
 export default i18n;
