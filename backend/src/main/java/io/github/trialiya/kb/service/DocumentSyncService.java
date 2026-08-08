@@ -561,7 +561,7 @@ public class DocumentSyncService {
         String path = config.exportPath();
         if (path == null || path.isBlank()) {
             throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    HttpStatus.UNPROCESSABLE_CONTENT,
                     "Export path is not configured (kb.documents.export-path)");
         }
         return path;
@@ -571,7 +571,7 @@ public class DocumentSyncService {
         Path base = Paths.get(requireExportPath());
         if (!Files.isDirectory(base)) {
             throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    HttpStatus.UNPROCESSABLE_CONTENT,
                     "Export folder does not exist: " + base.toAbsolutePath());
         }
         return base;
@@ -584,7 +584,7 @@ public class DocumentSyncService {
         DocumentTreeRow row = exportService.requireRow(parentId);
         if (!row.isFolder()) {
             throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_ENTITY, "Target parent must be a folder");
+                    HttpStatus.UNPROCESSABLE_CONTENT, "Target parent must be a folder");
         }
     }
 

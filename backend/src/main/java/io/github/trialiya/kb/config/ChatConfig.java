@@ -346,7 +346,7 @@ public class ChatConfig {
         return ChatClient.builder(chatModel)
                 .defaultAdvisors(advisors)
                 .defaultSystem(sysPrompt)
-                .defaultToolCallbacks(callbacks)
+                .defaultTools((Object[]) callbacks)
                 .build();
     }
 }

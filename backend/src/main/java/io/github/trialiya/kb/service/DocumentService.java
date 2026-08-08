@@ -434,7 +434,7 @@ public class DocumentService {
 
         if (entity.getDescription() == null || entity.getDescription().isBlank()) {
             throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_ENTITY, "Document has no description to summarise");
+                    HttpStatus.UNPROCESSABLE_CONTENT, "Document has no description to summarise");
         }
 
         String summaryText = documentSummaryService.summarize(entity);
@@ -538,7 +538,7 @@ public class DocumentService {
                                                     HttpStatus.NOT_FOUND, "afterId not found"));
             if (!Objects.equals(after.getParentId(), targetParentId)) {
                 throw new ResponseStatusException(
-                        HttpStatus.UNPROCESSABLE_ENTITY,
+                        HttpStatus.UNPROCESSABLE_CONTENT,
                         "afterId is not a child of the target parent");
             }
             anchorPos = after.getPosition();
@@ -606,7 +606,7 @@ public class DocumentService {
                                                 HttpStatus.NOT_FOUND, "Target parent not found"));
         if (targetFolder.getType() != DocumentType.FOLDER) {
             throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_ENTITY, "Target must be a folder");
+                    HttpStatus.UNPROCESSABLE_CONTENT, "Target must be a folder");
         }
 
         // Cycle check: targetParentId must not be the node itself or any of its descendants
