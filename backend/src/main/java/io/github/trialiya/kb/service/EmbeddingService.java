@@ -35,15 +35,10 @@ import org.springframework.stereotype.Service;
  *       are averaged (mean pooling) to produce one document-level vector.
  * </ol>
  *
- * <p>Configure in {@code application.yaml}:
- *
- * <pre>
- * kb:
- *   embedding:
- *     model: text-embedding-3-small   # must match spring.ai.openai.embedding.options.model
- *     cache:
- *       enabled: true
- * </pre>
+ * <p>Configured through {@code kb.embedding} (see {@code EmbeddingConfiguration} and {@code
+ * application.yaml}). {@code kb.embedding.model} must match {@code
+ * spring.ai.openai.embedding.options.model}: it is stored beside every cached vector, so the two
+ * drifting apart turns every cache lookup into a miss.
  */
 @Slf4j
 @Service

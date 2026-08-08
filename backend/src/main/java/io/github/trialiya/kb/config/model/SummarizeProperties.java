@@ -3,19 +3,8 @@ package io.github.trialiya.kb.config.model;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Thresholds driving {@code SummarizeService}.
- *
- * <pre>
- * kb:
- *   chat:
- *     summarize:
- *       token-threshold: 3000
- *       message-count-threshold: 20
- *       overlap-messages: 10
- *       overlap-user-messages: 5
- *       summary-collapse-threshold: 5
- *       chars-per-token: 4
- * </pre>
+ * Thresholds driving {@code SummarizeService}. Bound from {@code kb.chat.summarize} — the values in
+ * effect, and the environment variables that override them, are in {@code application.yaml}.
  *
  * @param tokenThreshold estimated tokens in the compressible slice that trigger a round. Measured
  *     on the slice — the messages older than the live tail — not on the whole window: it asks "is
