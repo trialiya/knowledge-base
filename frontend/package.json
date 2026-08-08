@@ -34,7 +34,7 @@
     ]
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.1",
+    "@eslint/js": "^10.0.1",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
@@ -42,13 +42,14 @@
     "@types/react": "^19.2.18",
     "@vitejs/plugin-react": "^5.2.0",
     "autoprefixer": "^10.4.21",
+    "esbuild": "^0.28.0",
     "eslint": "^9.39.1",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
-    "globals": "^16.5.0",
-    "jsdom": "^27.0.0",
+    "globals": "^17.9.0",
+    "jsdom": "^30.0.1",
     "postcss": "^8.5.25",
-    "vite": "^7.3.6",
-    "vitest": "^3.2.4"
+    "vite": "^8.2.0",
+    "vitest": "^4.1.10"
   }
 }
