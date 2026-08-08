@@ -102,8 +102,8 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-jdbc-test'
     testImplementation 'org.springframework.boot:spring-boot-webmvc-test' // @WebMvcTest, @AutoConfigureMockMvc
     testImplementation 'org.springframework.security:spring-security-test'
-    testImplementation 'org.testcontainers:postgresql'
-    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:testcontainers-postgresql'
+    testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
@@ -111,7 +111,7 @@ dependencyManagement {
     imports {
         mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
         // Spring Boot 4 no longer manages Testcontainers versions in its BOM, so import it directly.
-        mavenBom "org.testcontainers:testcontainers-bom:1.21.4"
+        mavenBom "org.testcontainers:testcontainers-bom:2.0.5"
     }
 }
 
