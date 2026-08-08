@@ -48,21 +48,20 @@ The wrapper deliberately does not cover:
 - **Keep documentation in sync.** When adding or modifying functionality,
   update the relevant documentation in `docs/` as part of the same change.
 - **A comment says how the code works now, never how it got that way.** No
-  "previously / раньше / used to be", no PR or issue numbers, no account of
-  what was renamed, merged or deleted — `git log` holds that, and a header that
-  narrates its own refactorings only grows. Keep the *rule* the history left
-  behind, drop the chronicle: "do not call `renderValue` here, it wipes the
-  browser's undo stack" earns its lines; "#130 made paste undoable, #147
-  quietly broke it again" does not.
+  "previously / раньше / used to be", no account of what was renamed, merged or
+  deleted — `git log` holds that, and a header that narrates its own
+  refactorings only grows. Keep the *rule* the history left behind, drop the
+  chronicle: "do not call `renderValue` here, it wipes the browser's undo stack"
+  earns its lines; the story of which change broke it and which change fixed it
+  does not. Link an issue or a PR when it still carries something the reader
+  needs — an upstream bug, a decision with an argument behind it — not as a
+  timeline of this file.
 - **Don't restate what the reader can already see.** Config defaults copied
   into a Javadoc, an endpoint list next to the `@GetMapping`s, a prop list
   mirroring the destructuring three lines below — all of it drifts, and a
   confidently wrong comment costs more than a missing one. Name the source of
   truth instead, and spend the comment on what the code cannot show: the why,
   the invariant, the trap.
-- **Comment in the language the file already uses** — mostly English in
-  `backend/`, mostly Russian in `frontend/src`. Follow the file you are in; do
-  not mix the two inside one file.
 - **Migrate on touch.** The codebase is mid-migration onto shared components.
   When you edit a file that still carries a legacy pattern — its own modal
   chrome, its own button classes, a panel-local copy of a shared concern —

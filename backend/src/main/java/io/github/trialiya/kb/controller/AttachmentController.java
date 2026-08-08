@@ -10,37 +10,13 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * REST endpoints for attachment management.
+ * REST endpoints for attachment management — upload, listing, single-attachment access, AI
+ * summarization and search, under {@code /api}.
  *
- * <h3>Upload</h3>
- *
- * <pre>
- * POST /api/documents/{documentId}/attachments    (multipart/form-data, field "file")
- * POST /api/chats/{conversationId}/attachments     (multipart/form-data, field "file")
- * </pre>
- *
- * <h3>List</h3>
- *
- * <pre>
- * GET /api/documents/{documentId}/attachments
- * GET /api/documents/{documentId}/attachments/count
- * GET /api/chats/{conversationId}/attachments
- * GET /api/chats/{conversationId}/attachments/count
- * </pre>
- *
- * <h3>Single attachment</h3>
- *
- * <pre>
- * GET    /api/attachments/{id}            → metadata
- * GET    /api/attachments/{id}/content    → raw text content
- * DELETE /api/attachments/{id}
- * </pre>
- *
- * <h3>AI summarize</h3>
- *
- * <pre>
- * POST /api/attachments/{id}/summarize    → generates and stores AI summary
- * </pre>
+ * <p>An attachment hangs off either a document or a chat, so the collection endpoints come in pairs
+ * ({@code /documents/{id}/…} and {@code /chats/{id}/…}) while everything addressing one attachment
+ * by its own id is shared. Uploads are {@code multipart/form-data} with the file in a field named
+ * {@code file}.
  */
 @RestController
 @RequestMapping("/api")

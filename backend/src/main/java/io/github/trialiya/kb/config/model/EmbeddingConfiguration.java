@@ -3,29 +3,8 @@ package io.github.trialiya.kb.config.model;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Binding for {@code kb.embedding.*} in {@code application.yaml}.
- *
- * <pre>
- * kb:
- *   embedding:
- *     model: text-embedding-3-small
- *     reindex-batch-size: 50
- *     workers: 4
- *     poll-batch-size: 20
- *     max-attempts: 3
- *     retry-backoff-seconds: 30
- *     stuck-timeout-minutes: 10
- *     cleanup-retention-days: 7
- *     poll-interval-ms: 1000
- *     stuck-check-ms: 300000
- *     cache:
- *       enabled: true
- *       ttl-days: 30
- *       cleanup-cron: "0 0 2 * * *"
- *     chunker:
- *       max-tokens: 512
- *       overlap-tokens: 64
- * </pre>
+ * Binding for {@code kb.embedding.*} — the keys, their values and what each one means are in {@code
+ * application.yaml}.
  *
  * <p>{@code pollIntervalMs}/{@code stuckCheckMs} also live as raw placeholders in {@code
  * EmbeddingTaskScheduler}'s {@code @Scheduled(fixedDelayString)} — an annotation cannot read a
