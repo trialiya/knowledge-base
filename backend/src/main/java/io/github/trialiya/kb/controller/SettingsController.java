@@ -36,9 +36,9 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>Secrets are excluded <em>by construction</em>: this controller assembles typed records field
  * by field and never touches {@link org.springframework.core.env.Environment} in bulk, so API keys
- * ({@code spring.ai.openai.api-key}), the MCP bearer tokens ({@code kb.mcp.bearer-tokens} — only
- * connection <em>names</em> are reported) and the datasource password cannot leak into the
- * response. Keep it that way when adding fields.
+ * ({@code spring.ai.openai.api-key}), the MCP bearer tokens and custom headers ({@code
+ * kb.mcp.bearer-tokens} / {@code kb.mcp.headers} — only connection <em>names</em> are reported) and
+ * the datasource password cannot leak into the response. Keep it that way when adding fields.
  */
 @RestController
 @RequestMapping("/api/settings")

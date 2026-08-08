@@ -48,6 +48,12 @@ kb:
     # Bearer tokens for authenticated remote MCP connections, keyed by connection name:
     # bearer-tokens:
     #   atlassian: your-jira-bearer-token
+    # Arbitrary extra headers per connection, for servers that need more than a bearer token
+    # (e.g. a tenant/cloud-id header alongside Authorization). A header named "Authorization"
+    # here replaces the one built from bearer-tokens above rather than duplicating it.
+    # headers:
+    #   atlassian:
+    #     X-Atlassian-Cloud-Id: your-cloud-id
 
   # ── Chat model ──────────────────────────────────────────────────────────────
   chat:
