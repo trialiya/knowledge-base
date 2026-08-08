@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchPhrases, toggleFavorite } from '../../api/phrasesApi';
 import { IconStar, IconSparkleSimple } from '../../icons';

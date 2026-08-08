@@ -1,4 +1,3 @@
-import React from 'react';
 import { useTranslation } from 'react-i18next';
 import InfoList from '../common/InfoList';
 import { formatDateTime } from '../../utils/formatting';

@@ -1,4 +1,3 @@
-import React from 'react';
 import { useTranslation } from 'react-i18next';
 import ModalShell from './ModalShell';
 import { FileView } from '../filesPanel/FileContent';

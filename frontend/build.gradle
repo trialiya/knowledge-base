@@ -24,7 +24,7 @@ node {
 spotless {
     format 'react', {
         target 'src/**/*.js', 'src/**/*.jsx', 'src/**/*.ts', 'src/**/*.tsx', 'src/**/*.css', 'src/**/*.scss',
-                'vite.config.js', 'eslint.config.js', 'postcss.config.js'
+                'vite.config.js', 'eslint.config.js'
 
         prettier().config([
                 'semi': true,
