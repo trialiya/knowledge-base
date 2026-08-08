@@ -6,6 +6,7 @@ import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTranspor
 import java.net.http.HttpRequest;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.springframework.ai.mcp.customizer.McpClientCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -50,7 +51,7 @@ public class McpClientConfig {
      * {@code header} so a {@code kb.mcp.headers} entry named {@code Authorization} replaces rather
      * than duplicates the bearer-token header. Empty when the connection has neither configured.
      */
-    private static Optional<HttpRequest.Builder> authRequest(
+    static Optional<HttpRequest.Builder> authRequest(
             McpProperties mcpProperties, String connectionName) {
         Optional<String> token = bearerToken(mcpProperties, connectionName);
         Map<String, String> headers = customHeaders(mcpProperties, connectionName);
@@ -59,7 +60,17 @@ public class McpClientConfig {
         }
         HttpRequest.Builder request = HttpRequest.newBuilder();
         token.ifPresent(value -> request.setHeader("Authorization", "Bearer " + value));
-        headers.forEach(request::setHeader);
+        headers.forEach(
+                (headerName, headerValue) -> {
+                    try {
+                        request.setHeader(headerName, headerValue);
+                    } catch (IllegalArgumentException e) {
+                        throw new IllegalStateException(
+                                "kb.mcp.headers.%s has an invalid header '%s': %s"
+                                        .formatted(connectionName, headerName, e.getMessage()),
+                                e);
+                    }
+                });
         return Optional.of(request);
     }
 
@@ -71,6 +82,8 @@ public class McpClientConfig {
 
     private static Map<String, String> customHeaders(
             McpProperties mcpProperties, String connectionName) {
-        return mcpProperties.headers().getOrDefault(connectionName, Map.of());
+        return mcpProperties.headers().getOrDefault(connectionName, Map.of()).entrySet().stream()
+                .filter(entry -> !entry.getValue().isBlank())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 }
