@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -193,7 +193,7 @@ const MarkdownEditor = ({
   const copiedJira = copiedKey === 'jira';
   const textareaRef = useRef(null);
   // Stable per-instance id for the shared dirty registry.
-  const dirtyIdRef = useRef(`md-${Math.random().toString(36).slice(2)}`);
+  const dirtyId = useId();
 
   // Stable ReactMarkdown components map (was rebuilt every render before).
   const mdComponents = useMemo(() => getMarkdownComponents(tree, onNavigate), [tree, onNavigate]);
@@ -211,16 +211,15 @@ const MarkdownEditor = ({
   // previewOnly instances never edit, so they must never mark the store dirty.
   useEffect(() => {
     if (previewOnly) return;
-    setEditorDirty(dirtyIdRef.current, dirty);
-  }, [dirty, previewOnly]);
+    setEditorDirty(dirtyId, dirty);
+  }, [dirty, previewOnly, dirtyId]);
 
   // Always clear this instance's mark when the editable editor goes away (doc
   // switch, tab change, fullscreen close) so a stale `true` can't block later nav.
   useEffect(() => {
     if (previewOnly) return undefined;
-    const id = dirtyIdRef.current;
-    return () => setEditorDirty(id, false);
-  }, [previewOnly]);
+    return () => setEditorDirty(dirtyId, false);
+  }, [previewOnly, dirtyId]);
 
   // ── @mention ──────────────────────────────────────────────────────────────
 

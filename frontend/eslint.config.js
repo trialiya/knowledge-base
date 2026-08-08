@@ -1,8 +1,7 @@
 // Замена eslint-config-react-app, который приезжал внутри react-scripts и
 // гонялся на каждой сборке CRA. Prettier (spotless format 'react') его не
 // заменяет: он форматтер и не видит ни неиспользуемую переменную, ни забытую
-// зависимость в useEffect. Набор правил здесь намеренно повторяет то, что
-// реально гонялось до перехода на Vite, — не больше.
+// зависимость в useEffect.
 import js from '@eslint/js';
 import globals from 'globals';
 import react from 'eslint-plugin-react';
@@ -15,6 +14,10 @@ export default [
   // Нужен ради jsx-uses-vars: без него no-unused-vars не видит, что импорт
   // использован в JSX, и ругается на каждый компонент.
   react.configs.flat.recommended,
+  // Ради чего всё и затевалось: rules-of-hooks и exhaustive-deps. Вместе с ними
+  // приезжают правила React Compiler — чистота рендера, стабильность
+  // мемоизации, работа с рефами; три из них выключены ниже.
+  reactHooks.configs.flat['recommended-latest'],
 
   {
     files: ['src/**/*.{js,jsx}'],
@@ -30,11 +33,23 @@ export default [
     // читает файловую систему через API контекста, которого в ESLint 10 больше
     // нет, и линт падает на первом же компоненте.
     settings: { react: { version: '19.2' } },
-    plugins: { 'react-hooks': reactHooks },
     rules: {
-      // Ради чего всё и затевалось.
-      'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'warn',
+      // Три правила компилятора выключены: код им не соответствует, и привести
+      // его в соответствие — не правка конфига, а переписывание эффектов и
+      // «зеркал» в рефах. Включать по одному, разобрав места.
+      //   set-state-in-effect (33 места) — setState прямо в эффекте, каскадный
+      //     рендер. Лечится переносом в обработчик, вычислением при рендере или
+      //     сбросом по key — каждое место отдельно.
+      //   refs (10 мест) — идиома `xRef.current = x` в теле компонента, чтобы
+      //     колбэк видел свежее значение и не пересоздавался. Замена —
+      //     useEffectEvent, но эффект-события нельзя передавать в другие хуки,
+      //     а эти рефы используются именно так (usePreviewCache, useFileTree).
+      //   immutability (3 места, ChatWindow) — рефы, поднятые из localStorage и
+      //     правящиеся позже; их читают при выборе модели и режима на первом же
+      //     рендере, поэтому инициализацию не отложить в эффект.
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/refs': 'off',
+      'react-hooks/immutability': 'off',
 
       // Форматирование целиком за Prettier — ESLint в него не лезет.
       'no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
