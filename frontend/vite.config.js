@@ -10,6 +10,15 @@ export default defineConfig({
     // index.html и static/** в ресурсы бэкенда.
     outDir: 'build',
     assetsDir: 'static',
+
+    // Vite 8 минифицирует CSS через Lightning CSS, а тот вырезает вендорные
+    // префиксы, которых не требуют его целевые браузеры: из сборки пропадали
+    // -webkit-fit-content / -webkit-max-content, которые autoprefixer доклеил
+    // ради ios_saf 11 из browserslist (см. postcss.config.js). Свой browserslist
+    // ему не передать — targets минификатора Vite считает из build.cssTarget, —
+    // поэтому оставляем минификатор Vite 7. Ради него esbuild и стоит в
+    // devDependencies: в Vite 8 это опциональный peer, а не зависимость.
+    cssMinify: 'esbuild',
   },
 
   server: {
