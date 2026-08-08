@@ -4,7 +4,7 @@ import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
@@ -29,8 +29,8 @@ import org.testcontainers.utility.DockerImageName;
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
 public abstract class AbstractPostgresIntegrationTest {
 
-    protected static final PostgreSQLContainer<?> POSTGRES =
-            new PostgreSQLContainer<>(
+    protected static final PostgreSQLContainer POSTGRES =
+            new PostgreSQLContainer(
                             DockerImageName.parse("pgvector/pgvector:pg17")
                                     .asCompatibleSubstituteFor("postgres"))
                     .withDatabaseName("knowledgebase")
