@@ -207,6 +207,14 @@ kb:
     # McpClientConfig. A connection with no entry here is left unauthenticated.
     # bearer-tokens:
     #   atlassian: ${JIRA_MCP_TOKEN:}
+    # Arbitrary extra headers per connection, for servers that need more than a bearer token —
+    # e.g. mcp-atlassian's multi-tenant mode also wants a cloud/tenant id header alongside
+    # Authorization (https://mcp-atlassian.soomiles.com/docs/authentication). A header named
+    # "Authorization" here replaces the one built from bearer-tokens above rather than duplicating
+    # it, so headers can also carry the full auth scheme on their own without bearer-tokens set.
+    # headers:
+    #   atlassian:
+    #     X-Atlassian-Cloud-Id: ${JIRA_CLOUD_ID:}
   embedding:
     # Must match spring.ai.openai.embedding.model.
     # Stored alongside every cached vector so that model upgrades invalidate old cache rows.
