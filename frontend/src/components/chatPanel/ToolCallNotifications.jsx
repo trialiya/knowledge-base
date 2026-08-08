@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
-import ReactDOM from 'react-dom';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import ToolCallDetailModal from './ToolCallDetailModal';
 import { getToolIcon, toolLabelKey, humanizeTool } from './toolMeta';
@@ -174,7 +174,7 @@ const ToolCallItem = ({ tc, conversationId }) => {
         />
       )}
       {hover &&
-        ReactDOM.createPortal(
+        createPortal(
           <div
             ref={tooltipRef}
             className="tool-call-tooltip"

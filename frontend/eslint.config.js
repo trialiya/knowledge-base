@@ -26,7 +26,10 @@ export default [
         ecmaFeatures: { jsx: true },
       },
     },
-    settings: { react: { version: 'detect' } },
+    // Версия задаётся явно, а не через 'detect': автодетект eslint-plugin-react
+    // читает файловую систему через API контекста, которого в ESLint 10 больше
+    // нет, и линт падает на первом же компоненте.
+    settings: { react: { version: '19.2' } },
     plugins: { 'react-hooks': reactHooks },
     rules: {
       // Ради чего всё и затевалось.
