@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import gitApi from '../../api/gitApi';
-import { readDirs, readExpanded, putDirs, putExpanded, ancestorsOf } from './fileTreeStore';
+import { readDir, readDirs, readExpanded, putDirs, putExpanded, ancestorsOf } from './fileTreeStore';
 
 /** Ответ /api/git/browse → содержимое центра ({ type, path, file|nodes }). */
 function contentOf(view, path) {
@@ -47,8 +47,6 @@ export default function useFileTree({ path, onPathChange, refreshToken }) {
   });
   const [content, setContent] = useState(null);
 
-  const treeCacheRef = useRef(treeCache);
-  treeCacheRef.current = treeCache;
   const inFlightRef = useRef(new Map()); // dirPath -> Promise, dedups concurrent fetches
 
   // Кэш каталогов и раскрытые узлы переживают размонтирование панели.
@@ -71,9 +69,10 @@ export default function useFileTree({ path, onPathChange, refreshToken }) {
 
   const ensureDir = useCallback(
     (dirPath) => {
-      if (treeCacheRef.current[dirPath]) {
-        return Promise.resolve(treeCacheRef.current[dirPath]);
-      }
+      // Спрашиваем сам кэш, а не состояние: `treeCache` — его снимок для
+      // отрисовки, и зеркалить снимок обратно нечем.
+      const cached = readDir(dirPath);
+      if (cached) return Promise.resolve(cached);
       if (inFlightRef.current.has(dirPath)) {
         return inFlightRef.current.get(dirPath);
       }
@@ -154,7 +153,7 @@ export default function useFileTree({ path, onPathChange, refreshToken }) {
   // not-found, ошибка) — иначе в центре навсегда остаётся «Загрузка…».
   useEffect(() => {
     let cancelled = false;
-    const missing = ancestorsOf(path).filter((dir) => !treeCacheRef.current[dir]);
+    const missing = ancestorsOf(path).filter((dir) => !readDir(dir));
 
     (async () => {
       try {

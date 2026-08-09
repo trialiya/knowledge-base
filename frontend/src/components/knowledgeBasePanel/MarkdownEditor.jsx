@@ -233,12 +233,15 @@ const MarkdownEditor = ({
 
   // ── Toolbar transforms ──────────────────────────────────────────────────────
 
+  // Применяет преобразование кнопки к текущему тексту: само достаёт поле, само
+  // возвращает в него каретку с выделением, которое посчитало преобразование.
   const applyTransform = useCallback(
-    ({ newVal, from, to }) => {
+    (transform) => {
+      const ta = textareaRef.current;
+      if (!ta) return;
+      const { newVal, from, to } = transform(ta);
       update(newVal);
       requestAnimationFrame(() => {
-        const ta = textareaRef.current;
-        if (!ta) return;
         ta.focus();
         ta.setSelectionRange(from, to);
       });
@@ -268,8 +271,9 @@ const MarkdownEditor = ({
     update(savedValue);
   }, [update, savedValue]);
 
-  // Toolbar is rebuilt only when the transform fn or the localized labels change
-  // (i.e. on language switch), not on every keystroke.
+  // Кнопка описывает ЧТО сделать с текстовым полем, а достаёт его applyTransform:
+  // реф, прочитанный при сборке этого списка, читался бы при рендере.
+  // Список пересобирается только на смену языка, не на каждое нажатие клавиши.
   const toolbarGroups = useMemo(() => {
     const txt = t('editor.insertText');
     const codeWord = t('editor.insertCode');
@@ -281,27 +285,27 @@ const MarkdownEditor = ({
         {
           icon: <IconH1 />,
           title: t('editor.heading'),
-          action: () => applyTransform(prependLine(textareaRef.current, '## ')),
+          transform: (ta) => prependLine(ta, '## '),
         },
         {
           icon: <IconBold />,
           title: t('editor.bold'),
-          action: () => applyTransform(wrapSelection(textareaRef.current, '**', '**', txt)),
+          transform: (ta) => wrapSelection(ta, '**', '**', txt),
         },
         {
           icon: <IconItalic />,
           title: t('editor.italic'),
-          action: () => applyTransform(wrapSelection(textareaRef.current, '_', '_', txt)),
+          transform: (ta) => wrapSelection(ta, '_', '_', txt),
         },
         {
           icon: <IconStrike />,
           title: t('editor.strike'),
-          action: () => applyTransform(wrapSelection(textareaRef.current, '~~', '~~', txt)),
+          transform: (ta) => wrapSelection(ta, '~~', '~~', txt),
         },
         {
           icon: <IconCode />,
           title: t('editor.inlineCode'),
-          action: () => applyTransform(wrapSelection(textareaRef.current, '`', '`', txt)),
+          transform: (ta) => wrapSelection(ta, '`', '`', txt),
         },
       ],
       // Block-level
@@ -309,32 +313,32 @@ const MarkdownEditor = ({
         {
           icon: <IconCodeBlock />,
           title: t('editor.codeBlock'),
-          action: () => applyTransform(insertCodeBlock(textareaRef.current, codeWord)),
+          transform: (ta) => insertCodeBlock(ta, codeWord),
         },
         {
           icon: <IconQuote />,
           title: t('editor.quote'),
-          action: () => applyTransform(prependLine(textareaRef.current, '> ')),
+          transform: (ta) => prependLine(ta, '> '),
         },
         {
           icon: <IconList />,
           title: t('editor.bulletList'),
-          action: () => applyTransform(prependLine(textareaRef.current, '- ')),
+          transform: (ta) => prependLine(ta, '- '),
         },
         {
           icon: <IconOrderedList />,
           title: t('editor.orderedList'),
-          action: () => applyTransform(prependLine(textareaRef.current, '1. ')),
+          transform: (ta) => prependLine(ta, '1. '),
         },
         {
           icon: <IconChecklist />,
           title: t('editor.checklist'),
-          action: () => applyTransform(prependLine(textareaRef.current, '- [ ] ')),
+          transform: (ta) => prependLine(ta, '- [ ] '),
         },
         {
           icon: <IconHr />,
           title: t('editor.divider'),
-          action: () => applyTransform(insertBlock(textareaRef.current, '---')),
+          transform: (ta) => insertBlock(ta, '---'),
         },
       ],
       // Insert
@@ -342,21 +346,21 @@ const MarkdownEditor = ({
         {
           icon: <IconLink />,
           title: t('editor.link'),
-          action: () => applyTransform(wrapSelection(textareaRef.current, '[', '](url)', txt)),
+          transform: (ta) => wrapSelection(ta, '[', '](url)', txt),
         },
         {
           icon: <IconImage />,
           title: t('editor.image'),
-          action: () => applyTransform(wrapSelection(textareaRef.current, '![', '](url)', txt)),
+          transform: (ta) => wrapSelection(ta, '![', '](url)', txt),
         },
         {
           icon: <IconTable />,
           title: t('editor.table'),
-          action: () => applyTransform(insertTable(textareaRef.current, tableLabels)),
+          transform: (ta) => insertTable(ta, tableLabels),
         },
       ],
     ];
-  }, [t, applyTransform]);
+  }, [t]);
 
   // Tab → отступ 2 пробела; также маршрутизируем клавиши в @mention-обработчик
   const handleKeyDown = (e) => {
@@ -415,8 +419,14 @@ const MarkdownEditor = ({
           {toolbarGroups.map((group, gi) => (
             <Fragment key={gi}>
               {gi > 0 && <span className="md-toolbar__sep" />}
-              {group.map(({ icon, title, action }) => (
-                <ToolbarBtn key={title} icon={icon} title={title} onClick={action} disabled={preview} />
+              {group.map(({ icon, title, transform }) => (
+                <ToolbarBtn
+                  key={title}
+                  icon={icon}
+                  title={title}
+                  onClick={() => applyTransform(transform)}
+                  disabled={preview}
+                />
               ))}
             </Fragment>
           ))}

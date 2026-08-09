@@ -34,7 +34,6 @@ describe('useChatEventStream doc/file mutation detection', () => {
         activeMessagesReady: true,
         chatsRef: { current: [chat] },
         localClientIdsRef: { current: new Set() },
-        tRef: { current: (k) => k },
         setChats: vi.fn(),
         onChatDeleted: vi.fn(),
         onRunSettled: vi.fn(),

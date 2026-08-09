@@ -167,6 +167,17 @@ Panel open/closed state is **controlled state that lives in the URL**
   `setState` inside sits after an `await` — write such a loader as a promise
   chain (`loadTree`) when that reads at least as well, and disable the rule on
   the line with a reason when it doesn't (`navigateToDocById`).
+- **A ref is never written or read during render** (`react-hooks/refs` and
+  `react-hooks/immutability` are on). That retires the `xRef.current = x` mirror
+  kept so a stable callback could see the latest value; the replacement depends
+  on who reads it. Called only from an effect → `useEffectEvent` (`useEscape`,
+  `usePreviewCache`'s fetcher). Lives outside the render entirely — the last
+  chosen model, a directory listing cache, a translation for a stream callback →
+  a module store (`lastChoiceStore`, `fileTreeStore`, `i18n.t('ns:key')`), which
+  is a plain module and needs no mirror. Otherwise the value simply joins the
+  deps it was hiding from, and whoever passes it memoizes it (`usePreviewCache`'s
+  `seed`). A ref that survives is written from an effect or a handler, and is not
+  passed into another hook — pass a getter if a hook needs to read it.
 - The two trees are intentionally separate: `knowledgeBasePanel/TreeNode`
   (editable — drag-drop, pagination) versus `filesPanel/FileTreeNode`
   (read-only). Do not unify them.

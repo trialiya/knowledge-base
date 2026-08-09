@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import i18n from '../../i18n';
 import { openChatEventStream } from '../../api/chatEvents';
 import { applyChatEvent } from './chatEventReducer';
 import chatApi from '../../api/chatApi';
@@ -13,15 +14,16 @@ import { getDocChangeRef, getFileChangeRefs } from './toolMeta';
  * чтобы события легли поверх неё, а не были затёрты последующей загрузкой из БД.
  * При обрыве поток сам переподключается и дозагружает пропущенное (см. chatEvents).
  *
- * Чистые ref-ы/сеттеры (chatsRef, localClientIdsRef, tRef, setChats) стабильны и
- * не входят в зависимости эффекта — пересоздавать подписку на каждый чанк нельзя.
+ * Чистые ref-ы/сеттеры (chatsRef, localClientIdsRef, setChats) стабильны и не
+ * входят в зависимости эффекта — пересоздавать подписку на каждый чанк нельзя.
+ * Подписи для редьюсера берём у i18n напрямую: t() из хука менялся бы со сменой
+ * языка, а поток из-за неё переподключаться не должен.
  *
  * @param {object}   p
  * @param {string}   p.activeChatId
  * @param {boolean}  p.activeMessagesReady  загружена ли история активного чата
  * @param {object}   p.chatsRef             ref-зеркало списка чатов
  * @param {object}   p.localClientIdsRef    ref: clientMsgId-ы своих сообщений (гасим эхо)
- * @param {object}   p.tRef                 ref на функцию перевода t
  * @param {Function} p.setChats
  * @param {Function} p.onChatDeleted        (chatId) => void — внешнее удаление чата
  * @param {Function} p.onRunSettled         (chatId) => void — RUN_DONE/STOPPED/ERROR
@@ -44,7 +46,6 @@ export default function useChatEventStream({
   activeMessagesReady,
   chatsRef,
   localClientIdsRef,
-  tRef,
   setChats,
   onChatDeleted,
   onRunSettled,
@@ -68,9 +69,9 @@ export default function useChatEventStream({
 
     const ctx = {
       isLocal: (id) => localClientIdsRef.current.has(id),
-      stoppedLabel: tRef.current('window.stopped'),
-      errorLabel: tRef.current('window.genericError'),
-      interruptedNote: `\n\n_**${tRef.current('message.interrupted')}**_`,
+      stoppedLabel: i18n.t('chat:window.stopped'),
+      errorLabel: i18n.t('chat:window.genericError'),
+      interruptedNote: `\n\n_**${i18n.t('chat:message.interrupted')}**_`,
     };
     return openChatEventStream(chatId, {
       fromSeq: seqByChatRef.current.get(chatId) || 0,
