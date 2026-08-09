@@ -99,6 +99,44 @@ describe('PhraseFillModal', () => {
     expect(onSubmit).toHaveBeenCalledWith('Разбери ⟦commit:a1b2c3d:почини кэш⟧');
   });
 
+  // Регрессия: .modal-shell и колонка полей обрезают по overflow, поэтому
+  // вложенный в форму список был бы не виден вообще.
+  it('renders the results list outside the clipping modal box', async () => {
+    gitApi.searchFiles.mockResolvedValue([{ path: 'src/App.jsx', name: 'App.jsx' }]);
+    renderModal('Посмотри {{Файл:file}}');
+
+    await userEvent.type(screen.getByLabelText(/Файл/), 'App');
+    await screen.findByText('src/App.jsx');
+
+    expect(document.querySelector('.phrase-fill__results').closest('.modal-shell')).toBeNull();
+  });
+
+  // Регрессия: useSearchDropdown гасит Enter только когда результаты уже пришли,
+  // так что Enter в дебаунсе долетал до <form> и отправлял весь диалог.
+  it('does not submit the dialog on Enter while the search is still pending', async () => {
+    gitApi.searchFiles.mockResolvedValue([{ path: 'src/App.jsx', name: 'App.jsx' }]);
+    const onSubmit = renderModal('Посмотри {{Файл:file}}');
+
+    await userEvent.type(screen.getByLabelText(/Файл/), 'App{Enter}');
+
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  // Регрессия: выбор закрывает список, и без повторного открытия правка уже
+  // выбранного значения искала бы в невидимый список.
+  it('reopens the list when an already-picked value is edited', async () => {
+    gitApi.searchFiles.mockResolvedValue([{ path: 'src/App.jsx', name: 'App.jsx' }]);
+    renderModal('Посмотри {{Файл:file}}');
+
+    const input = screen.getByLabelText(/Файл/);
+    await userEvent.type(input, 'App');
+    await userEvent.click(await screen.findByText('src/App.jsx'));
+    expect(document.querySelector('.phrase-fill__results')).toBeNull();
+
+    await userEvent.type(input, 'x');
+    expect(await screen.findByText('src/App.jsx')).toBeInTheDocument();
+  });
+
   // Свободный текст указателем не считается: путь, которого нет в репозитории,
   // не должен уехать в сообщение как выбранный файл.
   it('ignores typed text in a search field when nothing was picked', async () => {

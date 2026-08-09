@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import useSearchDropdown from '../../hooks/useSearchDropdown';
 import highlightMatch from '../common/highlightMatch';
@@ -27,9 +28,11 @@ const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder
     results,
     loading,
     idx,
+    anchorRect,
     wrapRef,
     inputRef,
     listRef,
+    portalRef,
     setIdx,
     openSearch,
     close,
@@ -50,13 +53,20 @@ const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder
   const handleChange = (e) => {
     // Правка текста снимает выбор: показанный заголовок снова становится запросом.
     if (selected) onSelect(null);
+    // Выбор элемента закрыл список (close), и без повторного открытия правка уже
+    // выбранного значения искала бы вхолостую — в невидимый список.
+    if (!open) openSearch();
     onQueryChange(e);
   };
 
   const handleKeyDown = (e) => {
-    // Escape при открытом списке принадлежит списку. Без этого он дошёл бы до
-    // document-слушателя ModalShell и закрыл всю модалку вместе с набранным.
-    if (listOpen && e.key === 'Escape') e.stopPropagation();
+    // Escape и Enter при открытом списке принадлежат списку: иначе Escape дошёл бы
+    // до document-слушателя ModalShell и закрыл всю модалку вместе с набранным, а
+    // Enter отправил бы форму диалога, не дождавшись результатов поиска.
+    if (listOpen && (e.key === 'Escape' || e.key === 'Enter')) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     onListKeyDown(e, choose);
   };
 
@@ -80,42 +90,51 @@ const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder
         onKeyDown={handleKeyDown}
       />
 
-      {listOpen && (
-        <div className="phrase-fill__results">
-          {loading && <div className="phrase-fill__status">{t('phraseFill.searching')}</div>}
-          {!loading && results.length === 0 && (
-            <div className="phrase-fill__status">{t('phraseFill.nothingFound')}</div>
-          )}
+      {/* Список — в портале на body: и .modal-shell, и колонка полей внутри неё
+          обрезают по overflow, так что вложенный absolute был бы не виден. */}
+      {listOpen &&
+        anchorRect &&
+        createPortal(
+          <div
+            ref={portalRef}
+            className="phrase-fill__results"
+            style={{ top: anchorRect.bottom + 3, left: anchorRect.left, width: anchorRect.width }}
+          >
+            {loading && <div className="phrase-fill__status">{t('phraseFill.searching')}</div>}
+            {!loading && results.length === 0 && (
+              <div className="phrase-fill__status">{t('phraseFill.nothingFound')}</div>
+            )}
 
-          <div className="phrase-fill__options" id={`${inputId}-list`} role="listbox" ref={listRef}>
-            {results.map((item, i) => {
-              const row = spec.describe(item);
-              return (
-                <div
-                  key={row.key}
-                  id={`${inputId}-opt-${i}`}
-                  role="option"
-                  aria-selected={i === idx}
-                  className={`phrase-fill__option${i === idx ? ' phrase-fill__option--active' : ''}`}
-                  onMouseDown={(e) => {
-                    e.preventDefault(); // не отдаём фокус строке — он нужен полю
-                    choose(item);
-                  }}
-                  onMouseEnter={() => setIdx(i)}
-                >
-                  <span className="phrase-fill__option-icon" aria-hidden="true">
-                    {row.icon}
-                  </span>
-                  <span className="phrase-fill__option-body">
-                    <span className="phrase-fill__option-title">{highlightMatch(row.title, query)}</span>
-                    <span className="phrase-fill__option-sub">{row.subtitle}</span>
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+            <div className="phrase-fill__options" id={`${inputId}-list`} role="listbox" ref={listRef}>
+              {results.map((item, i) => {
+                const row = spec.describe(item);
+                return (
+                  <div
+                    key={row.key}
+                    id={`${inputId}-opt-${i}`}
+                    role="option"
+                    aria-selected={i === idx}
+                    className={`phrase-fill__option${i === idx ? ' phrase-fill__option--active' : ''}`}
+                    onMouseDown={(e) => {
+                      e.preventDefault(); // не отдаём фокус строке — он нужен полю
+                      choose(item);
+                    }}
+                    onMouseEnter={() => setIdx(i)}
+                  >
+                    <span className="phrase-fill__option-icon" aria-hidden="true">
+                      {row.icon}
+                    </span>
+                    <span className="phrase-fill__option-body">
+                      <span className="phrase-fill__option-title">{highlightMatch(row.title, query)}</span>
+                      <span className="phrase-fill__option-sub">{row.subtitle}</span>
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 };

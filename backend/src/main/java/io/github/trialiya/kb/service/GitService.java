@@ -51,6 +51,7 @@ import org.eclipse.jgit.errors.AmbiguousObjectException;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.errors.RevisionSyntaxException;
+import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.PersonIdent;
@@ -342,18 +343,26 @@ public class GitService {
         String q = query.strip().toLowerCase();
         int limit = Math.min(Math.max(maxCount, 1), 100);
 
-        try (ObjectReader reader = repository.newObjectReader()) {
+        // Обход строим сами, а не через git.log(): LogCommand отдаёт свой RevWalk как
+        // Iterable, и закрыть его уже нечем — а выходим мы отсюда почти всегда по
+        // break, на каждое нажатие клавиши в поиске.
+        try (RevWalk walk = new RevWalk(repository)) {
+            ObjectId head = repository.resolve(Constants.HEAD);
+            // Repository has no commits yet — an empty history, not an error.
+            if (head == null) return List.of();
+            walk.markStart(walk.parseCommit(head));
+
+            ObjectReader reader = walk.getObjectReader();
             List<GitCommit> matches = new ArrayList<>();
-            for (RevCommit commit : git.log().setMaxCount(COMMIT_SEARCH_SCAN).call()) {
+            int scanned = 0;
+            for (RevCommit commit : walk) {
+                if (++scanned > COMMIT_SEARCH_SCAN) break;
                 if (!matchesCommit(commit, q)) continue;
                 matches.add(toGitCommit(commit, null, reader));
                 if (matches.size() >= limit) break;
             }
             return matches;
-        } catch (NoHeadException e) {
-            // Repository has no commits yet — an empty history, not an error.
-            return List.of();
-        } catch (GitAPIException | IOException e) {
+        } catch (IOException e) {
             throw new IllegalStateException("Failed to search commit log", e);
         }
     }

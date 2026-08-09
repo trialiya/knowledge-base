@@ -74,17 +74,11 @@
 
 /* ── Комбобокс указателей (файл / документ / коммит) ──────────────────────── */
 
-.phrase-fill__combo {
-  position: relative;
-}
-
-/* Список ложится поверх соседних полей, а не раздвигает форму. */
+/* Список висит в портале на body (см. PlaceholderSearchField): координаты ему
+   задаёт инлайновый стиль от позиции поля, здесь — только вид. */
 .phrase-fill__results {
-  position: absolute;
-  z-index: 1;
-  top: calc(100% + 3px);
-  left: 0;
-  right: 0;
+  position: fixed;
+  z-index: 1200; /* выше .modal-shell-overlay */
   background: var(--kb-white);
   border: 1px solid var(--kb-border);
   border-radius: var(--kb-radius);

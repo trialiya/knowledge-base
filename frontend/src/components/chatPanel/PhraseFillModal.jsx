@@ -44,7 +44,7 @@ const PhraseFillModal = ({ phraseText, onSubmit, onCancel }) => {
   };
 
   return (
-    <ModalShell onClose={onCancel} variant="sm" className="phrase-fill">
+    <ModalShell onClose={onCancel} variant="wide" className="phrase-fill">
       <form onSubmit={handleSubmit}>
         <div className="phrase-fill__header">
           <h3>{t('phraseFill.title')}</h3>

@@ -86,10 +86,14 @@ const MessageInput = ({
     }
   };
 
+  // Фокус возвращаем и после вставки, и после отмены: диалог забрал его себе, и
+  // без этого он остался бы на body — следующий Tab пошёл бы обходить страницу.
+  const focusInput = () => setTimeout(() => inputRef.current?.focus(), 0);
+
   const insertPhrase = (phraseText) => {
     setText(phraseText);
     onTextChange?.(phraseText);
-    setTimeout(() => inputRef.current?.focus(), 0);
+    focusInput();
   };
 
   // Фраза с плейсхолдерами сначала уходит в диалог заполнения, остальные
@@ -113,7 +117,10 @@ const MessageInput = ({
             setPendingPhrase(null);
             insertPhrase(filled);
           }}
-          onCancel={() => setPendingPhrase(null)}
+          onCancel={() => {
+            setPendingPhrase(null);
+            focusInput();
+          }}
         />
       )}
 
