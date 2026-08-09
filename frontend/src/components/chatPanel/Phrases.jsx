@@ -52,9 +52,12 @@ const Phrases = ({ onSelect, reloadKey }) => {
   }, [phrases, hasFavorites]);
 
   // Выбранная категория могла исчезнуть (сняли последнее избранное, удалили
-  // категорию) — тогда считаем активной «Все». Это вычисление, а не состояние:
-  // список категорий целиком выводится из phrases.
+  // категорию) — уходим на «Все». Выбор именно сбрасывается, а не подменяется
+  // при отрисовке: подмена оставила бы исчезнувшую категорию в состоянии, и
+  // вернувшая её звёздочка молча вернула бы и фильтр. Повторно блок не
+  // сработает — «Все» есть в списке всегда.
   const category = categories.includes(activeCategory) ? activeCategory : ALL;
+  if (category !== activeCategory) setActiveCategory(ALL);
 
   const filtered = useMemo(() => {
     if (category === ALL) return phrases;

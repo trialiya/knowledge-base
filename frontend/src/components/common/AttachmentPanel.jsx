@@ -64,6 +64,11 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange, r
       .then((data) => (Array.isArray(data) ? data : []))
       .catch(() => [])
       .then((list) => {
+        // Ответ мог обогнать более свежий запрос (два подряд refreshSignal):
+        // тогда он не только показал бы устаревший список, но и отбросил бы
+        // loadedKey назад — спиннер завис бы навсегда, потому что запрос по
+        // текущему ключу уже запущен и повторно не пойдёт.
+        if (startedRef.current !== requestKey) return;
         setAttachments(list);
         setLoadedKey(requestKey);
         onCountChange?.(list.length);

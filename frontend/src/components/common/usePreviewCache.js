@@ -108,7 +108,18 @@ export default function usePreviewCache(store, key, enabled, fetcher, options = 
 
     const { cache, listeners, notify } = store;
     const cached = cache.get(key);
-    if (isFresh(cached, ttlMs)) return undefined; // уже отрисовано из кэша
+    if (isFresh(cached, ttlMs)) {
+      // Обычно это то же, что уже отрисовано из кэша, и тогда условие ниже
+      // ложно. Но кэш мог наполниться между рендером и этим (пассивным)
+      // эффектом — запросом соседнего экземпляра, который успел дойти. Тогда
+      // подписываться не на что (notify снимает слушателей) и запрашивать
+      // нечего, а на экране всё ещё спиннер или затравка. Лишний проход рендера
+      // здесь — цена гонки, которая иначе оставила бы спиннер навсегда.
+      const fresh = cached.value === 'error' ? { value: null, error: true } : { value: cached.value, error: false };
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (fresh.value !== known.value || fresh.error !== known.error) setResolved(fresh);
+      return undefined;
+    }
 
     const seeded = seedRef.current?.(key) ?? null;
 
@@ -147,7 +158,10 @@ export default function usePreviewCache(store, key, enabled, fetcher, options = 
     return () => {
       cancelled = true;
     };
-  }, [key, enabled, ttlMs, store]);
+    // known — та же мемоизация, что и у зависимостей выше, поэтому лишних
+    // перезапусков не даёт; если React всё же пересчитает мемо, эффект попадёт
+    // в ветку подписки на уже идущий запрос и второго обращения не будет.
+  }, [key, enabled, ttlMs, store, known]);
 
   if (resolved) return { value: resolved.value, loading: false, error: resolved.error };
   return known;

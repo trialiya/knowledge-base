@@ -78,8 +78,12 @@ export default function useFolderChildren(node, loadChildren) {
     return () => {
       cancelled = true;
     };
+    // needsFetch — зависимость наравне с nodeId: выбранная папка может стать
+    // неполной без смены узла (refreshScope заменяет детей нулевой страницей), и
+    // тогда список нужно перечитать. Без него `loading` включался бы навсегда:
+    // он выводится из живого needsFetch, а запроса бы не было.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodeId]);
+  }, [nodeId, needsFetch]);
 
   const children = loadChildren ? node?.children ?? [] : direct ?? node?.children ?? [];
 

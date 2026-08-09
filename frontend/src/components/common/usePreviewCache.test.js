@@ -58,4 +58,28 @@ describe('usePreviewCache', () => {
     expect(result.current.error).toBe(false);
     expect(result.current.value).toMatchObject({ description: 'обрез' });
   });
+
+  // Регрессия: то, что известно синхронно, читается при рендере, а эффект —
+  // пассивный, он идёт после отрисовки. В это окно чужой запрос по тому же
+  // ключу успевает дойти: подписываться уже не на что (notify снимает
+  // слушателей), запрашивать нечего — значение обязан забрать сам эффект,
+  // иначе спиннер остаётся навсегда.
+  it('забирает значение, если кэш наполнился между рендером и эффектом', async () => {
+    const store = createPreviewStore();
+    const fetcher = vi.fn().mockResolvedValue({ id: 5, description: 'не должен понадобиться' });
+
+    const { result } = renderHook(() => {
+      const out = usePreviewCache(store, 5, true, fetcher);
+      // Момент гонки воспроизводим точно, а не таймингами: рендер уже прочитал
+      // кэш (там пусто — спиннер), а пассивный эффект ещё не отработал. Именно
+      // сюда и попадает ответ соседнего экземпляра по тому же ключу.
+      if (out.loading) store.notify(5, { id: 5, description: 'полный текст' });
+      return out;
+    });
+
+    await waitFor(() => expect(result.current.value).toMatchObject({ description: 'полный текст' }));
+    expect(result.current.loading).toBe(false);
+    // Значение уже лежало в кэше — своего запроса эффект не делает.
+    expect(fetcher).not.toHaveBeenCalled();
+  });
 });
