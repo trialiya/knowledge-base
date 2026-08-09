@@ -1,19 +1,11 @@
 // ─── File-chip preview (полноэкранная модалка содержимого) ───────────────────
 // Хук владеет состоянием превью чипа: открытие по клику, ленивую загрузку
 // содержимого и переключение чипа между режимами «содержимое» ⇄ «только путь».
-// Doc-чипы превью не имеют. Мутацию DOM самого чипа делает toggleRef, после чего
-// зовёт onAfterToggle (обычно emitChange редактора), чтобы значение обновилось.
+// Превью только у файловых чипов. Мутацию DOM самого чипа делает toggleRef, после
+// чего зовёт onAfterToggle (обычно emitChange редактора), чтобы значение обновилось.
 
 import { useState, useCallback } from 'react';
-import {
-  makeToken,
-  makeRefToken,
-  parseToken,
-  parseDocToken,
-  parseDocRefToken,
-  baseName,
-  fetchContent,
-} from './fileChips';
+import { makeToken, makeRefToken, parseToken, baseName, fetchContent } from './fileChips';
 
 export default function useChipPreview({ chatId, onAfterToggle }) {
   // { path, from, to, refOnly, rect, chipEl, data, loading, error } | null
@@ -34,8 +26,8 @@ export default function useChipPreview({ chatId, onAfterToggle }) {
 
   const openFromChip = useCallback((chip) => {
     const token = chip.dataset.token;
-    // У doc-чипов нет инлайн-превью.
-    if (parseDocToken(token) || parseDocRefToken(token)) return;
+    // Превью есть только у файловых чипов: у doc- и commit-чипов нечего показывать
+    // инлайн — их содержимое уже целиком в самом токене.
     const parsed = parseToken(token);
     if (!parsed) return;
     const rect = chip.getBoundingClientRect();

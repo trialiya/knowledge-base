@@ -65,6 +65,15 @@ const gitApi = {
     if (path) params.set('path', path);
     return request(`/api/git/commits?${params}`, signal ? { signal } : undefined);
   },
+
+  /**
+   * Поиск коммитов по префиксу хэша или подстроке сообщения (свежие первыми).
+   * Возвращает те же GitCommit[], что и getCommits.
+   */
+  searchCommits: (q, limit = 10, signal) => {
+    const params = new URLSearchParams({ q, limit: String(limit) });
+    return request(`/api/git/commits/search?${params}`, signal ? { signal } : undefined);
+  },
 };
 
 export default gitApi;

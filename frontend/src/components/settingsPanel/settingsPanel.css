@@ -139,6 +139,18 @@
 .phrase-form__check input {
   accent-color: var(--kb-accent);
 }
+.phrase-form__help {
+  margin: 0;
+  font-size: 0.74rem;
+  color: var(--kb-muted);
+}
+.phrase-form__help code {
+  font-family: 'Fira Mono', 'Consolas', monospace;
+  background: var(--kb-bg);
+  border: 1px solid var(--kb-border);
+  border-radius: 4px;
+  padding: 0 4px;
+}
 
 /* Выключенная фраза — приглушённая строка */
 .phrase-row--off {

@@ -107,7 +107,8 @@
     "docHeader": "Документ «{{title}}» (#{{id}}):",
     "docLoadFailed": "[Документ #{{id}}: не удалось загрузить]",
     "binaryFile": "[бинарный файл]",
-    "readFailed": "[не удалось прочитать файл]"
+    "readFailed": "[не удалось прочитать файл]",
+    "commitRef": "коммит `{{hash}}` — {{subject}}"
   },
   "list": {
     "title": "Чаты",
@@ -132,6 +133,28 @@
     "categoryAll": "Все",
     "categoryFavorites": "Избранное",
     "favoriteToggle": "В избранное"
+  },
+  "phraseFill": {
+    "title": "Заполните значения",
+    "hint": "Пустое поле оставит плейсхолдер в тексте как есть.",
+    "submit": "Вставить",
+    "searching": "Поиск…",
+    "nothingFound": "Ничего не найдено",
+    "booleanYes": "да",
+    "booleanNo": "нет",
+    "types": {
+      "file": "файл",
+      "commit": "коммит",
+      "document": "документ",
+      "number": "число",
+      "string": "строка",
+      "boolean": "да/нет"
+    },
+    "searchHint": {
+      "file": "Имя файла",
+      "commit": "Хэш или текст сообщения",
+      "document": "Название или ID документа"
+    }
   },
   "tools": {
     "searchDocuments": "Поиск документов",

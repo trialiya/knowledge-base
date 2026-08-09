@@ -1,0 +1,143 @@
+/* ── Диалог заполнения плейсхолдеров фразы ────────────────────────────────── */
+
+.phrase-fill__header {
+  margin-bottom: 14px;
+}
+
+.phrase-fill__hint {
+  margin: 4px 0 0;
+  font-size: 0.75rem;
+  color: var(--kb-muted);
+}
+
+.phrase-fill__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* Длинная фраза не должна растить модалку за край экрана. */
+  max-height: 52vh;
+  overflow-y: auto;
+}
+
+.phrase-fill__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.phrase-fill__label {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--kb-text);
+}
+
+.phrase-fill__type {
+  font-size: 0.66rem;
+  font-weight: 500;
+  color: var(--kb-muted);
+  background: var(--kb-bg);
+  border: 1px solid var(--kb-border);
+  border-radius: 10px;
+  padding: 0 6px;
+}
+
+.phrase-fill__input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 9px;
+  border: 1px solid var(--kb-border);
+  border-radius: var(--kb-radius);
+  background: var(--kb-white);
+  color: var(--kb-text);
+  font: inherit;
+  font-size: 0.84rem;
+}
+
+.phrase-fill__input:focus {
+  outline: none;
+  border-color: var(--kb-accent);
+}
+
+.phrase-fill__check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.phrase-fill__check-text {
+  font-size: 0.82rem;
+  color: var(--kb-text);
+}
+
+/* ── Комбобокс указателей (файл / документ / коммит) ──────────────────────── */
+
+.phrase-fill__combo {
+  position: relative;
+}
+
+/* Список ложится поверх соседних полей, а не раздвигает форму. */
+.phrase-fill__results {
+  position: absolute;
+  z-index: 1;
+  top: calc(100% + 3px);
+  left: 0;
+  right: 0;
+  background: var(--kb-white);
+  border: 1px solid var(--kb-border);
+  border-radius: var(--kb-radius);
+  box-shadow: 0 8px 24px rgba(91, 79, 207, 0.16);
+  overflow: hidden;
+}
+
+.phrase-fill__status {
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--kb-muted);
+}
+
+.phrase-fill__options {
+  max-height: 190px;
+  overflow-y: auto;
+}
+
+.phrase-fill__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.phrase-fill__option--active {
+  background: var(--kb-accent-light);
+}
+
+.phrase-fill__option-icon {
+  flex-shrink: 0;
+}
+
+.phrase-fill__option-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.phrase-fill__option-title {
+  font-size: 0.82rem;
+  color: var(--kb-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.phrase-fill__option-sub {
+  font-size: 0.7rem;
+  color: var(--kb-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

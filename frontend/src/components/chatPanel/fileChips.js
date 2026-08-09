@@ -3,6 +3,7 @@
 //   ⟦file:PATH⟧            — весь файл (раскрывается в fenced-блок при отправке)
 //   ⟦file:PATH#FROM-TO⟧    — диапазон строк (1-based включительно)
 //   ⟦ref:PATH⟧             — только ссылка (раскрывается в `PATH`)
+//   ⟦commit:HASH:SUBJECT⟧  — коммит (раскрывается в хэш + тему, без запроса)
 
 import gitApi from '../../api/gitApi';
 import documentsApi from '../../api/documentsApi';
@@ -16,7 +17,7 @@ const CLOSE = '⟧'; // ⟧
 
 // Глобальный матчер всех видов токенов. Захватных групп нет — parse* разбирают детально.
 // docref идёт перед doc, чтобы не срабатывал prefix-match при чтении.
-export const TOKEN_RE = new RegExp(`${OPEN}(?:file|ref|docref|doc):[^${CLOSE}]+${CLOSE}`, 'g');
+export const TOKEN_RE = new RegExp(`${OPEN}(?:file|ref|docref|doc|commit):[^${CLOSE}]+${CLOSE}`, 'g');
 
 /** Токен «весь файл / диапазон». */
 export function makeToken(path, from, to) {
@@ -48,18 +49,22 @@ export function parseToken(token) {
 // ⟦doc:ID:TITLE⟧    — полное содержимое (описание документа)
 // ⟦docref:ID:TITLE⟧ — только упоминание (без содержимого)
 
-function safeDocTitle(title) {
-  return String(title).replace(/⟧/g, '');
+// Подпись внутри токена — часть плоской строки-значения: закрывающая скобка
+// оборвала бы токен, перенос строки разрезал бы его на две строки редактора.
+function safeChipLabel(text) {
+  return String(text)
+    .replace(/⟧/g, '')
+    .replace(/\s*\n\s*/g, ' ');
 }
 
 /** Токен документа с раскрытием описания при отправке. */
 export function makeDocToken(id, title) {
-  return `${OPEN}doc:${id}:${safeDocTitle(title)}${CLOSE}`;
+  return `${OPEN}doc:${id}:${safeChipLabel(title)}${CLOSE}`;
 }
 
 /** Токен документа — только упоминание (без описания). */
 export function makeDocRefToken(id, title) {
-  return `${OPEN}docref:${id}:${safeDocTitle(title)}${CLOSE}`;
+  return `${OPEN}docref:${id}:${safeChipLabel(title)}${CLOSE}`;
 }
 
 /**
@@ -79,6 +84,25 @@ export function parseDocToken(token) {
 export function parseDocRefToken(token) {
   const m = token.match(new RegExp(`^${OPEN}docref:(\\d+):(.*)${CLOSE}$`));
   if (m) return { id: Number(m[1]), title: m[2] };
+  return null;
+}
+
+// ── Commit-токены ─────────────────────────────────────────────────────────────
+// ⟦commit:HASH:SUBJECT⟧ — тема коммита едет внутри токена, поэтому раскрытие при
+// отправке не ходит в сеть: хэша достаточно, чтобы модель сама достала диф.
+
+/** Токен коммита. `subject` — первая строка сообщения. */
+export function makeCommitToken(hash, subject) {
+  return `${OPEN}commit:${hash}:${safeChipLabel(subject)}${CLOSE}`;
+}
+
+/**
+ * Разобрать commit-токен.
+ * Возвращает { hash, subject } или null.
+ */
+export function parseCommitToken(token) {
+  const m = token.match(new RegExp(`^${OPEN}commit:([^:${CLOSE}]+):(.*)${CLOSE}$`));
+  if (m) return { hash: m[1], subject: m[2] };
   return null;
 }
 
@@ -106,8 +130,9 @@ function fenceFor(content) {
 
 /**
  * Развернуть все токены в строке:
- *  ⟦file:PATH⟧    → fenced code block с содержимым
- *  ⟦ref:PATH⟧     → `PATH`
+ *  ⟦file:PATH⟧            → fenced code block с содержимым
+ *  ⟦ref:PATH⟧             → `PATH`
+ *  ⟦commit:HASH:SUBJECT⟧  → `HASH` + тема
  */
 export async function expandTokensForSend(text) {
   const tokens = [...text.matchAll(TOKEN_RE)];
@@ -115,6 +140,11 @@ export async function expandTokensForSend(text) {
 
   const blocks = await Promise.all(
     tokens.map(async (m) => {
+      const commitParsed = parseCommitToken(m[0]);
+      if (commitParsed) {
+        return i18n.t('chat:fileChips.commitRef', commitParsed);
+      }
+
       const docRefParsed = parseDocRefToken(m[0]);
       if (docRefParsed) {
         return i18n.t('chat:fileChips.docRef', { title: docRefParsed.title, id: docRefParsed.id });

@@ -21,6 +21,10 @@
   background: rgba(91, 79, 207, 0.06);
   border-style: dashed;
 }
+/* Подпись commit-чипа — короткий хэш, его читают посимвольно. */
+.file-chip--commit .file-chip__label {
+  font-family: 'Fira Mono', 'Consolas', monospace;
+}
 .file-chip__icon {
   font-size: 0.9em;
   flex-shrink: 0;

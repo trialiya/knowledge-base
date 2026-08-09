@@ -107,7 +107,8 @@
     "docHeader": "Document \"{{title}}\" (#{{id}}):",
     "docLoadFailed": "[Document #{{id}}: failed to load]",
     "binaryFile": "[binary file]",
-    "readFailed": "[failed to read file]"
+    "readFailed": "[failed to read file]",
+    "commitRef": "commit `{{hash}}` — {{subject}}"
   },
   "list": {
     "title": "Chats",
@@ -132,6 +133,28 @@
     "categoryAll": "All",
     "categoryFavorites": "Favorites",
     "favoriteToggle": "Toggle favorite"
+  },
+  "phraseFill": {
+    "title": "Fill in the values",
+    "hint": "A field left empty keeps its placeholder in the text.",
+    "submit": "Insert",
+    "searching": "Searching…",
+    "nothingFound": "Nothing found",
+    "booleanYes": "yes",
+    "booleanNo": "no",
+    "types": {
+      "file": "file",
+      "commit": "commit",
+      "document": "document",
+      "number": "number",
+      "string": "string",
+      "boolean": "yes/no"
+    },
+    "searchHint": {
+      "file": "File name",
+      "commit": "Hash or message text",
+      "document": "Document title or ID"
+    }
   },
   "tools": {
     "searchDocuments": "Search documents",

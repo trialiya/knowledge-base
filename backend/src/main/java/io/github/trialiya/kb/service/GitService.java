@@ -103,6 +103,9 @@ public class GitService {
      */
     private static final int ABBREV_LEN = 7;
 
+    /** How far back {@link #searchCommits} walks before giving up on finding more matches. */
+    private static final int COMMIT_SEARCH_SCAN = 2000;
+
     /** Tree listing order: directories first, then by name, case-insensitively. */
     private static final Comparator<GitFileNode> NODE_ORDER =
             Comparator.<GitFileNode, Boolean>comparing(n -> FileEntryType.DIRECTORY != n.type())
@@ -320,6 +323,44 @@ public class GitService {
         } catch (GitAPIException | IOException e) {
             throw new IllegalStateException("Failed to read commit log", e);
         }
+    }
+
+    /**
+     * Commits matching {@code query} — a prefix of the hash or a substring of the subject line —
+     * newest first.
+     *
+     * <p>Git indexes neither, so this is a linear walk from HEAD, bounded by {@link
+     * #COMMIT_SEARCH_SCAN} commits: on a long history an unmatched query would otherwise read the
+     * whole repository to answer a keystroke. Matching deliberately ignores the message body — the
+     * picker shows the subject, and a hit the user cannot see in the row reads as a wrong result.
+     *
+     * @param query hash prefix or subject substring, already stripped and non-blank
+     * @param maxCount max commits to return, capped at 100
+     */
+    public List<GitCommit> searchCommits(@NonNull String query, int maxCount) {
+        if (query.isBlank()) return List.of();
+        String q = query.strip().toLowerCase();
+        int limit = Math.min(Math.max(maxCount, 1), 100);
+
+        try (ObjectReader reader = repository.newObjectReader()) {
+            List<GitCommit> matches = new ArrayList<>();
+            for (RevCommit commit : git.log().setMaxCount(COMMIT_SEARCH_SCAN).call()) {
+                if (!matchesCommit(commit, q)) continue;
+                matches.add(toGitCommit(commit, null, reader));
+                if (matches.size() >= limit) break;
+            }
+            return matches;
+        } catch (NoHeadException e) {
+            // Repository has no commits yet — an empty history, not an error.
+            return List.of();
+        } catch (GitAPIException | IOException e) {
+            throw new IllegalStateException("Failed to search commit log", e);
+        }
+    }
+
+    private static boolean matchesCommit(RevCommit commit, String lowerQuery) {
+        return commit.getName().toLowerCase().startsWith(lowerQuery)
+                || commit.getShortMessage().toLowerCase().contains(lowerQuery);
     }
 
     // ── Diff for commit(s) ──────────────────────────────────────────────────
