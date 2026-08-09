@@ -10,8 +10,11 @@ const DEFAULT_DEBOUNCE_MS = 200;
  * near-identical copies of this exact machinery, differing only in the fetch
  * call and the row markup — both stay in the component.
  *
- * `search` is read through a ref, so callers can pass a fresh inline callback
- * on every render without retriggering the debounce/abort plumbing.
+ * `search` takes part in the deps of the handlers built here, so a fresh inline
+ * callback on every render re-creates them — which costs nothing, they only ever
+ * end up on DOM props. The one consequence worth knowing: a debounced run calls
+ * the `search` captured when the keystroke was handled, not the one from the
+ * latest render.
  *
  * @param {(query: string, signal: AbortSignal) => Promise<any[]>} search
  * @param {{ debounceMs?: number }} [options]
@@ -32,8 +35,6 @@ export default function useSearchDropdown(search, { debounceMs = DEFAULT_DEBOUNC
   const portalRef = useRef(null);
   const debounceRef = useRef(null);
   const abortRef = useRef(null);
-  const searchRef = useRef(search);
-  searchRef.current = search;
 
   const close = useCallback(() => {
     clearTimeout(debounceRef.current);
@@ -55,25 +56,27 @@ export default function useSearchDropdown(search, { debounceMs = DEFAULT_DEBOUNC
     if (open) setAnchorRect(inputRef.current?.getBoundingClientRect() ?? null);
   }, [open]);
 
-  const runSearch = useCallback((q) => {
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    setLoading(true);
-    searchRef
-      .current(q, controller.signal)
-      .then((data) => {
-        setResults(Array.isArray(data) ? data : []);
-        setIdx(0);
-        setLoading(false);
-      })
-      .catch((err) => {
-        if (err.name !== 'AbortError') {
-          setResults([]);
+  const runSearch = useCallback(
+    (q) => {
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+      setLoading(true);
+      search(q, controller.signal)
+        .then((data) => {
+          setResults(Array.isArray(data) ? data : []);
+          setIdx(0);
           setLoading(false);
-        }
-      });
-  }, []);
+        })
+        .catch((err) => {
+          if (err.name !== 'AbortError') {
+            setResults([]);
+            setLoading(false);
+          }
+        });
+    },
+    [search],
+  );
 
   const handleChange = useCallback(
     (e) => {

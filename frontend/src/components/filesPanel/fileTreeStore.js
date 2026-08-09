@@ -32,6 +32,16 @@ export function readDirs() {
   return Object.fromEntries(store.dirs);
 }
 
+/**
+ * Листинг одного каталога (undefined — его в кэше нет). Отвечает на «нужно ли
+ * запрашивать этот каталог» без снимка всего кэша: спрашивают из колбэков и
+ * эффектов, где состояние компонента было бы лишним зеркалом.
+ */
+export function readDir(dir) {
+  expireIfStale();
+  return store.dirs.get(dir);
+}
+
 /** Раскрытые каталоги на момент прошлого визита в раздел. */
 export function readExpanded() {
   expireIfStale();

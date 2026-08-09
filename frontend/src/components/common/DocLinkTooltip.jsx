@@ -50,7 +50,11 @@ import { TOOLTIP_WIDTH, TOOLTIP_GAP, TOOLTIP_HEIGHT_ESTIMATE } from '../../const
  * (`/knowledge/doc/N`, `/files/P`, see urlScheme) while parsing keeps accepting
  * both forms; the stored markdown is untouched.
  */
-const DocLinkTooltip = ({ href, children, tree = [], onNavigate, ...rest }) => {
+// Дерева нет (чат) — но значение по умолчанию должно быть одним и тем же
+// массивом: useDocPreview строит по нему затравку и держит её в зависимостях.
+const NO_TREE = [];
+
+const DocLinkTooltip = ({ href, children, tree = NO_TREE, onNavigate, ...rest }) => {
   const [visible, setVisible] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0 });
   // Снимок узла для fullscreen-превью: useDocPreview сбрасывает node, когда

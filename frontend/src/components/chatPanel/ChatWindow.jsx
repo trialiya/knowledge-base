@@ -1,15 +1,14 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+// Перевод вне рендера берём у самого i18n, а не у t() из хука: колбэки стриминга
+// не должны пересоздаваться на смену языка, а зеркалить t в рефе — не за чем.
+import i18n from '../../i18n';
 import chatApi from '../../api/chatApi';
 import attachmentApi from '../../api/attachmentApi';
-import {
-  STORAGE_KEY_ACTIVE_CHAT,
-  STORAGE_KEY_LAST_MODEL,
-  STORAGE_KEY_LAST_MODE,
-  DRAFT_CHAT_ID,
-} from '../../constants/storage';
+import { STORAGE_KEY_ACTIVE_CHAT, DRAFT_CHAT_ID } from '../../constants/storage';
 import { OWNER_TYPE } from '../../constants/ownerType';
 import { nextMessageId } from './messageId';
+import { getLastModel, setLastModel, getLastMode, setLastMode } from './lastChoiceStore';
 import useModelConfig from './useModelConfig';
 import useModeConfig from './useModeConfig';
 import useChatMessages from './useChatMessages';
@@ -84,10 +83,10 @@ const ChatWindow = ({
   const makeDraft = useCallback(
     () => ({
       id: DRAFT_CHAT_ID,
-      title: tRef.current('window.defaultTitle'),
+      title: i18n.t('chat:window.defaultTitle'),
       messages: [],
-      model: lastModelRef.current || null,
-      mode: lastModeRef.current || null,
+      model: getLastModel(),
+      mode: getLastMode() || null,
       draft: true,
     }),
     [],
@@ -100,10 +99,6 @@ const ChatWindow = ({
   // Конфиг моделей и режимов грузится один раз — вынесено в отдельные хуки.
   const { modelConfig, modelOptions } = useModelConfig();
   const { modeOptions } = useModeConfig();
-  // Последняя модель, с которой отправляли сообщение (живёт между перезагрузками).
-  const lastModelRef = useRef(localStorage.getItem(STORAGE_KEY_LAST_MODEL) || null);
-  // Последний выбранный режим ('' — без режима).
-  const lastModeRef = useRef(localStorage.getItem(STORAGE_KEY_LAST_MODE) || '');
   // Модалка ошибки загрузки чата: null | { notFound: bool, status }
   const [chatErrorModal, setChatErrorModal] = useState(null);
   // Уведомление «в чате уже идёт генерация» (ответ сервера 409 на старт прогона).
@@ -156,12 +151,6 @@ const ChatWindow = ({
   const chatsRef = useRef(chats);
   // Guards the one-time chat-list fetch against StrictMode's double-invoke.
   const didFetchChatsRef = useRef(false);
-  // Зеркало t() для использования внутри стрим-колбэков без добавления t в deps
-  // (иначе колбэк пересоздавался бы при смене языка во время стриминга).
-  const tRef = useRef(t);
-  useEffect(() => {
-    tRef.current = t;
-  }, [t]);
   useEffect(() => {
     chatsRef.current = chats;
   }, [chats]);
@@ -189,7 +178,7 @@ const ChatWindow = ({
         const data = await chatApi.listChats();
         const chatList = data.map((chat) => ({
           id: chat.conversationId,
-          title: chat.topic || tRef.current('window.defaultTitle'),
+          title: chat.topic || i18n.t('chat:window.defaultTitle'),
           messages: null,
           createdAt: chat.createdAt || null,
           // updatedAt/aiTopic не участвуют в списке — они нужны вкладке «Инфо»
@@ -393,7 +382,8 @@ const ChatWindow = ({
     (chat) => {
       const selected = chat?.model;
       if (selected && modelOptions.some((o) => o.id === selected)) return selected;
-      if (lastModelRef.current && modelOptions.some((o) => o.id === lastModelRef.current)) return lastModelRef.current;
+      const last = getLastModel();
+      if (last && modelOptions.some((o) => o.id === last)) return last;
       return modelConfig?.defaultModel?.id || null;
     },
     [modelOptions, modelConfig],
@@ -405,7 +395,8 @@ const ChatWindow = ({
     (chat) => {
       const selected = chat?.mode;
       if (selected && modeOptions.some((o) => o.id === selected)) return selected;
-      if (lastModeRef.current && modeOptions.some((o) => o.id === lastModeRef.current)) return lastModeRef.current;
+      const last = getLastMode();
+      if (last && modeOptions.some((o) => o.id === last)) return last;
       return '';
     },
     [modeOptions],
@@ -438,22 +429,10 @@ const ChatWindow = ({
       conversationId,
       { text = null, clientMsgId = null, model, mode, retry = false, retryMid = null, contextItems = [] },
     ) => {
-      // Запоминаем как «последнюю» — новый чат стартует именно с неё.
-      if (model) {
-        lastModelRef.current = model;
-        try {
-          localStorage.setItem(STORAGE_KEY_LAST_MODEL, model);
-        } catch {
-          /* ignore quota errors */
-        }
-      }
-      // Режим запоминаем всегда (в т.ч. '' — сознательный сброс к «без режима»).
-      lastModeRef.current = mode || '';
-      try {
-        localStorage.setItem(STORAGE_KEY_LAST_MODE, mode || '');
-      } catch {
-        /* ignore quota errors */
-      }
+      // Запоминаем как «последние» — новый чат стартует именно с них. Режим
+      // запоминаем всегда, в т.ч. '' — это сознательный сброс к «без режима».
+      if (model) setLastModel(model);
+      setLastMode(mode);
       // Блокируем ввод сразу, не дожидаясь runId от сервера. Снимается в finally:
       // при успехе к этому моменту у чата уже стоит runId (isStreaming не мигает),
       // при 409/ошибке ввод разблокируется — отправку можно повторить.
@@ -547,7 +526,7 @@ const ChatWindow = ({
                     ...(c.messages || []),
                     {
                       mid: nextMessageId(),
-                      text: tRef.current('window.genericError'),
+                      text: i18n.t('chat:window.genericError'),
                       sender: 'ai',
                       error: true,
                       retryMode: RETRY_MODE.RESEND,
@@ -728,7 +707,6 @@ const ChatWindow = ({
     activeMessagesReady,
     chatsRef,
     localClientIdsRef,
-    tRef,
     setChats,
     onChatDeleted: handleRemoteChatDeleted,
     onRunSettled: fetchAndUpdateTitle,

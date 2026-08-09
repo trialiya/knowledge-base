@@ -193,7 +193,10 @@ const HistoryModal = ({ documentId, documentTitle, initialVersion, tree = [], on
   const inFlight = useRef(new Map()); // version → Promise<string> (дедуп + переиспользование)
   const aliveRef = useRef(true); // компонент ещё смонтирован?
   const docRef = useRef(documentId); // актуальный documentId (версии нумеруются по документу)
-  docRef.current = documentId;
+
+  useEffect(() => {
+    docRef.current = documentId;
+  }, [documentId]);
 
   useEffect(() => {
     aliveRef.current = true;

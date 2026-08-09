@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useEffectEvent, useMemo } from 'react';
 
 /**
  * Creates an isolated module-level cache store: key → { value, fetchedAt }.
@@ -76,9 +76,10 @@ function knownNow(store, key, enabled, ttlMs, seed) {
  * @param {number}   [options.ttlMs] – cache entry TTL; omitted = never expires
  * @param {(key: *) => *} [options.seed] – synchronous lookup rendered immediately
  *   (e.g. a stub from an already-loaded tree) so there is no loading flash. It is
- *   a HEAD START, not a substitute: the fetch still runs and replaces it. It used
- *   to short-circuit the fetch entirely, which is how a doc preview could end up
- *   showing the tree's 150-char snippet as if it were the whole document.
+ *   a HEAD START, not a substitute: the fetch still runs and replaces it, so a doc
+ *   preview never keeps the tree's 150-char snippet as if it were the whole
+ *   document. Must be memoized by the caller — it is read during render and takes
+ *   part in the deps below, so a new identity on every render re-runs the effect.
  */
 export default function usePreviewCache(store, key, enabled, fetcher, options = {}) {
   const { ttlMs, seed } = options;
@@ -86,10 +87,9 @@ export default function usePreviewCache(store, key, enabled, fetcher, options = 
   // известно синхронно, считается в knownNow при рендере: setState в теле
   // эффекта дал бы каскадный ре-рендер на каждое наведение мыши.
   const [resolved, setResolved] = useState(null); // { value, error } | null
-  const fetcherRef = useRef(fetcher);
-  fetcherRef.current = fetcher;
-  const seedRef = useRef(seed);
-  seedRef.current = seed;
+  // Запрос уходит только из эффекта, поэтому fetcher — эффект-событие: вызов
+  // всегда идёт в свежую функцию, а её смена не перезапускает подписку.
+  const runFetch = useEffectEvent((k) => fetcher(k));
 
   // Смена ключа обнуляет ответ предыдущего — иначе кадр до перезапроса показал
   // бы содержимое чужого документа.
@@ -100,8 +100,8 @@ export default function usePreviewCache(store, key, enabled, fetcher, options = 
   }
 
   // Те же зависимости, что у эффекта: seed (обход дерева) не должен гоняться на
-  // каждый ре-рендер модалки.
-  const known = useMemo(() => knownNow(store, key, enabled, ttlMs, seedRef.current), [store, key, enabled, ttlMs]);
+  // каждый ре-рендер модалки — за это отвечает мемоизация seed у вызывающего.
+  const known = useMemo(() => knownNow(store, key, enabled, ttlMs, seed), [store, key, enabled, ttlMs, seed]);
 
   useEffect(() => {
     if (!key || !enabled) return undefined;
@@ -121,7 +121,7 @@ export default function usePreviewCache(store, key, enabled, fetcher, options = 
       return undefined;
     }
 
-    const seeded = seedRef.current?.(key) ?? null;
+    const seeded = seed?.(key) ?? null;
 
     // Затравка есть — ошибку догрузки не показываем: лучше неполный, но живой
     // предпросмотр, чем «не найдено» вместо уже показанного узла.
@@ -142,8 +142,7 @@ export default function usePreviewCache(store, key, enabled, fetcher, options = 
     let cancelled = false;
     cache.set(key, { value: 'loading', fetchedAt: Date.now() });
 
-    fetcherRef
-      .current(key)
+    runFetch(key)
       .then((result) => {
         notify(key, result); // populate cache + wake other waiters regardless
         if (cancelled) return;
@@ -161,7 +160,7 @@ export default function usePreviewCache(store, key, enabled, fetcher, options = 
     // known — та же мемоизация, что и у зависимостей выше, поэтому лишних
     // перезапусков не даёт; если React всё же пересчитает мемо, эффект попадёт
     // в ветку подписки на уже идущий запрос и второго обращения не будет.
-  }, [key, enabled, ttlMs, store, known]);
+  }, [key, enabled, ttlMs, store, known, seed]);
 
   if (resolved) return { value: resolved.value, loading: false, error: resolved.error };
   return known;

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useMemo } from 'react';
 import api from '../../api/documentsApi';
 import usePreviewCache, { createPreviewStore } from './usePreviewCache';
 
@@ -37,13 +37,15 @@ export function invalidateDocPreviewCache(id) {
  * @param {boolean}     enabled  – only fetch when true (hover active)
  */
 export default function useDocPreview(id, tree, enabled) {
-  const treeRef = useRef(tree);
-  treeRef.current = tree; // всегда последний tree, но НЕ триггер эффекта
-
-  const seed = useCallback((key) => {
-    const fromTree = findInTree(treeRef.current, key);
-    return fromTree && fromTree.description !== undefined ? { ...fromTree, _stub: true } : undefined;
-  }, []);
+  // Пересобирается только со сменой дерева: usePreviewCache держит seed в
+  // зависимостях, а обход дерева на каждый рендер тултипа не нужен.
+  const seed = useCallback(
+    (key) => {
+      const fromTree = findInTree(tree, key);
+      return fromTree && fromTree.description !== undefined ? { ...fromTree, _stub: true } : undefined;
+    },
+    [tree],
+  );
   const options = useMemo(() => ({ seed }), [seed]);
 
   const { value, loading, error } = usePreviewCache(store, id, enabled, api.fetchById, options);

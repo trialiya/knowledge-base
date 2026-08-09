@@ -124,17 +124,18 @@ function walkSource(dir, acc = []) {
   return acc;
 }
 
-/** Достать литеральные ключи из t('...') / tRef.current('...'). */
+/** Достать литеральные ключи из t('...') / i18n.t('...'). */
 function extractKeys(code) {
   const keys = new Set();
   // t('x') / t("x"), исключая случаи, когда перед t стоит буква/цифра/точка
   // (чтобы не ловить getReader(, Set(, parseInt( и т.п.)
   const reT = /(?<![\w.])t\(\s*(['"])([^'"]+)\1/g;
-  // tRef.current('x') — отдельная форма, используемая в стрим-колбэках
-  const reRef = /tRef\.current\(\s*(['"])([^'"]+)\1/g;
+  // i18n.t('ns:x') — перевод вне рендера, у самого инстанса: точка перед t
+  // выводит его из-под лукбихайнда выше.
+  const reI18n = /\bi18n\.t\(\s*(['"])([^'"]+)\1/g;
   let m;
   while ((m = reT.exec(code)) !== null) keys.add(m[2]);
-  while ((m = reRef.exec(code)) !== null) keys.add(m[2]);
+  while ((m = reI18n.exec(code)) !== null) keys.add(m[2]);
   return keys;
 }
 

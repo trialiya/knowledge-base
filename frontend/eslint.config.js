@@ -16,7 +16,7 @@ export default [
   react.configs.flat.recommended,
   // Ради чего всё и затевалось: rules-of-hooks и exhaustive-deps. Вместе с ними
   // приезжают правила React Compiler — чистота рендера, стабильность
-  // мемоизации, работа с рефами; два из них выключены ниже.
+  // мемоизации, работа с рефами. Набор включён целиком, без вычетов.
   reactHooks.configs.flat['recommended-latest'],
 
   {
@@ -34,19 +34,6 @@ export default [
     // из-за этого ядро и держится на девятке (см. ignore в dependabot.yml).
     settings: { react: { version: '19.2' } },
     rules: {
-      // Два правила компилятора выключены: код им не соответствует, и привести
-      // его в соответствие — не правка конфига, а переписывание «зеркал» в
-      // рефах. Включать по одному, разобрав места.
-      //   refs (10 мест) — идиома `xRef.current = x` в теле компонента, чтобы
-      //     колбэк видел свежее значение и не пересоздавался. Замена —
-      //     useEffectEvent, но эффект-события нельзя передавать в другие хуки,
-      //     а эти рефы используются именно так (usePreviewCache, useFileTree).
-      //   immutability (3 места, ChatWindow) — рефы, поднятые из localStorage и
-      //     правящиеся позже; их читают при выборе модели и режима на первом же
-      //     рендере, поэтому инициализацию не отложить в эффект.
-      'react-hooks/refs': 'off',
-      'react-hooks/immutability': 'off',
-
       // Форматирование целиком за Prettier — ESLint в него не лезет.
       'no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       // PropTypes в проекте не используются (как и в eslint-config-react-app).

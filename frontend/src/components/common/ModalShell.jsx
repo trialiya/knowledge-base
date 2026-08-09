@@ -56,16 +56,12 @@ function swallowNextClick() {
 const ModalShell = ({ open = true, onClose, variant, role = 'dialog', className = '', children }) => {
   const isTopmost = useTopmost(open);
 
-  // Stable across renders (empty deps) so useEscape's listener isn't torn down and
-  // re-added on every render of the modal's content; latest open/onClose read via refs.
-  const openRef = useRef(open);
-  openRef.current = open;
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
-  const onEscape = useCallback(() => {
-    if (openRef.current && isTopmost()) onCloseRef.current();
-  }, [isTopmost]);
-  useEscape(onEscape);
+  // Escape закрывает только верхнюю модалку стопки — вложенный диалог не должен
+  // уносить с собой родительский. Мемоизировать колбэк не нужно: useEscape сам
+  // держит слушатель стабильным.
+  useEscape(() => {
+    if (open && isTopmost()) onClose();
+  });
 
   if (!open) return null;
 
