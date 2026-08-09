@@ -1,4 +1,3 @@
-import React from 'react';
 import AiSummarySection from './AiSummarySection';
 import ContentsTable from './ContentsTable';
 import DetailInfo from './DetailInfo';

@@ -1,4 +1,3 @@
-import React from 'react';
 import WorkspaceLayout from './WorkspaceLayout';
 import useListNavigation from '../../hooks/useListNavigation';
 import './settingsShell.css';

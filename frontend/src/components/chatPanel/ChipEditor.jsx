@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
+import { useRef, useEffect, useCallback, useImperativeHandle } from 'react';
 import {
   serialize,
   makeChipEl,
@@ -21,7 +21,7 @@ import useChipPreview from './useChipPreview';
 // вставкой чипа в DOM; сам div рендерит RichTextEditor. Логику выпадающего
 // списка и превью чипа держат хуки useChipPicker / useChipPreview.
 
-const ChipEditor = forwardRef(function ChipEditor({ value, onChange, onSend, disabled, placeholder, chatId }, ref) {
+function ChipEditor({ value, onChange, onSend, disabled, placeholder, chatId, ref }) {
   const editorRef = useRef(null);
   const internalRef = useRef(value);
   // Идёт программная вставка (handlePaste): её промежуточные input-события
@@ -323,6 +323,6 @@ const ChipEditor = forwardRef(function ChipEditor({ value, onChange, onSend, dis
       {preview && <FileChipPreview preview={preview} onClose={closePreview} onToggleRef={toggleRef} />}
     </>
   );
-});
+}
 
 export default ChipEditor;

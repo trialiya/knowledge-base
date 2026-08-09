@@ -1,4 +1,4 @@
-import React from 'react';
+import { Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconDoc, IconFolder, IconChevronRight, IconSparkle } from '../../icons';
 import { docPath } from '../../urlScheme';
@@ -11,7 +11,7 @@ const ResultBreadcrumb = ({ parents }) => {
   return (
     <div className="sr-breadcrumb">
       {parents.map((node, i) => (
-        <React.Fragment key={node.id}>
+        <Fragment key={node.id}>
           <span className="sr-breadcrumb__icon">
             <IconFolder size={11} />
           </span>
@@ -21,7 +21,7 @@ const ResultBreadcrumb = ({ parents }) => {
               <IconChevronRight size={9} />
             </span>
           )}
-        </React.Fragment>
+        </Fragment>
       ))}
     </div>
   );

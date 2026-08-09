@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import highlightMatch, { highlightFileMatch } from '../common/highlightMatch';
 import { IconFileText } from '../../icons';

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconFolder, IconDoc, IconEdit, IconTrash, IconCheck, IconX, IconLock, IconDownload } from '../../icons';
 import HeadCrumbs from '../common/HeadCrumbs';

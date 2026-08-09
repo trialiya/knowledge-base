@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import chatApi from '../../api/chatApi';
 import PanelSearch from '../common/PanelSearch';

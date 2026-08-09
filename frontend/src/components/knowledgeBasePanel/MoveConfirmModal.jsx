@@ -1,4 +1,3 @@
-import React from 'react';
 import { useTranslation } from 'react-i18next';
 import ModalShell from '../common/ModalShell';
 import '../common/buttons.css';

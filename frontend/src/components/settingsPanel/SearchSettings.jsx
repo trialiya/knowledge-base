@@ -1,4 +1,3 @@
-import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { SettingsSection } from '../common/SettingsShell';
 import ConfigGroup, { ConfigRow, ConfigStatusRow } from '../common/ConfigGroup';

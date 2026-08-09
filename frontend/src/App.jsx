@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import ChatWindow from './components/chatPanel/ChatWindow';
 import KnowledgeBase from './components/knowledgeBasePanel/KnowledgeBase';

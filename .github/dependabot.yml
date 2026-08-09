@@ -27,6 +27,16 @@ updates:
     labels:
       - "dependencies"
       - "frontend"
+    # eslint-plugin-react объявляет поддержку eslint только до ^9.7, и на
+    # десятке действительно падает: автодетект версии React читает файловую
+    # систему через API контекста, которого в ESLint 10 нет. Пока плагин не
+    # обновится, ESLint и @eslint/js остаются на девятке — врозь их поднимать
+    # нельзя, @eslint/js 10 требует ядро ^10.
+    ignore:
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@eslint/js"
+        update-types: ["version-update:semver-major"]
     groups:
       minor-and-patch:
         update-types:

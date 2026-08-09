@@ -2,27 +2,39 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 
-import ruCommon from './locales/ru/common.json';
-import ruChat from './locales/ru/chat.json';
-import ruKnowledgeBase from './locales/ru/knowledgeBase.json';
-import ruSettings from './locales/ru/settings.json';
-import ruFiles from './locales/ru/files.json';
-import enCommon from './locales/en/common.json';
-import enChat from './locales/en/chat.json';
-import enKnowledgeBase from './locales/en/knowledgeBase.json';
-import enSettings from './locales/en/settings.json';
-import enFiles from './locales/en/files.json';
-
-const resources = {
-  ru: { common: ruCommon, chat: ruChat, knowledgeBase: ruKnowledgeBase, settings: ruSettings, files: ruFiles },
-  en: { common: enCommon, chat: enChat, knowledgeBase: enKnowledgeBase, settings: enSettings, files: enFiles },
+// Словарь каждого языка — отдельный чанк, а не часть стартового бандла:
+// показанный язык грузится на старте, второй — только если на него переключатся.
+// Языку-фолбэку это не помогает: i18next тянет его вместе с текущим, поэтому
+// английский интерфейс стоит русского словаря сверху, а русский — только своего.
+const bundles = {
+  ru: () => import('./locales/ru'),
+  en: () => import('./locales/en'),
 };
 
-i18n
+// Минимальный backend вместо статического `resources`: i18next зовёт read() на
+// каждый (язык, неймспейс), а промис динамического импорта кешируется — за все
+// пять неймспейсов языка уходит один запрос за чанком.
+const lazyBundles = {
+  type: 'backend',
+  read(language, namespace, callback) {
+    const load = bundles[language];
+    if (!load) {
+      callback(new Error(`Нет словаря для языка ${language}`), null);
+      return;
+    }
+    load().then(
+      (mod) => callback(null, mod.default[namespace]),
+      (err) => callback(err, null),
+    );
+  },
+};
+
+/** Резолвится, когда словарь стартового языка загружен: до этого t() вернёт ключи. */
+export const i18nReady = i18n
+  .use(lazyBundles)
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
-    resources,
     fallbackLng: 'ru',
     supportedLngs: ['ru', 'en'],
     ns: ['common', 'chat', 'knowledgeBase', 'settings', 'files'],
@@ -39,11 +51,14 @@ i18n
 
 // index.html жёстко объявляет lang="ru" (значение до загрузки JS, совпадает с fallbackLng).
 // Без синхронизации английский интерфейс остаётся размеченным как русский: скринридер читает
-// его с русской фонетикой, а браузер предлагает «перевести страницу».
+// его с русской фонетикой, а браузер предлагает «перевести страницу». init() асинхронный
+// (словарь грузит backend), поэтому resolvedLanguage в момент вызова ещё не определён —
+// languageChanged закрывает и первую расстановку, и переключения; i18nReady.then — подстраховка
+// на случай, если первый emit чем-то подавлен.
 const syncHtmlLang = (lng) => {
   if (lng) document.documentElement.lang = lng;
 };
-syncHtmlLang(i18n.resolvedLanguage);
 i18n.on('languageChanged', syncHtmlLang);
+i18nReady.then(() => syncHtmlLang(i18n.resolvedLanguage));
 
 export default i18n;
