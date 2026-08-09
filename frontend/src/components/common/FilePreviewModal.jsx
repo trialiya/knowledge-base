@@ -19,30 +19,35 @@ import { IconX } from '../../icons';
  */
 const FilePreviewModal = ({ path, fromLine, toLine, onClose }) => {
   const { t } = useTranslation('files');
-  const [file, setFile] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  // Ответ сервера; null — запрос ещё идёт. Отдельного `loading` нет: он выводится
+  // из ответа, а сброс на смену файла делается в рендере, чтобы кадра с
+  // содержимым предыдущего файла не было.
+  const [answer, setAnswer] = useState(null); // { file, error } | null
+
+  const [req, setReq] = useState({ path, fromLine, toLine });
+  if (req.path !== path || req.fromLine !== fromLine || req.toLine !== toLine) {
+    setReq({ path, fromLine, toLine });
+    setAnswer(null);
+  }
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError(false);
     gitApi
       .getFileContent(path, fromLine, toLine)
       .then((result) => {
-        if (cancelled) return;
-        setFile(result);
-        setLoading(false);
+        if (!cancelled) setAnswer({ file: result, error: false });
       })
       .catch(() => {
-        if (cancelled) return;
-        setError(true);
-        setLoading(false);
+        if (!cancelled) setAnswer({ file: null, error: true });
       });
     return () => {
       cancelled = true;
     };
   }, [path, fromLine, toLine]);
+
+  const loading = answer === null;
+  const file = answer?.file ?? null;
+  const error = answer?.error ?? false;
 
   const name = path.slice(path.lastIndexOf('/') + 1);
 

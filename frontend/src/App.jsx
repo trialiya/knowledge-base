@@ -41,12 +41,20 @@ function App() {
   const [searchText, setSearchText] = useState(nav.search || '');
   const [searchMode, setSearchMode] = useState(nav.mode || SEARCH_MODE.HYBRID);
 
-  useEffect(() => {
+  // Поле — локальный черновик, но URL меняется и снаружи (кнопка «назад»,
+  // открытая ссылка), и тогда черновик надо подтянуть. Подстройка идёт прямо в
+  // рендере, а не в эффекте: эффект дал бы второй проход рендера на каждую
+  // навигацию, а App держит смонтированными все разделы сразу.
+  const [prevNavSearch, setPrevNavSearch] = useState(nav.search);
+  if (prevNavSearch !== nav.search) {
+    setPrevNavSearch(nav.search);
     setSearchText(nav.search || '');
-  }, [nav.search]);
-  useEffect(() => {
+  }
+  const [prevNavMode, setPrevNavMode] = useState(nav.mode);
+  if (prevNavMode !== nav.mode) {
+    setPrevNavMode(nav.mode);
     setSearchMode(nav.mode || SEARCH_MODE.HYBRID);
-  }, [nav.mode]);
+  }
 
   // Поиск всегда уводит в базу знаний (setSearch выставляет view=knowledge),
   // поэтому отдельно «закрывать» admin/settings не нужно.

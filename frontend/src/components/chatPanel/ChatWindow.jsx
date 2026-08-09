@@ -123,8 +123,6 @@ const ChatWindow = ({
   const [pendingRunChatId, setPendingRunChatId] = useState(null);
   // Bump → очистить текст в MessageInput («удаление» черновика).
   const [composerResetSignal, setComposerResetSignal] = useState(0);
-  // Bump → сфокусировать MessageInput (при активации панели чата).
-  const [composerFocusSignal, setComposerFocusSignal] = useState(0);
   // Неотправленные черновики по чатам ({ chatId: text }, localStorage) — вынесено
   // в useChatDrafts (отложенная запись + flush на beforeunload/размонтирование).
   const {
@@ -169,18 +167,18 @@ const ChatWindow = ({
   }, [chats]);
 
   // Источник правды — проп из навигации. Когда он меняется (клик по вкладке,
-  // popstate, восстановление из URL), подхватываем активный чат.
-  useEffect(() => {
-    if (propActiveChatId && propActiveChatId !== activeChatId) {
-      setActiveChatId(propActiveChatId);
-      localStorage.setItem(STORAGE_KEY_ACTIVE_CHAT, propActiveChatId);
-    }
-  }, [propActiveChatId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // popstate, восстановление из URL), подхватываем активный чат — в рендере, а
+  // не эффектом: иначе кадр между сменой адреса и подхватом рисует прошлый чат.
+  const [prevPropChatId, setPrevPropChatId] = useState(propActiveChatId);
+  if (prevPropChatId !== propActiveChatId) {
+    setPrevPropChatId(propActiveChatId);
+    if (propActiveChatId && propActiveChatId !== activeChatId) setActiveChatId(propActiveChatId);
+  }
 
-  // Фокус на поле ввода при переключении на панель чата.
+  // Запоминание активного чата — побочный эффект, в рендере ему не место.
   useEffect(() => {
-    if (isActive) setComposerFocusSignal((n) => n + 1);
-  }, [isActive]);
+    if (propActiveChatId) localStorage.setItem(STORAGE_KEY_ACTIVE_CHAT, propActiveChatId);
+  }, [propActiveChatId]);
 
   // Загрузка списка чатов
   useEffect(() => {
@@ -1000,7 +998,7 @@ const ChatWindow = ({
           onUnstage={handleUnstageContext}
           isEmpty={isChatEmpty && !loadingMessages}
           resetSignal={composerResetSignal}
-          focusSignal={composerFocusSignal}
+          active={isActive}
           chatId={activeChatId}
           initialText={getDraftFor(activeChatId)}
           onTextChange={(v) => handleComposerTextChange(activeChatId, v)}

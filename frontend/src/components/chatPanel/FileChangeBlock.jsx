@@ -107,31 +107,35 @@ const FileDiffModal = ({ change, onClose }) => {
   const isMd = isMarkdownPath(change.path);
   const [mdView, setMdView] = useState(false);
   const showsContent = change.diffs.length === 0;
-  const [content, setContent] = useState(null);
-  const [loading, setLoading] = useState(showsContent);
-  const [error, setError] = useState(false);
+  // Ответ сервера; null — запрос ещё идёт. `loading`/`error` выводятся из него
+  // при рендере, а сброс на смену файла делается тут же — эффект показал бы
+  // кадр с содержимым предыдущего.
+  const [answer, setAnswer] = useState(null); // { content, error } | null
+
+  const [req, setReq] = useState({ path: change.path, showsContent });
+  if (req.path !== change.path || req.showsContent !== showsContent) {
+    setReq({ path: change.path, showsContent });
+    setAnswer(null);
+  }
 
   useEffect(() => {
     if (!showsContent) return undefined;
     let cancelled = false;
-    setLoading(true);
-    setError(false);
     fetchContent(change.path)
       .then((data) => {
-        if (cancelled) return;
-        setContent(data);
-        setLoading(false);
+        if (!cancelled) setAnswer({ content: data, error: false });
       })
       .catch(() => {
-        if (!cancelled) {
-          setError(true);
-          setLoading(false);
-        }
+        if (!cancelled) setAnswer({ content: null, error: true });
       });
     return () => {
       cancelled = true;
     };
   }, [change.path, showsContent]);
+
+  const loading = showsContent && answer === null;
+  const content = answer?.content ?? null;
+  const error = answer?.error ?? false;
 
   return (
     <ModalShell onClose={onClose} className="fcd-modal">

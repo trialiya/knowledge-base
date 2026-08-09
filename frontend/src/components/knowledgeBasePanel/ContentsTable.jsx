@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -10,10 +10,14 @@ const ContentsTable = ({ items, onNavigate }) => {
   const { t, i18n } = useTranslation('knowledgeBase');
   const [page, setPage] = useState(0);
 
-  // Reset to page 0 when the data changes (e.g. navigating to another folder)
-  useEffect(() => {
+  // Reset to page 0 when the data changes (e.g. navigating to another folder).
+  // In render rather than in an effect: an effect would paint one frame of the
+  // new folder scrolled to the old page number first.
+  const [prevItems, setPrevItems] = useState(items);
+  if (prevItems !== items) {
+    setPrevItems(items);
     setPage(0);
-  }, [items]);
+  }
 
   const totalPages = Math.ceil(items.length / PAGE_SIZE);
   const pageItems = items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);

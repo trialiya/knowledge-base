@@ -99,19 +99,22 @@ export default function useKnowledgeBase({
 
   // ── Tree loading ─────────────────────────────────────────────────────────
 
-  const loadTree = useCallback(async () => {
-    try {
-      const paged = await api.fetchChildren(null, 0, PAGE_SIZE);
-      const items = rootItems(paged);
-      setTree(items);
-      return items;
-    } catch {
-      setTree([]);
-      return [];
-    } finally {
-      setTreeLoaded(true);
-    }
-  }, []);
+  // Цепочкой промисов, а не async/await: состояние здесь ставится строго после
+  // ответа сервера, и в таком виде это видно и линтеру эффектов — loadTree
+  // зовут из них (см. реакцию на мутации из чата).
+  const loadTree = useCallback(
+    () =>
+      api
+        .fetchChildren(null, 0, PAGE_SIZE)
+        .then(rootItems)
+        .catch(() => [])
+        .then((items) => {
+          setTree(items);
+          setTreeLoaded(true);
+          return items;
+        }),
+    [],
+  );
 
   /**
    * Lazy-loads one page of children for a node and splices them into the tree.
@@ -145,13 +148,11 @@ export default function useKnowledgeBase({
 
   /** Reloads a parent's children scope after a mutation (create/delete). */
   const refreshScope = useCallback(
-    async (parentId) => {
-      if (parentId === null) {
-        await loadTree();
-        return;
-      }
-      const paged = await api.fetchChildren(parentId, 0, PAGE_SIZE);
-      setTree((prev) => applyChildren(prev, parentId, paged, { replace: true }));
+    (parentId) => {
+      if (parentId === null) return loadTree();
+      return api
+        .fetchChildren(parentId, 0, PAGE_SIZE)
+        .then((paged) => setTree((prev) => applyChildren(prev, parentId, paged, { replace: true })));
     },
     [loadTree],
   );
@@ -371,41 +372,62 @@ export default function useKnowledgeBase({
   // Срабатывает при: открытии doc-ссылки в чате, клике вкладки «База знаний»
   // с последним docId, popstate (App обновляет props), прямой ссылке.
   // notify:false — выбор пришёл ИЗ навигации, обратно уведомлять не нужно.
-  const lastNavDocRef = useRef(undefined);
-  const lastNavSearchRef = useRef(undefined);
+  // Разбор адреса идёт в рендере: состояние, которое перестало к нему
+  // относиться, обязано смениться до отрисовки, иначе кадр между сменой адреса
+  // и реакцией на неё показывает прошлый документ. Асинхронную часть — загрузку
+  // документа и поиск — исполняет эффект ниже по заявке в navTask.
+  //
+  // appliedNav — адрес, на который уже отреагировали. Именно он, а не сам факт
+  // изменения пропов, решает: сменившийся один только navMode не должен
+  // перезапускать тот же поиск.
+  const [appliedNav, setAppliedNav] = useState({ doc: undefined, search: undefined });
+  const [navTask, setNavTask] = useState(null); // { doc } | { search, mode } | null
 
-  useEffect(() => {
-    if (navDocId) {
-      // Тот же документ — повторно не грузим (вкладки центра, которую раньше
-      // надо было досинхронизировать, больше нет).
-      if (lastNavDocRef.current === navDocId) return;
-      lastNavDocRef.current = navDocId;
-      lastNavSearchRef.current = undefined;
-      navigateToDocById(navDocId, { notify: false });
-    } else if (navSearch) {
-      lastNavDocRef.current = undefined;
-      if (lastNavSearchRef.current === navSearch) return;
-      lastNavSearchRef.current = navSearch;
+  if (navDocId) {
+    // Тот же документ — повторно не грузим (вкладки центра, которую раньше
+    // надо было досинхронизировать, больше нет).
+    if (appliedNav.doc !== navDocId) {
+      setAppliedNav({ doc: navDocId, search: undefined });
+      setNavTask({ doc: navDocId });
+    }
+  } else if (navSearch) {
+    if (appliedNav.search !== navSearch) {
+      setAppliedNav({ doc: undefined, search: navSearch });
       setSelectedNode(null);
       setSearchQuery(navSearch);
       setSearchMode(navMode || SEARCH_MODE.HYBRID);
-      performSearch(navSearch, navMode || SEARCH_MODE.HYBRID);
-    } else {
-      // Уход в chat-view приходит сюда как docId=null/search='' (App обнуляет
-      // их, пока активна вкладка чата). Если в редакторе есть несохранённые
-      // изменения — НЕ сбрасываем выбор: и selectedNode, и lastNavDocRef
-      // остаются, поэтому DocumentDetail с редактором не размонтируется (он лишь
-      // скрыт через CSS), а возврат в KB пройдёт по ветке «уже показан» и не
-      // перезагрузит документ по API, сохранив правки.
-      if (isEditorDirty()) return;
-      lastNavDocRef.current = undefined;
-      lastNavSearchRef.current = undefined;
+      setNavTask({ search: navSearch, mode: navMode || SEARCH_MODE.HYBRID });
+    } else if (appliedNav.doc !== undefined) {
+      setAppliedNav({ doc: undefined, search: navSearch });
+    }
+  } else if (appliedNav.doc !== undefined || appliedNav.search !== undefined) {
+    // Уход в chat-view приходит сюда как docId=null/search='' (App обнуляет
+    // их, пока активна вкладка чата). Если в редакторе есть несохранённые
+    // изменения — НЕ сбрасываем выбор: и selectedNode, и appliedNav остаются,
+    // поэтому DocumentDetail с редактором не размонтируется (он лишь скрыт
+    // через CSS), а возврат в KB пройдёт по ветке «уже показан» и не
+    // перезагрузит документ по API, сохранив правки.
+    if (!isEditorDirty()) {
+      setAppliedNav({ doc: undefined, search: undefined });
+      setNavTask(null);
       setSelectedNode(null);
       setSearchResults([]);
       setSearchQuery('');
     }
+  }
+
+  useEffect(() => {
+    if (!navTask) return;
+    // set-state-in-effect читает тело async-функции как синхронное, поэтому
+    // видит здесь каскадный рендер, которого нет: внутри navigateToDocById
+    // состояние ставится только после await'ов и в колбэках fetchFullAndSelect.
+    // Разворачивать её в цепочку промисов ради этого (как loadTree, где вышло
+    // короче) — значит сделать три последовательных запроса нечитаемыми.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (navTask.doc != null) navigateToDocById(navTask.doc, { notify: false });
+    else performSearch(navTask.search, navTask.mode);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navDocId, navSearch, navMode]);
+  }, [navTask]);
 
   // Keep selectedNode in sync when the tree updates after CRUD.
   //
@@ -415,12 +437,17 @@ export default function useKnowledgeBase({
   // truncated snippet. Instead we merge the tree's structural fields (title,
   // children, flags, updatedAt) into the current selection while keeping the
   // full `description` whenever the current selection is a complete document.
-  useEffect(() => {
-    if (!selectedNode) return;
-    const fromTree = findNodeById(tree, selectedNode.id);
-    if (!fromTree) return;
-    setSelectedNode((prev) => (prev && prev.id === selectedNode.id ? mergeStubIntoSelection(prev, fromTree) : prev));
-  }, [tree]); // eslint-disable-line react-hooks/exhaustive-deps
+  //
+  // Слияние идёт в рендере, а не эффектом: иначе после каждой правки дерева
+  // выделенный документ один кадр показывается ещё в прежнем виде.
+  const [prevTree, setPrevTree] = useState(tree);
+  if (prevTree !== tree) {
+    setPrevTree(tree);
+    const fromTree = selectedNode && findNodeById(tree, selectedNode.id);
+    if (fromTree) {
+      setSelectedNode((prev) => (prev && prev.id === selectedNode.id ? mergeStubIntoSelection(prev, fromTree) : prev));
+    }
+  }
 
   // ── Реакция на doc-мутации из чата (createDocument/updateDocument/...) ──────
   // KB смонтирована всегда (в отличие от Files, у которой размонтирование само

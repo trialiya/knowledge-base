@@ -25,9 +25,16 @@ const Phrases = ({ onSelect, reloadKey }) => {
   const [ready, setReady] = useState(false);
   const [activeCategory, setActiveCategory] = useState(ALL);
 
+  // Пока идёт перезагрузка по новому reloadKey, блок скрыт. Флаг гасится в
+  // рендере, а не в эффекте: эффект показал бы кадр со старой библиотекой.
+  const [prevReloadKey, setPrevReloadKey] = useState(reloadKey);
+  if (prevReloadKey !== reloadKey) {
+    setPrevReloadKey(reloadKey);
+    setReady(false);
+  }
+
   useEffect(() => {
     let alive = true;
-    setReady(false);
     fetchPhrases()
       .then((data) => alive && setPhrases(Array.isArray(data) ? data : []))
       .catch(() => alive && setPhrases([])) // при ошибке блок просто не покажется
@@ -44,16 +51,16 @@ const Phrases = ({ onSelect, reloadKey }) => {
     return [ALL, ...(hasFavorites ? [FAVORITES] : []), ...cats];
   }, [phrases, hasFavorites]);
 
-  // если активная категория исчезла (сняли последнее избранное / удалили категорию) — на «Все»
-  useEffect(() => {
-    if (!categories.includes(activeCategory)) setActiveCategory(ALL);
-  }, [categories, activeCategory]);
+  // Выбранная категория могла исчезнуть (сняли последнее избранное, удалили
+  // категорию) — тогда считаем активной «Все». Это вычисление, а не состояние:
+  // список категорий целиком выводится из phrases.
+  const category = categories.includes(activeCategory) ? activeCategory : ALL;
 
   const filtered = useMemo(() => {
-    if (activeCategory === ALL) return phrases;
-    if (activeCategory === FAVORITES) return phrases.filter((p) => p.favorite);
-    return phrases.filter((p) => p.category === activeCategory);
-  }, [phrases, activeCategory]);
+    if (category === ALL) return phrases;
+    if (category === FAVORITES) return phrases.filter((p) => p.favorite);
+    return phrases.filter((p) => p.category === category);
+  }, [phrases, category]);
 
   const onToggleFavorite = useCallback((e, phrase) => {
     e.stopPropagation(); // клик по звезде не должен вставлять текст
@@ -87,7 +94,7 @@ const Phrases = ({ onSelect, reloadKey }) => {
           <button
             key={cat}
             type="button"
-            className={`phrases-cat-btn ${activeCategory === cat ? 'phrases-cat-btn--active' : ''}`}
+            className={`phrases-cat-btn ${category === cat ? 'phrases-cat-btn--active' : ''}`}
             onClick={() => setActiveCategory(cat)}
           >
             {catLabel(cat)}

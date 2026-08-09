@@ -31,17 +31,28 @@ const ListboxSelect = ({ value, options, onChange, disabled = false, ariaLabel, 
     setActiveIndex(-1);
   }, []);
 
-  // Стриминг начался во время открытого меню — закрываем
-  useEffect(() => {
-    if (disabled) close();
-  }, [disabled, close]);
-
-  // При открытии: подсветить текущий пункт и сфокусировать меню (для клавиатуры)
-  useEffect(() => {
-    if (!open) return;
+  // Открытие — из обработчика, а не из эффекта на `open`: подсветка текущего
+  // пункта известна сразу и не стоит второго прохода рендера.
+  const openMenu = () => {
+    setOpen(true);
     setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0);
-    menuRef.current?.focus();
-  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  };
+
+  // Стриминг начался во время открытого меню — закрываем прямо в рендере,
+  // чтобы кадра с открытым меню поверх заблокированного триггера не было.
+  const [prevDisabled, setPrevDisabled] = useState(disabled);
+  if (prevDisabled !== disabled) {
+    setPrevDisabled(disabled);
+    if (disabled) {
+      setOpen(false);
+      setActiveIndex(-1);
+    }
+  }
+
+  // Фокус на меню — чтобы клавиатура сразу попадала в список
+  useEffect(() => {
+    if (open) menuRef.current?.focus();
+  }, [open]);
 
   // Прокрутка к активному пункту при навигации стрелками
   useEffect(() => {
@@ -72,7 +83,7 @@ const ListboxSelect = ({ value, options, onChange, disabled = false, ariaLabel, 
     if (disabled) return;
     if ((e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') && !open) {
       e.preventDefault();
-      setOpen(true);
+      openMenu();
     }
   };
 
@@ -123,7 +134,7 @@ const ListboxSelect = ({ value, options, onChange, disabled = false, ariaLabel, 
         aria-expanded={open}
         aria-label={ariaLabel}
         title={ariaLabel}
-        onClick={() => (open ? close() : setOpen(true))}
+        onClick={() => (open ? close() : openMenu())}
         onKeyDown={onTriggerKeyDown}
       >
         <span className="chat-select__label">

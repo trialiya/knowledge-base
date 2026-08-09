@@ -240,16 +240,24 @@ const HistoryModal = ({ documentId, documentTitle, initialVersion, tree = [], on
     [documentId],
   );
 
+  // Смена документа обнуляет всё, что относилось к предыдущему: версии
+  // нумеруются внутри документа, поэтому и номера, и описания чужие. В рендере,
+  // а не в эффекте — иначе один кадр показывал бы историю прошлого документа.
+  const [prevReq, setPrevReq] = useState({ documentId, initialVersion });
+  if (prevReq.documentId !== documentId || prevReq.initialVersion !== initialVersion) {
+    setPrevReq({ documentId, initialVersion });
+    setEntries(null);
+    setError(false);
+    setDescCache({});
+    setDescErr({});
+  }
+
   // Загрузка списка версий (только метаданные)
   useEffect(() => {
     let alive = true;
-    setEntries(null);
-    setError(false);
-    // сбрасываем кэш описаний — версии нумеруются внутри документа
+    // зеркала того же кэша описаний — сбрасываем вместе с ним
     cacheRef.current = {};
     inFlight.current = new Map();
-    setDescCache({});
-    setDescErr({});
     api
       .fetchHistory(documentId)
       .then((data) => {

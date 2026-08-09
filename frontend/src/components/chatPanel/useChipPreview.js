@@ -4,7 +4,7 @@
 // Doc-чипы превью не имеют. Мутацию DOM самого чипа делает toggleRef, после чего
 // зовёт onAfterToggle (обычно emitChange редактора), чтобы значение обновилось.
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   makeToken,
   makeRefToken,
@@ -19,10 +19,13 @@ export default function useChipPreview({ chatId, onAfterToggle }) {
   // { path, from, to, refOnly, rect, chipEl, data, loading, error } | null
   const [preview, setPreview] = useState(null);
 
-  // Закрываем превью при переключении чата.
-  useEffect(() => {
+  // Закрываем превью при переключении чата — в рендере, а не эффектом: иначе
+  // модалка успевает мигнуть содержимым файла из предыдущего чата.
+  const [prevChatId, setPrevChatId] = useState(chatId);
+  if (prevChatId !== chatId) {
+    setPrevChatId(chatId);
     setPreview(null);
-  }, [chatId]);
+  }
 
   const close = useCallback(() => setPreview(null), []);
 

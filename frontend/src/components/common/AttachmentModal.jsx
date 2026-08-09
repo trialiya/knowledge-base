@@ -15,33 +15,35 @@ import './buttons.css';
 const AttachmentModal = ({ attachment, mode, onClose }) => {
   const { t } = useTranslation();
   const isContent = mode === 'content';
+  // null — текст ещё не пришёл; отсюда же и `loading`, отдельным состоянием он
+  // был бы вторым проходом рендера на каждое открытие.
   const [content, setContent] = useState(null);
-  const [loading, setLoading] = useState(isContent);
+
+  const [req, setReq] = useState({ isContent, id: attachment.id });
+  if (req.isContent !== isContent || req.id !== attachment.id) {
+    setReq({ isContent, id: attachment.id });
+    setContent(null);
+  }
 
   useEffect(() => {
     if (!isContent) return undefined;
 
     let cancelled = false;
-    setLoading(true);
     attachmentApi
       .getContent(attachment.id)
       .then((text) => {
-        if (!cancelled) {
-          setContent(text);
-          setLoading(false);
-        }
+        if (!cancelled) setContent(text);
       })
       .catch(() => {
-        if (!cancelled) {
-          setContent(t('attachments.errorLoadContent'));
-          setLoading(false);
-        }
+        if (!cancelled) setContent(t('attachments.errorLoadContent'));
       });
 
     return () => {
       cancelled = true;
     };
   }, [isContent, attachment.id, t]);
+
+  const loading = isContent && content === null;
 
   const title = isContent ? attachment.fileName : t('attachments.descriptionTitle', { name: attachment.fileName });
   const body = isContent ? content : attachment.summary || t('attachments.noDescription');
