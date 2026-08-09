@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import PhraseFillModal from './PhraseFillModal';
 import gitApi from '../../api/gitApi';
@@ -137,6 +137,68 @@ describe('PhraseFillModal', () => {
 
     await userEvent.type(input, 'x');
     expect(await screen.findByText('src/App.jsx')).toBeInTheDocument();
+  });
+
+  // Регрессия: ModalShell гасит mousedown внутри диалога (stopPropagation
+  // достаёт и до нативного события), поэтому bubble-слушатель на document до
+  // клика по соседнему полю не доживал и список висел поверх формы.
+  it('closes the results list when another field of the dialog is clicked', async () => {
+    gitApi.searchFiles.mockResolvedValue([{ path: 'src/App.jsx', name: 'App.jsx' }]);
+    renderModal('Посмотри {{Файл:file}} по теме {{Тема}}');
+
+    await userEvent.type(screen.getByLabelText(/Файл/), 'App');
+    await screen.findByText('src/App.jsx');
+
+    await userEvent.click(screen.getByLabelText(/Тема/));
+
+    expect(document.querySelector('.phrase-fill__results')).toBeNull();
+  });
+
+  // Регрессия: закрытие списка сбрасывает запрос хука, а поле показывало именно
+  // его — прокрутка колонки полей стирала набранное.
+  it('keeps the typed text when scrolling the field column shuts the list', async () => {
+    gitApi.searchFiles.mockResolvedValue([{ path: 'src/App.jsx', name: 'App.jsx' }]);
+    renderModal('Посмотри {{Файл:file}}');
+
+    const input = screen.getByLabelText(/Файл/);
+    await userEvent.type(input, 'App');
+    await screen.findByText('src/App.jsx');
+
+    fireEvent.scroll(document.querySelector('.phrase-fill__fields'));
+
+    expect(document.querySelector('.phrase-fill__results')).toBeNull();
+    expect(input).toHaveValue('App');
+
+    // Закрытие фокус из поля не уводит, поэтому возврат к поиску — по клику.
+    await userEvent.click(input);
+    expect(await screen.findByText('src/App.jsx')).toBeInTheDocument();
+  });
+
+  it('keeps the typed text when Escape closes the list', async () => {
+    gitApi.searchFiles.mockResolvedValue([{ path: 'src/App.jsx', name: 'App.jsx' }]);
+    renderModal('Посмотри {{Файл:file}}');
+
+    const input = screen.getByLabelText(/Файл/);
+    await userEvent.type(input, 'App');
+    await screen.findByText('src/App.jsx');
+
+    await userEvent.keyboard('{Escape}');
+
+    expect(document.querySelector('.phrase-fill__results')).toBeNull();
+    expect(input).toHaveValue('App');
+  });
+
+  // Регрессия: Enter гасился на любом открытом списке, в том числе на пустой
+  // выдаче, и диалог нельзя было отправить с клавиатуры.
+  it('submits the dialog on Enter once the search came back empty', async () => {
+    gitApi.searchFiles.mockResolvedValue([]);
+    const onSubmit = renderModal('Посмотри {{Файл:file}}');
+
+    await userEvent.type(screen.getByLabelText(/Файл/), 'нет-такого');
+    await screen.findByText('phraseFill.nothingFound');
+    await userEvent.keyboard('{Enter}');
+
+    expect(onSubmit).toHaveBeenCalled();
   });
 
   it('titles the dialog with the phrase name, falling back to the generic title', () => {

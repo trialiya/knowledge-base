@@ -84,6 +84,10 @@ export default function useSearchDropdown(search, { debounceMs = DEFAULT_DEBOUNC
       setQuery(q);
       clearTimeout(debounceRef.current);
       if (q.trim().length >= 1) {
+        // Поиск считается идущим с момента нажатия клавиши, а не с конца дебаунса:
+        // иначе эти 200 мс выдача выглядит пустой («ничего не найдено» на ещё не
+        // отправленный запрос), и отличить её от настоящей пустой нечем.
+        setLoading(true);
         debounceRef.current = setTimeout(() => runSearch(q.trim()), debounceMs);
       } else {
         abortRef.current?.abort();
@@ -120,7 +124,10 @@ export default function useSearchDropdown(search, { debounceMs = DEFAULT_DEBOUNC
     [close, results, idx],
   );
 
-  // Клик снаружи (кнопки/инпута И плавающего списка) закрывает поиск.
+  // Клик снаружи (кнопки/инпута И плавающего списка) закрывает поиск. Слушаем в
+  // фазе перехвата: на пути наверх событие может не дойти до document — ModalShell
+  // гасит mousedown внутри диалога, а React 19 доставляет синтетические события с
+  // контейнера портала (body), и его stopPropagation останавливает и нативное.
   useEffect(() => {
     if (!open) return undefined;
     const onDocMouseDown = (e) => {
@@ -128,8 +135,8 @@ export default function useSearchDropdown(search, { debounceMs = DEFAULT_DEBOUNC
       if (portalRef.current?.contains(e.target)) return;
       close();
     };
-    document.addEventListener('mousedown', onDocMouseDown);
-    return () => document.removeEventListener('mousedown', onDocMouseDown);
+    document.addEventListener('mousedown', onDocMouseDown, true);
+    return () => document.removeEventListener('mousedown', onDocMouseDown, true);
   }, [open, close]);
 
   // Якорь фиксируется один раз при открытии и не следит за окном — при ресайзе

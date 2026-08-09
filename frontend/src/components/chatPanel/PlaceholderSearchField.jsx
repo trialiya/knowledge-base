@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import useSearchDropdown from '../../hooks/useSearchDropdown';
@@ -41,13 +42,24 @@ const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder
     handleKeyDown: onListKeyDown,
   } = useSearchDropdown(spec.search);
 
+  // Набранное держим у себя: `query` хука — это то, что сейчас ищется, и close()
+  // его стирает. Поле живёт в форме постоянно (а не сворачивается, как PanelSearch),
+  // поэтому закрытие списка — по Escape, по прокрутке колонки полей, по ресайзу —
+  // иначе стирало бы текст прямо под руками.
+  const [text, setText] = useState('');
+
   // Список показываем только когда есть что искать: пустой дропдаун на фокусе
   // перекрывал бы соседние поля формы.
   const listOpen = open && query.trim().length > 0;
   const activeId = listOpen && results.length > 0 ? `${inputId}-opt-${idx}` : undefined;
 
+  // handleChange хука читает только e.target.value — этого хватает, чтобы завести
+  // поиск по сохранённому тексту, не повторяя здесь его дебаунс.
+  const searchFor = (value) => onQueryChange({ target: { value } });
+
   const choose = (item) => {
     onSelect(item);
+    setText('');
     close();
   };
 
@@ -57,14 +69,27 @@ const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder
     // Выбор элемента закрыл список (close), и без повторного открытия правка уже
     // выбранного значения искала бы вхолостую — в невидимый список.
     if (!open) openSearch();
+    setText(e.target.value);
     onQueryChange(e);
   };
 
+  // Список мог закрыться сам (прокрутка колонки полей, ресайз, Escape), а текст в
+  // поле остался — возвращаемся к поиску по нему. Слушаем и клик: закрытие фокус
+  // из поля не уводит, так что одного onFocus не хватает — прокрутивший колонку
+  // пользователь кликает в уже сфокусированное поле, и focus не наступает.
+  const resumeSearch = () => {
+    openSearch();
+    if (!selected && text.trim() && !query) searchFor(text);
+  };
+
   const handleKeyDown = (e) => {
-    // Escape и Enter при открытом списке принадлежат списку: иначе Escape дошёл бы
-    // до document-слушателя ModalShell и закрыл всю модалку вместе с набранным, а
-    // Enter отправил бы форму диалога, не дождавшись результатов поиска.
-    if (listOpen && (e.key === 'Escape' || e.key === 'Enter')) {
+    // Пока список открыт, Escape принадлежит ему: без этого он дошёл бы до
+    // document-слушателя ModalShell и закрыл всю модалку вместе с набранным.
+    // Enter — только пока в списке есть что выбрать (или вот-вот появится, идёт
+    // дебаунс): иначе диалог отправлялся бы, не дождавшись выдачи. На пустой
+    // выдаче выбирать нечего, и Enter отправляет форму, как и должен.
+    const mine = e.key === 'Escape' || (e.key === 'Enter' && (loading || results.length > 0));
+    if (listOpen && mine) {
       e.preventDefault();
       e.stopPropagation();
     }
@@ -86,8 +111,9 @@ const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder
         aria-autocomplete="list"
         placeholder={placeholder}
         autoFocus={autoFocus}
-        value={selected ? spec.describe(selected).title : query}
-        onFocus={openSearch}
+        value={selected ? spec.describe(selected).title : text}
+        onFocus={resumeSearch}
+        onClick={resumeSearch}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
       />
