@@ -36,6 +36,26 @@ function classify(inner) {
 }
 
 /**
+ * Разрезать фразу на куски для отрисовки: обычный текст и плейсхолдеры между ним,
+ * в порядке появления и с повторами. Кусок с `raw` — плейсхолдер, остальные несут
+ * только `text`.
+ *
+ * @returns {({ text: string } | { raw: string, label: string, type: string })[]}
+ */
+export function splitPhrase(text) {
+  const src = String(text ?? '');
+  const parts = [];
+  let done = 0;
+  for (const m of src.matchAll(PLACEHOLDER_RE)) {
+    if (m.index > done) parts.push({ text: src.slice(done, m.index) });
+    parts.push({ raw: m[0], ...classify(m[1]) });
+    done = m.index + m[0].length;
+  }
+  if (done < src.length) parts.push({ text: src.slice(done) });
+  return parts;
+}
+
+/**
  * Плейсхолдеры фразы в порядке появления, без повторов.
  *
  * Ключ дедупликации — сам литерал (`raw`), поэтому «{{Файл:file}}» дважды это одно
@@ -46,8 +66,8 @@ function classify(inner) {
  */
 export function parsePlaceholders(text) {
   const byRaw = new Map();
-  for (const m of String(text ?? '').matchAll(PLACEHOLDER_RE)) {
-    if (!byRaw.has(m[0])) byRaw.set(m[0], { raw: m[0], ...classify(m[1]) });
+  for (const part of splitPhrase(text)) {
+    if (part.raw && !byRaw.has(part.raw)) byRaw.set(part.raw, part);
   }
   return [...byRaw.values()];
 }

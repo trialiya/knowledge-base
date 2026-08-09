@@ -61,3 +61,28 @@ export const PLACEHOLDER_FIELDS = {
 export function fieldSpec(type) {
   return PLACEHOLDER_FIELDS[type] ?? PLACEHOLDER_FIELDS.string;
 }
+
+/**
+ * Что стало со значением поля: заполнено ли оно, как показать его человеку и
+ * какая строка встанет вместо плейсхолдера.
+ *
+ * Превью и подстановка расходятся у указателей: в текст уезжает чип-токен, а
+ * читать его в превью незачем — там нужно название файла или тема коммита.
+ * Решение «заполнено» одно на оба, иначе превью показывало бы значение, которое
+ * подстановка молча выбросит.
+ *
+ * @returns {{ filled: boolean, preview?: string, text?: string }}
+ */
+export function resolveValue(type, value) {
+  const spec = fieldSpec(type);
+  if (spec.kind === 'boolean') {
+    const text = spec.toValue(Boolean(value));
+    return { filled: true, preview: text, text };
+  }
+  if (spec.kind === 'search') {
+    if (!value) return { filled: false };
+    return { filled: true, preview: spec.describe(value).title, text: spec.toValue(value) };
+  }
+  const text = typeof value === 'string' ? value.trim() : '';
+  return text ? { filled: true, preview: text, text } : { filled: false };
+}

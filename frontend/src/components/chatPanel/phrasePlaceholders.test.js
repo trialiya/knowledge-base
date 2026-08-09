@@ -1,4 +1,4 @@
-import { parsePlaceholders, fillPlaceholders, PLACEHOLDER_TYPES } from './phrasePlaceholders';
+import { parsePlaceholders, fillPlaceholders, splitPhrase, PLACEHOLDER_TYPES } from './phrasePlaceholders';
 
 describe('parsePlaceholders', () => {
   it('returns nothing for text without placeholders', () => {
@@ -59,6 +59,27 @@ describe('parsePlaceholders', () => {
   // Одинокая «{{» не должна съедать абзац до следующей «}}» этажом ниже.
   it('does not let a placeholder span a line break', () => {
     expect(parsePlaceholders('{{начало\nконец}}')).toEqual([]);
+  });
+});
+
+describe('splitPhrase', () => {
+  it('keeps the text around a placeholder', () => {
+    expect(splitPhrase('до {{A:number}} после')).toEqual([
+      { text: 'до ' },
+      { raw: '{{A:number}}', label: 'A', type: 'number' },
+      { text: ' после' },
+    ]);
+  });
+
+  // В отличие от parsePlaceholders повторы здесь нужны: превью рисует фразу
+  // целиком, и второе вхождение должно встать на своё место.
+  it('repeats a placeholder that occurs twice', () => {
+    expect(splitPhrase('{{A}} и {{A}}').filter((p) => p.raw)).toHaveLength(2);
+  });
+
+  it('returns the whole text as one part when there is nothing to substitute', () => {
+    expect(splitPhrase('просто текст')).toEqual([{ text: 'просто текст' }]);
+    expect(splitPhrase('')).toEqual([]);
   });
 });
 

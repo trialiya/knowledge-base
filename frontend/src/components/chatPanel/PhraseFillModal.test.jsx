@@ -18,11 +18,13 @@ vi.mock('../../api/documentsApi', () => ({
 }));
 
 /** Достаёт текст, с которым диалог позвал onSubmit. */
-function renderModal(phraseText) {
+function renderModal(phraseText, phraseLabel) {
   const onSubmit = vi.fn();
-  render(<PhraseFillModal phraseText={phraseText} onSubmit={onSubmit} onCancel={vi.fn()} />);
+  render(<PhraseFillModal phraseText={phraseText} phraseLabel={phraseLabel} onSubmit={onSubmit} onCancel={vi.fn()} />);
   return onSubmit;
 }
+
+const previewText = () => document.querySelector('.phrase-fill__preview-text').textContent;
 
 const submit = () => userEvent.click(screen.getByRole('button', { name: 'phraseFill.submit' }));
 
@@ -135,6 +137,53 @@ describe('PhraseFillModal', () => {
 
     await userEvent.type(input, 'x');
     expect(await screen.findByText('src/App.jsx')).toBeInTheDocument();
+  });
+
+  it('titles the dialog with the phrase name, falling back to the generic title', () => {
+    const { unmount } = render(
+      <PhraseFillModal phraseText="{{A}}" phraseLabel="История коммитов" onSubmit={vi.fn()} onCancel={vi.fn()} />,
+    );
+    expect(screen.getByRole('heading')).toHaveTextContent('История коммитов');
+    unmount();
+
+    renderModal('{{A}}');
+    expect(screen.getByRole('heading')).toHaveTextContent('phraseFill.title');
+  });
+
+  // ModalShell фокус не переносит, а первым полем бывает не только текстовое.
+  it('focuses the first field whatever its type', () => {
+    const props = { onSubmit: vi.fn(), onCancel: vi.fn() };
+    const { unmount } = render(<PhraseFillModal phraseText="Разбери {{Коммит:commit}} по теме {{Тема}}" {...props} />);
+    expect(screen.getByLabelText(/Коммит/)).toHaveFocus();
+    unmount();
+
+    render(<PhraseFillModal phraseText="Тесты: {{Учитывать:boolean}}, тема {{Тема}}" {...props} />);
+    expect(screen.getByRole('checkbox')).toHaveFocus();
+  });
+
+  it('previews the phrase with field labels standing in for empty placeholders', () => {
+    renderModal('Проверь {{Файл}} за {{Дней:number}} дней');
+
+    expect(previewText()).toBe('Проверь Файл за Дней дней');
+  });
+
+  it('replaces a label in the preview as soon as its field is filled', async () => {
+    renderModal('Проверь {{Файл}} за {{Дней:number}} дней');
+
+    await userEvent.type(screen.getByLabelText(/Дней/), '7');
+
+    expect(previewText()).toBe('Проверь Файл за 7 дней');
+  });
+
+  // В превью читается название файла, а не чип-токен, который уедет в текст.
+  it('previews a picked file by its name, not by the chip token', async () => {
+    gitApi.searchFiles.mockResolvedValue([{ path: 'src/App.jsx', name: 'App.jsx' }]);
+    renderModal('Посмотри {{Файл:file}}');
+
+    await userEvent.type(screen.getByLabelText(/Файл/), 'App');
+    await userEvent.click(await screen.findByText('src/App.jsx'));
+
+    expect(previewText()).toBe('Посмотри App.jsx');
   });
 
   // Свободный текст указателем не считается: путь, которого нет в репозитории,

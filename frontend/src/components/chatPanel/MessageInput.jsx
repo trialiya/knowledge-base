@@ -32,7 +32,7 @@ const MessageInput = ({
   // Текст инициализируем из сохранённого черновика активного чата.
   const [text, setText] = useState(initialText); // плоская строка с токенами ⟦file:…⟧
   const [sending, setSending] = useState(false); // идёт разворачивание токенов перед отправкой
-  const [pendingPhrase, setPendingPhrase] = useState(null); // фраза, ждущая заполнения плейсхолдеров
+  const [pendingPhrase, setPendingPhrase] = useState(null); // { text, label } фразы, ждущей заполнения
   const inputRef = useRef(null);
   // Чтобы эффект resetSignal не сработал на МОНТировании (resetSignal=0) и не стёр
   // только что восстановленный из localStorage черновик — пропускаем первый прогон.
@@ -98,8 +98,8 @@ const MessageInput = ({
 
   // Фраза с плейсхолдерами сначала уходит в диалог заполнения, остальные
   // вставляются сразу.
-  const handleSelectPhrase = (phraseText) => {
-    if (parsePlaceholders(phraseText).length > 0) setPendingPhrase(phraseText);
+  const handleSelectPhrase = (phraseText, phraseLabel) => {
+    if (parsePlaceholders(phraseText).length > 0) setPendingPhrase({ text: phraseText, label: phraseLabel });
     else insertPhrase(phraseText);
   };
 
@@ -112,7 +112,8 @@ const MessageInput = ({
 
       {pendingPhrase !== null && (
         <PhraseFillModal
-          phraseText={pendingPhrase}
+          phraseText={pendingPhrase.text}
+          phraseLabel={pendingPhrase.label}
           onSubmit={(filled) => {
             setPendingPhrase(null);
             insertPhrase(filled);

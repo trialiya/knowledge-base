@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ModalShell from '../common/ModalShell';
 import PlaceholderSearchField from './PlaceholderSearchField';
-import { fieldSpec } from './placeholderFields';
-import { parsePlaceholders, fillPlaceholders } from './phrasePlaceholders';
+import { fieldSpec, resolveValue } from './placeholderFields';
+import { parsePlaceholders, fillPlaceholders, splitPhrase } from './phrasePlaceholders';
 import '../common/buttons.css';
 
 /**
@@ -14,15 +14,19 @@ import '../common/buttons.css';
  *
  * Незаполненное поле оставляет свой `{{...}}` литералом — ровно как было до
  * появления диалога: текст уедет в поле ввода, и пользователь поправит его там.
+ * У флажка пустого состояния нет: снятый — это ответ «нет», и подставляется он
+ * наравне с «да». Что именно уедет в текст, видно в превью под полями.
  *
  * Props:
- *   phraseText — текст фразы с плейсхолдерами
- *   onSubmit   — (filledText) => void
- *   onCancel   — закрытие без подстановки
+ *   phraseText  — текст фразы с плейсхолдерами
+ *   phraseLabel — название фразы из библиотеки; оно же заголовок диалога
+ *   onSubmit    — (filledText) => void
+ *   onCancel    — закрытие без подстановки
  */
-const PhraseFillModal = ({ phraseText, onSubmit, onCancel }) => {
+const PhraseFillModal = ({ phraseText, phraseLabel, onSubmit, onCancel }) => {
   const { t } = useTranslation('chat');
   const fields = useMemo(() => parsePlaceholders(phraseText), [phraseText]);
+  const parts = useMemo(() => splitPhrase(phraseText), [phraseText]);
   // Ключ — литерал плейсхолдера; значение зависит от вида поля: строка для
   // text, boolean для флажка, выбранный элемент для указателей.
   const [values, setValues] = useState({});
@@ -33,12 +37,8 @@ const PhraseFillModal = ({ phraseText, onSubmit, onCancel }) => {
     e.preventDefault();
     const filled = {};
     for (const { raw, type } of fields) {
-      const spec = fieldSpec(type);
-      const value = values[raw];
-      if (spec.kind === 'boolean') filled[raw] = spec.toValue(Boolean(value));
-      else if (spec.kind === 'search') {
-        if (value) filled[raw] = spec.toValue(value);
-      } else if (typeof value === 'string' && value.trim()) filled[raw] = value.trim();
+      const { filled: done, text } = resolveValue(type, values[raw]);
+      if (done) filled[raw] = text;
     }
     onSubmit(fillPlaceholders(phraseText, filled));
   };
@@ -47,7 +47,7 @@ const PhraseFillModal = ({ phraseText, onSubmit, onCancel }) => {
     <ModalShell onClose={onCancel} variant="wide" className="phrase-fill">
       <form onSubmit={handleSubmit}>
         <div className="phrase-fill__header">
-          <h3>{t('phraseFill.title')}</h3>
+          <h3>{phraseLabel || t('phraseFill.title')}</h3>
           <p className="phrase-fill__hint">{t('phraseFill.hint')}</p>
         </div>
 
@@ -56,6 +56,9 @@ const PhraseFillModal = ({ phraseText, onSubmit, onCancel }) => {
             const spec = fieldSpec(field.type);
             const id = `phrase-ph-${i}`;
             const value = values[field.raw];
+            // Фокус ставим на первое поле любого вида: ModalShell фокус не
+            // переносит, и без этого диалог открывался бы с фокусом на body.
+            const first = i === 0;
             return (
               <div key={field.raw} className="phrase-fill__field">
                 <label className="phrase-fill__label" htmlFor={id}>
@@ -70,6 +73,7 @@ const PhraseFillModal = ({ phraseText, onSubmit, onCancel }) => {
                     selected={value ?? null}
                     onSelect={(item) => setValue(field.raw, item)}
                     placeholder={t(`phraseFill.searchHint.${field.type}`)}
+                    autoFocus={first}
                   />
                 )}
 
@@ -79,6 +83,7 @@ const PhraseFillModal = ({ phraseText, onSubmit, onCancel }) => {
                       id={id}
                       type="checkbox"
                       checked={Boolean(value)}
+                      autoFocus={first}
                       onChange={(e) => setValue(field.raw, e.target.checked)}
                     />
                     <span className="phrase-fill__check-text">
@@ -93,13 +98,31 @@ const PhraseFillModal = ({ phraseText, onSubmit, onCancel }) => {
                     className="phrase-fill__input"
                     type={spec.inputType}
                     value={typeof value === 'string' ? value : ''}
-                    autoFocus={i === 0}
+                    autoFocus={first}
                     onChange={(e) => setValue(field.raw, e.target.value)}
                   />
                 )}
               </div>
             );
           })}
+        </div>
+
+        {/* Сама фраза целиком: пока поле пусто, на его месте стоит подпись поля,
+            дальше — то, что в него ввели. Без этого непонятно, что именно
+            заполняешь и куда оно встанет. */}
+        <div className="phrase-fill__preview" aria-live="polite">
+          <span className="phrase-fill__preview-title">{t('phraseFill.preview')}</span>
+          <p className="phrase-fill__preview-text">
+            {parts.map((part, i) => {
+              if (!part.raw) return <span key={i}>{part.text}</span>;
+              const { filled, preview } = resolveValue(part.type, values[part.raw]);
+              return (
+                <span key={i} className={`phrase-fill__slot${filled ? ' phrase-fill__slot--filled' : ''}`}>
+                  {filled ? preview : part.label}
+                </span>
+              );
+            })}
+          </p>
         </div>
 
         <div className="modal-shell__footer">

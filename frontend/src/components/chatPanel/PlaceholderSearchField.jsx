@@ -17,8 +17,9 @@ import highlightMatch from '../common/highlightMatch';
  *   onSelect    — (item | null) => void
  *   inputId     — id поля (на него ссылается <label> диалога)
  *   placeholder — подсказка в пустом поле
+ *   autoFocus   — поставить фокус при открытии диалога
  */
-const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder }) => {
+const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder, autoFocus }) => {
   const { t } = useTranslation('chat');
   // Разбираем по полям прямо на вызове: react-hooks/refs не различает, какое
   // свойство возвращённого объекта — ref, и считает рефом любое чтение с него.
@@ -84,6 +85,7 @@ const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder
         aria-activedescendant={activeId}
         aria-autocomplete="list"
         placeholder={placeholder}
+        autoFocus={autoFocus}
         value={selected ? spec.describe(selected).title : query}
         onFocus={openSearch}
         onChange={handleChange}

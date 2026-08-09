@@ -11,9 +11,10 @@ const FAVORITES = '__fav__';
 
 /**
  * Блок готовых фраз над полем ввода (обычно на пустом чате).
- * Данные грузятся из GET /api/phrases. Клик по фразе → onSelect(text):
+ * Данные грузятся из GET /api/phrases. Клик по фразе → onSelect(text, label):
  * родитель вставляет текст в поле ввода (перезапись), а фразу с плейсхолдерами
- * сначала проводит через диалог заполнения — см. PhraseFillModal.
+ * сначала проводит через диалог заполнения, где label становится заголовком —
+ * см. PhraseFillModal.
  *
  * reloadKey: смена значения (например, id нового чата) форсит рефетч, чтобы
  * правки из админки подхватывались при открытии чистого чата. Опционально —
@@ -108,7 +109,12 @@ const Phrases = ({ onSelect, reloadKey }) => {
       <div className="phrases-grid">
         {filtered.map((phrase) => (
           <div key={phrase.id} className="phrases-chip-wrap">
-            <button type="button" className="phrases-chip" onClick={() => onSelect(phrase.text)} title={phrase.text}>
+            <button
+              type="button"
+              className="phrases-chip"
+              onClick={() => onSelect(phrase.text, phrase.label)}
+              title={phrase.text}
+            >
               <span className="phrases-chip-label">{phrase.label}</span>
               <span className="phrases-chip-category">{phrase.category}</span>
             </button>

@@ -137,6 +137,7 @@
   "phraseFill": {
     "title": "Fill in the values",
     "hint": "A field left empty keeps its placeholder in the text.",
+    "preview": "Result",
     "submit": "Insert",
     "searching": "Searching…",
     "nothingFound": "Nothing found",

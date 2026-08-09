@@ -72,6 +72,53 @@
   color: var(--kb-text);
 }
 
+/* ── Превью фразы ─────────────────────────────────────────────────────────── */
+
+.phrase-fill__preview {
+  margin-top: 14px;
+  padding: 9px 11px;
+  border: 1px solid var(--kb-border);
+  border-radius: var(--kb-radius);
+  background: var(--kb-bg);
+}
+
+.phrase-fill__preview-title {
+  display: block;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--kb-muted);
+}
+
+.phrase-fill__preview-text {
+  margin: 5px 0 0;
+  /* Фраза длинная, а модалка не должна за неё расти: свой скролл. */
+  max-height: 5.6em;
+  overflow-y: auto;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--kb-text);
+  overflow-wrap: anywhere;
+}
+
+/* Место плейсхолдера: пока пусто — подпись поля приглушённым пунктиром, после
+   ввода — само значение на акцентной подложке. */
+.phrase-fill__slot {
+  border-bottom: 1px dashed var(--kb-border);
+  color: var(--kb-muted);
+}
+
+.phrase-fill__slot--filled {
+  border-bottom-color: transparent;
+  border-radius: 3px;
+  /* Подложка обтягивает значение вплотную: горизонтальные поля раздвинули бы
+     текст вокруг, и «{{Тема}}» в кавычках читалось бы как « значение ». */
+  background: var(--kb-accent-light);
+  color: var(--kb-accent);
+  font-weight: 500;
+}
+
 /* ── Комбобокс указателей (файл / документ / коммит) ──────────────────────── */
 
 /* Список висит в портале на body (см. PlaceholderSearchField): координаты ему
