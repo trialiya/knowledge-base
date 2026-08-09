@@ -7,6 +7,7 @@ import ContextChips from './ContextChips';
 import { expandTokensForSend } from './fileChips';
 
 // isEmpty — true когда в чате ещё нет сообщений; тогда показываем git-подсказки.
+// active — панель чата открыта (не перекрыта другим разделом): по ней ставится фокус.
 // Кнопки (отправить/остановить, прикрепить) и селекторы модели/режима вынесены
 // под поле ввода в ComposerToolbar; здесь остаётся только само поле + подсказки.
 const MessageInput = ({
@@ -16,7 +17,7 @@ const MessageInput = ({
   onAttach,
   isEmpty = false,
   resetSignal = 0,
-  focusSignal = 0,
+  active = true,
   chatId = null,
   initialText = '',
   onTextChange,
@@ -36,11 +37,17 @@ const MessageInput = ({
 
   // Смена чата — подставляем его черновик (или пусто). Текст набирается локально,
   // поэтому родитель не ре-рендерится на каждый keystroke; черновик приезжает только
-  // при переключении чата через initialText.
-  useEffect(() => {
+  // при переключении чата через initialText. Подстановка в рендере, а не эффектом:
+  // иначе первый кадр нового чата показывал бы черновик предыдущего.
+  const [prevChatId, setPrevChatId] = useState(chatId);
+  if (prevChatId !== chatId) {
+    setPrevChatId(chatId);
     setText(initialText);
+  }
+
+  useEffect(() => {
     inputRef.current?.focus();
-  }, [chatId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [chatId]);
 
   // Внешний сброс поля ввода (например, «удаление» черновика чата). Только на реальное
   // изменение resetSignal, не на монтировании — иначе затрём восстановленный черновик.
@@ -57,9 +64,11 @@ const MessageInput = ({
     if (!disabled) inputRef.current?.focus();
   }, [disabled]);
 
+  // Панель чата смонтирована всегда, поверх неё бывают другие разделы — при
+  // возврате на неё фокус снова уходит в поле ввода.
   useEffect(() => {
-    if (focusSignal) inputRef.current?.focus();
-  }, [focusSignal]);
+    if (active) inputRef.current?.focus();
+  }, [active]);
 
   // Отправка: разворачиваем токены файлов в содержимое, затем отдаём наверх.
   const handleSubmit = async () => {

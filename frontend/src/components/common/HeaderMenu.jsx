@@ -45,10 +45,12 @@ const HeaderMenu = ({ showRefresh, refreshing, onRefresh, onOpenAdmin, onOpenSet
     };
   }, [open]);
 
-  // Сворачиваем подменю языка, когда меню закрывается
-  useEffect(() => {
-    if (!open) setLangOpen(false);
-  }, [open]);
+  // Меню всегда открывается кнопкой, поэтому подменю языка достаточно свернуть
+  // здесь — закрыть его могут и клик снаружи, и Escape, а открыть только она.
+  const toggle = () => {
+    setOpen((o) => !o);
+    setLangOpen(false);
+  };
 
   const close = () => setOpen(false);
 
@@ -61,7 +63,7 @@ const HeaderMenu = ({ showRefresh, refreshing, onRefresh, onOpenAdmin, onOpenSet
     <div className="header-menu" ref={ref}>
       <button
         className="header-menu__trigger"
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggle}
         aria-haspopup="menu"
         aria-expanded={open}
         title={t('menu.title')}

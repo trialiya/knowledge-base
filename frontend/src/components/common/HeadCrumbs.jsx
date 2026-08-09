@@ -32,11 +32,12 @@ import { collapseCrumbs } from '../../utils/breadcrumbs';
 const HeadCrumbs = ({ items, trailingSep = false, label }) => {
   const { t } = useTranslation();
   const ref = useRef(null);
-  const [collapsed, setCollapsed] = useState(false);
   const [headWidth, setHeadWidth] = useState(0);
-  // Ручное раскрытие держим в ref, а не в state: замеряющий эффект обязан
-  // увидеть его в том же проходе, а перерисовку и так вызывает setCollapsed.
-  const expandedRef = useRef(false);
+  // Решение по одному замеру: для какой пары (путь, ширина шапки) оно принято и
+  // что из него вышло. Сменилась пара — решение просто перестаёт подходить, и
+  // цепочка снова считается полной; отдельного эффекта-сброса для этого не нужно.
+  //   'collapsed' — схлопнули по замеру, 'expanded' — раскрыли кликом по «…».
+  const [fit, setFit] = useState(null); // { key, mode } | null
 
   // Последнее звено — это либо сам открытый объект (файлы), либо ближайшая к
   // нему папка (база знаний: имя узла идёт следом заголовком шапки). И то и
@@ -44,9 +45,12 @@ const HeadCrumbs = ({ items, trailingSep = false, label }) => {
   // файл: иначе от пути остаётся «Repository › … › File.java», где не видно
   // даже, из какого каталога файл открыт.
   const keepEnd = trailingSep ? 1 : 2;
-  const shown = collapsed ? collapseCrumbs(items, 1, keepEnd) : items;
 
   const chainKey = items.map((item) => item.key).join(' ');
+  const measureKey = `${headWidth} ${chainKey}`;
+  const mode = fit?.key === measureKey ? fit.mode : null;
+  const collapsed = mode === 'collapsed';
+  const shown = collapsed ? collapseCrumbs(items, 1, keepEnd) : items;
 
   // Ширину слушаем у шапки, а не у самой строки крошек: у .workspace__head-crumbs
   // flex-basis auto, то есть её ширина зависит от содержимого, и наблюдение за
@@ -59,23 +63,17 @@ const HeadCrumbs = ({ items, trailingSep = false, label }) => {
     return () => ro.disconnect();
   }, []);
 
-  // Сменился путь или ширина шапки — меряем заново, начиная с полной цепочки.
-  useLayoutEffect(() => {
-    expandedRef.current = false;
-    setCollapsed(false);
-  }, [chainKey, headWidth]);
-
   // Сам замер — только по развёрнутой цепочке: схлопнутая заведомо уже, и
   // проверка по ней ничего не скажет. +1 — на дробные ширины, округление
   // scrollWidth/clientWidth иначе даёт мнимое переполнение в один пиксель.
   // Без массива зависимостей — эффект обязан перемерять после каждого рендера
-  // (не только при смене collapsed), а от бесконечного цикла защищает ранний
-  // выход выше.
+  // (не только при смене cхлопнутости), а от бесконечного цикла защищает ранний
+  // выход выше: после setFit решение по этому measureKey уже принято.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
     const el = ref.current;
-    if (!el || collapsed || expandedRef.current) return;
-    if (el.scrollWidth > el.clientWidth + 1) setCollapsed(true);
+    if (!el || mode !== null) return;
+    if (el.scrollWidth > el.clientWidth + 1) setFit({ key: measureKey, mode: 'collapsed' });
   });
 
   // Прокрутка к концу — в layout-эффекте: до отрисовки кадра, иначе на смене
@@ -86,10 +84,7 @@ const HeadCrumbs = ({ items, trailingSep = false, label }) => {
     if (el) el.scrollLeft = el.scrollWidth;
   }, [lastKey, collapsed]);
 
-  const expand = useCallback(() => {
-    expandedRef.current = true;
-    setCollapsed(false);
-  }, []);
+  const expand = useCallback(() => setFit({ key: measureKey, mode: 'expanded' }), [measureKey]);
 
   if (items.length === 0) return null;
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 
 /**
  * Creates an isolated module-level cache store: key → { value, fetchedAt }.
@@ -43,6 +43,27 @@ function isFresh(entry, ttlMs) {
 }
 
 /**
+ * What is known about `key` synchronously, before any fetch: a fresh module
+ * cache entry, otherwise the seed. Pure — so the first render already shows the
+ * cached value instead of a spinner that an effect would replace one frame later.
+ */
+function knownNow(store, key, enabled, ttlMs, seed) {
+  if (!key || !enabled) return { value: null, loading: false, error: false };
+
+  // 1. Module cache hit — an already resolved (complete) value beats any seed
+  const cached = store.cache.get(key);
+  if (isFresh(cached, ttlMs)) {
+    if (cached.value === 'error') return { value: null, loading: false, error: true };
+    return { value: cached.value, loading: false, error: false };
+  }
+
+  // 2. Seed: render what we already have (a tree stub) instead of a spinner,
+  //    then let the effect's fetch replace it with the full value.
+  const seeded = seed?.(key) ?? null;
+  return { value: seeded, loading: seeded == null, error: false };
+}
+
+/**
  * Fetches (or returns cached) a preview value: module cache → in-flight
  * subscribe → cancellation-aware fetch. Shared strategy behind useDocPreview
  * and useFilePreview.
@@ -61,85 +82,72 @@ function isFresh(entry, ttlMs) {
  */
 export default function usePreviewCache(store, key, enabled, fetcher, options = {}) {
   const { ttlMs, seed } = options;
-  const [value, setValue] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
-  const prevKeyRef = useRef(null);
+  // Только то, что пришло асинхронно (fetch или чужой in-flight). Всё, что
+  // известно синхронно, считается в knownNow при рендере: setState в теле
+  // эффекта дал бы каскадный ре-рендер на каждое наведение мыши.
+  const [resolved, setResolved] = useState(null); // { value, error } | null
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
   const seedRef = useRef(seed);
   seedRef.current = seed;
 
-  useEffect(() => {
-    if (!key || !enabled) {
-      setValue(null);
-      setLoading(false);
-      setError(false);
-      return undefined;
-    }
+  // Смена ключа обнуляет ответ предыдущего — иначе кадр до перезапроса показал
+  // бы содержимое чужого документа.
+  const [prev, setPrev] = useState({ key, enabled, ttlMs, store });
+  if (prev.key !== key || prev.enabled !== enabled || prev.ttlMs !== ttlMs || prev.store !== store) {
+    setPrev({ key, enabled, ttlMs, store });
+    setResolved(null);
+  }
 
-    // Reset on key change
-    if (prevKeyRef.current !== key) {
-      prevKeyRef.current = key;
-      setValue(null);
-      setError(false);
-    }
+  // Те же зависимости, что у эффекта: seed (обход дерева) не должен гоняться на
+  // каждый ре-рендер модалки.
+  const known = useMemo(() => knownNow(store, key, enabled, ttlMs, seedRef.current), [store, key, enabled, ttlMs]);
+
+  useEffect(() => {
+    if (!key || !enabled) return undefined;
 
     const { cache, listeners, notify } = store;
-
-    // 1. Module cache hit — an already resolved (complete) value beats any seed
     const cached = cache.get(key);
     if (isFresh(cached, ttlMs)) {
-      if (cached.value === 'error') {
-        setError(true);
-        setLoading(false);
-      } else {
-        setValue(cached.value);
-        setLoading(false);
-      }
+      // Обычно это то же, что уже отрисовано из кэша, и тогда условие ниже
+      // ложно. Но кэш мог наполниться между рендером и этим (пассивным)
+      // эффектом — запросом соседнего экземпляра, который успел дойти. Тогда
+      // подписываться не на что (notify снимает слушателей) и запрашивать
+      // нечего, а на экране всё ещё спиннер или затравка. Лишний проход рендера
+      // здесь — цена гонки, которая иначе оставила бы спиннер навсегда.
+      const fresh = cached.value === 'error' ? { value: null, error: true } : { value: cached.value, error: false };
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (fresh.value !== known.value || fresh.error !== known.error) setResolved(fresh);
       return undefined;
     }
 
-    // 2. Seed: render what we already have (a tree stub) instead of a spinner,
-    //    then fall through — the fetch below replaces it with the full value.
-    const seeded = seedRef.current?.(key);
-    if (seeded != null) setValue(seeded);
+    const seeded = seedRef.current?.(key) ?? null;
 
     // Затравка есть — ошибку догрузки не показываем: лучше неполный, но живой
     // предпросмотр, чем «не найдено» вместо уже показанного узла.
-    const failed = () => {
-      if (seeded == null) setError(true);
-      setLoading(false);
-    };
+    const failed = () => setResolved({ value: seeded, error: seeded == null });
 
-    // 3. Already in-flight — subscribe to result
+    // Already in-flight — subscribe to result
     if (cached?.value === 'loading') {
-      setLoading(seeded == null);
       const cb = (val) => {
-        if (val === 'error') {
-          failed();
-        } else {
-          setValue(val);
-          setLoading(false);
-        }
+        if (val === 'error') failed();
+        else setResolved({ value: val, error: false });
       };
       if (!listeners.has(key)) listeners.set(key, new Set());
       listeners.get(key).add(cb);
       return () => listeners.get(key)?.delete(cb);
     }
 
-    // 4. Fresh fetch (cancellation-aware)
+    // Fresh fetch (cancellation-aware)
     let cancelled = false;
     cache.set(key, { value: 'loading', fetchedAt: Date.now() });
-    setLoading(seeded == null);
 
     fetcherRef
       .current(key)
       .then((result) => {
         notify(key, result); // populate cache + wake other waiters regardless
         if (cancelled) return;
-        setValue(result);
-        setLoading(false);
+        setResolved({ value: result, error: false });
       })
       .catch(() => {
         notify(key, 'error');
@@ -150,7 +158,11 @@ export default function usePreviewCache(store, key, enabled, fetcher, options = 
     return () => {
       cancelled = true;
     };
-  }, [key, enabled, ttlMs, store]);
+    // known — та же мемоизация, что и у зависимостей выше, поэтому лишних
+    // перезапусков не даёт; если React всё же пересчитает мемо, эффект попадёт
+    // в ветку подписки на уже идущий запрос и второго обращения не будет.
+  }, [key, enabled, ttlMs, store, known]);
 
-  return { value, loading, error };
+  if (resolved) return { value: resolved.value, loading: false, error: resolved.error };
+  return known;
 }

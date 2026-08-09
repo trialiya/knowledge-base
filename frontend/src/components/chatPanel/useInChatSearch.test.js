@@ -86,9 +86,8 @@ describe('useInChatSearch — догрузка старых страниц не 
   });
 
   // Регрессия: удаление активного чата переключает activeChatId на другой чат, чьи
-  // messages ещё не загружены (undefined), пока activeMatch с прошлого чата ещё не
-  // сброшен (сброс произойдёт в отдельном эффекте на следующем рендере). Раньше
-  // первичная проверка звала messages.some(...) напрямую и падала с TypeError.
+  // messages ещё не загружены (undefined). Первичная проверка обязана обращаться к
+  // ним через опциональную цепочку — прямой messages.some(...) падал с TypeError.
   it('не падает, если messages стал undefined при смене чата (удаление активного чата)', async () => {
     const messages = [loaded('m1', 10, 'про жирафов')];
     const chatsRef = { current: [{ id: 'chat-1', messages, hasMore: false }] };

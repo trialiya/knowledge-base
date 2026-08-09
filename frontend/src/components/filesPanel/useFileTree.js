@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import gitApi from '../../api/gitApi';
 import { readDirs, readExpanded, putDirs, putExpanded, ancestorsOf } from './fileTreeStore';
 
@@ -35,15 +35,21 @@ function contentOf(view, path) {
  */
 export default function useFileTree({ path, onPathChange, refreshToken }) {
   const [treeCache, setTreeCache] = useState(readDirs);
-  const [loadingDirs, setLoadingDirs] = useState(() => new Set());
-  const [expanded, setExpanded] = useState(readExpanded);
+  // Каталоги, которые тянет ensureDir (раскрытие шевроном). Предки открываемого
+  // пути сюда не попадают — их спиннеры выводятся ниже из самого запроса.
+  const [expandingDirs, setExpandingDirs] = useState(() => new Set());
+  // Предков открываемого пути раскрываем сразу на монтировании, не дожидаясь
+  // ответа: уровни, уже лежащие в кэше, отрисуются мгновенно.
+  const [expanded, setExpanded] = useState(() => {
+    const stored = readExpanded();
+    ancestorsOf(path).forEach((dir) => stored.add(dir));
+    return stored;
+  });
   const [content, setContent] = useState(null);
-  const [contentLoading, setContentLoading] = useState(true);
 
   const treeCacheRef = useRef(treeCache);
   treeCacheRef.current = treeCache;
   const inFlightRef = useRef(new Map()); // dirPath -> Promise, dedups concurrent fetches
-  const dirOwnerRef = useRef(new Map()); // dirPath -> token of the most recent path-open fetch
 
   // Кэш каталогов и раскрытые узлы переживают размонтирование панели.
   const cacheDirs = useCallback((entries) => {
@@ -56,7 +62,7 @@ export default function useFileTree({ path, onPathChange, refreshToken }) {
 
   const markLoading = useCallback((dirs, loading) => {
     if (dirs.length === 0) return;
-    setLoadingDirs((prev) => {
+    setExpandingDirs((prev) => {
       const next = new Set(prev);
       dirs.forEach((d) => (loading ? next.add(d) : next.delete(d)));
       return next;
@@ -106,26 +112,49 @@ export default function useFileTree({ path, onPathChange, refreshToken }) {
   );
 
   // ── Открытие выбранного пути одним запросом ────────────────────────────────
-  // Единый try/finally: contentLoading обязан сброситься на любом выходе
-  // (успех, not-found, ошибка) — иначе в центре навсегда остаётся «Загрузка…».
-  useEffect(() => {
-    let cancelled = false;
-    const ancestors = ancestorsOf(path);
-    const missing = ancestors.filter((dir) => !treeCacheRef.current[dir]);
-    // Клеймим каждый недостающий каталог этим запросом: если следующая
-    // навигация придёт раньше и тоже захочет один из них, она перезапишет
-    // владельца — и именно её finally() снимет спиннер, а не эта.
-    const token = {};
-    missing.forEach((dir) => dirOwnerRef.current.set(dir, token));
-    setContentLoading(true);
-    // Предков раскрываем сразу, не дожидаясь ответа: те их уровни, что уже в
-    // кэше, отрисуются мгновенно, остальные — по мере прихода листингов.
+
+  // Запрос открытия пути — это сам путь плюс внешний сигнал обновления.
+  const contentKey = `${refreshToken ?? 0} ${path}`;
+  // Ключ, ответ по которому уже получен. Отсюда и «Загрузка…» в центре:
+  // отдельным состоянием он был бы setState в теле эффекта, то есть лишним
+  // проходом рендера на каждую навигацию.
+  const [answeredKey, setAnsweredKey] = useState(null);
+  const contentLoading = answeredKey !== contentKey;
+
+  const ancestors = useMemo(() => ancestorsOf(path), [path]);
+
+  // Спиннеры каталогов: раскрытые шевроном плюс предки открываемого пути,
+  // листингов которых ещё нет. Второй набор выводится, а не хранится — как
+  // только листинг приходит в кэш, спиннер гаснет сам, и «перехват» общего
+  // предка более новой навигацией получается бесплатно: набор всегда описывает
+  // текущий путь, а не тот запрос, что его завёл.
+  const loadingDirs = useMemo(() => {
+    if (!contentLoading) return expandingDirs;
+    const next = new Set(expandingDirs);
+    ancestors.forEach((dir) => {
+      if (!treeCache[dir]) next.add(dir);
+    });
+    return next;
+  }, [contentLoading, expandingDirs, ancestors, treeCache]);
+
+  // Предков раскрываем сразу, не дожидаясь ответа: те их уровни, что уже в
+  // кэше, отрисуются мгновенно, остальные — по мере прихода листингов.
+  const [prevContentKey, setPrevContentKey] = useState(contentKey);
+  if (prevContentKey !== contentKey) {
+    setPrevContentKey(contentKey);
     setExpanded((prev) => {
+      if (ancestors.every((dir) => prev.has(dir))) return prev;
       const next = new Set(prev);
       ancestors.forEach((dir) => next.add(dir));
       return next;
     });
-    markLoading(missing, true);
+  }
+
+  // Единый try/finally: ответ обязан отметиться на любом выходе (успех,
+  // not-found, ошибка) — иначе в центре навсегда остаётся «Загрузка…».
+  useEffect(() => {
+    let cancelled = false;
+    const missing = ancestorsOf(path).filter((dir) => !treeCacheRef.current[dir]);
 
     (async () => {
       try {
@@ -137,31 +166,21 @@ export default function useFileTree({ path, onPathChange, refreshToken }) {
         // раскрывает выбранный узел и второй запрос за теми же данными не нужен.
         if (view.type === 'directory') {
           levels[view.path] = view.nodes ?? [];
-          setExpanded((prev) => new Set(prev).add(view.path));
+          setExpanded((prev) => (prev.has(view.path) ? prev : new Set(prev).add(view.path)));
         }
         if (Object.keys(levels).length > 0) cacheDirs(levels);
         setContent(contentOf(view, path));
       } catch (error) {
         if (!cancelled) setContent({ type: 'error', path, error });
       } finally {
-        // Отметку загрузки снимаем всегда, даже если запрос уже неактуален —
-        // иначе брошенный при быстром переходе каталог навсегда остаётся со
-        // спиннером — но только для тех каталогов, которыми всё ещё владеет
-        // этот запрос: если более новая навигация уже перехватила один из
-        // них (тот же общий предок), её собственный finally() снимет
-        // спиннер сам, когда придут её данные — снимать его здесь означало
-        // бы мигание спиннера между двумя быстрыми переходами.
-        const stillOwned = missing.filter((dir) => dirOwnerRef.current.get(dir) === token);
-        markLoading(stillOwned, false);
-        stillOwned.forEach((dir) => dirOwnerRef.current.delete(dir));
-        if (!cancelled) setContentLoading(false);
+        if (!cancelled) setAnsweredKey(contentKey);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [path, cacheDirs, markLoading, refreshToken]);
+  }, [contentKey, path, cacheDirs]);
 
   const selectNode = useCallback((node) => onPathChange(node.path), [onPathChange]);
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconTrash, IconDoc, IconEye, IconUpload, IconSummarize } from '../../icons';
 import attachmentApi from '../../api/attachmentApi';
@@ -26,7 +26,6 @@ import './attachmentPanel.css';
 const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange, refreshSignal = 0, onDeleted }) => {
   const { t } = useTranslation();
   const [attachments, setAttachments] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [summarizingId, setSummarizingId] = useState(null);
@@ -38,45 +37,43 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange, r
   const [error, setError] = useState(null); // string | null
 
   const fileInputRef = useRef(null);
-  // Tracks the owner we've already kicked off a load for, so the fetch fires
-  // once per owner — not twice under StrictMode, and not again on unrelated
-  // parent re-renders.
-  const loadedOwnerRef = useRef(null);
+  // Запрос, который уже запущен, — чтобы список читался один раз на ключ: не
+  // дважды под StrictMode и не заново на посторонний ре-рендер родителя.
+  const startedRef = useRef(null);
 
   const showContent = (a) => setViewing({ attachment: a, mode: 'content' });
   const showSummary = (a) => setViewing({ attachment: a, mode: 'summary' });
 
   // ── Load attachments ────────────────────────────────────────────────────
 
-  const loadAttachments = useCallback(async () => {
-    if (!ownerId) return;
-    setLoading(true);
-    try {
-      const data = await attachmentApi.list(ownerType, ownerId);
-      const list = Array.isArray(data) ? data : [];
-      setAttachments(list);
-      onCountChange?.(list.length);
-    } catch {
-      setAttachments([]);
-      onCountChange?.(0);
-    } finally {
-      setLoading(false);
-    }
-  }, [ownerType, ownerId, onCountChange]);
+  // Список читается один раз на владельца, поэтому о файле, приложённом (или
+  // отменённом) мимо панели, она узнаёт только по refreshSignal — он входит в
+  // ключ запроса наравне с владельцем.
+  const requestKey = ownerId ? `${ownerType}:${ownerId}#${refreshSignal}` : null;
+  // Ключ, ответ на который уже пришёл. Спиннер выводится отсюда: отдельным
+  // состоянием он был бы setState прямо в теле эффекта, то есть лишним рендером
+  // на каждое открытие панели.
+  const [loadedKey, setLoadedKey] = useState(null);
+  const loading = requestKey !== null && loadedKey !== requestKey;
 
   useEffect(() => {
-    const ownerKey = `${ownerType}:${ownerId}`;
-    if (!ownerId || loadedOwnerRef.current === ownerKey) return;
-    loadedOwnerRef.current = ownerKey;
-    loadAttachments();
-  }, [ownerType, ownerId, loadAttachments]);
-
-  // Список загружается один раз на владельца, поэтому о файле, приложённом (или
-  // отменённом) мимо панели, она узнаёт только так. Ноль — начальное значение,
-  // на него не перечитываем: загрузку уже сделал эффект выше.
-  useEffect(() => {
-    if (refreshSignal) loadAttachments();
-  }, [refreshSignal]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!requestKey || startedRef.current === requestKey) return;
+    startedRef.current = requestKey;
+    attachmentApi
+      .list(ownerType, ownerId)
+      .then((data) => (Array.isArray(data) ? data : []))
+      .catch(() => [])
+      .then((list) => {
+        // Ответ мог обогнать более свежий запрос (два подряд refreshSignal):
+        // тогда он не только показал бы устаревший список, но и отбросил бы
+        // loadedKey назад — спиннер завис бы навсегда, потому что запрос по
+        // текущему ключу уже запущен и повторно не пойдёт.
+        if (startedRef.current !== requestKey) return;
+        setAttachments(list);
+        setLoadedKey(requestKey);
+        onCountChange?.(list.length);
+      });
+  }, [requestKey, ownerType, ownerId, onCountChange]);
 
   // ── Upload ──────────────────────────────────────────────────────────────
 

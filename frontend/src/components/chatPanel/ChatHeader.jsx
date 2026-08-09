@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconTrash, IconSearch } from '../../icons';
 
@@ -32,15 +32,18 @@ const ChatHeader = ({ chat, canSearch, searchOpen, onToggleSearch, onRename, onD
   // первого. Коммит проверяет, что редактируемый чат всё ещё активен.
   const [editing, setEditing] = useState(null); // null | { id, draft }
   // Отмена по Escape: blur после него приходит с уже устаревшим замыканием,
-  // поэтому флаг живёт в ref и гасится в самом обработчике blur.
+  // поэтому флаг живёт в ref. Гасится в обработчике blur и ещё раз при начале
+  // нового переименования — Escape уносит поле из DOM, и blur может не прийти.
   const cancelRef = useRef(false);
 
   // Смена активного чата сбрасывает незавершённое редактирование заголовка.
-  const chatId = chat.id;
-  useEffect(() => {
+  // Сброс идёт в рендере, а не эффектом: иначе один кадр показывал бы поле
+  // ввода с черновиком от предыдущего чата.
+  const [prevChatId, setPrevChatId] = useState(chat.id);
+  if (prevChatId !== chat.id) {
+    setPrevChatId(chat.id);
     setEditing(null);
-    cancelRef.current = false;
-  }, [chatId]);
+  }
 
   const commitRename = () => {
     const cancelled = cancelRef.current;
@@ -72,7 +75,10 @@ const ChatHeader = ({ chat, canSearch, searchOpen, onToggleSearch, onRename, onD
         <h3
           className="workspace__head-title chat-header__title"
           title={t('window.renameHint')}
-          onClick={() => setEditing({ id: chat.id, draft: chat.title })}
+          onClick={() => {
+            cancelRef.current = false;
+            setEditing({ id: chat.id, draft: chat.title });
+          }}
         >
           {chat.title}
         </h3>

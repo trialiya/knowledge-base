@@ -19,14 +19,16 @@ import attachmentApi from '../../api/attachmentApi';
 export default function useAttachmentCount(ownerType, ownerId) {
   const [count, setCount] = useState(0);
 
-  useEffect(() => {
-    if (!ownerId) {
-      setCount(0);
-      return undefined;
-    }
-    // Сбрасываем сразу: иначе при переключении владельца бейдж на мгновение
-    // показывает чужое число.
+  // Сбрасываем в рендере, а не в эффекте: иначе при переключении владельца
+  // бейдж на мгновение показывает чужое число.
+  const [prevOwner, setPrevOwner] = useState({ ownerType, ownerId });
+  if (prevOwner.ownerType !== ownerType || prevOwner.ownerId !== ownerId) {
+    setPrevOwner({ ownerType, ownerId });
     setCount(0);
+  }
+
+  useEffect(() => {
+    if (!ownerId) return undefined;
     let cancelled = false;
     attachmentApi
       .count(ownerType, ownerId)

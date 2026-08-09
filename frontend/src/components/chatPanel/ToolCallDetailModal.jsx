@@ -68,36 +68,37 @@ const CopyButton = ({ value }) => {
 
 const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
   const { t } = useTranslation('chat');
-  const [details, setDetails] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  // Ответ сервера; null — запрос ещё идёт. `loading`/`error` выводятся из него
+  // при рендере, а сброс на смену вызова делается тут же — эффект показал бы
+  // кадр с деталями предыдущего инструмента.
+  const [answer, setAnswer] = useState(null); // { details, failed } | null
+
+  const [req, setReq] = useState({ conversationId, callId });
+  if (req.conversationId !== conversationId || req.callId !== callId) {
+    setReq({ conversationId, callId });
+    setAnswer(null);
+  }
 
   useEffect(() => {
-    if (!callId) {
-      setError(t('toolCall.detail.loadError'));
-      setLoading(false);
-      return;
-    }
+    if (!callId) return undefined;
     let cancelled = false;
-    setLoading(true);
-    setError(null);
     chatApi
       .getToolCallDetails(conversationId, callId)
       .then((data) => {
-        if (cancelled) return;
-        setDetails(data || null);
-        setLoading(false);
+        if (!cancelled) setAnswer({ details: data || null, failed: false });
       })
       .catch(() => {
-        if (!cancelled) {
-          setError(t('toolCall.detail.loadError'));
-          setLoading(false);
-        }
+        if (!cancelled) setAnswer({ details: null, failed: true });
       });
     return () => {
       cancelled = true;
     };
-  }, [conversationId, callId, t]);
+  }, [conversationId, callId]);
+
+  // Без callId запроса нет вовсе — сразу ошибка.
+  const loading = !!callId && answer === null;
+  const details = answer?.details ?? null;
+  const error = !callId || answer?.failed ? t('toolCall.detail.loadError') : null;
 
   const label = t(toolLabelKey(tc.name), { defaultValue: humanizeTool(tc.name) });
   const icon = getToolIcon(tc.name);

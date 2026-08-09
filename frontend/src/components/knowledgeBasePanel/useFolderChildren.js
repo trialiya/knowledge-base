@@ -35,30 +35,33 @@ function treeCacheIsComplete(node) {
  * server response for the current folder arrives.
  */
 export default function useFolderChildren(node, loadChildren) {
-  const [loading, setLoading] = useState(false);
   const [direct, setDirect] = useState(null); // loaderless fallback only
 
-  useEffect(() => {
+  const nodeId = node?.id ?? null;
+  // Запрос нужен, только пока дерево не держит полный список этой папки.
+  const needsFetch = !!nodeId && node.type === 'folder' && !treeCacheIsComplete(node);
+  // Папка, ответ по которой уже получен. Отсюда же `loading`: отдельным
+  // состоянием он был бы setState в теле эффекта, то есть лишним рендером на
+  // каждое открытие папки.
+  const [answeredId, setAnsweredId] = useState(null);
+  const loading = needsFetch && answeredId !== nodeId;
+
+  // Локальный фолбэк относится к прошлой папке — сбрасываем в рендере, иначе
+  // кадр до ответа показывает её содержимое под именем новой.
+  const [prevNodeId, setPrevNodeId] = useState(nodeId);
+  if (prevNodeId !== nodeId) {
+    setPrevNodeId(nodeId);
     setDirect(null);
+  }
 
-    if (!node?.id || node.type !== 'folder') {
-      setLoading(false);
-      return undefined;
-    }
-
-    // Fast path: tree already holds the complete list — no request needed.
-    if (treeCacheIsComplete(node)) {
-      setLoading(false);
-      return undefined;
-    }
-
+  useEffect(() => {
+    if (!needsFetch) return undefined;
     let cancelled = false;
-    setLoading(true);
 
     // Prefer the shared, deduplicated loader so the request is shared with the
     // tree (and lands in the tree cache). Fall back to a direct fetch only if
     // no loader was provided.
-    Promise.resolve(loadChildren ? loadChildren(node.id, 0, FULL_PAGE) : api.fetchChildren(node.id, 0, FULL_PAGE))
+    Promise.resolve(loadChildren ? loadChildren(nodeId, 0, FULL_PAGE) : api.fetchChildren(nodeId, 0, FULL_PAGE))
       .then((paged) => {
         // With a shared loader the tree updates itself; only the fallback needs
         // to stash the items locally.
@@ -69,14 +72,18 @@ export default function useFolderChildren(node, loadChildren) {
         // Network/server error: keep whatever the tree/fallback already holds.
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setAnsweredId(nodeId);
       });
 
     return () => {
       cancelled = true;
     };
+    // needsFetch — зависимость наравне с nodeId: выбранная папка может стать
+    // неполной без смены узла (refreshScope заменяет детей нулевой страницей), и
+    // тогда список нужно перечитать. Без него `loading` включался бы навсегда:
+    // он выводится из живого needsFetch, а запроса бы не было.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [node?.id]);
+  }, [nodeId, needsFetch]);
 
   const children = loadChildren ? node?.children ?? [] : direct ?? node?.children ?? [];
 

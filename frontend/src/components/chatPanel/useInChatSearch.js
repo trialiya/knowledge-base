@@ -11,6 +11,9 @@ import chatApi from '../../api/chatApi';
 import { DRAFT_CHAT_ID } from '../../constants/storage';
 
 const DEBOUNCE_MS = 250;
+// Стабильный «нет совпадений»: сброс делается прямо в рендере, и новый литерал
+// каждый раз давал бы лишний ре-рендер вместо тихого выхода из setState.
+const NO_MATCHES = [];
 // Safety cap на число страниц, которые догружаем в поисках одного совпадения —
 // на случай рассинхронизации курсора не крутим цикл бесконечно.
 const MAX_LOAD_STEPS = 50;
@@ -55,7 +58,7 @@ export function resolveActiveMatchMid({ messages, matches, activeMatch, query })
 export default function useInChatSearch({ activeChatId, chatsRef, loadOlderMessages, messages }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [matches, setMatches] = useState([]); // [{ id, createdAt }] хронологически (ASC)
+  const [matches, setMatches] = useState(NO_MATCHES); // [{ id, createdAt }] хронологически (ASC)
   const [activeIndex, setActiveIndex] = useState(-1);
   const [searching, setSearching] = useState(false);
   const [navigating, setNavigating] = useState(false);
@@ -63,17 +66,17 @@ export default function useInChatSearch({ activeChatId, chatsRef, loadOlderMessa
   const debounceRef = useRef(null);
   const abortRef = useRef(null);
   const navSeqRef = useRef(0); // гасит устаревшую навигацию (чат/индекс сменились по пути)
-  // Разовый флаг для openWithQuery: сигнализирует эффекту смены activeChatId «это
-  // переход из поиска по чатам, не закрывай/не стирай то, что мы только что открыли».
-  // Сбрасывается либо этим эффектом (реальное переключение), либо таймером ниже
-  // (чат не менялся — эффект вообще не сработает, флаг не должен «дожить» до
-  // следующего, уже обычного переключения чата).
-  const pendingOpenRef = useRef(false);
+  // Разовый флаг для openWithQuery: говорит сбросу по смене activeChatId «это
+  // переход из поиска по чатам, не закрывай/не стирай то, что мы только что
+  // открыли». Снимается либо самим сбросом (реальное переключение), либо
+  // таймером ниже (чат не менялся — сброс не сработает, а флаг не должен
+  // «дожить» до следующего, уже обычного переключения чата).
+  const [pendingOpen, setPendingOpen] = useState(false);
 
   const resetResults = useCallback(() => {
     clearTimeout(debounceRef.current);
     abortRef.current?.abort();
-    setMatches([]);
+    setMatches(NO_MATCHES);
     setActiveIndex(-1);
     setSearching(false);
   }, []);
@@ -90,15 +93,13 @@ export default function useInChatSearch({ activeChatId, chatsRef, loadOlderMessa
   // Дефолтная посадка на самое свежее совпадение — то же сообщение, из
   // которого там же построен сниппет, так что переход выглядит бесшовным.
   const openWithQuery = useCallback((q) => {
-    pendingOpenRef.current = true;
+    setPendingOpen(true);
     setOpen(true);
     setQuery(q);
-    // Если activeChatId фактически не меняется (выбран уже открытый чат), эффект
+    // Если activeChatId фактически не меняется (выбран уже открытый чат), сброс
     // ниже не сработает и не снимет флаг сам — снимаем его здесь с задержкой,
     // чтобы он не «выстрелил» при следующем обычном переключении чата.
-    setTimeout(() => {
-      pendingOpenRef.current = false;
-    }, 0);
+    setTimeout(() => setPendingOpen(false), 0);
   }, []);
 
   const runSearch = useCallback((chatId, q) => {
@@ -123,35 +124,48 @@ export default function useInChatSearch({ activeChatId, chatsRef, loadOlderMessa
       });
   }, []);
 
-  // Поиск по дебаунсу при изменении запроса (и при открытии с готовым query).
-  useEffect(() => {
-    if (!open || !activeChatId || activeChatId === DRAFT_CHAT_ID) return undefined;
-    clearTimeout(debounceRef.current);
-    const q = query.trim();
-    if (!q) {
-      abortRef.current?.abort();
-      setMatches([]);
+  // Пустой запрос — показывать нечего. Чистим в рендере, а не эффектом: иначе
+  // остаётся кадр, где счётчик совпадений относится к уже стёртому запросу.
+  const trimmedQuery = query.trim();
+  const [prevQuery, setPrevQuery] = useState(trimmedQuery);
+  if (prevQuery !== trimmedQuery) {
+    setPrevQuery(trimmedQuery);
+    if (!trimmedQuery) {
+      setMatches(NO_MATCHES);
       setActiveIndex(-1);
       setSearching(false);
+    }
+  }
+
+  // Смена активного чата — бар больше не относится к нему, сбрасываем результаты целиком.
+  // Исключение: переход из openWithQuery — там открытие уже выставлено намеренно.
+  const [prevChatId, setPrevChatId] = useState(activeChatId);
+  if (prevChatId !== activeChatId) {
+    setPrevChatId(activeChatId);
+    if (pendingOpen) {
+      setPendingOpen(false);
+    } else {
+      setMatches(NO_MATCHES);
+      setActiveIndex(-1);
+      setSearching(false);
+      setOpen(false);
+      setQuery('');
+    }
+  }
+
+  // Поиск по дебаунсу при изменении запроса (и при открытии с готовым query).
+  // Пустой запрос и закрытый бар гасят и дебаунс, и висящий запрос — сюда же
+  // приходит смена чата, которая выше уже стёрла query и закрыла бар.
+  useEffect(() => {
+    clearTimeout(debounceRef.current);
+    const q = query.trim();
+    if (!open || !activeChatId || activeChatId === DRAFT_CHAT_ID || !q) {
+      abortRef.current?.abort();
       return undefined;
     }
     debounceRef.current = setTimeout(() => runSearch(activeChatId, q), DEBOUNCE_MS);
     return () => clearTimeout(debounceRef.current);
   }, [open, activeChatId, query, runSearch]);
-
-  // Смена активного чата — бар больше не относится к нему, сбрасываем результаты целиком.
-  // Исключение: переход из openWithQuery — там открытие уже выставлено намеренно.
-  useEffect(() => {
-    if (pendingOpenRef.current) {
-      pendingOpenRef.current = false;
-      return;
-    }
-    resetResults();
-    setOpen(false);
-    setQuery('');
-    // activeChatId — единственная значимая зависимость: сбрасываем именно при переключении чата.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeChatId]);
 
   const goPrev = useCallback(() => {
     setActiveIndex((i) => (matches.length ? (i - 1 + matches.length) % matches.length : -1));

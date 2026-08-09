@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconFolder, IconDoc, IconChevron, IconLock, IconDragHandle, IconTrash } from '../../icons';
 import { findNodeById } from '../common/utils';
@@ -24,56 +24,68 @@ const DragHandle = ({ disabled }) => {
 
 const TreeNode = ({ node, level, selectedId, onSelect, onDelete, onReorder, onLoadChildren }) => {
   const { t } = useTranslation('knowledgeBase');
-  const [open, setOpen] = useState(false);
-  const [dropPos, setDropPos] = useState(null); // 'before' | 'after' | 'inside'
-  const [nextPage, setNextPage] = useState(1); // next page number to load
-  const [totalElements, setTotalElements] = useState(null);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const rowRef = useRef(null);
-
   const isFolder = node.type === 'folder';
   const isSystem = !!node.system;
   const hasChildren = isFolder && (node.hasChildren || (node.children && node.children.length > 0));
   const childrenLoaded = node._childrenLoaded || (node.children && node.children.length > 0);
   const isSelected = node.id === selectedId;
+  // Пометку _openOnLoad можно исполнить сразу, только когда дети уже есть:
+  // иначе их сперва догружает эффект ниже.
+  const needsChildLoad = isFolder && !childrenLoaded && !!onLoadChildren;
+  // Мемо обязательно: без него каждый узел обходил бы своё поддерево на каждый
+  // рендер дерева, а узлов столько же, сколько строк в панели.
+  const isAncestorOfSelected = useMemo(
+    () => isFolder && !!node.children && !!findNodeById(node.children, selectedId),
+    [isFolder, node.children, selectedId],
+  );
 
-  // Sync totalElements from node._totalChildren (set by KnowledgeBase)
-  useEffect(() => {
-    if (node._totalChildren != null) {
-      setTotalElements(node._totalChildren);
-    }
-  }, [node._totalChildren]);
+  // Начальную раскрытость считаем сразу, а не эффектом после первой отрисовки:
+  // и предок выбранного узла, и узел, помеченный раскрыться по прямой ссылке,
+  // должны быть развёрнуты уже в первом кадре, иначе дерево дёргается.
+  const [open, setOpen] = useState(() => isAncestorOfSelected || (!!node._openOnLoad && !needsChildLoad));
+  const [dropPos, setDropPos] = useState(null); // 'before' | 'after' | 'inside'
+  const [totalElements, setTotalElements] = useState(node._totalChildren ?? null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const rowRef = useRef(null);
 
-  // Reset nextPage when children are replaced (page 0 reload)
-  useEffect(() => {
-    if (node.children) {
-      // If the number of loaded children equals one page, next page is 1.
-      // Otherwise compute from the loaded count.
-      const loaded = node.children.length;
-      setNextPage(Math.ceil(loaded / PAGE_SIZE));
-    }
-  }, [node.children?.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Сколько детей загружено, столько страниц и прочитано: следующая идёт за ними.
+  // Значение выводится из узла — при перезагрузке с нулевой страницы оно само
+  // возвращается к началу.
+  const nextPage = node.children ? Math.ceil(node.children.length / PAGE_SIZE) : 1;
 
-  // Auto-open ancestor nodes pre-loaded for direct-link navigation
-  useEffect(() => {
-    if (node._openOnLoad && !open) {
-      if (isFolder && !childrenLoaded && onLoadChildren) {
-        onLoadChildren(node.id, 0, PAGE_SIZE).then((paged) => {
-          if (paged?.totalElements != null) setTotalElements(paged.totalElements);
-          setOpen(true);
-        });
-      } else {
-        setOpen(true);
-      }
-    }
-  }, [node._openOnLoad]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Ниже — реакции на изменившиеся пропы. Все в рендере, а не в эффектах: в
+  // дереве это setState на каждом узле, то есть лишний проход рендера целиком.
 
-  // Auto-expand ancestor when selection changes
+  // Общее число детей кладёт в узел KnowledgeBase; его же обновляют ответы
+  // догрузки страниц, поэтому оно и состояние, и синхронизируемое значение.
+  const [prevTotal, setPrevTotal] = useState(node._totalChildren);
+  if (prevTotal !== node._totalChildren) {
+    setPrevTotal(node._totalChildren);
+    if (node._totalChildren != null) setTotalElements(node._totalChildren);
+  }
+
+  // Выбор ушёл внутрь этой папки — раскрываем её.
+  const [prevSelectedId, setPrevSelectedId] = useState(selectedId);
+  if (prevSelectedId !== selectedId) {
+    setPrevSelectedId(selectedId);
+    if (isAncestorOfSelected) setOpen(true);
+  }
+
+  // Пометка «раскрыться по прямой ссылке», когда дети уже загружены.
+  const [prevOpenOnLoad, setPrevOpenOnLoad] = useState(node._openOnLoad);
+  if (prevOpenOnLoad !== node._openOnLoad) {
+    setPrevOpenOnLoad(node._openOnLoad);
+    if (node._openOnLoad && !open && !needsChildLoad) setOpen(true);
+  }
+
+  // Та же пометка, но детей ещё нет: сперва догрузка, раскрытие — по её ответу.
   useEffect(() => {
-    if (isFolder && node.children && findNodeById(node.children, selectedId)) {
+    if (!node._openOnLoad || open || !needsChildLoad) return;
+    onLoadChildren(node.id, 0, PAGE_SIZE).then((paged) => {
+      if (paged?.totalElements != null) setTotalElements(paged.totalElements);
       setOpen(true);
-    }
-  }, [selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
+    });
+  }, [node._openOnLoad]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleOpen = useCallback(
     async (e) => {

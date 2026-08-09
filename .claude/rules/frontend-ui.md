@@ -155,6 +155,18 @@ Panel open/closed state is **controlled state that lives in the URL**
   when you touch it, don't add another.
 - Async effects must be cancellation-aware (a `cancelled` flag or an AbortSignal
   in cleanup), matching the existing preview hooks.
+- **An effect never calls `setState` synchronously** (`react-hooks/set-state-in-effect`
+  is on). State that follows a prop — a draft reset on chat switch, a page reset
+  on a new folder — is adjusted *during render*, guarded by a `prev*` state
+  (`if (prevChatId !== chatId) { setPrevChatId(chatId); … }`); state that follows
+  a fetch is derived from the answer instead of being flipped by a separate
+  `loading` flag: keep the answer (or the key it belongs to) in state, and read
+  `loading`/`error` off it. Everything else belongs in the event handler that
+  caused it. The rule reads an `async` function's body as if it ran
+  synchronously, so a call to one from an effect trips it even when every
+  `setState` inside sits after an `await` — write such a loader as a promise
+  chain (`loadTree`) when that reads at least as well, and disable the rule on
+  the line with a reason when it doesn't (`navigateToDocById`).
 - The two trees are intentionally separate: `knowledgeBasePanel/TreeNode`
   (editable — drag-drop, pagination) versus `filesPanel/FileTreeNode`
   (read-only). Do not unify them.
