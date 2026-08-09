@@ -384,8 +384,9 @@ export default function useKnowledgeBase({
   const [navTask, setNavTask] = useState(null); // { doc } | { search, mode } | null
 
   if (navDocId) {
-    // Тот же документ — повторно не грузим (вкладки центра, которую раньше
-    // надо было досинхронизировать, больше нет).
+    // Тот же документ — заявку не создаём: он уже показан, а повторная загрузка
+    // затёрла бы несохранённые правки редактора при возврате из чата (см. ветку
+    // ухода в chat-view ниже).
     if (appliedNav.doc !== navDocId) {
       setAppliedNav({ doc: navDocId, search: undefined });
       setNavTask({ doc: navDocId });
