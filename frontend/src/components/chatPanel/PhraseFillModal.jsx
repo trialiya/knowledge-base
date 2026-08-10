@@ -45,7 +45,7 @@ const PhraseFillModal = ({ phraseText, phraseLabel, onSubmit, onCancel }) => {
 
   return (
     <ModalShell onClose={onCancel} variant="wide" className="phrase-fill">
-      <form onSubmit={handleSubmit}>
+      <form className="phrase-fill__form" onSubmit={handleSubmit}>
         <div className="phrase-fill__header">
           <h3>{phraseLabel || t('phraseFill.title')}</h3>
           <p className="phrase-fill__hint">{t('phraseFill.hint')}</p>
@@ -109,7 +109,10 @@ const PhraseFillModal = ({ phraseText, phraseLabel, onSubmit, onCancel }) => {
 
         {/* Сама фраза целиком: пока поле пусто, на его месте стоит подпись поля,
             дальше — то, что в него ввели. Без этого непонятно, что именно
-            заполняешь и куда оно встанет. */}
+            заполняешь и куда оно встанет. Черта над блоком делит диалог надвое:
+            выше — что заполняешь, ниже — что из этого получится. */}
+        <hr className="phrase-fill__sep" />
+
         <div className="phrase-fill__preview" aria-live="polite">
           <span className="phrase-fill__preview-title">{t('phraseFill.preview')}</span>
           <p className="phrase-fill__preview-text">

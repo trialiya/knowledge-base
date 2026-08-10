@@ -10,7 +10,9 @@ import highlightMatch from '../common/highlightMatch';
  * Значением поля становится сам выбранный элемент, а не набранный текст: в токен
  * его превращает диалог (`spec.toValue`) уже при подстановке. Пока из списка
  * ничего не выбрано, поле считается пустым — свободный текст указателем не
- * является, иначе в сообщение уехал бы путь, которого в репозитории нет.
+ * является, иначе в сообщение уехал бы путь, которого в репозитории нет. Что
+ * набранное пропадёт, видно заранее: поле с текстом без выбора подсвечивается
+ * предупреждением (см. `unresolved`).
  *
  * Props:
  *   spec        — запись из PLACEHOLDER_FIELDS (search + describe)
@@ -53,6 +55,15 @@ const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder
   const listOpen = open && query.trim().length > 0;
   const activeId = listOpen && results.length > 0 ? `${inputId}-opt-${idx}` : undefined;
 
+  // В поле есть текст, но указателя за ним нет, и взять его больше неоткуда:
+  // поиск не идёт, а список либо закрыт, либо вернулся пустым. Такое значение
+  // подстановка выбросит — предупреждаем цветом до нажатия «Вставить». Пока
+  // выдача открыта и в ней есть что выбрать, поле не подсвечиваем: выбор ещё
+  // впереди, и жёлтый на каждой набранной букве был бы шумом. Поэтому уход из
+  // поля (Tab, клик мимо) список закрывает — иначе брошенное поле с открытой
+  // выдачей так и осталось бы неподсвеченным (см. handleBlur).
+  const unresolved = !selected && text.trim().length > 0 && !loading && (!listOpen || results.length === 0);
+
   // handleChange хука читает только e.target.value — этого хватает, чтобы завести
   // поиск по сохранённому тексту, не повторяя здесь его дебаунс.
   const searchFor = (value) => onQueryChange({ target: { value } });
@@ -82,6 +93,16 @@ const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder
     if (!selected && text.trim() && !query) searchFor(text);
   };
 
+  // Уход фокуса из поля закрывает список: снаружи его гасит только mousedown, а
+  // Tab на соседнее поле мышью не пользуется — иначе выдача висела бы поверх
+  // формы, оторванная от своего поля. Строки списка гасят mousedown и фокус не
+  // забирают, так что выбор мышью сюда не заходит; клик по самому списку (по
+  // строке статуса, по полосе прокрутки) оставляем ему.
+  const handleBlur = (e) => {
+    if (portalRef.current?.contains(e.relatedTarget)) return;
+    close();
+  };
+
   const handleKeyDown = (e) => {
     // Пока список открыт, Escape принадлежит ему: без этого он дошёл бы до
     // document-слушателя ModalShell и закрыл всю модалку вместе с набранным.
@@ -101,10 +122,11 @@ const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder
       <input
         id={inputId}
         ref={inputRef}
-        className="phrase-fill__input"
+        className={`phrase-fill__input${unresolved ? ' phrase-fill__input--warn' : ''}`}
         type="text"
         autoComplete="off"
         role="combobox"
+        aria-invalid={unresolved || undefined}
         aria-expanded={listOpen}
         aria-controls={`${inputId}-list`}
         aria-activedescendant={activeId}
@@ -114,6 +136,7 @@ const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder
         value={selected ? spec.describe(selected).title : text}
         onFocus={resumeSearch}
         onClick={resumeSearch}
+        onBlur={handleBlur}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
       />

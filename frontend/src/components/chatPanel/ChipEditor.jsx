@@ -32,6 +32,15 @@ function ChipEditor({ value, onChange, onSend, disabled, placeholder, chatId, re
 
   useImperativeHandle(ref, () => ({
     focus: () => editorRef.current?.focus(),
+    // Фокус на contenteditable ставит каретку в начало содержимого. Тому, кто
+    // только что положил в поле текст (вставка фразы), нужен конец — иначе
+    // дописывать приходится, сначала промотав курсор через всю фразу.
+    focusEnd: () => {
+      const root = editorRef.current;
+      if (!root) return;
+      root.focus();
+      placeCaretEnd(root);
+    },
   }));
 
   useEffect(() => {
