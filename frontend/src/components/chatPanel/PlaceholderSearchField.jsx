@@ -59,7 +59,9 @@ const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder
   // поиск не идёт, а список либо закрыт, либо вернулся пустым. Такое значение
   // подстановка выбросит — предупреждаем цветом до нажатия «Вставить». Пока
   // выдача открыта и в ней есть что выбрать, поле не подсвечиваем: выбор ещё
-  // впереди, и жёлтый на каждой набранной букве был бы шумом.
+  // впереди, и жёлтый на каждой набранной букве был бы шумом. Поэтому уход из
+  // поля (Tab, клик мимо) список закрывает — иначе брошенное поле с открытой
+  // выдачей так и осталось бы неподсвеченным (см. handleBlur).
   const unresolved = !selected && text.trim().length > 0 && !loading && (!listOpen || results.length === 0);
 
   // handleChange хука читает только e.target.value — этого хватает, чтобы завести
@@ -89,6 +91,16 @@ const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder
   const resumeSearch = () => {
     openSearch();
     if (!selected && text.trim() && !query) searchFor(text);
+  };
+
+  // Уход фокуса из поля закрывает список: снаружи его гасит только mousedown, а
+  // Tab на соседнее поле мышью не пользуется — иначе выдача висела бы поверх
+  // формы, оторванная от своего поля. Строки списка гасят mousedown и фокус не
+  // забирают, так что выбор мышью сюда не заходит; клик по самому списку (по
+  // строке статуса, по полосе прокрутки) оставляем ему.
+  const handleBlur = (e) => {
+    if (portalRef.current?.contains(e.relatedTarget)) return;
+    close();
   };
 
   const handleKeyDown = (e) => {
@@ -124,6 +136,7 @@ const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder
         value={selected ? spec.describe(selected).title : text}
         onFocus={resumeSearch}
         onClick={resumeSearch}
+        onBlur={handleBlur}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
       />

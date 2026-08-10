@@ -88,15 +88,16 @@ const MessageInput = ({
 
   // Фокус возвращаем и после вставки, и после отмены: диалог забрал его себе, и
   // без этого он остался бы на body — следующий Tab пошёл бы обходить страницу.
-  const focusInput = () => setTimeout(() => inputRef.current?.focus(), 0);
+  // Каретку при этом ставим в конец: focus() на contenteditable роняет её в
+  // начало, и первый же символ уехал бы в начало черновика. setTimeout нужен
+  // вставке — до перерисовки поля (эффект ChipEditor по value) в нём ещё лежит
+  // прежний текст, и «конец» был бы его концом.
+  const focusInputEnd = () => setTimeout(() => inputRef.current?.focusEnd(), 0);
 
   const insertPhrase = (phraseText) => {
     setText(phraseText);
     onTextChange?.(phraseText);
-    // Каретку ставим в конец вставленного, а не в начало, и делаем это в
-    // setTimeout: до перерисовки поля (эффект ChipEditor по value) в нём ещё
-    // лежит прежний текст, и конец был бы его концом.
-    setTimeout(() => inputRef.current?.focusEnd(), 0);
+    focusInputEnd();
   };
 
   // Фраза с плейсхолдерами сначала уходит в диалог заполнения, остальные
@@ -123,7 +124,7 @@ const MessageInput = ({
           }}
           onCancel={() => {
             setPendingPhrase(null);
-            focusInput();
+            focusInputEnd();
           }}
         />
       )}

@@ -227,6 +227,23 @@ describe('PhraseFillModal', () => {
     expect(input).toHaveClass('phrase-fill__input--warn');
   });
 
+  // Регрессия: снаружи список гасит только mousedown, поэтому уход по Tab
+  // оставлял брошенное поле неподсвеченным, а выдачу — висеть поверх формы.
+  it('warns and shuts the list when the field is left by Tab with nothing picked', async () => {
+    gitApi.searchFiles.mockResolvedValue([{ path: 'src/App.jsx', name: 'App.jsx' }]);
+    renderModal('Посмотри {{Файл:file}} по теме {{Тема}}');
+
+    const input = screen.getByLabelText(/Файл/);
+    await userEvent.type(input, 'App');
+    await screen.findByText('src/App.jsx');
+
+    await userEvent.tab();
+
+    expect(input).toHaveClass('phrase-fill__input--warn');
+    expect(document.querySelector('.phrase-fill__results')).toBeNull();
+    expect(input).toHaveValue('App');
+  });
+
   // Пока выдача открыта, выбор ещё впереди: жёлтый на каждой букве был бы шумом.
   it('leaves a search field unmarked while the list still has something to pick', async () => {
     gitApi.searchFiles.mockResolvedValue([{ path: 'src/App.jsx', name: 'App.jsx' }]);
