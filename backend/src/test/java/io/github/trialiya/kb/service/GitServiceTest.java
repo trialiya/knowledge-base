@@ -49,8 +49,12 @@ class GitServiceTest {
     }
 
     private void commitAll() {
+        commitAll("test commit");
+    }
+
+    private void commitAll(String message) {
         runGit("add", "-A");
-        runGit("commit", "-q", "-m", "test commit");
+        runGit("commit", "-q", "-m", message);
     }
 
     private void runGit(String... args) {
@@ -480,5 +484,63 @@ class GitServiceTest {
         assertThat(dir.path()).isEqualTo("src/main");
         assertThat(dir.type()).isEqualTo(FileEntryType.DIRECTORY);
         assertThat(dir.nodes()).extracting(GitFileNode::name).containsExactly("Foo.java");
+    }
+
+    // ── searchCommits ───────────────────────────────────────────────────────
+
+    @Test
+    void searchCommitsMatchesSubjectSubstringIgnoringCase() {
+        writeFile("a.txt", "a\n");
+        commitAll("Add parsing for placeholders");
+        writeFile("b.txt", "b\n");
+        commitAll("Unrelated change");
+
+        assertThat(service.searchCommits("PLACEHOLD", 10))
+                .extracting(GitCommit::message)
+                .containsExactly("Add parsing for placeholders");
+    }
+
+    @Test
+    void searchCommitsMatchesHashPrefix() {
+        writeFile("a.txt", "a\n");
+        commitAll("Only commit");
+        String hash = service.getCommitLog(1, null).get(0).hash();
+
+        assertThat(service.searchCommits(hash.substring(0, 6).toUpperCase(), 10))
+                .extracting(GitCommit::hash)
+                .containsExactly(hash);
+    }
+
+    @Test
+    void searchCommitsReturnsNewestFirstAndHonoursTheLimit() {
+        writeFile("a.txt", "a\n");
+        commitAll("fix one");
+        writeFile("b.txt", "b\n");
+        commitAll("fix two");
+        writeFile("c.txt", "c\n");
+        commitAll("fix three");
+
+        assertThat(service.searchCommits("fix", 2))
+                .extracting(GitCommit::message)
+                .containsExactly("fix three", "fix two");
+    }
+
+    @Test
+    void searchCommitsReturnsEmptyWhenNothingMatches() {
+        writeFile("a.txt", "a\n");
+        commitAll("Only commit");
+
+        assertThat(service.searchCommits("nothing-like-this", 10)).isEmpty();
+    }
+
+    /** A hash prefix must not be confused with a body hit: the picker only shows the subject. */
+    @Test
+    void searchCommitsIgnoresTheMessageBody() {
+        writeFile("a.txt", "a\n");
+        commitAll(
+                "Subject line" + System.lineSeparator() + System.lineSeparator() + "mentions zzz");
+
+        assertThat(service.searchCommits("zzz", 10)).isEmpty();
+        assertThat(service.searchCommits("Subject", 10)).hasSize(1);
     }
 }

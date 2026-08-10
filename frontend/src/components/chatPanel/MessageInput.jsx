@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import Phrases from './Phrases';
+import PhraseFillModal from './PhraseFillModal';
 import ChipEditor from './ChipEditor';
 import ComposerToolbar from './ComposerToolbar';
 import ContextChips from './ContextChips';
 import { expandTokensForSend } from './fileChips';
+import { parsePlaceholders } from './phrasePlaceholders';
 
 // isEmpty — true когда в чате ещё нет сообщений; тогда показываем git-подсказки.
 // active — панель чата открыта (не перекрыта другим разделом): по ней ставится фокус.
@@ -30,6 +32,7 @@ const MessageInput = ({
   // Текст инициализируем из сохранённого черновика активного чата.
   const [text, setText] = useState(initialText); // плоская строка с токенами ⟦file:…⟧
   const [sending, setSending] = useState(false); // идёт разворачивание токенов перед отправкой
+  const [pendingPhrase, setPendingPhrase] = useState(null); // { text, label } фразы, ждущей заполнения
   const inputRef = useRef(null);
   // Чтобы эффект resetSignal не сработал на МОНТировании (resetSignal=0) и не стёр
   // только что восстановленный из localStorage черновик — пропускаем первый прогон.
@@ -83,10 +86,21 @@ const MessageInput = ({
     }
   };
 
-  // Вставить выбранную git-фразу в поле ввода
-  const handleSelectPhrase = (phraseText) => {
+  // Фокус возвращаем и после вставки, и после отмены: диалог забрал его себе, и
+  // без этого он остался бы на body — следующий Tab пошёл бы обходить страницу.
+  const focusInput = () => setTimeout(() => inputRef.current?.focus(), 0);
+
+  const insertPhrase = (phraseText) => {
     setText(phraseText);
-    setTimeout(() => inputRef.current?.focus(), 0);
+    onTextChange?.(phraseText);
+    focusInput();
+  };
+
+  // Фраза с плейсхолдерами сначала уходит в диалог заполнения, остальные
+  // вставляются сразу.
+  const handleSelectPhrase = (phraseText, phraseLabel) => {
+    if (parsePlaceholders(phraseText).length > 0) setPendingPhrase({ text: phraseText, label: phraseLabel });
+    else insertPhrase(phraseText);
   };
 
   const sendDisabled = !text.trim() || sending;
@@ -95,6 +109,21 @@ const MessageInput = ({
     <div className="message-input-area">
       {/* Блок git-фраз — только когда чат пустой */}
       {isEmpty && <Phrases onSelect={handleSelectPhrase} />}
+
+      {pendingPhrase !== null && (
+        <PhraseFillModal
+          phraseText={pendingPhrase.text}
+          phraseLabel={pendingPhrase.label}
+          onSubmit={(filled) => {
+            setPendingPhrase(null);
+            insertPhrase(filled);
+          }}
+          onCancel={() => {
+            setPendingPhrase(null);
+            focusInput();
+          }}
+        />
+      )}
 
       <ContextChips items={staged} onRemove={onUnstage} ariaLabel={t('contextItems.staged')} />
 

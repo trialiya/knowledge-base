@@ -2,7 +2,7 @@
 // The composer is a contentEditable div; this module builds/reads its DOM so
 // the component only wires events, never touches nodes directly.
 
-import { parseToken, parseDocToken, parseDocRefToken, baseName, TOKEN_RE } from './fileChips';
+import { parseToken, parseDocToken, parseDocRefToken, parseCommitToken, baseName, TOKEN_RE } from './fileChips';
 
 // ── Сериализация DOM ⇄ плоская строка с токенами ───────────────────────────────
 
@@ -33,20 +33,21 @@ export function serialize(root) {
   return out.replace(/^\n/, '');
 }
 
-function makeDocChipEl(token, { id, title }, refOnly) {
+/** Общий каркас чипа: атомарный contentEditable=false спан с иконкой, подписью и «×». */
+function buildChip({ token, modifiers = '', icon, label, title }) {
   const chip = document.createElement('span');
-  chip.className = 'file-chip file-chip--doc' + (refOnly ? ' file-chip--ref' : '');
+  chip.className = 'file-chip' + modifiers;
   chip.contentEditable = 'false';
   chip.dataset.token = token;
-  chip.title = `${title} (#${id})`;
+  chip.title = title;
 
-  const icon = document.createElement('span');
-  icon.className = 'file-chip__icon';
-  icon.textContent = refOnly ? '📎' : '📋';
+  const iconEl = document.createElement('span');
+  iconEl.className = 'file-chip__icon';
+  iconEl.textContent = icon;
 
-  const label = document.createElement('span');
-  label.className = 'file-chip__label';
-  label.textContent = title;
+  const labelEl = document.createElement('span');
+  labelEl.className = 'file-chip__label';
+  labelEl.textContent = label;
 
   const remove = document.createElement('button');
   remove.type = 'button';
@@ -54,8 +55,18 @@ function makeDocChipEl(token, { id, title }, refOnly) {
   remove.textContent = '×';
   remove.tabIndex = -1;
 
-  chip.append(icon, label, remove);
+  chip.append(iconEl, labelEl, remove);
   return chip;
+}
+
+function makeDocChipEl(token, { id, title }, refOnly) {
+  return buildChip({
+    token,
+    modifiers: ' file-chip--doc' + (refOnly ? ' file-chip--ref' : ''),
+    icon: refOnly ? '📎' : '📋',
+    label: title,
+    title: `${title} (#${id})`,
+  });
 }
 
 /** Построить DOM-элемент чипа из строки-токена. */
@@ -66,33 +77,31 @@ export function makeChipEl(token) {
   const docParsed = parseDocToken(token);
   if (docParsed) return makeDocChipEl(token, docParsed, false);
 
+  const commitParsed = parseCommitToken(token);
+  if (commitParsed) {
+    const { hash, subject } = commitParsed;
+    return buildChip({
+      token,
+      modifiers: ' file-chip--commit',
+      icon: '🔖',
+      label: hash,
+      title: subject ? `${hash} — ${subject}` : hash,
+    });
+  }
+
   const parsed = parseToken(token);
   const path = parsed?.path ?? token;
   const range = parsed?.from != null ? `:${parsed.from}-${parsed.to}` : '';
   const refOnly = parsed?.refOnly ?? false;
 
-  const chip = document.createElement('span');
-  chip.className = 'file-chip' + (refOnly ? ' file-chip--ref' : '');
-  chip.contentEditable = 'false';
-  chip.dataset.token = token;
+  const chip = buildChip({
+    token,
+    modifiers: refOnly ? ' file-chip--ref' : '',
+    icon: refOnly ? '📎' : '📄',
+    label: baseName(path) + range,
+    title: path + range,
+  });
   chip.dataset.path = path;
-  chip.title = path + range;
-
-  const icon = document.createElement('span');
-  icon.className = 'file-chip__icon';
-  icon.textContent = refOnly ? '📎' : '📄';
-
-  const label = document.createElement('span');
-  label.className = 'file-chip__label';
-  label.textContent = baseName(path) + range;
-
-  const remove = document.createElement('button');
-  remove.type = 'button';
-  remove.className = 'file-chip__remove';
-  remove.textContent = '×';
-  remove.tabIndex = -1;
-
-  chip.append(icon, label, remove);
   return chip;
 }
 

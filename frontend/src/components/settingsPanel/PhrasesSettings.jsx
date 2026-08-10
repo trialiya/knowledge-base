@@ -3,6 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { SettingsContentHead, SettingsSection } from '../common/SettingsShell';
 import { IconPlus, IconEdit, IconTrash } from '../../icons';
 import ConfirmModal from '../common/ConfirmModal';
+// Список типов берём у самого парсера, чтобы подсказка не разошлась с тем, что
+// диалог заполнения действительно понимает.
+import { PLACEHOLDER_TYPES } from '../chatPanel/phrasePlaceholders';
 import {
   fetchAllPhrases,
   createPhrase,
@@ -192,6 +195,12 @@ const PhrasesSettings = () => {
                 value={form.text}
                 onChange={(e) => setForm({ ...form, text: e.target.value })}
               />
+              {/* Пример намеренно на латинице и мимо i18n: это синтаксис, а не проза,
+                  и двойные фигурные скобки в строке перевода съел бы интерполятор. */}
+              <p className="phrase-form__help">
+                {t('phrases.placeholderHelp')} <code>{'{{name:file}}'}</code> · {t('phrases.placeholderTypes')}{' '}
+                {PLACEHOLDER_TYPES.join(', ')}
+              </p>
               <label className="phrase-form__check">
                 <input
                   type="checkbox"

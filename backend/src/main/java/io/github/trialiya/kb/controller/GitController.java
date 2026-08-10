@@ -73,6 +73,20 @@ public class GitController {
     }
 
     /**
+     * Commit lookup for the phrase placeholder picker: matches a hash prefix or a substring of the
+     * commit message, newest first. History has no index for either, so matching is a bounded walk
+     * — see {@link GitService#searchCommits}.
+     */
+    @GetMapping("/commits/search")
+    public List<GitCommit> searchCommits(
+            @RequestParam("q") String query,
+            @RequestParam(name = "limit", defaultValue = "10") int limit) {
+        String sanitized = query.strip();
+        if (sanitized.isBlank()) return List.of();
+        return gitService.searchCommits(sanitized, limit);
+    }
+
+    /**
      * Opens {@code path} in the file browser in one round trip: what the path is (file / directory
      * / missing), its content or listing, and — unless {@code ancestors=false} — the listings of
      * every directory between the repo root and the path, so the tree can expand to it without a

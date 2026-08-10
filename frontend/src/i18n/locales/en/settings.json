@@ -341,7 +341,7 @@
     "form": {
       "categoryPlaceholder": "Category",
       "labelPlaceholder": "Name (chip)",
-      "textPlaceholder": "Text inserted into the input field. Placeholders are edited manually.",
+      "textPlaceholder": "Text inserted into the input field.",
       "enabled": "Enabled",
       "save": "Save",
       "cancel": "Cancel"
@@ -356,7 +356,8 @@
       "edit": "Edit",
       "delete": "Delete"
     },
-    "hint": "Phrases used to live in code (<1>GIT_PHRASES</1>). Now it's a single list from the DB: edited here, shown in an empty chat by the <3>Phrases</3> component (<5>GET /api/phrases</5>).",
+    "placeholderHelp": "Placeholders are filled in a dialog when the phrase is picked. Syntax:",
+    "placeholderTypes": "Types:",
     "errors": {
       "load": "Failed to load phrases",
       "save": "Failed to save phrase",

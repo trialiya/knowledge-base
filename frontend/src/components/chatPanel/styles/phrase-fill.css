@@ -1,0 +1,184 @@
+/* ── Диалог заполнения плейсхолдеров фразы ────────────────────────────────── */
+
+.phrase-fill__header {
+  margin-bottom: 14px;
+}
+
+.phrase-fill__hint {
+  margin: 4px 0 0;
+  font-size: 0.75rem;
+  color: var(--kb-muted);
+}
+
+.phrase-fill__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* Длинная фраза не должна растить модалку за край экрана. */
+  max-height: 52vh;
+  overflow-y: auto;
+}
+
+.phrase-fill__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.phrase-fill__label {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--kb-text);
+}
+
+.phrase-fill__type {
+  font-size: 0.66rem;
+  font-weight: 500;
+  color: var(--kb-muted);
+  background: var(--kb-bg);
+  border: 1px solid var(--kb-border);
+  border-radius: 10px;
+  padding: 0 6px;
+}
+
+.phrase-fill__input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 9px;
+  border: 1px solid var(--kb-border);
+  border-radius: var(--kb-radius);
+  background: var(--kb-white);
+  color: var(--kb-text);
+  font: inherit;
+  font-size: 0.84rem;
+}
+
+.phrase-fill__input:focus {
+  outline: none;
+  border-color: var(--kb-accent);
+}
+
+.phrase-fill__check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.phrase-fill__check-text {
+  font-size: 0.82rem;
+  color: var(--kb-text);
+}
+
+/* ── Превью фразы ─────────────────────────────────────────────────────────── */
+
+.phrase-fill__preview {
+  margin-top: 14px;
+  padding: 9px 11px;
+  border: 1px solid var(--kb-border);
+  border-radius: var(--kb-radius);
+  background: var(--kb-bg);
+}
+
+.phrase-fill__preview-title {
+  display: block;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--kb-muted);
+}
+
+.phrase-fill__preview-text {
+  margin: 5px 0 0;
+  /* Фраза длинная, а модалка не должна за неё расти: свой скролл. */
+  max-height: 5.6em;
+  overflow-y: auto;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--kb-text);
+  overflow-wrap: anywhere;
+}
+
+/* Место плейсхолдера: пока пусто — подпись поля приглушённым пунктиром, после
+   ввода — само значение на акцентной подложке. */
+.phrase-fill__slot {
+  border-bottom: 1px dashed var(--kb-border);
+  color: var(--kb-muted);
+}
+
+.phrase-fill__slot--filled {
+  border-bottom-color: transparent;
+  border-radius: 3px;
+  /* Подложка обтягивает значение вплотную: горизонтальные поля раздвинули бы
+     текст вокруг, и «{{Тема}}» в кавычках читалось бы как « значение ». */
+  background: var(--kb-accent-light);
+  color: var(--kb-accent);
+  font-weight: 500;
+}
+
+/* ── Комбобокс указателей (файл / документ / коммит) ──────────────────────── */
+
+/* Список висит в портале на body (см. PlaceholderSearchField): координаты ему
+   задаёт инлайновый стиль от позиции поля, здесь — только вид. */
+.phrase-fill__results {
+  position: fixed;
+  z-index: 1200; /* выше .modal-shell-overlay */
+  background: var(--kb-white);
+  border: 1px solid var(--kb-border);
+  border-radius: var(--kb-radius);
+  box-shadow: 0 8px 24px rgba(91, 79, 207, 0.16);
+  overflow: hidden;
+}
+
+.phrase-fill__status {
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--kb-muted);
+}
+
+.phrase-fill__options {
+  max-height: 190px;
+  overflow-y: auto;
+}
+
+.phrase-fill__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.phrase-fill__option--active {
+  background: var(--kb-accent-light);
+}
+
+.phrase-fill__option-icon {
+  flex-shrink: 0;
+}
+
+.phrase-fill__option-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.phrase-fill__option-title {
+  font-size: 0.82rem;
+  color: var(--kb-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.phrase-fill__option-sub {
+  font-size: 0.7rem;
+  color: var(--kb-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

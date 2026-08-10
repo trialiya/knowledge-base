@@ -51,6 +51,7 @@ import org.eclipse.jgit.errors.AmbiguousObjectException;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
 import org.eclipse.jgit.errors.MissingObjectException;
 import org.eclipse.jgit.errors.RevisionSyntaxException;
+import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.PersonIdent;
@@ -102,6 +103,9 @@ public class GitService {
      * ObjectReader#abbreviate(org.eclipse.jgit.lib.AnyObjectId, int)}).
      */
     private static final int ABBREV_LEN = 7;
+
+    /** How far back {@link #searchCommits} walks before giving up on finding more matches. */
+    private static final int COMMIT_SEARCH_SCAN = 2000;
 
     /** Tree listing order: directories first, then by name, case-insensitively. */
     private static final Comparator<GitFileNode> NODE_ORDER =
@@ -320,6 +324,52 @@ public class GitService {
         } catch (GitAPIException | IOException e) {
             throw new IllegalStateException("Failed to read commit log", e);
         }
+    }
+
+    /**
+     * Commits matching {@code query} — a prefix of the hash or a substring of the subject line —
+     * newest first.
+     *
+     * <p>Git indexes neither, so this is a linear walk from HEAD, bounded by {@link
+     * #COMMIT_SEARCH_SCAN} commits: on a long history an unmatched query would otherwise read the
+     * whole repository to answer a keystroke. Matching deliberately ignores the message body — the
+     * picker shows the subject, and a hit the user cannot see in the row reads as a wrong result.
+     *
+     * @param query hash prefix or subject substring, already stripped and non-blank
+     * @param maxCount max commits to return, capped at 100
+     */
+    public List<GitCommit> searchCommits(@NonNull String query, int maxCount) {
+        if (query.isBlank()) return List.of();
+        String q = query.strip().toLowerCase();
+        int limit = Math.min(Math.max(maxCount, 1), 100);
+
+        // Обход строим сами, а не через git.log(): LogCommand отдаёт свой RevWalk как
+        // Iterable, и закрыть его уже нечем — а выходим мы отсюда почти всегда по
+        // break, на каждое нажатие клавиши в поиске.
+        try (RevWalk walk = new RevWalk(repository)) {
+            ObjectId head = repository.resolve(Constants.HEAD);
+            // Repository has no commits yet — an empty history, not an error.
+            if (head == null) return List.of();
+            walk.markStart(walk.parseCommit(head));
+
+            ObjectReader reader = walk.getObjectReader();
+            List<GitCommit> matches = new ArrayList<>();
+            int scanned = 0;
+            for (RevCommit commit : walk) {
+                if (++scanned > COMMIT_SEARCH_SCAN) break;
+                if (!matchesCommit(commit, q)) continue;
+                matches.add(toGitCommit(commit, null, reader));
+                if (matches.size() >= limit) break;
+            }
+            return matches;
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to search commit log", e);
+        }
+    }
+
+    private static boolean matchesCommit(RevCommit commit, String lowerQuery) {
+        return commit.getName().toLowerCase().startsWith(lowerQuery)
+                || commit.getShortMessage().toLowerCase().contains(lowerQuery);
     }
 
     // ── Diff for commit(s) ──────────────────────────────────────────────────
