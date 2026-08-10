@@ -1,7 +1,11 @@
 /* ── Диалог заполнения плейсхолдеров фразы ────────────────────────────────── */
 
-.phrase-fill__header {
-  margin-bottom: 14px;
+/* Один вертикальный ритм на весь диалог: шапка, поля, разделитель, превью и
+   кнопки разведены одним gap — иначе превью упирается в кнопки. */
+.phrase-fill__form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .phrase-fill__hint {
@@ -61,6 +65,15 @@
   border-color: var(--kb-accent);
 }
 
+/* Указатель, который не уедет в текст: набрано что-то, чего в репозитории или в
+   базе знаний нет (либо из выдачи так ничего и не выбрали). Не ошибка — фраза
+   вставится, просто с плейсхолдером на этом месте, — поэтому предупреждение. */
+.phrase-fill__input--warn,
+.phrase-fill__input--warn:focus {
+  border-color: var(--kb-warning);
+  background: var(--kb-warning-bg);
+}
+
 .phrase-fill__check {
   display: inline-flex;
   align-items: center;
@@ -74,16 +87,22 @@
 
 /* ── Превью фразы ─────────────────────────────────────────────────────────── */
 
-.phrase-fill__preview {
-  margin-top: 14px;
-  padding: 9px 11px;
-  border: 1px solid var(--kb-border);
-  border-radius: var(--kb-radius);
-  background: var(--kb-bg);
+.phrase-fill__sep {
+  width: 100%;
+  margin: 0;
+  border: none;
+  border-top: 1px solid var(--kb-border);
 }
 
+.phrase-fill__preview {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+/* Подпись стоит над блоком, а не внутри него: в подложке лежит ровно то, что
+   уедет в поле ввода, и лишняя строка в ней читалась бы как часть фразы. */
 .phrase-fill__preview-title {
-  display: block;
   font-size: 0.66rem;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -92,9 +111,15 @@
 }
 
 .phrase-fill__preview-text {
-  margin: 5px 0 0;
-  /* Фраза длинная, а модалка не должна за неё расти: свой скролл. */
-  max-height: 5.6em;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 9px 11px;
+  border: 1px solid var(--kb-border);
+  border-radius: var(--kb-radius);
+  background: var(--kb-bg);
+  /* Фраза длинная, а модалка не должна за неё расти: свой скролл на ~4 строки
+     (подложка в border-box, поэтому в высоту входят и поля блока). */
+  max-height: 7em;
   overflow-y: auto;
   font-size: 0.82rem;
   line-height: 1.4;

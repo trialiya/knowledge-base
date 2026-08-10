@@ -93,7 +93,10 @@ const MessageInput = ({
   const insertPhrase = (phraseText) => {
     setText(phraseText);
     onTextChange?.(phraseText);
-    focusInput();
+    // Каретку ставим в конец вставленного, а не в начало, и делаем это в
+    // setTimeout: до перерисовки поля (эффект ChipEditor по value) в нём ещё
+    // лежит прежний текст, и конец был бы его концом.
+    setTimeout(() => inputRef.current?.focusEnd(), 0);
   };
 
   // Фраза с плейсхолдерами сначала уходит в диалог заполнения, остальные

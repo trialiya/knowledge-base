@@ -201,6 +201,46 @@ describe('PhraseFillModal', () => {
     expect(onSubmit).toHaveBeenCalled();
   });
 
+  // Набранное без выбора подстановка выбрасывает — жёлтая рамка говорит об этом
+  // до нажатия «Вставить», а не после.
+  it('warns on a search field whose text matched nothing', async () => {
+    gitApi.searchFiles.mockResolvedValue([]);
+    renderModal('Посмотри {{Файл:file}}');
+
+    const input = screen.getByLabelText(/Файл/);
+    await userEvent.type(input, 'нет-такого');
+    await screen.findByText('phraseFill.nothingFound');
+
+    expect(input).toHaveClass('phrase-fill__input--warn');
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+  });
+
+  it('warns when the list was closed and nothing was picked from it', async () => {
+    gitApi.searchFiles.mockResolvedValue([{ path: 'src/App.jsx', name: 'App.jsx' }]);
+    renderModal('Посмотри {{Файл:file}}');
+
+    const input = screen.getByLabelText(/Файл/);
+    await userEvent.type(input, 'App');
+    await screen.findByText('src/App.jsx');
+    await userEvent.keyboard('{Escape}');
+
+    expect(input).toHaveClass('phrase-fill__input--warn');
+  });
+
+  // Пока выдача открыта, выбор ещё впереди: жёлтый на каждой букве был бы шумом.
+  it('leaves a search field unmarked while the list still has something to pick', async () => {
+    gitApi.searchFiles.mockResolvedValue([{ path: 'src/App.jsx', name: 'App.jsx' }]);
+    renderModal('Посмотри {{Файл:file}}');
+
+    const input = screen.getByLabelText(/Файл/);
+    await userEvent.type(input, 'App');
+    await screen.findByText('src/App.jsx');
+    expect(input).not.toHaveClass('phrase-fill__input--warn');
+
+    await userEvent.click(screen.getByText('src/App.jsx'));
+    expect(input).not.toHaveClass('phrase-fill__input--warn');
+  });
+
   it('titles the dialog with the phrase name, falling back to the generic title', () => {
     const { unmount } = render(
       <PhraseFillModal phraseText="{{A}}" phraseLabel="История коммитов" onSubmit={vi.fn()} onCancel={vi.fn()} />,
