@@ -1,0 +1,127 @@
+/* ── Кастомный дропдаун (ListboxSelect) ──
+   Не нативный <select>: стрелка всегда вплотную к тексту, ширина = ширине
+   текущего значения, а не самого длинного варианта. Используется селекторами
+   модели и режима в чате и выбором инструмента в «Настройках». */
+
+.lb-select {
+  position: relative;
+  /* inline-flex → селекторы стоят в ряд в composer-toolbar. width:fit-content →
+     стрелка стоит вплотную к тексту (ширина = ширине текущего значения). */
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+}
+
+/* Триггер: текущее значение + стрелка сразу после текста */
+.lb-select__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  /* Моноширинный «технический» стиль — отличается от заголовка чата,
+     id моделей и имена инструментов читаются как токены (gpt-4o, getFileTree). */
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Code', 'Cascadia Mono', Consolas, 'Liberation Mono', monospace;
+  font-size: 0.8rem;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--kb-muted);
+  cursor: pointer;
+  outline: none;
+  transition: color 0.15s;
+}
+.lb-select__trigger:hover:not(:disabled),
+.lb-select__trigger[aria-expanded='true'] {
+  color: var(--kb-accent);
+}
+.lb-select__trigger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.lb-select__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Стрелка: едет вместе с текстом; при открытии разворачивается */
+.lb-select__chevron {
+  flex-shrink: 0;
+  color: inherit;
+  transition: transform 0.15s;
+}
+.lb-select__chevron--open {
+  transform: rotate(180deg);
+}
+
+/* ── Выпадающее меню ──
+   По умолчанию раскрывается вниз; модификатор --up для случая, когда селектор
+   стоит у нижнего края (селекторы модели и режима над полем ввода чата). */
+.lb-select__menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  min-width: 220px;
+  max-width: 360px;
+  max-height: 320px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 5px;
+  list-style: none;
+  background: var(--kb-white);
+  border: 1px solid var(--kb-border);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(91, 79, 207, 0.18);
+  outline: none;
+}
+.lb-select__menu--up {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+
+.lb-select__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  /* Тот же моноширинный шрифт, но крупнее и с переносом — список читабельный */
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Code', 'Cascadia Mono', Consolas, 'Liberation Mono', monospace;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: var(--kb-text);
+  transition: background 0.1s, color 0.1s;
+}
+/* Подсветка активного пункта (мышь и клавиатура — единый указатель) */
+.lb-select__option--active {
+  background: var(--kb-accent-light);
+}
+.lb-select__option--selected {
+  color: var(--kb-accent);
+  font-weight: 600;
+}
+.lb-select__option-label {
+  min-width: 0;
+  /* nowrap → меню растягивается под длину названия (в пределах max-width),
+     а не ломает текст на 2 строки. ellipsis — страховка для очень длинных id. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lb-select__note {
+  font-weight: 400;
+  opacity: 0.8;
+  color: var(--kb-muted);
+}
+.lb-select__option svg {
+  flex-shrink: 0;
+  color: var(--kb-accent);
+}

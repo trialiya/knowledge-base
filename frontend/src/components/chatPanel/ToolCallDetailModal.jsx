@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import chatApi from '../../api/chatApi';
-import { getToolIcon, humanizeTool, toolLabelKey } from './toolMeta';
+import { getToolIcon, humanizeTool, toolLabelKey } from '../common/toolNames';
 import { IconCopySmall, IconCopied } from '../../icons';
 import useCopyFeedback from '../../hooks/useCopyFeedback';
 import ModalShell from '../common/ModalShell';

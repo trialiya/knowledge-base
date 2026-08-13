@@ -13,6 +13,8 @@ import io.github.trialiya.kb.config.model.SearchConfiguration;
 import io.github.trialiya.kb.config.model.SubAgentConfig;
 import io.github.trialiya.kb.config.model.SummarizeProperties;
 import io.github.trialiya.kb.functions.GitEditFunction;
+import io.github.trialiya.kb.service.ToolCatalogService;
+import io.github.trialiya.kb.service.ToolCatalogService.ToolInfo;
 import io.github.trialiya.kb.service.script.ScriptEditPolicy;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -56,6 +58,7 @@ public class SettingsController {
     private final ChatTimeoutProperties chatTimeoutProperties;
     private final McpProperties mcpProperties;
     private final ScriptProperties scriptProperties;
+    private final ToolCatalogService toolCatalogService;
 
     /**
      * Whether scripts may actually write, as opposed to being configured to: {@code
@@ -95,6 +98,7 @@ public class SettingsController {
             ChatTimeoutProperties chatTimeoutProperties,
             McpProperties mcpProperties,
             ScriptProperties scriptProperties,
+            ToolCatalogService toolCatalogService,
             ScriptEditPolicy scriptEditPolicy,
             ObjectProvider<GitEditFunction> gitEditFunction,
             ObjectProvider<McpSseClientProperties> sseProperties,
@@ -117,6 +121,7 @@ public class SettingsController {
         this.chatTimeoutProperties = chatTimeoutProperties;
         this.mcpProperties = mcpProperties;
         this.scriptProperties = scriptProperties;
+        this.toolCatalogService = toolCatalogService;
         this.scriptEditActive = scriptEditPolicy.enabled();
         this.gitEditEnabled = gitProperties.editEnabled();
         this.gitEditActive = gitEditFunction.getIfAvailable() != null;
@@ -165,6 +170,17 @@ public class SettingsController {
                         new McpInfo(mcpProperties.enabled(), mcpConnections),
                         new UploadLimits(maxFileSize.toBytes(), maxRequestSize.toBytes())),
                 scriptSection());
+    }
+
+    /**
+     * The tools the model can call right now, for «Настройки → Инструменты». A separate endpoint
+     * rather than a section of the snapshot above: it is descriptions and argument schemas — one
+     * group's worth of reading, and several times the size of the whole configuration snapshot the
+     * other groups share.
+     */
+    @GetMapping("/tools")
+    public List<ToolInfo> getTools() {
+        return toolCatalogService.tools();
     }
 
     private ScriptSection scriptSection() {

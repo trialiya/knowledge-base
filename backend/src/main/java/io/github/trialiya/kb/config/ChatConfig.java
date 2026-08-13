@@ -26,6 +26,7 @@ import io.github.trialiya.kb.service.ScriptGuideService;
 import io.github.trialiya.kb.service.SearchAgentService;
 import io.github.trialiya.kb.service.script.ScriptCancelledException;
 import io.github.trialiya.kb.service.script.ScriptRunner;
+import io.github.trialiya.kb.tools.ChatToolset;
 import io.github.trialiya.kb.tools.RecordingToolCallback;
 import java.util.ArrayList;
 import java.util.List;
@@ -253,12 +254,13 @@ public class ChatConfig {
         return scriptProperties.enabled() && subAgentConfig.allowedTools().contains("runScript");
     }
 
+    /**
+     * The tool set of the main chat, assembled in one place so that the {@code ChatClient} and the
+     * Settings catalogue ({@code ToolCatalogService}) cannot disagree about what the model can
+     * call. Which tools are in it is decided by the opt-ins documented on the beans above.
+     */
     @Bean
-    public ChatClient chatClientBuilder(
-            ChatModel chatModel,
-            ChatMemory chatMemory,
-            @Value("classpath:prompt/sys.md") Resource sysPrompt,
-            ToolCallingManager toolCallingManager,
+    public ChatToolset chatToolset(
             ChatTopicRepository chatTopicRepository,
             ChatMessageRepository chatMessageRepository,
             GitFunction gitFunction,
@@ -268,11 +270,8 @@ public class ChatConfig {
             ContextItemService contextItemService,
             ObjectProvider<SearchAgentService> searchAgentService,
             ObjectProvider<ScriptFunction> scriptFunction,
-            ChatEventService chatEventService,
             McpProperties mcpProperties,
             ObjectProvider<ToolCallbackProvider> mcpToolCallbackProvider) {
-        log.info("Model: {}", chatModel.getOptions());
-
         List<Object> functions =
                 new ArrayList<>(
                         List.of(
@@ -293,21 +292,32 @@ public class ChatConfig {
         // MCP-derived tools (see spring.ai.mcp.client.* connections) are merged in only when
         // kb.mcp.enabled=true — external MCP servers run arbitrary local commands or call
         // arbitrary URLs, so this stays an explicit opt-in even once servers are configured.
-        ToolCallback[] mcpCallbacks =
+        List<ToolCallback> mcpCallbacks =
                 mcpProperties.enabled()
                         ? mcpToolCallbackProvider.stream()
                                 .flatMap(provider -> Stream.of(provider.getToolCallbacks()))
-                                .toArray(ToolCallback[]::new)
-                        : new ToolCallback[0];
+                                .<ToolCallback>map(RecordingToolCallback::new)
+                                .toList()
+                        : List.of();
         if (mcpProperties.enabled()) {
-            log.info("MCP tools enabled: {} tool(s) exposed to the model", mcpCallbacks.length);
+            log.info("MCP tools enabled: {} tool(s) exposed to the model", mcpCallbacks.size());
         }
-        ToolCallback[] callbacks =
-                Stream.concat(
-                                Stream.of(ToolCallbacks.from(functions.toArray())),
-                                Stream.of(mcpCallbacks))
-                        .map(RecordingToolCallback::new)
-                        .toArray(ToolCallback[]::new);
+        List<ToolCallback> builtin =
+                Stream.of(ToolCallbacks.from(functions.toArray()))
+                        .<ToolCallback>map(RecordingToolCallback::new)
+                        .toList();
+        return new ChatToolset(builtin, mcpCallbacks);
+    }
+
+    @Bean
+    public ChatClient chatClientBuilder(
+            ChatModel chatModel,
+            ChatMemory chatMemory,
+            @Value("classpath:prompt/sys.md") Resource sysPrompt,
+            ToolCallingManager toolCallingManager,
+            ChatToolset chatToolset,
+            ChatEventService chatEventService) {
+        log.info("Model: {}", chatModel.getOptions());
 
         // Advisor chain — outermost to innermost (ascending getOrder()):
         //
@@ -346,7 +356,7 @@ public class ChatConfig {
         return ChatClient.builder(chatModel)
                 .defaultAdvisors(advisors)
                 .defaultSystem(sysPrompt)
-                .defaultTools((Object[]) callbacks)
+                .defaultTools((Object[]) chatToolset.all())
                 .build();
     }
 }

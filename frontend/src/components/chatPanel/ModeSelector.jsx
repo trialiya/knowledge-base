@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import ListboxSelect from './ListboxSelect';
+import ListboxSelect from '../common/ListboxSelect';
 
 /** Синтетический пункт «без режима»: пустой id → бэк не подставляет фрагмент. */
 export const NO_MODE = '';
@@ -28,7 +28,7 @@ const ModeSelector = ({ value, options, onChange, disabled = false }) => {
       onChange={onChange}
       disabled={disabled}
       ariaLabel={t('mode.aria')}
-      className="chat-select--mode"
+      placement="up"
     />
   );
 };

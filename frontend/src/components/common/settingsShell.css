@@ -54,6 +54,12 @@
   overflow: hidden;
   flex-shrink: 0;
 }
+/* Секция с выпадающим списком в шапке: меню должно выходить за карточку.
+   Скругления при этом не страдают — тело такой секции с полями, до краёв не
+   доходит, обрезать нечего. */
+.set-section--overflow {
+  overflow: visible;
+}
 .set-section__head {
   display: flex;
   align-items: center;

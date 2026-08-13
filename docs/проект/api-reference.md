@@ -565,6 +565,28 @@ runId активного прогона чата (или пустой объек
 
 ---
 
+### GET `/api/settings/tools`
+Каталог инструментов, доступных модели прямо сейчас, для группы «Настройки → Инструменты». Список собран из тех же `ToolCallback`, что отданы `ChatClient` (`ChatToolset` → `ToolCatalogService`), поэтому отражает фактическую конфигурацию: без `kb.git.edit-enabled` в нём нет `createFile`/`editFile`, без `kb.script.enabled` — `runScript`, а инструменты внешних MCP-серверов появляются только при `kb.mcp.enabled`.
+
+**Response:** `List<ToolInfo>`, отсортирован по имени
+```json
+[
+  {
+    "name": "searchDocuments",
+    "description": "Search knowledge base documents by topic/keywords (hybrid: keyword + semantic).",
+    "origin": "builtin",
+    "params": [
+      { "name": "query", "type": "string", "description": "Search query in any language.", "required": true, "values": [] },
+      { "name": "mode", "type": "string", "description": "Search mode: hybrid (default), semantic, keyword.", "required": false, "values": [] }
+    ]
+  }
+]
+```
+
+`description` — то самое описание из `@Tool`, которое читает модель. `params` разбираются из JSON-схемы инструмента: `type` — `string`/`integer`/`array<string>`/имя определения из `$ref`, `values` — допустимые значения перечислимого аргумента (иначе пусто). `origin` — `builtin` (собственный `@Tool`) или `mcp` (инструмент внешнего сервера); нечитаемая схема стоит инструменту списка аргументов, но не места в каталоге.
+
+---
+
 ### POST `/api/settings/script/run`
 Пробный запуск скрипта из «Настройки → Скрипты». Тот же `ScriptRunner`, что у инструмента `runScript`, те же бюджеты и тот же формат ответа — но скрипт пишет человек, а не модель.
 

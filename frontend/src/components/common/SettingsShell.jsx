@@ -68,8 +68,13 @@ export const SettingsContentHead = ({ title, subtitle, actions }) => (
   </div>
 );
 
-export const SettingsSection = ({ label, action, rows = false, children }) => (
-  <section className="set-section">
+/**
+ * Карточка секции группы. `rows` — вариант со строками-операциями вплотную к
+ * краям; `overflow` — секция, из которой содержимое обязано выходить наружу
+ * (выпадающий список в шапке), иначе карточка обрезает его по своим границам.
+ */
+export const SettingsSection = ({ label, action, rows = false, overflow = false, children }) => (
+  <section className={`set-section${overflow ? ' set-section--overflow' : ''}`}>
     {(label || action) && (
       <div className="set-section__head">
         <span className="set-section__label">{label}</span>
