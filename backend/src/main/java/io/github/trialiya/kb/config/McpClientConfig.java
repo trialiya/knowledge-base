@@ -80,10 +80,23 @@ public class McpClientConfig {
                 .filter(token -> !token.isBlank());
     }
 
+    /**
+     * Custom headers of one connection, with the unconfigured ones dropped. A key written in YAML
+     * with nothing after the colon binds as {@code null}, not as an empty string — both the
+     * connection's whole header map ({@code headers.jira:}) and a single header ({@code
+     * X-Atlassian-Cloud-Id:}, e.g. an environment variable nobody set in this deployment). Such a
+     * header is simply not sent, the same answer {@link #bearerToken} gives; without the null
+     * checks it would be an NPE while building the customizer, i.e. a failed startup over a header
+     * the deployment does not use.
+     */
     private static Map<String, String> customHeaders(
             McpProperties mcpProperties, String connectionName) {
-        return mcpProperties.headers().getOrDefault(connectionName, Map.of()).entrySet().stream()
-                .filter(entry -> !entry.getValue().isBlank())
+        Map<String, String> configured = mcpProperties.headers().get(connectionName);
+        if (configured == null) {
+            return Map.of();
+        }
+        return configured.entrySet().stream()
+                .filter(entry -> entry.getValue() != null && !entry.getValue().isBlank())
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 }
