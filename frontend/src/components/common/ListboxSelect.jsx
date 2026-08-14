@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { IconChevronDown, IconCheck } from '../../icons';
+import './listboxSelect.css';
 
 /**
  * Компактный кастомный listbox-дропдаун (шире нативного <select>): ширина триггера
- * равна ширине текущего значения, стрелка вплотную к тексту, список раскрывается
- * ВНИЗ и читабелен. Общая механика для ModelSelector и ModeSelector — не дублируем.
+ * равна ширине текущего значения, стрелка вплотную к тексту, список читабелен.
+ * Общая механика для выбора модели и режима в чате и выбора инструмента в
+ * «Настройках» — не дублируем.
  *
  * Props:
  *   value     — id выбранного пункта
@@ -12,9 +14,18 @@ import { IconChevronDown, IconCheck } from '../../icons';
  *   onChange  — (id) => void
  *   disabled  — блокировка (например, во время стриминга)
  *   ariaLabel — доступное имя триггера/списка
+ *   placement — 'down' (по умолчанию) или 'up' — для селектора у нижнего края
  *   className — доп. класс на корень (для позиционирования от места вставки)
  */
-const ListboxSelect = ({ value, options, onChange, disabled = false, ariaLabel, className = '' }) => {
+const ListboxSelect = ({
+  value,
+  options,
+  onChange,
+  disabled = false,
+  ariaLabel,
+  placement = 'down',
+  className = '',
+}) => {
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const rootRef = useRef(null);
@@ -124,11 +135,11 @@ const ListboxSelect = ({ value, options, onChange, disabled = false, ariaLabel, 
   };
 
   return (
-    <div className={`chat-select${className ? ` ${className}` : ''}`} ref={rootRef}>
+    <div className={`lb-select${className ? ` ${className}` : ''}`} ref={rootRef}>
       <button
         type="button"
         ref={buttonRef}
-        className="chat-select__trigger"
+        className="lb-select__trigger"
         disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -137,16 +148,16 @@ const ListboxSelect = ({ value, options, onChange, disabled = false, ariaLabel, 
         onClick={() => (open ? close() : openMenu())}
         onKeyDown={onTriggerKeyDown}
       >
-        <span className="chat-select__label">
+        <span className="lb-select__label">
           {selected ? selected.label : ''}
-          {selected?.note && <span className="chat-select__note"> {selected.note}</span>}
+          {selected?.note && <span className="lb-select__note"> {selected.note}</span>}
         </span>
-        <IconChevronDown className={`chat-select__chevron${open ? ' chat-select__chevron--open' : ''}`} />
+        <IconChevronDown className={`lb-select__chevron${open ? ' lb-select__chevron--open' : ''}`} />
       </button>
 
       {open && (
         <ul
-          className="chat-select__menu"
+          className={`lb-select__menu${placement === 'up' ? ' lb-select__menu--up' : ''}`}
           role="listbox"
           aria-label={ariaLabel}
           tabIndex={-1}
@@ -165,16 +176,16 @@ const ListboxSelect = ({ value, options, onChange, disabled = false, ariaLabel, 
                 role="option"
                 aria-selected={isSelected}
                 className={
-                  'chat-select__option' +
-                  (isSelected ? ' chat-select__option--selected' : '') +
-                  (isActive ? ' chat-select__option--active' : '')
+                  'lb-select__option' +
+                  (isSelected ? ' lb-select__option--selected' : '') +
+                  (isActive ? ' lb-select__option--active' : '')
                 }
                 onClick={() => commit(o.id)}
                 onMouseEnter={() => setActiveIndex(i)}
               >
-                <span className="chat-select__option-label">
+                <span className="lb-select__option-label">
                   {o.label}
-                  {o.note && <span className="chat-select__note"> {o.note}</span>}
+                  {o.note && <span className="lb-select__note"> {o.note}</span>}
                 </span>
                 {isSelected && <IconCheck />}
               </li>

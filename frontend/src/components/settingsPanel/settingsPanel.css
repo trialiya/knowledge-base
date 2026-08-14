@@ -6,6 +6,7 @@
 ═══════════════════════════════════════════════ */
 
 @import './styles/script-bench.css';
+@import './styles/tool-catalog.css';
 
 /* ── Строка фразы ── */
 .phrase-row {

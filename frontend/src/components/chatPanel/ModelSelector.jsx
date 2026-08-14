@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import ListboxSelect from './ListboxSelect';
+import ListboxSelect from '../common/ListboxSelect';
 
 /**
  * Выбор модели активного чата. Тонкая обёртка над общим {@link ListboxSelect}:
@@ -28,7 +28,7 @@ const ModelSelector = ({ value, defaultId, options, onChange, disabled = false }
       onChange={onChange}
       disabled={disabled}
       ariaLabel={t('model.aria')}
-      className="chat-select--model"
+      placement="up"
     />
   );
 };

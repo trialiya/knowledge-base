@@ -104,6 +104,16 @@
   "tools": {
     "title": "Tools and modes",
     "subtitle": "What the assistant can do beyond the built-in code and document search",
+    "catalog": {
+      "label": "Available tools",
+      "aria": "Choose a tool",
+      "params": "Arguments",
+      "noParams": "No arguments",
+      "required": "required",
+      "optional": "optional",
+      "mcp": "MCP",
+      "empty": "No tools are exposed to the model."
+    },
     "modes": {
       "label": "Assistant modes",
       "empty": "No modes configured — only the “no mode” option is available."

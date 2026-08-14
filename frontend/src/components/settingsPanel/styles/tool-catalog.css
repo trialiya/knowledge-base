@@ -1,0 +1,82 @@
+/* ═══════════════════════════════════════════════
+   Карточка выбранного инструмента («Настройки → Инструменты»)
+   Выпадашка со списком — общий .lb-select (common/listboxSelect.css).
+═══════════════════════════════════════════════ */
+
+.tool-card__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tool-card__icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+.tool-card__title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--kb-text);
+}
+.tool-card__name {
+  font-family: 'Fira Mono', 'Consolas', monospace;
+  font-size: 0.78rem;
+  color: var(--kb-muted);
+  background: var(--kb-bg);
+  border: 1px solid var(--kb-border-light);
+  border-radius: 6px;
+  padding: 1px 7px;
+}
+
+/* Описание — то, что читает сама модель: у длинных инструментов это несколько
+   абзацев с переносами, поэтому pre-wrap, а не схлопывание пробелов. */
+.tool-card__desc {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.55;
+  color: var(--kb-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ── Аргументы ── */
+.tool-params {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.tool-param {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 9px 12px;
+  background: var(--kb-bg);
+  border: 1px solid var(--kb-border-light);
+  border-radius: 8px;
+}
+.tool-param__head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tool-param__name {
+  font-family: 'Fira Mono', 'Consolas', monospace;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--kb-text);
+}
+.tool-param__type {
+  font-family: 'Fira Mono', 'Consolas', monospace;
+  font-size: 0.76rem;
+  color: var(--kb-accent);
+}
+.tool-param__desc {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--kb-muted);
+}

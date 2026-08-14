@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.config;
 
+import static java.util.Collections.singletonMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -58,6 +59,30 @@ class McpClientConfigTest {
     void aBlankCustomHeaderValueIsOmittedRatherThanSentEmpty() {
         McpProperties properties =
                 properties(Map.of(), Map.of(CONNECTION, Map.of("X-Atlassian-Cloud-Id", "")));
+
+        assertThat(McpClientConfig.authRequest(properties, CONNECTION)).isEmpty();
+    }
+
+    /**
+     * A header key written with nothing after the colon — or bound from an environment variable
+     * this deployment does not set — arrives as {@code null}, and must cost that one header, not
+     * the application's startup.
+     */
+    @Test
+    void aHeaderValueLeftEmptyInYamlIsOmittedInsteadOfFailingStartup() {
+        McpProperties properties =
+                properties(
+                        Map.of(CONNECTION, "secret-token"),
+                        Map.of(CONNECTION, singletonMap("X-Atlassian-Cloud-Id", null)));
+
+        assertThat(headerOf(properties, "X-Atlassian-Cloud-Id")).isEmpty();
+        assertThat(headerOf(properties, "Authorization")).contains("Bearer secret-token");
+    }
+
+    /** The same for a connection whose whole {@code headers} block was left empty. */
+    @Test
+    void aHeaderBlockLeftEmptyInYamlIsTreatedAsNoHeaders() {
+        McpProperties properties = properties(Map.of(), singletonMap(CONNECTION, null));
 
         assertThat(McpClientConfig.authRequest(properties, CONNECTION)).isEmpty();
     }

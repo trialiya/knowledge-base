@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import ToolCallDetailModal from './ToolCallDetailModal';
-import { getToolIcon, toolLabelKey, humanizeTool } from './toolMeta';
+import { getToolIcon, toolLabelKey, humanizeTool } from '../common/toolNames';
 import { IconCopySmall, IconCopied, IconStatusStarted, IconStatusOk, IconStatusError } from '../../icons';
 import { GIST_PREVIEW_LEN } from '../../constants/ui';
 import useCopyFeedback from '../../hooks/useCopyFeedback';
