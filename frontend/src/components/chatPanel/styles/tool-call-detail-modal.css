@@ -10,6 +10,10 @@
   max-width: 95vw;
   height: 85vh;
   max-height: 85vh;
+  /* Токены идут вместе с padding: по ним find-бар считает, на сколько выйти
+     за отступы диалога (см. modalShell.css). */
+  --modal-shell-pad-x: 0px;
+  --modal-shell-pad-top: 0px;
   padding: 0;
   gap: 0;
 }

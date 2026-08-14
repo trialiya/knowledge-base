@@ -186,8 +186,8 @@ const ChatWindow = ({
   const openChatSearch = useEffectEvent((e) => {
     if (!canSearchChat) return;
     // Модалка поверх чата (детали tool-call, подтверждения и т.п.) — не открываем
-    // find-бар чата под ней, иначе браузерный Ctrl+F внутри модалки не работает:
-    // наш бар всплывает и перехватывает фокус первым.
+    // find-бар чата под ней: Ctrl+F относится к тому, на что пользователь смотрит,
+    // и его берёт на себя find-бар самой модалки (ModalShell → useModalFind).
     if (document.querySelector('[aria-modal="true"]')) return;
     e.preventDefault();
     if (inChatSearch.open) {
