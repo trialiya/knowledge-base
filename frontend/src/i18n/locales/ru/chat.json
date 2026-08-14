@@ -48,7 +48,9 @@
     "deletedMessage": "Этот чат был удалён в другой вкладке или сессии.",
     "uploadTitle": "Не удалось загрузить файл",
     "deleteErrorTitle": "Не удалось удалить чат",
-    "deleteErrorMessage": "Сервер отклонил удаление{{suffix}}. Попробуйте ещё раз."
+    "deleteErrorMessage": "Сервер отклонил удаление{{suffix}}. Попробуйте ещё раз.",
+    "attachmentDeleteTitle": "Не удалось удалить вложение",
+    "attachmentDeleteMessage": "Сервер отклонил удаление{{suffix}}. Файл остался во вложениях чата."
   },
   "deleteModal": {
     "title": "Удалить чат?",

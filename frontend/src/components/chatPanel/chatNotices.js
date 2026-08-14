@@ -55,3 +55,15 @@ export const UPLOAD_ERROR_NOTICE = {
   titleKey: 'errorModal.uploadTitle',
   messageKey: 'window.uploadError',
 };
+
+/**
+ * Сервер отказался удалять вложение, снятое чипом из композера. Молчать здесь
+ * нельзя: чип — единственный след файла на экране, и он уже исчез, так что
+ * оставшееся вложение иначе не заметить.
+ */
+export const attachmentDeleteErrorNotice = (status) => ({
+  icon: '⚠️',
+  titleKey: 'errorModal.attachmentDeleteTitle',
+  messageKey: 'errorModal.attachmentDeleteMessage',
+  params: { suffix: suffixOf(status) },
+});

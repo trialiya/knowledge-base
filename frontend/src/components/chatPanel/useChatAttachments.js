@@ -5,7 +5,7 @@ import { CONTEXT_KIND } from '../../constants/contextKind';
 import { DRAFT_CHAT_ID } from '../../constants/storage';
 import { generateUUID } from '../../utils/uuid';
 import useAttachmentCount from '../common/useAttachmentCount';
-import { UPLOAD_ERROR_NOTICE } from './chatNotices';
+import { attachmentDeleteErrorNotice, UPLOAD_ERROR_NOTICE } from './chatNotices';
 
 /**
  * Вложения активного чата со стороны ChatWindow: счётчик для бейджа, сигнал на
@@ -98,14 +98,22 @@ export default function useChatAttachments({
       if (item.kind !== CONTEXT_KIND.ATTACHMENT) return;
       try {
         const res = await attachmentApi.delete(item.ref);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        // Как и в панели вложений (useAttachments.remove): requestRaw не бросает
+        // на !ok, а 404 — не отказ, файла и правда уже нет (удалён в другой
+        // вкладке), и счётчик с панелью надо привести в порядок так же, как при
+        // успехе. Реальный отказ — единственная ветка, где ничего не трогаем.
+        if (!res.ok && res.status !== 404) {
+          notify(attachmentDeleteErrorNotice(res.status));
+          return;
+        }
         setAttachCount((n) => Math.max(0, n - 1));
         setRefreshSignal((n) => n + 1);
       } catch (err) {
         console.error('Ошибка удаления вложения:', err);
+        notify(attachmentDeleteErrorNotice('network'));
       }
     },
-    [activeChatId, unstageContextItem, setAttachCount],
+    [activeChatId, unstageContextItem, setAttachCount, notify],
   );
 
   // Файл удалили из панели вложений, а он всё ещё отложен чипом к следующему сообщению.
