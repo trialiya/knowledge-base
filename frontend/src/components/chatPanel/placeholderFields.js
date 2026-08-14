@@ -4,16 +4,16 @@
 // здесь плюс строка в PLACEHOLDER_TYPES, а не ветки `type === 'file' ? …` по
 // всему диалогу.
 //
-// file/document/commit кладут в текст не путь, а тот же чип-токен, что и ручные
-// триггеры композера. file берёт ref-токен (только путь, как Enter в
-// композере) — раскрытие полного содержимого файла в фразе не нужно; doc и
-// commit по-прежнему несут содержимое — см. expandTokensForSend.
+// file/document/commit кладут в текст не значение, а тот же чип-токен, что и
+// ручные триггеры композера, и берут его ref-вариант: фраза называет объект
+// (путь, заголовок документа, тему коммита), а не тащит за собой его
+// содержимое — см. expandTokensForSend.
 
 import gitApi from '../../api/gitApi';
 // i18n-инстанс напрямую: модуль не компонент, useTranslation здесь недоступен.
 import i18n from '../../i18n';
 import { searchDocsAsync } from './chipTriggers';
-import { makeRefToken, makeDocToken, makeCommitToken } from './fileChips';
+import { makeRefToken, makeDocRefToken, makeCommitToken } from './fileChips';
 
 const SEARCH_LIMIT = 10;
 
@@ -43,7 +43,7 @@ export const PLACEHOLDER_FIELDS = {
     kind: 'search',
     search: (q, signal) => searchDocsAsync(q, signal),
     describe: (item) => ({ key: `doc-${item.id}`, icon: '📋', title: item.title, subtitle: `#${item.id}` }),
-    toValue: (item) => makeDocToken(item.id, item.title),
+    toValue: (item) => makeDocRefToken(item.id, item.title),
   },
   commit: {
     kind: 'search',

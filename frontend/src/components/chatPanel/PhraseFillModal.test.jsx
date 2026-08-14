@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import PhraseFillModal from './PhraseFillModal';
 import gitApi from '../../api/gitApi';
+import documentsApi from '../../api/documentsApi';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key) => key }),
@@ -85,6 +86,18 @@ describe('PhraseFillModal', () => {
     await submit();
 
     expect(onSubmit).toHaveBeenCalledWith('Посмотри ⟦ref:src/App.jsx⟧');
+  });
+
+  it('inserts a document ref token for a picked document, not its description', async () => {
+    documentsApi.searchByName.mockResolvedValue([{ id: 7, title: 'Гайд по кэшу' }]);
+    const onSubmit = renderModal('Прочитай {{Документ:document}}');
+
+    await userEvent.type(screen.getByLabelText(/Документ/), 'кэш');
+    // Кликаем по подзаголовку: в заголовке совпадение подсвечено, и он разбит на узлы.
+    await userEvent.click(await screen.findByText('#7'));
+    await submit();
+
+    expect(onSubmit).toHaveBeenCalledWith('Прочитай ⟦docref:7:Гайд по кэшу⟧');
   });
 
   it('inserts a commit chip token carrying the short hash and subject', async () => {
