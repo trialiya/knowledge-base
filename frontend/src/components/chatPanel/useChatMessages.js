@@ -130,7 +130,7 @@ export const attachLeadingMetas = (bubbles, metas) => {
  *
  * @param {object}   p
  * @param {Array}    p.chats          текущий список чатов (для триггер-эффекта)
- * @param {object}   p.chatsRef       ref-зеркало chats (для синхронного чтения)
+ * @param {Function} p.getChats       () => чаты: свежий снимок для колбэков
  * @param {Function} p.setChats       сеттер общего стейта чатов
  * @param {string}   p.activeChatId   id активного чата
  * @param {Function} p.onLoadError    ({ notFound, status }) => void — показать модалку
@@ -139,7 +139,7 @@ export const attachLeadingMetas = (bubbles, metas) => {
  *             loadOlderMessages: (id:string)=>Promise<boolean>,
  *             failedChatIdsRef: object }}
  */
-export default function useChatMessages({ chats, chatsRef, setChats, activeChatId, onLoadError }) {
+export default function useChatMessages({ chats, getChats, setChats, activeChatId, onLoadError }) {
   const [loadingMessages, setLoadingMessages] = useState(false);
 
   // Ref для защиты от повторных попыток по chatId, которых нет в списке chats.
@@ -227,7 +227,7 @@ export default function useChatMessages({ chats, chatsRef, setChats, activeChatI
   // Возвращает true, если что-то догрузилось (нужно MessageList для коррекции скролла).
   const loadOlderMessages = useCallback(
     async (chatId) => {
-      const chat = chatsRef.current.find((c) => c.id === chatId);
+      const chat = getChats().find((c) => c.id === chatId);
       if (!chat || !chat.hasMore || !chat.oldestCursor) return false;
       if (loadingOlderRef.current.has(chatId)) return false;
       loadingOlderRef.current.add(chatId);
@@ -271,7 +271,7 @@ export default function useChatMessages({ chats, chatsRef, setChats, activeChatI
         loadingOlderRef.current.delete(chatId);
       }
     },
-    [chatsRef, setChats],
+    [getChats, setChats],
   );
 
   // Триггер: при смене активного чата грузим его сообщения (если ещё не загружены и

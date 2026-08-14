@@ -1,228 +1,84 @@
-import { useState, useEffect, useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconTrash, IconDoc, IconEye, IconUpload, IconSummarize } from '../../icons';
-import attachmentApi from '../../api/attachmentApi';
+import { UPLOAD_ACCEPT } from '../../constants/uploadAccept';
 import { formatFileSize } from '../../utils/formatting';
+import useAttachments from './useAttachments';
 import AttachmentModal from './AttachmentModal';
 import ConfirmModal from './ConfirmModal';
 import ErrorModal from './ErrorModal';
 import './attachmentPanel.css';
 
-// ─── Main component ──────────────────────────────────────────────────────────
-
 /**
- * Shared attachment panel for documents and chats.
+ * Панель вложений — общая для документов и чатов. Список и операции над ним
+ * держит useAttachments, здесь только рендер и локальное состояние диалогов.
  *
  * Props:
  *   ownerType  — "document" | "chat"
- *   ownerId    — document id (number/string) or conversationId (string)
- *   compact    — if true, renders a minimal list (for summary tab)
- *   onCountChange — optional callback (count) when attachment count changes
- *   refreshSignal — bump to re-read the list: the owner's attachments changed
- *                   somewhere else (the chat composer attaches and cancels files too)
- *   onDeleted  — optional callback (id) after a file is actually gone, for whoever
- *                still holds a reference to it (the chat composer's staged chips)
+ *   ownerId    — document id (number/string) или conversationId (string)
+ *   onCountChange — (count) => void: число вложений изменилось
+ *   refreshSignal — bump, чтобы перечитать список: вложения владельца изменились
+ *                   мимо панели (композер чата тоже прикрепляет и отменяет файлы)
+ *   onDeleted  — (id) => void после того, как файла действительно не стало: для
+ *                тех, кто ещё держит на него ссылку (чипы в композере чата)
  */
-const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange, refreshSignal = 0, onDeleted }) => {
+const AttachmentPanel = ({ ownerType, ownerId, onCountChange, refreshSignal = 0, onDeleted }) => {
   const { t } = useTranslation();
-  const [attachments, setAttachments] = useState([]);
-  const [uploading, setUploading] = useState(false);
-  const [dragOver, setDragOver] = useState(false);
-  const [summarizingId, setSummarizingId] = useState(null);
+  const { attachments, loading, uploading, summarizingId, errorKey, dismissError, upload, remove, summarize } =
+    useAttachments({ ownerType, ownerId, refreshSignal, onCountChange, onDeleted });
 
-  // Unified viewer state: { attachment, mode: 'content' | 'summary' } | null
+  // Открытый просмотрщик: { attachment, mode: 'content' | 'summary' } | null
   const [viewing, setViewing] = useState(null);
-  // Pending delete awaiting confirmation: attachment id | null
+  // Удаление, ждущее подтверждения: id вложения | null
   const [pendingDelete, setPendingDelete] = useState(null);
-  const [error, setError] = useState(null); // string | null
-
+  const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef(null);
-  // Запрос, который уже запущен, — чтобы список читался один раз на ключ: не
-  // дважды под StrictMode и не заново на посторонний ре-рендер родителя.
-  const startedRef = useRef(null);
 
   const showContent = (a) => setViewing({ attachment: a, mode: 'content' });
   const showSummary = (a) => setViewing({ attachment: a, mode: 'summary' });
 
-  // ── Load attachments ────────────────────────────────────────────────────
-
-  // Список читается один раз на владельца, поэтому о файле, приложённом (или
-  // отменённом) мимо панели, она узнаёт только по refreshSignal — он входит в
-  // ключ запроса наравне с владельцем.
-  const requestKey = ownerId ? `${ownerType}:${ownerId}#${refreshSignal}` : null;
-  // Ключ, ответ на который уже пришёл. Спиннер выводится отсюда: отдельным
-  // состоянием он был бы setState прямо в теле эффекта, то есть лишним рендером
-  // на каждое открытие панели.
-  const [loadedKey, setLoadedKey] = useState(null);
-  const loading = requestKey !== null && loadedKey !== requestKey;
-
-  useEffect(() => {
-    if (!requestKey || startedRef.current === requestKey) return;
-    startedRef.current = requestKey;
-    attachmentApi
-      .list(ownerType, ownerId)
-      .then((data) => (Array.isArray(data) ? data : []))
-      .catch(() => [])
-      .then((list) => {
-        // Ответ мог обогнать более свежий запрос (два подряд refreshSignal):
-        // тогда он не только показал бы устаревший список, но и отбросил бы
-        // loadedKey назад — спиннер завис бы навсегда, потому что запрос по
-        // текущему ключу уже запущен и повторно не пойдёт.
-        if (startedRef.current !== requestKey) return;
-        setAttachments(list);
-        setLoadedKey(requestKey);
-        onCountChange?.(list.length);
-      });
-  }, [requestKey, ownerType, ownerId, onCountChange]);
-
-  // ── Upload ──────────────────────────────────────────────────────────────
-
-  const handleUpload = async (file) => {
-    if (!file || !ownerId) return;
-    setUploading(true);
-    try {
-      const newAttachment = await attachmentApi.upload(ownerType, ownerId, file);
-      setAttachments((prev) => {
-        const next = [...prev, newAttachment];
-        onCountChange?.(next.length);
-        return next;
-      });
-    } catch (err) {
-      console.error('Upload error:', err);
-      setError(t('attachments.errorUpload'));
-    } finally {
-      setUploading(false);
-    }
-  };
-
   const handleFileSelect = (e) => {
     const file = e.target.files?.[0];
-    if (file) handleUpload(file);
+    if (file) upload(file);
     e.target.value = '';
   };
-
-  // ── Drag & drop ─────────────────────────────────────────────────────────
 
   const handleDragOver = (e) => {
     e.preventDefault();
     setDragOver(true);
   };
-  const handleDragLeave = () => setDragOver(false);
   const handleDrop = (e) => {
     e.preventDefault();
     setDragOver(false);
     const file = e.dataTransfer.files?.[0];
-    if (file) handleUpload(file);
+    if (file) upload(file);
   };
 
-  // ── Delete ──────────────────────────────────────────────────────────────
-
-  const confirmDelete = async () => {
+  const confirmDelete = () => {
     const id = pendingDelete;
     setPendingDelete(null);
-    if (id == null) return;
-    try {
-      await attachmentApi.delete(id);
-      setAttachments((prev) => {
-        const next = prev.filter((a) => a.id !== id);
-        onCountChange?.(next.length);
-        return next;
-      });
-      onDeleted?.(id);
-    } catch {
-      setError(t('attachments.errorDelete'));
-    }
+    if (id != null) remove(id);
   };
-
-  // ── Summarize ───────────────────────────────────────────────────────────
-
-  const handleSummarize = async (id) => {
-    setSummarizingId(id);
-    try {
-      const updated = await attachmentApi.summarize(id);
-      setAttachments((prev) => prev.map((a) => (a.id === id ? updated : a)));
-    } catch {
-      setError(t('attachments.errorSummarize'));
-    } finally {
-      setSummarizingId(null);
-    }
-  };
-
-  // ── Shared modals (rendered in every mode) ────────────────────────────────
-
-  const modals = (
-    <>
-      {viewing && (
-        <AttachmentModal attachment={viewing.attachment} mode={viewing.mode} onClose={() => setViewing(null)} />
-      )}
-      <ConfirmModal
-        open={pendingDelete != null}
-        icon="🗑️"
-        title={t('attachments.deleteConfirmTitle')}
-        message={t('attachments.deleteConfirmMessage')}
-        confirmLabel={t('delete')}
-        onConfirm={confirmDelete}
-        onCancel={() => setPendingDelete(null)}
-      />
-      <ErrorModal open={!!error} icon="⚠️" title={t('error')} message={error || ''} onClose={() => setError(null)} />
-    </>
-  );
-
-  // ── Compact mode (for summary tab) ──────────────────────────────────────
-
-  if (compact) {
-    if (loading) return <p className="attachment-compact__loading">{t('loading')}</p>;
-    if (attachments.length === 0) return <p className="attachment-compact__empty">{t('attachments.empty')}</p>;
-
-    return (
-      <div className="attachment-compact-list">
-        {attachments.map((a) => (
-          <div key={a.id} className="attachment-compact-item">
-            <IconDoc size={13} />
-            <span className="attachment-compact-item__name">{a.fileName}</span>
-            <span className="attachment-compact-item__size">{formatFileSize(a.fileSize)}</span>
-            {a.summary && (
-              <span
-                className="attachment-compact-item__summary attachment-summary--clickable"
-                title={t('attachments.summaryHint')}
-                onClick={() => showSummary(a)}
-              >
-                {a.summary.length > 60 ? a.summary.slice(0, 60) + '…' : a.summary}
-              </span>
-            )}
-          </div>
-        ))}
-        {modals}
-      </div>
-    );
-  }
-
-  // ── Full mode ───────────────────────────────────────────────────────────
 
   return (
     <div className="attachment-panel">
-      {/* Drop zone */}
-      <div
+      {/* Зона загрузки. Кнопка, а не div с onClick: сюда попадают и с клавиатуры,
+          а input лежит снаружи — внутри кнопки он был бы невалидной вложенностью. */}
+      <button
+        type="button"
         className={`attachment-dropzone ${dragOver ? 'attachment-dropzone--active' : ''} ${
           uploading ? 'attachment-dropzone--uploading' : ''
         }`}
         onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
+        onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
       >
         <IconUpload size={20} />
         <span>{uploading ? t('attachments.uploading') : t('attachments.dropzone')}</span>
-        <input
-          ref={fileInputRef}
-          type="file"
-          style={{ display: 'none' }}
-          onChange={handleFileSelect}
-          accept="text/*,.md,.json,.yaml,.yml,.xml,.csv,.log,.sql,.gradle,.java,.js,.jsx,.ts,.tsx,.py,.go,.rs,.html,.css"
-        />
-      </div>
+      </button>
+      <input ref={fileInputRef} type="file" hidden onChange={handleFileSelect} accept={UPLOAD_ACCEPT} />
 
-      {/* List */}
       {loading ? (
         <p className="attachment-panel__loading">{t('attachments.loadingList')}</p>
       ) : attachments.length === 0 ? (
@@ -274,7 +130,7 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange, r
                 <button
                   className="icon-btn"
                   title={a.summary ? t('attachments.summarizeUpdate') : t('attachments.summarizeCreate')}
-                  onClick={() => handleSummarize(a.id)}
+                  onClick={() => summarize(a.id)}
                   disabled={summarizingId === a.id}
                 >
                   {summarizingId === a.id ? '⏳' : <IconSummarize />}
@@ -292,7 +148,25 @@ const AttachmentPanel = ({ ownerType, ownerId, compact = false, onCountChange, r
         </div>
       )}
 
-      {modals}
+      {viewing && (
+        <AttachmentModal attachment={viewing.attachment} mode={viewing.mode} onClose={() => setViewing(null)} />
+      )}
+      <ConfirmModal
+        open={pendingDelete != null}
+        icon="🗑️"
+        title={t('attachments.deleteConfirmTitle')}
+        message={t('attachments.deleteConfirmMessage')}
+        confirmLabel={t('delete')}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
+      <ErrorModal
+        open={!!errorKey}
+        icon="⚠️"
+        title={t('error')}
+        message={errorKey ? t(errorKey) : ''}
+        onClose={dismissError}
+      />
     </div>
   );
 };

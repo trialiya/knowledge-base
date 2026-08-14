@@ -55,7 +55,7 @@ export function resolveActiveMatchMid({ messages, matches, activeMatch, query })
   return freshBubbles[k]?.mid ?? null;
 }
 
-export default function useInChatSearch({ activeChatId, chatsRef, loadOlderMessages, messages }) {
+export default function useInChatSearch({ activeChatId, getChats, loadOlderMessages, messages }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [matches, setMatches] = useState(NO_MATCHES); // [{ id, createdAt }] хронологически (ASC)
@@ -182,12 +182,12 @@ export default function useInChatSearch({ activeChatId, chatsRef, loadOlderMessa
     if (!activeMatch || !activeChatId) return undefined;
     const seq = ++navSeqRef.current;
     const hasLocally = () => {
-      const chat = chatsRef.current.find((c) => c.id === activeChatId);
+      const chat = getChats().find((c) => c.id === activeChatId);
       return !!chat?.messages?.some((m) => m.dbId === activeMatch.id);
     };
     // Первичную проверку делаем по messages (свежий снимок из рендера), а не по
-    // chatsRef — он синхронизируется отдельным эффектом и на один рендер отстаёт
-    // (см. комментарий в ChatWindow). Иначе для уже загруженного совпадения (обычно
+    // getChats — его список синхронизируется эффектом и на один рендер отстаёт
+    // (см. useChatList). Иначе для уже загруженного совпадения (обычно
     // это дефолтный — самый свежий — хит) догрузка стартует лишний раз: она проходит
     // мимо MessageList.prependRef (тот снимает scrollTop только на догрузках через
     // скролл), поэтому вставка старых сообщений сдвигает вьюпорт без компенсации —
@@ -200,7 +200,7 @@ export default function useInChatSearch({ activeChatId, chatsRef, loadOlderMessa
     // загруженного из БД сообщения (id растут вместе с курсором пагинации), и
     // листать более старые страницы ради него бессмысленно — иначе догрузили бы
     // всю историю впустую.
-    const oldestLoadedDbId = chatsRef.current
+    const oldestLoadedDbId = getChats()
       .find((c) => c.id === activeChatId)
       ?.messages?.find((m) => m.dbId != null)?.dbId;
     if (oldestLoadedDbId != null && activeMatch.id >= oldestLoadedDbId) return undefined;
@@ -210,7 +210,7 @@ export default function useInChatSearch({ activeChatId, chatsRef, loadOlderMessa
       setNavigating(true);
       for (let i = 0; i < MAX_LOAD_STEPS; i++) {
         if (cancelled || navSeqRef.current !== seq) return;
-        const chat = chatsRef.current.find((c) => c.id === activeChatId);
+        const chat = getChats().find((c) => c.id === activeChatId);
         if (!chat?.hasMore) break;
         const got = await loadOlderMessages(activeChatId);
         if (cancelled || navSeqRef.current !== seq) return;
@@ -223,9 +223,9 @@ export default function useInChatSearch({ activeChatId, chatsRef, loadOlderMessa
     };
     // messages не в deps намеренно: нужен лишь свежий снимок в момент срабатывания
     // эффекта (смена activeMatch/activeChatId) — реагировать на его последующие
-    // изменения не нужно, догрузку уже ведёт цикл внутри эффекта через chatsRef.
+    // изменения не нужно, догрузку уже ведёт цикл внутри эффекта через getChats.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeMatch, activeChatId, chatsRef, loadOlderMessages]);
+  }, [activeMatch, activeChatId, getChats, loadOlderMessages]);
 
   return {
     open,

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import AttachmentPanel from './AttachmentPanel';
 import attachmentApi from '../../api/attachmentApi';
 
@@ -40,5 +40,45 @@ describe('AttachmentPanel', () => {
 
     expect(screen.queryByText('attachments.loadingList')).not.toBeInTheDocument();
     expect(screen.getByText('новый.txt')).toBeInTheDocument();
+  });
+
+  // Подтвердить удаление первой строки таблицы.
+  const deleteFirstRow = async (name) => {
+    await screen.findByText(name);
+    fireEvent.click(screen.getByTitle('attachments.deleteTitle'));
+    fireEvent.click(screen.getByText('delete'));
+  };
+
+  // Регрессия: attachmentApi.delete — это requestRaw, он не бросает на !ok. Без
+  // проверки res.ok отказ сервера выглядел как успешное удаление: строка исчезала
+  // из таблицы и снимался чип в композере (onDeleted), а файл оставался на месте.
+  it('отказ сервера при удалении оставляет строку и показывает ошибку', async () => {
+    attachmentApi.list.mockResolvedValue([file(1, 'важный.txt')]);
+    attachmentApi.delete.mockResolvedValue({ ok: false, status: 500 });
+    const onDeleted = vi.fn();
+
+    render(<AttachmentPanel ownerType="chat" ownerId="c1" onDeleted={onDeleted} />);
+    await deleteFirstRow('важный.txt');
+
+    await screen.findByText('attachments.errorDelete');
+    expect(screen.getByText('важный.txt')).toBeInTheDocument();
+    expect(onDeleted).not.toHaveBeenCalled();
+  });
+
+  // 404 — исключение: файла и правда больше нет (удалён в другой вкладке),
+  // поэтому строку убираем локально, как при успехе.
+  it('404 при удалении убирает строку без ошибки', async () => {
+    attachmentApi.list.mockResolvedValue([file(1, 'исчез.txt')]);
+    attachmentApi.delete.mockResolvedValue({ ok: false, status: 404 });
+    const onDeleted = vi.fn();
+    const onCountChange = vi.fn();
+
+    render(<AttachmentPanel ownerType="chat" ownerId="c1" onDeleted={onDeleted} onCountChange={onCountChange} />);
+    await deleteFirstRow('исчез.txt');
+
+    await waitFor(() => expect(screen.queryByText('исчез.txt')).not.toBeInTheDocument());
+    expect(screen.queryByText('attachments.errorDelete')).not.toBeInTheDocument();
+    expect(onDeleted).toHaveBeenCalledWith(1);
+    expect(onCountChange).toHaveBeenLastCalledWith(0);
   });
 });

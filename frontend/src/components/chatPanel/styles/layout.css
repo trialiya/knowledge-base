@@ -46,6 +46,25 @@
   font-size: 0.95rem;
 }
 
+/* Заглушка центра: чат не найден (битая ссылка) или не загрузился. */
+.chat-unavailable {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: var(--kb-muted);
+  font-size: 0.95rem;
+}
+.chat-unavailable__icon {
+  font-size: 2rem;
+}
+.chat-unavailable__desc {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
 /* Заглушка правой панели, когда чат ещё не выбран. */
 .chat-empty-note {
   color: var(--kb-muted);
