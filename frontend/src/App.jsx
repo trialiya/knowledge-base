@@ -1,11 +1,11 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useEffectEvent, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import ChatWindow from './components/chatPanel/ChatWindow';
 import KnowledgeBase from './components/knowledgeBasePanel/KnowledgeBase';
 import FilesPanel from './components/filesPanel/FilesPanel';
 import ConfirmModal from './components/common/ConfirmModal';
-import { isEditorDirty } from './components/knowledgeBasePanel/editorDirtyStore';
 import useAppNavigation from './useAppNavigation';
+import useUnsavedViewGuard from './useUnsavedViewGuard';
 import { registerFileNavigator } from './fileNavigationBus';
 import HeaderMenu from './components/common/HeaderMenu';
 import GlobalSearch from './components/common/GlobalSearch';
@@ -16,6 +16,14 @@ import { invalidateDocPreviewCache } from './components/common/useDocPreview';
 import { invalidateFilePreviewCache } from './components/common/useFilePreview';
 import { invalidatePath as invalidateFileTreePath } from './components/filesPanel/fileTreeStore';
 import './App.css';
+
+// Вкладки-иконки в левой зоне шапки. Подпись одна на кнопку: она же
+// всплывающая подсказка, она же имя для скринридера.
+const TABS = [
+  { view: 'chat', icon: '💬', labelKey: 'nav.chats' },
+  { view: 'knowledge', icon: '📚', labelKey: 'nav.knowledgeBase' },
+  { view: 'files', icon: '📁', labelKey: 'nav.files' },
+];
 
 function App() {
   const { t } = useTranslation();
@@ -108,60 +116,40 @@ function App() {
     setFilesRefreshTick((n) => n + 1);
   }, []);
 
-  // ── Unsaved-changes guard при уходе из KB в любой другой раздел ──────────────
-  // pendingView помнит, КУДА хотел уйти пользователь, чтобы после подтверждения
-  // перейти именно туда (chat / admin / settings), а не только в чат.
-  const [pendingView, setPendingView] = useState(null);
-
-  const goView = (target) => {
-    if (view === 'knowledge' && target !== 'knowledge' && isEditorDirty()) {
-      setPendingView(target);
-      return;
-    }
-    switchView(target);
-  };
+  // Уход из KB с несохранёнными правками спрашивает подтверждение — переключаем
+  // разделы через goView, а не через switchView напрямую.
+  const { goView, pendingView, confirmLeave, cancelLeave } = useUnsavedViewGuard({ view, switchView });
 
   // Регистрируем переход в Files для DocLinkTooltip (кнопка "Открыть" у
   // файловой ссылки) — компонент смонтирован в чате/KB, на много уровней
   // ниже App, поэтому проп сюда не прокинуть без прошивки всей цепочки
   // (Message/ChatWindow, MarkdownEditor/DetailModals/...).
-  useEffect(() => {
-    registerFileNavigator((path) => {
-      goView('files');
-      openFilePath(path);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openFilePath]);
+  //
+  // Тело — useEffectEvent: обработчик живёт в модуле сколько угодно долго и
+  // обязан видеть свежие goView/openFilePath, но перерегистрировать его на
+  // каждое их изменение незачем.
+  const navigateToFile = useEffectEvent((path) => {
+    goView('files');
+    openFilePath(path);
+  });
+  useEffect(() => registerFileNavigator((path) => navigateToFile(path)), []);
 
   return (
     <div className="App">
       <div className="app-tabs">
         {/* Левая зона — вкладки-иконки (подпись во всплывающей подсказке) */}
         <div className="app-tabs__left">
-          <button
-            className={`app-tab-icon${view === 'chat' ? ' app-tab-icon--active' : ''}`}
-            onClick={() => goView('chat')}
-            aria-label={t('nav.chats')}
-            data-tooltip={t('nav.chats')}
-          >
-            <span aria-hidden="true">💬</span>
-          </button>
-          <button
-            className={`app-tab-icon${view === 'knowledge' ? ' app-tab-icon--active' : ''}`}
-            onClick={() => goView('knowledge')}
-            aria-label={t('nav.knowledgeBase')}
-            data-tooltip={t('nav.knowledgeBase')}
-          >
-            <span aria-hidden="true">📚</span>
-          </button>
-          <button
-            className={`app-tab-icon${view === 'files' ? ' app-tab-icon--active' : ''}`}
-            onClick={() => goView('files')}
-            aria-label={t('nav.files')}
-            data-tooltip={t('nav.files')}
-          >
-            <span aria-hidden="true">📁</span>
-          </button>
+          {TABS.map((tab) => (
+            <button
+              key={tab.view}
+              className={`app-tab-icon${view === tab.view ? ' app-tab-icon--active' : ''}`}
+              onClick={() => goView(tab.view)}
+              aria-label={t(tab.labelKey)}
+              data-tooltip={t(tab.labelKey)}
+            >
+              <span aria-hidden="true">{tab.icon}</span>
+            </button>
+          ))}
         </div>
 
         {/* Центр — глобальный поиск по базе знаний */}
@@ -244,12 +232,8 @@ function App() {
         message={t('unsaved.message')}
         confirmLabel={t('unsaved.confirm')}
         cancelLabel={t('unsaved.cancel')}
-        onConfirm={() => {
-          const target = pendingView;
-          setPendingView(null);
-          switchView(target);
-        }}
-        onCancel={() => setPendingView(null)}
+        onConfirm={confirmLeave}
+        onCancel={cancelLeave}
       />
     </div>
   );

@@ -48,7 +48,9 @@
     "deletedMessage": "This chat was deleted in another tab or session.",
     "uploadTitle": "Upload failed",
     "deleteErrorTitle": "Failed to delete chat",
-    "deleteErrorMessage": "The server rejected the deletion{{suffix}}. Please try again."
+    "deleteErrorMessage": "The server rejected the deletion{{suffix}}. Please try again.",
+    "attachmentDeleteTitle": "Could not delete the attachment",
+    "attachmentDeleteMessage": "The server rejected the deletion{{suffix}}. The file is still attached to the chat."
   },
   "deleteModal": {
     "title": "Delete chat?",

@@ -144,15 +144,18 @@ Panel open/closed state is **controlled state that lives in the URL**
   plain `.js` modules next to the feature (`treeOps.js`, `fileChips.js`).
 - Keep files focused: a file approaching ~300 lines or holding 2+ exported
   components is due for a split — `wc -l` answers this, so no list of offenders
-  is kept here. `ChatWindow.jsx` is the worst of them and the one to chip away at
-  when you are in it anyway; only its layout has been extracted so far.
+  is kept here. The chat section shows the shape a split section takes:
+  `ChatWindow` only wires hooks into `WorkspaceLayout` slots, state lives in
+  `useChatList` / `useChatRun` / `useChatAttachments`, the centre column is its
+  own component and the right-panel tabs are a `build*Tabs` function.
 - Reuse the shared hooks before writing new plumbing: `useSearchDropdown`
   (search-button → dropdown widgets), `useEscape`, `useDocPreview`/
   `useFilePreview` (both built on `usePreviewCache` — the module-cache preview
-  pattern, which new preview kinds should reuse too), and `useCopyFeedback` for
-  any copy-to-clipboard button (`writeText` plus the transient "copied" state and
-  its timer). Several components still inline the copy hook's body — migrate one
-  when you touch it, don't add another.
+  pattern, which new preview kinds should reuse too), `useNotice` (one notice
+  descriptor per section beats a boolean and a modal per reason), and
+  `useCopyFeedback` for any copy-to-clipboard button (`writeText` plus the
+  transient "copied" state and its timer). Several components still inline the
+  copy hook's body — migrate one when you touch it, don't add another.
 - Async effects must be cancellation-aware (a `cancelled` flag or an AbortSignal
   in cleanup), matching the existing preview hooks.
 - **An effect never calls `setState` synchronously** (`react-hooks/set-state-in-effect`

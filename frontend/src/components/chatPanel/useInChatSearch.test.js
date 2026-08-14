@@ -63,20 +63,20 @@ describe('useInChatSearch — догрузка старых страниц не 
   afterEach(() => vi.resetAllMocks());
 
   // Регрессия: дефолтный (самый свежий) хит уже загружен и виден в свежем `messages`,
-  // но chatsRef ещё отстаёт на рендер (обновляется отдельным эффектом в ChatWindow).
-  // Раньше первичная проверка догрузки смотрела только в chatsRef и по ошибке
-  // стартовала лишнюю loadOlderMessages — та вставляла старые сообщения мимо
+  // но список из getChats отстаёт на рендер (его зеркало обновляет эффект в
+  // useChatList). Первичная проверка догрузки, смотрящая только туда, по ошибке
+  // стартует лишнюю loadOlderMessages — та вставляет старые сообщения мимо
   // scroll-preserving логики MessageList, из-за чего уже подсвеченное сообщение
   // мгновенно уезжало из вьюпорта.
   it('не вызывает loadOlderMessages, если совпадение уже есть в свежих messages', async () => {
     const messages = [loaded('m1', 10, 'про жирафов')];
-    // chatsRef «отстал» — там ещё нет сообщений этого чата.
-    const chatsRef = { current: [{ id: 'chat-1', messages: [], hasMore: true }] };
+    // Список из getChats «отстал» — там ещё нет сообщений этого чата.
+    const getChats = () => [{ id: 'chat-1', messages: [], hasMore: true }];
     const loadOlderMessages = vi.fn().mockResolvedValue(true);
     chatApi.searchMessages.mockResolvedValue([{ id: 10, createdAt: '2026-01-01' }]);
 
     const { result } = renderHook(() =>
-      useInChatSearch({ activeChatId: 'chat-1', chatsRef, loadOlderMessages, messages }),
+      useInChatSearch({ activeChatId: 'chat-1', getChats, loadOlderMessages, messages }),
     );
 
     act(() => result.current.openWithQuery('жираф'));
@@ -90,18 +90,19 @@ describe('useInChatSearch — догрузка старых страниц не 
   // ним через опциональную цепочку — прямой messages.some(...) падал с TypeError.
   it('не падает, если messages стал undefined при смене чата (удаление активного чата)', async () => {
     const messages = [loaded('m1', 10, 'про жирафов')];
-    const chatsRef = { current: [{ id: 'chat-1', messages, hasMore: false }] };
+    let chatList = [{ id: 'chat-1', messages, hasMore: false }];
+    const getChats = () => chatList;
     const loadOlderMessages = vi.fn().mockResolvedValue(true);
     chatApi.searchMessages.mockResolvedValue([{ id: 10, createdAt: '2026-01-01' }]);
 
     const { result, rerender } = renderHook((props) => useInChatSearch(props), {
-      initialProps: { activeChatId: 'chat-1', chatsRef, loadOlderMessages, messages },
+      initialProps: { activeChatId: 'chat-1', getChats, loadOlderMessages, messages },
     });
 
     act(() => result.current.openWithQuery('жираф'));
     await waitFor(() => expect(result.current.activeMatchMid).toBe('m1'));
 
-    chatsRef.current = [{ id: 'chat-2', messages: undefined, hasMore: true }];
-    expect(() => rerender({ activeChatId: 'chat-2', chatsRef, loadOlderMessages, messages: undefined })).not.toThrow();
+    chatList = [{ id: 'chat-2', messages: undefined, hasMore: true }];
+    expect(() => rerender({ activeChatId: 'chat-2', getChats, loadOlderMessages, messages: undefined })).not.toThrow();
   });
 });

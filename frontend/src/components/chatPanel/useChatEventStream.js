@@ -14,16 +14,16 @@ import { getDocChangeRef, getFileChangeRefs } from './toolMeta';
  * чтобы события легли поверх неё, а не были затёрты последующей загрузкой из БД.
  * При обрыве поток сам переподключается и дозагружает пропущенное (см. chatEvents).
  *
- * Чистые ref-ы/сеттеры (chatsRef, localClientIdsRef, setChats) стабильны и не
- * входят в зависимости эффекта — пересоздавать подписку на каждый чанк нельзя.
+ * Геттеры и сеттеры (getChats, isLocalClientId, setChats) стабильны и не входят
+ * в зависимости эффекта — пересоздавать подписку на каждый чанк нельзя.
  * Подписи для редьюсера берём у i18n напрямую: t() из хука менялся бы со сменой
  * языка, а поток из-за неё переподключаться не должен.
  *
  * @param {object}   p
  * @param {string}   p.activeChatId
  * @param {boolean}  p.activeMessagesReady  загружена ли история активного чата
- * @param {object}   p.chatsRef             ref-зеркало списка чатов
- * @param {object}   p.localClientIdsRef    ref: clientMsgId-ы своих сообщений (гасим эхо)
+ * @param {Function} p.getChats             () => чаты: свежий снимок списка
+ * @param {Function} p.isLocalClientId      (clientMsgId) => bool: своё сообщение (гасим эхо)
  * @param {Function} p.setChats
  * @param {Function} p.onChatDeleted        (chatId) => void — внешнее удаление чата
  * @param {Function} p.onRunSettled         (chatId) => void — RUN_DONE/STOPPED/ERROR
@@ -44,8 +44,8 @@ import { getDocChangeRef, getFileChangeRefs } from './toolMeta';
 export default function useChatEventStream({
   activeChatId,
   activeMessagesReady,
-  chatsRef,
-  localClientIdsRef,
+  getChats,
+  isLocalClientId,
   setChats,
   onChatDeleted,
   onRunSettled,
@@ -64,11 +64,11 @@ export default function useChatEventStream({
   useEffect(() => {
     const chatId = activeChatId;
     if (!chatId || chatId === DRAFT_CHAT_ID) return undefined;
-    const chat = chatsRef.current.find((c) => c.id === chatId);
+    const chat = getChats().find((c) => c.id === chatId);
     if (!chat || !Array.isArray(chat.messages) || chat.notFound || chat.loadError) return undefined;
 
     const ctx = {
-      isLocal: (id) => localClientIdsRef.current.has(id),
+      isLocal: isLocalClientId,
       stoppedLabel: i18n.t('chat:window.stopped'),
       errorLabel: i18n.t('chat:window.genericError'),
       interruptedNote: `\n\n_**${i18n.t('chat:message.interrupted')}**_`,
@@ -110,7 +110,7 @@ export default function useChatEventStream({
       },
       onReconnect: () => {
         // Соединение восстановилось. Что-то делаем только если UI думает, что идёт прогон.
-        const cur = chatsRef.current.find((c) => c.id === chatId);
+        const cur = getChats().find((c) => c.id === chatId);
         if (!cur?.runId) return;
         // Жив ли прогон на самом деле? Если ДА — переподключившийся поток сам догонит
         // пропущенное (fromSeq = курсор чата) и допишет в уже собранный пузырь; трогать

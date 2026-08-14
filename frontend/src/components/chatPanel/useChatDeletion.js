@@ -1,5 +1,6 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import chatApi from '../../api/chatApi';
+import { chatDeleteErrorNotice } from './chatNotices';
 
 /**
  * Владелец подтверждения и самого удаления чата. Вынесено из ChatWindow:
@@ -9,37 +10,56 @@ import chatApi from '../../api/chatApi';
  *
  * Черновик (DRAFT_CHAT_ID) сюда не относится — его «удаление» лишь чистит
  * текст в композере и остаётся в ChatWindow.
+ *
+ * @param {object}   p
+ * @param {Function} p.getChats       () => чаты: свежий снимок списка
+ * @param {string}   p.activeChatId
+ * @param {Function} p.selectChat
+ * @param {Function} p.setChats
+ * @param {Function} p.clearDraft
+ * @param {Function} p.handleNewChat  стартовать черновик, когда чатов не осталось
+ * @param {Function} p.notify         (дескриптор) => void — см. chatNotices
+ * @param {Function} p.dismissNotice  закрыть открытое уведомление
  */
 export default function useChatDeletion({
-  chatsRef,
+  getChats,
   activeChatId,
   selectChat,
   setChats,
   clearDraft,
   handleNewChat,
-  setChatErrorModal,
-  locallyDeletingRef,
+  notify,
+  dismissNotice,
 }) {
   // Модалка подтверждения удаления чата: null | { id, title }
   const [chatDeleteConfirm, setChatDeleteConfirm] = useState(null);
-  // Уведомление об ошибке удаления чата на сервере: null | { status }.
-  const [deleteErrorNotice, setDeleteErrorNotice] = useState(null);
+
+  // id чатов, которые удаляем из ЭТОЙ вкладки — чтобы не показать себе же модалку
+  // «удалён в другой вкладке», получив собственное эхо CHAT_DELETED. Ref живёт
+  // здесь, а не у вызывающего: ставит метку удаление, а снимает её обработчик
+  // события — обоим достаточно consumeLocalDeletion.
+  const locallyDeletingRef = useRef(new Set());
+
+  /**
+   * Наше ли это удаление? Метка при этом снимается: эхо приходит ровно один раз,
+   * а оставленная метка проглотила бы следующее — уже действительно чужое.
+   */
+  const consumeLocalDeletion = useCallback((id) => locallyDeletingRef.current.delete(id), []);
 
   // Запросить удаление реального (не-черновичного) чата: открывает модалку
   // подтверждения. Удалить последний оставшийся чат нельзя — кроме notFound
   // (локальной строки-заглушки битой ссылки, на бэкенде её и так нет).
   const requestDeleteChat = useCallback(
     (id) => {
-      const chat = chatsRef.current.find((c) => c.id === id);
-      if (!chat?.notFound && chatsRef.current.length <= 1) return;
+      const chats = getChats();
+      const chat = chats.find((c) => c.id === id);
+      if (!chat?.notFound && chats.length <= 1) return;
       setChatDeleteConfirm({ id, title: chat?.title ?? '' });
     },
-    [chatsRef],
+    [getChats],
   );
 
   const cancelDeleteChat = useCallback(() => setChatDeleteConfirm(null), []);
-
-  const dismissDeleteErrorNotice = useCallback(() => setDeleteErrorNotice(null), []);
 
   // Реальное удаление — после подтверждения в модалке. Помечаем как «наше»
   // удаление ДО запроса — эхо CHAT_DELETED по потоку не покажет нам модалку
@@ -53,7 +73,7 @@ export default function useChatDeletion({
     const { id } = target;
     // NotFound-чат (битая ссылка) на бэкенде не существует — DELETE всегда вернул
     // бы 404, поэтому строку удаляем локально, без запроса к серверу.
-    const chat = chatsRef.current.find((c) => c.id === id);
+    const chat = getChats().find((c) => c.id === id);
     const isLocalOnly = !!chat?.notFound;
 
     if (!isLocalOnly) {
@@ -68,22 +88,22 @@ export default function useChatDeletion({
         // вкладке» поверх удаления, которое пользователь только что подтвердил.
         if (!res.ok && res.status !== 404) {
           locallyDeletingRef.current.delete(id);
-          setDeleteErrorNotice({ status: res.status });
+          notify(chatDeleteErrorNotice(res.status));
           return;
         }
       } catch {
         locallyDeletingRef.current.delete(id);
-        setDeleteErrorNotice({ status: 'network' });
+        notify(chatDeleteErrorNotice('network'));
         return;
       }
     }
     clearDraft(id); // черновик удалённого чата больше не нужен
-    // Модалка ошибки загрузки чата всегда про активный чат и своего id не хранит:
-    // после удаления строки ей уже не о чем сообщать — закрываем.
-    setChatErrorModal(null);
+    // Открытое уведомление всегда про активный чат и своего id не хранит: после
+    // удаления строки ему уже не о чем сообщать — закрываем.
+    dismissNotice();
     setChats((prev) => prev.filter((item) => item.id !== id));
     if (activeChatId === id) {
-      const remaining = chatsRef.current.filter((item) => item.id !== id);
+      const remaining = getChats().filter((item) => item.id !== id);
       const newActiveId = remaining[0]?.id || null;
       if (newActiveId) {
         selectChat(newActiveId);
@@ -96,22 +116,15 @@ export default function useChatDeletion({
     }
   }, [
     chatDeleteConfirm,
-    chatsRef,
+    getChats,
     activeChatId,
     selectChat,
     setChats,
     clearDraft,
     handleNewChat,
-    setChatErrorModal,
-    locallyDeletingRef,
+    notify,
+    dismissNotice,
   ]);
 
-  return {
-    chatDeleteConfirm,
-    deleteErrorNotice,
-    requestDeleteChat,
-    confirmDeleteChat,
-    cancelDeleteChat,
-    dismissDeleteErrorNotice,
-  };
+  return { chatDeleteConfirm, requestDeleteChat, confirmDeleteChat, cancelDeleteChat, consumeLocalDeletion };
 }
