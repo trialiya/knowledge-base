@@ -1,124 +1,128 @@
 # Knowledge Base
 
-AI-ассистент для работы с Git-репозиторием: поиск по коду и истории изменений,
-ответы на вопросы о проекте и база знаний, которая живёт рядом с кодом.
+An AI assistant for working with a Git repository: search across code and
+change history, answers to questions about the project, and a knowledge base
+that lives alongside the code.
 
-## Что это
+## What it is
 
-Вы указываете путь к локальному Git-репозиторию (нужен установленный `git`) —
-и получаете веб-приложение, в котором AI-чат отвечает на вопросы о коде,
-коммитах и архитектуре на естественном языке, а результаты работы оседают
-в структурированной базе знаний.
+You point it at a local Git repository (requires `git` to be installed) — and
+get a web application where an AI chat answers natural-language questions
+about the code, commits, and architecture, while the results of that work
+accumulate in a structured knowledge base.
 
-Knowledge Base — не терминальный агент. Модель не выполняет команды: она
-читает репозиторий через фиксированный набор инструментов — файлы, коммиты,
-диффы, grep, структурный анализ — и работает строго внутри указанного
-каталога, видя только файлы под контролем Git (`.env`, `node_modules` и всё
-из `.gitignore` для неё не существуют). Правка кода доступна, но выключена
-по умолчанию и включается явным флагом; сборку и тесты вы запускаете сами —
-пока что.
+Knowledge Base is not a terminal agent. The model doesn't execute commands: it
+reads the repository through a fixed set of tools — files, commits, diffs,
+grep, structural analysis — and works strictly within the specified
+directory, seeing only files under Git control (`.env`, `node_modules`, and
+everything in `.gitignore` don't exist for it). Code editing is available but
+disabled by default and turned on with an explicit flag; you run the build
+and tests yourself — for now.
 
-Основной сценарий — **поиск информации и накопление знаний о проекте**:
-онбординг в незнакомый код, разбор истории изменений, документация, которая
-не расходится с кодом.
+The core use case is **finding information and accumulating knowledge about
+the project**: onboarding into unfamiliar code, digging through change
+history, documentation that doesn't drift from the code.
 
 <p align="center">
-  <img src="docs/assets/chat.png" alt="AI-чат: ассистент читает историю коммитов и создаёт документ в базе знаний" width="49%">
-  <img src="docs/assets/knowledge-base.png" alt="База знаний: дерево документов и Markdown-документ с результатом" width="49%">
+  <img src="docs/assets/chat.png" alt="AI chat: the assistant reads commit history and creates a document in the knowledge base" width="49%">
+  <img src="docs/assets/knowledge-base.png" alt="Knowledge base: a document tree and a Markdown document with the result" width="49%">
 </p>
 
-## Что умеет
+## What it can do
 
-### Поиск и анализ репозитория
+### Repository search and analysis
 
-- 🤖 **AI-чат по коду** — вопросы о файлах, коммитах и архитектуре на
-  естественном языке; готовые режимы (Аналитик / Разработчик / Тестировщик)
-  и выбор модели
-- 🐙 **Git-анализ** — чтение файлов, история коммитов, диффы, grep по
-  репозиторию, структурный анализ кода (tree-sitter)
-- 📂 **Панель «Файлы»** — просмотр репозитория (дерево, содержимое, последний
-  коммит) в GitHub-стиле, вставка файлов в чат
-- 🔍 **Гибридный поиск** — keyword + смысловой (векторный), по базе знаний
-  и по чатам
+- 🤖 **AI chat over the code** — natural-language questions about files,
+  commits, and architecture; ready-made modes (Analyst / Developer / Tester)
+  and model selection
+- 🐙 **Git analysis** — reading files, commit history, diffs, grep across the
+  repository, structural code analysis (tree-sitter)
+- 📂 **"Files" panel** — browse the repository (tree, contents, latest
+  commit) in a GitHub-like style, insert files into the chat
+- 🔍 **Hybrid search** — keyword + semantic (vector), across the knowledge
+  base and across chats
 
-### База знаний
+### Knowledge base
 
-- 📁 **Дерево документов** — папки и документы с древовидной структурой
-- ✏️ **Markdown-редактор** — создание и редактирование с живым предпросмотром
-- 🕘 **История версий** — diff изменений и восстановление предыдущих состояний
-- ✨ **AI-саммаризация** — автоматические краткие описания документов
-- 📎 **Вложения** — загрузка файлов к документам и чатам
-- 📤 **Экспорт и импорт** — обмен базой знаний с файловой системой
+- 📁 **Document tree** — folders and documents in a tree structure
+- ✏️ **Markdown editor** — creation and editing with live preview
+- 🕘 **Version history** — diffs of changes and restoring previous states
+- ✨ **AI summarization** — automatic short descriptions of documents
+- 📎 **Attachments** — uploading files to documents and chats
+- 📤 **Export and import** — exchanging the knowledge base with the file
+  system
 
-### Правка кода — опционально
+### Code editing — optional
 
-- 🔒 **Выключена по умолчанию** — включается флагом `kb.git.edit-enabled`
-- ✍️ **Создание и правка файлов** рабочего дерева — только внутри репозитория
-- 🚫 **Без запуска команд** — модель не получает shell; сборки и тесты
-  запускаете сами (пока что)
+- 🔒 **Disabled by default** — enabled with the `kb.git.edit-enabled` flag
+- ✍️ **Creating and editing files** in the working tree — only within the
+  repository
+- 🚫 **No command execution** — the model doesn't get a shell; you run
+  builds and tests yourself (for now)
 
-### Интеграции и развёртывание
+### Integrations and deployment
 
-- 🔌 **Любой OpenAI-совместимый API** — в том числе локальные модели:
-  код может не покидать вашу машину
-- 🧩 **MCP** — подключение внешних инструментов через MCP-серверы
-  (выключено по умолчанию)
-- 🐳 **Docker** — готовый compose-файл для быстрого развёртывания
-- ⚙️ **Администрирование** — снимки конфигурации AI/поиска, библиотека фраз,
-  переиндексация, информация о системе
+- 🔌 **Any OpenAI-compatible API** — including local models: your code
+  never has to leave your machine
+- 🧩 **MCP** — connect external tools via MCP servers (disabled by default)
+- 🐳 **Docker** — a ready-made compose file for quick deployment
+- ⚙️ **Administration** — AI/search configuration snapshots, a phrase
+  library, reindexing, system information
 
-## Быстрый старт
+## Quick start
 
-Понадобятся: установленный `git`, репозиторий для анализа и ключ любого
-OpenAI-совместимого API.
+You'll need: `git` installed, a repository to analyze, and an API key for
+any OpenAI-compatible API.
 
 ```bash
 cd docker
 cp example.env .env
-# Укажите AI_API_KEY, AI_BASE_URL, AI_MODEL и PROJECT_PATH_MOUNT
+# Set AI_API_KEY, AI_BASE_URL, AI_MODEL, and PROJECT_PATH_MOUNT
 docker compose -f docker-compose-h2.yaml up
 ```
 
-Открывайте http://localhost:8080 — логин/пароль по умолчанию `admin` / `admin`
-(смените в настройках, если приложение доступно не только с localhost).
+Open http://localhost:8080 — default login/password is `admin` / `admin`
+(change it in settings if the app is reachable from more than just
+localhost).
 
-> Этот вариант использует встроенную H2 — PostgreSQL не нужен. Для полного
-> стека с семантическим поиском запускайте `docker compose up` и добавьте
-> в `.env` переменные `AI_EMBED_*`.
+> This option uses the built-in H2 — PostgreSQL isn't needed. For the full
+> stack with semantic search, run `docker compose up` and add the
+> `AI_EMBED_*` variables to `.env`.
 
-Без Docker (нужен JDK 25): соберите JAR и запустите скриптом из `run/` —
+Without Docker (requires JDK 25): build the JAR and start it with a script
+from `run/` —
 
 ```bash
 ./gradlew :backend:bootJar
-# Отредактируйте run/application.yaml: api-key, base-url, модель,
-# kb.git.project-path (путь к репозиторию для анализа)
+# Edit run/application.yaml: api-key, base-url, model,
+# kb.git.project-path (path to the repository to analyze)
 ./run/run.sh
 ```
 
-Пошаговая инструкция для обоих вариантов, профили и Windows-скрипты —
-[Руководство по установке](docs/проект/руководство-по-установке.md).
+Step-by-step instructions for both options, profiles, and Windows scripts —
+[Installation Guide](docs/проект/руководство-по-установке.md) [RU].
 
-## Документация
+## Documentation
 
-Начните с [Введения](docs/проект/введение.md) — там обзор возможностей и
-полное оглавление. Ключевые документы:
+Start with the [Introduction](docs/проект/введение.md) [RU] — it has an
+overview of the features and a full table of contents. Key documents:
 
-| Документ | О чём |
+| Document | About |
 |---|---|
-| [Архитектура](docs/проект/архитектура.md) | Схема слоёв, стек технологий, сервисы |
-| [AI-инструменты](docs/проект/ai-инструменты.md) | Все инструменты ассистента и их параметры |
-| [Конфигурация](docs/проект/конфигурация.md) | Переменные окружения, Docker, настройки |
-| [Руководство по установке](docs/проект/руководство-по-установке.md) | Требования, запуск, устранение проблем |
-| [Чат — руководство пользователя](docs/features/чат-руководство-пользователя.md) | Как пользоваться чатом |
-| [База знаний — руководство пользователя](docs/features/база-знаний-руководство-пользователя.md) | Навигация, поиск, AI-саммаризация |
-| [Разработка и контрибьюция](docs/проект/разработка-и-контрибьюция.md) | Сборка, тестирование, стиль кода |
+| [Architecture](docs/проект/архитектура.md) [RU] | Layer diagram, tech stack, services |
+| [AI Tools](docs/проект/ai-инструменты.md) [RU] | All assistant tools and their parameters |
+| [Configuration](docs/проект/конфигурация.md) [RU] | Environment variables, Docker, settings |
+| [Installation Guide](docs/проект/руководство-по-установке.md) [RU] | Requirements, running, troubleshooting |
+| [Chat — User Guide](docs/features/чат-руководство-пользователя.md) [RU] | How to use the chat |
+| [Knowledge Base — User Guide](docs/features/база-знаний-руководство-пользователя.md) [RU] | Navigation, search, AI summarization |
+| [Development and Contributing](docs/проект/разработка-и-контрибьюция.md) [RU] | Building, testing, code style |
 
-## Стек технологий
+## Tech stack
 
-| Компонент | Технологии |
+| Component | Technologies |
 |---|---|
-| Бэкенд | Java 25, Spring Boot 4.1, Spring AI, PostgreSQL 17 + pgvector |
-| Фронтенд | React 19, CSS |
-| Инфраструктура | Docker, docker-compose |
+| Backend | Java 25, Spring Boot 4.1, Spring AI, PostgreSQL 17 + pgvector |
+| Frontend | React 19, CSS |
+| Infrastructure | Docker, docker-compose |
 
-Подробно — [Архитектура](docs/проект/архитектура.md)
+Details — [Architecture](docs/проект/архитектура.md) [RU]
