@@ -146,6 +146,10 @@
      overrides its max-width and the overlay itself has no padding to fall back on. */
   max-width: min(720px, calc(100% - 3rem));
   max-height: 80vh;
+  /* Токены идут вместе с padding: по ним find-бар считает, на сколько выйти
+     за отступы диалога (см. modalShell.css). */
+  --modal-shell-pad-x: 0px;
+  --modal-shell-pad-top: 0px;
   padding: 0;
   gap: 0;
 }

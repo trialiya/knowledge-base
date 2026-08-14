@@ -1,0 +1,79 @@
+/* ═══════════════════════════════════════════════
+   MODAL FIND BAR — поиск внутри открытой модалки (см. ModalFindBar.jsx)
+═══════════════════════════════════════════════ */
+
+.modal-find {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  /* Собственные отступы диалога вычитаются, поэтому бар ложится полосой по его
+     верхней кромке одинаково и в модалке с padding (диалоги-формы), и без него
+     (превью, детали вызова). Значения — токены из modalShell.css. */
+  margin: calc(-1 * var(--modal-shell-pad-top, 0px)) calc(-1 * var(--modal-shell-pad-x, 0px)) 0;
+  padding: 0.3rem 0.55rem;
+  border-bottom: 1px solid var(--kb-border);
+  background: var(--kb-bg);
+  /* .modal-shell--sm центрирует свой текст — поле ввода должно остаться слева. */
+  text-align: left;
+}
+
+.modal-find__icon {
+  display: flex;
+  align-items: center;
+  color: var(--kb-muted);
+  flex-shrink: 0;
+  padding-left: 4px;
+}
+
+.modal-find__input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: none;
+  font: inherit;
+  font-size: 0.86rem;
+  color: var(--kb-text);
+}
+
+.modal-find__input::placeholder {
+  color: var(--kb-muted);
+}
+
+.modal-find__count {
+  flex-shrink: 0;
+  font-size: 0.76rem;
+  color: var(--kb-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.modal-find .icon-btn {
+  width: 24px;
+  height: 24px;
+}
+
+.modal-find .icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.modal-find .icon-btn:disabled:hover {
+  background: none;
+  color: var(--kb-muted);
+}
+
+/* Вхождения запроса в содержимом модалки (CSS Custom Highlight API, см.
+   useModalFind). Цвета заданы литералами: подсветка ложится и на цветные
+   плашки, тёмный текст нужен явно. В браузерах без поддержки правила
+   игнорируются — остаются счётчик и прокрутка к совпадению. */
+::highlight(kb-modal-find) {
+  background-color: rgba(255, 213, 79, 0.6);
+  color: #1f1f1f;
+}
+::highlight(kb-modal-find-active) {
+  background-color: #ffb300;
+  color: #1f1f1f;
+}

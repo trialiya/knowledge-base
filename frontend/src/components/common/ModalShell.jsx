@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import useEscape from './useEscape';
+import useModalFind from './useModalFind';
+import ModalFindBar from './ModalFindBar';
 import './modalShell.css';
 
 // Stack of currently-open modal instance ids, topmost last. Lets a stacked
@@ -42,9 +44,9 @@ function swallowNextClick() {
 /**
  * Shared modal chrome: portal to document.body, overlay, backdrop-close on
  * mousedown (not click, so text selection ending outside doesn't dismiss it),
- * Escape-to-close (only for the topmost modal when stacked), and the dialog
- * role/aria-modal wiring. Components supply only their header/body/footer
- * content as children.
+ * Escape-to-close (only for the topmost modal when stacked), Ctrl+F search
+ * scoped to the dialog (useModalFind), and the dialog role/aria-modal wiring.
+ * Components supply only their header/body/footer content as children.
  *
  * Props:
  *   open      — whether the modal is mounted/visible
@@ -55,12 +57,18 @@ function swallowNextClick() {
  */
 const ModalShell = ({ open = true, onClose, variant, role = 'dialog', className = '', children }) => {
   const isTopmost = useTopmost(open);
+  const dialogRef = useRef(null);
+  const find = useModalFind({ dialogRef, active: open, isTopmost });
 
   // Escape закрывает только верхнюю модалку стопки — вложенный диалог не должен
-  // уносить с собой родительский. Мемоизировать колбэк не нужно: useEscape сам
-  // держит слушатель стабильным.
+  // уносить с собой родительский. Открытый find-бар перехватывает первый Escape
+  // на себя: закрыть поиск и остаться в диалоге — привычное поведение, и это
+  // единственное место, где решается порядок (слушатель бара гонялся бы с этим).
+  // Мемоизировать колбэк не нужно: useEscape сам держит слушатель стабильным.
   useEscape(() => {
-    if (open && isTopmost()) onClose();
+    if (!open || !isTopmost()) return;
+    if (find.open) find.close();
+    else onClose();
   });
 
   if (!open) return null;
@@ -84,12 +92,25 @@ const ModalShell = ({ open = true, onClose, variant, role = 'dialog', className 
   return createPortal(
     <div className={overlayClassName} onMouseDown={handleBackdropMouseDown}>
       <div
+        ref={dialogRef}
         className={dialogClassName}
         role={role}
         aria-modal="true"
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
+        {find.open && (
+          <ModalFindBar
+            inputRef={find.inputRef}
+            query={find.query}
+            onQueryChange={find.onQueryChange}
+            total={find.total}
+            activeIndex={find.activeIndex}
+            onPrev={find.goPrev}
+            onNext={find.goNext}
+            onClose={find.close}
+          />
+        )}
         {children}
       </div>
     </div>,
