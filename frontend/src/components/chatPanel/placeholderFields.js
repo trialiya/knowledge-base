@@ -5,14 +5,15 @@
 // всему диалогу.
 //
 // file/document/commit кладут в текст не путь, а тот же чип-токен, что и ручные
-// триггеры композера (`/file`, `/doc`), поэтому содержимое подставится при
-// отправке само — см. expandTokensForSend.
+// триггеры композера. file берёт ref-токен (только путь, как Enter в
+// композере) — раскрытие полного содержимого файла в фразе не нужно; doc и
+// commit по-прежнему несут содержимое — см. expandTokensForSend.
 
 import gitApi from '../../api/gitApi';
 // i18n-инстанс напрямую: модуль не компонент, useTranslation здесь недоступен.
 import i18n from '../../i18n';
 import { searchDocsAsync } from './chipTriggers';
-import { makeToken, makeDocToken, makeCommitToken } from './fileChips';
+import { makeRefToken, makeDocToken, makeCommitToken } from './fileChips';
 
 const SEARCH_LIMIT = 10;
 
@@ -36,7 +37,7 @@ export const PLACEHOLDER_FIELDS = {
     kind: 'search',
     search: (q, signal) => gitApi.searchFiles(q, SEARCH_LIMIT, signal),
     describe: (item) => ({ key: item.path, icon: '📄', title: item.name, subtitle: item.path }),
-    toValue: (item) => makeToken(item.path),
+    toValue: (item) => makeRefToken(item.path),
   },
   document: {
     kind: 'search',

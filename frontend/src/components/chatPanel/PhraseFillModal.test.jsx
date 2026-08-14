@@ -76,7 +76,7 @@ describe('PhraseFillModal', () => {
     expect(onSubmit).toHaveBeenCalledWith('Тесты: chat:phraseFill.booleanNo');
   });
 
-  it('inserts a file chip token for a picked file, not the typed text', async () => {
+  it('inserts a file ref token for a picked file, not the typed text or its content', async () => {
     gitApi.searchFiles.mockResolvedValue([{ path: 'src/App.jsx', name: 'App.jsx' }]);
     const onSubmit = renderModal('Посмотри {{Файл:file}}');
 
@@ -84,7 +84,7 @@ describe('PhraseFillModal', () => {
     await userEvent.click(await screen.findByText('src/App.jsx'));
     await submit();
 
-    expect(onSubmit).toHaveBeenCalledWith('Посмотри ⟦file:src/App.jsx⟧');
+    expect(onSubmit).toHaveBeenCalledWith('Посмотри ⟦ref:src/App.jsx⟧');
   });
 
   it('inserts a commit chip token carrying the short hash and subject', async () => {
