@@ -69,6 +69,10 @@
   border-left-color: #ea4335;
   background: #fef0ef;
 }
+/* Плашка открывает модалку деталей — но только если детали сохранились. */
+.tool-call-item--clickable {
+  cursor: pointer;
+}
 
 .tool-call-item:hover {
   filter: brightness(0.97);

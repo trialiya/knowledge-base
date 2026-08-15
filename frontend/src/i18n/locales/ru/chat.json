@@ -70,7 +70,22 @@
       "arguments": "Аргументы",
       "result": "Результат",
       "loadError": "Не удалось загрузить детали",
-      "notFound": "Детали вызова не сохранены"
+      "notFound": "Детали вызова не сохранены",
+      "mode": {
+        "overview": "Обзор",
+        "json": "JSON"
+      },
+      "showAll": "Показать ещё {{count}} строк",
+      "fact": {
+        "lines": "строки",
+        "language": "язык",
+        "contentType": "тип",
+        "type": "тип",
+        "lineCount": "всего строк",
+        "sizeBytes": "размер",
+        "fileSize": "размер",
+        "descriptionVersion": "версия"
+      }
     }
   },
   "scroll": {

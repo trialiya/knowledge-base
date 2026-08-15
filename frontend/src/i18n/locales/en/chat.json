@@ -70,7 +70,22 @@
       "arguments": "Arguments",
       "result": "Result",
       "loadError": "Failed to load details",
-      "notFound": "Call details not recorded"
+      "notFound": "Call details not recorded",
+      "mode": {
+        "overview": "Overview",
+        "json": "JSON"
+      },
+      "showAll": "Show {{count}} more lines",
+      "fact": {
+        "lines": "lines",
+        "language": "language",
+        "contentType": "type",
+        "type": "type",
+        "lineCount": "total lines",
+        "sizeBytes": "size",
+        "fileSize": "size",
+        "descriptionVersion": "version"
+      }
     }
   },
   "scroll": {
