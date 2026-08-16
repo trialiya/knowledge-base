@@ -49,6 +49,14 @@ describe('detectTreeResult — вложенность по ссылке на р�
   it('повторяющийся id — записи склеились бы в один узел', () => {
     expect(detect(JSON.stringify([doc(1, 'Проект', null), doc(1, 'Двойник', null)]))).toBeNull();
   });
+
+  it('findDocumentsByName: ни одной связи внутри выдачи — это список, а не дерево', () => {
+    // Та же форма DocumentNode, но найденная по имени: родители лежат снаружи
+    // выдачи, и дерево выродилось бы в столбец одиночных корней.
+    expect(detect(JSON.stringify([doc(7, 'Модели', 1), doc(31, 'Отчёты', 4)]))).toBeNull();
+    // Одна связь — уже иерархия, и она видна.
+    expect(detect(JSON.stringify([doc(7, 'Модели', 1), doc(9, 'Документы', 7)]))).not.toBeNull();
+  });
 });
 
 describe('detectTreeResult — вложенность по уровню заголовка', () => {
@@ -96,6 +104,17 @@ describe('detectTreeResult — вложенность по диапазону с
     expect(shape(data.nodes)).toEqual(['java.util.List', ['GitService', ['log', 'readFile']], 'Helper']);
     expect(data.header.meta.map((m) => m.key)).toEqual(['language', 'lineCount', 'parser']);
   });
+
+  it('символы на одной строке — соседи: вложить их друг в друга не во что', () => {
+    const data = detect(
+      JSON.stringify({
+        path: 'a/App.java',
+        lineCount: 20,
+        symbols: [symbol('import', 'java.util.List', 3, 3), symbol('import', 'java.util.Map', 3, 3)],
+      }),
+    );
+    expect(shape(data.nodes)).toEqual(['java.util.List', 'java.util.Map']);
+  });
 });
 
 describe('detectTreeResult — вложенность по пути', () => {
@@ -112,6 +131,28 @@ describe('detectTreeResult — вложенность по пути', () => {
       ['backend', ['build.gradle', ['src', [['main', ['App.java']]]]]],
       'settings.gradle',
     ]);
+  });
+
+  it('каталог бывает и записью, и родителем чужого пути — это одно место', () => {
+    const data = detect(
+      JSON.stringify([
+        { path: 'backend', name: 'backend', type: 'DIRECTORY', size: 0 },
+        { path: 'backend/App.java', name: 'App.java', type: 'FILE', size: 120 },
+      ]),
+    );
+    expect(shape(data.nodes)).toEqual([['backend', ['App.java']]]);
+    expect(data.count).toBe(2);
+  });
+
+  it('две записи с одним путём склеились бы в один лист', () => {
+    expect(
+      detect(
+        JSON.stringify([
+          { path: 'a/App.java', name: 'App.java', type: 'FILE', size: 120 },
+          { path: 'a/App.java', name: 'App.java', type: 'FILE', size: 340 },
+        ]),
+      ),
+    ).toBeNull();
   });
 });
 

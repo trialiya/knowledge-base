@@ -44,6 +44,26 @@ describe('detectResultView', () => {
     expect(detectResultView(files).id).toBe('tree');
   });
 
+  it('findDocumentsByName — recordList: та же форма, но связей внутри выдачи нет', () => {
+    // `getTreeSkeleton` и поиск по имени возвращают одни и те же DocumentNode.
+    // Делит их не имя инструмента, а то, ссылаются ли записи друг на друга.
+    const node = (id, title, parentId) => ({ id, title, type: 'doc', parentId, version: 1, hasChildren: false });
+
+    expect(detectResultView(JSON.stringify([node(7, 'Модели', 1), node(31, 'Отчёты', 4)])).id).toBe('recordList');
+    expect(detectResultView(JSON.stringify([node(1, 'Проект', null), node(7, 'Модели', 1)])).id).toBe('tree');
+  });
+
+  it('документ с вложенными — всё ещё текст: children не отменяют description', () => {
+    const doc = JSON.stringify({
+      id: 1,
+      title: 'Проект',
+      description: 'x\n'.repeat(20),
+      descriptionVersion: 3,
+      children: [{ id: 2, title: 'Раздел' }],
+    });
+    expect(detectResultView(doc).id).toBe('content');
+  });
+
   it('совпадения поиска — grepMatches, а не список и не текст', () => {
     const matches = JSON.stringify([{ path: 'a.java', matchLine: 85, text: '-84- a;\n:85: b;\n' }]);
     expect(detectResultView(matches).id).toBe('grepMatches');

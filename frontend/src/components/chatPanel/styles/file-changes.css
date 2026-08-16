@@ -102,7 +102,7 @@
   margin-bottom: 0;
 }
 
-/* Раскраска самих строк diff'а — в diff-lines.css, вместе с <DiffLines>. */
+/* Раскраска самих строк diff'а — в diff.css, вместе с <DiffLines>. */
 
 .fcd-content {
   white-space: pre-wrap;

@@ -43,8 +43,14 @@ const firstField = (obj, fields) => {
 
 const isEmpty = (value) => value === null || value === undefined || value === '';
 
-/** Набор ключей записи — по нему проверяется однотипность списка. */
-const keySignature = (obj) => Object.keys(obj).sort().join(' ');
+/**
+ * Набор ключей записи — по нему проверяется однотипность списка.
+ *
+ * Ключи склеивает JSON, а не разделитель-символ: любой печатный разделитель
+ * бывает и внутри имени поля, и тогда `{"a b": …}` не отличить от
+ * `{"a": …, "b": …}`.
+ */
+const keySignature = (obj) => JSON.stringify(Object.keys(obj).sort());
 
 const toRecord = (obj, key) => {
   const title = firstField(obj, TITLE_FIELDS);

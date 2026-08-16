@@ -66,6 +66,24 @@ describe('detectContentResult — что попадает в «Обзор»', ()
     expect(section[0]).toMatchObject({ title: 'Архитектура/Слои', markdown: true });
   });
 
+  it('getDocument: вложенные документы не отменяют текст документа', () => {
+    // `toShallowNode` заполняет `children` всегда, поэтому у любого документа с
+    // вложенными они есть. Это соседи по дереву, а содержимое — в description.
+    const items = detect(
+      JSON.stringify({
+        id: 1,
+        title: 'Проект',
+        type: 'folder',
+        description: long('x'),
+        descriptionVersion: 4,
+        children: [{ id: 2, title: 'Раздел', hasChildren: false }],
+        hasChildren: true,
+      }),
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ title: 'Проект', markdown: true });
+  });
+
   it('getAttachmentContentByFileName: массив → блок на вложение', () => {
     const items = detect(
       JSON.stringify([
@@ -100,14 +118,12 @@ describe('detectContentResult — что остаётся в JSON', () => {
     expect(detect(null)).toBeNull();
   });
 
-  it('вложенная коллекция — форма другого вида (дерево, коммиты, правки скрипта)', () => {
-    expect(
-      detect(
-        JSON.stringify({ id: 1, title: 'Проект', description: long('x'), children: [{ id: 2, title: 'Раздел' }] }),
-      ),
-    ).toBeNull();
+  it('вложенная коллекция — форма другого вида (коммиты с файлами, правки скрипта)', () => {
     expect(
       detect(JSON.stringify([{ hash: 'abc', message: 'fix', files: [{ path: 'a', patch: long('@@') }] }])),
+    ).toBeNull();
+    expect(
+      detect(JSON.stringify({ stats: { calls: 3 }, log: ['a'], edits: [{ path: 'a.js', diff: long('@@') }] })),
     ).toBeNull();
   });
 

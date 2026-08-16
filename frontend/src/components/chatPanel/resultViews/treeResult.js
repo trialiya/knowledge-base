@@ -51,12 +51,23 @@ const byParentId = (records) => {
   if (nodes.size !== records.length) return null;
 
   const roots = [];
+  let edges = 0;
   for (const record of records) {
     const node = nodes.get(record.id);
     const parent = record.parentId == null ? null : nodes.get(record.parentId);
-    if (parent && parent !== node) parent.children.push(node);
-    else roots.push(node);
+    if (parent && parent !== node) {
+      parent.children.push(node);
+      edges += 1;
+    } else {
+      roots.push(node);
+    }
   }
+
+  // Ни одной связи внутри выдачи — это не иерархия, а плоский список, совпавший
+  // формой: `findDocumentsByName` отдаёт те же `DocumentNode`, но найденные по
+  // имени, и их `parentId` показывают наружу. Лес одиночных корней в этом виде
+  // беднее строки списка записей, поэтому такую выдачу отдаём ему.
+  if (edges === 0) return null;
 
   // Ссылки должны образовывать лес: цикл — даже если он захватил лишь часть
   // узлов — оставляет их вне всякого корня, и они просто не нарисуются. Молча
@@ -114,7 +125,10 @@ const bySpan = (symbols) => {
     };
     while (stack.length && stack[stack.length - 1].endLine < symbol.startLine) stack.pop();
     (stack.length ? stack[stack.length - 1].node.children : roots).push(node);
-    stack.push({ endLine: symbol.endLine, node });
+    // Символ в одну строку не может ничего содержать. Без этой проверки два
+    // импорта на строках 3 и 3 вкладывались бы друг в друга: конец первого не
+    // меньше начала второго.
+    if (symbol.endLine > symbol.startLine) stack.push({ endLine: symbol.endLine, node });
   });
 
   return roots;
@@ -141,7 +155,13 @@ const byPath = (records) => {
     return node;
   };
 
+  // Каталог может встретиться и записью, и родителем чужого пути — это одно и
+  // то же место дерева. А вот две записи с одним путём — разные строки выдачи,
+  // и склеить их в один лист значит потерять одну молча.
+  const seen = new Set();
   for (const record of records) {
+    if (seen.has(record.path)) return null;
+    seen.add(record.path);
     ensure(record.path).meta = meta([
       ['type', record.type],
       ['size', record.size],

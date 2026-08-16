@@ -80,7 +80,14 @@ export const documentCall = {
     version: 3,
     description: DOC_MARKDOWN,
     descriptionVersion: 7,
-    hasChildren: false,
+    // `toShallowNode` заполняет children всегда, поэтому у документа с
+    // вложенными они в ответе есть. Держим их в фикстуре: без них проверка
+    // мимо самого частого вида документа и проходила.
+    children: [
+      { id: 31, title: 'Слои', type: 'document', parentId: 12, version: 1, hasChildren: false },
+      { id: 32, title: 'Хранилище', type: 'document', parentId: 12, version: 2, hasChildren: true },
+    ],
+    hasChildren: true,
     system: false,
     summary: null,
     summaryStale: false,
