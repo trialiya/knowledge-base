@@ -1149,10 +1149,10 @@
       invocations есть callId, tool_call_index покрывает все 10 вызовов.
       Фикстуры нужны только для веток, которых в сэмпле нет: несколько
       вложений за вызов и бинарный файл.
-  fixtures: ./fixtures/toolCallDetail.js#fileContentCall,documentCall,attachmentsCall,commitLogCall
+  fixtures: ./fixtures/toolCallDetail.js#fileContentCall,documentCall,attachmentsCall,docMutationCall
   expected:
     - 'Переключатель «Обзор | JSON» стоит в шапке секции «Результат», между подписью и кнопкой копирования; по умолчанию активен «Обзор»'
-    - У результата без своей формы (getCommitLog — коммиты с files: null) переключателя нет вовсе — только JSON, как раньше
+    - 'У формы, для которой вида ещё нет (createDocument → DocumentShort), переключателя нет вовсе — только JSON, как раньше'
     - 'getFileContent: шапка «путь · строки · язык · всего строк · размер», ниже текст с номерами строк; при чтении диапазона нумерация начинается с fromLine, а не с 1'
     - 'В засеянном чате плашки кликабельны все восемь — до появления callId в сэмпле не открывалась ни одна'
     - В режиме JSON тот же ответ показан одной строкой с экранированными \n — контраст между режимами виден на одном и том же вызове
@@ -1214,3 +1214,38 @@
     Бюджет раскрытия (OPEN_LINE_BUDGET = 400 строк) на снимках не виден: в
     сэмпле у каждого коммита один файл с коротким патчем, все раскрыты сразу.
     Чтобы увидеть свёрнутые, нужен вызов с десятком файлов.
+
+- id: tool-call-detail-records-and-scalar
+  component: ToolCallDetailModal + RecordListView + ScalarResultView
+  path: frontend/src/components/chatPanel/resultViews/RecordListView.jsx
+  title: Детали вызова — список однотипных записей и короткое значение
+  status: verified
+  origin:
+    - Сессия 2026-08-16, виды recordList и scalar
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /chat, засеянный чат «История коммитов backend/build.gradle»
+    profile: h2
+    click: плашки «История коммитов» (1-я) и «Структура базы» (4-я) → модалка деталей
+    data: |
+      getCommitLog и getTreeSkeleton берутся из db/sample-data.sql как есть.
+      Фикстуры — для форм, которых в сэмпле нет: выдача поиска с крошками,
+      список вложений и скаляр (recordChatInsights в чате плашки не пишет,
+      поэтому кликом его не достать).
+  fixtures: ./fixtures/toolCallDetail.js#searchDocumentsCall,attachmentListCall,insightsCall
+  expected:
+    - 'Сверху «записей: N», ниже строка на запись: шеврон, заголовок, приглушённое пояснение второй строкой, чипы справа'
+    - 'Заголовок берётся по форме: message у коммита, path у файла, fileName у вложения, title у документа'
+    - Клик по строке раскрывает все поля записи парами «ключ — значение», ключи переведены
+    - 'В развороте нет полей, ушедших в заголовок и пояснение: они стоят строкой выше дословно'
+    - 'Даты показаны по локали, размеры — через formatFileSize, parentList — крошками «Проект / Разработка», а не JSON'
+    - 'null-поля не показываются ни чипом, ни в развороте'
+    - 'Скаляр (recordChatInsights → "Done") — одна строка на светлом фоне, без кавычек и подсветки; в JSON рядом те же данные в кавычках'
+    - 'getTreeSkeleton показан плоским списком — вида дерева ещё нет, и это ожидаемо (см. порядок в registry.js)'
+  notes: |
+    Проверялось в Chromium/Playwright на собранном jar (профиль h2, засеян
+    sample-data.sql), русская локаль — рецепт в scripts/playwright-smoke.js.
+
+    Порог ROW_CAP = 200 строк на снимках не виден: в сэмпле выдача обрезана
+    до пяти записей, в фикстурах их две-три.

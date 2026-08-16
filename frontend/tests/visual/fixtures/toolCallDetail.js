@@ -204,23 +204,120 @@ export const uncommittedChangesCall = {
   createdAt: '2026-08-16T09:04:47',
 };
 
-/** Форма без обзора: переключателя режимов нет, показывается только JSON. */
-export const commitLogCall = {
-  name: 'getCommitLog',
-  argumentsRaw: JSON.stringify({ limit: 2 }),
+/** Выдача поиска: пояснение из snippet, хлебные крошки — полем в развороте. */
+export const searchDocumentsCall = {
+  name: 'searchDocuments',
+  argumentsRaw: JSON.stringify({ query: 'слои приложения', limit: 3 }),
   status: 'OK',
   error: null,
   resultText: JSON.stringify([
     {
-      hash: '8547d567e4c524805f74b0a523be2a8ec3892c1e',
-      shortHash: '8547d56',
-      author: 'trialiya',
-      email: 'trialiya@example.org',
-      date: '2026-07-13T02:41:21+03:00',
-      message: 'Replace git subprocess calls with JGit for in-process operations',
-      files: null,
+      id: 12,
+      title: 'Архитектура',
+      snippet: 'Запрос проходит через четыре слоя: Controller → Service → AI → Repository.',
+      updatedAt: '2026-08-12T10:24:11',
+      summary: null,
+      parentList: [
+        { id: 1, title: 'Проект' },
+        { id: 4, title: 'Разработка' },
+      ],
+    },
+    {
+      id: 31,
+      title: 'Обзор чат-системы',
+      snippet: 'Сегменты ответа, вызовы инструментов и то, как они попадают в chat_message.',
+      updatedAt: '2026-08-03T18:02:40',
+      summary: 'Как устроен чат: сегменты, инструменты, персистентность.',
+      parentList: [{ id: 1, title: 'Проект' }],
+    },
+    {
+      id: 44,
+      title: 'Поиск — руководство пользователя',
+      snippet: 'Семантический поиск ищет по смыслу, а не по вхождению слова.',
+      updatedAt: '2026-07-29T09:15:00',
+      summary: null,
+      parentList: [
+        { id: 1, title: 'Проект' },
+        { id: 9, title: 'Возможности' },
+      ],
     },
   ]),
+  resultMeta: null,
+  createdAt: '2026-08-16T11:20:05',
+};
+
+/** Вложения: заголовок из имени файла, пояснение из сводки, тип и размер — чипами. */
+export const attachmentListCall = {
+  name: 'getChatAttachments',
+  argumentsRaw: JSON.stringify({}),
+  status: 'OK',
+  error: null,
+  resultText: JSON.stringify([
+    {
+      id: 1,
+      ownerType: 'chat',
+      documentId: null,
+      conversationId: 'c5dfa618-0ad2-4845-a976-ada46c50f9a4',
+      fileName: 'gradle-build-error.log',
+      contentType: 'text/plain',
+      fileSize: 2048,
+      summary: 'Сборка падает: не найден тулчейн Java 25.',
+      sourceUrl: null,
+      createdAt: '2026-07-18T20:58:02+03:00',
+      updatedAt: '2026-07-18T20:58:02+03:00',
+    },
+    {
+      id: 2,
+      ownerType: 'chat',
+      documentId: null,
+      conversationId: 'c5dfa618-0ad2-4845-a976-ada46c50f9a4',
+      fileName: 'схема-модулей.png',
+      contentType: 'image/png',
+      fileSize: 184320,
+      summary: null,
+      sourceUrl: null,
+      createdAt: '2026-07-18T21:03:40+03:00',
+      updatedAt: '2026-07-18T21:03:40+03:00',
+    },
+  ]),
+  resultMeta: null,
+  createdAt: '2026-08-16T11:22:31',
+};
+
+/** Скаляр: в засеянном чате recordChatInsights плашки не пишет, поэтому фикстура. */
+export const insightsCall = {
+  name: 'recordChatInsights',
+  argumentsRaw: JSON.stringify({
+    insights: 'Пользователь работает над backend/build.gradle и просит хронологию изменений.',
+  }),
+  status: 'OK',
+  error: null,
+  resultText: JSON.stringify('Done'),
+  resultMeta: null,
+  createdAt: '2026-08-16T11:24:08',
+};
+
+/**
+ * Форма, у которой вида ещё нет: переключателя режимов не будет вовсе,
+ * показывается только JSON. Документная мутация — это форма F по
+ * docs/todo/tool-результаты-отображение.md, её вид отдельным этапом.
+ */
+export const docMutationCall = {
+  name: 'createDocument',
+  argumentsRaw: JSON.stringify({ title: 'анализ', type: 'folder', parentId: null }),
+  status: 'OK',
+  error: null,
+  resultText: JSON.stringify({
+    id: 75,
+    title: 'анализ',
+    type: 'folder',
+    parentId: null,
+    version: 1,
+    descriptionVersion: 1,
+    updatedAt: '2026-07-18T21:00:55.850512',
+    summaryStale: false,
+    summarySourceVersion: null,
+  }),
   resultMeta: null,
   createdAt: '2026-08-14T10:16:20',
 };

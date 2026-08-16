@@ -29,8 +29,21 @@ describe('detectResultView', () => {
     expect(view.id).toBe('content');
   });
 
+  it('список записей — recordList, а список текстов всё равно content', () => {
+    const files = JSON.stringify([{ path: 'a.java', name: 'a.java', type: 'FILE', size: 12 }]);
+    expect(detectResultView(files).id).toBe('recordList');
+
+    const texts = JSON.stringify([{ id: 1, fileName: 'a.md', content: 'x\n'.repeat(20) }]);
+    expect(detectResultView(texts).id).toBe('content');
+  });
+
+  it('короткое значение — scalar', () => {
+    expect(detectResultView('"Done"').id).toBe('scalar');
+  });
+
   it('форма без вида — обзора нет вовсе', () => {
-    expect(detectResultView('"Done"')).toBeNull();
+    // Одиночная документная мутация: свой вид ещё не написан.
+    expect(detectResultView(JSON.stringify({ id: 75, title: 'анализ', type: 'folder', version: 1 }))).toBeNull();
     expect(detectResultView('')).toBeNull();
   });
 });

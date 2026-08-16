@@ -84,7 +84,35 @@
         "lineCount": "всего строк",
         "sizeBytes": "размер",
         "fileSize": "размер",
-        "descriptionVersion": "версия"
+        "descriptionVersion": "версия",
+        "id": "id",
+        "path": "путь",
+        "name": "имя",
+        "title": "заголовок",
+        "fileName": "файл",
+        "parentId": "родитель",
+        "parentList": "находится в",
+        "version": "версия",
+        "summary": "сводка",
+        "summaryStale": "сводка устарела",
+        "snippet": "фрагмент",
+        "hasChildren": "есть вложенные",
+        "system": "системный",
+        "hash": "хеш",
+        "shortHash": "коммит",
+        "author": "автор",
+        "email": "email",
+        "date": "дата",
+        "message": "сообщение",
+        "updatedAt": "обновлён",
+        "createdAt": "создан",
+        "ownerType": "владелец",
+        "documentId": "документ",
+        "conversationId": "чат",
+        "sourceUrl": "источник",
+        "size": "размер",
+        "matchLine": "строка",
+        "status": "статус"
       },
       "diff": {
         "files": "файлов: {{count}}",
@@ -96,6 +124,10 @@
           "R": "переименован",
           "C": "скопирован"
         }
+      },
+      "records": {
+        "count": "записей: {{count}}",
+        "showAll": "Показать ещё {{count}} записей"
       }
     }
   },

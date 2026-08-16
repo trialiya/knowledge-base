@@ -227,17 +227,27 @@ MCP тоже. При отрисовке любого JSON-узла:
   diffList,      // ✅ path + additions/deletions          → getCommitDiff, getUncommittedChanges, editFile
   docMutation,   // id + title + descriptionVersion        → 6 документных мутаций
   outline,       // sections[] с level | symbols[] с kind  → getDocumentOutline, getFileOutline
-  tree,          // элементы с children[] | path[]         → getTreeSkeleton, getFileTree
+  tree,          // элементы с children[] | path[]         → getTreeSkeleton
   grepMatches,   // элементы с path + matchLine + text     → grepContent
-  recordList,    // массив однотипных плоских объектов     → все списочные (форма C)
+  recordList,    // ✅ массив однотипных плоских объектов  → все списочные (форма C)
   content,       // ✅ длинное content|description|text|report → файлы, вложения, секции, отчёты
-  scalar,        // строка/число/булево ≤ 200 симв.        → getChatId, recordChatInsights, …
+  scalar,        // ✅ строка/число/булево ≤ 200 симв.     → getChatId, recordChatInsights, …
 ]
 ```
 
 Порядок — от узкого к широкому: `content` ловит любой длинный текст, поэтому новые виды
 добавляются выше него. Фолбэка в списке нет: не подошёл никто — переключателя режимов не
 будет вовсе, и модалка покажет JSON, как она это делала всегда.
+
+Порядок — это ещё и способ **уточнять уже работающий отбор, не переписывая его**: сейчас
+`getTreeSkeleton` попадает в `recordList` и показан плоским списком — честно, но без
+иерархии; когда появится `tree`, он встанет выше и заберёт форму себе.
+
+Виды не спорят за форму, а делят её одним правилом на двоих: `recordList` не берёт массив,
+элементы которого несут длинный текст (это `content`), а `scalar` берёт ровно дополнение
+к «длинному тексту» — короткую однострочную строку. Оба предиката (`carriesContentText`,
+`isContentText`) живут в `contentResult.js` и импортируются, а не переписываются: два
+порога разъехались бы на первой же правке.
 
 Имя инструмента детекту не передаётся вовсе. Формы, которые без него не разлипаются,
 разлипаются сужением правила: `grepContent` отдаёт `{path, matchLine, text}` и попадал бы
@@ -372,7 +382,15 @@ backend/…/functions/GitFunction.java   ·   java   ·   строки 59–120 
    при поле `path`. Закрывает `getCommitDiff`, `getUncommittedChanges`,
    `editFile`/`createFile`. `runScript` остаётся этапу 5: его `edits` лежат внутри
    `ScriptResult` вместе с `log` и `stats`, то есть это форма G целиком.
-4. **`recordList` и `scalar`** — вместе с этапом 3 закрывают 21 из 36 инструментов.
+4. ✅ **`recordList` и `scalar`.** Сделано: `resultViews/recordList.js` — массив
+   плоских объектов с одинаковым набором ключей, строка на запись, полный набор
+   полей по развороту; `resultViews/scalarResult.js` — короткое однострочное
+   значение. Границу с `content` задаёт один предикат на два вида
+   (`carriesContentText` и `isContentText` экспортируются из `contentResult.js`),
+   поэтому виды не спорят за форму, а делят её по одному правилу.
+   `getTreeSkeleton` пока показан плоским списком — вид дерева встанет в реестре
+   выше `recordList` и заберёт его; `grepContent` остаётся в JSON, его текст
+   несёт собственную нумерацию и ждёт своего вида.
 5. **Специализированные:** `outline`, `tree`, `grepMatches`, `docMutation`
    (переиспользуя `DocChangeBlock`), `scriptRun`.
 6. **Правило длинной строки (4.2) в JSON-режиме и в аргументах.** Отдельно от «Обзора»:

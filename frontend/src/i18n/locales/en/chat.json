@@ -84,7 +84,35 @@
         "lineCount": "total lines",
         "sizeBytes": "size",
         "fileSize": "size",
-        "descriptionVersion": "version"
+        "descriptionVersion": "version",
+        "id": "id",
+        "path": "path",
+        "name": "name",
+        "title": "title",
+        "fileName": "file",
+        "parentId": "parent",
+        "parentList": "located in",
+        "version": "version",
+        "summary": "summary",
+        "summaryStale": "summary stale",
+        "snippet": "snippet",
+        "hasChildren": "has children",
+        "system": "system",
+        "hash": "hash",
+        "shortHash": "commit",
+        "author": "author",
+        "email": "email",
+        "date": "date",
+        "message": "message",
+        "updatedAt": "updated",
+        "createdAt": "created",
+        "ownerType": "owner",
+        "documentId": "document",
+        "conversationId": "chat",
+        "sourceUrl": "source",
+        "size": "size",
+        "matchLine": "line",
+        "status": "status"
       },
       "diff": {
         "files": "{{count}} files",
@@ -96,6 +124,10 @@
           "R": "renamed",
           "C": "copied"
         }
+      },
+      "records": {
+        "count": "{{count}} records",
+        "showAll": "Show {{count}} more records"
       }
     }
   },

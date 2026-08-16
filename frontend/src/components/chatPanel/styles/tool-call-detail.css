@@ -4,6 +4,7 @@
 
 @import './tool-result.css';
 @import './tool-diff.css';
+@import './tool-records.css';
 
 .modal-shell.tool-call-detail {
   background: #fff;

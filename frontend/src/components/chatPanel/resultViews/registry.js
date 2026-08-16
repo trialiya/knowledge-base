@@ -10,14 +10,26 @@
 
 import { detectDiffResult } from './diffResult';
 import DiffResultView from './DiffResultView';
+import { detectRecordList } from './recordList';
+import RecordListView from './RecordListView';
 import { detectContentResult } from './contentResult';
 import ContentResultView from './ContentResultView';
+import { detectScalarResult } from './scalarResult';
+import ScalarResultView from './ScalarResultView';
 
 // Порядок от узкого к широкому: `content` ловит любой длинный текст, поэтому
-// стоит последним — новые виды добавляются ВЫШЕ него, не ниже.
+// новые виды добавляются ВЫШЕ него. Это же и способ уточнять уже работающий
+// отбор: `tree` встанет над `recordList` и заберёт у него `getTreeSkeleton`,
+// который сейчас честно, но плоско показан списком.
+//
+// `scalar` формой не пересекается ни с чем (короткая однострочная строка —
+// дополнение к `isContentText`), поэтому стоит последним просто как самый
+// мелкий случай.
 const VIEWS = [
   { id: 'diff', detect: detectDiffResult, View: DiffResultView },
+  { id: 'recordList', detect: detectRecordList, View: RecordListView },
   { id: 'content', detect: detectContentResult, View: ContentResultView },
+  { id: 'scalar', detect: detectScalarResult, View: ScalarResultView },
 ];
 
 /**

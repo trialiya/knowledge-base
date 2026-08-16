@@ -1,0 +1,132 @@
+/* ── Режим «Обзор» в модалке вызова инструмента ──
+   Формы «список однотипных записей» и «скаляр». Импортируется из
+   tool-call-detail.css. */
+
+.tool-records {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.tool-records__count {
+  font-size: 0.75rem;
+  color: #888;
+  padding-bottom: 3px;
+}
+
+.tool-records__item {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.tool-records__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  min-width: 0;
+}
+.tool-records__head:hover {
+  background: #f7f7f8;
+  border-color: #ececf0;
+}
+
+.tool-records__chevron {
+  display: flex;
+  flex-shrink: 0;
+  color: #bbb;
+  transform: rotate(-90deg);
+  transition: transform 0.15s;
+}
+.tool-records__chevron--open {
+  transform: none;
+}
+
+/* Заголовок и пояснение в один столбец: пояснение — вторая строка, приглушённая
+   и обрезанная, потому что целиком оно есть в развороте. */
+.tool-records__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.tool-records__title {
+  font-size: 0.8rem;
+  color: #222;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-records__subtitle {
+  font-size: 0.72rem;
+  color: #999;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-records__chip {
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: #f1f1f4;
+  font-size: 0.68rem;
+  color: #777;
+  white-space: nowrap;
+}
+
+/* Разворот: все поля записи парами. Ключи в своей колонке, значения тянутся —
+   так столбец ключей выравнивается и запись читается сверху вниз. */
+.tool-records__fields {
+  margin: 2px 0 6px;
+  padding: 8px 10px 8px 30px;
+  background: #f7f7f8;
+  border-radius: 6px;
+  display: grid;
+  gap: 3px 12px;
+  font-size: 0.75rem;
+}
+
+.tool-records__field {
+  display: grid;
+  grid-template-columns: minmax(6rem, max-content) 1fr;
+  gap: 12px;
+  min-width: 0;
+}
+
+.tool-records__field-key {
+  color: #999;
+}
+
+.tool-records__field-value {
+  margin: 0;
+  color: #333;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ── Скаляр ──
+   Значение как есть: ни кавычек, ни тёмного фона — секция `pre` разворачивалась
+   ради содержимого файла, а не ради слова «Done». */
+.tool-scalar {
+  padding: 8px 10px;
+  background: #f7f7f8;
+  border-radius: 6px;
+  font-family: 'Fira Mono', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 0.8rem;
+  color: #222;
+  overflow-wrap: anywhere;
+  box-sizing: border-box;
+}

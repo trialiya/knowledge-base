@@ -56,6 +56,8 @@ const languageFromTitle = (title) => {
   return ext ? EXT_LANGUAGE[ext] ?? null : null;
 };
 
+export const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
+
 const firstString = (obj, fields) => {
   for (const field of fields) {
     const value = obj[field];
@@ -66,8 +68,27 @@ const firstString = (obj, fields) => {
 
 const hasCollection = (obj) => COLLECTION_FIELDS.some((field) => Array.isArray(obj[field]) && obj[field].length > 0);
 
-/** Текст достаточно длинный или многострочный, чтобы его стоило показывать блоком. */
-const isContentText = (text) => text.includes('\n') || text.length >= MIN_TEXT_LEN;
+/**
+ * Текст достаточно длинный или многострочный, чтобы его стоило показывать блоком.
+ *
+ * Экспортируется ради `scalar`: тот берёт ровно дополнение — короткую
+ * однострочную строку. Так границу между видами задаёт одно правило, а не два
+ * порога, которые разъедутся при первой же правке.
+ */
+export const isContentText = (text) => text.includes('\n') || text.length >= MIN_TEXT_LEN;
+
+/**
+ * Несёт ли запись длинный текст, то есть претендует ли на неё этот вид.
+ *
+ * Экспортируется ради `recordList`: массив текстов показывает `content`
+ * (`getAttachmentContentByFileName`), массив записей — `recordList`
+ * (`getCommitLog`, `getFileTree`), и делит их ровно этот предикат.
+ */
+export const carriesContentText = (obj) => {
+  if (!isPlainObject(obj)) return false;
+  const text = firstString(obj, TEXT_FIELDS);
+  return !!text && isContentText(text.value);
+};
 
 const factsOf = (obj, skipField) =>
   FACT_FIELDS.filter((key) => key !== skipField)
@@ -81,7 +102,7 @@ const factsOf = (obj, skipField) =>
  * нужно, иначе «Обзор» просто исчезнет и пользователь решит, что вид сломан.
  */
 const toItem = (obj, key) => {
-  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
+  if (!isPlainObject(obj)) return null;
 
   const title = firstString(obj, TITLE_FIELDS)?.value ?? null;
 
