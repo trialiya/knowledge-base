@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconChevronDown } from '../../../icons';
-import { formatFileSize } from '../../../utils/formatting';
+import { formatFieldValue } from './fieldValue';
+import ResultSummary, { useExpandAll } from './resultSummary';
 
 // Режим «Обзор» для формы «список однотипных записей»: строка на запись,
 // полный набор полей — по развороту.
@@ -11,32 +12,6 @@ import { formatFileSize } from '../../../utils/formatting';
 /** Сколько строк показываем до нажатия «показать ещё». */
 const ROW_CAP = 200;
 
-const SIZE_KEYS = new Set(['fileSize', 'sizeBytes', 'size']);
-
-// Дата опознаётся по виду значения, а не по имени поля: у MCP-инструментов
-// поле может называться как угодно, а ISO-8601 остаётся ISO-8601.
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}|$)/;
-
-const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
-
-/** Значение поля → строка. Вложенное — свёрнуто, а не спрятано. */
-const formatValue = (key, value, locale) => {
-  if (Array.isArray(value)) {
-    // Хлебные крошки (`parentList`) и подобные списки объектов читаются по
-    // названиям, а не по JSON.
-    return value
-      .map((item) => (isPlainObject(item) ? item.title ?? item.name ?? JSON.stringify(item) : String(item)))
-      .join(' / ');
-  }
-  if (isPlainObject(value)) return JSON.stringify(value);
-  if (typeof value === 'number' && SIZE_KEYS.has(key)) return formatFileSize(value);
-  if (typeof value === 'string' && ISO_DATE.test(value)) {
-    const date = new Date(value);
-    if (!Number.isNaN(date.getTime())) return date.toLocaleString(locale);
-  }
-  return String(value);
-};
-
 const FieldLabel = ({ name }) => {
   const { t } = useTranslation('chat');
   return <>{t(`toolCall.detail.fact.${name}`, { defaultValue: name })}</>;
@@ -44,7 +19,7 @@ const FieldLabel = ({ name }) => {
 
 /** Одна запись: строка-заголовок, под ней — все поля. */
 const Record = ({ record, open, onToggle }) => {
-  const { i18n } = useTranslation('chat');
+  const { t, i18n } = useTranslation('chat');
 
   return (
     <div className="tool-records__item">
@@ -58,9 +33,15 @@ const Record = ({ record, open, onToggle }) => {
           </span>
           {record.subtitle && <span className="tool-records__subtitle">{record.subtitle}</span>}
         </span>
+        {/* Подпись поля — в title: в строке чипу места нет, а без пояснения
+            «text/plain» и «2.0 KB» читаются и так. */}
         {record.meta.map(({ key, value }) => (
-          <span key={key} className="tool-records__chip">
-            {formatValue(key, value, i18n.language)}
+          <span
+            key={key}
+            className="tool-records__chip"
+            title={t(`toolCall.detail.fact.${key}`, { defaultValue: key })}
+          >
+            {formatFieldValue(key, value, i18n.language)}
           </span>
         ))}
       </button>
@@ -72,7 +53,7 @@ const Record = ({ record, open, onToggle }) => {
               <dt className="tool-records__field-key">
                 <FieldLabel name={key} />
               </dt>
-              <dd className="tool-records__field-value">{formatValue(key, value, i18n.language)}</dd>
+              <dd className="tool-records__field-value">{formatFieldValue(key, value, i18n.language)}</dd>
             </div>
           ))}
         </dl>
@@ -83,19 +64,29 @@ const Record = ({ record, open, onToggle }) => {
 
 const RecordListView = ({ data: records }) => {
   const { t } = useTranslation('chat');
-  const [open, setOpen] = useState({});
   const [expanded, setExpanded] = useState(false);
+  // Записи свёрнуты: список — чтобы просмотреть глазами, а не вчитаться.
+  const expand = useExpandAll(
+    records.map((record) => record.key),
+    {},
+  );
 
   const shown = expanded ? records.length : Math.min(records.length, ROW_CAP);
   const hidden = records.length - shown;
-  const toggle = (key) => setOpen((prev) => ({ ...prev, [key]: !prev[key] }));
 
   return (
     <div className="tool-records">
-      <div className="tool-records__count">{t('toolCall.detail.records.count', { count: records.length })}</div>
+      <ResultSummary expand={records.length > 1 ? expand : null}>
+        {t('toolCall.detail.records.count', { count: records.length })}
+      </ResultSummary>
 
       {records.slice(0, shown).map((record) => (
-        <Record key={record.key} record={record} open={!!open[record.key]} onToggle={() => toggle(record.key)} />
+        <Record
+          key={record.key}
+          record={record}
+          open={expand.isOpen(record.key)}
+          onToggle={() => expand.toggle(record.key)}
+        />
       ))}
 
       {hidden > 0 && (

@@ -9,12 +9,6 @@
   min-width: 0;
 }
 
-.tool-records__count {
-  font-size: 0.75rem;
-  color: #888;
-  padding-bottom: 3px;
-}
-
 .tool-records__item {
   display: flex;
   flex-direction: column;

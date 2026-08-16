@@ -30,11 +30,23 @@ describe('detectResultView', () => {
   });
 
   it('список записей — recordList, а список текстов всё равно content', () => {
-    const files = JSON.stringify([{ path: 'a.java', name: 'a.java', type: 'FILE', size: 12 }]);
-    expect(detectResultView(files).id).toBe('recordList');
+    const commits = JSON.stringify([{ shortHash: 'abc', author: 'kb', message: 'fix', files: null }]);
+    expect(detectResultView(commits).id).toBe('recordList');
 
     const texts = JSON.stringify([{ id: 1, fileName: 'a.md', content: 'x\n'.repeat(20) }]);
     expect(detectResultView(texts).id).toBe('content');
+  });
+
+  it('иерархию забирает tree, даже если запись подошла бы и списком', () => {
+    // Пути и ссылки на родителя — иерархия, и вид дерева стоит в реестре выше:
+    // ровно так порядок и уточняет уже работающий отбор.
+    const files = JSON.stringify([{ path: 'a/b.java', name: 'b.java', type: 'FILE', size: 12 }]);
+    expect(detectResultView(files).id).toBe('tree');
+  });
+
+  it('совпадения поиска — grepMatches, а не список и не текст', () => {
+    const matches = JSON.stringify([{ path: 'a.java', matchLine: 85, text: '-84- a;\n:85: b;\n' }]);
+    expect(detectResultView(matches).id).toBe('grepMatches');
   });
 
   it('короткое значение — scalar', () => {

@@ -1,0 +1,110 @@
+/* ── Режим «Обзор» в модалке вызова инструмента ──
+   Форма «дерево / оглавление»: структура базы знаний, оглавление документа,
+   символы файла, файлы репозитория. Импортируется из tool-call-detail.css. */
+
+.tool-tree {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.tool-tree__header {
+  font-weight: 600;
+  color: #333;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tool-tree__header-fact {
+  flex-shrink: 0;
+}
+
+.tool-tree__children {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tool-tree__item {
+  min-width: 0;
+}
+
+/* Отступ по глубине задаётся инлайновым padding-left, а не вложенным
+   margin: так строка целиком остаётся кликабельной на всю ширину, а не
+   начинается там, где кончается отступ предка. */
+.tool-tree__row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  background: none;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.78rem;
+  min-width: 0;
+}
+.tool-tree__row:hover:not(:disabled) {
+  background: #f4f4f6;
+}
+/* Лист не сворачивается, поэтому кнопка отключена — но выглядеть должна как
+   строка, а не как погашенный элемент управления. */
+.tool-tree__row:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.tool-tree__chevron {
+  display: flex;
+  flex-shrink: 0;
+  color: #bbb;
+  transform: rotate(-90deg);
+  transition: transform 0.15s;
+}
+.tool-tree__chevron--open {
+  transform: none;
+}
+/* У листа шеврона нет, но место под него есть: иначе колонка названий
+   разъезжается на его ширину от строки к строке. */
+.tool-tree__chevron--leaf {
+  visibility: hidden;
+}
+
+.tool-tree__label {
+  color: #222;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Сигнатура символа — рядом с именем, но заметно тише: она длинная и читается
+   только когда до неё дошли глазами. */
+.tool-tree__secondary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--kb-font-mono, ui-monospace, Menlo, Consolas, monospace);
+  font-size: 0.72rem;
+  color: #aaa;
+}
+
+.tool-tree__chip {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: #f1f1f4;
+  font-size: 0.68rem;
+  color: #777;
+  white-space: nowrap;
+}
+/* Прижимается к правому краю только первый чип; остальные идут за ним. */
+.tool-tree__chip ~ .tool-tree__chip {
+  margin-left: 0;
+}

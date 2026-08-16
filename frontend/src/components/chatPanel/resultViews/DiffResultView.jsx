@@ -1,7 +1,7 @@
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DiffLines, DiffStats } from '../diffRender';
 import { IconChevronDown } from '../../../icons';
+import ResultSummary, { useExpandAll } from './resultSummary';
 
 // Режим «Обзор» для формы «unified diff»: коммит → файлы → раскрашенный патч,
 // вместо 40 КБ JSON, в которых переносы строк экранированы как \n.
@@ -91,28 +91,36 @@ const FileEntry = ({ file, open, onToggle }) => {
 
 const DiffResultView = ({ data: groups }) => {
   const { t } = useTranslation('chat');
-  const [open, setOpen] = useState(() => initialOpen(groups));
-
   const files = groups.flatMap((group) => group.files);
+  const expand = useExpandAll(
+    files.map((file) => file.key),
+    () => initialOpen(groups),
+  );
+
   const additions = files.reduce((sum, file) => sum + file.additions, 0);
   const deletions = files.reduce((sum, file) => sum + file.deletions, 0);
-  const toggle = (key) => setOpen((prev) => ({ ...prev, [key]: !prev[key] }));
 
   return (
     <div className="tool-diff">
       {/* На один файл итог дословно повторил бы строку под ним — не считаем. */}
       {files.length > 1 && (
-        <div className="tool-diff__totals">
-          <span>{t('toolCall.detail.diff.files', { count: files.length })}</span>
+        <ResultSummary expand={expand}>
+          {t('toolCall.detail.diff.files', { count: files.length })}
+          {' · '}
           <DiffStats additions={additions} deletions={deletions} />
-        </div>
+        </ResultSummary>
       )}
 
       {groups.map((group) => (
         <section key={group.key} className="tool-diff__group">
           {group.commit && <CommitHead commit={group.commit} />}
           {group.files.map((file) => (
-            <FileEntry key={file.key} file={file} open={!!open[file.key]} onToggle={() => toggle(file.key)} />
+            <FileEntry
+              key={file.key}
+              file={file}
+              open={expand.isOpen(file.key)}
+              onToggle={() => expand.toggle(file.key)}
+            />
           ))}
         </section>
       ))}

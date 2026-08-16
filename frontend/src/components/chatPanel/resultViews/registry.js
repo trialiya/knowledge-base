@@ -10,6 +10,10 @@
 
 import { detectDiffResult } from './diffResult';
 import DiffResultView from './DiffResultView';
+import { detectGrepMatches } from './grepMatches';
+import GrepMatchesView from './GrepMatchesView';
+import { detectTreeResult } from './treeResult';
+import TreeResultView from './TreeResultView';
 import { detectRecordList } from './recordList';
 import RecordListView from './RecordListView';
 import { detectContentResult } from './contentResult';
@@ -19,14 +23,17 @@ import ScalarResultView from './ScalarResultView';
 
 // Порядок от узкого к широкому: `content` ловит любой длинный текст, поэтому
 // новые виды добавляются ВЫШЕ него. Это же и способ уточнять уже работающий
-// отбор: `tree` встанет над `recordList` и заберёт у него `getTreeSkeleton`,
-// который сейчас честно, но плоско показан списком.
+// отбор, не переписывая его: `tree` стоит над `recordList` и забирает у него
+// структуру базы знаний и файлы репозитория — списком они показывались честно,
+// но без иерархии.
 //
 // `scalar` формой не пересекается ни с чем (короткая однострочная строка —
 // дополнение к `isContentText`), поэтому стоит последним просто как самый
 // мелкий случай.
 const VIEWS = [
   { id: 'diff', detect: detectDiffResult, View: DiffResultView },
+  { id: 'grepMatches', detect: detectGrepMatches, View: GrepMatchesView },
+  { id: 'tree', detect: detectTreeResult, View: TreeResultView },
   { id: 'recordList', detect: detectRecordList, View: RecordListView },
   { id: 'content', detect: detectContentResult, View: ContentResultView },
   { id: 'scalar', detect: detectScalarResult, View: ScalarResultView },

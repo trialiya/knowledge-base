@@ -297,6 +297,110 @@ export const insightsCall = {
   createdAt: '2026-08-16T11:24:08',
 };
 
+/** Оглавление документа: вложенность по уровню заголовка, преамбула — корень. */
+export const documentOutlineCall = {
+  name: 'getDocumentOutline',
+  argumentsRaw: JSON.stringify({ documentId: 76 }),
+  status: 'OK',
+  error: null,
+  resultText: JSON.stringify({
+    id: 76,
+    title: 'Хронология изменений backend/build.gradle',
+    descriptionVersion: 4,
+    sections: [
+      { path: '', level: 0, title: '', chars: 210, subsections: 0 },
+      { path: '1. Начальный сетап', level: 2, title: '1. Начальный сетап', chars: 640, subsections: 0 },
+      { path: '2. Семантический поиск', level: 2, title: '2. Семантический поиск', chars: 380, subsections: 2 },
+      {
+        path: '2. Семантический поиск > Зависимости',
+        level: 3,
+        title: 'Зависимости',
+        chars: 180,
+        subsections: 0,
+      },
+      { path: '2. Семантический поиск > Миграции', level: 3, title: 'Миграции', chars: 120, subsections: 0 },
+      { path: '9. Tree-sitter для file outline', level: 2, title: '9. Tree-sitter для file outline', chars: 520, subsections: 0 },
+    ],
+  }),
+  resultMeta: null,
+  createdAt: '2026-08-16T12:02:11',
+};
+
+/** Обзор файла: вложенность по диапазону строк — метод внутри класса. */
+export const fileOutlineCall = {
+  name: 'getFileOutline',
+  argumentsRaw: JSON.stringify({ path: 'backend/src/main/java/io/github/trialiya/kb/service/GitService.java' }),
+  status: 'OK',
+  error: null,
+  resultText: JSON.stringify({
+    path: 'backend/src/main/java/io/github/trialiya/kb/service/GitService.java',
+    language: 'java',
+    lineCount: 742,
+    parser: 'tree-sitter',
+    symbols: [
+      { kind: 'import', name: 'org.eclipse.jgit.api.Git', signature: null, startLine: 8, endLine: 8 },
+      { kind: 'import', name: 'java.util.List', signature: null, startLine: 12, endLine: 12 },
+      { kind: 'class', name: 'GitService', signature: 'public class GitService', startLine: 40, endLine: 730 },
+      { kind: 'field', name: 'log', signature: 'private static final Logger log', startLine: 42, endLine: 42 },
+      {
+        kind: 'method',
+        name: 'readFile',
+        signature: 'public GitFileContent readFile(String path, Integer fromLine, Integer toLine)',
+        startLine: 120,
+        endLine: 186,
+      },
+      {
+        kind: 'method',
+        name: 'grepContent',
+        signature: 'public List<GitGrepMatch> grepContent(String pattern, int contextLines, int limit)',
+        startLine: 586,
+        endLine: 640,
+      },
+      { kind: 'record', name: 'ParsedLine', signature: null, startLine: 731, endLine: 731 },
+    ],
+  }),
+  resultMeta: null,
+  createdAt: '2026-08-16T12:04:52',
+};
+
+/** Совпадения поиска: разметка `:N:` / `-N-` внутри текста блока. */
+export const grepCall = {
+  name: 'grepContent',
+  argumentsRaw: JSON.stringify({ pattern: 'ToolCallResponseItem', contextLines: 2, limit: 20 }),
+  status: 'OK',
+  error: null,
+  resultText: JSON.stringify([
+    {
+      path: 'backend/src/main/java/io/github/trialiya/kb/model/git/dto/GitFileNode.java',
+      matchLine: 16,
+      text:
+        '-14-  */\n' +
+        '-15- public record GitFileNode(String path, String name, FileEntryType type, @Nullable Long size)\n' +
+        ':16:         implements ToolCallResponseItem, ToolCallResultMetaProvider {\n' +
+        '-17-\n' +
+        '-18-     @Override\n',
+    },
+    {
+      path: 'backend/src/main/java/io/github/trialiya/kb/model/git/dto/GitGrepMatch.java',
+      matchLine: 29,
+      text:
+        '-27- public record GitGrepMatch(String path, int matchLine, String text)\n' +
+        ':29:         implements ToolCallResponseItem, ToolCallResultMetaProvider {\n' +
+        '-30-\n',
+    },
+    {
+      path: 'backend/src/main/java/io/github/trialiya/kb/model/doc/dto/DocumentShort.java',
+      matchLine: 24,
+      text:
+        '-22-         boolean summaryStale,\n' +
+        '-23-         @Nullable Integer summarySourceVersion)\n' +
+        ':24:         implements ToolCallResponseItem, ToolCallResultMetaProvider {\n',
+    },
+  ]),
+  resultMeta: null,
+  createdAt: '2026-08-16T12:07:19',
+};
+
 /**
  * Форма, у которой вида ещё нет: переключателя режимов не будет вовсе,
  * показывается только JSON. Документная мутация — это форма F по

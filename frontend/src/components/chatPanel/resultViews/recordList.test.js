@@ -31,7 +31,10 @@ describe('detectRecordList — что попадает в «Обзор»', () =>
     expect(records[0].fields.map((f) => f.key)).toContain('hash');
   });
 
-  it('getFileTree: заголовок из path, размер и тип — в чипы', () => {
+  // Записи с путём этот вид разбирает, но в реестре их забирает `tree`: путь —
+  // это иерархия, и показывать её деревом лучше. Разбор оставлен рабочим:
+  // сузится `tree` — форма без переписывания вернётся сюда.
+  it('записи с путём: заголовок из path, размер и тип — в чипы', () => {
     const records = detect(
       JSON.stringify([
         { path: 'backend/build.gradle', name: 'build.gradle', type: 'FILE', size: 5218 },
@@ -89,8 +92,7 @@ describe('detectRecordList — что попадает в «Обзор»', () =>
     expect(records[0].fields.map((f) => f.key)).toEqual(expect.arrayContaining(['createdAt', 'updatedAt']));
   });
 
-  it('getTreeSkeleton: узлы без описания — пока плоский список', () => {
-    // Своего вида у дерева ещё нет; когда появится, он встанет в реестре выше.
+  it('узлы дерева разбираются и здесь — в реестре их забирает tree', () => {
     const records = detect(
       JSON.stringify([
         { id: 1, title: 'Проект', type: 'folder', parentId: null, description: null, children: [], hasChildren: true },

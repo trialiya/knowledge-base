@@ -112,7 +112,14 @@
         "sourceUrl": "источник",
         "size": "размер",
         "matchLine": "строка",
-        "status": "статус"
+        "status": "статус",
+        "chars": "объём",
+        "level": "уровень",
+        "kind": "вид",
+        "parser": "парсер",
+        "startLine": "с строки",
+        "endLine": "по строку",
+        "subsections": "подразделов"
       },
       "diff": {
         "files": "файлов: {{count}}",
@@ -128,6 +135,15 @@
       "records": {
         "count": "записей: {{count}}",
         "showAll": "Показать ещё {{count}} записей"
+      },
+      "expandAll": "Развернуть всё",
+      "collapseAll": "Свернуть всё",
+      "tree": {
+        "nodes": "узлов: {{count}}"
+      },
+      "grep": {
+        "matches": "совпадений: {{count}}",
+        "files": "файлов: {{count}}"
       }
     }
   },

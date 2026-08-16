@@ -112,7 +112,14 @@
         "sourceUrl": "source",
         "size": "size",
         "matchLine": "line",
-        "status": "status"
+        "status": "status",
+        "chars": "size",
+        "level": "level",
+        "kind": "kind",
+        "parser": "parser",
+        "startLine": "from line",
+        "endLine": "to line",
+        "subsections": "subsections"
       },
       "diff": {
         "files": "{{count}} files",
@@ -128,6 +135,15 @@
       "records": {
         "count": "{{count}} records",
         "showAll": "Show {{count}} more records"
+      },
+      "expandAll": "Expand all",
+      "collapseAll": "Collapse all",
+      "tree": {
+        "nodes": "{{count}} nodes"
+      },
+      "grep": {
+        "matches": "{{count}} matches",
+        "files": "{{count}} files"
       }
     }
   },

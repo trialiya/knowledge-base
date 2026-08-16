@@ -1,0 +1,51 @@
+/* ── Шапка вида в модалке вызова инструмента ──
+   Строка-итог над списком: слева сколько чего, справа «развернуть/свернуть
+   всё». Общая для diff, списка записей, дерева и совпадений. */
+
+.tool-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  padding-bottom: 3px;
+  font-size: 0.75rem;
+  color: #888;
+}
+
+.tool-summary__text {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.tool-summary__actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.tool-summary__action {
+  background: none;
+  border: none;
+  padding: 1px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.72rem;
+  color: #6b7fbf;
+  line-height: 1.4;
+  box-sizing: border-box;
+}
+.tool-summary__action:hover:not(:disabled) {
+  background: #eef3ff;
+  color: #2a5cbf;
+}
+/* Кнопка, которая ничего не изменит, гасится, а не прячется: пропадающая
+   кнопка сдвигает соседнюю прямо под курсором. */
+.tool-summary__action:disabled {
+  color: #c4c4cc;
+  cursor: default;
+}

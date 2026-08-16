@@ -9,14 +9,6 @@
   min-width: 0;
 }
 
-.tool-diff__totals {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  font-size: 0.75rem;
-  color: #888;
-}
-
 .tool-diff__group {
   display: flex;
   flex-direction: column;
