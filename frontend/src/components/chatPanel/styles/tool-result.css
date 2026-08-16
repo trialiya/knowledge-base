@@ -72,43 +72,6 @@
   color: #2a5cbf;
 }
 
-/* Текст файла. Общий скролл модалки — как у .tool-call-detail__pre, поэтому
-   собственного overflow-y здесь нет. */
-.tool-result__code {
-  background: var(--kb-code-dark-bg, #1e1e2e);
-  color: var(--kb-code-dark-color, #cdd6f4);
-  border-radius: 6px;
-  padding: 8px 0;
-  font-size: 0.75rem;
-  font-family: 'Fira Mono', 'Cascadia Code', 'Consolas', monospace;
-  line-height: 1.55;
-  box-sizing: border-box;
-  width: 100%;
-  overflow-x: auto;
-}
-
-.tool-result__line {
-  display: flex;
-  gap: 12px;
-  padding: 0 10px;
-}
-.tool-result__line:hover {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.tool-result__line-no {
-  flex: 0 0 auto;
-  min-width: 3.2em;
-  text-align: right;
-  color: #6c7086;
-  user-select: none;
-}
-
-.tool-result__line-text {
-  white-space: pre;
-  min-width: 0;
-}
-
 /* Markdown документа или .md-вложения. Тот же язык, что у ответа ИИ
    (styles/markdown.css), но на шаг мельче: это цитата чужого содержимого
    внутри диалога, а не сам ответ, и заголовок файла не должен спорить с

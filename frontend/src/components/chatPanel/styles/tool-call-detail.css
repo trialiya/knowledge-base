@@ -3,11 +3,15 @@
    размеры и отступы: шапка и тело держат свои собственные. */
 
 @import './tool-summary.css';
+@import './tool-code.css';
+@import './tool-args.css';
 @import './tool-result.css';
 @import './tool-diff.css';
 @import './tool-records.css';
 @import './tool-tree.css';
 @import './tool-grep.css';
+@import './tool-doc.css';
+@import './tool-script.css';
 
 .modal-shell.tool-call-detail {
   background: #fff;

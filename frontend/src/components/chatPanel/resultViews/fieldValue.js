@@ -5,7 +5,7 @@ import { formatFileSize } from '../../../utils/formatting';
 
 // Только настоящие байты: `chars` — символы, и «210 B» на них было бы просто
 // неверной единицей.
-const SIZE_KEYS = new Set(['fileSize', 'sizeBytes', 'size']);
+const SIZE_KEYS = new Set(['fileSize', 'sizeBytes', 'size', 'bytesRead']);
 
 // Дата опознаётся по виду значения, а не по имени поля: у MCP-инструментов
 // поле может называться как угодно, а ISO-8601 остаётся ISO-8601.

@@ -121,9 +121,50 @@ describe('detectResultView', () => {
     expect(detectResultView('"Done"').id).toBe('scalar');
   });
 
+  it('документная мутация — docMutation, а само оглавление того же документа — tree', () => {
+    const mutation = JSON.stringify({
+      id: 75,
+      title: 'анализ',
+      type: 'folder',
+      parentId: null,
+      version: 1,
+      descriptionVersion: 1,
+      updatedAt: '2026-07-18T21:00:55',
+      summaryStale: false,
+      summarySourceVersion: null,
+    });
+    expect(detectResultView(mutation).id).toBe('docMutation');
+
+    const outline = JSON.stringify({
+      id: 75,
+      title: 'анализ',
+      version: 1,
+      descriptionVersion: 1,
+      sections: [{ path: 'Слои', level: 2, title: 'Слои', chars: 640, subsections: 0 }],
+    });
+    expect(detectResultView(outline).id).toBe('tree');
+  });
+
+  it('прогон скрипта — scriptRun, хотя его правки формой подошли бы и diff’у', () => {
+    // Вид, который содержит другой вид, обязан стоять выше него: иначе ответ
+    // разобрали бы по частям и лог со статистикой потерялись бы.
+    const script = JSON.stringify({
+      value: null,
+      log: ['готово'],
+      stats: { filesRead: 2, bytesRead: 4096, calls: 5, filesEdited: 1, elapsedMs: 120 },
+      error: null,
+      filesRead: ['a.jsx'],
+      edits: [
+        { operation: 'edit', path: 'a.jsx', additions: 3, deletions: 1, lineCount: 42, diff: '@@ -1 +1 @@\n-a\n+b' },
+      ],
+    });
+    expect(detectResultView(script).id).toBe('scriptRun');
+  });
+
   it('форма без вида — обзора нет вовсе', () => {
-    // Одиночная документная мутация: свой вид ещё не написан.
-    expect(detectResultView(JSON.stringify({ id: 75, title: 'анализ', type: 'folder', version: 1 }))).toBeNull();
+    // Плоский объект без заголовка, текста и версий: показывать нечего, кроме
+    // самого JSON, — и модалка так и делает, без переключателя режимов.
+    expect(detectResultView(JSON.stringify({ ok: true, count: 3 }))).toBeNull();
     expect(detectResultView('')).toBeNull();
   });
 });

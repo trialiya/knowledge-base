@@ -1,0 +1,96 @@
+/* ── Режим «Обзор» в секции аргументов вызова ──
+   Короткие значения строками, длинные — сворачиваемыми блоками.
+   Импортируется из tool-call-detail.css; сам текст рисует tool-code.css. */
+
+.tool-args {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tool-args__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  background: var(--kb-bg);
+  border: 1px solid var(--kb-border);
+  border-radius: 6px;
+}
+
+/* Имя и значение в одну строку: аргументов немного, и колонка под имена
+   отъедала бы ширину у путей, которые и без того длинные. */
+.tool-args__field {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+  font-size: 0.78rem;
+}
+
+.tool-args__key {
+  flex-shrink: 0;
+  font-family: var(--kb-font-mono);
+  font-size: 0.75rem;
+  color: var(--kb-muted);
+}
+
+.tool-args__value {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--kb-text);
+}
+
+.tool-args__block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.tool-args__block-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 8px;
+  background: var(--kb-bg);
+  border: 1px solid var(--kb-border);
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+}
+.tool-args__block-head:hover {
+  background: var(--kb-accent-light);
+}
+
+.tool-args__block-head .tool-args__key {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  color: var(--kb-text);
+}
+
+.tool-args__chevron {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--kb-muted);
+  transform: rotate(-90deg);
+  transition: transform 0.15s;
+}
+.tool-args__chevron--open {
+  transform: none;
+}
+
+.tool-args__size {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  color: var(--kb-muted);
+}
