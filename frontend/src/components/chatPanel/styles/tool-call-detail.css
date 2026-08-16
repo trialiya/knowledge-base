@@ -3,6 +3,7 @@
    размеры и отступы: шапка и тело держат свои собственные. */
 
 @import './tool-result.css';
+@import './tool-diff.css';
 
 .modal-shell.tool-call-detail {
   background: #fff;

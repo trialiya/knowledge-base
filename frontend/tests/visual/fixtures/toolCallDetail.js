@@ -7,9 +7,9 @@
  * настоящие DTO бэкенда (GitFileContent, DocumentNode, AttachmentContext),
  * данные синтетические и укорочены до нескольких строк.
  *
- * В db/sample-data.sql инструментов, возвращающих текст, нет вовсе (там
- * getCommitDiff, getTreeSkeleton, createDocument и recordChatInsights),
- * поэтому режим «Обзор» проверяется этими фикстурами, а не засеянным чатом.
+ * Фикстуры — только для форм, которых в db/sample-data.sql нет: там есть
+ * getFileContent, getDocumentSection и два getCommitDiff, и основной путь
+ * проверяется живыми кликами по засеянному чату (см. cases.yaml).
  */
 
 const JAVA_SOURCE = `    @Tool(
@@ -109,6 +109,99 @@ export const attachmentsCall = {
   ]),
   resultMeta: null,
   createdAt: '2026-08-14T10:15:02',
+};
+
+const PATCH_EDIT = `diff --git a/frontend/src/components/chatPanel/ChatCenter.jsx b/frontend/src/components/chatPanel/ChatCenter.jsx
+index 4b1c9e2..7d0af31 100644
+--- a/frontend/src/components/chatPanel/ChatCenter.jsx
++++ b/frontend/src/components/chatPanel/ChatCenter.jsx
+@@ -18,7 +18,9 @@ const ChatCenter = ({ messages, onSend }) => {
+   const { t } = useTranslation('chat');
+-  const [draft, setDraft] = useState('');
++  const [draft, setDraft] = useState(() => readDraft(chatId));
++  // Черновик переживает переключение чата — он в localStorage, не в state.
++  useDraftSync(chatId, draft);
+
+   return (`;
+
+const PATCH_DELETE = `diff --git a/frontend/src/legacy/toolbar.css b/frontend/src/legacy/toolbar.css
+deleted file mode 100644
+index 9ac41b8..0000000
+--- a/frontend/src/legacy/toolbar.css
++++ /dev/null
+@@ -1,4 +0,0 @@
+-.legacy-toolbar {
+-  display: flex;
+-  gap: 4px;
+-}`;
+
+/** Одиночная правка файла: GitEditResult, статус выводится из operation. */
+export const editFileCall = {
+  name: 'editFile',
+  argumentsRaw: JSON.stringify({
+    path: 'frontend/src/components/chatPanel/ChatCenter.jsx',
+    oldText: "  const [draft, setDraft] = useState('');",
+    newText: '  const [draft, setDraft] = useState(() => readDraft(chatId));',
+  }),
+  status: 'OK',
+  error: null,
+  resultText: JSON.stringify({
+    operation: 'edit',
+    path: 'frontend/src/components/chatPanel/ChatCenter.jsx',
+    additions: 3,
+    deletions: 1,
+    lineCount: 142,
+    diff: PATCH_EDIT,
+  }),
+  resultMeta: null,
+  createdAt: '2026-08-16T09:02:14',
+};
+
+/**
+ * Несколько файлов за вызов: разные статусы, переименование со старым путём и
+ * запись без патча — на ней видно, во что вырождается вид без diff'а.
+ */
+export const uncommittedChangesCall = {
+  name: 'getUncommittedChanges',
+  argumentsRaw: JSON.stringify({ includePatch: true }),
+  status: 'OK',
+  error: null,
+  resultText: JSON.stringify([
+    {
+      status: 'M',
+      path: 'frontend/src/components/chatPanel/ChatCenter.jsx',
+      oldPath: null,
+      additions: 3,
+      deletions: 1,
+      patch: PATCH_EDIT,
+    },
+    {
+      status: 'D',
+      path: 'frontend/src/legacy/toolbar.css',
+      oldPath: null,
+      additions: 0,
+      deletions: 4,
+      patch: PATCH_DELETE,
+    },
+    {
+      status: 'R',
+      path: 'frontend/src/components/chatPanel/diffRender.jsx',
+      oldPath: 'frontend/src/components/chatPanel/DiffLines.jsx',
+      additions: 12,
+      deletions: 2,
+      patch: null,
+    },
+    {
+      status: 'A',
+      path: 'frontend/src/components/chatPanel/styles/diff.css',
+      oldPath: null,
+      additions: 34,
+      deletions: 0,
+      patch: null,
+    },
+  ]),
+  resultMeta: null,
+  createdAt: '2026-08-16T09:04:47',
 };
 
 /** Форма без обзора: переключателя режимов нет, показывается только JSON. */

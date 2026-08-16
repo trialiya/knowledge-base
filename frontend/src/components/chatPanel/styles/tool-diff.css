@@ -1,0 +1,164 @@
+/* ── Режим «Обзор» в модалке вызова инструмента ──
+   Форма «unified diff»: коммит → файлы → патч. Импортируется из
+   tool-call-detail.css; раскраска самих строк — в diff.css. */
+
+.tool-diff {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.tool-diff__totals {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 0.75rem;
+  color: #888;
+}
+
+.tool-diff__group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* Шапка коммита: сообщение режется первым — хеш, автор и дата короткие
+   и постоянной длины. */
+.tool-diff__commit {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  padding: 2px 0 4px;
+  font-size: 0.75rem;
+  color: #888;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.tool-diff__hash {
+  flex-shrink: 0;
+  font-family: var(--kb-font-mono, ui-monospace, Menlo, Consolas, monospace);
+  font-weight: 700;
+  color: #5c6bc0;
+}
+
+.tool-diff__message {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #333;
+}
+
+.tool-diff__author,
+.tool-diff__date {
+  flex-shrink: 0;
+}
+
+.tool-diff__file {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.tool-diff__file-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 8px;
+  background: #f7f7f8;
+  border: 1px solid #ececf0;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.78rem;
+  min-width: 0;
+}
+.tool-diff__file-head:hover {
+  background: #f0f0f3;
+}
+
+.tool-diff__chevron {
+  display: flex;
+  flex-shrink: 0;
+  color: #999;
+  transform: rotate(-90deg);
+  transition: transform 0.15s;
+}
+.tool-diff__chevron--open {
+  transform: none;
+}
+
+/* Буква статуса: A/M/D/R/C. Слово — в title, читать его каждый раз не нужно. */
+.tool-diff__status {
+  flex-shrink: 0;
+  width: 1.35rem;
+  box-sizing: border-box;
+  padding: 1px 0;
+  border-radius: 3px;
+  text-align: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: #e8eaed;
+  color: #5f6368;
+}
+.tool-diff__status--A {
+  background: #e6f4ea;
+  color: #188038;
+}
+.tool-diff__status--D {
+  background: #fce8e6;
+  color: #d93025;
+}
+.tool-diff__status--R,
+.tool-diff__status--C {
+  background: #fff8e1;
+  color: #a1690a;
+}
+
+.tool-diff__path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* Путь читают глазами по сегментам — моноширинный тут помогает,
+     как и в шапке .fcd-title. */
+  font-family: var(--kb-font-mono, ui-monospace, Menlo, Consolas, monospace);
+  color: #222;
+}
+
+.tool-diff__old-path {
+  color: #999;
+}
+
+/* Общий скролл модалки — как у .tool-call-detail__pre, поэтому собственного
+   overflow-y здесь нет; по горизонтали патч скроллится сам. */
+.tool-diff__patch {
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  background: #f8f9fa;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-family: 'Fira Mono', 'Cascadia Code', 'Consolas', monospace;
+  line-height: 1.45;
+  overflow-x: auto;
+  white-space: pre;
+  box-sizing: border-box;
+}
+
+.tool-diff__note {
+  margin-top: 4px;
+  padding: 10px;
+  text-align: center;
+  font-size: 0.78rem;
+  color: #999;
+  background: #f7f7f8;
+  border-radius: 6px;
+}

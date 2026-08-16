@@ -111,7 +111,7 @@ const ContentItem = ({ item }) => {
   );
 };
 
-const ContentResultView = ({ items }) => (
+const ContentResultView = ({ data: items }) => (
   <div className="tool-result">
     {items.map((item) => (
       <ContentItem key={item.key} item={item} />

@@ -220,26 +220,30 @@ MCP тоже. При отрисовке любого JSON-узла:
 список представлений, первое подошедшее выигрывает:
 
 ```js
-// chatPanel/resultViews/registry.js
-// { id, match(parsed, toolName) -> bool, Component }
+// chatPanel/resultViews/registry.js — { id, detect(input), View }
+// input = { parsed, isJson, resultText, argumentsRaw }: разбор один на все виды.
 [
-  scriptRun,     // объект с stats + log + edits          → runScript
-  fileContent,   // строковый content + language|lineCount → getFileContent
-  diffList,      // элементы с patch|diff                  → getCommitDiff, getUncommittedChanges, …
+  scriptRun,     // объект с stats + log + edits           → runScript
+  diffList,      // ✅ path + additions/deletions          → getCommitDiff, getUncommittedChanges, editFile
   docMutation,   // id + title + descriptionVersion        → 6 документных мутаций
   outline,       // sections[] с level | symbols[] с kind  → getDocumentOutline, getFileOutline
   tree,          // элементы с children[] | path[]         → getTreeSkeleton, getFileTree
   grepMatches,   // элементы с path + matchLine + text     → grepContent
   recordList,    // массив однотипных плоских объектов     → все списочные (форма C)
-  markdownText,  // длинная строка / поле content|report   → секции, отчёты, вложения
+  content,       // ✅ длинное content|description|text|report → файлы, вложения, секции, отчёты
   scalar,        // строка/число/булево ≤ 200 симв.        → getChatId, recordChatInsights, …
-  jsonTree,      // фолбэк, всегда матчится               → MCP и всё незнакомое
 ]
 ```
 
-`toolName` — только тай-брейкер, когда формы двух инструментов совпадают
-(`createFile` без `diff` vs. голый `GitEditResult`), но не обязательное условие: MCP-инструмент,
-вернувший `{path, content}`, честно получит `fileContent`.
+Порядок — от узкого к широкому: `content` ловит любой длинный текст, поэтому новые виды
+добавляются выше него. Фолбэка в списке нет: не подошёл никто — переключателя режимов не
+будет вовсе, и модалка покажет JSON, как она это делала всегда.
+
+Имя инструмента детекту не передаётся вовсе. Формы, которые без него не разлипаются,
+разлипаются сужением правила: `grepContent` отдаёт `{path, matchLine, text}` и попадал бы
+в `content` (поле `text` многострочное при `contextLines>0`), но его текст уже несёт
+собственную нумерацию `:85:`/`-84-`, поэтому `content` отбрасывает записи с `matchLine` —
+до тех пор, пока `grepMatches` не появится своим видом.
 
 Детект — чистые функции в `.js` рядом с компонентами (как `treeOps.js`, `fileChips.js`),
 покрываются юнит-тестами на реальных `responseData` из `sample-data.sql`.
@@ -358,10 +362,16 @@ backend/…/functions/GitFunction.java   ·   java   ·   строки 59–120 
    `ContentResultView.jsx` (номера строк со сдвигом на `fromLine`, тумблер markdown),
    `jsonText.js` (формат и подсветка). Закрывает содержимое файлов, вложений,
    документов и их секций — и заодно любой MCP-инструмент, вернувший текст.
-2. **Реестр форм (4.3).** Сейчас вид один и подключён напрямую; со вторым видом
-   отбор переезжает в упорядоченный список `{ match, Component }`.
-3. **`diffList`** — вынести раскраску из `FileDiffModal` в общий `<DiffView>`
-   и подключить к `getCommitDiff` / `getUncommittedChanges` / `editFile` / `runScript`.
+2. ✅ **Реестр форм (4.3).** Сделано: `resultViews/registry.js` — упорядоченный
+   список `{ id, detect, View }`, первый подошедший выигрывает, разбор ответа один
+   на все виды (`parseResult`). Новые виды добавляются выше `content`: он ловит
+   любой длинный текст и потому всегда последний.
+3. ✅ **`diffList`.** Сделано: раскраска вынесена из `FileDiffModal` в общий
+   `chatPanel/diffRender.jsx` (`DiffLines` + `DiffStats`, стили в `styles/diff.css`),
+   детект — `resultViews/diffResult.js` по паре счётчиков `additions`/`deletions`
+   при поле `path`. Закрывает `getCommitDiff`, `getUncommittedChanges`,
+   `editFile`/`createFile`. `runScript` остаётся этапу 5: его `edits` лежат внутри
+   `ScriptResult` вместе с `log` и `stats`, то есть это форма G целиком.
 4. **`recordList` и `scalar`** — вместе с этапом 3 закрывают 21 из 36 инструментов.
 5. **Специализированные:** `outline`, `tree`, `grepMatches`, `docMutation`
    (переиспользуя `DocChangeBlock`), `scriptRun`.

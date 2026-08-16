@@ -1,0 +1,37 @@
+/* ── Отрисовка unified diff ──
+   Общее для блока изменений под ответом ИИ и для режима «Обзор» в модалке
+   вызова инструмента; обёртку (<pre> и её отступы) задаёт вызывающий.
+   Подключается из diffRender.jsx, а не через @import из барелей — иначе те же
+   правила попали бы в сборку дважды. */
+
+.diff-line {
+  display: block;
+}
+.diff-line--add {
+  background: #e6f4ea;
+  color: #188038;
+}
+.diff-line--del {
+  background: #fce8e6;
+  color: #d93025;
+}
+.diff-line--hunk {
+  color: #6a737d;
+  background: #f1f8ff;
+}
+/* Шапка патча: `diff --git`, `index`, `--- a/…`, `+++ b/…`. */
+.diff-line--meta {
+  color: #8a8a99;
+}
+
+.diff-stats {
+  white-space: nowrap;
+}
+.diff-stats__add {
+  color: #188038;
+  font-weight: 600;
+}
+.diff-stats__del {
+  color: #d93025;
+  font-weight: 600;
+}

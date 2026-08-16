@@ -1,13 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import chatApi from '../../api/chatApi';
 import { getToolIcon, humanizeTool, toolLabelKey } from '../common/toolNames';
 import { IconCopySmall, IconCopied } from '../../icons';
 import useCopyFeedback from '../../hooks/useCopyFeedback';
 import ModalShell from '../common/ModalShell';
-import { detectContentResult } from './resultViews/contentResult';
+import { detectResultView } from './resultViews/registry';
 import { formatJson, tryFormatJson, highlightJson } from './resultViews/jsonText';
-import ContentResultView from './resultViews/ContentResultView';
 import './styles/tool-call-detail.css';
 
 // Два режима на секцию результата, не три: «Обзор» — типизированный вид,
@@ -35,17 +34,22 @@ const CopyButton = ({ value }) => {
   );
 };
 
-/** Переключатель «Обзор | JSON». Не рендерится, когда обзора для формы нет. */
+/**
+ * Переключатель «Обзор | JSON». Не рендерится, когда обзора для формы нет.
+ *
+ * Группа кнопок с `aria-pressed`, а не `tablist`/`tab`: настоящие вкладки
+ * требуют `tabpanel` с `aria-controls` и стрелок вместо Tab, а здесь два
+ * состояния одной секции.
+ */
 const ModeSwitch = ({ mode, onChange }) => {
   const { t } = useTranslation('chat');
   return (
-    <div className="tool-call-detail__modes" role="tablist">
+    <div className="tool-call-detail__modes" role="group" aria-label={t('toolCall.detail.result')}>
       {[MODE.OVERVIEW, MODE.JSON].map((value) => (
         <button
           key={value}
           type="button"
-          role="tab"
-          aria-selected={mode === value}
+          aria-pressed={mode === value}
           className={`tool-call-detail__mode${mode === value ? ' tool-call-detail__mode--active' : ''}`}
           onClick={() => onChange(value)}
         >
@@ -102,10 +106,14 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
   const label = t(toolLabelKey(tc.name), { defaultValue: humanizeTool(tc.name) });
   const icon = getToolIcon(tc.name);
   const statusClass = details ? ` tool-call-detail__status--${details.status.toLowerCase()}` : '';
-  const argsPretty = details ? formatJson(details.argumentsRaw) : null;
-  const resultPretty = details ? tryFormatJson(details.resultText) : null;
-  const content = details ? detectContentResult(details.resultText, details.argumentsRaw) : null;
-  const showOverview = content !== null && mode === MODE.OVERVIEW;
+
+  // Разбор ответа — за useMemo: `resultText` бывает в десятки килобайт, а
+  // переключение режима перерисовывает модалку целиком.
+  const argsPretty = useMemo(() => (details ? formatJson(details.argumentsRaw) : null), [details]);
+  const resultPretty = useMemo(() => (details ? tryFormatJson(details.resultText) : null), [details]);
+  const view = useMemo(() => (details ? detectResultView(details.resultText, details.argumentsRaw) : null), [details]);
+  const showOverview = view !== null && mode === MODE.OVERVIEW;
+  const OverviewView = view?.View;
 
   return (
     <ModalShell onClose={onClose} className="tool-call-detail">
@@ -142,11 +150,15 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
           <section className="tool-call-detail__section">
             <div className="tool-call-detail__section-head">
               <div className="tool-call-detail__label">{t('toolCall.detail.result')}</div>
-              {content && <ModeSwitch mode={mode} onChange={setMode} />}
+              {view && <ModeSwitch mode={mode} onChange={setMode} />}
               <CopyButton value={details.resultText} />
             </div>
             {showOverview ? (
-              <ContentResultView items={content} />
+              // key по вызову: у видов есть своё состояние (какие файлы
+              // раскрыты, markdown или исходник), а ключи блоков внутри —
+              // порядковые и у разных вызовов совпадают. Без key состояние
+              // предыдущего вызова переехало бы на следующий.
+              <OverviewView key={callId} data={view.data} />
             ) : (
               <JsonBlock text={resultPretty} fallback={details.resultText} />
             )}

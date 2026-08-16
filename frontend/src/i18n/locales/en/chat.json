@@ -85,6 +85,17 @@
         "sizeBytes": "size",
         "fileSize": "size",
         "descriptionVersion": "version"
+      },
+      "diff": {
+        "files": "{{count}} files",
+        "noPatch": "No diff attached",
+        "status": {
+          "A": "added",
+          "M": "modified",
+          "D": "deleted",
+          "R": "renamed",
+          "C": "copied"
+        }
       }
     }
   },

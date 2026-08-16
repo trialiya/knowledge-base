@@ -1,13 +1,20 @@
 import { detectContentResult } from './contentResult';
+import { parseResult } from './registry';
 
 // Данные — форма настоящих ответов инструментов (см. DTO бэкенда:
 // GitFileContent, DocumentNode, DocumentSection, AttachmentContext).
+//
+// Разбор ответа делает реестр (parseResult), детект получает уже готовый вход.
+const detect = (resultText, argumentsRaw) => {
+  const input = parseResult(resultText, argumentsRaw);
+  return input ? detectContentResult(input) : null;
+};
 
 const long = (line) => Array.from({ length: 12 }, (_, i) => `${line} ${i}`).join('\n');
 
 describe('detectContentResult — что попадает в «Обзор»', () => {
   it('getFileContent: текст, язык и смещение номеров строк из fromLine', () => {
-    const items = detectContentResult(
+    const items = detect(
       JSON.stringify({
         path: 'backend/src/main/java/Git.java',
         content: long('line'),
@@ -34,7 +41,7 @@ describe('detectContentResult — что попадает в «Обзор»', ()
   });
 
   it('бинарный файл — блок без текста, а не отсутствие обзора', () => {
-    const items = detectContentResult(
+    const items = detect(
       JSON.stringify({ path: 'logo.png', content: null, binary: true, sizeBytes: 2048, lineCount: 0 }),
     );
     expect(items).toHaveLength(1);
@@ -42,7 +49,7 @@ describe('detectContentResult — что попадает в «Обзор»', ()
   });
 
   it('документ и его секция считаются markdown по descriptionVersion', () => {
-    const doc = detectContentResult(
+    const doc = detect(
       JSON.stringify({
         id: 7,
         title: 'Архитектура',
@@ -53,14 +60,14 @@ describe('detectContentResult — что попадает в «Обзор»', ()
     );
     expect(doc[0]).toMatchObject({ title: 'Архитектура', markdown: true });
 
-    const section = detectContentResult(
+    const section = detect(
       JSON.stringify({ id: 7, path: 'Архитектура/Слои', descriptionVersion: 4, content: long('текст') }),
     );
     expect(section[0]).toMatchObject({ title: 'Архитектура/Слои', markdown: true });
   });
 
   it('getAttachmentContentByFileName: массив → блок на вложение', () => {
-    const items = detectContentResult(
+    const items = detect(
       JSON.stringify([
         { id: 1, fileName: 'notes.md', content: long('a') },
         { id: 2, fileName: 'spec.txt', content: long('b') },
@@ -73,40 +80,40 @@ describe('detectContentResult — что попадает в «Обзор»', ()
   });
 
   it('getAttachmentContent: голая строка подписывается именем из аргументов', () => {
-    const items = detectContentResult(JSON.stringify(long('строка')), JSON.stringify({ fileName: 'readme.md' }));
+    const items = detect(JSON.stringify(long('строка')), JSON.stringify({ fileName: 'readme.md' }));
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({ title: 'readme.md', startLine: 1, markdown: true });
   });
 
   it('ответ не в JSON вовсе тоже читается как текст', () => {
-    const items = detectContentResult(long('plain'));
+    const items = detect(long('plain'));
     expect(items[0].text).toBe(long('plain'));
   });
 });
 
 describe('detectContentResult — что остаётся в JSON', () => {
   it('короткий скаляр: getChatId, recordChatInsights', () => {
-    expect(detectContentResult('"Done"')).toBeNull();
-    expect(detectContentResult(JSON.stringify('a1b2c3'))).toBeNull();
-    expect(detectContentResult('42')).toBeNull();
-    expect(detectContentResult('')).toBeNull();
-    expect(detectContentResult(null)).toBeNull();
+    expect(detect('"Done"')).toBeNull();
+    expect(detect(JSON.stringify('a1b2c3'))).toBeNull();
+    expect(detect('42')).toBeNull();
+    expect(detect('')).toBeNull();
+    expect(detect(null)).toBeNull();
   });
 
   it('вложенная коллекция — форма другого вида (дерево, коммиты, правки скрипта)', () => {
     expect(
-      detectContentResult(
+      detect(
         JSON.stringify({ id: 1, title: 'Проект', description: long('x'), children: [{ id: 2, title: 'Раздел' }] }),
       ),
     ).toBeNull();
     expect(
-      detectContentResult(JSON.stringify([{ hash: 'abc', message: 'fix', files: [{ path: 'a', patch: long('@@') }] }])),
+      detect(JSON.stringify([{ hash: 'abc', message: 'fix', files: [{ path: 'a', patch: long('@@') }] }])),
     ).toBeNull();
   });
 
   it('разнородный список показывается целиком, а не частью', () => {
     expect(
-      detectContentResult(
+      detect(
         JSON.stringify([
           { fileName: 'a.md', content: long('a') },
           { id: 9, hasChildren: true },
@@ -115,9 +122,22 @@ describe('detectContentResult — что остаётся в JSON', () => {
     ).toBeNull();
   });
 
+  it('совпадения grepContent — у них своя нумерация внутри текста', () => {
+    // `:85:` — строка совпадения, `-84-` — контекст (см. javadoc GitGrepMatch).
+    // Гуттер «Обзора» нумерует от единицы и поверх такого текста врал бы.
+    expect(
+      detect(
+        JSON.stringify([
+          { path: 'a/A.java', matchLine: 85, text: '-84-   foo();\n:85:   bar();\n-86-   baz();' },
+          { path: 'b/B.java', matchLine: 12, text: '-11-   x();\n:12:   y();\n-13-   z();' },
+        ]),
+      ),
+    ).toBeNull();
+  });
+
   it('пустой список и список длиннее лимита', () => {
-    expect(detectContentResult('[]')).toBeNull();
+    expect(detect('[]')).toBeNull();
     const many = Array.from({ length: 21 }, (_, i) => ({ fileName: `f${i}.txt`, content: long('x') }));
-    expect(detectContentResult(JSON.stringify(many))).toBeNull();
+    expect(detect(JSON.stringify(many))).toBeNull();
   });
 });

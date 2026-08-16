@@ -1,15 +1,12 @@
 // Что режим «Обзор» в модалке вызова инструмента показывает вместо JSON, когда
 // инструмент вернул текст: содержимое файла, вложения, документа или его секции.
 //
-// Разбор идёт по ФОРМЕ ответа, а не по имени инструмента. Перечислять имена
-// бесполезно: инструменты MCP-серверов приходят снаружи, их набор заранее
-// неизвестен, и любой новый @Tool пришлось бы дописывать сюда руками. Вместо
-// этого ответ проходит по форме — есть длинное текстовое поле и нет вложенной
-// коллекции — и попадает в этот вид сам.
+// Разбор идёт по ФОРМЕ ответа, а не по имени инструмента (см. registry.js) —
+// есть длинное текстовое поле и нет вложенной коллекции, значит это текст.
 //
-// Всё, что формой не подошло, остаётся в JSON-режиме: у списков, деревьев и
-// diff'ов свои виды, и лучше показать честный JSON, чем выдрать из ответа одно
-// поле и умолчать про остальные.
+// Вид самый широкий из всех, поэтому в реестре стоит последним: всё, что формой
+// не подошло, остаётся в JSON-режиме, и лучше показать честный JSON, чем выдрать
+// из ответа одно поле и умолчать про остальные.
 
 /** Поля, в которых инструменты возвращают собственно текст. */
 const TEXT_FIELDS = ['content', 'description', 'text', 'report'];
@@ -92,6 +89,11 @@ const toItem = (obj, key) => {
     return { key, title, binary: true, text: null, language: null, startLine: 1, markdown: false, facts: factsOf(obj) };
   }
   if (hasCollection(obj)) return null;
+  // grepContent отдаёт `{path, matchLine, text}`, где text при contextLines>0
+  // многострочный и уже несёт собственную нумерацию (`:85:` — совпадение,
+  // `-84-` — контекст). Чужой гуттер с номерами от единицы поверх неё врал бы;
+  // у формы будет свой вид, до тех пор — JSON.
+  if (Number.isInteger(obj.matchLine)) return null;
 
   const text = firstString(obj, TEXT_FIELDS);
   if (!text || !isContentText(text.value)) return null;
@@ -138,20 +140,14 @@ const titleFromArgs = (argumentsRaw) => {
 };
 
 /**
- * `resultText` вызова → блоки для режима «Обзор», либо null — тогда модалка
- * показывает только JSON и переключателя режимов не будет вовсе.
+ * Разобранный ответ вызова → блоки для режима «Обзор», либо null.
  *
  * `argumentsRaw` нужен ровно для одного: подписать блок, когда сам ответ —
  * голая строка и имени файла в нём нет (`getAttachmentContent` отдаёт текст
  * вложения, а его имя осталось в аргументах вызова).
  */
-export const detectContentResult = (resultText, argumentsRaw) => {
-  if (typeof resultText !== 'string' || !resultText) return null;
-
-  let parsed;
-  try {
-    parsed = JSON.parse(resultText);
-  } catch {
+export const detectContentResult = ({ parsed, isJson, resultText, argumentsRaw }) => {
+  if (!isJson) {
     // Не JSON вовсе — значит, инструмент вернул сырой текст.
     const item = bareTextItem(resultText, titleFromArgs(argumentsRaw));
     return item ? [item] : null;
