@@ -15,6 +15,9 @@ import CodeLines from './codeLines';
 const Block = ({ block, defaultOpen }) => {
   const { t } = useTranslation('chat');
   const [open, setOpen] = useState(defaultOpen);
+  // Разворот текста переживает сворачивание блока: свернули, чтобы убрать с
+  // глаз, а не чтобы отменить уже сделанное «показать целиком».
+  const [expanded, setExpanded] = useState(false);
 
   return (
     <div className="tool-args__block">
@@ -29,7 +32,7 @@ const Block = ({ block, defaultOpen }) => {
           {t('toolCall.detail.args.lines', { count: block.lines.length })}
         </span>
       </button>
-      {open && <CodeLines lines={block.lines} />}
+      {open && <CodeLines lines={block.lines} expanded={expanded} onExpand={() => setExpanded(true)} />}
     </div>
   );
 };

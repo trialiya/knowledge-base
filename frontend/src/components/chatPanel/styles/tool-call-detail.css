@@ -122,8 +122,15 @@
 .tool-call-detail__section {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
+}
+
+/* Линейка между секциями, а не вокруг каждой: разделяют они друг друга, и
+   рамка у первой была бы лишней чертой под статусом вызова. */
+.tool-call-detail__section + .tool-call-detail__section {
+  padding-top: 12px;
+  border-top: 1px solid var(--kb-border);
 }
 
 .tool-call-detail__section-head {
@@ -132,12 +139,14 @@
   gap: 8px;
 }
 
+/* Подпись секции — заголовок, а не сноска: она делит модалку пополам, и
+   различать «Аргументы» от «Результата» приходится взглядом, не вчитываясь. */
 .tool-call-detail__label {
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #999;
+  color: var(--kb-text);
   flex: 1;
   min-width: 0;
 }

@@ -1,3 +1,4 @@
+import i18n from '../../../i18n';
 import { formatFieldValue } from './fieldValue';
 
 // Форматирование значения поля общее для списка записей, дерева и шапок, поэтому
@@ -46,5 +47,19 @@ describe('formatFieldValue — остальные значения', () => {
 
   it('вложенный объект сворачивается, а не прячется', () => {
     expect(formatFieldValue('stats', { calls: 3 }, 'en-US')).toBe('{"calls":3}');
+  });
+});
+
+describe('formatFieldValue — флаги', () => {
+  // `summaryStale` на карточке правки — первый булев факт, дошедший до
+  // форматтера: «сводка устарела: true» читается как недоделка, а не как ответ.
+  it('булево печатается словом на языке интерфейса', async () => {
+    await i18n.changeLanguage('ru');
+    expect(formatFieldValue('summaryStale', true, 'ru')).toBe('да');
+    expect(formatFieldValue('system', false, 'ru')).toBe('нет');
+
+    await i18n.changeLanguage('en');
+    expect(formatFieldValue('summaryStale', true, 'en-US')).toBe('yes');
+    expect(formatFieldValue('system', false, 'en-US')).toBe('no');
   });
 });

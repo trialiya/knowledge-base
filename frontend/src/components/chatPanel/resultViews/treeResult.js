@@ -11,14 +11,13 @@
 // Разбор — по форме, а не по имени инструмента (см. registry.js).
 
 import { carriesContentText } from './contentResult';
+import { nonEmptyString as str } from './fieldValue';
 
 // Выше этого числа узлов вид не берётся: дерево такого размера не читают, его
 // фильтруют, а фильтра здесь нет.
 const MAX_NODES = 1000;
 
 const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
-
-const str = (value) => (typeof value === 'string' && value.trim() ? value : null);
 
 const meta = (pairs) =>
   pairs

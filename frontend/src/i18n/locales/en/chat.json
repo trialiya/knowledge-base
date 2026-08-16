@@ -168,6 +168,10 @@
       "args": {
         "chars": "{{count}} chars",
         "lines": "{{count}} lines"
+      },
+      "flag": {
+        "yes": "yes",
+        "no": "no"
       }
     }
   },

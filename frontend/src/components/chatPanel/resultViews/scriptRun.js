@@ -7,12 +7,11 @@
 
 import { isPlainObject } from './contentResult';
 import { detectDiffResult } from './diffResult';
+import { nonEmptyString as str } from './fieldValue';
 
 // Плитки статистики в порядке вывода; всё, чего здесь нет, идёт следом в порядке
 // самого ответа — у стороннего инструмента набор счётчиков может быть свой.
 const STAT_ORDER = ['filesRead', 'bytesRead', 'calls', 'filesEdited', 'elapsedMs'];
-
-const str = (value) => (typeof value === 'string' && value ? value : null);
 
 const isStringArray = (value) => Array.isArray(value) && value.every((item) => typeof item === 'string');
 

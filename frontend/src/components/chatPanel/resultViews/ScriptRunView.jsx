@@ -35,9 +35,12 @@ const Panel = ({ label, count, defaultOpen, children }) => {
   );
 };
 
-const LogBlock = ({ lines }) => {
+/**
+ * Лог прогона. Разворот держит не он, а вызывающий: свёрнутая секция уносит
+ * блок с экрана, и уже сделанное «показать ещё» ушло бы вместе с ним.
+ */
+const LogBlock = ({ lines, expanded, onExpand }) => {
   const { t } = useTranslation('chat');
-  const [expanded, setExpanded] = useState(false);
   const shown = expanded ? lines.length : Math.min(lines.length, LOG_CAP);
   const hidden = lines.length - shown;
 
@@ -45,7 +48,7 @@ const LogBlock = ({ lines }) => {
     <>
       <pre className="tool-script__log">{lines.slice(0, shown).join('\n')}</pre>
       {hidden > 0 && (
-        <button type="button" className="btn btn--ghost btn--sm" onClick={() => setExpanded(true)}>
+        <button type="button" className="btn btn--ghost btn--sm" onClick={onExpand}>
           {t('toolCall.detail.showAll', { count: hidden })}
         </button>
       )}
@@ -55,6 +58,7 @@ const LogBlock = ({ lines }) => {
 
 const ScriptRunView = ({ data }) => {
   const { t, i18n } = useTranslation('chat');
+  const [logExpanded, setLogExpanded] = useState(false);
 
   return (
     <div className="tool-script">
@@ -98,7 +102,7 @@ const ScriptRunView = ({ data }) => {
           // его руками пришлось бы всегда.
           defaultOpen={!!data.error || data.log.length <= LOG_OPEN_LINES}
         >
-          <LogBlock lines={data.log} />
+          <LogBlock lines={data.log} expanded={logExpanded} onExpand={() => setLogExpanded(true)} />
         </Panel>
       )}
 

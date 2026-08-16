@@ -46,6 +46,9 @@ const FactList = ({ item, lines }) => {
 const ContentItem = ({ item }) => {
   const { t } = useTranslation('chat');
   const [rendered, setRendered] = useState(item.markdown);
+  // «Показать целиком» живёт здесь, а не в CodeLines: тумблер markdown уносит
+  // блок с экрана, и вместе с ним унёс бы уже сделанный разворот.
+  const [expanded, setExpanded] = useState(false);
 
   const lines = item.text === null ? [] : item.text.split('\n');
 
@@ -73,7 +76,7 @@ const ContentItem = ({ item }) => {
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.text}</ReactMarkdown>
           </div>
         ) : (
-          <CodeLines lines={lines} startLine={item.startLine} />
+          <CodeLines lines={lines} startLine={item.startLine} expanded={expanded} onExpand={() => setExpanded(true)} />
         ))}
     </section>
   );
