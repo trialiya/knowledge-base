@@ -115,7 +115,28 @@ describe('detectRecordList — что остаётся другим видам',
   it('список текстов — за content', () => {
     const long = 'строка\n'.repeat(12);
     expect(detect(JSON.stringify([{ id: 1, fileName: 'a.md', content: long }]))).toBeNull();
-    expect(detect(JSON.stringify([{ id: 1, title: 'Док', description: long }]))).toBeNull();
+    expect(
+      detect(
+        JSON.stringify([
+          { id: 1, fileName: 'a.md', content: long },
+          { id: 2, fileName: 'b.md', content: long },
+        ]),
+      ),
+    ).toBeNull();
+  });
+
+  it('текст у части записей — всё ещё список: целиком его content не возьмёт', () => {
+    // Уступать надо ровно тому, что `content` примет, а он берёт массив только
+    // целиком. На «часть с текстом» отказались бы оба вида, и выдача осталась
+    // бы сырым JSON.
+    const records = detect(
+      JSON.stringify([
+        { id: 1, title: 'Архитектура', description: 'строка\n'.repeat(12) },
+        { id: 2, title: 'Слои', description: 'коротко, одной строкой' },
+      ]),
+    );
+    expect(records).toHaveLength(2);
+    expect(records.map((r) => r.title)).toEqual(['Архитектура', 'Слои']);
   });
 
   it('разнобой в наборе ключей — форма не та', () => {

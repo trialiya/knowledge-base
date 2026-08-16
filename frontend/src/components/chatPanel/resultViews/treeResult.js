@@ -175,8 +175,9 @@ const byPath = (records) => {
 /** Список плоских записей → корни, либо null если ни один сборщик не подошёл. */
 const fromArray = (records) => {
   if (!records.every(isPlainObject)) return null;
-  // Список текстов — за content: делит формы тот же предикат, что и у recordList.
-  if (records.some(carriesContentText)) return null;
+  // Список текстов — за content: делит формы тот же предикат, что и у recordList,
+  // и тем же квантором — `content` берёт массив только целиком.
+  if (records.every(carriesContentText)) return null;
 
   if (records.every((r) => Number.isInteger(r.id) && 'parentId' in r)) return byParentId(records);
   if (records.every((r) => str(r.path))) return byPath(records);

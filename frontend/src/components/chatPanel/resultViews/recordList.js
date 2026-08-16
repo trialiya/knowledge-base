@@ -85,7 +85,10 @@ export const detectRecordList = ({ parsed, isJson }) => {
 
   const signature = keySignature(parsed[0]);
   if (!parsed.every((record) => keySignature(record) === signature)) return null;
-  if (parsed.some(carriesContentText)) return null;
+  // `every`, а не `some`: уступать надо ровно тому списку, который `content`
+  // возьмёт. Он берёт массив только целиком, поэтому на «часть записей с
+  // текстом» отказались бы оба вида сразу и выдача провалилась бы в сырой JSON.
+  if (parsed.every(carriesContentText)) return null;
 
   const records = parsed.map((record, i) => toRecord(record, `record-${i}`));
   // Запись, у которой нечего показать в строке, — форма не та: получился бы

@@ -28,6 +28,9 @@ const localDate = (value) => {
 
   const [, year, month, day] = parts.map(Number);
   const date = new Date(year, month - 1, day);
+  // Конструктор трактует год до сотни как 19xx; `setFullYear` возвращает тот,
+  // что стоял в строке, не трогая месяц и день.
+  date.setFullYear(year);
   return date.getMonth() === month - 1 && date.getDate() === day ? date : null;
 };
 

@@ -44,13 +44,61 @@ describe('detectResultView', () => {
     expect(detectResultView(files).id).toBe('tree');
   });
 
-  it('findDocumentsByName — recordList: та же форма, но связей внутри выдачи нет', () => {
-    // `getTreeSkeleton` и поиск по имени возвращают одни и те же DocumentNode.
-    // Делит их не имя инструмента, а то, ссылаются ли записи друг на друга.
-    const node = (id, title, parentId) => ({ id, title, type: 'doc', parentId, version: 1, hasChildren: false });
+  // `getTreeSkeleton` и `findDocumentsByName` возвращают одни и те же
+  // DocumentNode, но заполняют их по-разному: скелет отдаёт пустое описание,
+  // поиск по имени — снипет в 150 символов (`toStubNode`). Тесты ниже держат
+  // обе настоящие формы, а не общий знаменатель между ними.
+  const skeleton = (id, title, parentId) => ({
+    id,
+    title,
+    type: 'document',
+    parentId,
+    version: 2,
+    description: '',
+    descriptionVersion: 3,
+    createdAt: null,
+    updatedAt: null,
+    children: [],
+    hasChildren: false,
+    system: false,
+  });
+  const found = (id, title, parentId, description) => ({
+    ...skeleton(id, title, parentId),
+    description,
+    createdAt: '2026-05-01T10:00:00',
+    updatedAt: '2026-08-01T12:00:00',
+  });
 
-    expect(detectResultView(JSON.stringify([node(7, 'Модели', 1), node(31, 'Отчёты', 4)])).id).toBe('recordList');
-    expect(detectResultView(JSON.stringify([node(1, 'Проект', null), node(7, 'Модели', 1)])).id).toBe('tree');
+  it('getTreeSkeleton — tree: описание пустое, а записи ссылаются друг на друга', () => {
+    expect(detectResultView(JSON.stringify([skeleton(1, 'Проект', null), skeleton(7, 'Модели', 1)])).id).toBe('tree');
+  });
+
+  it('findDocumentsByName — recordList: родители лежат снаружи выдачи', () => {
+    const one = 'Слои приложения и их назначение, коротко и в одну строку.';
+    expect(detectResultView(JSON.stringify([found(7, 'Модели', 1, one), found(31, 'Отчёты', 4, one)])).id).toBe(
+      'recordList',
+    );
+  });
+
+  it('findDocumentsByName: часть снипетов многострочная — список, а не провал в JSON', () => {
+    // Снипет markdown-документа почти всегда несёт перенос строки, и по
+    // предикату это «текст». Пока таких записей не все, массив целиком `content`
+    // не возьмёт, и уступать ему нечему.
+    const md = '# Обзор\n\nЗапрос проходит через четыре слоя, каждый следующий не знает о преды';
+    const one = 'Слои приложения и их назначение, коротко и в одну строку.';
+    expect(detectResultView(JSON.stringify([found(7, 'Модели', 1, md), found(31, 'Отчёты', 4, one)])).id).toBe(
+      'recordList',
+    );
+  });
+
+  it('findDocumentsByName: все снипеты многострочные — пока текст', () => {
+    // Осознанный текущий исход, а не недосмотр: снипеты выглядят ровно как
+    // короткие тексты, и отличить их от них можно только порогом
+    // `isContentText`, который делит границу ещё и со `scalar`.
+    const md = '# Обзор\n\nЗапрос проходит через четыре слоя, каждый следующий не знает о преды';
+    expect(detectResultView(JSON.stringify([found(7, 'Модели', 1, md), found(31, 'Отчёты', 4, md)])).id).toBe(
+      'content',
+    );
   });
 
   it('документ с вложенными — всё ещё текст: children не отменяют description', () => {

@@ -17,6 +17,11 @@ describe('formatFieldValue — даты', () => {
     expect(shown).toBe(new Date('2026-07-13T14:30:00').toLocaleString('en-US'));
   });
 
+  it('год до сотни не превращается в двадцатый век', () => {
+    expect(formatFieldValue('date', '0026-01-01', 'en-US')).toContain('26');
+    expect(formatFieldValue('date', '0026-01-01', 'en-US')).not.toContain('1926');
+  });
+
   it('несуществующая дата остаётся строкой', () => {
     expect(formatFieldValue('date', '2026-13-45', 'en-US')).toBe('2026-13-45');
     expect(formatFieldValue('date', '2026-02-30', 'en-US')).toBe('2026-02-30');
