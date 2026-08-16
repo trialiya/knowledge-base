@@ -7,6 +7,7 @@ import { TOOL_STATUS } from '../../constants/toolStatus';
 import { fetchContent } from './fileChips';
 import { IconChevronDown } from '../../icons';
 import ModalShell from '../common/ModalShell';
+import { DiffLines, DiffStats } from './diffRender';
 import { filesPath } from '../../urlScheme';
 import './styles/doc-changes.css';
 import './styles/file-changes.css';
@@ -76,11 +77,8 @@ const FileChangeBlock = ({ toolCalls }) => {
               <span className="doc-change-title">{c.path}</span>
               <span className="doc-change-sub">
                 {c.operation === 'create' ? t('fileChange.created') : t('fileChange.edited')}
-                <span className="file-change-stats">
-                  {' · '}
-                  <span className="file-change-add">+{c.additions}</span>/
-                  <span className="file-change-del">−{c.deletions}</span>
-                </span>
+                {' · '}
+                <DiffStats additions={c.additions} deletions={c.deletions} />
               </span>
             </span>
             <span className="doc-change-cta">{t('fileChange.viewChanges')} ›</span>
@@ -93,14 +91,6 @@ const FileChangeBlock = ({ toolCalls }) => {
 };
 
 const isMarkdownPath = (path) => /\.mdx?$/i.test(path || '');
-
-/** Раскраска строк unified diff: добавленные/удалённые/заголовки хунков. */
-const diffLineClass = (line) => {
-  if (line.startsWith('+')) return 'file-diff-line file-diff-line--add';
-  if (line.startsWith('-')) return 'file-diff-line file-diff-line--del';
-  if (line.startsWith('@@')) return 'file-diff-line file-diff-line--hunk';
-  return 'file-diff-line';
-};
 
 const FileDiffModal = ({ change, onClose }) => {
   const { t } = useTranslation('chat');
@@ -141,12 +131,7 @@ const FileDiffModal = ({ change, onClose }) => {
     <ModalShell onClose={onClose} className="fcd-modal">
       <div className="fcd-header">
         <span className="fcd-title" title={change.path}>
-          {change.path}
-          <span className="file-change-stats">
-            {' '}
-            <span className="file-change-add">+{change.additions}</span>/
-            <span className="file-change-del">−{change.deletions}</span>
-          </span>
+          {change.path} <DiffStats additions={change.additions} deletions={change.deletions} />
         </span>
         {isMd && (
           <button
@@ -188,12 +173,7 @@ const FileDiffModal = ({ change, onClose }) => {
             // Индекс как key безопасен: список diff'ов иммутабелен в рамках открытой модалки.
 
             <pre key={i} className="fcd-diff">
-              {diff.split('\n').map((line, j) => (
-                <span key={j} className={diffLineClass(line)}>
-                  {line}
-                  {'\n'}
-                </span>
-              ))}
+              <DiffLines patch={diff} />
             </pre>
           ))
         )}

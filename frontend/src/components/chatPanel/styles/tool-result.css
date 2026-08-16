@@ -1,0 +1,225 @@
+/* ── Режим «Обзор» в модалке вызова инструмента ──
+   Текстовые результаты: содержимое файла, вложения, документа. Импортируется
+   из tool-call-detail.css. */
+
+.tool-result {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.tool-result__item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tool-result__item-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Шапка фактов: путь/имя и метаданные в одну строку. Не переносится и не
+   растёт — содержимое ниже важнее, чем полный путь. */
+.tool-result__facts {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  font-size: 0.75rem;
+  color: #888;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.tool-result__facts-title {
+  color: #333;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Режется первым именно путь: метаданные рядом короткие и постоянной длины. */
+  min-width: 0;
+}
+
+.tool-result__fact {
+  flex-shrink: 0;
+}
+
+.tool-result__md-toggle {
+  background: none;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.7rem;
+  color: #777;
+  padding: 2px 7px;
+  line-height: 1.4;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+.tool-result__md-toggle:hover {
+  border-color: #bbb;
+  color: #333;
+}
+.tool-result__md-toggle--active {
+  background: #eef3ff;
+  border-color: #b9cdf5;
+  color: #2a5cbf;
+}
+
+/* Текст файла. Общий скролл модалки — как у .tool-call-detail__pre, поэтому
+   собственного overflow-y здесь нет. */
+.tool-result__code {
+  background: var(--kb-code-dark-bg, #1e1e2e);
+  color: var(--kb-code-dark-color, #cdd6f4);
+  border-radius: 6px;
+  padding: 8px 0;
+  font-size: 0.75rem;
+  font-family: 'Fira Mono', 'Cascadia Code', 'Consolas', monospace;
+  line-height: 1.55;
+  box-sizing: border-box;
+  width: 100%;
+  overflow-x: auto;
+}
+
+.tool-result__line {
+  display: flex;
+  gap: 12px;
+  padding: 0 10px;
+}
+.tool-result__line:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tool-result__line-no {
+  flex: 0 0 auto;
+  min-width: 3.2em;
+  text-align: right;
+  color: #6c7086;
+  user-select: none;
+}
+
+.tool-result__line-text {
+  white-space: pre;
+  min-width: 0;
+}
+
+/* Markdown документа или .md-вложения. Тот же язык, что у ответа ИИ
+   (styles/markdown.css), но на шаг мельче: это цитата чужого содержимого
+   внутри диалога, а не сам ответ, и заголовок файла не должен спорить с
+   заголовком модалки. */
+.tool-result__markdown {
+  padding: 4px 2px;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--kb-text);
+}
+.tool-result__markdown h1,
+.tool-result__markdown h2,
+.tool-result__markdown h3,
+.tool-result__markdown h4,
+.tool-result__markdown h5,
+.tool-result__markdown h6 {
+  margin: 1em 0 0.35em;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.tool-result__markdown > :first-child {
+  margin-top: 0;
+}
+.tool-result__markdown h1 {
+  font-size: 1.15rem;
+}
+.tool-result__markdown h2 {
+  font-size: 1.02rem;
+}
+.tool-result__markdown h3,
+.tool-result__markdown h4,
+.tool-result__markdown h5,
+.tool-result__markdown h6 {
+  font-size: 0.92rem;
+}
+.tool-result__markdown p,
+.tool-result__markdown ul,
+.tool-result__markdown ol {
+  margin: 0 0 0.7em;
+}
+.tool-result__markdown ul,
+.tool-result__markdown ol {
+  padding-left: 1.7em;
+}
+.tool-result__markdown ul {
+  list-style-type: disc;
+}
+.tool-result__markdown ol {
+  list-style-type: decimal;
+}
+.tool-result__markdown code {
+  font-family: var(--kb-font-mono);
+  font-size: 0.85em;
+  background: var(--kb-bg);
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--kb-accent);
+}
+.tool-result__markdown pre {
+  background: var(--kb-bg);
+  border: 1px solid var(--kb-border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 0 0 0.7em;
+  overflow-x: auto;
+}
+.tool-result__markdown pre code {
+  background: none;
+  padding: 0;
+  color: var(--kb-text);
+}
+.tool-result__markdown blockquote {
+  border-left: 3px solid var(--kb-accent);
+  margin: 0 0 0.7em;
+  padding: 0.3em 0.9em;
+  color: var(--kb-muted);
+  background: var(--kb-accent-light);
+  border-radius: 0 6px 6px 0;
+}
+.tool-result__markdown a {
+  color: var(--kb-accent);
+  text-decoration: underline;
+}
+.tool-result__markdown hr {
+  border: none;
+  border-top: 1px solid var(--kb-border);
+  margin: 0.9em 0;
+}
+.tool-result__markdown table {
+  border-collapse: collapse;
+  margin-bottom: 0.7em;
+  font-size: 0.85rem;
+}
+.tool-result__markdown th,
+.tool-result__markdown td {
+  border: 1px solid var(--kb-border);
+  padding: 5px 9px;
+}
+.tool-result__markdown th {
+  background: var(--kb-bg);
+  font-weight: 600;
+}
+.tool-result__markdown img {
+  max-width: 100%;
+}
+
+.tool-result__empty {
+  padding: 12px;
+  text-align: center;
+  font-size: 0.8rem;
+  color: #999;
+  background: #f7f7f8;
+  border-radius: 6px;
+}

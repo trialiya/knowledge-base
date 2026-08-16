@@ -4,17 +4,7 @@
    Строки списка переиспользуют .doc-change-* из doc-changes.css.
 ═══════════════════════════════════════════════ */
 
-.file-change-stats {
-  white-space: nowrap;
-}
-.file-change-add {
-  color: #188038;
-  font-weight: 600;
-}
-.file-change-del {
-  color: #d93025;
-  font-weight: 600;
-}
+/* Счётчики строк и раскраска самого diff'а — в diff.css, вместе с diffRender.jsx. */
 
 /* ── Diff-модалка ──
    Overlay/portal/escape/aria owned by ModalShell; this overrides the shell's
@@ -112,21 +102,7 @@
   margin-bottom: 0;
 }
 
-.file-diff-line {
-  display: block;
-}
-.file-diff-line--add {
-  background: #e6f4ea;
-  color: #188038;
-}
-.file-diff-line--del {
-  background: #fce8e6;
-  color: #d93025;
-}
-.file-diff-line--hunk {
-  color: #6a737d;
-  background: #f1f8ff;
-}
+/* Раскраска самих строк diff'а — в diff.css, вместе с <DiffLines>. */
 
 .fcd-content {
   white-space: pre-wrap;

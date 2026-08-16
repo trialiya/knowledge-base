@@ -70,7 +70,78 @@
       "arguments": "Аргументы",
       "result": "Результат",
       "loadError": "Не удалось загрузить детали",
-      "notFound": "Детали вызова не сохранены"
+      "notFound": "Детали вызова не сохранены",
+      "mode": {
+        "overview": "Обзор",
+        "json": "JSON"
+      },
+      "showAll": "Показать ещё {{count}} строк",
+      "fact": {
+        "lines": "строки",
+        "language": "язык",
+        "contentType": "тип",
+        "type": "тип",
+        "lineCount": "всего строк",
+        "sizeBytes": "размер",
+        "fileSize": "размер",
+        "descriptionVersion": "версия",
+        "id": "id",
+        "path": "путь",
+        "name": "имя",
+        "title": "заголовок",
+        "fileName": "файл",
+        "parentId": "родитель",
+        "parentList": "находится в",
+        "version": "версия",
+        "summary": "сводка",
+        "summaryStale": "сводка устарела",
+        "snippet": "фрагмент",
+        "hasChildren": "есть вложенные",
+        "system": "системный",
+        "hash": "хеш",
+        "shortHash": "коммит",
+        "author": "автор",
+        "email": "email",
+        "date": "дата",
+        "message": "сообщение",
+        "updatedAt": "обновлён",
+        "createdAt": "создан",
+        "ownerType": "владелец",
+        "documentId": "документ",
+        "conversationId": "чат",
+        "sourceUrl": "источник",
+        "size": "размер",
+        "matchLine": "строка",
+        "status": "статус",
+        "chars": "объём",
+        "level": "уровень",
+        "kind": "вид",
+        "parser": "парсер"
+      },
+      "diff": {
+        "files": "файлов: {{count}}",
+        "noPatch": "Diff не приложен",
+        "status": {
+          "A": "добавлен",
+          "M": "изменён",
+          "D": "удалён",
+          "R": "переименован",
+          "C": "скопирован"
+        }
+      },
+      "records": {
+        "count": "записей: {{count}}",
+        "showAll": "Показать ещё {{count}} записей"
+      },
+      "expandAll": "Развернуть всё",
+      "collapseAll": "Свернуть всё",
+      "tree": {
+        "nodes": "узлов: {{count}}"
+      },
+      "grep": {
+        "matches": "совпадений: {{count}}",
+        "files": "файлов: {{count}}"
+      }
     }
   },
   "scroll": {

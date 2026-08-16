@@ -1,0 +1,113 @@
+/* ── Режим «Обзор» в модалке вызова инструмента ──
+   Совпадения `grepContent`: файл → блоки строк. Импортируется из
+   tool-call-detail.css. */
+
+.tool-grep {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tool-grep__file {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.tool-grep__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 8px;
+  background: #f7f7f8;
+  border: 1px solid #ececf0;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  min-width: 0;
+}
+.tool-grep__head:hover {
+  background: #f0f0f3;
+}
+
+.tool-grep__chevron {
+  display: flex;
+  flex-shrink: 0;
+  color: #999;
+  transform: rotate(-90deg);
+  transition: transform 0.15s;
+}
+.tool-grep__chevron--open {
+  transform: none;
+}
+
+.tool-grep__path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--kb-font-mono, ui-monospace, Menlo, Consolas, monospace);
+  font-size: 0.78rem;
+  color: #222;
+}
+
+.tool-grep__count {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  color: #888;
+}
+
+/* Блоки одного файла разделены отступом, а не рамкой: между ними в файле
+   пропущены строки, и пустота читается как пропуск лучше линии. */
+.tool-grep__block {
+  padding: 6px 0;
+  background: var(--kb-code-dark-bg, #1e1e2e);
+  color: var(--kb-code-dark-color, #cdd6f4);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-family: 'Fira Mono', 'Cascadia Code', 'Consolas', monospace;
+  line-height: 1.55;
+  overflow-x: auto;
+  box-sizing: border-box;
+  width: 100%;
+}
+.tool-grep__block + .tool-grep__block {
+  margin-top: 4px;
+}
+
+.tool-grep__line {
+  display: flex;
+  gap: 12px;
+  padding: 0 10px;
+}
+
+/* Строка совпадения выделена фоном, а не цветом текста: подсветить нужно
+   строку целиком, а не то, что в ней написано. */
+.tool-grep__line--match {
+  background: rgba(249, 226, 175, 0.14);
+}
+
+.tool-grep__line-no {
+  flex: 0 0 auto;
+  min-width: 3.2em;
+  text-align: right;
+  color: #6c7086;
+  user-select: none;
+}
+.tool-grep__line--match .tool-grep__line-no {
+  color: #f9e2af;
+}
+
+.tool-grep__line-text {
+  white-space: pre;
+  min-width: 0;
+  color: #8a8fa3;
+}
+.tool-grep__line--match .tool-grep__line-text {
+  color: var(--kb-code-dark-color, #cdd6f4);
+}

@@ -70,7 +70,78 @@
       "arguments": "Arguments",
       "result": "Result",
       "loadError": "Failed to load details",
-      "notFound": "Call details not recorded"
+      "notFound": "Call details not recorded",
+      "mode": {
+        "overview": "Overview",
+        "json": "JSON"
+      },
+      "showAll": "Show {{count}} more lines",
+      "fact": {
+        "lines": "lines",
+        "language": "language",
+        "contentType": "type",
+        "type": "type",
+        "lineCount": "total lines",
+        "sizeBytes": "size",
+        "fileSize": "size",
+        "descriptionVersion": "version",
+        "id": "id",
+        "path": "path",
+        "name": "name",
+        "title": "title",
+        "fileName": "file",
+        "parentId": "parent",
+        "parentList": "located in",
+        "version": "version",
+        "summary": "summary",
+        "summaryStale": "summary stale",
+        "snippet": "snippet",
+        "hasChildren": "has children",
+        "system": "system",
+        "hash": "hash",
+        "shortHash": "commit",
+        "author": "author",
+        "email": "email",
+        "date": "date",
+        "message": "message",
+        "updatedAt": "updated",
+        "createdAt": "created",
+        "ownerType": "owner",
+        "documentId": "document",
+        "conversationId": "chat",
+        "sourceUrl": "source",
+        "size": "size",
+        "matchLine": "line",
+        "status": "status",
+        "chars": "size",
+        "level": "level",
+        "kind": "kind",
+        "parser": "parser"
+      },
+      "diff": {
+        "files": "{{count}} files",
+        "noPatch": "No diff attached",
+        "status": {
+          "A": "added",
+          "M": "modified",
+          "D": "deleted",
+          "R": "renamed",
+          "C": "copied"
+        }
+      },
+      "records": {
+        "count": "{{count}} records",
+        "showAll": "Show {{count}} more records"
+      },
+      "expandAll": "Expand all",
+      "collapseAll": "Collapse all",
+      "tree": {
+        "nodes": "{{count}} nodes"
+      },
+      "grep": {
+        "matches": "{{count}} matches",
+        "files": "{{count}} files"
+      }
     }
   },
   "scroll": {

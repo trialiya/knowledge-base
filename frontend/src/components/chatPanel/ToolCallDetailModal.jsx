@@ -1,51 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import chatApi from '../../api/chatApi';
 import { getToolIcon, humanizeTool, toolLabelKey } from '../common/toolNames';
 import { IconCopySmall, IconCopied } from '../../icons';
 import useCopyFeedback from '../../hooks/useCopyFeedback';
 import ModalShell from '../common/ModalShell';
-import './styles/tool-call-detail-modal.css';
+import { detectResultView } from './resultViews/registry';
+import { formatJson, tryFormatJson, highlightJson } from './resultViews/jsonText';
+import './styles/tool-call-detail.css';
 
-const formatJson = (raw) => {
-  if (!raw) return null;
-  try {
-    return JSON.stringify(JSON.parse(raw), null, 2);
-  } catch {
-    return raw;
-  }
-};
-
-const escapeHtml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-const highlightJson = (text) => {
-  const escaped = escapeHtml(text);
-  return escaped.replace(
-    /("(?:\\u[0-9a-fA-F]{4}|\\[^u]|[^\\"])*"(\s*:)?|true|false|null|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g,
-    (match) => {
-      let cls;
-      if (match.startsWith('"')) {
-        cls = match.endsWith(':') ? 'json-key' : 'json-string';
-      } else if (match === 'true' || match === 'false') {
-        cls = 'json-boolean';
-      } else if (match === 'null') {
-        cls = 'json-null';
-      } else {
-        cls = 'json-number';
-      }
-      return `<span class="${cls}">${match}</span>`;
-    },
-  );
-};
-
-const tryFormatJson = (raw) => {
-  if (!raw) return null;
-  try {
-    return JSON.stringify(JSON.parse(raw), null, 2);
-  } catch {
-    return null;
-  }
-};
+// Два режима на секцию результата, не три: «Обзор» — типизированный вид,
+// «JSON» — ровно то, что ушло модели, отформатированное и подсвеченное.
+// Отдельный «сырой» режим не нужен: JSON-режим на неразбираемом ответе печатает
+// исходную строку как есть, так что вход модели виден всегда.
+const MODE = { OVERVIEW: 'overview', JSON: 'json' };
 
 /** Маленькая кнопка копирования содержимого секции (аргументы/результат). */
 const CopyButton = ({ value }) => {
@@ -57,7 +25,7 @@ const CopyButton = ({ value }) => {
   return (
     <button
       type="button"
-      className={`tcd-copy-btn ${copied ? 'tcd-copy-btn--done' : ''}`}
+      className={`tool-call-detail__copy${copied ? ' tool-call-detail__copy--done' : ''}`}
       onClick={() => copy(value)}
       title={copied ? t('common:copied') : t('toolCall.copy')}
     >
@@ -66,17 +34,52 @@ const CopyButton = ({ value }) => {
   );
 };
 
+/**
+ * Переключатель «Обзор | JSON». Не рендерится, когда обзора для формы нет.
+ *
+ * Группа кнопок с `aria-pressed`, а не `tablist`/`tab`: настоящие вкладки
+ * требуют `tabpanel` с `aria-controls` и стрелок вместо Tab, а здесь два
+ * состояния одной секции.
+ */
+const ModeSwitch = ({ mode, onChange }) => {
+  const { t } = useTranslation('chat');
+  return (
+    <div className="tool-call-detail__modes" role="group" aria-label={t('toolCall.detail.result')}>
+      {[MODE.OVERVIEW, MODE.JSON].map((value) => (
+        <button
+          key={value}
+          type="button"
+          aria-pressed={mode === value}
+          className={`tool-call-detail__mode${mode === value ? ' tool-call-detail__mode--active' : ''}`}
+          onClick={() => onChange(value)}
+        >
+          {t(`toolCall.detail.mode.${value}`)}
+        </button>
+      ))}
+    </div>
+  );
+};
+
+const JsonBlock = ({ text, fallback }) =>
+  text ? (
+    <pre className="tool-call-detail__pre" dangerouslySetInnerHTML={{ __html: highlightJson(text) }} />
+  ) : (
+    <pre className="tool-call-detail__pre">{fallback || '—'}</pre>
+  );
+
 const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
   const { t } = useTranslation('chat');
   // Ответ сервера; null — запрос ещё идёт. `loading`/`error` выводятся из него
   // при рендере, а сброс на смену вызова делается тут же — эффект показал бы
   // кадр с деталями предыдущего инструмента.
   const [answer, setAnswer] = useState(null); // { details, failed } | null
+  const [mode, setMode] = useState(MODE.OVERVIEW);
 
   const [req, setReq] = useState({ conversationId, callId });
   if (req.conversationId !== conversationId || req.callId !== callId) {
     setReq({ conversationId, callId });
     setAnswer(null);
+    setMode(MODE.OVERVIEW);
   }
 
   useEffect(() => {
@@ -102,63 +105,69 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
 
   const label = t(toolLabelKey(tc.name), { defaultValue: humanizeTool(tc.name) });
   const icon = getToolIcon(tc.name);
-  const statusClass = details ? `tcd-status--${details.status.toLowerCase()}` : '';
-  const argsPretty = details ? formatJson(details.argumentsRaw) : null;
-  const resultPretty = details ? tryFormatJson(details.resultText) : null;
+  const statusClass = details ? ` tool-call-detail__status--${details.status.toLowerCase()}` : '';
+
+  // Разбор ответа — за useMemo: `resultText` бывает в десятки килобайт, а
+  // переключение режима перерисовывает модалку целиком.
+  const argsPretty = useMemo(() => (details ? formatJson(details.argumentsRaw) : null), [details]);
+  const resultPretty = useMemo(() => (details ? tryFormatJson(details.resultText) : null), [details]);
+  const view = useMemo(() => (details ? detectResultView(details.resultText, details.argumentsRaw) : null), [details]);
+  const showOverview = view !== null && mode === MODE.OVERVIEW;
+  const OverviewView = view?.View;
 
   return (
-    <ModalShell onClose={onClose} className="tcd-modal">
-      <div className="tcd-header">
-        <span className="tcd-title">
-          <span className="tcd-icon" aria-hidden="true">
+    <ModalShell onClose={onClose} className="tool-call-detail">
+      <div className="tool-call-detail__header">
+        <span className="tool-call-detail__title">
+          <span className="tool-call-detail__icon" aria-hidden="true">
             {icon}
           </span>
           {label}
         </span>
-        <button className="tcd-close" onClick={onClose} title={t('close')}>
+        <button className="tool-call-detail__close" onClick={onClose} title={t('close')}>
           ✕
         </button>
       </div>
 
-      {loading && <div className="tcd-loading">{t('loading')}</div>}
-      {error && <div className="tcd-error">{error}</div>}
-      {!loading && !error && !details && <div className="tcd-error">{t('toolCall.detail.notFound')}</div>}
+      {loading && <div className="tool-call-detail__notice">{t('loading')}</div>}
+      {error && <div className="tool-call-detail__notice tool-call-detail__notice--error">{error}</div>}
+      {!loading && !error && !details && (
+        <div className="tool-call-detail__notice tool-call-detail__notice--error">{t('toolCall.detail.notFound')}</div>
+      )}
 
       {details && !loading && (
-        <div className="tcd-body">
-          <div className={`tcd-status-badge ${statusClass}`}>{details.status}</div>
+        <div className="tool-call-detail__body">
+          <div className={`tool-call-detail__status${statusClass}`}>{details.status}</div>
 
-          <section className="tcd-section">
-            <div className="tcd-section-header">
-              <div className="tcd-section-label">{t('toolCall.detail.arguments')}</div>
+          <section className="tool-call-detail__section">
+            <div className="tool-call-detail__section-head">
+              <div className="tool-call-detail__label">{t('toolCall.detail.arguments')}</div>
               <CopyButton value={argsPretty} />
             </div>
-            {argsPretty ? (
-              <pre className="tcd-pre" dangerouslySetInnerHTML={{ __html: highlightJson(argsPretty) }} />
-            ) : (
-              <pre className="tcd-pre">—</pre>
-            )}
+            <JsonBlock text={argsPretty} />
           </section>
 
-          <section className="tcd-section">
-            <div className="tcd-section-header">
-              <div className="tcd-section-label">{t('toolCall.detail.result')}</div>
+          <section className="tool-call-detail__section">
+            <div className="tool-call-detail__section-head">
+              <div className="tool-call-detail__label">{t('toolCall.detail.result')}</div>
+              {view && <ModeSwitch mode={mode} onChange={setMode} />}
               <CopyButton value={details.resultText} />
             </div>
-            {resultPretty ? (
-              <pre
-                className="tcd-pre tcd-pre--result"
-                dangerouslySetInnerHTML={{ __html: highlightJson(resultPretty) }}
-              />
+            {showOverview ? (
+              // key по вызову: у видов есть своё состояние (какие файлы
+              // раскрыты, markdown или исходник), а ключи блоков внутри —
+              // порядковые и у разных вызовов совпадают. Без key состояние
+              // предыдущего вызова переехало бы на следующий.
+              <OverviewView key={callId} data={view.data} />
             ) : (
-              <pre className="tcd-pre tcd-pre--result">{details.resultText || '—'}</pre>
+              <JsonBlock text={resultPretty} fallback={details.resultText} />
             )}
           </section>
 
           {details.error && (
-            <section className="tcd-section">
-              <div className="tcd-section-label tcd-section-label--error">{t('toolCall.error')}</div>
-              <pre className="tcd-pre tcd-pre--error">{details.error}</pre>
+            <section className="tool-call-detail__section">
+              <div className="tool-call-detail__label tool-call-detail__label--error">{t('toolCall.error')}</div>
+              <pre className="tool-call-detail__pre tool-call-detail__pre--error">{details.error}</pre>
             </section>
           )}
         </div>

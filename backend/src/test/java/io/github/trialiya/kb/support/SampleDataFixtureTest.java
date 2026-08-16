@@ -9,6 +9,7 @@ import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.DocumentRepository;
 import java.util.List;
+import java.util.Objects;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
@@ -49,9 +50,9 @@ class SampleDataFixtureTest {
         assertThat(jdbc.queryForObject("select count(*) from chat_topic", Integer.class))
                 .isEqualTo(1);
         assertThat(jdbc.queryForObject("select count(*) from chat_message", Integer.class))
-                .isEqualTo(16);
+                .isEqualTo(20);
         assertThat(jdbc.queryForObject("select count(*) from tool_call_index", Integer.class))
-                .isEqualTo(6);
+                .isEqualTo(10);
         assertThat(jdbc.queryForObject("select count(*) from documents", Integer.class))
                 .isEqualTo(3);
         assertThat(jdbc.queryForObject("select count(*) from document_history", Integer.class))
@@ -69,7 +70,7 @@ class SampleDataFixtureTest {
                         .findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAtAscPositionAsc(
                                 "c5dfa618-0ad2-4845-a976-ada46c50f9a4");
 
-        assertThat(messages).hasSize(16);
+        assertThat(messages).hasSize(20);
         // ASSISTANT breadcrumb message carries a parsed meta with tool invocations
         ChatMessageEntity toolBreadcrumb =
                 messages.stream().filter(m -> m.getId() == 1639).findFirst().orElseThrow();
@@ -89,6 +90,62 @@ class SampleDataFixtureTest {
                             assertThat(item.ref()).isEqualTo("1");
                             assertThat(item.label()).isEqualTo("gradle-build-error.log");
                         });
+    }
+
+    /**
+     * Every plaque in the fixture chat must be openable. The frontend needs {@code callId} on the
+     * invocation itself ({@code canShowDetail}) and a {@code tool_call_index} row behind it —
+     * without either the modal cannot be reached at all, which is exactly how this fixture used to
+     * behave. Asserted here rather than left to manual QA: a row added without a callId looks fine
+     * in the list and only fails on click.
+     */
+    @Test
+    void everyInvocationResolvesThroughTheToolCallIndex() {
+        List<String> indexed =
+                jdbc.queryForList(
+                        "select call_id from tool_call_index where conversation_id = ?",
+                        String.class,
+                        "c5dfa618-0ad2-4845-a976-ada46c50f9a4");
+
+        assertThat(
+                        chatMessageRepo
+                                .findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAtAscPositionAsc(
+                                        "c5dfa618-0ad2-4845-a976-ada46c50f9a4")
+                                .stream()
+                                .map(ChatMessageEntity::getInvocations)
+                                .filter(Objects::nonNull)
+                                .flatMap(List::stream))
+                .isNotEmpty()
+                .allSatisfy(
+                        inv -> {
+                            assertThat(inv.callId()).isNotBlank();
+                            assertThat(indexed).contains(inv.callId());
+                        });
+    }
+
+    /**
+     * The one call in the fixture whose result is text rather than a list or a tree — it is what
+     * makes the tool-call modal's "Обзор" mode reachable in manual QA (see the file header).
+     */
+    @Test
+    void fileContentCallCarriesTextResult() {
+        String responseData =
+                chatMessageRepo
+                        .findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAtAscPositionAsc(
+                                "c5dfa618-0ad2-4845-a976-ada46c50f9a4")
+                        .stream()
+                        .filter(m -> m.getId() == 1656)
+                        .findFirst()
+                        .orElseThrow()
+                        .getToolData()
+                        .responses()
+                        .stream()
+                        .filter(r -> "getFileContent".equals(r.name()))
+                        .findFirst()
+                        .orElseThrow()
+                        .responseData();
+
+        assertThat(responseData).contains("\"language\":\"groovy\"").contains("plugins {");
     }
 
     @Test
