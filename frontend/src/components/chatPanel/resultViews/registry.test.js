@@ -112,6 +112,22 @@ describe('detectResultView', () => {
     expect(detectResultView(doc).id).toBe('content');
   });
 
+  // Уступка «список текстов — за content» точна ровно настолько, насколько
+  // совпадают два описания одной границы. Здесь она проверяется с той стороны,
+  // где `content` текст несёт, но массив всё равно не берёт.
+  it('текстов больше, чем берёт content, — список, а не провал в JSON', () => {
+    const long = 'строка\n'.repeat(12);
+    const many = Array.from({ length: 21 }, (_, i) => ({ id: i, fileName: `f${i}.md`, content: long }));
+    expect(detectResultView(JSON.stringify(many)).id).toBe('recordList');
+  });
+
+  it('текст рядом с вложенной коллекцией — тоже список', () => {
+    // `content` отбивается по вложенной коллекции, и уступать ему тут нечего.
+    const long = 'строка\n'.repeat(12);
+    const records = [1, 2].map((id) => ({ id, title: `Док ${id}`, description: long, sections: [{ level: 1 }] }));
+    expect(detectResultView(JSON.stringify(records)).id).toBe('recordList');
+  });
+
   it('совпадения поиска — grepMatches, а не список и не текст', () => {
     const matches = JSON.stringify([{ path: 'a.java', matchLine: 85, text: '-84- a;\n:85: b;\n' }]);
     expect(detectResultView(matches).id).toBe('grepMatches');

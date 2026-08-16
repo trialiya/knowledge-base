@@ -82,19 +82,6 @@ const hasCollection = (obj) => COLLECTION_FIELDS.some((field) => Array.isArray(o
  */
 export const isContentText = (text) => text.includes('\n') || text.length >= MIN_TEXT_LEN;
 
-/**
- * Несёт ли запись длинный текст, то есть претендует ли на неё этот вид.
- *
- * Экспортируется ради `recordList`: массив текстов показывает `content`
- * (`getAttachmentContentByFileName`), массив записей — `recordList`
- * (`getCommitLog`, `getFileTree`), и делит их ровно этот предикат.
- */
-export const carriesContentText = (obj) => {
-  if (!isPlainObject(obj)) return false;
-  const text = firstString(obj, TEXT_FIELDS);
-  return !!text && isContentText(text.value);
-};
-
 const factsOf = (obj, skipField) =>
   FACT_FIELDS.filter((key) => key !== skipField)
     .map((key) => ({ key, value: obj[key] }))
@@ -140,6 +127,29 @@ const toItem = (obj, key) => {
   };
 };
 
+/**
+ * Массив ответа → блоки, либо null. Все до одного: если хоть один элемент
+ * другой формы, список показывает JSON — иначе часть выдачи молча пропала бы
+ * с экрана.
+ */
+const itemsOfArray = (parsed) => {
+  if (parsed.length === 0 || parsed.length > MAX_ITEMS) return null;
+  const items = parsed.map((entry, i) => toItem(entry, `item-${i}`));
+  return items.every(Boolean) ? items : null;
+};
+
+/**
+ * Возьмёт ли этот вид массив целиком.
+ *
+ * Экспортируется ради `recordList` и `tree`: они уступают ему список текстов
+ * (`getAttachmentContentByFileName`), и уступать надо ровно то, что он примет.
+ * Предиката «несёт длинный текст» для этого мало — вид отказывается ещё и от
+ * длинных списков, и от записей с вложенной коллекцией, и от совпадений grep,
+ * а отказ обоих видов сразу роняет выдачу в сырой JSON. Поэтому граница здесь
+ * не описана второй раз, а спрошена у самого разбора.
+ */
+export const contentTakesArray = (parsed) => Array.isArray(parsed) && itemsOfArray(parsed) !== null;
+
 /** Голая строка в ответе (`getAttachmentContent`) — блок без метаданных. */
 const bareTextItem = (text, title) =>
   isContentText(text)
@@ -184,13 +194,7 @@ export const detectContentResult = ({ parsed, isJson, resultText, argumentsRaw }
     return item ? [item] : null;
   }
 
-  if (Array.isArray(parsed)) {
-    if (parsed.length === 0 || parsed.length > MAX_ITEMS) return null;
-    const items = parsed.map((entry, i) => toItem(entry, `item-${i}`));
-    // Все до одного: если хоть один элемент другой формы, список показывает JSON —
-    // иначе часть выдачи молча пропала бы с экрана.
-    return items.every(Boolean) ? items : null;
-  }
+  if (Array.isArray(parsed)) return itemsOfArray(parsed);
 
   const item = toItem(parsed, 'item-0');
   return item ? [item] : null;

@@ -10,7 +10,7 @@
 //
 // Разбор — по форме, а не по имени инструмента (см. registry.js).
 
-import { carriesContentText } from './contentResult';
+import { contentTakesArray } from './contentResult';
 import { nonEmptyString as str } from './fieldValue';
 
 // Выше этого числа узлов вид не берётся: дерево такого размера не читают, его
@@ -174,9 +174,9 @@ const byPath = (records) => {
 /** Список плоских записей → корни, либо null если ни один сборщик не подошёл. */
 const fromArray = (records) => {
   if (!records.every(isPlainObject)) return null;
-  // Список текстов — за content: делит формы тот же предикат, что и у recordList,
-  // и тем же квантором — `content` берёт массив только целиком.
-  if (records.every(carriesContentText)) return null;
+  // Список текстов — за content, и граница та же, что у recordList: не описание
+  // его правил, а вопрос ему самому.
+  if (contentTakesArray(records)) return null;
 
   if (records.every((r) => Number.isInteger(r.id) && 'parentId' in r)) return byParentId(records);
   if (records.every((r) => str(r.path))) return byPath(records);
@@ -195,19 +195,23 @@ const fromObject = (obj) => {
   return null;
 };
 
-/** Шапка для форм-обёрток: у оглавления и обзора файла есть, у списков нет. */
-const headerOf = (obj) =>
-  isPlainObject(obj)
-    ? {
-        label: str(obj.title) ?? str(obj.path),
-        meta: meta([
-          ['language', obj.language],
-          ['lineCount', obj.lineCount],
-          ['parser', obj.parser],
-          ['descriptionVersion', obj.descriptionVersion],
-        ]),
-      }
-    : null;
+/**
+ * Шапка для форм-обёрток: у оглавления и обзора файла есть, у списков нет.
+ *
+ * Обёртке без имени и без фактов шапка не положена: `null` здесь — то условие,
+ * по которому вид ставит в строку число узлов, и пустой объект вместо него
+ * оставил бы над деревом пустую полосу.
+ */
+const headerOf = (obj) => {
+  const label = str(obj.title) ?? str(obj.path);
+  const facts = meta([
+    ['language', obj.language],
+    ['lineCount', obj.lineCount],
+    ['parser', obj.parser],
+    ['descriptionVersion', obj.descriptionVersion],
+  ]);
+  return label || facts.length > 0 ? { label, meta: facts } : null;
+};
 
 /**
  * Разобранный ответ вызова → `{ header, nodes }` для `<TreeResultView>`, либо
