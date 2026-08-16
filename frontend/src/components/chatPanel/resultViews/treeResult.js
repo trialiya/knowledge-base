@@ -25,6 +25,8 @@ const meta = (pairs) =>
     .filter(([, value]) => value !== null && value !== undefined && value !== '')
     .map(([key, value]) => ({ key, value }));
 
+const countNodes = (nodes) => nodes.reduce((sum, node) => sum + 1 + countNodes(node.children), 0);
+
 // ── Сборщики ──────────────────────────────────────────────────────────────
 
 /**
@@ -44,6 +46,9 @@ const byParentId = (records) => {
       children: [],
     });
   });
+  // Повторяющийся id — записи склеились бы в один узел, и часть выдачи
+  // исчезла бы с экрана. Это уже не дерево, показывать надо JSON.
+  if (nodes.size !== records.length) return null;
 
   const roots = [];
   for (const record of records) {
@@ -52,8 +57,11 @@ const byParentId = (records) => {
     if (parent && parent !== node) parent.children.push(node);
     else roots.push(node);
   }
-  // Ни одного корня — в ссылках цикл: рисовать такое нельзя, а чинить нечем.
-  return roots.length > 0 ? roots : null;
+
+  // Ссылки должны образовывать лес: цикл — даже если он захватил лишь часть
+  // узлов — оставляет их вне всякого корня, и они просто не нарисуются. Молча
+  // потерять записи хуже, чем показать JSON, поэтому сверяем счёт.
+  return countNodes(roots) === records.length ? roots : null;
 };
 
 /**
@@ -124,10 +132,12 @@ const byPath = (records) => {
     const known = index.get(path);
     if (known) return known;
 
+    // `cut === 0` — путь с ведущим слэшем: сегмент перед ним пустой, и
+    // достраивать из него узел не из чего, поэтому такой путь сам корень.
     const cut = path.lastIndexOf('/');
-    const node = { key: `path-${path}`, label: path.slice(cut + 1), secondary: null, meta: [], children: [] };
+    const node = { key: `path-${path}`, label: path.slice(cut + 1) || path, secondary: null, meta: [], children: [] };
     index.set(path, node);
-    (cut < 0 ? roots : ensure(path.slice(0, cut)).children).push(node);
+    (cut < 1 ? roots : ensure(path.slice(0, cut)).children).push(node);
     return node;
   };
 
@@ -141,8 +151,6 @@ const byPath = (records) => {
 };
 
 // ── Отбор ─────────────────────────────────────────────────────────────────
-
-const countNodes = (nodes) => nodes.reduce((sum, node) => sum + 1 + countNodes(node.children), 0);
 
 /** Список плоских записей → корни, либо null если ни один сборщик не подошёл. */
 const fromArray = (records) => {

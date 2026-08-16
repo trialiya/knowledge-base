@@ -116,10 +116,7 @@
         "chars": "size",
         "level": "level",
         "kind": "kind",
-        "parser": "parser",
-        "startLine": "from line",
-        "endLine": "to line",
-        "subsections": "subsections"
+        "parser": "parser"
       },
       "diff": {
         "files": "{{count}} files",

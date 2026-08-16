@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { formatFileSize } from '../../../utils/formatting';
+import { formatFieldValue } from './fieldValue';
 
 // Режим «Обзор» для текстовых результатов: содержимое файла, вложения или
 // документа — настоящими переносами строк и с номерами, а не JSON-строкой,
@@ -13,16 +13,9 @@ import { formatFileSize } from '../../../utils/formatting';
 /** Сколько строк показываем до нажатия «показать целиком». */
 const LINE_CAP = 300;
 
-const SIZE_FACTS = new Set(['sizeBytes', 'fileSize']);
-
-const factValue = (key, value) => {
-  if (SIZE_FACTS.has(key)) return formatFileSize(Number(value));
-  return String(value);
-};
-
 /** Факты блока + диапазон строк, посчитанный по самому тексту. */
 const FactList = ({ item, lines }) => {
-  const { t } = useTranslation('chat');
+  const { t, i18n } = useTranslation('chat');
   const range =
     item.text === null
       ? null
@@ -44,7 +37,7 @@ const FactList = ({ item, lines }) => {
       )}
       {item.facts.map(({ key, value }) => (
         <span key={key} className="tool-result__fact">
-          {t(`toolCall.detail.fact.${key}`, { defaultValue: key })}: {factValue(key, value)}
+          {t(`toolCall.detail.fact.${key}`, { defaultValue: key })}: {formatFieldValue(key, value, i18n.language)}
         </span>
       ))}
     </div>

@@ -116,10 +116,7 @@
         "chars": "объём",
         "level": "уровень",
         "kind": "вид",
-        "parser": "парсер",
-        "startLine": "с строки",
-        "endLine": "по строку",
-        "subsections": "подразделов"
+        "parser": "парсер"
       },
       "diff": {
         "files": "файлов: {{count}}",

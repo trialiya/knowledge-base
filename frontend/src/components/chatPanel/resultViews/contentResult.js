@@ -110,10 +110,10 @@ const toItem = (obj, key) => {
     return { key, title, binary: true, text: null, language: null, startLine: 1, markdown: false, facts: factsOf(obj) };
   }
   if (hasCollection(obj)) return null;
-  // grepContent отдаёт `{path, matchLine, text}`, где text при contextLines>0
-  // многострочный и уже несёт собственную нумерацию (`:85:` — совпадение,
-  // `-84-` — контекст). Чужой гуттер с номерами от единицы поверх неё врал бы;
-  // у формы будет свой вид, до тех пор — JSON.
+  // Совпадение grepContent: его text уже несёт собственную нумерацию
+  // (`:85:` — совпадение, `-84-` — контекст), и гуттер с номерами от единицы
+  // поверх неё врал бы. Список таких записей забирает `grepMatches` раньше по
+  // реестру; отбой нужен для одиночного объекта той же формы.
   if (Number.isInteger(obj.matchLine)) return null;
 
   const text = firstString(obj, TEXT_FIELDS);

@@ -119,12 +119,13 @@
 
 | Инструмент | Форма |
 | --- | --- |
-| `getTreeSkeleton` | `List<DocumentNode>` с рекурсивным `children` |
+| `getTreeSkeleton` | `List<DocumentNode>` — плоский список, иерархия в `parentId` |
 | `getDocumentOutline` | `DocumentOutline.sections[]` — плоский список с `level` 1–6 и `path` |
 | `getFileOutline` | `GitFileOutline.symbols[]` — `kind`, `name`, `signature`, `startLine`–`endLine` |
 
-Нужно: отступ по уровню (`level` / вложенность / `kind`), сворачивание ветвей.
-`getFileTree` тоже сюда просится — плоские пути собираются в дерево на клиенте.
+Три разных способа выразить одно и то же, плюс четвёртый у `getFileTree`/`searchFiles`,
+где иерархия лежит в самой строке пути. Отсюда и решение: один рендерер и сборщик на
+каждый способ.
 
 ### E. Markdown / отчёт (3)
 

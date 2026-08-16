@@ -39,8 +39,15 @@ describe('detectTreeResult — вложенность по ссылке на р�
     expect(shape(data.nodes)).toEqual([['Модели', ['Документы']]]);
   });
 
-  it('цикл в ссылках рисовать нельзя', () => {
+  it('цикл в ссылках рисовать нельзя — даже частичный', () => {
     expect(detect(JSON.stringify([doc(1, 'A', 2), doc(2, 'B', 1)]))).toBeNull();
+    // Корень тут есть, но A и B замкнуты друг на друга и не попали бы ни под
+    // один корень: молча потерять их хуже, чем показать JSON.
+    expect(detect(JSON.stringify([doc(5, 'Корень', null), doc(1, 'A', 2), doc(2, 'B', 1)]))).toBeNull();
+  });
+
+  it('повторяющийся id — записи склеились бы в один узел', () => {
+    expect(detect(JSON.stringify([doc(1, 'Проект', null), doc(1, 'Двойник', null)]))).toBeNull();
   });
 });
 

@@ -105,7 +105,7 @@ const TreeResultView = ({ data }) => {
         {!data.header && t('toolCall.detail.tree.nodes', { count: data.count })}
       </ResultSummary>
 
-      <ul className="tool-tree__children tool-tree__children--root">
+      <ul className="tool-tree__children">
         {data.nodes.map((node) => (
           <TreeNode key={node.key} node={node} level={0} expand={expand} />
         ))}
