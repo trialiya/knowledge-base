@@ -36,10 +36,15 @@ public class ScriptEditPolicy {
         if (requested && !enabled) {
             log.warn(
                     "Script edits requested, but the repository working tree is not writable "
-                            + "(read-only mount?) — kb.edit/kb.create are NOT bound into scripts");
+                            + "(read-only mount?) — the write methods are NOT bound into"
+                            + " scripts");
         }
         if (scriptProperties.enabled()) {
-            log.info("Script edits {}", enabled ? "enabled (kb.edit/kb.create)" : "disabled");
+            log.info(
+                    "Script edits {}",
+                    enabled
+                            ? "enabled (kb.edit/kb.create/kb.writeBytes/kb.createBytes)"
+                            : "disabled");
         }
     }
 

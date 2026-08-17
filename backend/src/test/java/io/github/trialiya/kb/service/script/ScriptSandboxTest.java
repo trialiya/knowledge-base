@@ -20,9 +20,13 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Base64;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
@@ -52,6 +56,7 @@ class ScriptSandboxTest {
         write(repoDir.resolve("src/App.java"), "class App {\n  void run() {}\n}\n");
         write(repoDir.resolve("docs/readme.md"), "hello\nworld\n");
         write(repoDir.resolve("secret.pem"), "PRIVATE KEY");
+        writeBytes(repoDir.resolve("static/logo.png"), PNG);
         write(outsideDir.resolve("passwd"), "root:x:0:0");
         commitAll();
         runner = newRunner(ScriptProperties.enabledWithDefaults());
@@ -533,7 +538,195 @@ class ScriptSandboxTest {
         assertThat(result.value()).isNull();
     }
 
+    // ── Binary files ────────────────────────────────────────────────────────
+
+    /**
+     * A binary file is not an off-limits file, only one that cannot be decoded as text: everything
+     * a script can do to a text file it can do to this one, through the byte-level half of the API.
+     * The tracked-files rule and the glob policy still decide <em>which</em> files — see {@link
+     * #binaryFilesObeyTheSameVisibilityPolicyAsTextOnes}.
+     */
+    @Test
+    void readsTheBytesOfABinaryFile() {
+        ScriptResult result =
+                run(
+                        """
+                        var bytes = kb.readBytes('static/logo.png');
+                        return { length: bytes.length, head: bytes.slice(0, 4) };
+                        """);
+
+        assertThat(result.error()).isNull();
+        Map<?, ?> value = (Map<?, ?>) result.value();
+        assertThat(value.get("length")).isEqualTo(PNG.length);
+        // 0x89 arrives as 137, not as -119: a byte reaches the script unsigned, the way every JS
+        // API that deals in bytes presents it.
+        assertThat(value.get("head")).isEqualTo(List.of(137, 80, 78, 71));
+        assertThat(result.filesRead()).containsExactly("static/logo.png");
+    }
+
+    @Test
+    void readsTheSameBytesAsBase64() {
+        ScriptResult result = run("return kb.readBase64('static/logo.png');");
+
+        assertThat(result.error()).isNull();
+        assertThat(Base64.getDecoder().decode((String) result.value())).isEqualTo(PNG);
+    }
+
+    @Test
+    void readsOneWindowOfBytesWithoutTheRest() {
+        ScriptResult result = run("return kb.readBytes('static/logo.png', 1, 3);");
+
+        assertThat(result.error()).isNull();
+        assertThat(result.value()).isEqualTo(List.of(80, 78, 71));
+        // The window is charged, not the file: three bytes, not the whole of it.
+        assertThat(result.stats().bytesRead()).isEqualTo(3);
+    }
+
+    @Test
+    void statAnswersWhetherAFileIsBinaryWithoutReadingIt() {
+        ScriptResult result =
+                run(
+                        """
+                        return {
+                          png: kb.stat('static/logo.png').binary,
+                          java: kb.stat('src/App.java').binary,
+                          size: kb.stat('static/logo.png').size,
+                          lang: kb.stat('src/App.java').language
+                        };
+                        """);
+
+        assertThat(result.error()).isNull();
+        assertThat(result.value())
+                .isEqualTo(Map.of("png", true, "java", false, "size", PNG.length, "lang", "java"));
+        // Metadata is not content: nothing was read, so nothing was charged as read either.
+        assertThat(result.stats().filesRead()).isZero();
+        assertThat(result.stats().bytesRead()).isZero();
+    }
+
+    /**
+     * {@code kb.read} still refuses — decoding these bytes as UTF-8 would hand back a string that
+     * no longer round-trips — but it now refuses by naming the two calls that do serve them, which
+     * is the difference between a dead end and a redirect.
+     */
+    @Test
+    void readRefusesBinaryContentByNamingTheByteMethods() {
+        ScriptResult result = run("return kb.read('static/logo.png');");
+
+        assertThat(result.error()).isNotNull();
+        assertThat(result.error().kind()).isEqualTo(ScriptError.Kind.RUNTIME);
+        assertThat(result.error().message()).contains("kb.readBytes", "kb.readBase64");
+    }
+
+    /**
+     * A digest is not content, and the run must not claim otherwise. {@code filesRead} is
+     * serialised into the tool result, where {@code ToolInvocationCollector.hasSeenFile} reads it
+     * as evidence that the model has looked at the file — so a hashed path reported there would let
+     * a <em>later</em> tool call in the same response edit a file nobody ever opened.
+     */
+    @Test
+    void hashesAFileWithoutReportingItAsRead() {
+        ScriptResult result = run("return kb.hash('static/logo.png');");
+
+        assertThat(result.error()).isNull();
+        assertThat(result.value()).isEqualTo(sha256(PNG));
+        assertThat(result.filesRead()).isEmpty();
+        assertThat(result.stats().filesRead()).isZero();
+        assertThat(result.stats().bytesRead()).isZero();
+    }
+
+    /** It is still a whole pass over the file, so it still costs one against the file budget. */
+    @Test
+    void hashingCountsAgainstTheFileBudget() {
+        runner = newRunner(withLimits(limits -> limits.withMaxFilesRead(1)));
+
+        ScriptResult result =
+                run("kb.hash('static/logo.png'); kb.hash('src/App.java'); return 'ok';");
+
+        assertThat(result.error()).isNotNull();
+        assertThat(result.error().kind()).isEqualTo(ScriptError.Kind.BUDGET);
+        assertThat(result.error().message()).contains("maxFilesRead");
+    }
+
+    /**
+     * A byte reaches the script as a JS number, so one call hands over far less than the run's byte
+     * budget would allow. The refusal has to name the way out, and that way out has to work.
+     */
+    @Test
+    void refusesToHandOverAWholeFileTooLargeForOneCallAndNamesTheWindow() {
+        writeBytes(repoDir.resolve("static/big.bin"), new byte[300_000]);
+        commitAll();
+
+        ScriptResult whole = run("return kb.readBytes('static/big.bin').length;");
+
+        assertThat(whole.error()).isNotNull();
+        assertThat(whole.error().kind()).isEqualTo(ScriptError.Kind.BUDGET);
+        assertThat(whole.error().message()).contains("kb.readBytes(path, offset, length)");
+
+        ScriptResult window = run("return kb.readBytes('static/big.bin', 299_990, 100).length;");
+
+        assertThat(window.error()).isNull();
+        // Clamped to what is actually left, rather than refused for asking past the end.
+        assertThat(window.value()).isEqualTo(10);
+    }
+
+    /**
+     * A window that starts past the end of the file is empty rather than an error — but it hands
+     * the script nothing, so it is not reported as a read either (what that would cost is in {@code
+     * ScriptEditTest}).
+     */
+    @Test
+    void aWindowPastTheEndOfTheFileIsEmptyAndCountsAsNoContent() {
+        ScriptResult result = run("return kb.readBytes('static/logo.png', 999999, 1).length;");
+
+        assertThat(result.error()).isNull();
+        assertThat(result.value()).isEqualTo(0);
+        assertThat(result.filesRead()).isEmpty();
+        assertThat(result.stats().bytesRead()).isZero();
+    }
+
+    @Test
+    void binaryFilesObeyTheSameVisibilityPolicyAsTextOnes() {
+        runner = newRunner(withGlobs(List.of("static/**"), List.of()));
+
+        for (String call :
+                List.of(
+                        "kb.readBytes('static/logo.png')",
+                        "kb.readBase64('static/logo.png')",
+                        "kb.stat('static/logo.png')",
+                        "kb.hash('static/logo.png')")) {
+            ScriptError denied = run("return " + call + ";").error();
+            assertThat(denied).as(call).isNotNull();
+            assertThat(denied.message()).as(call).contains("File not found");
+            assertThat(denied.kind()).as(call).isEqualTo(ScriptError.Kind.RUNTIME);
+        }
+    }
+
+    @Test
+    void cannotReachOutsideTheRepositoryThroughTheByteMethods() {
+        for (String path : List.of("../passwd", "/etc/passwd", outsideDir + "/passwd")) {
+            ScriptResult result = run("return kb.readBytes(" + quote(path) + ");");
+            assertThat(result.error())
+                    .describedAs("reading %s must fail", path)
+                    .isNotNull()
+                    .extracting(ScriptError::kind)
+                    .isEqualTo(ScriptError.Kind.RUNTIME);
+        }
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────────
+
+    /** A PNG header followed by NUL bytes — sniffs binary exactly as git's own heuristic does. */
+    private static final byte[] PNG = {
+        (byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13
+    };
+
+    private static String sha256(byte[] bytes) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
 
     @SuppressWarnings("unchecked")
     private List<String> files() {
@@ -609,6 +802,15 @@ class ScriptSandboxTest {
         try {
             Files.createDirectories(file.getParent());
             Files.writeString(file, content, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static void writeBytes(Path file, byte[] content) {
+        try {
+            Files.createDirectories(file.getParent());
+            Files.write(file, content);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

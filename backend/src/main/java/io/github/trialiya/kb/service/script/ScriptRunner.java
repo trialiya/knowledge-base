@@ -324,9 +324,19 @@ public class ScriptRunner {
         for (ScriptSession.PendingWrite write : writes) {
             try {
                 applied.add(
-                        write.created()
-                                ? gitService.createFile(write.path(), write.text())
-                                : gitService.replaceTrackedFile(write.path(), write.text()));
+                        switch (write) {
+                            case ScriptSession.TextWrite text ->
+                                    text.created()
+                                            ? gitService.createFile(text.path(), text.text())
+                                            : gitService.replaceTrackedFile(
+                                                    text.path(), text.text());
+                            case ScriptSession.BinaryWrite binary ->
+                                    binary.created()
+                                            ? gitService.createBinaryFile(
+                                                    binary.path(), binary.bytes())
+                                            : gitService.replaceTrackedBytes(
+                                                    binary.path(), binary.bytes());
+                        });
             } catch (RuntimeException e) {
                 throw new IllegalStateException(
                         "Script edits partially applied ("

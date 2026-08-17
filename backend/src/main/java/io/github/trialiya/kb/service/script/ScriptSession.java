@@ -50,7 +50,21 @@ public final class ScriptSession {
      */
     private final @Nullable ToolInvocationCollector priorInvocations;
 
+    /**
+     * Files whose content this run was actually handed. Reported back in {@code
+     * ScriptResult.filesRead}, which is serialised into the tool result and read again by {@code
+     * ToolInvocationCollector.hasSeenFile} — so a path lands here only when the script really was
+     * shown what is in the file, never merely because the backend opened it (see {@link
+     * #chargeScan}).
+     */
     private final Set<String> filesRead = new LinkedHashSet<>();
+
+    /**
+     * Every file this run made the backend read, whether or not its content was handed over — what
+     * {@code maxFilesRead} counts. A digest still costs a full pass over the file, so it has to be
+     * bounded by something; it just must not be reported as a read.
+     */
+    private final Set<String> filesTouched = new LinkedHashSet<>();
 
     /**
      * Files whose real current text this run has been shown — everything in {@link #filesRead},
@@ -202,15 +216,36 @@ public final class ScriptSession {
     /** Books a completed read against the per-run file-count and byte budgets. */
     public void chargeRead(String path, long bytes) {
         filesSeen.add(path);
-        boolean newFile = filesRead.add(path);
-        if (newFile && filesRead.size() > limits.maxFilesRead()) {
+        filesRead.add(path);
+        countFile(path);
+        chargeBytes(bytes, "Read line ranges (kb.read(path, from, to)) instead of whole files.");
+    }
+
+    /**
+     * Books a pass over a file that handed the script none of its content — {@code kb.hash}, which
+     * turns a file of any size into 64 characters, and a byte window that landed past the end of
+     * the file.
+     *
+     * <p>Counted against the file budget because the backend really did read the file; charged no
+     * bytes because none were handed over; and kept out of both {@link #filesSeen} and {@link
+     * #filesRead}, because neither a digest nor an empty window is the content. The first would let
+     * this run overwrite a file it never looked at (see {@link #requireRead}); the second would say
+     * so to the rest of the response, since {@code filesRead} is reported back and {@code
+     * ToolInvocationCollector} reads it as evidence for a later tool call.
+     */
+    public void chargeScan(String path) {
+        countFile(path);
+    }
+
+    private void countFile(String path) {
+        boolean newFile = filesTouched.add(path);
+        if (newFile && filesTouched.size() > limits.maxFilesRead()) {
             throw budgetExceeded(
                     "maxFilesRead",
                     limits.maxFilesRead(),
                     "files per run. Narrow the file list before reading (kb.grep with a glob, or"
                             + " kb.files with a tighter pattern).");
         }
-        chargeBytes(bytes, "Read line ranges (kb.read(path, from, to)) instead of whole files.");
     }
 
     /**
@@ -246,6 +281,7 @@ public final class ScriptSession {
         }
     }
 
+    /** Files the script was shown the content of — not every file the run made the backend open. */
     public List<String> filesRead() {
         return List.copyOf(filesRead);
     }
@@ -255,24 +291,45 @@ public final class ScriptSession {
     /**
      * A file this run has written, as it will be applied once the script finishes successfully.
      *
-     * @param created the file does not exist yet and must be created, not replaced
-     * @param sizeBytes encoded size of {@link #text}, carried rather than recomputed: a script may
-     *     rewrite one file many times, and re-encoding every pending file on each of those writes
-     *     is quadratic in exactly the case the byte budget exists to survive
+     * <p>Text and bytes stay apart all the way to the apply step rather than collapsing into one
+     * byte array: a text write is applied through the line-diffing path that produces the diff the
+     * user reviews, and a binary one has no such diff to produce. Which of the two a file is staged
+     * as is also what {@code kb.edit} consults before it agrees to edit it as text.
      */
-    public record PendingWrite(String path, String text, boolean created, int sizeBytes) {}
+    public sealed interface PendingWrite {
+
+        String path();
+
+        /** The file does not exist yet and must be created, not replaced. */
+        boolean created();
+
+        /**
+         * Encoded size of the content, carried rather than recomputed: a script may rewrite one
+         * file many times, and re-encoding every pending file on each of those writes is quadratic
+         * in exactly the case the byte budget exists to survive.
+         */
+        int sizeBytes();
+    }
+
+    /** A file staged as text — {@code kb.edit} / {@code kb.create}. */
+    public record TextWrite(String path, String text, boolean created, int sizeBytes)
+            implements PendingWrite {}
+
+    /** A file staged as raw bytes — {@code kb.writeBytes} / {@code kb.createBytes}. */
+    public record BinaryWrite(String path, byte[] bytes, boolean created, int sizeBytes)
+            implements PendingWrite {}
 
     /**
-     * Current text of a file as the script sees it: its pending version if it has already been
-     * written in this run, otherwise absent so the caller reads from disk.
+     * How this run has already written {@code path}, or empty if it has not — so a caller can both
+     * see the file as the script now has it and tell text from bytes.
      */
-    public Optional<String> pendingText(String path) {
-        return Optional.ofNullable(pending.get(path)).map(PendingWrite::text);
+    public Optional<PendingWrite> pending(String path) {
+        return Optional.ofNullable(pending.get(path));
     }
 
     /** Records the new text of an existing file, charging the write budgets. */
     public void stageEdit(String path, String text) {
-        stage(path, text, false);
+        stage(new TextWrite(path, text, false, text.getBytes(StandardCharsets.UTF_8).length));
     }
 
     /**
@@ -280,11 +337,26 @@ public final class ScriptSession {
      * rather than replace it. Editing a created file afterwards leaves it a creation.
      */
     public void stageCreate(String path, String text) {
-        stage(path, text, true);
+        stage(new TextWrite(path, text, true, text.getBytes(StandardCharsets.UTF_8).length));
     }
 
-    private void stage(String path, String text, boolean created) {
-        PendingWrite previous = pending.get(path);
+    /** As {@link #stageEdit}, for content written as raw bytes. */
+    public void stageBinaryEdit(String path, byte[] bytes) {
+        stage(new BinaryWrite(path, bytes, false, bytes.length));
+    }
+
+    /** As {@link #stageCreate}, for content written as raw bytes. */
+    public void stageBinaryCreate(String path, byte[] bytes) {
+        stage(new BinaryWrite(path, bytes, true, bytes.length));
+    }
+
+    /** The largest a single write may be: the whole write budget, spent on one file. */
+    public long maxWriteBytes() {
+        return limits.maxEditedBytes().toBytes();
+    }
+
+    private void stage(PendingWrite write) {
+        PendingWrite previous = pending.get(write.path());
         if (previous == null && pending.size() + 1 > limits.maxEditedFiles()) {
             throw budgetExceeded(
                     "maxEditedFiles",
@@ -295,9 +367,9 @@ public final class ScriptSession {
         // Both budgets are checked before anything is recorded, so a refused write leaves the run's
         // pending state exactly as it was — the counters a failed run reports describe what it
         // actually staged, not what it was stopped from staging.
-        int size = text.getBytes(StandardCharsets.UTF_8).length;
-        long total = pendingBytes - (previous == null ? 0 : previous.sizeBytes()) + size;
-        long max = limits.maxEditedBytes().toBytes();
+        long total =
+                pendingBytes - (previous == null ? 0 : previous.sizeBytes()) + write.sizeBytes();
+        long max = maxWriteBytes();
         if (total > max) {
             throw budgetExceeded(
                     "maxEditedBytes",
@@ -306,9 +378,22 @@ public final class ScriptSession {
                             + " split the work across two runScript calls.");
         }
 
-        boolean isCreate = created || (previous != null && previous.created());
-        pending.put(path, new PendingWrite(path, text, isCreate, size));
+        pending.put(
+                write.path(), previous != null && previous.created() ? asCreation(write) : write);
         pendingBytes = total;
+    }
+
+    /**
+     * A write of a file this run created earlier is still a creation, whatever it is written as.
+     */
+    private static PendingWrite asCreation(PendingWrite write) {
+        if (write.created()) {
+            return write;
+        }
+        return switch (write) {
+            case TextWrite text -> new TextWrite(text.path(), text.text(), true, text.sizeBytes());
+            case BinaryWrite bin -> new BinaryWrite(bin.path(), bin.bytes(), true, bin.sizeBytes());
+        };
     }
 
     /**

@@ -38,6 +38,11 @@ class ScriptEditTest {
     private static final String APP_JAVA = "src/App.java";
     private static final String ORIGINAL = "class App {\n  void run() {}\n}\n";
 
+    /** A PNG header followed by NUL bytes — sniffs binary exactly as git's own heuristic does. */
+    private static final byte[] PNG = {
+        (byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13
+    };
+
     @TempDir Path repoDir;
 
     private ScriptRunner runner;
@@ -49,6 +54,7 @@ class ScriptEditTest {
         runGit("config", "user.name", "Test");
         write(repoDir.resolve(APP_JAVA), ORIGINAL);
         write(repoDir.resolve("docs/readme.md"), "hello\n");
+        writeBytes(repoDir.resolve("static/logo.png"), PNG);
         commitAll();
         runner = newRunner(true, ScriptProperties.enabledWithDefaults());
     }
@@ -531,6 +537,256 @@ class ScriptEditTest {
         assertThat(repoDir.resolve("secrets/leak.pem")).doesNotExist();
     }
 
+    // ── Binary files ────────────────────────────────────────────────────────
+
+    /**
+     * Bytes are written whole, never by fragment: {@code kb.edit}'s exact-match contract is defined
+     * on text, and an offset into a binary file carries none of the evidence that contract exists
+     * to demand. What survives is the read rule — see {@link
+     * #refusesToOverwriteBytesOfAFileTheScriptHasNotRead}.
+     */
+    @Test
+    void replacesTheBytesOfABinaryFile() {
+        ScriptResult result =
+                run(
+                        """
+                        var bytes = kb.readBytes('static/logo.png');
+                        bytes[bytes.length - 1] = 42;
+                        return kb.writeBytes('static/logo.png', bytes);
+                        """);
+
+        assertThat(result.error()).isNull();
+        assertThat(fileBytes("static/logo.png"))
+                .hasSize(PNG.length)
+                .endsWith(new byte[] {42})
+                .startsWith(new byte[] {(byte) 0x89, 'P', 'N', 'G'});
+        assertThat(result.value())
+                .isEqualTo(
+                        Map.of(
+                                "path",
+                                "static/logo.png",
+                                "operation",
+                                "write",
+                                "bytes",
+                                PNG.length));
+        assertThat(result.edits())
+                .singleElement()
+                .extracting(GitEditResult::path, GitEditResult::operation)
+                .containsExactly("static/logo.png", "edit");
+        // No line diff for a binary change — git's own answer instead, which the chat renders as a
+        // diff header rather than as a change of zero lines.
+        assertThat(result.edits().getFirst().diff()).contains("Binary files", "differ");
+    }
+
+    @Test
+    void createsABinaryFileFromBase64() {
+        ScriptResult result =
+                run(
+                        """
+                        var copy = kb.readBase64('static/logo.png');
+                        return kb.createBytes('static/copy.png', copy);
+                        """);
+
+        assertThat(result.error()).isNull();
+        assertThat(fileBytes("static/copy.png")).isEqualTo(PNG);
+        assertThat(result.edits())
+                .singleElement()
+                .extracting(GitEditResult::path, GitEditResult::operation)
+                .containsExactly("static/copy.png", "create");
+    }
+
+    /** The whole point of buffering, on the byte path too: a run that fails writes nothing. */
+    @Test
+    void writesNoBytesWhenTheScriptThrowsAfterWriting() {
+        ScriptResult result =
+                run(
+                        """
+                        kb.readBytes('static/logo.png');
+                        kb.writeBytes('static/logo.png', [1, 2, 3]);
+                        kb.createBytes('static/new.bin', [4, 5]);
+                        throw new Error('boom');
+                        """);
+
+        assertThat(result.error()).isNotNull();
+        assertThat(fileBytes("static/logo.png")).isEqualTo(PNG);
+        assertThat(repoDir.resolve("static/new.bin")).doesNotExist();
+    }
+
+    @Test
+    void refusesToOverwriteBytesOfAFileTheScriptHasNotRead() {
+        ScriptResult result = run("kb.writeBytes('static/logo.png', [1, 2, 3]); return 'ok';");
+
+        assertThat(result.error()).isNotNull();
+        assertThat(result.error().message()).contains("has not looked at it");
+        assertThat(fileBytes("static/logo.png")).isEqualTo(PNG);
+    }
+
+    /**
+     * The pair has to work in one run: {@code kb.createBytes} stages a file that is on no disk and
+     * in no index, so the tracked-file check every replace makes would refuse the very file the
+     * script has just created — while {@code kb.createBytes} refuses a second time round, leaving
+     * nowhere to go. The text pair ({@code kb.create} + {@code kb.edit}) has never had that gap.
+     */
+    @Test
+    void writesBytesAgainToAFileThisRunCreated() {
+        ScriptResult result =
+                run(
+                        """
+                        kb.createBytes('static/icon.ico', [0, 1]);
+                        kb.writeBytes('static/icon.ico', [0, 1, 2, 3]);
+                        return 'ok';
+                        """);
+
+        assertThat(result.error()).isNull();
+        assertThat(fileBytes("static/icon.ico")).containsExactly(0, 1, 2, 3);
+        // One file, and still a creation — the second write did not turn it into an edit of
+        // something that was never there.
+        assertThat(result.edits())
+                .singleElement()
+                .extracting(GitEditResult::path, GitEditResult::operation)
+                .containsExactly("static/icon.ico", "create");
+    }
+
+    /**
+     * The other half of "bytes are written whole": on a text file that would be a whole-file
+     * replacement with no exact match behind it and no diff in front of it — the user would be
+     * asked to review "binary files differ" over a file they can read. Exactly what {@code
+     * kb.edit}'s contract exists to prevent, so it is refused and {@code kb.edit} is named.
+     */
+    @Test
+    void refusesToOverwriteATextFileWithBytes() {
+        ScriptResult result =
+                run(
+                        """
+                        kb.read('src/App.java');
+                        kb.writeBytes('src/App.java', 'Ly8gd2lwZWQK');
+                        return 'ok';
+                        """);
+
+        assertThat(result.error()).isNotNull();
+        assertThat(result.error().kind()).isEqualTo(ScriptError.Kind.RUNTIME);
+        assertThat(result.error().message()).contains("text file", "kb.edit");
+        assertThat(fileText(APP_JAVA)).isEqualTo(ORIGINAL);
+    }
+
+    /**
+     * The "this run created it" exemption is about creation, not about having staged something: a
+     * text file the run merely edited is still on disk, still text, and still the thing the binary
+     * rule protects — otherwise {@code kb.edit} followed by {@code kb.writeBytes} would be the
+     * two-step way round it.
+     */
+    @Test
+    void refusesToOverwriteWithBytesATextFileThisRunOnlyEdited() {
+        ScriptResult result =
+                run(
+                        """
+                        kb.read('src/App.java');
+                        kb.edit('src/App.java', 'class App', 'class Edited');
+                        kb.writeBytes('src/App.java', 'Ly8gd2lwZWQK');
+                        return 'ok';
+                        """);
+
+        assertThat(result.error()).isNotNull();
+        assertThat(result.error().message()).contains("text file", "kb.edit");
+        assertThat(fileText(APP_JAVA)).isEqualTo(ORIGINAL);
+    }
+
+    /**
+     * {@code requireRead} is the only guard a byte write has, so what satisfies it must really be a
+     * look at the file. A window that starts past the end returns an empty array — the script has
+     * been shown nothing, and asking for one must not unlock overwriting the whole file.
+     */
+    @Test
+    void anEmptyByteWindowDoesNotCountAsHavingSeenTheFile() {
+        ScriptResult result =
+                run(
+                        """
+                        kb.readBytes('static/logo.png', 999999, 1);
+                        kb.writeBytes('static/logo.png', [7]);
+                        return 'ok';
+                        """);
+
+        assertThat(result.error()).isNotNull();
+        assertThat(result.error().message()).contains("has not looked at it");
+        assertThat(fileBytes("static/logo.png")).isEqualTo(PNG);
+    }
+
+    /**
+     * A digest is not the content. {@code kb.hash} reads the whole file and hands back 64
+     * characters, which tells a script that two files differ but never what is in either — so it
+     * cannot stand in for having looked at one.
+     */
+    @Test
+    void aHashDoesNotCountAsHavingSeenTheFile() {
+        ScriptResult result =
+                run("kb.hash('static/logo.png'); kb.writeBytes('static/logo.png', [1]); return 1;");
+
+        assertThat(result.error()).isNotNull();
+        assertThat(result.error().message()).contains("has not looked at it");
+        assertThat(fileBytes("static/logo.png")).isEqualTo(PNG);
+    }
+
+    @Test
+    void refusesToEditAsTextWhatThisRunWroteAsBytes() {
+        ScriptResult result =
+                run(
+                        """
+                        kb.readBytes('static/logo.png');
+                        kb.writeBytes('static/logo.png', [1, 2, 3]);
+                        kb.edit('static/logo.png', 'PNG', 'JPG');
+                        return 'ok';
+                        """);
+
+        assertThat(result.error()).isNotNull();
+        assertThat(result.error().message()).contains("already wrote raw bytes", "kb.writeBytes");
+        assertThat(fileBytes("static/logo.png")).isEqualTo(PNG);
+    }
+
+    @Test
+    void refusesToEditABinaryFileAsTextAndNamesTheByteWrite() {
+        ScriptResult result =
+                run(
+                        """
+                        kb.readBytes('static/logo.png');
+                        kb.edit('static/logo.png', 'PNG', 'JPG');
+                        return 'ok';
+                        """);
+
+        assertThat(result.error()).isNotNull();
+        assertThat(result.error().kind()).isEqualTo(ScriptError.Kind.RUNTIME);
+        assertThat(result.error().message()).contains("binary file", "kb.writeBytes");
+        assertThat(fileBytes("static/logo.png")).isEqualTo(PNG);
+    }
+
+    @Test
+    void refusesContentThatIsNeitherBase64NorBytes() {
+        ScriptResult result =
+                run("kb.readBytes('static/logo.png'); kb.writeBytes('static/logo.png', [1, 999]);");
+
+        assertThat(result.error()).isNotNull();
+        assertThat(result.error().message()).contains("not a byte value");
+        assertThat(fileBytes("static/logo.png")).isEqualTo(PNG);
+    }
+
+    @Test
+    void countsByteWritesAgainstTheSameWriteBudgets() {
+        runner = newRunner(true, withEditLimits(1));
+
+        ScriptResult result =
+                run(
+                        """
+                        kb.readBytes('static/logo.png');
+                        kb.writeBytes('static/logo.png', [1, 2, 3]);
+                        kb.createBytes('static/second.bin', [4]);
+                        return 'ok';
+                        """);
+
+        assertThat(result.error()).isNotNull();
+        assertThat(result.error().message()).contains("maxEditedFiles");
+        assertThat(fileBytes("static/logo.png")).isEqualTo(PNG);
+        assertThat(repoDir.resolve("static/second.bin")).doesNotExist();
+    }
+
     // ── Where writes are not available at all ───────────────────────────────
 
     @Test
@@ -539,8 +795,12 @@ class ScriptEditTest {
 
         assertThat(run("return typeof kb.edit;").value()).isEqualTo("undefined");
         assertThat(run("return typeof kb.create;").value()).isEqualTo("undefined");
-        // Reading still works — only the writes are gone.
+        assertThat(run("return typeof kb.writeBytes;").value()).isEqualTo("undefined");
+        assertThat(run("return typeof kb.createBytes;").value()).isEqualTo("undefined");
+        // Reading still works — only the writes are gone, bytes included.
         assertThat(run("return kb.read('src/App.java').length > 0;").value()).isEqualTo(true);
+        assertThat(run("return kb.readBytes('static/logo.png').length > 0;").value())
+                .isEqualTo(true);
     }
 
     @Test
@@ -609,10 +869,27 @@ class ScriptEditTest {
         }
     }
 
+    private byte[] fileBytes(String relativePath) {
+        try {
+            return Files.readAllBytes(repoDir.resolve(relativePath));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     private static void write(Path file, String content) {
         try {
             Files.createDirectories(file.getParent());
             Files.writeString(file, content, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static void writeBytes(Path file, byte[] content) {
+        try {
+            Files.createDirectories(file.getParent());
+            Files.write(file, content);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

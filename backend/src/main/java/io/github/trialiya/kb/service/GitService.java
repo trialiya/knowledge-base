@@ -5,7 +5,9 @@ import io.github.trialiya.kb.model.git.dto.FileEntryType;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitEditResult;
+import io.github.trialiya.kb.model.git.dto.GitFileBytes;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
+import io.github.trialiya.kb.model.git.dto.GitFileInfo;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
@@ -17,15 +19,22 @@ import jakarta.annotation.PreDestroy;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.ByteBuffer;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -91,6 +100,18 @@ public class GitService {
 
     /** Bytes inspected when sniffing for binary content (a NUL byte ⇒ binary). */
     private static final int BINARY_SNIFF_BYTES = 8192;
+
+    /**
+     * Largest window {@link #getFileBytes} will hand back in one call. Not a limit on the file:
+     * bytes are read positionally, so anything bigger is read window by window — which is also the
+     * only shape in which a caller can process a file larger than it can hold.
+     */
+    private static final long MAX_BYTE_WINDOW = 1024 * 1024;
+
+    /**
+     * Chunk size for reads that only pass bytes through, never keeping them ({@link #hashFile}).
+     */
+    private static final int STREAM_BUFFER_BYTES = 8192;
 
     /** When a file exceeds MAX_FILE_SIZE, return this many lines from the head and tail. */
     private static final int TRUNCATE_HEAD_LINES = 200;
@@ -934,6 +955,93 @@ public class GitService {
         return sb.toString();
     }
 
+    // ── Bytes (binary files included) ───────────────────────────────────────
+
+    /**
+     * Size, binary flag and detected language of a tracked file, without reading its content.
+     *
+     * <p>The question {@link #getFileContent} cannot answer cheaply: it has to read the file to
+     * tell whether it is binary, and for a binary one everything it read is thrown away. Scripts
+     * ask this first and only then decide what to read the file with, so it stays a stat plus an 8
+     * KB sniff whatever the file's size.
+     */
+    public GitFileInfo getFileInfo(@NonNull String filePath) {
+        String normalized = normalizePath(filePath);
+        Path absolute = requireTracked(normalized, false);
+        return new GitFileInfo(
+                normalized,
+                sizeOf(normalized, absolute),
+                isBinary(readWindow(normalized, absolute, 0, BINARY_SNIFF_BYTES)),
+                LanguageDetector.detect(normalized));
+    }
+
+    /**
+     * Raw bytes of a tracked file, binary ones included — the byte-level counterpart of {@link
+     * #getFileContent}, which decodes as UTF-8 and therefore serves text only.
+     *
+     * <p>Only the requested window is read from disk, so the cost of the call follows {@code
+     * length} rather than the size of the file: a caller stepping through a 200 MB archive never
+     * materialises more than its own window. That is also why there is no truncation flag here — a
+     * short window is what was asked for, not an excerpt substituted for the whole.
+     *
+     * @param offset first byte to return, 0-based; clamped to the end of the file
+     * @param length how many bytes to return; {@code 0} or less means "to the end of the file"
+     */
+    public GitFileBytes getFileBytes(@NonNull String filePath, long offset, long length) {
+        String normalized = normalizePath(filePath);
+        Path absolute = requireTracked(normalized, false);
+        long size = sizeOf(normalized, absolute);
+        long from = Math.min(Math.max(offset, 0), size);
+        long want = length > 0 ? Math.min(length, size - from) : size - from;
+        if (want > MAX_BYTE_WINDOW) {
+            throw new IllegalArgumentException(
+                    "Cannot read "
+                            + want
+                            + " bytes at once (max "
+                            + MAX_BYTE_WINDOW / 1024
+                            + " KB): "
+                            + normalized
+                            + ". Read the file in windows (offset, length).");
+        }
+        byte[] window = readWindow(normalized, absolute, from, (int) want);
+        // The binary flag describes the file, not the window: it is defined on the head of the
+        // file, so unless this window already covers that head — a short window at offset 0 does
+        // not — the head is read again to answer it. Otherwise a four-byte peek at a file whose
+        // first NUL sits at byte 100 would come back "not binary".
+        boolean windowCoversHead = from == 0 && want >= Math.min(size, BINARY_SNIFF_BYTES);
+        byte[] head =
+                windowCoversHead ? window : readWindow(normalized, absolute, 0, BINARY_SNIFF_BYTES);
+        return new GitFileBytes(normalized, window, from, size, isBinary(head));
+    }
+
+    /**
+     * SHA-256 of a tracked file's bytes, lowercase hex.
+     *
+     * <p>Streamed, so it costs nothing in memory whatever the file's size — which is the point:
+     * comparing two builds, or spotting that a fixture changed, otherwise means pulling both files
+     * through a caller that only wants to know whether they differ.
+     */
+    public String hashFile(@NonNull String filePath) {
+        String normalized = normalizePath(filePath);
+        Path absolute = requireTracked(normalized, false);
+        MessageDigest digest;
+        try {
+            digest = MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is not available", e);
+        }
+        try (InputStream in = Files.newInputStream(absolute)) {
+            byte[] buffer = new byte[STREAM_BUFFER_BYTES];
+            int read;
+            while ((read = in.read(buffer)) > 0) {
+                digest.update(buffer, 0, read);
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("Cannot read file: " + normalized, e);
+        }
+        return HexFormat.of().formatHex(digest.digest());
+    }
+
     /** Bytes of a validated, tracked file plus whether it sniffed as binary. */
     private record FileBytes(String path, byte[] bytes, long size, boolean binary) {}
 
@@ -953,24 +1061,9 @@ public class GitService {
      */
     private FileBytes readTrackedFile(String filePath, boolean knownTracked) {
         String normalized = normalizePath(filePath);
+        Path absolute = requireTracked(normalized, knownTracked);
 
-        // Security: confine to the repo before touching the filesystem.
-        Path absolute = confineToRepo(normalized);
-
-        // Only tracked files may be served. The message is the same whether the path is
-        // untracked-but-present or genuinely missing, so a caller can't use it to fingerprint
-        // which unrelated files (e.g. a gitignored .env) happen to exist on disk.
-        if (!knownTracked && !isTracked(normalized)) {
-            throw new IllegalArgumentException("File not found: " + normalized);
-        }
-
-        long size;
-        try {
-            size = Files.size(absolute);
-        } catch (IOException e) {
-            throw new IllegalStateException("Cannot read file size: " + normalized, e);
-        }
-
+        long size = sizeOf(normalized, absolute);
         byte[] bytes;
         try {
             bytes = Files.readAllBytes(absolute);
@@ -979,6 +1072,55 @@ public class GitService {
         }
 
         return new FileBytes(normalized, bytes, size, isBinary(bytes));
+    }
+
+    /**
+     * The gate in front of every read: the path is confined to the working tree and must be
+     * tracked.
+     *
+     * <p>Only tracked files may be served. The message is the same whether the path is
+     * untracked-but-present or genuinely missing, so a caller can't use it to fingerprint which
+     * unrelated files (e.g. a gitignored {@code .env}) happen to exist on disk.
+     *
+     * @return the absolute path of the file, confined to the repository
+     */
+    private Path requireTracked(String normalized, boolean knownTracked) {
+        // Security: confine to the repo before touching the filesystem.
+        Path absolute = confineToRepo(normalized);
+        if (!knownTracked && !isTracked(normalized)) {
+            throw new IllegalArgumentException("File not found: " + normalized);
+        }
+        return absolute;
+    }
+
+    private static long sizeOf(String normalized, Path absolute) {
+        try {
+            return Files.size(absolute);
+        } catch (IOException e) {
+            throw new IllegalStateException("Cannot read file size: " + normalized, e);
+        }
+    }
+
+    /**
+     * {@code length} bytes starting at {@code offset}, or fewer when the file ends first — so a
+     * caller may ask for more than is there (the binary sniff does) without checking the size.
+     */
+    private static byte[] readWindow(String normalized, Path absolute, long offset, int length) {
+        if (length <= 0) {
+            return new byte[0];
+        }
+        ByteBuffer buffer = ByteBuffer.allocate(length);
+        try (SeekableByteChannel channel = Files.newByteChannel(absolute)) {
+            channel.position(offset);
+            while (buffer.hasRemaining() && channel.read(buffer) > 0) {
+                // read() fills what it can per call; loop until the window or the file ends.
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("Cannot read file: " + normalized, e);
+        }
+        return buffer.position() == length
+                ? buffer.array()
+                : Arrays.copyOf(buffer.array(), buffer.position());
     }
 
     /**
@@ -1026,8 +1168,25 @@ public class GitService {
      * #MAX_FILE_SIZE} bytes.
      */
     public GitEditResult createFile(@NonNull String filePath, @NonNull String content) {
-        String normalized = requireCreatable(filePath, content);
+        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+        String normalized = requireCreatable(filePath, bytes);
+        int lines = content.isEmpty() ? 0 : content.split("\n", -1).length;
+        return create(normalized, bytes, lines);
+    }
 
+    /**
+     * As {@link #createFile}, from raw bytes — the only way to create a file whose content is not
+     * text (a fixture image, a keystore, a compiled artefact a test compares against).
+     *
+     * <p>Line counters come back as zero rather than as a count of accidental {@code 0x0A} bytes: a
+     * binary file has no lines, and a number that looks like one would be read as if it did.
+     */
+    public GitEditResult createBinaryFile(@NonNull String filePath, byte @NonNull [] content) {
+        return create(requireCreatable(filePath, content), content, 0);
+    }
+
+    /** Shared tail of the two create paths: write, stage, report. */
+    private GitEditResult create(String normalized, byte[] content, int lines) {
         // Only presence on disk blocks creation. A tracked-but-deleted file (removed from the
         // working tree, still in the index) is deliberately allowed — editFile can't read it, so
         // createFile is the only way to restore it; the staging below refreshes the index entry.
@@ -1042,7 +1201,7 @@ public class GitService {
             if (parent != null) {
                 Files.createDirectories(parent);
             }
-            Files.writeString(absolute, content, StandardCharsets.UTF_8);
+            Files.write(absolute, content);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot create file: " + normalized, e);
         }
@@ -1062,8 +1221,7 @@ public class GitService {
                     "Path is ignored by .gitignore and cannot be created: " + normalized);
         }
 
-        int lines = content.isEmpty() ? 0 : content.split("\n", -1).length;
-        log.info("createFile: '{}' created and staged ({} lines)", normalized, lines);
+        log.info("createFile: '{}' created and staged ({} bytes)", normalized, content.length);
         return new GitEditResult("create", normalized, lines, 0, lines, null);
     }
 
@@ -1157,21 +1315,62 @@ public class GitService {
         return writeUpdatedText(fb, text, newContent.replace("\r\n", "\n"), crlf);
     }
 
+    /**
+     * Replaces the whole content of a tracked file with raw bytes — the binary counterpart of
+     * {@link #replaceTrackedFile}, and like it not exposed as a tool of its own.
+     *
+     * <p>Whole-content only, because there is no meaningful partial edit here: the exact-match
+     * contract of {@link #editFile} is defined on text, and a byte offset carries none of the
+     * evidence that the caller is looking at what it thinks it is. What the user reviews is
+     * therefore not a diff but git's own answer for a binary change — the two sizes and the fact
+     * that they differ.
+     */
+    public GitEditResult replaceTrackedBytes(@NonNull String filePath, byte @NonNull [] content) {
+        String normalized = requireReplaceable(filePath, content);
+        Path absolute = repoPath.resolve(normalized).normalize();
+        long before = sizeOf(normalized, absolute);
+
+        writeAtomically(normalized, content);
+        stage(normalized, "edited");
+
+        log.info("wrote '{}' ({} → {} bytes)", normalized, before, content.length);
+        String diff =
+                "Binary files a/"
+                        + normalized
+                        + " and b/"
+                        + normalized
+                        + " differ ("
+                        + before
+                        + " → "
+                        + content.length
+                        + " bytes)";
+        return new GitEditResult("edit", normalized, 0, 0, 0, diff);
+    }
+
+    /**
+     * Everything {@link #replaceTrackedBytes} refuses before it touches the disk: a path that is
+     * not writable ({@code .git/}, a junk name, an escape from the tree), a path no read tool would
+     * serve back afterwards (untracked), and content too large.
+     *
+     * <p>Split out for the same reason as {@link #requireCreatable}: {@code runScript} stages its
+     * writes and applies them only when the script has finished, and a refusal that does not depend
+     * on the state of the tree belongs to the script's own runtime, where it is an error the model
+     * can still correct and nothing has reached disk.
+     *
+     * @return the normalized path, as {@link #replaceTrackedBytes} will spell it
+     */
+    public String requireReplaceable(@NonNull String filePath, byte @NonNull [] content) {
+        String normalized = requireWritable(filePath, content);
+        requireTracked(normalized, false);
+        return normalized;
+    }
+
     /** Shared tail of the two edit paths: diff, atomic write, stage, report. */
     private GitEditResult writeUpdatedText(
             FileBytes fb, String text, String updated, boolean crlf) {
         DiffStats stats = diffStrings(text, updated);
         writeAtomically(fb.path(), crlf ? updated.replace("\n", "\r\n") : updated);
-
-        // Stage the edit. Not just cosmetics: a same-size edit written within the same clock tick
-        // is "racily clean" and JGit's status (unlike native git) can miss it entirely — the index
-        // update makes the change deterministically visible to getUncommittedChanges. It also
-        // matches createFile: everything the model changed is staged, ready for user review.
-        try {
-            git.add().addFilepattern(fb.path()).call();
-        } catch (GitAPIException e) {
-            throw new IllegalStateException("Failed to stage edited file: " + fb.path(), e);
-        }
+        stage(fb.path(), "edited");
 
         int lines = updated.isEmpty() ? 0 : updated.split("\n", -1).length;
         log.info("wrote '{}' (+{}/-{})", fb.path(), stats.additions(), stats.deletions());
@@ -1209,13 +1408,35 @@ public class GitService {
         return new DiffStats(add, del, diff);
     }
 
-    /** Writes via a temp file + atomic move so a crash never leaves a half-written file. */
+    /**
+     * Stages a path that was just written.
+     *
+     * <p>Not just cosmetics for an edit: a same-size edit written within the same clock tick is
+     * "racily clean" and JGit's status (unlike native git) can miss it entirely — the index update
+     * makes the change deterministically visible to {@link #getUncommittedChanges}. It also matches
+     * {@link #createFile}: everything the model changed is staged, ready for user review.
+     *
+     * @param what how to name the file if staging fails ({@code "created"} / {@code "edited"})
+     */
+    private void stage(String normalized, String what) {
+        try {
+            git.add().addFilepattern(normalized).call();
+        } catch (GitAPIException e) {
+            throw new IllegalStateException("Failed to stage " + what + " file: " + normalized, e);
+        }
+    }
+
     private void writeAtomically(String relativePath, String content) {
+        writeAtomically(relativePath, content.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** Writes via a temp file + atomic move so a crash never leaves a half-written file. */
+    private void writeAtomically(String relativePath, byte[] content) {
         Path target = repoPath.resolve(relativePath).normalize();
         Path tmp = null;
         try {
             tmp = Files.createTempFile(target.getParent(), ".kb-edit-", ".tmp");
-            Files.writeString(tmp, content, StandardCharsets.UTF_8);
+            Files.write(tmp, content);
             // The move replaces the target's inode, so without this the edited file would end up
             // with the temp file's default mode (0600) — silently dropping e.g. the executable
             // bit of a script. Copy the original permissions onto the temp file before the swap.
@@ -1397,8 +1618,28 @@ public class GitService {
      * @return the normalized path, as {@link #createFile} will spell it
      */
     public String requireCreatable(@NonNull String filePath, @NonNull String content) {
+        return requireWritable(filePath, content.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** As {@link #requireCreatable(String, String)}, for a file created from raw bytes. */
+    public String requireCreatable(@NonNull String filePath, byte @NonNull [] content) {
+        return requireWritable(filePath, content);
+    }
+
+    /**
+     * The two refusals every write shares, whatever the file's state: the path may be written to at
+     * all, and the content is small enough to be served back afterwards.
+     *
+     * <p>Named separately from {@link #requireCreatable} and {@link #requireReplaceable} because
+     * {@code runScript} needs exactly this pair, and neither of the others, for a file the same run
+     * has already staged: such a file is on no disk and in no index yet, so "must exist" and "must
+     * be tracked" are both wrong questions to ask about it.
+     *
+     * @return the normalized path, as the write will spell it
+     */
+    public String requireWritable(@NonNull String filePath, byte @NonNull [] content) {
         String normalized = validateWritablePath(filePath);
-        if (content.getBytes(StandardCharsets.UTF_8).length > MAX_FILE_SIZE) {
+        if (content.length > MAX_FILE_SIZE) {
             throw new IllegalArgumentException(
                     "Content too large (max " + MAX_FILE_SIZE / 1024 + " KB): " + normalized);
         }

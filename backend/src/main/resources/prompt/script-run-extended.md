@@ -11,7 +11,7 @@
 
 ### How to write scripts
 1. **Start with filtering.** `kb.files(glob)` or `kb.grep(pattern, {glob})` first, read next—not for token budget (sufficient for full repo) but less work, faster answer.
-2. **Read precisely.** Found line via grep? Read context: `kb.read(path, line - 5, line + 30)`. Read whole file when truly needed—normal, not last resort.
+2. **Read precisely.** Found line via grep? Read context: `kb.read(path, line - 5, line + 30)`. Read whole file when truly needed—normal, not last resort. Binary file? `kb.readBytes(path, offset, length)` for the part that matters, `kb.hash` when you only need to compare.
 3. **Build structure.** Collect results in object array—easy to read, return, use.
 4. **Return summary.** `return` is counts, top-N, path/line table—not file contents.
 
@@ -89,6 +89,30 @@ return {
   body: kb.read("backend/src/main/java/io/github/trialiya/kb/service/GitService.java",
                 target.startLine, target.endLine)
 };
+```
+
+Check binary assets by their header, without pulling them into the script:
+```js
+var out = [];
+var paths = kb.files("**/*.png");
+for (var i = 0; i < paths.length; i++) {
+  var head = kb.readBytes(paths[i], 0, 8);        // window, not the whole image
+  var png = head[0] === 0x89 && head[1] === 0x50 && head[2] === 0x4E && head[3] === 0x47;
+  out.push({ path: paths[i], size: kb.stat(paths[i]).size, png: png });
+}
+return { total: out.length, broken: out.filter(function (f) { return !f.png; }) };
+```
+
+Find duplicate files by content:
+```js
+var seen = {};
+var dupes = [];
+var paths = kb.files("docs/**");
+for (var i = 0; i < paths.length; i++) {
+  var digest = kb.hash(paths[i]);                 // any size, 64 chars back
+  if (seen[digest]) { dupes.push([seen[digest], paths[i]]); } else { seen[digest] = paths[i]; }
+}
+return dupes;
 ```
 
 Link code and KB docs:

@@ -23,8 +23,19 @@ kb.edit(path, anchor, "  script:\n    # enabled by script\n    enabled:");
 return { done: true };
 ```
 
+### Example: patch a byte in a binary fixture
+```js
+var path = "backend/src/test/resources/fixtures/sample.bin";
+var bytes = kb.readBytes(path);
+if (bytes[0] !== 0x89) { return { done: false, reason: "not the expected header" }; }
+bytes[4] = 2;                       // bump the version byte
+kb.writeBytes(path, bytes);         // whole content, always
+return { done: true, bytes: bytes.length };
+```
+
 ### What not to do
-- **Don't edit unverified files.** `kb.grep`/`kb.read` first, then `kb.edit`.
-- **Don't replace entire file in one edit.** `oldString` is exact fragment, not everything.
-- **Don't create files speculatively.** `kb.create` fails if file exists.
+- **Don't edit unverified files.** `kb.grep`/`kb.read`/`kb.readBytes` first, then write.
+- **Don't replace entire file in one `kb.edit`.** `oldString` is exact fragment, not everything—whole-content replace exists only for bytes.
+- **Don't `kb.edit` a binary file.** No exact-match anchor there: `kb.writeBytes` or nothing.
+- **Don't create files speculatively.** `kb.create`/`kb.createBytes` fail if file exists.
 - **Don't try to commit.** User commits only.

@@ -19,6 +19,12 @@
 | `kb.grep(pattern)` | `[{path, line, text}]` | case-insensitive **substring** |
 | `kb.grep(pattern, opts)` | `[{path, line, text}]` | `opts = {glob, regex, context, max}` |
 | `kb.outline(path)` | `[{kind, name, signature, startLine, endLine}]` | Java, JS/TS, Python, SQL |
+| `kb.stat(path)` | `{path, size, binary, language}` | metadata only, no content |
+| `kb.readBytes(path)` | number[] | raw bytes 0..255, **binary files too** |
+| `kb.readBytes(path, offset, length)` | number[] | one window; `offset` 0-based, `length` `0`=to end |
+| `kb.readBase64(path)` | string | same bytes as base64 |
+| `kb.readBase64(path, offset, length)` | string | one window |
+| `kb.hash(path)` | string | sha-256 hex of the file's bytes |
 | `kb.searchDocs(query)` | `[{docId, title, snippet}]` | hybrid KB search |
 | `kb.searchDocs(query, limit)` | `[{docId, title, snippet}]` | |
 | `kb.log(x)` | — | strings as-is, objects as JSON |
@@ -29,7 +35,9 @@
 
 **Glob:** always use `**/` for any depth—`**/*.java`, not `*.java`. `*.java` matches only root.
 
-**Cached calls:** `kb.files`, `kb.read`, `kb.outline`, `kb.grep`, `kb.searchDocs` with identical args are cached—no cost. Don't cache yourself.
+**Binary files:** not off-limits, just not text. `kb.read` refuses them (decoded as UTF-8 they'd come back mangled); `kb.readBytes`/`kb.readBase64` return the actual bytes, `kb.stat(path).binary` says which kind a file is, `kb.hash` compares two files without reading either into the script. One byte-read call hands over at most 256 KB, so a big file is read window by window—`kb.stat` first for the size, then a loop over `offset`. `kb.hash` has no such limit: it reads any size and returns 64 chars.
+
+**Cached calls:** `kb.files`, `kb.read`, `kb.readBytes`/`kb.readBase64`, `kb.stat`, `kb.hash`, `kb.outline`, `kb.grep`, `kb.searchDocs` with identical args are cached—no cost. Don't cache yourself.
 
 ### If error occurs
 `error.kind` tells you:

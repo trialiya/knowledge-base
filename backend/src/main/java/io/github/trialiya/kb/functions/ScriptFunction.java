@@ -41,8 +41,8 @@ public class ScriptFunction {
     private final ScriptRunner scriptRunner;
 
     /**
-     * Withholds {@code kb.edit}/{@code kb.create} whatever {@code ScriptEditPolicy} says. Set for
-     * the search sub-agent's copy of the tool, whose whole contract is that it only reads.
+     * Withholds the write methods whatever {@code ScriptEditPolicy} says. Set for the search
+     * sub-agent's copy of the tool, whose whole contract is that it only reads.
      */
     private final boolean forceReadOnly;
 
@@ -60,7 +60,8 @@ public class ScriptFunction {
             description =
                     """
                     Runs JavaScript (ES2023) that traverses the repo itself: only kb object available \
-                    (kb.files, kb.read, kb.grep, kb.outline, kb.searchDocs, kb.log; kb.edit and kb.create \
+                    (kb.files, kb.read, kb.grep, kb.outline, kb.searchDocs, kb.log; kb.stat, kb.readBytes, \
+                    kb.readBase64, kb.hash for binary files; kb.edit, kb.create, kb.writeBytes, kb.createBytes \
                     when writes enabled)—no file APIs, network, or Java. Return via return statement. \
                     Use for many-file iteration with tallying/joining/edits; for single searches, reads, \
                     or edits use grepContent / getFileContent / editFile. Full kb reference and limits in \
