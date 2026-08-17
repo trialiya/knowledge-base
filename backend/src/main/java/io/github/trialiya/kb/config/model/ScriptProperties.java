@@ -17,10 +17,11 @@ import org.springframework.util.unit.DataSize;
  *
  * @param enabled expose {@code runScript} to the chat model at all; off by default — a sandbox is
  *     still code execution, so this is an explicit opt-in like {@code kb.mcp.enabled}
- * @param editEnabled let scripts write through {@code kb.edit} / {@code kb.create}. Necessary but
- *     not sufficient: {@code kb.git.edit-enabled} must be on and the working tree writable, exactly
- *     as for the {@code editFile} tool (see {@code ScriptEditPolicy}). Separate from that flag so a
- *     deployment can keep the edit tools and still hand the model read-only scripts
+ * @param editEnabled let scripts write — {@code kb.edit} / {@code kb.create} for text, {@code
+ *     kb.writeBytes} / {@code kb.createBytes} for raw bytes. Necessary but not sufficient: {@code
+ *     kb.git.edit-enabled} must be on and the working tree writable, exactly as for the {@code
+ *     editFile} tool (see {@code ScriptEditPolicy}). Separate from that flag so a deployment can
+ *     keep the edit tools and still hand the model read-only scripts
  * @param guide the reference half of the markdown handbook, injected into the system prompt for as
  *     long as the tool is enabled (see {@code ScriptGuideService})
  * @param extendedGuide the tutorial half — when to prefer a script, how to structure one, worked
@@ -28,7 +29,7 @@ import org.springframework.util.unit.DataSize;
  *     weak} ({@code ChatModelProperties.ModelOption#weak}). A strong model gets only the reference
  *     half, which no model can guess — the {@code kb} API, the budgets, the error kinds
  * @param editGuide reference appendix, appended only when writes are actually available — telling a
- *     model about {@code kb.edit} it cannot call wastes its attempts
+ *     model about a method it cannot call wastes its attempts
  * @param extendedEditGuide tutorial appendix for writes; needs both gates — writes available and
  *     the run's model flagged weak
  * @param timeout wall-clock budget for one script when the model does not ask for a specific one

@@ -44,7 +44,7 @@ const ScriptsSections = ({ config }) => {
         <ConfigBoolRow label={t('scripts.status.editActive')} value={script.editActive} />
         {!script.enabled && <p className="config-note">{t('scripts.status.disabledNote')}</p>}
         {/* Правка из скриптов требует трёх согласий (ScriptEditPolicy), поэтому
-            разрешение в конфиге и фактическая привязка kb.edit — разные строки. */}
+            разрешение в конфиге и фактическая привязка методов записи — разные строки. */}
         {script.editEnabled && !script.editActive && <p className="config-note">{t('scripts.status.readOnlyNote')}</p>}
       </SettingsSection>
 

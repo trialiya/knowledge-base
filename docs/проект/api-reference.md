@@ -602,7 +602,7 @@ runId активного прогона чата (или пустой объек
 
 **Response:** `ScriptResult` — `{ value, log, stats, error, filesRead, edits }`. Упавший скрипт — это `200 OK` с заполненным `error` (`kind` = `SYNTAX|RUNTIME|TIMEOUT|BUDGET`), а не HTTP-ошибка: разбирать причину и есть смысл стенда. Исключение — `maxResultChars`: превышение не даёт `error`, а обрезает `value` до лимита и добавляет предупреждение в `log`.
 
-Запуск **всегда read-only**: `kb.edit`/`kb.create` в песочницу не привязываются, как бы ни был выставлен `kb.script.edit-enabled`, поэтому `edits` здесь всегда пуст.
+Запуск **всегда read-only**: методы записи (`kb.edit`, `kb.create`, `kb.writeBytes`, `kb.createBytes`) в песочницу не привязываются, как бы ни был выставлен `kb.script.edit-enabled`, поэтому `edits` здесь всегда пуст.
 
 **Ошибки:** `409` — `kb.script.enabled=false` (скрипты выключены в деплое), `400` — пустое тело скрипта
 

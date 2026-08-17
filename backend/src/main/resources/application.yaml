@@ -153,7 +153,8 @@ kb:
     # without one — and reaches files only through the injected `kb` object, which goes through the
     # same tracked-files rules as every other tool. Still an explicit opt-in: it is executed code.
     enabled: ${KB_SCRIPT_ENABLED:false}
-    # Let scripts write (kb.edit/kb.create). Necessary but not sufficient: kb.git.edit-enabled must
+    # Let scripts write (kb.edit/kb.create for text, kb.writeBytes/kb.createBytes for bytes).
+    # Necessary but not sufficient: kb.git.edit-enabled must
     # also be on and the working tree writable — the same two gates as the editFile tool, so scripts
     # can never be a way around a read-only deployment. Separate flag so a deployment can keep the
     # edit tools and still hand the model read-only scripts. See ScriptEditPolicy.
@@ -167,7 +168,7 @@ kb:
     # are substituted, not copied.
     guide: classpath:prompt/script-run.md
     extended-guide: classpath:prompt/script-run-extended.md
-    # Appended only when writes are actually available — telling a model about kb.edit it cannot
+    # Appended only when writes are actually available — telling a model about methods it cannot
     # call wastes its attempts. Split the same way: the rules always, the examples only for a run
     # whose model is flagged weak.
     edit-guide: classpath:prompt/script-run-edit.md

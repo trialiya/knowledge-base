@@ -2,6 +2,7 @@ package io.github.trialiya.kb.service.script;
 
 import io.github.trialiya.kb.model.doc.dto.SearchResult;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
+import io.github.trialiya.kb.model.git.dto.GitFileInfo;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.service.DocumentService;
@@ -9,6 +10,7 @@ import io.github.trialiya.kb.service.GitService;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,6 +55,16 @@ import org.springframework.util.AntPathMatcher;
 public class KbScriptApi {
 
     private static final AntPathMatcher MATCHER = new AntPathMatcher();
+
+    /**
+     * Bytes one {@code kb.readBytes} / {@code kb.readBase64} call may hand over.
+     *
+     * <p>Far below the run's byte budget on purpose. A byte reaches the script as a JS number, so a
+     * window costs an order of magnitude more in the guest than it does on disk, and the script
+     * that asked for a whole 40 MB archive rarely wanted more than its header. Windowing is not a
+     * workaround here — it is how a file larger than the run can hold is processed at all.
+     */
+    private static final int MAX_BYTES_PER_CALL = 256 * 1024;
 
     private final GitService gitService;
     private final DocumentService documentService;
@@ -147,11 +159,19 @@ public class KbScriptApi {
                                     fromLine > 0 ? fromLine : null,
                                     toLine > 0 ? toLine : null);
                     if (content.binary()) {
-                        // Not a budget: no limit would make this file readable. Same exception
-                        // type as the equivalent refusal in GitService, so the model sees RUNTIME
-                        // and stops retrying.
+                        // Not a budget, and not a refusal to open the file either — only a refusal
+                        // to pretend its bytes are text. Decoding them as UTF-8 would hand back a
+                        // string full of replacement characters that no longer round-trips, so the
+                        // model is sent to the two methods that do serve bytes as bytes. Same
+                        // exception type as the equivalent refusal in GitService, so it arrives as
+                        // RUNTIME and the model stops retrying kb.read.
                         throw new IllegalArgumentException(
-                                "Cannot read a binary file: " + content.path());
+                                "Cannot read "
+                                        + content.path()
+                                        + " as text: it is a binary file. Read its bytes instead"
+                                        + " — kb.readBytes(path[, offset, length]) for an array of"
+                                        + " byte values, kb.readBase64(path[, offset, length]) for"
+                                        + " base64.");
                     }
                     // GitService answers an oversized whole-file read with a head+tail excerpt.
                     // For a person reading a plaque that is a courtesy; for a script it is a wrong
@@ -176,6 +196,129 @@ public class KbScriptApi {
                     session.chargeRead(
                             content.path(), text.getBytes(StandardCharsets.UTF_8).length);
                     return text;
+                });
+    }
+
+    // ── Bytes (binary files included) ───────────────────────────────────────
+
+    /**
+     * Size, binary flag and detected language of a tracked file, without its content: {@code {path,
+     * size, binary, language}}.
+     *
+     * <p>Charged as a call and nothing more — it hands over no content, which is also why it does
+     * not count as having looked at the file (see {@code ScriptSession#requireRead}).
+     */
+    @HostAccess.Export
+    public Object stat(String path) {
+        String canonical = canonical(path);
+        Map<String, Object> row =
+                session.call(
+                        Arrays.<Object>asList("stat", canonical),
+                        () -> {
+                            session.requireVisible(canonical);
+                            GitFileInfo info = gitService.getFileInfo(canonical);
+                            Map<String, Object> result = new LinkedHashMap<>();
+                            result.put("path", info.path());
+                            result.put("size", info.sizeBytes());
+                            result.put("binary", info.binary());
+                            result.put("language", info.language());
+                            return result;
+                        });
+        return ProxyObject.fromMap(new LinkedHashMap<>(row));
+    }
+
+    /** Bytes of a tracked file — binary ones included — as an array of numbers 0..255. */
+    @HostAccess.Export
+    public Object readBytes(String path) {
+        return readBytes(path, 0, 0);
+    }
+
+    /**
+     * As {@link #readBytes(String)}, for the window starting at {@code offset} ({@code 0}-based)
+     * and {@code length} bytes long; {@code 0} for {@code length} means "to the end of the file".
+     */
+    @HostAccess.Export
+    public Object readBytes(String path, int offset, int length) {
+        byte[] bytes = readWindow(path, offset, length, "readBytes");
+        List<Object> values = new ArrayList<>(bytes.length);
+        for (byte b : bytes) {
+            values.add(b & 0xFF);
+        }
+        return ProxyArray.fromList(values);
+    }
+
+    /** The same bytes as {@link #readBytes(String)}, base64-encoded. */
+    @HostAccess.Export
+    public String readBase64(String path) {
+        return readBase64(path, 0, 0);
+    }
+
+    /**
+     * As {@link #readBase64(String)}, for one window — see {@link #readBytes(String, int, int)}.
+     */
+    @HostAccess.Export
+    public String readBase64(String path, int offset, int length) {
+        return Base64.getEncoder().encodeToString(readWindow(path, offset, length, "readBase64"));
+    }
+
+    /**
+     * SHA-256 of a tracked file's bytes, lowercase hex. Reads the whole file however large it is,
+     * and hands back 64 characters — which is the whole point: "did these two files change" is
+     * answerable without either of them entering the script.
+     */
+    @HostAccess.Export
+    public String hash(String path) {
+        String canonical = canonical(path);
+        return session.call(
+                Arrays.<Object>asList("hash", canonical),
+                () -> {
+                    session.requireVisible(canonical);
+                    String hex = gitService.hashFile(canonical);
+                    session.chargeScan(canonical);
+                    return hex;
+                });
+    }
+
+    /**
+     * Shared body of {@link #readBytes} and {@link #readBase64}: one window of a file's bytes,
+     * memoized on the window rather than on the method, since the two ask for the same thing and
+     * differ only in how they hand it over.
+     *
+     * <p>The size is settled before anything is read, so a whole-file read of something far larger
+     * than the run can hold is refused instead of allocated. The cached array is never handed to
+     * the guest — the callers copy or encode it — so nothing the script does can corrupt what a
+     * later identical call gets back.
+     *
+     * @param method the caller's own name, for an error message that names a method the script can
+     *     actually retry with
+     */
+    private byte[] readWindow(String path, int offset, int length, String method) {
+        String canonical = canonical(path);
+        return session.call(
+                Arrays.<Object>asList("bytes", canonical, offset, length),
+                () -> {
+                    session.requireVisible(canonical);
+                    long size = gitService.getFileInfo(canonical).sizeBytes();
+                    long from = Math.min(Math.max(offset, 0), size);
+                    long want = length > 0 ? Math.min(length, size - from) : size - from;
+                    if (want > MAX_BYTES_PER_CALL) {
+                        throw new ScriptLimitExceededException(
+                                "Budget exceeded: maxBytesPerCall="
+                                        + MAX_BYTES_PER_CALL
+                                        + " bytes per kb."
+                                        + method
+                                        + " call, but "
+                                        + canonical
+                                        + " has "
+                                        + want
+                                        + " bytes left to read. Read it in windows: kb."
+                                        + method
+                                        + "(path, offset, length).");
+                    }
+                    // Charged before the read so the byte budget bounds what is allocated, not
+                    // only what is handed over.
+                    session.chargeRead(canonical, want);
+                    return gitService.getFileBytes(canonical, from, want).bytes();
                 });
     }
 
