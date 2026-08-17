@@ -396,13 +396,37 @@ public class ChatMemoryService implements ChatMemoryRepository {
     private static @Nullable ToolData toolDataOf(Message message) {
         if (message instanceof AssistantMessage assistantMessage
                 && assistantMessage.hasToolCalls()) {
-            return ToolData.from(assistantMessage);
+            return sanitizeToolCallArguments(ToolData.from(assistantMessage));
         }
         if (message instanceof ToolResponseMessage toolResponseMessage
                 && !toolResponseMessage.getResponses().isEmpty()) {
             return ToolData.from(toolResponseMessage);
         }
         return null;
+    }
+
+    /**
+     * Гарантирует, что {@code tool_data.toolCalls[].arguments} перед сохранением — валидный JSON
+     * (см. {@link RecordingToolCallback#sanitizeArguments}). Единственная точка входа протокольных
+     * tool_calls в БД ({@link #toolDataOf}), поэтому дальше по коду (в т.ч. при воспроизведении
+     * истории модели) малформенный JSON от модели уже не встретится.
+     */
+    private static ToolData sanitizeToolCallArguments(ToolData toolData) {
+        if (toolData.toolCalls() == null) {
+            return toolData;
+        }
+        return new ToolData(
+                toolData.toolCalls().stream()
+                        .map(
+                                call ->
+                                        new ToolData.Call(
+                                                call.id(),
+                                                call.type(),
+                                                call.name(),
+                                                RecordingToolCallback.sanitizeArguments(
+                                                        call.arguments())))
+                        .toList(),
+                null);
     }
 
     /**

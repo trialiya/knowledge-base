@@ -152,6 +152,32 @@ class ChatMemoryServiceToolEventsTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void malformedArgumentsAreSanitizedBeforePersisting() {
+        when(events.activeRunId(CONV)).thenReturn(Optional.of(RUN));
+
+        service.saveAll(
+                CONV,
+                List.of(
+                        new UserMessage("hi"),
+                        // Missing closing brace, replaced by a second tool call's empty argument
+                        // object — as a mis-accumulated streaming tool call would produce.
+                        assistantWithCalls(call("id-0", "editFile", "{\"filePath\": \"a\"{}"))));
+
+        final ArgumentCaptor<List<ChatMessageEntity>> saved = ArgumentCaptor.forClass(List.class);
+        verify(messageRepo).saveAll(saved.capture());
+        final ChatMessageEntity segment =
+                saved.getValue().stream()
+                        .filter(e -> e.getType() == MessageType.ASSISTANT)
+                        .findFirst()
+                        .orElseThrow();
+        assertThat(segment.getToolData().toolCalls()).hasSize(1);
+        // Persisted as valid JSON — this is what gets replayed to the model on every later turn,
+        // and malformed JSON there would make the provider reject the whole request forever.
+        assertThat(segment.getToolData().toolCalls().get(0).arguments()).isEqualTo("{}");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void indexesToolCallsOnSave() {
         when(events.activeRunId(CONV)).thenReturn(Optional.of(RUN));
 
