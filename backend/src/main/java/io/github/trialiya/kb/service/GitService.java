@@ -1004,9 +1004,13 @@ public class GitService {
                             + ". Read the file in windows (offset, length).");
         }
         byte[] window = readWindow(normalized, absolute, from, (int) want);
-        // A window that does not start at the beginning cannot answer the binary question itself —
-        // the sniff is defined on the head of the file, so the head is what gets sniffed.
-        byte[] head = from == 0 ? window : readWindow(normalized, absolute, 0, BINARY_SNIFF_BYTES);
+        // The binary flag describes the file, not the window: it is defined on the head of the
+        // file, so unless this window already covers that head — a short window at offset 0 does
+        // not — the head is read again to answer it. Otherwise a four-byte peek at a file whose
+        // first NUL sits at byte 100 would come back "not binary".
+        boolean windowCoversHead = from == 0 && want >= Math.min(size, BINARY_SNIFF_BYTES);
+        byte[] head =
+                windowCoversHead ? window : readWindow(normalized, absolute, 0, BINARY_SNIFF_BYTES);
         return new GitFileBytes(normalized, window, from, size, isBinary(head));
     }
 
@@ -1356,12 +1360,8 @@ public class GitService {
      * @return the normalized path, as {@link #replaceTrackedBytes} will spell it
      */
     public String requireReplaceable(@NonNull String filePath, byte @NonNull [] content) {
-        String normalized = validateWritablePath(filePath);
+        String normalized = requireWritable(filePath, content);
         requireTracked(normalized, false);
-        if (content.length > MAX_FILE_SIZE) {
-            throw new IllegalArgumentException(
-                    "Content too large (max " + MAX_FILE_SIZE / 1024 + " KB): " + normalized);
-        }
         return normalized;
     }
 
@@ -1618,11 +1618,26 @@ public class GitService {
      * @return the normalized path, as {@link #createFile} will spell it
      */
     public String requireCreatable(@NonNull String filePath, @NonNull String content) {
-        return requireCreatable(filePath, content.getBytes(StandardCharsets.UTF_8));
+        return requireWritable(filePath, content.getBytes(StandardCharsets.UTF_8));
     }
 
     /** As {@link #requireCreatable(String, String)}, for a file created from raw bytes. */
     public String requireCreatable(@NonNull String filePath, byte @NonNull [] content) {
+        return requireWritable(filePath, content);
+    }
+
+    /**
+     * The two refusals every write shares, whatever the file's state: the path may be written to at
+     * all, and the content is small enough to be served back afterwards.
+     *
+     * <p>Named separately from {@link #requireCreatable} and {@link #requireReplaceable} because
+     * {@code runScript} needs exactly this pair, and neither of the others, for a file the same run
+     * has already staged: such a file is on no disk and in no index yet, so "must exist" and "must
+     * be tracked" are both wrong questions to ask about it.
+     *
+     * @return the normalized path, as the write will spell it
+     */
+    public String requireWritable(@NonNull String filePath, byte @NonNull [] content) {
         String normalized = validateWritablePath(filePath);
         if (content.length > MAX_FILE_SIZE) {
             throw new IllegalArgumentException(

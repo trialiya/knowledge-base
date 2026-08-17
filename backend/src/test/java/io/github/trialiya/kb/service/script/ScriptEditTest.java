@@ -622,6 +622,96 @@ class ScriptEditTest {
     }
 
     /**
+     * The pair has to work in one run: {@code kb.createBytes} stages a file that is on no disk and
+     * in no index, so the tracked-file check every replace makes would refuse the very file the
+     * script has just created — while {@code kb.createBytes} refuses a second time round, leaving
+     * nowhere to go. The text pair ({@code kb.create} + {@code kb.edit}) has never had that gap.
+     */
+    @Test
+    void writesBytesAgainToAFileThisRunCreated() {
+        ScriptResult result =
+                run(
+                        """
+                        kb.createBytes('static/icon.ico', [0, 1]);
+                        kb.writeBytes('static/icon.ico', [0, 1, 2, 3]);
+                        return 'ok';
+                        """);
+
+        assertThat(result.error()).isNull();
+        assertThat(fileBytes("static/icon.ico")).containsExactly(0, 1, 2, 3);
+        // One file, and still a creation — the second write did not turn it into an edit of
+        // something that was never there.
+        assertThat(result.edits())
+                .singleElement()
+                .extracting(GitEditResult::path, GitEditResult::operation)
+                .containsExactly("static/icon.ico", "create");
+    }
+
+    /**
+     * The other half of "bytes are written whole": on a text file that would be a whole-file
+     * replacement with no exact match behind it and no diff in front of it — the user would be
+     * asked to review "binary files differ" over a file they can read. Exactly what {@code
+     * kb.edit}'s contract exists to prevent, so it is refused and {@code kb.edit} is named.
+     */
+    @Test
+    void refusesToOverwriteATextFileWithBytes() {
+        ScriptResult result =
+                run(
+                        """
+                        kb.read('src/App.java');
+                        kb.writeBytes('src/App.java', 'Ly8gd2lwZWQK');
+                        return 'ok';
+                        """);
+
+        assertThat(result.error()).isNotNull();
+        assertThat(result.error().kind()).isEqualTo(ScriptError.Kind.RUNTIME);
+        assertThat(result.error().message()).contains("text file", "kb.edit");
+        assertThat(fileText(APP_JAVA)).isEqualTo(ORIGINAL);
+    }
+
+    /**
+     * The "this run created it" exemption is about creation, not about having staged something: a
+     * text file the run merely edited is still on disk, still text, and still the thing the binary
+     * rule protects — otherwise {@code kb.edit} followed by {@code kb.writeBytes} would be the
+     * two-step way round it.
+     */
+    @Test
+    void refusesToOverwriteWithBytesATextFileThisRunOnlyEdited() {
+        ScriptResult result =
+                run(
+                        """
+                        kb.read('src/App.java');
+                        kb.edit('src/App.java', 'class App', 'class Edited');
+                        kb.writeBytes('src/App.java', 'Ly8gd2lwZWQK');
+                        return 'ok';
+                        """);
+
+        assertThat(result.error()).isNotNull();
+        assertThat(result.error().message()).contains("text file", "kb.edit");
+        assertThat(fileText(APP_JAVA)).isEqualTo(ORIGINAL);
+    }
+
+    /**
+     * {@code requireRead} is the only guard a byte write has, so what satisfies it must really be a
+     * look at the file. A window that starts past the end returns an empty array — the script has
+     * been shown nothing, and asking for one must not unlock overwriting the whole file.
+     */
+    @Test
+    void anEmptyByteWindowDoesNotCountAsHavingSeenTheFile() {
+        ScriptResult result =
+                run(
+                        """
+                        kb.readBytes('static/logo.png', 999999, 1);
+                        kb.writeBytes('static/logo.png', [7]);
+                        return 'ok';
+                        """);
+
+        assertThat(result.error()).isNotNull();
+        assertThat(result.error().message()).contains("has not looked at it");
+        assertThat(fileBytes("static/logo.png")).isEqualTo(PNG);
+    }
+
+    /**
      * A digest is not the content. {@code kb.hash} reads the whole file and hands back 64
      * characters, which tells a script that two files differ but never what is in either — so it
      * cannot stand in for having looked at one.
@@ -641,15 +731,15 @@ class ScriptEditTest {
         ScriptResult result =
                 run(
                         """
-                        kb.read('src/App.java');
-                        kb.writeBytes('src/App.java', [1, 2, 3]);
-                        kb.edit('src/App.java', 'class App', 'class Confused');
+                        kb.readBytes('static/logo.png');
+                        kb.writeBytes('static/logo.png', [1, 2, 3]);
+                        kb.edit('static/logo.png', 'PNG', 'JPG');
                         return 'ok';
                         """);
 
         assertThat(result.error()).isNotNull();
-        assertThat(result.error().message()).contains("kb.writeBytes");
-        assertThat(fileText(APP_JAVA)).isEqualTo(ORIGINAL);
+        assertThat(result.error().message()).contains("already wrote raw bytes", "kb.writeBytes");
+        assertThat(fileBytes("static/logo.png")).isEqualTo(PNG);
     }
 
     @Test

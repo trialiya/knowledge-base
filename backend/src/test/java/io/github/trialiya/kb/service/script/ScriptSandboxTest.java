@@ -617,16 +617,34 @@ class ScriptSandboxTest {
         assertThat(result.error().message()).contains("kb.readBytes", "kb.readBase64");
     }
 
+    /**
+     * A digest is not content, and the run must not claim otherwise. {@code filesRead} is
+     * serialised into the tool result, where {@code ToolInvocationCollector.hasSeenFile} reads it
+     * as evidence that the model has looked at the file — so a hashed path reported there would let
+     * a <em>later</em> tool call in the same response edit a file nobody ever opened.
+     */
     @Test
-    void hashesAFileWithoutHandingItsContentToTheScript() {
+    void hashesAFileWithoutReportingItAsRead() {
         ScriptResult result = run("return kb.hash('static/logo.png');");
 
         assertThat(result.error()).isNull();
         assertThat(result.value()).isEqualTo(sha256(PNG));
-        // Counted as a file read — it really did read the file — but no bytes were handed over,
-        // and a digest is not evidence of having looked at the content (see ScriptEditTest).
-        assertThat(result.stats().filesRead()).isEqualTo(1);
+        assertThat(result.filesRead()).isEmpty();
+        assertThat(result.stats().filesRead()).isZero();
         assertThat(result.stats().bytesRead()).isZero();
+    }
+
+    /** It is still a whole pass over the file, so it still costs one against the file budget. */
+    @Test
+    void hashingCountsAgainstTheFileBudget() {
+        runner = newRunner(withLimits(limits -> limits.withMaxFilesRead(1)));
+
+        ScriptResult result =
+                run("kb.hash('static/logo.png'); kb.hash('src/App.java'); return 'ok';");
+
+        assertThat(result.error()).isNotNull();
+        assertThat(result.error().kind()).isEqualTo(ScriptError.Kind.BUDGET);
+        assertThat(result.error().message()).contains("maxFilesRead");
     }
 
     /**
@@ -649,6 +667,21 @@ class ScriptSandboxTest {
         assertThat(window.error()).isNull();
         // Clamped to what is actually left, rather than refused for asking past the end.
         assertThat(window.value()).isEqualTo(10);
+    }
+
+    /**
+     * A window that starts past the end of the file is empty rather than an error — but it hands
+     * the script nothing, so it is not reported as a read either (what that would cost is in {@code
+     * ScriptEditTest}).
+     */
+    @Test
+    void aWindowPastTheEndOfTheFileIsEmptyAndCountsAsNoContent() {
+        ScriptResult result = run("return kb.readBytes('static/logo.png', 999999, 1).length;");
+
+        assertThat(result.error()).isNull();
+        assertThat(result.value()).isEqualTo(0);
+        assertThat(result.filesRead()).isEmpty();
+        assertThat(result.stats().bytesRead()).isZero();
     }
 
     @Test

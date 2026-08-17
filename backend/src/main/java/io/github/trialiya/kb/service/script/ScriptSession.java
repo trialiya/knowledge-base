@@ -50,7 +50,21 @@ public final class ScriptSession {
      */
     private final @Nullable ToolInvocationCollector priorInvocations;
 
+    /**
+     * Files whose content this run was actually handed. Reported back in {@code
+     * ScriptResult.filesRead}, which is serialised into the tool result and read again by {@code
+     * ToolInvocationCollector.hasSeenFile} — so a path lands here only when the script really was
+     * shown what is in the file, never merely because the backend opened it (see {@link
+     * #chargeScan}).
+     */
     private final Set<String> filesRead = new LinkedHashSet<>();
+
+    /**
+     * Every file this run made the backend read, whether or not its content was handed over — what
+     * {@code maxFilesRead} counts. A digest still costs a full pass over the file, so it has to be
+     * bounded by something; it just must not be reported as a read.
+     */
+    private final Set<String> filesTouched = new LinkedHashSet<>();
 
     /**
      * Files whose real current text this run has been shown — everything in {@link #filesRead},
@@ -202,25 +216,30 @@ public final class ScriptSession {
     /** Books a completed read against the per-run file-count and byte budgets. */
     public void chargeRead(String path, long bytes) {
         filesSeen.add(path);
+        filesRead.add(path);
         countFile(path);
         chargeBytes(bytes, "Read line ranges (kb.read(path, from, to)) instead of whole files.");
     }
 
     /**
-     * Books a whole-file pass that hands the script nothing of what it read — {@code kb.hash},
-     * which turns a file of any size into 64 characters.
+     * Books a pass over a file that handed the script none of its content — {@code kb.hash}, which
+     * turns a file of any size into 64 characters, and a byte window that landed past the end of
+     * the file.
      *
-     * <p>Counted against the file budget because the file really was read; charged no bytes because
-     * none were handed over; and deliberately <em>not</em> recorded as seen, since a digest is not
-     * the content and must not stand in for having looked at it (see {@link #requireRead}).
+     * <p>Counted against the file budget because the backend really did read the file; charged no
+     * bytes because none were handed over; and kept out of both {@link #filesSeen} and {@link
+     * #filesRead}, because neither a digest nor an empty window is the content. The first would let
+     * this run overwrite a file it never looked at (see {@link #requireRead}); the second would say
+     * so to the rest of the response, since {@code filesRead} is reported back and {@code
+     * ToolInvocationCollector} reads it as evidence for a later tool call.
      */
     public void chargeScan(String path) {
         countFile(path);
     }
 
     private void countFile(String path) {
-        boolean newFile = filesRead.add(path);
-        if (newFile && filesRead.size() > limits.maxFilesRead()) {
+        boolean newFile = filesTouched.add(path);
+        if (newFile && filesTouched.size() > limits.maxFilesRead()) {
             throw budgetExceeded(
                     "maxFilesRead",
                     limits.maxFilesRead(),
@@ -262,6 +281,7 @@ public final class ScriptSession {
         }
     }
 
+    /** Files the script was shown the content of — not every file the run made the backend open. */
     public List<String> filesRead() {
         return List.copyOf(filesRead);
     }

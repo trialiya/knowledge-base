@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.service.script;
 
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
+import io.github.trialiya.kb.model.git.dto.GitFileInfo;
 import io.github.trialiya.kb.service.DocumentService;
 import io.github.trialiya.kb.service.GitService;
 import java.util.Base64;
@@ -125,14 +126,20 @@ public final class KbEditScriptApi extends KbScriptApi {
     }
 
     /**
-     * Replaces the whole content of an existing tracked file with raw bytes — the binary
-     * counterpart of {@link #edit}, and the only write that can produce content which is not text.
+     * Replaces the whole content of a binary file with raw bytes — the binary counterpart of {@link
+     * #edit}, and the only write that can produce content which is not text.
      *
      * <p>Whole-content, not a fragment: {@link #edit}'s exact-match contract is what forces a
      * script to quote what is really in a file, and bytes at an offset carry no such evidence. The
      * read rule still holds — a file has to have been looked at ({@code kb.readBytes}, {@code
      * kb.read}, a {@code kb.grep} match, or another tool earlier in the same response) before this
      * run may overwrite it.
+     *
+     * <p><b>Binary targets only</b>, which is the other half of that argument. On a text file this
+     * would be a whole-file replacement with no exact match behind it and no line diff in front of
+     * it — the user would review a change shown as "binary files differ" — so a text file is
+     * refused and {@link #edit} is named instead. The exception is a file this run created itself:
+     * the script authored every byte of it, so there is nothing it could be overwriting unseen.
      *
      * @param data base64 (what {@code kb.readBase64} returns) or an array of byte values (what
      *     {@code kb.readBytes} returns)
@@ -144,12 +151,39 @@ public final class KbEditScriptApi extends KbScriptApi {
         session.requireVisible(canonical);
         session.requireRead(canonical);
         byte[] bytes = toBytes(data, "kb.writeBytes");
-        // Refused now rather than at apply time, exactly as kb.create validates its path: an
-        // untracked or unwritable path does not become writable by waiting, and finding out during
-        // the apply step would leave the run's earlier files on disk.
-        gitService.requireReplaceable(canonical, bytes);
+        // Refused now rather than at apply time, exactly as kb.create validates its path: a path
+        // that cannot be written does not become writable by waiting, and finding out during the
+        // apply step would leave the run's earlier files on disk.
+        // Created by this run, so it is on no disk and in no index yet: the tracked check would
+        // refuse the very file the script has just created, and there is no existing content for
+        // the binary rule to protect. Staged as an *edit* is not the same thing — that file is on
+        // disk, and rewriting it whole is exactly what the rule below is for.
+        if (session.pending(canonical).filter(ScriptSession.PendingWrite::created).isPresent()) {
+            gitService.requireWritable(canonical, bytes);
+        } else {
+            requireBinaryTarget(canonical);
+            gitService.requireReplaceable(canonical, bytes);
+        }
         session.stageBinaryEdit(canonical, bytes);
         return bytesResult(canonical, "write", bytes.length);
+    }
+
+    /** Refuses a text file, naming the method that edits one — see {@link #writeBytes}. */
+    private void requireBinaryTarget(String canonical) {
+        // Also the tracked check: an untracked path is "File not found" here, before any of the
+        // run's writes have touched disk.
+        GitFileInfo info = gitService.getFileInfo(canonical);
+        // An empty file sniffs as text and is neither: there is no content to replace unseen and
+        // no diff to lose, so a placeholder committed empty can still be filled with bytes.
+        if (!info.binary() && info.sizeBytes() > 0) {
+            throw new IllegalArgumentException(
+                    "Refusing to overwrite "
+                            + canonical
+                            + " with raw bytes: it is a text file, and replacing one whole leaves"
+                            + " the user a change with no diff to review. Change it with"
+                            + " kb.edit(path, oldString, newString), which has to match real"
+                            + " current content.");
+        }
     }
 
     /**

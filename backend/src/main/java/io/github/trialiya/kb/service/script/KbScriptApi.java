@@ -315,6 +315,14 @@ public class KbScriptApi {
                                         + method
                                         + "(path, offset, length).");
                     }
+                    if (want == 0) {
+                        // A window past the end of the file hands the script nothing, so it is not
+                        // evidence of having looked at anything — booking it as a read would let
+                        // kb.readBytes(path, 1e9, 1) authorise a kb.writeBytes over content the
+                        // script never saw.
+                        session.chargeScan(canonical);
+                        return new byte[0];
+                    }
                     // Charged before the read so the byte budget bounds what is allocated, not
                     // only what is handed over.
                     session.chargeRead(canonical, want);
