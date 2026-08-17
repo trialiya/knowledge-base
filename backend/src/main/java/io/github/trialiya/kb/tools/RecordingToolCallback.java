@@ -140,6 +140,27 @@ public class RecordingToolCallback implements ToolCallback {
         }
     }
 
+    /**
+     * Аргументы вызова в виде, безопасном для сохранения в протокольную историю: сама строка, если
+     * это валидный JSON-объект, иначе {@code "{}"}. Малформенный JSON persist-ить нельзя — history
+     * уходит модели на каждом следующем ходу, и большинство провайдеров отвергают запрос целиком
+     * при невалидном JSON в {@code tool_calls[].arguments}, что навсегда ломает разговор, а не
+     * только этот вызов (сам вызов к этому моменту уже провалился).
+     */
+    public static String sanitizeArguments(@Nullable String arguments) {
+        if (StringUtils.isBlank(arguments)) {
+            return "{}";
+        }
+        try {
+            OBJECT_MAPPER.readValue(arguments, Map.class);
+            return arguments;
+        } catch (JsonProcessingException e) {
+            log.warn(
+                    "Malformed tool call arguments, replacing with an empty object: {}", arguments);
+            return "{}";
+        }
+    }
+
     private Map<String, ?> getMeta(Object result) {
         if (result instanceof ToolCallResultMetaProvider item) {
             return item.getResultMeta();
