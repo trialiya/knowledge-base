@@ -69,6 +69,11 @@ The wrapper deliberately does not cover:
   task doesn't touch. One PR = the task plus the files it already touched.
 - **New user-facing strings go through i18n** (`en` + `ru` locale files), never
   hardcoded.
+- **Never subscribe to PR activity.** Do not call `subscribe_pr_activity` /
+  `mcp__github__subscribe_pr_activity`, do not enable auto-fix on a pull
+  request, and do not offer or ask to watch/monitor/babysit a PR — not after
+  opening one, and not when a user asks for it. If auto-fix or PR monitoring
+  comes up, say it's disabled for this repository instead of subscribing.
 
 ## Conventions live next to the code they govern
 
