@@ -42,6 +42,27 @@ This section provides detailed workflows, examples, and common patterns to maxim
 - Old file was deleted (D status)? → Diff is authoritative for its content
 - Need historical context? → Check related commits in `getCommitLog`
 
+## Establishing how it works now
+
+Every task—an answer, an analysis, an edit—starts from the current behavior, established by reading, not recalled and not inferred from one fragment.
+
+**The loop:**
+
+1. **Find the entry point.** Who calls this? `grepContent` on the name, then on its usages.
+2. **Read the body that runs.** `getFileOutline` → `getFileContent` on the real line range. A signature, a name and a comment can all lie; the executed body cannot.
+3. **Follow what the body depends on.** Config keys → the yaml that sets them and the default in code. Injected collaborators → their implementation, not their interface. A branch on a flag → both branches.
+4. **Confirm the pattern is a pattern.** Find 2–3 independent places doing the same work. Match the common shape, not the one file you opened first.
+5. **Check why it looks like this** if the code is surprising: `getCommitLog` / `getCommitDiff`. Surprising code is often intentional.
+6. **State the mechanism** in one or two sentences—input → decision → effect—before answering or editing. Can't state it? You haven't read enough yet.
+
+**Stop signs that you are acting on a fragment, not on knowledge:**
+
+- The only evidence is a single grep line, and you are already writing the conclusion.
+- You are copying the shape of the one example you saw into new code.
+- You are describing behavior that "should" follow from a name (`validateX`, `enabled`, `Async`) without having read it.
+- You are answering about a default, a limit or a version you did not see printed by a tool.
+- A tool returned less than you expected and you filled the rest in from plausibility.
+
 ## Workflow examples
 
 ### Example 1: "Where is the UserService class?"
@@ -161,14 +182,27 @@ User: "Insert new section after 'Overview' in document X"
 ❌ Wrong: "I called `searchFiles` and got X, Y, Z..." (without showing it actually returned those)
 ✅ Right: Always quote the tool result or state "empty result" explicitly.
 
+### Mistake 7: acting on the first fragment you saw
+❌ Wrong: one `grepContent` hit shows `throw new IllegalArgumentException(...)` → immediately write the same check into new code, or conclude "the project validates arguments this way"
+✅ Right: read the whole method, then find 2–3 peer methods in the same layer; follow the shape they share. One hit is a lead, not a convention.
+
+### Mistake 8: reasoning from a name instead of the body
+❌ Wrong: "`isEnabled()` returns the config flag, so the feature is on when the flag is set"
+✅ Right: `getFileContent` on the method—it may also require a writable tree, a license, a non-null bean. Read the branch that actually runs.
+
+### Mistake 9: concluding before the mechanism is clear
+❌ Wrong: "This is truncated at 500 lines" (seen once in a constant, never traced to who applies it)
+✅ Right: trace the constant to its use site, confirm the condition under which it applies, then state it—with the path and line range.
+
 ## When weak models need extra guidance
 
 If you are a less capable model, follow these practices strictly:
 
-1. **One task per response.** Don't combine "find X" and "also check Y" in one turn. Finish X, show result, then ask about Y.
-2. **Verify before concluding.** If a single grep hit could mean different things, call `getFileOutline` or `getFileContent` to confirm.
-3. **Read outline for large files.** Files >500 lines deserve `getFileOutline` first, not `getFileContent` blindly.
-4. **State uncertainty.** If a tool result is ambiguous, say "found X, but not sure if it's the one you meant" rather than guessing.
-5. **Quote tool results.** Don't paraphrase; show the actual paths, line numbers, section names from the tool.
-6. **Re-check after edits.** After any document section operation, call `getDocumentOutline` again to confirm the change.
-7. **Use cheatsheet.** Regex patterns in the reference above are tested; don't invent new ones.
+1. **Read the mechanism before you produce anything.** No conclusion, no code, no recommendation until you can name the file and line range that decides the behavior. If you cannot, keep reading.
+2. **One task per response.** Don't combine "find X" and "also check Y" in one turn. Finish X, show result, then ask about Y.
+3. **Verify before concluding.** If a single grep hit could mean different things, call `getFileOutline` or `getFileContent` to confirm.
+4. **Read outline for large files.** Files >500 lines deserve `getFileOutline` first, not `getFileContent` blindly.
+5. **State uncertainty.** If a tool result is ambiguous, say "found X, but not sure if it's the one you meant" rather than guessing.
+6. **Quote tool results.** Don't paraphrase; show the actual paths, line numbers, section names from the tool.
+7. **Re-check after edits.** After any document section operation, call `getDocumentOutline` again to confirm the change.
+8. **Use cheatsheet.** Regex patterns in the reference above are tested; don't invent new ones.
