@@ -3,15 +3,13 @@ import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { formatFieldValue } from './fieldValue';
+import CodeLines from './codeLines';
 
 // Режим «Обзор» для текстовых результатов: содержимое файла, вложения или
 // документа — настоящими переносами строк и с номерами, а не JSON-строкой,
 // в которой они экранированы как \n.
 //
 // Разбор ответа — в contentResult.js; сюда приходят уже готовые блоки.
-
-/** Сколько строк показываем до нажатия «показать целиком». */
-const LINE_CAP = 300;
 
 /** Факты блока + диапазон строк, посчитанный по самому тексту. */
 const FactList = ({ item, lines }) => {
@@ -44,28 +42,15 @@ const FactList = ({ item, lines }) => {
   );
 };
 
-const CodeLines = ({ lines, startLine, shown }) => (
-  <div className="tool-result__code">
-    {lines.slice(0, shown).map((line, i) => (
-      // Индекс как key безопасен: текст блока иммутабелен в рамках открытой модалки.
-
-      <div key={i} className="tool-result__line">
-        <span className="tool-result__line-no">{startLine + i}</span>
-        <span className="tool-result__line-text">{line || ' '}</span>
-      </div>
-    ))}
-  </div>
-);
-
 /** Один текстовый блок: шапка фактов, переключатель markdown и сам текст. */
 const ContentItem = ({ item }) => {
   const { t } = useTranslation('chat');
   const [rendered, setRendered] = useState(item.markdown);
+  // «Показать целиком» живёт здесь, а не в CodeLines: тумблер markdown уносит
+  // блок с экрана, и вместе с ним унёс бы уже сделанный разворот.
   const [expanded, setExpanded] = useState(false);
 
   const lines = item.text === null ? [] : item.text.split('\n');
-  const shown = expanded ? lines.length : Math.min(lines.length, LINE_CAP);
-  const hidden = lines.length - shown;
 
   return (
     <section className="tool-result__item">
@@ -91,14 +76,7 @@ const ContentItem = ({ item }) => {
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.text}</ReactMarkdown>
           </div>
         ) : (
-          <>
-            <CodeLines lines={lines} startLine={item.startLine} shown={shown} />
-            {hidden > 0 && (
-              <button type="button" className="btn btn--ghost btn--sm" onClick={() => setExpanded(true)}>
-                {t('toolCall.detail.showAll', { count: hidden })}
-              </button>
-            )}
-          </>
+          <CodeLines lines={lines} startLine={item.startLine} expanded={expanded} onExpand={() => setExpanded(true)} />
         ))}
     </section>
   );

@@ -167,6 +167,16 @@ describe('detectTreeResult — что остаётся другим видам',
     expect(detect(JSON.stringify([{ hash: 'abc', shortHash: 'abc', message: 'fix', files: null }]))).toBeNull();
   });
 
+  it('обёртке без имени и фактов шапка не положена', () => {
+    // По `header === null` вид ставит в строку число узлов; пустой объект
+    // вместо него оставил бы над деревом пустую полосу.
+    const bare = detect(JSON.stringify({ sections: [{ level: 1, title: 'Обзор' }] }));
+    expect(bare.header).toBeNull();
+
+    const named = detect(JSON.stringify({ title: 'Док', sections: [{ level: 1, title: 'Обзор' }] }));
+    expect(named.header).toMatchObject({ label: 'Док' });
+  });
+
   it('обёртка без секций и символов, пустой список, не JSON', () => {
     expect(detect(JSON.stringify({ id: 76, title: 'Док', sections: [] }))).toBeNull();
     expect(detect('[]')).toBeNull();

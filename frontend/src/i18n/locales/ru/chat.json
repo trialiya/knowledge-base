@@ -84,7 +84,7 @@
         "lineCount": "всего строк",
         "sizeBytes": "размер",
         "fileSize": "размер",
-        "descriptionVersion": "версия",
+        "descriptionVersion": "версия описания",
         "id": "id",
         "path": "путь",
         "name": "имя",
@@ -141,6 +141,37 @@
       "grep": {
         "matches": "совпадений: {{count}}",
         "files": "файлов: {{count}}"
+      },
+      "script": {
+        "stat": {
+          "filesRead": "прочитано файлов",
+          "bytesRead": "прочитано",
+          "calls": "вызовов",
+          "filesEdited": "изменено файлов",
+          "elapsedMs": "мс"
+        },
+        "value": "Результат скрипта",
+        "log": "Лог",
+        "logLines": "строк: {{count}}",
+        "filesRead": "Прочитанные файлы",
+        "pathCount": "файлов: {{count}}",
+        "edits": "Изменённые файлы",
+        "line": "строка {{line}}",
+        "error": {
+          "SYNTAX": "Синтаксическая ошибка",
+          "RUNTIME": "Ошибка выполнения",
+          "TIMEOUT": "Превышено время",
+          "BUDGET": "Превышен лимит",
+          "CANCELLED": "Прогон остановлен"
+        }
+      },
+      "args": {
+        "chars": "символов: {{count}}",
+        "lines": "строк: {{count}}"
+      },
+      "flag": {
+        "yes": "да",
+        "no": "нет"
       }
     }
   },

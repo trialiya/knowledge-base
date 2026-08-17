@@ -409,13 +409,13 @@ export const grepCall = {
 };
 
 /**
- * Форма, у которой вида ещё нет: переключателя режимов не будет вовсе,
- * показывается только JSON. Документная мутация — это форма F по
- * docs/todo/tool-результаты-отображение.md, её вид отдельным этапом.
+ * Документная мутация: карточка правки со ссылкой в историю версий. В
+ * аргументах — весь markdown документа, то есть тот самый случай, ради которого
+ * длинное значение показывается блоком, а не строкой с экранированными `\n`.
  */
 export const docMutationCall = {
   name: 'createDocument',
-  argumentsRaw: JSON.stringify({ title: 'анализ', type: 'folder', parentId: null }),
+  argumentsRaw: JSON.stringify({ title: 'анализ', type: 'folder', parentId: null, description: DOC_MARKDOWN }),
   status: 'OK',
   error: null,
   resultText: JSON.stringify({
@@ -431,4 +431,81 @@ export const docMutationCall = {
   }),
   resultMeta: null,
   createdAt: '2026-08-14T10:16:20',
+};
+
+/** Прогон скрипта: статистика, лог, прочитанные пути и две правки с diff'ами. */
+export const scriptRunCall = {
+  name: 'runScript',
+  argumentsRaw: JSON.stringify({
+    script: "const files = kb.glob('frontend/src/**/*.css');\nfor (const f of files) kb.log(f);\nreturn files.length;",
+  }),
+  status: 'OK',
+  error: null,
+  resultText: JSON.stringify({
+    value: 2,
+    log: [
+      'frontend/src/components/chatPanel/styles/diff.css',
+      'frontend/src/components/chatPanel/styles/tool-diff.css',
+      'переписано правил: 2',
+    ],
+    stats: { filesRead: 12, bytesRead: 262144, calls: 31, filesEdited: 2, elapsedMs: 412 },
+    error: null,
+    filesRead: [
+      'frontend/src/components/chatPanel/ChatCenter.jsx',
+      'frontend/src/components/chatPanel/styles/diff.css',
+      'frontend/src/legacy/toolbar.css',
+    ],
+    edits: [
+      {
+        operation: 'edit',
+        path: 'frontend/src/components/chatPanel/ChatCenter.jsx',
+        additions: 3,
+        deletions: 1,
+        lineCount: 142,
+        diff: PATCH_EDIT,
+      },
+      {
+        operation: 'edit',
+        path: 'frontend/src/legacy/toolbar.css',
+        additions: 0,
+        deletions: 4,
+        lineCount: 0,
+        diff: PATCH_DELETE,
+      },
+    ],
+  }),
+  resultMeta: null,
+  createdAt: '2026-08-16T13:10:38',
+};
+
+/** Упавший прогон: правок нет вовсе, зато видно, докуда скрипт дошёл. */
+export const scriptFailedCall = {
+  name: 'runScript',
+  argumentsRaw: JSON.stringify({ script: "const all = kb.glob('**/*');\nreturn all.map(kb.read).length;" }),
+  status: 'OK',
+  error: null,
+  resultText: JSON.stringify({
+    value: null,
+    log: ['обход начат от корня репозитория', 'прочитано 200 файлов'],
+    stats: { filesRead: 200, bytesRead: 5242880, calls: 200, filesEdited: 0, elapsedMs: 8140 },
+    error: { kind: 'BUDGET', message: 'превышен лимит kb.script.limits.files: 200', line: 2 },
+    filesRead: ['backend/build.gradle', 'backend/settings.gradle'],
+    edits: [],
+  }),
+  resultMeta: null,
+  createdAt: '2026-08-16T13:12:04',
+};
+
+/**
+ * MCP-инструмент произвольной формы: вида для неё нет и быть не может —
+ * переключателя режимов не будет вовсе, показывается только JSON.
+ */
+export const mcpCall = {
+  name: 'mcp__tracker__get_queue',
+  argumentsRaw: JSON.stringify({ queue: 'build-web' }),
+  status: 'OK',
+  error: null,
+  resultText: JSON.stringify({ ok: true, queue: 'build-web', queued: 3, workers: 2 }),
+  resultMeta: null,
+  createdAt: '2026-08-16T13:14:51',
 };

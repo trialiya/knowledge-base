@@ -224,9 +224,9 @@ MCP тоже. При отрисовке любого JSON-узла:
 // chatPanel/resultViews/registry.js — { id, detect(input), View }
 // input = { parsed, isJson, resultText, argumentsRaw }: разбор один на все виды.
 [
-  scriptRun,     // объект с stats + log + edits           → runScript
+  scriptRun,     // ✅ объект с stats + log + edits        → runScript
   diffList,      // ✅ path + additions/deletions          → getCommitDiff, getUncommittedChanges, editFile
-  docMutation,   // id + title + descriptionVersion        → 6 документных мутаций
+  docMutation,   // ✅ id + title + обе версии             → 6 документных мутаций
   grepMatches,   // ✅ path + matchLine + text             → grepContent
   tree,          // ✅ parentId | level | диапазон строк | путь → skeleton, оглавления, файлы
   recordList,    // ✅ массив однотипных плоских объектов  → все списочные (форма C)
@@ -403,15 +403,24 @@ backend/…/functions/GitFunction.java   ·   java   ·   строки 59–120 
    `getTreeSkeleton` пока показан плоским списком — вид дерева встанет в реестре
    выше `recordList` и заберёт его; `grepContent` остаётся в JSON, его текст
    несёт собственную нумерацию и ждёт своего вида.
-5. **Специализированные.** Сделано: ✅ `tree` — один вид на четыре способа
+5. ✅ **Специализированные.** Сделано: `tree` — один вид на четыре способа
    выразить вложенность (`parentId` у `getTreeSkeleton`, `level` у
    `getDocumentOutline`, диапазон строк у `getFileOutline`, путь у
-   `getFileTree`/`searchFiles`); ✅ `grepMatches` — разбор разметки `:N:`/`-N-`
-   в настоящие номера строк, группировка по файлу. Осталось: `docMutation`
-   (переиспользуя `DocChangeBlock`) и `scriptRun`.
-6. **Правило длинной строки (4.2) в JSON-режиме и в аргументах.** Отдельно от «Обзора»:
-   чинит формы, у которых своего вида ещё нет, и секцию аргументов (`editFile`,
-   `createDocument`).
+   `getFileTree`/`searchFiles`); `grepMatches` — разбор разметки `:N:`/`-N-`
+   в настоящие номера строк, группировка по файлу; `docMutation` — карточка
+   правки с той же `HistoryModal`, что открывает `DocChangeBlock`, наведённой на
+   `descriptionVersion` вызова; `scriptRun` — плитки статистики, полоса ошибки,
+   лог, прочитанные пути и правки. Правки `scriptRun` разбирает не сам, а
+   `detectDiffResult`, и рисует их `DiffResultView` — поэтому вид стоит в
+   реестре выше diff'а: содержащий обязан идти перед содержимым.
+6. **Правило длинной строки (4.2).** В аргументах — ✅ сделано:
+   `resultViews/argumentList.js` делит аргументы на короткие (строка `имя:
+   значение`) и длинные (сворачиваемый блок с объёмом и номерами строк), границу
+   задаёт тот же `isContentText`, что делит `content` и `scalar`. Имена
+   аргументов не переводятся: это параметры сигнатуры инструмента. Текст с
+   номерами строк вынесен из `ContentResultView` в общий `codeLines.jsx` — его
+   делят результат и аргументы. Осталось: то же правило внутри JSON-режима, для
+   форм, у которых своего вида нет вовсе (MCP).
 
 ## 7. Открытые вопросы
 

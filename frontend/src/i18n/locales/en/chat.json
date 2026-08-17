@@ -84,7 +84,7 @@
         "lineCount": "total lines",
         "sizeBytes": "size",
         "fileSize": "size",
-        "descriptionVersion": "version",
+        "descriptionVersion": "description version",
         "id": "id",
         "path": "path",
         "name": "name",
@@ -141,6 +141,37 @@
       "grep": {
         "matches": "{{count}} matches",
         "files": "{{count}} files"
+      },
+      "script": {
+        "stat": {
+          "filesRead": "files read",
+          "bytesRead": "read",
+          "calls": "calls",
+          "filesEdited": "files edited",
+          "elapsedMs": "ms"
+        },
+        "value": "Script value",
+        "log": "Log",
+        "logLines": "{{count}} lines",
+        "filesRead": "Files read",
+        "pathCount": "{{count}} files",
+        "edits": "Changed files",
+        "line": "line {{line}}",
+        "error": {
+          "SYNTAX": "Syntax error",
+          "RUNTIME": "Runtime error",
+          "TIMEOUT": "Timed out",
+          "BUDGET": "Budget exceeded",
+          "CANCELLED": "Run cancelled"
+        }
+      },
+      "args": {
+        "chars": "{{count}} chars",
+        "lines": "{{count}} lines"
+      },
+      "flag": {
+        "yes": "yes",
+        "no": "no"
       }
     }
   },

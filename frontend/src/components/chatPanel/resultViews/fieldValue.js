@@ -1,11 +1,12 @@
 // Значение поля ответа → строка для показа. Общее для видов, которые печатают
 // произвольные поля DTO: список записей, дерево, шапки.
 
+import i18n from '../../../i18n';
 import { formatFileSize } from '../../../utils/formatting';
 
 // Только настоящие байты: `chars` — символы, и «210 B» на них было бы просто
 // неверной единицей.
-const SIZE_KEYS = new Set(['fileSize', 'sizeBytes', 'size']);
+const SIZE_KEYS = new Set(['fileSize', 'sizeBytes', 'size', 'bytesRead']);
 
 // Дата опознаётся по виду значения, а не по имени поля: у MCP-инструментов
 // поле может называться как угодно, а ISO-8601 остаётся ISO-8601.
@@ -13,6 +14,12 @@ const ISO_DATE_TIME = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/;
 const ISO_DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
+
+/**
+ * Непустая строка, либо null. Общий guard разборов: у всех них «поля нет» и
+ * «поле есть, но в нём пробелы» — один и тот же случай.
+ */
+export const nonEmptyString = (value) => (typeof value === 'string' && value.trim() ? value : null);
 
 /**
  * Дата без времени → локальная полночь.
@@ -44,6 +51,10 @@ export const formatFieldValue = (key, value, locale) => {
       .join(' / ');
   }
   if (isPlainObject(value)) return JSON.stringify(value);
+  // Флаг — слово, а не литерал JS: «сводка устарела: true» читается как
+  // недоделка. Перевод берётся из модуля i18n напрямую — форматирование значения
+  // общее для четырёх видов, и таскать `t` через все вызовы незачем.
+  if (typeof value === 'boolean') return i18n.t(`chat:toolCall.detail.flag.${value ? 'yes' : 'no'}`);
   if (typeof value === 'number' && SIZE_KEYS.has(key)) return formatFileSize(value);
   if (typeof value === 'string') {
     // Без времени печатаем только дату: 00:00 в строке — артефакт разбора, а не

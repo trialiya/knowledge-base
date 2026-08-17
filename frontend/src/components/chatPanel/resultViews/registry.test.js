@@ -112,6 +112,22 @@ describe('detectResultView', () => {
     expect(detectResultView(doc).id).toBe('content');
   });
 
+  // Уступка «список текстов — за content» точна ровно настолько, насколько
+  // совпадают два описания одной границы. Здесь она проверяется с той стороны,
+  // где `content` текст несёт, но массив всё равно не берёт.
+  it('текстов больше, чем берёт content, — список, а не провал в JSON', () => {
+    const long = 'строка\n'.repeat(12);
+    const many = Array.from({ length: 21 }, (_, i) => ({ id: i, fileName: `f${i}.md`, content: long }));
+    expect(detectResultView(JSON.stringify(many)).id).toBe('recordList');
+  });
+
+  it('текст рядом с вложенной коллекцией — тоже список', () => {
+    // `content` отбивается по вложенной коллекции, и уступать ему тут нечего.
+    const long = 'строка\n'.repeat(12);
+    const records = [1, 2].map((id) => ({ id, title: `Док ${id}`, description: long, sections: [{ level: 1 }] }));
+    expect(detectResultView(JSON.stringify(records)).id).toBe('recordList');
+  });
+
   it('совпадения поиска — grepMatches, а не список и не текст', () => {
     const matches = JSON.stringify([{ path: 'a.java', matchLine: 85, text: '-84- a;\n:85: b;\n' }]);
     expect(detectResultView(matches).id).toBe('grepMatches');
@@ -121,9 +137,50 @@ describe('detectResultView', () => {
     expect(detectResultView('"Done"').id).toBe('scalar');
   });
 
+  it('документная мутация — docMutation, а само оглавление того же документа — tree', () => {
+    const mutation = JSON.stringify({
+      id: 75,
+      title: 'анализ',
+      type: 'folder',
+      parentId: null,
+      version: 1,
+      descriptionVersion: 1,
+      updatedAt: '2026-07-18T21:00:55',
+      summaryStale: false,
+      summarySourceVersion: null,
+    });
+    expect(detectResultView(mutation).id).toBe('docMutation');
+
+    const outline = JSON.stringify({
+      id: 75,
+      title: 'анализ',
+      version: 1,
+      descriptionVersion: 1,
+      sections: [{ path: 'Слои', level: 2, title: 'Слои', chars: 640, subsections: 0 }],
+    });
+    expect(detectResultView(outline).id).toBe('tree');
+  });
+
+  it('прогон скрипта — scriptRun, хотя его правки формой подошли бы и diff’у', () => {
+    // Вид, который содержит другой вид, обязан стоять выше него: иначе ответ
+    // разобрали бы по частям и лог со статистикой потерялись бы.
+    const script = JSON.stringify({
+      value: null,
+      log: ['готово'],
+      stats: { filesRead: 2, bytesRead: 4096, calls: 5, filesEdited: 1, elapsedMs: 120 },
+      error: null,
+      filesRead: ['a.jsx'],
+      edits: [
+        { operation: 'edit', path: 'a.jsx', additions: 3, deletions: 1, lineCount: 42, diff: '@@ -1 +1 @@\n-a\n+b' },
+      ],
+    });
+    expect(detectResultView(script).id).toBe('scriptRun');
+  });
+
   it('форма без вида — обзора нет вовсе', () => {
-    // Одиночная документная мутация: свой вид ещё не написан.
-    expect(detectResultView(JSON.stringify({ id: 75, title: 'анализ', type: 'folder', version: 1 }))).toBeNull();
+    // Плоский объект без заголовка, текста и версий: показывать нечего, кроме
+    // самого JSON, — и модалка так и делает, без переключателя режимов.
+    expect(detectResultView(JSON.stringify({ ok: true, count: 3 }))).toBeNull();
     expect(detectResultView('')).toBeNull();
   });
 });

@@ -6,13 +6,13 @@
 // запись diff'а от любой другой записи с путём отличают счётчики строк: пары
 // `additions` + `deletions` нет больше ни у одного DTO с полем `path`.
 
+import { nonEmptyString as str } from './fieldValue';
+
 // Больше двух сотен файлов за вызов — это уже не «изменения», а выгрузка;
 // разворачивать её построчно бессмысленно, JSON честнее.
 const MAX_FILES = 200;
 
 const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
-
-const str = (value) => (typeof value === 'string' && value ? value : null);
 
 /**
  * Буква статуса файла: A (added), M (modified), D (deleted), R (renamed),

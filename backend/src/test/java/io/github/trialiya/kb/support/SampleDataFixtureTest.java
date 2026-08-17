@@ -95,9 +95,8 @@ class SampleDataFixtureTest {
     /**
      * Every plaque in the fixture chat must be openable. The frontend needs {@code callId} on the
      * invocation itself ({@code canShowDetail}) and a {@code tool_call_index} row behind it —
-     * without either the modal cannot be reached at all, which is exactly how this fixture used to
-     * behave. Asserted here rather than left to manual QA: a row added without a callId looks fine
-     * in the list and only fails on click.
+     * without either the modal cannot be reached at all. Asserted here rather than left to manual
+     * QA: a row added without a callId looks fine in the list and only fails on click.
      */
     @Test
     void everyInvocationResolvesThroughTheToolCallIndex() {

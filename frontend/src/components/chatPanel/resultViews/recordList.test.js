@@ -47,6 +47,19 @@ describe('detectRecordList — что попадает в «Обзор»', () =>
     expect(records[1].meta.map((m) => m.key)).toEqual(['type']);
   });
 
+  it('пустая коллекция в записи — не поле: показывать в развороте нечего', () => {
+    // `findDocumentsByName` кладёт `children: []` в каждую запись, а
+    // `getFileTree` — пустой объект метаданных: и то и другое дало бы строку
+    // разворота с пустотой справа.
+    const records = detect(
+      JSON.stringify([
+        { id: 7, title: 'Модели', children: [], meta: {}, version: 2 },
+        { id: 31, title: 'Отчёты', children: [], meta: {}, version: 4 },
+      ]),
+    );
+    expect(records[0].fields.map((f) => f.key)).toEqual(['id', 'version']);
+  });
+
   it('searchDocuments: пояснение из snippet, крошки остаются полем', () => {
     const records = detect(
       JSON.stringify([

@@ -7,7 +7,7 @@
 // ключей — сильная проверка и дешёвая: Jackson печатает все поля record'а, так
 // что у настоящей выдачи сигнатуры сходятся, а у случайного массива нет.
 
-import { carriesContentText, isPlainObject } from './contentResult';
+import { contentTakesArray, isPlainObject } from './contentResult';
 
 // Выше этого числа записей вид не берётся вовсе: столько строк не читают, а
 // разворачивать их по одной — не тот инструмент. Показ ограничен отдельно.
@@ -41,7 +41,17 @@ const firstField = (obj, fields) => {
   return null;
 };
 
-const isEmpty = (value) => value === null || value === undefined || value === '';
+/**
+ * Нечего показывать. Пустая коллекция — тоже нечего: `findDocumentsByName`
+ * кладёт `children: []` в каждую запись, и без этой проверки в развороте стояла
+ * бы строка «children» с пустотой справа.
+ */
+const isEmpty = (value) =>
+  value === null ||
+  value === undefined ||
+  value === '' ||
+  (Array.isArray(value) && value.length === 0) ||
+  (isPlainObject(value) && Object.keys(value).length === 0);
 
 /**
  * Набор ключей записи — по нему проверяется однотипность списка.
@@ -76,7 +86,7 @@ const toRecord = (obj, key) => {
  * Разобранный ответ вызова → записи для `<RecordListView>`, либо null.
  *
  * Список текстов сюда не попадает — его показывает `content`; границу задаёт
- * `carriesContentText`, один предикат на оба вида.
+ * `contentTakesArray`, то есть сам разбор соседнего вида.
  */
 export const detectRecordList = ({ parsed, isJson }) => {
   if (!isJson || !Array.isArray(parsed)) return null;
@@ -85,10 +95,11 @@ export const detectRecordList = ({ parsed, isJson }) => {
 
   const signature = keySignature(parsed[0]);
   if (!parsed.every((record) => keySignature(record) === signature)) return null;
-  // `every`, а не `some`: уступать надо ровно тому списку, который `content`
-  // возьмёт. Он берёт массив только целиком, поэтому на «часть записей с
-  // текстом» отказались бы оба вида сразу и выдача провалилась бы в сырой JSON.
-  if (parsed.every(carriesContentText)) return null;
+  // Уступаем ровно то, что `content` действительно возьмёт: спрашиваем у него,
+  // а не описываем его правила второй раз. Разойдись эти два описания — на
+  // спорной форме отказались бы оба вида сразу, и выдача провалилась бы в сырой
+  // JSON, то есть ровно в ту дыру, которую весь режим и закрывает.
+  if (contentTakesArray(parsed)) return null;
 
   const records = parsed.map((record, i) => toRecord(record, `record-${i}`));
   // Запись, у которой нечего показать в строке, — форма не та: получился бы

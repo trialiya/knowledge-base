@@ -8,8 +8,12 @@
 // отрисовке данные либо null; null у всех — модалка показывает только JSON и
 // переключателя режимов не рисует вовсе.
 
+import { detectScriptRun } from './scriptRun';
+import ScriptRunView from './ScriptRunView';
 import { detectDiffResult } from './diffResult';
 import DiffResultView from './DiffResultView';
+import { detectDocMutation } from './docMutation';
+import DocMutationView from './DocMutationView';
 import { detectGrepMatches } from './grepMatches';
 import GrepMatchesView from './GrepMatchesView';
 import { detectTreeResult } from './treeResult';
@@ -27,11 +31,18 @@ import ScalarResultView from './ScalarResultView';
 // структуру базы знаний и файлы репозитория — списком они показывались честно,
 // но без иерархии.
 //
+// `scriptRun` стоит первым по обратной причине: он единственный составной —
+// внутри его ответа лежит другая форма (`edits` — это diff), и разбирает её он
+// не сам, а тем же `detectDiffResult`. Вид, который содержит другой вид, обязан
+// стоять выше него, иначе спорить будет не с кем — просто разберут по частям.
+//
 // `scalar` формой не пересекается ни с чем (короткая однострочная строка —
 // дополнение к `isContentText`), поэтому стоит последним просто как самый
 // мелкий случай.
 const VIEWS = [
+  { id: 'scriptRun', detect: detectScriptRun, View: ScriptRunView },
   { id: 'diff', detect: detectDiffResult, View: DiffResultView },
+  { id: 'docMutation', detect: detectDocMutation, View: DocMutationView },
   { id: 'grepMatches', detect: detectGrepMatches, View: GrepMatchesView },
   { id: 'tree', detect: detectTreeResult, View: TreeResultView },
   { id: 'recordList', detect: detectRecordList, View: RecordListView },

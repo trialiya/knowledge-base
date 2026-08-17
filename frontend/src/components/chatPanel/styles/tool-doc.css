@@ -1,0 +1,52 @@
+/* ── Режим «Обзор» в модалке вызова инструмента ──
+   Форма «мутация документа»: карточка правки со ссылкой в историю версий.
+   Импортируется из tool-call-detail.css. */
+
+.tool-doc__card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  background: var(--kb-accent-light);
+  border: 1px solid var(--kb-border);
+  border-radius: 8px;
+  min-width: 0;
+}
+
+.tool-doc__icon {
+  flex-shrink: 0;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.tool-doc__text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.tool-doc__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--kb-text);
+}
+
+/* Факты переносятся на вторую строку, а не режутся: их немного, и каждый
+   короткий — прятать половину ради одной строки нечего. */
+.tool-doc__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 0.72rem;
+  color: var(--kb-muted);
+}
+
+.tool-doc__fact {
+  white-space: nowrap;
+}

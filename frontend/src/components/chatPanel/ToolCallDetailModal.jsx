@@ -6,6 +6,8 @@ import { IconCopySmall, IconCopied } from '../../icons';
 import useCopyFeedback from '../../hooks/useCopyFeedback';
 import ModalShell from '../common/ModalShell';
 import { detectResultView } from './resultViews/registry';
+import { detectArgumentList } from './resultViews/argumentList';
+import ArgumentListView from './resultViews/ArgumentListView';
 import { formatJson, tryFormatJson, highlightJson } from './resultViews/jsonText';
 import './styles/tool-call-detail.css';
 
@@ -41,10 +43,10 @@ const CopyButton = ({ value }) => {
  * требуют `tabpanel` с `aria-controls` и стрелок вместо Tab, а здесь два
  * состояния одной секции.
  */
-const ModeSwitch = ({ mode, onChange }) => {
+const ModeSwitch = ({ mode, onChange, label }) => {
   const { t } = useTranslation('chat');
   return (
-    <div className="tool-call-detail__modes" role="group" aria-label={t('toolCall.detail.result')}>
+    <div className="tool-call-detail__modes" role="group" aria-label={label}>
       {[MODE.OVERVIEW, MODE.JSON].map((value) => (
         <button
           key={value}
@@ -74,12 +76,14 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
   // кадр с деталями предыдущего инструмента.
   const [answer, setAnswer] = useState(null); // { details, failed } | null
   const [mode, setMode] = useState(MODE.OVERVIEW);
+  const [argsMode, setArgsMode] = useState(MODE.OVERVIEW);
 
   const [req, setReq] = useState({ conversationId, callId });
   if (req.conversationId !== conversationId || req.callId !== callId) {
     setReq({ conversationId, callId });
     setAnswer(null);
     setMode(MODE.OVERVIEW);
+    setArgsMode(MODE.OVERVIEW);
   }
 
   useEffect(() => {
@@ -112,6 +116,7 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
   const argsPretty = useMemo(() => (details ? formatJson(details.argumentsRaw) : null), [details]);
   const resultPretty = useMemo(() => (details ? tryFormatJson(details.resultText) : null), [details]);
   const view = useMemo(() => (details ? detectResultView(details.resultText, details.argumentsRaw) : null), [details]);
+  const args = useMemo(() => (details ? detectArgumentList(details.argumentsRaw) : null), [details]);
   const showOverview = view !== null && mode === MODE.OVERVIEW;
   const OverviewView = view?.View;
 
@@ -142,15 +147,20 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
           <section className="tool-call-detail__section">
             <div className="tool-call-detail__section-head">
               <div className="tool-call-detail__label">{t('toolCall.detail.arguments')}</div>
+              {args && <ModeSwitch mode={argsMode} onChange={setArgsMode} label={t('toolCall.detail.arguments')} />}
               <CopyButton value={argsPretty} />
             </div>
-            <JsonBlock text={argsPretty} />
+            {args && argsMode === MODE.OVERVIEW ? (
+              <ArgumentListView key={callId} data={args} />
+            ) : (
+              <JsonBlock text={argsPretty} />
+            )}
           </section>
 
           <section className="tool-call-detail__section">
             <div className="tool-call-detail__section-head">
               <div className="tool-call-detail__label">{t('toolCall.detail.result')}</div>
-              {view && <ModeSwitch mode={mode} onChange={setMode} />}
+              {view && <ModeSwitch mode={mode} onChange={setMode} label={t('toolCall.detail.result')} />}
               <CopyButton value={details.resultText} />
             </div>
             {showOverview ? (

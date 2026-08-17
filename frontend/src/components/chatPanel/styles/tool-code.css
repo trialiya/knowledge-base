@@ -1,0 +1,40 @@
+/* ── Текст с номерами строк ──
+   Общий блок для всего, что в модалке вызова показывает содержимое настоящими
+   переносами: результат инструмента и длинный аргумент (см. codeLines.jsx). */
+
+/* Общий скролл модалки — как у .tool-call-detail__pre, поэтому собственного
+   overflow-y здесь нет; по горизонтали текст скроллится сам. */
+.tool-code {
+  background: var(--kb-code-dark-bg, #1e1e2e);
+  color: var(--kb-code-dark-color, #cdd6f4);
+  border-radius: 6px;
+  padding: 8px 0;
+  font-size: 0.75rem;
+  font-family: 'Fira Mono', 'Cascadia Code', 'Consolas', monospace;
+  line-height: 1.55;
+  box-sizing: border-box;
+  width: 100%;
+  overflow-x: auto;
+}
+
+.tool-code__line {
+  display: flex;
+  gap: 12px;
+  padding: 0 10px;
+}
+.tool-code__line:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tool-code__line-no {
+  flex: 0 0 auto;
+  min-width: 3.2em;
+  text-align: right;
+  color: #6c7086;
+  user-select: none;
+}
+
+.tool-code__line-text {
+  white-space: pre;
+  min-width: 0;
+}
