@@ -1,5 +1,4 @@
-import { useState, useRef, useEffect, useLayoutEffect } from 'react';
-import { createPortal } from 'react-dom';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ToolCallDetailModal from './ToolCallDetailModal';
 import { getToolIcon, toolLabelKey, humanizeTool } from '../common/toolNames';
@@ -11,7 +10,7 @@ import './styles/tool-calls.css';
 
 // Inline-блок плашек вызовов инструментов под пузырём ответа ассистента.
 // Вынесено из Message.jsx: сам пузырь сообщения не должен знать о деталях
-// tool-call UI (тултипы, группировка, модалка деталей).
+// tool-call UI (группировка, модалка деталей).
 
 const StatusIcon = ({ status }) => {
   switch (status) {
@@ -55,73 +54,18 @@ const buildCopyText = (tc, t) => {
   return parts.join('\n');
 };
 
-/** Одиночная плашка вызова — hover-тултип + кнопка копирования + кнопка деталей */
+/** Одиночная плашка вызова — кнопка копирования + кнопка деталей */
 const ToolCallItem = ({ tc, conversationId }) => {
   const { t } = useTranslation('chat');
   const label = t(toolLabelKey(tc.name), { defaultValue: humanizeTool(tc.name) });
   const icon = getToolIcon(tc.name);
   const argsStr = formatArgs(tc.arguments);
   const gist = gistPreview(tc.resultGist);
-  const itemRef = useRef(null);
-  const tooltipRef = useRef(null);
-  const [hover, setHover] = useState(false);
-  // pos: null пока не измерили реальный размер тултипа (рендерим скрытым).
-  const [pos, setPos] = useState(null);
   const [copied, copy] = useCopyFeedback();
   const [showDetail, setShowDetail] = useState(false);
   // callId приходит вместе с плашкой (SSE TOOL_CALL/TOOL_CALLS или GET /messages) — без него
   // (старые записи до этого поля) модалке деталей нечего запросить.
   const canShowDetail = !!(conversationId && tc.callId && tc.status !== TOOL_STATUS.STARTED && tc.hasDetails !== false);
-
-  const GAP = 8;
-
-  // Скролл (список сообщений, колонка тулзов, автоскролл при стриминге) двигает
-  // плашку из-под неподвижного курсора, а mouseleave при этом НЕ стреляет —
-  // браузер пересчитывает hover только на движение мыши. Без этого тултип
-  // «залипал» на экране до первого движения курсора. Слушаем в capture-фазе,
-  // чтобы поймать скролл любого вложенного контейнера.
-  useEffect(() => {
-    if (!hover) return undefined;
-    const hide = () => {
-      setHover(false);
-      setPos(null);
-    };
-    window.addEventListener('scroll', hide, true);
-    return () => window.removeEventListener('scroll', hide, true);
-  }, [hover]);
-
-  // Позиционируем ПОСЛЕ рендера, по фактическим размерам тултипа — иначе при
-  // неверной оценке высоты/ширины он «улетал». Якорим рядом с плашкой и зажимаем
-  // в видимую область, чтобы тултип всегда оставался у своего блока.
-  useLayoutEffect(() => {
-    if (!hover || !itemRef.current || !tooltipRef.current) return;
-    const item = itemRef.current.getBoundingClientRect();
-    const tip = tooltipRef.current.getBoundingClientRect();
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const w = tip.width;
-    const h = tip.height;
-
-    // Горизонтально: плашки под пузырём, справа обычно свободно — пробуем туда,
-    // затем влево, затем — ближайший зажатый край.
-    let left;
-    if (item.right + GAP + w <= vw - GAP) {
-      left = item.right + GAP;
-    } else if (item.left - GAP - w >= GAP) {
-      left = item.left - GAP - w;
-    } else {
-      left = item.right + GAP; // прижмём зажимом ниже
-    }
-    left = Math.min(Math.max(left, GAP), Math.max(GAP, vw - w - GAP));
-
-    // Вертикально: по верху плашки, зажатый в экран.
-    let top = Math.min(Math.max(item.top, GAP), Math.max(GAP, vh - h - GAP));
-
-    // Микро-движения избегаем — обновляем только при заметном сдвиге.
-    setPos((prev) =>
-      prev && Math.abs(prev.left - left) < 0.5 && Math.abs(prev.top - top) < 0.5 ? prev : { top, left },
-    );
-  }, [hover, argsStr, gist, tc.status, tc.error]);
 
   const handleCopy = (e) => {
     // Плашка сама по себе кликабельна (открывает детали) — копирование не должно
@@ -132,20 +76,12 @@ const ToolCallItem = ({ tc, conversationId }) => {
 
   return (
     <div
-      ref={itemRef}
       className={`tool-call-item tool-call-item--${(tc.status || 'STARTED').toLowerCase()}${
         canShowDetail ? ' tool-call-item--clickable' : ''
       }`}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => {
-        setHover(false);
-        setPos(null);
-      }}
       onClick={() => {
         if (!canShowDetail) return;
         setShowDetail(true);
-        setHover(false);
-        setPos(null);
       }}
     >
       <span className="tool-call-status-icon">
@@ -173,27 +109,6 @@ const ToolCallItem = ({ tc, conversationId }) => {
           onClose={() => setShowDetail(false)}
         />
       )}
-      {hover &&
-        createPortal(
-          <div
-            ref={tooltipRef}
-            className="tool-call-tooltip"
-            style={{
-              top: pos ? pos.top : 0,
-              left: pos ? pos.left : 0,
-              visibility: pos ? 'visible' : 'hidden',
-            }}
-          >
-            <div className="tool-call-tooltip-name">{label}</div>
-            {argsStr && <div className="tool-call-tooltip-args">{argsStr}</div>}
-            <div className="tool-call-tooltip-status">
-              {t('toolCall.status')}: {tc.status || '—'}
-            </div>
-            {tc.resultGist && <div className="tool-call-tooltip-gist">{tc.resultGist}</div>}
-            {tc.status === TOOL_STATUS.ERROR && tc.error && <div className="tool-call-tooltip-error">{tc.error}</div>}
-          </div>,
-          document.body,
-        )}
     </div>
   );
 };
