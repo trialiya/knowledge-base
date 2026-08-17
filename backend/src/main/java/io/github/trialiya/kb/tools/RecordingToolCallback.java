@@ -145,7 +145,11 @@ public class RecordingToolCallback implements ToolCallback {
      * это валидный JSON-объект, иначе {@code "{}"}. Малформенный JSON persist-ить нельзя — history
      * уходит модели на каждом следующем ходу, и большинство провайдеров отвергают запрос целиком
      * при невалидном JSON в {@code tool_calls[].arguments}, что навсегда ломает разговор, а не
-     * только этот вызов (сам вызов к этому моменту уже провалился).
+     * только этот вызов (сам вызов к этому моменту уже провалился). Малформенность возникает при
+     * склейке потоковых дельт tool-call'ов в {@code OpenAiChatModel.ChunkMerger} (spring-ai 2.0.0
+     * решает по наличию {@code id}, а не по {@code index}) — см.
+     * https://github.com/spring-projects/spring-ai/pull/6381, влитый в апстрим под 2.0.1, но этот
+     * guard остаётся нужен и после апгрейда как последний рубеж для любых будущих сбоев агрегации.
      */
     public static String sanitizeArguments(@Nullable String arguments) {
         if (StringUtils.isBlank(arguments)) {
