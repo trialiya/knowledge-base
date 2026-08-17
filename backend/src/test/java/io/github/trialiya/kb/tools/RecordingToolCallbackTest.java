@@ -37,6 +37,24 @@ class RecordingToolCallbackTest {
     }
 
     @Test
+    void concatenatedObjectsBecomeEmptyObject() {
+        // Both objects are well-formed on their own, so a lenient parser reads the first one and
+        // drops the rest — the string still goes to the provider whole, and the provider rejects
+        // it. Everything after the first value has to fail the check.
+        assertThat(RecordingToolCallback.sanitizeArguments("{\"filePath\": \"a\"}{\"q\": \"b\"}"))
+                .isEqualTo("{}");
+        assertThat(RecordingToolCallback.sanitizeArguments("{} {}")).isEqualTo("{}");
+        assertThat(RecordingToolCallback.sanitizeArguments("{\"q\": \"a\"} trailing"))
+                .isEqualTo("{}");
+    }
+
+    @Test
+    void nonObjectJsonBecomesEmptyObject() {
+        assertThat(RecordingToolCallback.sanitizeArguments("[1, 2]")).isEqualTo("{}");
+        assertThat(RecordingToolCallback.sanitizeArguments("42")).isEqualTo("{}");
+    }
+
+    @Test
     void parseToolInputToleratesTheSameMalformedInput() {
         assertThat(RecordingToolCallback.parseToolInput("{\"filePath\": \"a\"{}"))
                 .isEqualTo(Map.of());

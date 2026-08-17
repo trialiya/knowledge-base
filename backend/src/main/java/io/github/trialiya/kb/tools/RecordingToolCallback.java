@@ -8,7 +8,9 @@ import static io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocation
 import static java.util.stream.Collectors.toMap;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.model.tool.ToolCallResultMetaProvider;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
@@ -29,6 +31,15 @@ import org.springframework.ai.tool.metadata.ToolMetadata;
 public class RecordingToolCallback implements ToolCallback {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+    /**
+     * Ридер для {@link #sanitizeArguments}: в отличие от {@link #OBJECT_MAPPER} отвергает мусор
+     * после первого объекта. Без {@code FAIL_ON_TRAILING_TOKENS} Jackson читает первый объект и
+     * молча выбрасывает хвост, т.е. склейка вида {@code {"a":1}{"b":2}} — самая частая форма битых
+     * аргументов у стриминга — прошла бы проверку как валидный JSON.
+     */
+    private static final ObjectReader STRICT_OBJECT_READER =
+            OBJECT_MAPPER.readerFor(Map.class).with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
 
     static final ThreadLocal<Object> CURRENT_RESULT = new ThreadLocal<>();
 
@@ -156,7 +167,7 @@ public class RecordingToolCallback implements ToolCallback {
             return "{}";
         }
         try {
-            OBJECT_MAPPER.readValue(arguments, Map.class);
+            STRICT_OBJECT_READER.readValue(arguments);
             return arguments;
         } catch (JsonProcessingException e) {
             log.warn(
