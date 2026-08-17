@@ -149,41 +149,6 @@
   text-overflow: ellipsis;
 }
 
-/* ── Hover tooltip (fixed position, escapes scroll container) ── */
-.tool-call-tooltip {
-  position: fixed;
-  z-index: 1000;
-  background: var(--kb-code-dark-bg);
-  color: var(--kb-code-dark-color);
-  border-radius: 8px;
-  padding: 8px 12px;
-  font-size: 0.72rem;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-word;
-  width: 320px;
-  box-sizing: border-box;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
-  pointer-events: none;
-}
-.tool-call-tooltip-name {
-  font-weight: 700;
-  color: #fff;
-  margin-bottom: 4px;
-}
-.tool-call-tooltip-args {
-  color: #b0b0b0;
-  margin-bottom: 3px;
-}
-.tool-call-tooltip-status {
-  color: #8be9a0;
-  font-size: 0.68rem;
-}
-.tool-call-tooltip-error {
-  color: #ff8a80;
-  margin-top: 3px;
-}
-
 /* ── Group header ── */
 .tool-call-group {
   display: flex;
@@ -247,21 +212,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   margin-top: 1px;
-}
-
-/* Полный gist в тултипе */
-.tool-call-tooltip-gist {
-  font-size: 0.75rem;
-  color: var(--kb-muted);
-  white-space: pre-wrap;
-  word-break: break-word;
-  margin-top: 4px;
-  padding-top: 4px;
-  border-top: 1px solid rgba(255, 255, 255, 0.15);
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 
 /* ── Ранний сигнал: «модель готовит вызов инструмента» ──
