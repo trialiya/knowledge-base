@@ -10,15 +10,15 @@ import gitApi from '../../api/gitApi';
  *
  * @returns {{ commit: object|null, loading: boolean, error: boolean }}
  */
-export default function useLastCommit(path, enabled = true) {
+export default function useLastCommit(path, project, enabled = true) {
   // Ответ сервера; null — запрос ещё не завершён. Пока его нет, состояние
   // выводится из пропсов при рендере: сброс эффектом дал бы лишний проход и
   // кадр с коммитом от предыдущего пути.
   const [answer, setAnswer] = useState(null);
 
-  const [prev, setPrev] = useState({ path, enabled });
-  if (prev.path !== path || prev.enabled !== enabled) {
-    setPrev({ path, enabled });
+  const [prev, setPrev] = useState({ path, project, enabled });
+  if (prev.path !== path || prev.project !== project || prev.enabled !== enabled) {
+    setPrev({ path, project, enabled });
     setAnswer(null);
   }
 
@@ -27,7 +27,7 @@ export default function useLastCommit(path, enabled = true) {
     const controller = new AbortController();
 
     gitApi
-      .getCommits(path, 1, controller.signal)
+      .getCommits(path, { limit: 1, project, signal: controller.signal })
       .then((commits) => {
         if (controller.signal.aborted) return;
         setAnswer({ commit: commits?.[0] || null, loading: false, error: false });
@@ -38,7 +38,7 @@ export default function useLastCommit(path, enabled = true) {
       });
 
     return () => controller.abort();
-  }, [path, enabled]);
+  }, [path, project, enabled]);
 
   // Мемо, а не литерал: результат хука уходит в зависимости у вызывающих.
   const pending = useMemo(() => ({ commit: null, loading: enabled, error: false }), [enabled]);

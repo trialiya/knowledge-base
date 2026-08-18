@@ -8,7 +8,14 @@ import { SENDER } from '../../constants/messageSender';
 import { RETRY_MODE } from '../../constants/retryMode';
 import { generateUUID } from '../../utils/uuid';
 import { nextMessageId } from './messageId';
-import { getLastModel, setLastModel, getLastMode, setLastMode } from './lastChoiceStore';
+import {
+  getLastModel,
+  setLastModel,
+  getLastMode,
+  setLastMode,
+  getLastProject,
+  setLastProject,
+} from './lastChoiceStore';
 import { chatLoadErrorNotice, RUN_BUSY_NOTICE, RETRY_UNAVAILABLE_NOTICE } from './chatNotices';
 
 /**
@@ -30,6 +37,8 @@ import { chatLoadErrorNotice, RUN_BUSY_NOTICE, RETRY_UNAVAILABLE_NOTICE } from '
  * @param {object}   p.modelConfig
  * @param {Array}    p.modelOptions
  * @param {Array}    p.modeOptions
+ * @param {Array}    p.projectOptions
+ * @param {string}   p.defaultProjectId
  * @param {Function} p.notify        (дескриптор) => void — см. chatNotices
  */
 export default function useChatRun({
@@ -44,6 +53,8 @@ export default function useChatRun({
   modelConfig,
   modelOptions,
   modeOptions,
+  projectOptions,
+  defaultProjectId,
   notify,
 }) {
   // chatId, для которого POST /runs уже отправлен, но runId ещё не получен.
@@ -81,6 +92,20 @@ export default function useChatRun({
     [modeOptions],
   );
 
+  // Проект для отправки: выбранный у чата → последний → дефолтный. Валидируем по
+  // конфигу — проект могли выключить, и тогда прогон уедет на дефолтный, а не
+  // упадёт: чат обязан продолжать работать, о подмене говорит композер.
+  const resolveProjectForSend = useCallback(
+    (chat) => {
+      const selected = chat?.project;
+      if (selected && projectOptions.some((o) => o.id === selected)) return selected;
+      const last = getLastProject();
+      if (last && projectOptions.some((o) => o.id === last)) return last;
+      return defaultProjectId || null;
+    },
+    [projectOptions, defaultProjectId],
+  );
+
   // Идёт ли в чате прогон прямо сейчас. Локального runId недостаточно: он мог не успеть
   // приехать потоком, поэтому переспрашиваем бэк. Нужно там, где сбой запроса ещё не
   // означает, что генерация не началась (см. runConversation).
@@ -109,12 +134,13 @@ export default function useChatRun({
   const runConversation = useCallback(
     async (
       conversationId,
-      { text = null, clientMsgId = null, model, mode, retry = false, retryMid = null, contextItems = [] },
+      { text = null, clientMsgId = null, model, mode, project, retry = false, retryMid = null, contextItems = [] },
     ) => {
       // Запоминаем как «последние» — новый чат стартует именно с них. Режим
       // запоминаем всегда, в т.ч. '' — это сознательный сброс к «без режима».
       if (model) setLastModel(model);
       setLastMode(mode);
+      if (project) setLastProject(project);
       // Блокируем ввод сразу, не дожидаясь runId от сервера. Снимается в finally:
       // при успехе к этому моменту у чата уже стоит runId (isStreaming не мигает),
       // при 409/ошибке ввод разблокируется — отправку можно повторить.
@@ -123,6 +149,7 @@ export default function useChatRun({
         const res = await chatApi.startRun(conversationId, text, {
           model,
           mode,
+          project,
           clientMsgId,
           retry,
           contextItems,
@@ -221,6 +248,7 @@ export default function useChatRun({
       localClientIdsRef.current.add(clientMsgId);
       const modelForSend = resolveModelForSend(chatForSend);
       const modeForSend = resolveModeForSend(chatForSend);
+      const projectForSend = resolveProjectForSend(chatForSend);
       // Отложенные вложения этого чата уходят с сообщением: бэк проверит ссылки
       // и запишет их в meta того же ряда (см. ContextItemService).
       const contextItems = getStagedFor(activeChatId);
@@ -249,6 +277,7 @@ export default function useChatRun({
           draft: false,
           model: modelForSend ?? found.model ?? null,
           mode: modeForSend || found.mode || null,
+          project: projectForSend ?? found.project ?? null,
           messages: newMessages,
         };
         const otherChats = prev.filter((c) => c.id !== activeChatId);
@@ -268,6 +297,7 @@ export default function useChatRun({
         contextItems,
         model: modelForSend,
         mode: modeForSend,
+        project: projectForSend,
       });
     },
     [
@@ -279,6 +309,7 @@ export default function useChatRun({
       getStagedFor,
       resolveModelForSend,
       resolveModeForSend,
+      resolveProjectForSend,
       runConversation,
       notify,
     ],
@@ -305,9 +336,10 @@ export default function useChatRun({
       if (!target || target.sender !== SENDER.AI || !target.error) return;
       const model = resolveModelForSend(chat);
       const mode = resolveModeForSend(chat);
+      const project = resolveProjectForSend(chat);
 
       if (target.retryMode === RETRY_MODE.CONTINUE) {
-        runConversation(activeChatId, { retry: true, retryMid: mid, model, mode });
+        runConversation(activeChatId, { retry: true, retryMid: mid, model, mode, project });
         return;
       }
       if (target.retryMode !== RETRY_MODE.RESEND) return;
@@ -322,10 +354,20 @@ export default function useChatRun({
         clientMsgId,
         model,
         mode,
+        project,
         contextItems: target.retryContextItems || [],
       });
     },
-    [activeChatId, getChats, pendingRunChatId, patchMessages, resolveModelForSend, resolveModeForSend, runConversation],
+    [
+      activeChatId,
+      getChats,
+      pendingRunChatId,
+      patchMessages,
+      resolveModelForSend,
+      resolveModeForSend,
+      resolveProjectForSend,
+      runConversation,
+    ],
   );
 
   const stopGeneration = useCallback(() => {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import useSearchDropdown from '../../hooks/useSearchDropdown';
@@ -21,8 +21,9 @@ import highlightMatch from '../common/highlightMatch';
  *   inputId     — id поля (на него ссылается <label> диалога)
  *   placeholder — подсказка в пустом поле
  *   autoFocus   — поставить фокус при открытии диалога
+ *   project     — репозиторий чата: в нём ищут поля `file` и `commit`
  */
-const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder, autoFocus }) => {
+const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder, autoFocus, project }) => {
   const { t } = useTranslation('chat');
   // Разбираем по полям прямо на вызове: react-hooks/refs не различает, какое
   // свойство возвращённого объекта — ref, и считает рефом любое чтение с него.
@@ -42,7 +43,11 @@ const PlaceholderSearchField = ({ spec, selected, onSelect, inputId, placeholder
     close,
     handleChange: onQueryChange,
     handleKeyDown: onListKeyDown,
-  } = useSearchDropdown(spec.search);
+  } = useSearchDropdown(
+    // Мемоизация обязательна: useSearchDropdown держит функцию в зависимостях,
+    // и новая идентичность на каждый рендер перезапускала бы поиск.
+    useCallback((q, signal) => spec.search(q, signal, project), [spec, project]),
+  );
 
   // Набранное держим у себя: `query` хука — это то, что сейчас ищется, и close()
   // его стирает. Поле живёт в форме постоянно (а не сворачивается, как PanelSearch),

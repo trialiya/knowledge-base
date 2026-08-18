@@ -117,10 +117,12 @@ function readUrl() {
     if (!docId) search = p.get('search') || '';
   }
 
-  // Файлы: /files/<path…> (legacy: ?path=).
+  // Файлы: /files/<path…> (legacy: ?path=), проект — в query (см. urlScheme.filesUrl).
   let filePath = '';
+  let fileProject = '';
   if (view === 'files') {
     filePath = segs.length > 1 ? segs.slice(1).join('/') : p.get('path') || '';
+    fileProject = p.get('project') || '';
   }
 
   // Legacy `?tab=`: раньше это была вкладка ЦЕНТРА. Те из них, что переехали в
@@ -136,6 +138,7 @@ function readUrl() {
     search,
     mode: p.get('mode') || SEARCH_MODE.HYBRID,
     filePath,
+    fileProject,
     leftCollapsed: p.get('left') === '0',
     rightTab: p.get('right') || legacyRightTab,
     // Есть ли в адресе явная раскладка панелей. Если нет — берём запомненную
@@ -166,6 +169,9 @@ function buildUrl(nav) {
       break;
     case 'files':
       path = filesPath(nav.filePath);
+      // Дефолтный проект в адрес не пишем — как и любое значение по умолчанию
+      // в этой схеме; адрес без проекта означает именно его.
+      if (nav.fileProject) p.set('project', nav.fileProject);
       break;
     case 'chat':
       path = chatPath(nav.chatId);
@@ -204,6 +210,7 @@ function initialNav() {
     search: u.search,
     mode: u.mode,
     filePath: u.filePath,
+    fileProject: u.fileProject,
     leftCollapsed: panels.leftCollapsed,
     rightTab: panels.rightTab,
   };
@@ -234,14 +241,18 @@ export default function useAppNavigation() {
       chatId: nav.chatId || readUrl().legacyChatId || null,
       docId: nav.docId || null,
       filePath: nav.filePath || '',
+      fileProject: nav.fileProject || '',
     };
   }
   useEffect(() => {
     const m = memoryRef.current;
     if (nav.chatId) m.chatId = nav.chatId;
     if (nav.docId) m.docId = nav.docId;
-    if (nav.view === 'files' && nav.filePath) m.filePath = nav.filePath;
-  }, [nav.view, nav.chatId, nav.docId, nav.filePath]);
+    if (nav.view === 'files' && nav.filePath) {
+      m.filePath = nav.filePath;
+      m.fileProject = nav.fileProject || '';
+    }
+  }, [nav.view, nav.chatId, nav.docId, nav.filePath, nav.fileProject]);
 
   // Раскладку панелей запоминаем по разделам — при возврате в раздел она
   // восстановится (см. switchView).
@@ -309,6 +320,7 @@ export default function useAppNavigation() {
         search: u.search,
         mode: u.mode,
         filePath: u.filePath,
+        fileProject: u.fileProject,
         leftCollapsed: u.leftCollapsed,
         rightTab: u.rightTab,
       });
@@ -333,7 +345,10 @@ export default function useAppNavigation() {
         const next = { ...prev, ...panels, view };
         if (view === 'chat') next.chatId = prev.chatId || m.chatId || null;
         if (view === 'knowledge' && !prev.docId && !prev.search && m.docId) next.docId = m.docId;
-        if (view === 'files' && !prev.filePath) next.filePath = m.filePath || '';
+        if (view === 'files' && !prev.filePath) {
+          next.filePath = m.filePath || '';
+          next.fileProject = m.fileProject || '';
+        }
         return next;
       });
     },
@@ -363,10 +378,21 @@ export default function useAppNavigation() {
     [pushNav],
   );
 
-  /** Открыть путь в файловом браузере ('' — корень репозитория). */
+  /**
+   * Открыть путь в файловом браузере ('' — корень репозитория).
+   *
+   * @param project репозиторий пути; не передан — остаёмся в том, что открыт
+   *   (клик по дереву не должен уводить в другой проект), а переход по ссылке из
+   *   чата проект называет и панель переключает
+   */
   const openFilePath = useCallback(
-    (path) => {
-      pushNav((prev) => ({ ...prev, view: 'files', filePath: path || '' }));
+    (path, project) => {
+      pushNav((prev) => ({
+        ...prev,
+        view: 'files',
+        filePath: path || '',
+        fileProject: project === undefined ? prev.fileProject : project || '',
+      }));
     },
     [pushNav],
   );

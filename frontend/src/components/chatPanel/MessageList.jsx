@@ -53,6 +53,7 @@ const setHighlight = (name, ranges) => {
 
 const MessageList = ({
   conversationId,
+  project,
   messages,
   onNavigateToDoc,
   onLoadMore,
@@ -262,7 +263,7 @@ const MessageList = ({
               {groupEnd && groupToolCalls.length > 0 && (
                 <>
                   <DocChangeBlock toolCalls={groupToolCalls} onNavigateToDoc={onNavigateToDoc} />
-                  <FileChangeBlock toolCalls={groupToolCalls} />
+                  <FileChangeBlock toolCalls={groupToolCalls} project={project} />
                 </>
               )}
             </Fragment>

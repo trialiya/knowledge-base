@@ -49,6 +49,15 @@
   flex: 1;
   flex-wrap: wrap;
 }
+/* Проект чата исчез из конфигурации — предупреждение рядом с селекторами. */
+.composer-toolbar__note {
+  font-size: 0.8rem;
+  color: var(--kb-error);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
 .composer-toolbar__actions {
   display: flex;
   align-items: center;

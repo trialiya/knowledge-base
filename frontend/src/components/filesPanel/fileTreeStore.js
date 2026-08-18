@@ -22,13 +22,24 @@
 
 const TTL_MS = 60_000;
 
-const store = {
-  dirs: new Map(), // dirPath → GitFileNode[]
-  expanded: new Set(['']),
-  at: 0, // время последней записи листингов
-};
+// Кэш — по проекту, а не один на всех: путь `backend/build.gradle` есть в каждом
+// репозитории, и общий кэш показал бы дерево одного проекта в другом. Ошибка
+// такого рода не бросается в глаза — файлы выглядят настоящими, просто не те.
+const projects = new Map(); // projectId → { dirs, expanded, at }
 
-function expireIfStale() {
+/** Состояние одного проекта; заводится при первом обращении. */
+function projectStore(project) {
+  const key = project || '';
+  let store = projects.get(key);
+  if (!store) {
+    store = { dirs: new Map(), expanded: new Set(['']), at: 0 };
+    projects.set(key, store);
+  }
+  expireIfStale(store);
+  return store;
+}
+
+function expireIfStale(store) {
   if (store.at && Date.now() - store.at > TTL_MS) {
     store.dirs.clear();
     store.at = 0;
@@ -36,9 +47,8 @@ function expireIfStale() {
 }
 
 /** Снимок кэша листингов в виде объекта, каким его ждёт дерево: dirPath → nodes. */
-export function readDirs() {
-  expireIfStale();
-  return Object.fromEntries(store.dirs);
+export function readDirs(project) {
+  return Object.fromEntries(projectStore(project).dirs);
 }
 
 /**
@@ -46,34 +56,31 @@ export function readDirs() {
  * запрашивать этот каталог» без снимка всего кэша: спрашивают из колбэков и
  * эффектов, где состояние компонента было бы лишним зеркалом.
  */
-export function readDir(dir) {
-  expireIfStale();
-  return store.dirs.get(dir);
+export function readDir(project, dir) {
+  return projectStore(project).dirs.get(dir);
 }
 
 /** Раскрытые каталоги на момент прошлого визита в раздел. */
-export function readExpanded() {
-  expireIfStale();
-  return new Set(store.expanded);
+export function readExpanded(project) {
+  return new Set(projectStore(project).expanded);
 }
 
 /** Кладёт в кэш листинги нескольких каталогов: { dirPath: nodes }. */
-export function putDirs(entries) {
+export function putDirs(project, entries) {
+  const store = projectStore(project);
   for (const [dir, nodes] of Object.entries(entries)) {
     store.dirs.set(dir, nodes);
   }
   store.at = Date.now();
 }
 
-export function putExpanded(expanded) {
-  store.expanded = new Set(expanded);
+export function putExpanded(project, expanded) {
+  projectStore(project).expanded = new Set(expanded);
 }
 
 /** Только для тестов: очистить кэш между кейсами (модуль живёт дольше рендера). */
 export function resetFileTreeCache() {
-  store.dirs.clear();
-  store.expanded = new Set(['']);
-  store.at = 0;
+  projects.clear();
 }
 
 /** Каталоги-предки пути (от корня), сам путь не включается. */
@@ -87,12 +94,13 @@ export function ancestorsOf(path) {
 }
 
 /**
- * Сбрасывает из кэша листинги каталога-предка изменённого пути И всех ЕГО
- * предков — правка файлового инструмента (createFile/editFile) из чата может
+ * Сбрасывает в кэше ОДНОГО проекта листинги каталога-предка изменённого пути И
+ * всех ЕГО предков — правка файлового инструмента (createFile/editFile) из чата может
  * как добавить файл в уже известный каталог, так и завести новый вложенный
  * каталог, которого раньше не было в листинге его родителя. Сам путь `path`
  * (не будучи каталогом) в кэше не лежит — трогать нечего.
  */
-export function invalidatePath(path) {
-  ancestorsOf(path).forEach((dir) => store.dirs.delete(dir));
+export function invalidatePath(project, path) {
+  const { dirs } = projectStore(project);
+  ancestorsOf(path).forEach((dir) => dirs.delete(dir));
 }

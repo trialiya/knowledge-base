@@ -15,7 +15,7 @@ import { DRAFT_CHAT_ID } from '../../constants/storage';
  * У черновика («новый чат», ещё не сохранён на бэке) нет ни дат, ни id — от
  * списка останутся только название и выбранные модель/режим.
  */
-const ChatInfo = ({ chat, modelLabel, modeLabel }) => {
+const ChatInfo = ({ chat, modelLabel, modeLabel, projectLabel }) => {
   const { t, i18n } = useTranslation('chat');
 
   if (!chat) {
@@ -35,6 +35,7 @@ const ChatInfo = ({ chat, modelLabel, modeLabel }) => {
     { label: t('info.updated'), value: formatDateTime(chat.updatedAt, i18n.language) },
     { label: t('info.model'), value: modelLabel },
     { label: t('info.mode'), value: modeLabel },
+    { label: t('info.project'), value: projectLabel },
     { label: t('info.id'), value: isDraft ? null : chat.id, mono: true },
   ];
 

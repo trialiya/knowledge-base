@@ -35,7 +35,7 @@ export const PLACEHOLDER_FIELDS = {
   },
   file: {
     kind: 'search',
-    search: (q, signal) => gitApi.searchFiles(q, SEARCH_LIMIT, signal),
+    search: (q, signal, project) => gitApi.searchFiles(q, { limit: SEARCH_LIMIT, project, signal }),
     describe: (item) => ({ key: item.path, icon: '📄', title: item.name, subtitle: item.path }),
     toValue: (item) => makeRefToken(item.path),
   },
@@ -47,7 +47,7 @@ export const PLACEHOLDER_FIELDS = {
   },
   commit: {
     kind: 'search',
-    search: (q, signal) => gitApi.searchCommits(q, SEARCH_LIMIT, signal),
+    search: (q, signal, project) => gitApi.searchCommits(q, { limit: SEARCH_LIMIT, project, signal }),
     describe: (item) => ({
       key: item.hash,
       icon: '🔖',

@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import ModelSelector from './ModelSelector';
 import ModeSelector from './ModeSelector';
+import ProjectSelector from './ProjectSelector';
 import { IconSend, IconStop, IconPaperclip } from '../../icons';
 
 /**
@@ -14,13 +15,14 @@ import { IconSend, IconStop, IconPaperclip } from '../../icons';
  * Props:
  *   model    — { config, options, selected, onChange } (может отсутствовать)
  *   mode     — { options, selected, onChange } (может отсутствовать)
+ *   project  — { options, defaultId, selected, onChange } (может отсутствовать)
  *   disabled — идёт стриминг (кнопка «отправить» → «остановить», селекторы заблокированы)
  *   sendDisabled — нечего отправлять / идёт разворачивание токенов
  *   onAttach — () => void | undefined
  *   onStop   — () => void
  *   onSend   — () => void
  */
-const ComposerToolbar = ({ model, mode, disabled, sendDisabled, onAttach, onStop, onSend }) => {
+const ComposerToolbar = ({ model, mode, project, disabled, sendDisabled, onAttach, onStop, onSend }) => {
   const { t } = useTranslation('chat');
 
   return (
@@ -49,6 +51,23 @@ const ComposerToolbar = ({ model, mode, disabled, sendDisabled, onAttach, onStop
         )}
         {mode && mode.options?.length > 0 && (
           <ModeSelector value={mode.selected} options={mode.options} onChange={mode.onChange} disabled={disabled} />
+        )}
+        {project && project.options?.length > 0 && (
+          <ProjectSelector
+            value={project.selected}
+            defaultId={project.defaultId}
+            options={project.options}
+            onChange={project.onChange}
+            disabled={disabled}
+          />
+        )}
+        {/* Проект чата исчез из конфигурации: сказать об этом важнее, чем показать
+            подменённый селектор — иначе следующий ответ придёт по другому
+            репозиторию, и выглядеть это будет как обычный ответ. */}
+        {project?.missing && (
+          <span className="composer-toolbar__note" title={t('project.goneHint', { id: project.missing })}>
+            {t('project.gone', { id: project.missing })}
+          </span>
         )}
       </div>
 

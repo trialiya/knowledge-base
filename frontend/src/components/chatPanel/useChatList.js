@@ -68,6 +68,7 @@ export default function useChatList({ initialActiveChatId, initialPropChatId, ma
           aiTopic: chat.aiTopic || null,
           model: chat.model || null,
           mode: chat.mode || null,
+          project: chat.project || null,
         }));
 
         const currentId = initialActiveChatIdRef.current;
@@ -175,6 +176,21 @@ export default function useChatList({ initialActiveChatId, initialPropChatId, ma
     [patchChat],
   );
 
+  // Смена проекта чата. Пустой id ('') → вернуться к дефолтному.
+  const changeProject = useCallback(
+    async (chatId, newId) => {
+      if (!chatId) return;
+      patchChat(chatId, { project: newId || null });
+      if (chatId === DRAFT_CHAT_ID) return;
+      try {
+        await chatApi.updateProject(chatId, newId);
+      } catch (err) {
+        console.error('Ошибка смены проекта чата:', err);
+      }
+    },
+    [patchChat],
+  );
+
   // Фоновое обновление темы чата с бэкенда после ответа.
   const fetchAndUpdateTitle = useCallback(
     async (chatId) => {
@@ -185,6 +201,7 @@ export default function useChatList({ initialActiveChatId, initialPropChatId, ma
           ...(newTitle ? { title: newTitle } : {}),
           model: data.model ?? chat.model ?? null,
           mode: data.mode ?? chat.mode ?? null,
+          project: data.project ?? chat.project ?? null,
           // не затираем уже имеющийся createdAt, иначе берём из ответа
           createdAt: chat.createdAt ?? data.createdAt ?? null,
           // updatedAt, наоборот, всегда из ответа: ради него этот запрос
@@ -209,6 +226,7 @@ export default function useChatList({ initialActiveChatId, initialPropChatId, ma
     renameChat,
     changeModel,
     changeMode,
+    changeProject,
     fetchAndUpdateTitle,
   };
 }

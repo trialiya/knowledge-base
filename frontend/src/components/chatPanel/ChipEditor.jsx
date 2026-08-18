@@ -21,14 +21,14 @@ import useChipPreview from './useChipPreview';
 // вставкой чипа в DOM; сам div рендерит RichTextEditor. Логику выпадающего
 // списка и превью чипа держат хуки useChipPicker / useChipPreview.
 
-function ChipEditor({ value, onChange, onSend, disabled, placeholder, chatId, ref }) {
+function ChipEditor({ value, onChange, onSend, disabled, placeholder, chatId, project, ref }) {
   const editorRef = useRef(null);
   const internalRef = useRef(value);
   // Идёт программная вставка (handlePaste): её промежуточные input-события
   // пропускаем, см. handleInput.
   const pastingRef = useRef(false);
 
-  const { picker, triggerRef, detectTrigger, dismissPicker, moveSelection, tokenFor } = useChipPicker();
+  const { picker, triggerRef, detectTrigger, dismissPicker, moveSelection, tokenFor } = useChipPicker(project);
 
   useImperativeHandle(ref, () => ({
     focus: () => editorRef.current?.focus(),
@@ -77,6 +77,7 @@ function ChipEditor({ value, onChange, onSend, disabled, placeholder, chatId, re
     clear: clearPreview,
   } = useChipPreview({
     chatId,
+    project,
     onAfterToggle: emitChange,
   });
 

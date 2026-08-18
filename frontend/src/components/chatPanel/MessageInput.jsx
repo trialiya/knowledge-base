@@ -25,6 +25,7 @@ const MessageInput = ({
   onTextChange,
   model,
   mode,
+  project,
   staged,
   onUnstage,
 }) => {
@@ -78,7 +79,7 @@ const MessageInput = ({
     if (!text.trim() || disabled || sending) return;
     setSending(true);
     try {
-      const expanded = await expandTokensForSend(text);
+      const expanded = await expandTokensForSend(text, project?.selected);
       onSend(expanded);
       setText('');
     } finally {
@@ -118,6 +119,7 @@ const MessageInput = ({
         <PhraseFillModal
           phraseText={pendingPhrase.text}
           phraseLabel={pendingPhrase.label}
+          project={project?.selected}
           onSubmit={(filled) => {
             setPendingPhrase(null);
             insertPhrase(filled);
@@ -134,6 +136,7 @@ const MessageInput = ({
       <div className="message-input-wrapper">
         <ChipEditor
           ref={inputRef}
+          project={project?.selected}
           value={text}
           onChange={(v) => {
             setText(v);
@@ -149,6 +152,7 @@ const MessageInput = ({
       <ComposerToolbar
         model={model}
         mode={mode}
+        project={project}
         disabled={disabled}
         sendDisabled={sendDisabled}
         onAttach={onAttach}

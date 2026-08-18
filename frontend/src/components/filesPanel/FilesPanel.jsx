@@ -4,7 +4,9 @@ import FileTree from './FileTree';
 import FileContent from './FileContent';
 import FileSearch from './FileSearch';
 import FileInfo from './FileInfo';
+import ProjectPicker from './ProjectPicker';
 import useFileTree from './useFileTree';
+import useProjectConfig from '../common/useProjectConfig';
 import WorkspaceLayout from '../common/WorkspaceLayout';
 import { IconInfo } from '../../icons';
 import { RIGHT_TAB } from '../../constants/rightTabs';
@@ -14,10 +16,23 @@ import './filesPanel.css';
  * GitHub-стиль просмотр репозитория: дерево слева, содержимое файла/каталога
  * в центре. Раскладка — общая (WorkspaceLayout); справа вкладка «Инфо»
  * (метаданные пути и последний коммит), как в чате и базе знаний.
+ *
+ * `project` — репозиторий, который показывает панель; приходит из адреса
+ * (пусто — дефолтный). Смена проекта — это перемонтирование всего содержимого
+ * (см. FilesPanelForProject ниже), а не набор сбросов состояния.
  */
-const FilesPanel = ({ path, onPathChange, refreshToken, panels }) => {
+const FilesPanelForProject = ({
+  project,
+  projectOptions,
+  path,
+  onPathChange,
+  onProjectChange,
+  refreshToken,
+  panels,
+}) => {
   const { t } = useTranslation('files');
   const { treeCache, loadingDirs, expanded, toggleExpand, content, contentLoading, selectNode } = useFileTree({
+    project,
     path,
     onPathChange,
     refreshToken,
@@ -29,10 +44,10 @@ const FilesPanel = ({ path, onPathChange, refreshToken, panels }) => {
         key: RIGHT_TAB.INFO,
         label: t('tabs.info'),
         icon: <IconInfo size={15} />,
-        content: <FileInfo content={content} loading={contentLoading} path={path} />,
+        content: <FileInfo content={content} loading={contentLoading} path={path} project={project} />,
       },
     ],
-    [t, content, contentLoading, path],
+    [t, content, contentLoading, path, project],
   );
 
   return (
@@ -41,7 +56,12 @@ const FilesPanel = ({ path, onPathChange, refreshToken, panels }) => {
       {...panels}
       left={{
         title: t('panel.tree'),
-        toolbar: <FileSearch onSelect={onPathChange} />,
+        // Единственный проект выбирать не из чего — селектор появляется со вторым.
+        action:
+          projectOptions.length > 1 ? (
+            <ProjectPicker value={project} options={projectOptions} onChange={onProjectChange} />
+          ) : null,
+        toolbar: <FileSearch project={project} onSelect={onPathChange} />,
         // Дерево прокручивает себя само (строки шире панели — нужен и
         // горизонтальный скролл), поэтому тело панели скролл не берёт.
         bodyScroll: false,
@@ -60,6 +80,34 @@ const FilesPanel = ({ path, onPathChange, refreshToken, panels }) => {
       }}
       center={<FileContent content={content} path={path} loading={contentLoading} onNavigate={onPathChange} />}
       right={rightTabs}
+    />
+  );
+};
+
+/**
+ * Смена проекта перемонтирует панель по `key`: дерево, раскрытые узлы,
+ * содержимое, запросы в полёте и ключ ответа — пять состояний, и любое забытое
+ * при сбросе показало бы файлы прежнего репозитория. Кэши при этом не теряются:
+ * они живут в модуле и разложены по проектам (fileTreeStore).
+ */
+const FilesPanel = ({ project, path, onPathChange, refreshToken, panels }) => {
+  const { projectOptions, defaultProjectId } = useProjectConfig();
+  // Адрес без проекта означает дефолтный; до загрузки списка он ещё неизвестен,
+  // и панель едет на «проект не назван» — то же, что понимает бэкенд.
+  const current = project || defaultProjectId || '';
+
+  return (
+    <FilesPanelForProject
+      key={current}
+      project={current}
+      projectOptions={projectOptions}
+      path={path}
+      onPathChange={onPathChange}
+      // Путь из одного репозитория в другом ничего не значит — уходим в корень.
+      // Дефолтный проект в адрес не пишем: пустое значение и означает его.
+      onProjectChange={(id) => onPathChange('', id === defaultProjectId ? '' : id)}
+      refreshToken={refreshToken}
+      panels={panels}
     />
   );
 };

@@ -37,11 +37,15 @@ export function parseDocId(href) {
 }
 
 /**
- * Returns { path, fromLine, toLine } ONLY for internal file-browser links, i.e.:
+ * Returns { project, path, fromLine, toLine } ONLY for internal file-browser links, i.e.:
  *   /files?path=backend/.../GitService.java             (the form stored inside markdown)
  *   /files/backend/.../GitService.java                  (canonical path form)
  *   /files?path=backend/.../GitService.java#L42         (single line)
  *   /files?path=backend/.../GitService.java#L42-L58     (line range)
+ *   /files?path=…&project=kb                            (either form, naming a project)
+ *
+ * `project` is null when the link names none — the form every link written before
+ * projects existed has, and it means the default project.
  *
  * Returns null for anything else (cross-origin, wrong pathname, missing path) — those
  * fall through to parseDocId / the plain external-link branch.
@@ -60,6 +64,10 @@ export function parseFileLink(href) {
     }
     if (!path) return null;
 
+    // Проект — в обеих формах в query. Его нет у ссылок, написанных до того, как
+    // проекты появились: там он и не нужен, такая ссылка означает дефолтный.
+    const project = url.searchParams.get('project') || null;
+
     let fromLine = null;
     let toLine = null;
     const m = url.hash.match(/^#L(\d+)(?:-L(\d+))?$/);
@@ -68,7 +76,7 @@ export function parseFileLink(href) {
       toLine = m[2] ? Number(m[2]) : fromLine;
     }
 
-    return { path, fromLine, toLine };
+    return { project, path, fromLine, toLine };
   } catch {
     return null;
   }

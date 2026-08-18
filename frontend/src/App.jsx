@@ -105,10 +105,10 @@ function App() {
     );
   }, []);
 
-  const handleFileChanged = useCallback((refs) => {
+  const handleFileChanged = useCallback((refs, project) => {
     refs.forEach((ref) => {
-      invalidateFilePreviewCache(ref.path);
-      invalidateFileTreePath(ref.path);
+      invalidateFilePreviewCache(project, ref.path);
+      invalidateFileTreePath(project, ref.path);
     });
     // Тик безвреден, даже если Files сейчас не смонтирована (проп просто не
     // используется) — а если смонтирована на том же пути, форсирует живой
@@ -128,11 +128,11 @@ function App() {
   // Тело — useEffectEvent: обработчик живёт в модуле сколько угодно долго и
   // обязан видеть свежие goView/openFilePath, но перерегистрировать его на
   // каждое их изменение незачем.
-  const navigateToFile = useEffectEvent((path) => {
+  const navigateToFile = useEffectEvent((path, project) => {
     goView('files');
-    openFilePath(path);
+    openFilePath(path, project);
   });
-  useEffect(() => registerFileNavigator((path) => navigateToFile(path)), []);
+  useEffect(() => registerFileNavigator((path, project) => navigateToFile(path, project)), []);
 
   return (
     <div className="App">
@@ -205,6 +205,7 @@ function App() {
         {view === 'files' && (
           <div className="app-tab-panel app-tab-panel--active">
             <FilesPanel
+              project={nav.fileProject}
               path={nav.filePath}
               onPathChange={openFilePath}
               refreshToken={filesRefreshTick}

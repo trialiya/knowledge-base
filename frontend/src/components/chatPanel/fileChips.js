@@ -108,15 +108,17 @@ export function parseCommitToken(token) {
 
 // ── Кеш содержимого ──────────────────────────────────────────────────────────
 
-const contentCache = new Map(); // key: `path#from-to` → GitFileContent
+const contentCache = new Map(); // key: `project\0path#from-to` → GitFileContent
 
-const cacheKey = (path, from, to) => `${path}#${from ?? ''}-${to ?? ''}`;
+// Проект — часть ключа: один и тот же путь есть в каждом репозитории, и общий
+// кэш подставил бы в чип файл из другого проекта, ничем не выдав подмены.
+const cacheKey = (project, path, from, to) => `${project || ''}\u0000${path}#${from ?? ''}-${to ?? ''}`;
 
 /** Получить GitFileContent с кешированием. */
-export async function fetchContent(path, from, to, signal) {
-  const key = cacheKey(path, from, to);
+export async function fetchContent(path, { from, to, project, signal } = {}) {
+  const key = cacheKey(project, path, from, to);
   if (contentCache.has(key)) return contentCache.get(key);
-  const data = await gitApi.getFileContent(path, from, to, signal);
+  const data = await gitApi.getFileContent(path, { from, to, project, signal });
   contentCache.set(key, data);
   return data;
 }
@@ -133,8 +135,12 @@ function fenceFor(content) {
  *  ⟦file:PATH⟧            → fenced code block с содержимым
  *  ⟦ref:PATH⟧             → `PATH`
  *  ⟦commit:HASH:SUBJECT⟧  → `HASH` + тема
+ *
+ * `project` — репозиторий чата: сам токен проект не несёт (его формат старше
+ * проектов и лежит в сохранённых черновиках), поэтому путь разрешается в проекте
+ * ТОГО чата, из которого уходит сообщение.
  */
-export async function expandTokensForSend(text) {
+export async function expandTokensForSend(text, project) {
   const tokens = [...text.matchAll(TOKEN_RE)];
   if (tokens.length === 0) return text;
 
@@ -169,7 +175,7 @@ export async function expandTokensForSend(text) {
       if (refOnly) return `\`${path}\``;
 
       try {
-        const data = await fetchContent(path, from, to);
+        const data = await fetchContent(path, { from, to, project });
         const range = from != null && to != null ? ` (${from}–${to})` : '';
         if (data?.binary) return `\n\n\`${path}\`${range}: ${i18n.t('chat:fileChips.binaryFile')}\n`;
         const content = data?.content ?? '';

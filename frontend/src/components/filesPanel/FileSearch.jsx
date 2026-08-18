@@ -12,10 +12,12 @@ const RESULT_LIMIT = 15;
  * (common/PanelSearch) — здесь только запрос и описание строки: имя файла с
  * подсветкой совпадения и каталог под ним.
  */
-const FileSearch = ({ onSelect }) => {
+const FileSearch = ({ project, onSelect }) => {
   const { t } = useTranslation('files');
 
-  const search = useCallback((q, signal) => gitApi.searchFiles(q, RESULT_LIMIT, signal), []);
+  // project в зависимостях обязателен: с пустым списком колбэк застрял бы на
+  // прежнем репозитории и искал бы файлы не там, куда смотрит панель.
+  const search = useCallback((q, signal) => gitApi.searchFiles(q, { limit: RESULT_LIMIT, project, signal }), [project]);
 
   const describeItem = useCallback((node, query) => {
     const { name, dir } = highlightFileMatch(node.name, node.path, query);

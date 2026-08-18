@@ -2,7 +2,10 @@ import gitApi from '../../api/gitApi';
 import usePreviewCache, { createPreviewStore } from './usePreviewCache';
 
 /**
- * Module-level store: path (string) → GitFileContent | 'error'. Unlike
+ * Module-level store: project + path → GitFileContent | 'error'. The key is a
+ * pair because the path alone is not an address: `backend/build.gradle` exists in
+ * every repository, and one cache for all of them would answer a hover in one
+ * project with another project's file — and the answer would look right. Unlike
  * useDocPreview, entries expire after STALE_MS — the repo can change from
  * outside the app (e.g. `git pull` run in a terminal), so a long-lived cache
  * would show stale content indefinitely. A short TTL keeps repeated hovers
@@ -18,14 +21,24 @@ const STALE_MS = 30_000;
  */
 const PREVIEW_LINES = 20;
 
-function fetchPreview(path) {
-  return gitApi.getFileContent(path, 1, PREVIEW_LINES);
+/**
+ * Cache key. `usePreviewCache` compares keys with `!==` and uses them as Map
+ * keys, so the pair has to collapse into one primitive; the separator is a
+ * character no project id or path may contain.
+ */
+const previewKey = (project, path) => (path == null ? null : `${project || ''}\u0000${path}`);
+
+function fetchPreview(key) {
+  const sep = key.indexOf('\u0000');
+  const project = key.slice(0, sep);
+  const path = key.slice(sep + 1);
+  return gitApi.getFileContent(path, { from: 1, to: PREVIEW_LINES, project });
 }
 
 /** Drops a cached preview so the next hover re-fetches it. */
-export function invalidateFilePreviewCache(path) {
+export function invalidateFilePreviewCache(project, path) {
   if (path == null) return;
-  store.invalidate(path);
+  store.invalidate(previewKey(project, path));
 }
 
 /** Drops every cached file preview — e.g. after a known external repo refresh. */
@@ -40,10 +53,11 @@ export function invalidateAllFilePreviewCache() {
  * invalidation only.
  *
  * @param {string|null} path    – repo-relative file path to preview (null = disabled)
+ * @param {string|null} project – project the path belongs to (null = the default one)
  * @param {boolean}     enabled – only fetch when true (hover active / modal open)
  */
-export default function useFilePreview(path, enabled) {
-  const { value, loading, error } = usePreviewCache(store, path, enabled, fetchPreview, {
+export default function useFilePreview(path, project, enabled) {
+  const { value, loading, error } = usePreviewCache(store, previewKey(project, path), enabled, fetchPreview, {
     ttlMs: STALE_MS,
   });
 
