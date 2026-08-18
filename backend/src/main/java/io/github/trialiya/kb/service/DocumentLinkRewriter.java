@@ -30,22 +30,32 @@ public final class DocumentLinkRewriter {
     /**
      * Whole Markdown link pointing at a repository file, e.g. {@code
      * [GitService.java](/files?path=backend/.../GitService.java&project=kb#L1-L10)}. Group 1 is the
-     * link text, group 2 the (URL-encoded) path; the {@code &project=} the model appends and the
-     * optional {@code #Lx-Ly} range are both dropped on export, like the app origin itself — an
-     * export is read outside the app, where neither means anything. Links written before projects
-     * were named carry no {@code &project=} and match just the same.
+     * link text, group 2 the (URL-encoded) path <em>with</em> whatever query the model appended;
+     * the {@code &project=} and the optional {@code #Lx-Ly} range are both dropped on export, like
+     * the app origin itself — an export is read outside the app, where neither means anything.
+     * Links written before projects were named carry no {@code &project=} and match just the same.
+     *
+     * <p>Group 2 deliberately stops only at {@code )} or {@code #}, never at {@code &}: a file may
+     * be called {@code Q&A.md}, and cutting the path there would export half a name. Which part of
+     * it is the project is decided in {@link #withoutProject}, not by the character class.
      */
     private static final Pattern FILE_LINK =
-            Pattern.compile(
-                    "\\[([^\\]]+)]\\(/files\\?path=([^)#&]+)(?:&[^)#]*)?(?:#L\\d+(?:-L\\d+)?)?\\)");
+            Pattern.compile("\\[([^\\]]+)]\\(/files\\?path=([^)#\\n]+)(?:#L\\d+(?:-L\\d+)?)?\\)");
 
     /**
-     * A repo-file link target whose path is not followed by anything — no {@code &project=} yet.
-     * Anchored on the {@code )} or {@code #} that must come next, so a link already carrying a
-     * project (there the next character is {@code &}) is left alone and stamping stays idempotent.
+     * The path part of a repo-file link, anchored on the {@code ](} that opens a Markdown link
+     * target. The anchor is what keeps {@link #stampProject} off a path merely mentioned in prose:
+     * appending a project to text nobody clicks would change a sentence, not an address.
+     *
+     * <p>Same reasoning as {@link #FILE_LINK} on the character class — names with {@code &} and
+     * with spaces are ordinary, so the group takes everything up to {@code )} or {@code #}, and
+     * whether a project is already there is answered by looking at the captured text.
      */
-    private static final Pattern FILE_LINK_WITHOUT_PROJECT =
-            Pattern.compile("(/files\\?path=[^)#&\\s]+)(?=[)#])");
+    private static final Pattern FILE_LINK_TARGET =
+            Pattern.compile("]\\(/files\\?path=([^)#\\n]+)");
+
+    /** The query the model appends to a file link; there is exactly one parameter so far. */
+    private static final String PROJECT_PARAM = "&project=";
 
     /** Any Markdown link target — the reverse direction has to inspect every one of them. */
     private static final Pattern ANY_LINK_TARGET = Pattern.compile("]\\(([^)\\s]*)\\)");
@@ -89,7 +99,9 @@ public final class DocumentLinkRewriter {
             // The model writes paths unencoded, so a literal '+' is part of the file name — shield
             // it from URLDecoder's application/x-www-form-urlencoded '+'→space rule, while still
             // decoding any %xx escapes.
-            String path = URLDecoder.decode(m.group(2).replace("+", "%2B"), StandardCharsets.UTF_8);
+            String path =
+                    URLDecoder.decode(
+                            withoutProject(m.group(2)).replace("+", "%2B"), StandardCharsets.UTF_8);
             m.appendReplacement(out, Matcher.quoteReplacement(m.group(1) + " (" + path + ")"));
         }
         m.appendTail(out);
@@ -105,21 +117,33 @@ public final class DocumentLinkRewriter {
      * every such link in stored history would point at a file that merely shares a path. Stamping
      * the project that was meant at the time freezes the answer.
      *
-     * <p>Idempotent by construction (see {@link #FILE_LINK_WITHOUT_PROJECT}), so a re-run cannot
-     * produce {@code &project=a&project=b}.
+     * <p>Idempotent: a link that already names a project is skipped, so a re-run cannot produce
+     * {@code &project=a&project=b}.
      */
     public static @Nullable String stampProject(String text, String projectId) {
-        Matcher m = FILE_LINK_WITHOUT_PROJECT.matcher(text);
-        if (!m.find()) {
+        Matcher m = FILE_LINK_TARGET.matcher(text);
+        StringBuilder out = new StringBuilder();
+        boolean changed = false;
+        while (m.find()) {
+            String target = m.group();
+            String replacement =
+                    m.group(1).contains(PROJECT_PARAM)
+                            ? target
+                            : target + PROJECT_PARAM + projectId;
+            changed |= !replacement.equals(target);
+            m.appendReplacement(out, Matcher.quoteReplacement(replacement));
+        }
+        if (!changed) {
             return null;
         }
-        StringBuilder out = new StringBuilder();
-        String suffix = Matcher.quoteReplacement("&project=" + projectId);
-        do {
-            m.appendReplacement(out, "$1" + suffix);
-        } while (m.find());
         m.appendTail(out);
         return out.toString();
+    }
+
+    /** The path alone — the project the model appended is not part of the file's name. */
+    private static String withoutProject(String pathWithQuery) {
+        int at = pathWithQuery.indexOf(PROJECT_PARAM);
+        return at < 0 ? pathWithQuery : pathWithQuery.substring(0, at);
     }
 
     // ── Export → app ─────────────────────────────────────────────────────────

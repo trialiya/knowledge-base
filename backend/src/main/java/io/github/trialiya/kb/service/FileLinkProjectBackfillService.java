@@ -45,8 +45,8 @@ public class FileLinkProjectBackfillService {
                     "document_history", List.of("description", "summary"),
                     "chat_message", List.of("content"));
 
-    /** Сколько строк правим одним батчем — чтобы большая база не собиралась в память целиком. */
-    private static final int BATCH = 500;
+    /** Размер страницы: столько строк живёт в памяти за раз, независимо от размера базы. */
+    private static final int PAGE = 500;
 
     private final JdbcTemplate jdbc;
     private final BackfillStateRepository backfillStateRepository;
@@ -92,51 +92,49 @@ public class FileLinkProjectBackfillService {
         return updated;
     }
 
+    /**
+     * Страницами по {@link #PAGE}, курсором по {@code id}: сколько бы истории ни накопил инстанс, в
+     * памяти лежит одна страница. Переписанные строки под {@code LIKE} по-прежнему подходят —
+     * поэтому курсор идёт строго вперёд по id, а не «пока находятся кандидаты».
+     */
     private int stampColumn(String table, String column, String projectId) {
-        // id + текст только тех строк, где ссылка вообще есть: LIKE отсекает подавляющее
-        // большинство, а разбор regex-ом остаётся кандидатам.
-        List<Row> candidates =
-                jdbc.query(
-                        "SELECT id, "
-                                + column
-                                + " FROM "
-                                + table
-                                + " WHERE "
-                                + column
-                                + " LIKE '%/files?path=%'",
-                        (rs, i) -> new Row(rs.getLong("id"), rs.getString(column)));
+        // LIKE отсекает подавляющее большинство строк, разбор regex-ом достаётся кандидатам.
+        String select =
+                "SELECT id, %s FROM %s WHERE %s LIKE '%%/files?path=%%' AND id > ? ORDER BY id LIMIT %d"
+                        .formatted(column, table, column, PAGE);
+        String update = "UPDATE %s SET %s = ? WHERE id = ?".formatted(table, column);
 
-        List<Object[]> batch = new ArrayList<>();
+        long cursor = 0;
         int updated = 0;
-        for (Row row : candidates) {
-            String stamped = row.text() == null ? null : stamp(row.text(), projectId);
-            if (stamped == null) {
-                continue;
+        while (true) {
+            List<Row> page =
+                    jdbc.query(
+                            select,
+                            (rs, i) -> new Row(rs.getLong("id"), rs.getString(column)),
+                            cursor);
+            if (page.isEmpty()) {
+                break;
             }
-            batch.add(new Object[] {stamped, row.id()});
-            if (batch.size() >= BATCH) {
-                updated += flush(table, column, batch);
+            List<Object[]> batch = new ArrayList<>();
+            for (Row row : page) {
+                String stamped =
+                        row.text() == null
+                                ? null
+                                : DocumentLinkRewriter.stampProject(row.text(), projectId);
+                if (stamped != null) {
+                    batch.add(new Object[] {stamped, row.id()});
+                }
             }
+            if (!batch.isEmpty()) {
+                jdbc.batchUpdate(update, batch);
+                updated += batch.size();
+            }
+            cursor = page.getLast().id();
         }
-        updated += flush(table, column, batch);
         if (updated > 0) {
             log.info("File-link project backfill: {}.{} — {} row(s)", table, column, updated);
         }
         return updated;
-    }
-
-    private static @Nullable String stamp(String text, String projectId) {
-        return DocumentLinkRewriter.stampProject(text, projectId);
-    }
-
-    private int flush(String table, String column, List<Object[]> batch) {
-        if (batch.isEmpty()) {
-            return 0;
-        }
-        jdbc.batchUpdate("UPDATE " + table + " SET " + column + " = ? WHERE id = ?", batch);
-        int size = batch.size();
-        batch.clear();
-        return size;
     }
 
     private record Row(long id, @Nullable String text) {}

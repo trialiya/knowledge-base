@@ -45,6 +45,29 @@ class DocumentLinkRewriterProjectTest {
                 .isNull();
     }
 
+    /**
+     * Пробелы и амперсанды в именах файлов — обычное дело, и именно такие ссылки бэкафилл обязан
+     * разметить: путь «половиной имени» откроет не тот файл или не откроет ничего.
+     */
+    @Test
+    void awkwardFileNamesAreStampedToo() {
+        assertThat(DocumentLinkRewriter.stampProject("[X](/files?path=docs/My File.md#L10)", "kb"))
+                .isEqualTo("[X](/files?path=docs/My File.md&project=kb#L10)");
+        assertThat(DocumentLinkRewriter.stampProject("[Q](/files?path=docs/Q&A.md)", "kb"))
+                .isEqualTo("[Q](/files?path=docs/Q&A.md&project=kb)");
+    }
+
+    /** Схлопывание таких же имён не должно обрезать путь по первому амперсанду. */
+    @Test
+    void flatteningKeepsAnAmpersandThatBelongsToTheFileName() {
+        assertThat(
+                        DocumentLinkRewriter.flattenFileLinks(
+                                "[Q&A](/files?path=docs/Q&A.md&project=kb)"))
+                .isEqualTo("Q&A (docs/Q&A.md)");
+        assertThat(DocumentLinkRewriter.flattenFileLinks("[Q&A](/files?path=docs/Q&A.md)"))
+                .isEqualTo("Q&A (docs/Q&A.md)");
+    }
+
     @Test
     void textWithoutRepoLinksIsNotRewrittenAtAll() {
         assertThat(DocumentLinkRewriter.stampProject("см. [док](/?doc=42) и обычный текст", "kb"))
