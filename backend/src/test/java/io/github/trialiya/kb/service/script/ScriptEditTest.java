@@ -2,14 +2,13 @@ package io.github.trialiya.kb.service.script;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.model.git.dto.GitEditResult;
 import io.github.trialiya.kb.model.script.ScriptError;
 import io.github.trialiya.kb.model.script.ScriptResult;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
-import io.github.trialiya.kb.service.GitService;
-import io.github.trialiya.kb.service.OutlineService;
+import io.github.trialiya.kb.service.GitRegistry;
+import io.github.trialiya.kb.support.TestProjects;
 import io.github.trialiya.kb.tools.RunCancellation;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import java.io.IOException;
@@ -820,17 +819,13 @@ class ScriptEditTest {
     }
 
     private ScriptResult run(String script, ToolInvocationCollector priorInvocations) {
-        return runner.run(script, null, RunCancellation.none(), false, priorInvocations);
+        return runner.run(script, null, RunCancellation.none(), false, priorInvocations, null);
     }
 
     private ScriptRunner newRunner(boolean editEnabled, ScriptProperties properties) {
-        GitProperties gitProperties = new GitProperties(repoDir.toString(), editEnabled);
-        GitService gitService = new GitService(gitProperties, new OutlineService());
+        GitRegistry gitRegistry = TestProjects.registry(repoDir, editEnabled);
         return new ScriptRunner(
-                gitService,
-                null,
-                properties,
-                new ScriptEditPolicy(gitProperties, properties, gitService));
+                gitRegistry, null, properties, new ScriptEditPolicy(gitRegistry, properties));
     }
 
     private static ScriptProperties withDenyGlobs(List<String> deny) {

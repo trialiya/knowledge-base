@@ -2,10 +2,12 @@ package io.github.trialiya.kb.controller;
 
 import io.github.trialiya.kb.config.model.DocumentsConfiguration;
 import io.github.trialiya.kb.config.model.EmbeddingConfiguration;
-import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.config.model.SecurityProperties;
 import io.github.trialiya.kb.config.model.ServerEnvironment;
+import io.github.trialiya.kb.model.project.Project;
+import io.github.trialiya.kb.service.GitRegistry;
 import io.github.trialiya.kb.service.GitService;
+import io.github.trialiya.kb.service.ProjectCatalog;
 import java.lang.management.ManagementFactory;
 import java.time.Instant;
 import java.util.List;
@@ -25,9 +27,9 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>Same rule as {@link SettingsController}: fields are assembled one by one and secrets are never
  * among them. Every value comes from a bound properties record — {@link ServerEnvironment} for the
- * Spring-owned settings, {@link GitProperties} and {@link EmbeddingConfiguration} for the {@code
- * kb.*} ones — and none of those has a field for a password or an API key. The datasource URL is
- * passed through {@link #sanitizeJdbcUrl} because a JDBC URL may carry {@code user}/{@code
+ * Spring-owned settings, {@link EmbeddingConfiguration} and the resolved {@link Project} for the
+ * {@code kb.*} ones — and none of those has a field for a password or an API key. The datasource
+ * URL is passed through {@link #sanitizeJdbcUrl} because a JDBC URL may carry {@code user}/{@code
  * password} query parameters of its own.
  */
 @RestController
@@ -39,7 +41,7 @@ public class SystemInfoController {
     private final DocumentsConfiguration documentsConfiguration;
     private final EmbeddingConfiguration embeddingConfiguration;
     private final SecurityProperties securityProperties;
-    private final GitProperties gitProperties;
+    private final Project project;
     private final GitService gitService;
     @Nullable private final Flyway flyway;
 
@@ -51,15 +53,15 @@ public class SystemInfoController {
             DocumentsConfiguration documentsConfiguration,
             EmbeddingConfiguration embeddingConfiguration,
             SecurityProperties securityProperties,
-            GitProperties gitProperties,
-            GitService gitService,
+            ProjectCatalog projectCatalog,
+            GitRegistry gitRegistry,
             @Nullable Flyway flyway) {
         this.environment = environment;
         this.documentsConfiguration = documentsConfiguration;
         this.embeddingConfiguration = embeddingConfiguration;
         this.securityProperties = securityProperties;
-        this.gitProperties = gitProperties;
-        this.gitService = gitService;
+        this.project = projectCatalog.defaultProject();
+        this.gitService = gitRegistry.defaultProject();
         this.flyway = flyway;
     }
 
@@ -81,8 +83,8 @@ public class SystemInfoController {
                         environment.flywayLocations(),
                         schemaVersion()),
                 new GitInfo(
-                        gitService.repoPath().toString(),
-                        gitProperties.editEnabled(),
+                        project.path().toString(),
+                        project.editEnabled(),
                         gitService.isRepoWritable()),
                 new DocumentsInfo(
                         documentsConfiguration.exportPath(), documentsConfiguration.replace()),

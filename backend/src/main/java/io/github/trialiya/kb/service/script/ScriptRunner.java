@@ -8,6 +8,7 @@ import io.github.trialiya.kb.model.script.ScriptError;
 import io.github.trialiya.kb.model.script.ScriptError.Kind;
 import io.github.trialiya.kb.model.script.ScriptResult;
 import io.github.trialiya.kb.service.DocumentService;
+import io.github.trialiya.kb.service.GitRegistry;
 import io.github.trialiya.kb.service.GitService;
 import io.github.trialiya.kb.tools.RunCancellation;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
@@ -92,7 +93,7 @@ public class ScriptRunner {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    private final GitService gitService;
+    private final GitRegistry gitRegistry;
     private final DocumentService documentService;
     private final ScriptProperties properties;
     private final ScriptEditPolicy editPolicy;
@@ -116,11 +117,11 @@ public class ScriptRunner {
                     .build();
 
     public ScriptRunner(
-            GitService gitService,
+            GitRegistry gitRegistry,
             DocumentService documentService,
             ScriptProperties properties,
             ScriptEditPolicy editPolicy) {
-        this.gitService = gitService;
+        this.gitRegistry = gitRegistry;
         this.documentService = documentService;
         this.properties = properties;
         this.editPolicy = editPolicy;
@@ -157,7 +158,7 @@ public class ScriptRunner {
             @Nullable Integer timeoutSeconds,
             RunCancellation cancellation,
             boolean forceReadOnly) {
-        return run(script, timeoutSeconds, cancellation, forceReadOnly, null);
+        return run(script, timeoutSeconds, cancellation, forceReadOnly, null, null);
     }
 
     /**
@@ -167,17 +168,25 @@ public class ScriptRunner {
      * already looked at through another tool — or an earlier {@code runScript} call — in this same
      * response, not only what this one script itself read. Null when there is no such session
      * (background jobs, tests).
+     *
+     * <p>{@code projectId} names the repository the script reads and writes; null — the default
+     * project, which is what every caller that does not know the run's project gets (see {@code
+     * GitRegistry}).
      */
     public ScriptResult run(
             String script,
             @Nullable Integer timeoutSeconds,
             RunCancellation cancellation,
             boolean forceReadOnly,
-            @Nullable ToolInvocationCollector priorInvocations) {
+            @Nullable ToolInvocationCollector priorInvocations,
+            @Nullable String projectId) {
         ScriptSession session = new ScriptSession(properties, priorInvocations);
+        // One repository for the whole run: resolved once here, so a script cannot end up reading
+        // one project and writing another.
+        GitService gitService = gitRegistry.forProject(projectId);
         // Which object is bound IS the permission: with writes off, kb.edit does not exist.
         KbScriptApi api =
-                editPolicy.enabled() && !forceReadOnly
+                editPolicy.enabled(projectId) && !forceReadOnly
                         ? new KbEditScriptApi(gitService, documentService, session)
                         : new KbScriptApi(gitService, documentService, session);
         Duration timeout = resolveTimeout(timeoutSeconds);
@@ -206,7 +215,7 @@ public class ScriptRunner {
             // Only now, with the script finished and its result already converted, does anything
             // reach disk. Every earlier exit — a throw, a budget, a timeout, a user stop — leaves
             // the working tree exactly as the run found it.
-            return success(value, session, applyPendingWrites(session));
+            return success(value, session, applyPendingWrites(session, gitService));
         } catch (PolyglotException e) {
             return failure(e, session, cancelReason.get(), timeout);
         } catch (ScriptLimitExceededException e) {
@@ -315,7 +324,7 @@ public class ScriptRunner {
      * written stay written, and the exception carries which ones — silently rolling back would be a
      * second unreviewed change on top of the first.
      */
-    private List<GitEditResult> applyPendingWrites(ScriptSession session) {
+    private List<GitEditResult> applyPendingWrites(ScriptSession session, GitService gitService) {
         List<ScriptSession.PendingWrite> writes = session.pendingWrites();
         if (writes.isEmpty()) {
             return List.of();

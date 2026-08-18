@@ -6,6 +6,7 @@ import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
 
 import io.github.trialiya.kb.config.model.SubAgentConfig;
 import io.github.trialiya.kb.model.search.SearchAgentResult;
+import io.github.trialiya.kb.tools.ProjectContext;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -102,7 +103,8 @@ public class SearchAgentService {
      * @param task detailed natural-language search task (the "context")
      * @param scope optional area hint: "code" | "docs" | "all"
      * @param pathGlob optional glob to restrict code paths (e.g. {@code "backend/**\/*.java"})
-     * @param parentContext the parent tool context (used only to carry the conversation id)
+     * @param parentContext the parent tool context, for the conversation id and the run's project —
+     *     the sub-agent reads the same repository the chat that called it does
      */
     public SearchAgentResult run(
             String task,
@@ -113,6 +115,7 @@ public class SearchAgentService {
         final TokenUsage usage = new TokenUsage();
         final String conversationId =
                 parentContext != null ? conversationId(parentContext) : DEFAULT_CONVERSATION_ID;
+        final String projectId = ProjectContext.from(parentContext);
         final String fullTask = buildTask(task, scope, pathGlob);
 
         final OpenAiChatOptions toolOptions =
@@ -121,7 +124,7 @@ public class SearchAgentService {
                         .maxTokens(config.maxTokens())
                         .temperature(0.0)
                         .toolCallbacks(toolCallbacks)
-                        .toolContext(buildContext(conversationId))
+                        .toolContext(buildContext(conversationId, projectId))
                         .build();
 
         final List<Message> messages = new ArrayList<>();

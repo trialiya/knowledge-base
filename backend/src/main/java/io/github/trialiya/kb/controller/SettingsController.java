@@ -6,13 +6,13 @@ import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.ChatModelProperties.ModelOption;
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.config.model.EmbeddingConfiguration;
-import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.config.model.McpProperties;
 import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.config.model.SearchConfiguration;
 import io.github.trialiya.kb.config.model.SubAgentConfig;
 import io.github.trialiya.kb.config.model.SummarizeProperties;
 import io.github.trialiya.kb.functions.GitEditFunction;
+import io.github.trialiya.kb.service.ProjectCatalog;
 import io.github.trialiya.kb.service.ToolCatalogService;
 import io.github.trialiya.kb.service.ToolCatalogService.ToolInfo;
 import io.github.trialiya.kb.service.script.ScriptEditPolicy;
@@ -71,7 +71,7 @@ public class SettingsController {
      */
     private final boolean scriptEditActive;
 
-    /** Configured opt-in ({@code kb.git.edit-enabled}) — may be true while the tools are absent. */
+    /** The default project's configured opt-in — may be true while the tools are absent. */
     private final boolean gitEditEnabled;
 
     /**
@@ -108,7 +108,7 @@ public class SettingsController {
             ObjectProvider<McpSseClientProperties> sseProperties,
             ObjectProvider<McpStreamableHttpClientProperties> streamableHttpProperties,
             ObjectProvider<McpStdioClientProperties> stdioProperties,
-            GitProperties gitProperties,
+            ProjectCatalog projectCatalog,
             @Value("${spring.ai.openai.timeout:60s}") Duration requestTimeout,
             @Value("${spring.ai.retry.max-attempts:10}") int retryMaxAttempts,
             @Value("${spring.servlet.multipart.max-file-size:1MB}") DataSize maxFileSize,
@@ -127,7 +127,7 @@ public class SettingsController {
         this.scriptProperties = scriptProperties;
         this.toolCatalogService = toolCatalogService;
         this.scriptEditActive = scriptEditPolicy.enabled();
-        this.gitEditEnabled = gitProperties.editEnabled();
+        this.gitEditEnabled = projectCatalog.defaultProject().editEnabled();
         this.gitEditActive = gitEditFunction.getIfAvailable() != null;
         this.requestTimeout = requestTimeout;
         this.retryMaxAttempts = retryMaxAttempts;

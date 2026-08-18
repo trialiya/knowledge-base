@@ -4,6 +4,7 @@ import static io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocation
 import static io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus.OK;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -13,6 +14,7 @@ import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.model.git.dto.GitEditResult;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
+import io.github.trialiya.kb.service.GitRegistry;
 import io.github.trialiya.kb.service.GitService;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
@@ -39,7 +41,11 @@ class GitEditFunctionGuardTest {
     @BeforeEach
     void setUp() {
         gitService = mock(GitService.class);
-        function = new GitEditFunction(gitService);
+        final GitRegistry gitRegistry = mock(GitRegistry.class);
+        // The guard under test runs before the project is resolved; which project a write lands in
+        // is GitRegistry's own business (GitRegistryTest).
+        when(gitRegistry.requireEditable(any())).thenReturn(gitService);
+        function = new GitEditFunction(gitRegistry);
         collector = new ToolInvocationCollector();
         context = new ToolContext(Map.of(ToolInvocationCollector.KEY, collector));
         when(gitService.editFile(anyString(), anyString(), anyString(), anyBoolean()))
@@ -129,7 +135,8 @@ class GitEditFunctionGuardTest {
         when(gitService.createFile(anyString(), anyString()))
                 .thenReturn(new GitEditResult("create", "new.txt", 1, 0, 1, null));
 
-        assertThatCode(() -> function.createFile("new.txt", "content")).doesNotThrowAnyException();
+        assertThatCode(() -> function.createFile(context, "new.txt", "content"))
+                .doesNotThrowAnyException();
     }
 
     private void record(

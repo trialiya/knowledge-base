@@ -12,7 +12,7 @@
 #
 # Edit application.yaml (and, for a custom profile, the matching
 # application-<profile>.yaml) before running.  The JVM is started from this
-# directory so relative paths in application.yaml (e.g. project-path: ..)
+# directory so relative paths in application.yaml (e.g. kb.projects[0].path: ..)
 # resolve against it.
 set -euo pipefail
 

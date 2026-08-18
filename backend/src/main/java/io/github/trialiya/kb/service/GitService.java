@@ -1,6 +1,5 @@
 package io.github.trialiya.kb.service;
 
-import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.model.git.dto.FileEntryType;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
@@ -14,8 +13,8 @@ import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.model.git.dto.GitPathView;
 import io.github.trialiya.kb.model.git.dto.GitTreeLevel;
 import io.github.trialiya.kb.model.git.dto.OutlineResult;
+import io.github.trialiya.kb.model.project.Project;
 import io.github.trialiya.kb.service.outline.LanguageDetector;
-import jakarta.annotation.PreDestroy;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -76,20 +75,23 @@ import org.eclipse.jgit.treewalk.FileTreeIterator;
 import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
-import org.springframework.stereotype.Service;
 
 /**
- * Service for Git repository operations: read-only browsing/search plus opt-in working-tree writes
- * ({@link #createFile}/{@link #editFile}, exposed to the model only when {@code
- * kb.git.edit-enabled=true} and the tree is writable — see {@code GitEditFunction}).
+ * Service for Git repository operations on <b>one</b> project: read-only browsing/search plus
+ * opt-in working-tree writes ({@link #createFile}/{@link #editFile}, exposed to the model only when
+ * the project allows edits and the tree is writable — see {@code GitRegistry}, {@code
+ * GitEditFunction}).
  *
- * <p>All operations run against the repository at {@code kb.git.project-path} via JGit, in-process
- * — no {@code git} subprocess, no argv, no output parsing — except {@link #grepContent}, which
- * still shells out to {@code git grep} (JGit has no equivalent). Files matched by {@code
- * .gitignore} are excluded from tree/search/status results the same way native git excludes them.
+ * <p>One instance per configured project, owned by {@code GitRegistry}: callers ask it for the
+ * project they mean rather than injecting this service directly, which is what keeps two projects
+ * from ever sharing a repository handle.
+ *
+ * <p>All operations run against this project's repository via JGit, in-process — no {@code git}
+ * subprocess, no argv, no output parsing — except {@link #grepContent}, which still shells out to
+ * {@code git grep} (JGit has no equivalent). Files matched by {@code .gitignore} are excluded from
+ * tree/search/status results the same way native git excludes them.
  */
 @Slf4j
-@Service
 public class GitService {
 
     private static final Pattern SAFE_GIT_RELATIVE_PATH =
@@ -143,6 +145,8 @@ public class GitService {
                     ".class", ".jar", ".war", ".ear", ".o", ".so", ".dylib", ".dll", ".exe", ".pyc",
                     ".pyo", ".swp", ".swo", ".bak", ".tmp", ".orig");
 
+    private final Project project;
+
     private final Path repoPath;
 
     /**
@@ -157,8 +161,9 @@ public class GitService {
     private final Git git;
     private final OutlineService outlineService;
 
-    public GitService(GitProperties gitProperties, OutlineService outlineService) {
-        this.repoPath = Path.of(gitProperties.projectPath()).toAbsolutePath().normalize();
+    public GitService(Project project, OutlineService outlineService) {
+        this.project = project;
+        this.repoPath = project.path();
         try {
             this.repoRealPath = repoPath.toRealPath();
         } catch (IOException e) {
@@ -171,19 +176,31 @@ public class GitService {
             throw new IllegalStateException("Failed to open Git repository at " + repoPath, e);
         }
         // FileRepositoryBuilder.build() never touches disk to verify a .git dir exists — without
-        // this check a bad kb.git.project-path would silently produce empty results from every
-        // tool (readDirCache() on a missing index just returns 0 entries) instead of failing
-        // Spring bean creation with an actionable error.
+        // this check a bad configured path would silently produce empty results from every tool
+        // (readDirCache() on a missing index just returns 0 entries) instead of failing the
+        // registry's construction with an actionable error.
         if (!repository.getDirectory().isDirectory()) {
-            throw new IllegalStateException("Not a Git repository (no .git found): " + repoPath);
+            throw new IllegalStateException(
+                    "Not a Git repository (no .git found) for project \""
+                            + project.id()
+                            + "\": "
+                            + repoPath);
         }
         this.git = new Git(repository);
-        log.info("GitService initialised for repo: {}", repoPath);
+        log.info("GitService initialised for project {}: {}", project.id(), repoPath);
     }
 
-    @PreDestroy
+    /**
+     * Closed by {@code GitRegistry}, which owns the instances — this service is no longer a bean of
+     * its own, so its lifecycle is the registry's.
+     */
     void closeRepository() {
         repository.close();
+    }
+
+    /** The repository this instance serves. */
+    public Project project() {
+        return project;
     }
 
     // ── File tree ────────────────────────────────────────────────────────────
@@ -1141,17 +1158,18 @@ public class GitService {
     // ── Working-tree writes (createFile / editFile) ─────────────────────────
 
     /**
-     * Whether the working tree can be written at all. Used at startup to decide if the edit tools
-     * ({@code GitEditFunction}) may be exposed to the model — a read-only mount (e.g. a ro Docker
-     * volume) must simply not offer them.
+     * Whether the working tree can be written at all. One half of "may the model edit this project"
+     * — the configured intent is the other half, and {@code GitRegistry} combines them so a
+     * read-only mount (e.g. a ro Docker volume) withholds the edit tools whatever the configuration
+     * says.
      */
     public boolean isRepoWritable() {
         return Files.isWritable(repoPath);
     }
 
     /**
-     * Absolute, normalized path of the indexed repository ({@code kb.git.project-path}). Reported
-     * by the admin panel so it is visible which working tree the model actually reads.
+     * Absolute, normalized path of the indexed repository. Reported by the admin panel so it is
+     * visible which working tree the model actually reads.
      */
     public Path repoPath() {
         return repoPath;

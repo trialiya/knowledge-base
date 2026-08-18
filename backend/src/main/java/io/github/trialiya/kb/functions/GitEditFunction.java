@@ -5,8 +5,10 @@ import static io.github.trialiya.kb.tools.ToolArgs.requireContent;
 import static io.github.trialiya.kb.tools.ToolArgs.requireText;
 
 import io.github.trialiya.kb.model.git.dto.GitEditResult;
+import io.github.trialiya.kb.service.GitRegistry;
 import io.github.trialiya.kb.service.GitService;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
+import io.github.trialiya.kb.tools.ProjectContext;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,13 +18,16 @@ import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 
 /**
- * Spring AI tools that let the chat model <b>modify</b> the working tree of the repository at
- * {@code kb.git.project-path}: {@link #createFile} and {@link #editFile}. Nothing is ever committed
- * — changes stay uncommitted for the user to review ({@code getUncommittedChanges}) and commit.
+ * Spring AI tools that let the chat model <b>modify</b> the working tree of a configured
+ * repository: {@link #createFile} and {@link #editFile}. Nothing is ever committed — changes stay
+ * uncommitted for the user to review ({@code getUncommittedChanges}) and commit.
  *
- * <p>Registered as a bean only when {@code kb.git.edit-enabled=true} <em>and</em> the working tree
- * is actually writable (see {@code ChatConfig#gitEditFunction}); in read-only mode (e.g. a ro
- * volume mount) these tools are simply absent from the model's tool list.
+ * <p>Registered as a bean only when at least one project accepts writes — configured for it
+ * <em>and</em> its working tree actually writable (see {@code ChatConfig#gitEditFunction}); with
+ * none, e.g. a ro volume mount, these tools are simply absent from the model's tool list. Which
+ * project a call writes to comes from the run's {@link ToolContext} ({@code ProjectContext}), and
+ * one that does not accept writes is refused by name through {@code GitRegistry#requireEditable} —
+ * the bean's presence only says <em>some</em> project is writable.
  *
  * <p><b>Read-before-edit guard.</b> {@code editFile} is rejected unless the target file was "seen"
  * earlier in the same chat-response session (tracked by the request-scoped {@link
@@ -39,7 +44,12 @@ import org.springframework.ai.tool.annotation.ToolParam;
 @AllArgsConstructor
 public class GitEditFunction {
 
-    private final GitService gitService;
+    private final GitRegistry gitRegistry;
+
+    /** The repository this call writes to; refuses a project that does not accept writes. */
+    private GitService editable(@Nullable ToolContext context) {
+        return gitRegistry.requireEditable(ProjectContext.from(context));
+    }
 
     @Tool(
             description =
@@ -51,6 +61,7 @@ public class GitEditFunction {
                     """,
             resultConverter = CompactToolResultConverter.class)
     public GitEditResult createFile(
+            ToolContext context,
             @ToolParam(
                             description =
                                     "Path of the new file relative to repo root (e.g., "
@@ -62,7 +73,7 @@ public class GitEditFunction {
         // file empty would look like success while losing everything it meant to put there.
         requireContent(content, "content");
         log.info("createFile called: filePath='{}', {} chars", filePath, content.length());
-        return gitService.createFile(filePath, content);
+        return editable(context).createFile(filePath, content);
     }
 
     @Tool(
@@ -110,7 +121,7 @@ public class GitEditFunction {
                 newString.length(),
                 all);
         requireFileSeenInThisResponse(context, filePath);
-        return gitService.editFile(filePath, oldString, newString, all);
+        return editable(context).editFile(filePath, oldString, newString, all);
     }
 
     /**

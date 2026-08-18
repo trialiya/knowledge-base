@@ -10,18 +10,25 @@ import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
+import io.github.trialiya.kb.service.GitRegistry;
 import io.github.trialiya.kb.service.GitService;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
+import io.github.trialiya.kb.tools.ProjectContext;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
+import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 
 /**
- * Spring AI tools that give the chat model read-only access to the Git repository configured via
- * {@code kb.git.project-path}.
+ * Spring AI tools that give the chat model read-only access to a configured Git repository.
+ *
+ * <p>Which repository is decided per call, not per bean: the project comes from the run's {@link
+ * ToolContext} (see {@code ProjectContext}) and is resolved through {@code GitRegistry}, so a call
+ * that names no project reads the default one. The {@code ToolContext} parameter is not part of a
+ * tool's schema, so the model neither sees nor fills it in.
  *
  * <p>Seven capabilities are exposed:
  *
@@ -44,7 +51,12 @@ import org.springframework.ai.tool.annotation.ToolParam;
 @AllArgsConstructor
 public class GitFunction {
 
-    private final GitService gitService;
+    private final GitRegistry gitRegistry;
+
+    /** The repository this call works on — the run's project, or the default one. */
+    private GitService git(@Nullable ToolContext context) {
+        return gitRegistry.forProject(ProjectContext.from(context));
+    }
 
     // ── File tree ────────────────────────────────────────────────────────────
 
@@ -61,13 +73,14 @@ public class GitFunction {
                     "Browse repository one level at a time (path, name, type, size). Call again with deeper path to drill down.",
             resultConverter = CompactToolResultConverter.class)
     public List<GitFileNode> getFileTree(
+            ToolContext context,
             @ToolParam(
                             description =
                                     "Subdirectory path relative to repo root (e.g., \"src/main/java\"). Empty or null for root.",
                             required = false)
                     @Nullable String path) {
         log.info("getFileTree called: path='{}'", path);
-        List<GitFileNode> fileTree = gitService.getFileTree(path);
+        List<GitFileNode> fileTree = git(context).getFileTree(path);
         log.info("getFileTree called: fileTree={}", fileTree);
         return fileTree;
     }
@@ -86,6 +99,7 @@ public class GitFunction {
                     "Recent commit history (newest first). Commit: hash, shortHash, author, email, date (ISO-8601), message. Use getCommitDiff to see file changes.",
             resultConverter = CompactToolResultConverter.class)
     public List<GitCommit> getCommitLog(
+            ToolContext context,
             @ToolParam(
                             description = "Maximum commits to return (1–100, default 20).",
                             required = false)
@@ -97,7 +111,7 @@ public class GitFunction {
                     @Nullable String filePath) {
         final int limit = positiveOrDefault(maxCount, 20);
         log.info("getCommitLog called: maxCount={}, filePath='{}'", limit, filePath);
-        List<GitCommit> commitLog = gitService.getCommitLog(limit, filePath);
+        List<GitCommit> commitLog = git(context).getCommitLog(limit, filePath);
         log.info("getCommitLog called: commitLog={}", commitLog);
         return commitLog;
     }
@@ -117,6 +131,7 @@ public class GitFunction {
                     "Changed files and diffs for one or more commits. Include status (A/M/D/R), path, additions, deletions, and optional unified diff.",
             resultConverter = CompactToolResultConverter.class)
     public List<GitCommit> getCommitDiff(
+            ToolContext context,
             @ToolParam(
                             description =
                                     "Commit hash (full or short) or comma-separated list (e.g., \"abc1234\" or \"abc1234,def5678\").")
@@ -138,7 +153,7 @@ public class GitFunction {
                 commitHashes,
                 patch,
                 filePath);
-        List<GitCommit> commitDiff = gitService.getCommitDiff(commitHashes, patch, filePath);
+        List<GitCommit> commitDiff = git(context).getCommitDiff(commitHashes, patch, filePath);
         log.info("getCommitDiff called: commitDiff={}", commitDiff);
         return commitDiff;
     }
@@ -158,6 +173,7 @@ public class GitFunction {
                     "Fuzzy-search tracked files by name (case-insensitive subsequence; e.g., \"mgi\" → MessageInput). Results ranked by match quality.",
             resultConverter = CompactToolResultConverter.class)
     public List<GitFileNode> searchFiles(
+            ToolContext context,
             @ToolParam(
                             description =
                                     "Partial file name pattern (fuzzy: case-insensitive subsequence match).")
@@ -169,7 +185,7 @@ public class GitFunction {
         requireText(pattern, "pattern");
         final int limit = positiveOrDefault(maxResults, 20);
         log.info("searchFiles called: pattern='{}', maxResults={}", pattern, limit);
-        List<GitFileNode> gitFileNodes = gitService.searchFiles(pattern, limit);
+        List<GitFileNode> gitFileNodes = git(context).searchFiles(pattern, limit);
         log.info("searchFiles called: gitFileNodes={}", gitFileNodes);
         return gitFileNodes;
     }
@@ -189,10 +205,11 @@ public class GitFunction {
                     "Structural outline of source code (classes, methods, functions) with line ranges, without full text.",
             resultConverter = CompactToolResultConverter.class)
     public GitFileOutline getFileOutline(
+            ToolContext context,
             @ToolParam(description = "Source file path relative to repo root.") String filePath) {
         requireText(filePath, "filePath");
         log.info("getFileOutline called: filePath='{}'", filePath);
-        GitFileOutline outline = gitService.getFileOutline(filePath);
+        GitFileOutline outline = git(context).getFileOutline(filePath);
         log.info("getFileOutline called: outline={}", outline);
         return outline;
     }
@@ -218,6 +235,7 @@ public class GitFunction {
                             + "response; append #Lfrom-Lto for a line range.",
             resultConverter = CompactToolResultConverter.class)
     public GitFileContent getFileContent(
+            ToolContext context,
             @ToolParam(description = "File path relative to repo root.") String filePath,
             @ToolParam(
                             description =
@@ -235,7 +253,7 @@ public class GitFunction {
                 filePath,
                 fromLine,
                 toLine);
-        GitFileContent fileContent = gitService.getFileContent(filePath, fromLine, toLine);
+        GitFileContent fileContent = git(context).getFileContent(filePath, fromLine, toLine);
         log.info("getFileContent called: fileContent='{}'", fileContent);
         return fileContent;
     }
@@ -253,6 +271,7 @@ public class GitFunction {
                     "Uncommitted changes to tracked files in working tree (staged and unstaged); untracked files excluded. Status: A/M/D/R. Optional: include unified diff.",
             resultConverter = CompactToolResultConverter.class)
     public List<GitDiffEntry> getUncommittedChanges(
+            ToolContext context,
             @ToolParam(
                             description =
                                     "Include unified diff for changed files (false=list only, true=includes patch, default false).",
@@ -260,7 +279,7 @@ public class GitFunction {
                     @Nullable Boolean includePatch) {
         final boolean patch = orDefault(includePatch, false);
         log.info("getUncommittedChanges called: includePatch='{}'", patch);
-        List<GitDiffEntry> gitDiffEntries = gitService.getUncommittedChanges(patch);
+        List<GitDiffEntry> gitDiffEntries = git(context).getUncommittedChanges(patch);
         log.info("getUncommittedChanges called: gitDiffEntries='{}'", gitDiffEntries);
         return gitDiffEntries;
     }
@@ -282,6 +301,7 @@ public class GitFunction {
                     "Search file content for matching lines (case-insensitive). Returns path, line number, and text.",
             resultConverter = CompactToolResultConverter.class)
     public List<GitGrepMatch> grepContent(
+            ToolContext context,
             @ToolParam(description = "Search pattern: literal string or regex (if regex=true).")
                     String pattern,
             @ToolParam(
@@ -316,7 +336,7 @@ public class GitFunction {
                 ctx,
                 limit);
         List<GitGrepMatch> matches =
-                gitService.grepContent(pattern, pathGlob, useRegex, ctx, limit);
+                git(context).grepContent(pattern, pathGlob, useRegex, ctx, limit);
         log.info("grepContent called: {} matches found", matches.size());
         return matches;
     }

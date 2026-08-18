@@ -4,6 +4,7 @@ import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitPathView;
+import io.github.trialiya.kb.service.GitRegistry;
 import io.github.trialiya.kb.service.GitService;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
@@ -17,6 +18,9 @@ import org.springframework.web.server.ResponseStatusException;
 /**
  * Read-only Git endpoints backing the chat composer's {@code /file} autocomplete and the file
  * browser panel.
+ *
+ * <p>These endpoints carry no project of their own yet, so they serve the default project (see
+ * {@code GitRegistry}) — the same repository the tools read when a run names none.
  *
  * <p>{@code GET /search} fuzzy-matches tracked file names for the picker; {@code GET /content}
  * returns a file (optionally a line range) so an inserted chip can be previewed and expanded into
@@ -32,8 +36,8 @@ public class GitController {
 
     private final GitService gitService;
 
-    public GitController(GitService gitService) {
-        this.gitService = gitService;
+    public GitController(GitRegistry gitRegistry) {
+        this.gitService = gitRegistry.defaultProject();
     }
 
     /** Fuzzy file-name search for the composer picker, e.g. {@code ?q=mgi} → MessageInput. */
