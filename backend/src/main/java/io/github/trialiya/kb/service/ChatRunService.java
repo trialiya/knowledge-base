@@ -81,6 +81,7 @@ public class ChatRunService {
     private final ChatEventService events;
     private final ScriptGuideService scriptGuideService;
     private final SystemPromptService systemPromptService;
+    private final ProjectPromptService projectPromptService;
     private final Executor executor;
 
     /** runId -&gt; дескриптор активного прогона (для остановки). */
@@ -98,6 +99,7 @@ public class ChatRunService {
             ChatEventService events,
             ScriptGuideService scriptGuideService,
             SystemPromptService systemPromptService,
+            ProjectPromptService projectPromptService,
             @Qualifier("chatRunExecutor") Executor executor) {
         this.chatClients = chatClients;
         this.chatMemory = chatMemory;
@@ -106,6 +108,7 @@ public class ChatRunService {
         this.events = events;
         this.scriptGuideService = scriptGuideService;
         this.systemPromptService = systemPromptService;
+        this.projectPromptService = projectPromptService;
         this.executor = executor;
     }
 
@@ -348,7 +351,11 @@ public class ChatRunService {
                                                     .param(
                                                             "system_extended",
                                                             systemPromptService.systemExtended(
-                                                                    weakModel)))
+                                                                    weakModel))
+                                                    .param(
+                                                            "project_context",
+                                                            projectPromptService.context(
+                                                                    options.project())))
                             // Своего .user(...) здесь намеренно нет: вопрос уже сохранён в
                             // истории (см. ChatMemoryService.saveUserMessage), и его подмешает
                             // advisor памяти. Передать его ещё и сюда — значит сохранить вторым

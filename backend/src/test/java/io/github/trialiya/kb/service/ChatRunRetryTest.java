@@ -60,6 +60,7 @@ class ChatRunRetryTest {
                         new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))),
                         mock(ScriptGuideService.class),
                         mock(SystemPromptService.class),
+                        mock(ProjectPromptService.class),
                         never);
     }
 

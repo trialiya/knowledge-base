@@ -29,7 +29,9 @@ import io.github.trialiya.kb.service.ChatRunService;
 import io.github.trialiya.kb.service.ChatTopicService;
 import io.github.trialiya.kb.service.ContextItemService;
 import io.github.trialiya.kb.service.ProjectCatalog;
+import io.github.trialiya.kb.service.ProjectPromptService;
 import io.github.trialiya.kb.service.ScriptGuideService;
+import io.github.trialiya.kb.service.SystemPromptService;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import jakarta.annotation.Nonnull;
 import java.time.Clock;
@@ -79,6 +81,8 @@ public class ChatController {
     private final ContextItemService contextItemService;
     private final ChatTopicService chatTopicService;
     private final ProjectCatalog projectCatalog;
+    private final SystemPromptService systemPromptService;
+    private final ProjectPromptService projectPromptService;
 
     /** Часы аудита Spring Data — ими же датируется «тронуть чат», см. JdbcConfig#clock. */
     private final Clock clock;
@@ -97,6 +101,8 @@ public class ChatController {
             ContextItemService contextItemService,
             ChatTopicService chatTopicService,
             ProjectCatalog projectCatalog,
+            SystemPromptService systemPromptService,
+            ProjectPromptService projectPromptService,
             Clock clock) {
         this.chatModelProperties = chatModelProperties;
         this.chatModeProperties = chatModeProperties;
@@ -111,6 +117,8 @@ public class ChatController {
         this.contextItemService = contextItemService;
         this.chatTopicService = chatTopicService;
         this.projectCatalog = projectCatalog;
+        this.systemPromptService = systemPromptService;
+        this.projectPromptService = projectPromptService;
         this.clock = clock;
     }
 
@@ -352,7 +360,15 @@ public class ChatController {
                                                 .param(
                                                         "script_instructions",
                                                         scriptGuideService.instructions(
-                                                                options.weakModel())))
+                                                                options.weakModel()))
+                                                .param(
+                                                        "system_extended",
+                                                        systemPromptService.systemExtended(
+                                                                options.weakModel()))
+                                                .param(
+                                                        "project_context",
+                                                        projectPromptService.context(
+                                                                options.project())))
                         .user(userMessage)
                         .toolContext(
                                 context(conversationId)

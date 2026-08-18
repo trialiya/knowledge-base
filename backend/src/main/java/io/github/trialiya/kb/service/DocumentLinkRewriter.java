@@ -29,11 +29,23 @@ public final class DocumentLinkRewriter {
 
     /**
      * Whole Markdown link pointing at a repository file, e.g. {@code
-     * [GitService.java](/files?path=backend/.../GitService.java#L1-L10)}. Group 1 is the link text,
-     * group 2 the (URL-encoded) path; the optional {@code #Lx-Ly} range is dropped on export.
+     * [GitService.java](/files?path=backend/.../GitService.java&project=kb#L1-L10)}. Group 1 is the
+     * link text, group 2 the (URL-encoded) path; the {@code &project=} the model appends and the
+     * optional {@code #Lx-Ly} range are both dropped on export, like the app origin itself — an
+     * export is read outside the app, where neither means anything. Links written before projects
+     * were named carry no {@code &project=} and match just the same.
      */
     private static final Pattern FILE_LINK =
-            Pattern.compile("\\[([^\\]]+)]\\(/files\\?path=([^)#]+)(?:#L\\d+(?:-L\\d+)?)?\\)");
+            Pattern.compile(
+                    "\\[([^\\]]+)]\\(/files\\?path=([^)#&]+)(?:&[^)#]*)?(?:#L\\d+(?:-L\\d+)?)?\\)");
+
+    /**
+     * A repo-file link target whose path is not followed by anything — no {@code &project=} yet.
+     * Anchored on the {@code )} or {@code #} that must come next, so a link already carrying a
+     * project (there the next character is {@code &}) is left alone and stamping stays idempotent.
+     */
+    private static final Pattern FILE_LINK_WITHOUT_PROJECT =
+            Pattern.compile("(/files\\?path=[^)#&\\s]+)(?=[)#])");
 
     /** Any Markdown link target — the reverse direction has to inspect every one of them. */
     private static final Pattern ANY_LINK_TARGET = Pattern.compile("]\\(([^)\\s]*)\\)");
@@ -66,9 +78,9 @@ public final class DocumentLinkRewriter {
     }
 
     /**
-     * Flattens {@code [text](/files?path=PATH[#Lx-Ly])} to plain {@code text (PATH)}. An export has
-     * no running app to serve {@code /files}, so the link is reduced to the file's name and its
-     * repo-relative path.
+     * Flattens {@code [text](/files?path=PATH[&project=ID][#Lx-Ly])} to plain {@code text (PATH)}.
+     * An export has no running app to serve {@code /files}, so the link is reduced to the file's
+     * name and its repo-relative path.
      */
     public static String flattenFileLinks(String text) {
         Matcher m = FILE_LINK.matcher(text);
@@ -80,6 +92,32 @@ public final class DocumentLinkRewriter {
             String path = URLDecoder.decode(m.group(2).replace("+", "%2B"), StandardCharsets.UTF_8);
             m.appendReplacement(out, Matcher.quoteReplacement(m.group(1) + " (" + path + ")"));
         }
+        m.appendTail(out);
+        return out.toString();
+    }
+
+    /**
+     * Names {@code projectId} in every repo-file link of {@code text} that does not name a project
+     * yet, or returns {@code null} when there was nothing to change.
+     *
+     * <p>Written before projects existed, {@code /files?path=…} means "the default project" — which
+     * is only stable while the default is. The moment a deployment puts another repository first,
+     * every such link in stored history would point at a file that merely shares a path. Stamping
+     * the project that was meant at the time freezes the answer.
+     *
+     * <p>Idempotent by construction (see {@link #FILE_LINK_WITHOUT_PROJECT}), so a re-run cannot
+     * produce {@code &project=a&project=b}.
+     */
+    public static @Nullable String stampProject(String text, String projectId) {
+        Matcher m = FILE_LINK_WITHOUT_PROJECT.matcher(text);
+        if (!m.find()) {
+            return null;
+        }
+        StringBuilder out = new StringBuilder();
+        String suffix = Matcher.quoteReplacement("&project=" + projectId);
+        do {
+            m.appendReplacement(out, "$1" + suffix);
+        } while (m.find());
         m.appendTail(out);
         return out.toString();
     }

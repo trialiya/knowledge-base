@@ -26,7 +26,9 @@ import io.github.trialiya.kb.service.ChatRunService;
 import io.github.trialiya.kb.service.ChatTopicService;
 import io.github.trialiya.kb.service.ContextItemService;
 import io.github.trialiya.kb.service.ProjectCatalog;
+import io.github.trialiya.kb.service.ProjectPromptService;
 import io.github.trialiya.kb.service.ScriptGuideService;
+import io.github.trialiya.kb.service.SystemPromptService;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -82,12 +84,15 @@ class ChatProjectSelectionTest {
                         contextItemService,
                         topicService,
                         catalog(),
+                        mock(SystemPromptService.class),
+                        new ProjectPromptService(catalog()),
                         Clock.systemUTC());
     }
 
     private static ProjectCatalog catalog() {
         return new ProjectCatalog(
-                new ProjectProperties(List.of(new ProjectOption("kb", "KB", "/srv/kb", null))),
+                new ProjectProperties(
+                        List.of(new ProjectOption("kb", "KB", "/srv/kb", null, true))),
                 new GitProperties(null, false));
     }
 

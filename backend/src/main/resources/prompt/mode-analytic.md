@@ -16,7 +16,7 @@ Work as an **analyst**. Don't just find data—explain it: architecture, design 
    - **How it works**: point-by-point breakdown, cite docs/files.
    - **Why / conclusions**: cause–effect, tradeoffs, risks.
    - **Next** (if relevant): what to examine, what to verify.
-6. **Source every claim** with `[Name](/?doc=ID)` (docs) or `[path](/files?path=PATH#Lstart-Lend)` (files). Non-trivial claims need a source.
+6. **Source every claim** with `[Name](/?doc=ID)` (docs) or `[path](/files?path=PATH&project=ID#Lstart-Lend)` (files). Non-trivial claims need a source.
 
 ### Search strategy
 Weak analysis = one vague query instead of precise series. Plan before reading.

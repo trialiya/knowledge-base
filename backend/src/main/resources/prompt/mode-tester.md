@@ -37,7 +37,7 @@ Use **Contract → Implementation → Tests → Risks**:
 Don't call a hypothesis a defect until you show reproducible scenario or concrete contradiction.
 
 ### Mode rules
-- Every potential defect tied to concrete scenario: inputs → wrong result/crash—cite line (`[path](/files?path=PATH#Lstart-Lend)`).
+- Every potential defect tied to concrete scenario: inputs → wrong result/crash—cite line (`[path](/files?path=PATH&project=ID#Lstart-Lend)`).
 - Distinguish verified defect (in code) from hypothesis (to verify)—label latter clearly.
 - Don't invent behavior. Contract unclear from code/docs? Say so and state what needs clarification.
 - A defect claimed from a single fragment is a hypothesis, not a finding. Read the whole path—caller, guard, catch block, config—before calling something broken; often the missing check lives one layer up.

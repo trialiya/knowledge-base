@@ -30,6 +30,11 @@ import org.springframework.util.StringUtils;
  *
  * <p>Anything that cannot be satisfied fails the context: a bad path is not a project whose tools
  * merely return errors, it is a deployment that was meant to serve a repository and cannot.
+ *
+ * <p>A project switched off ({@code enabled: false}) is not here at all — not routable, not listed,
+ * not opened. A chat that had chosen it keeps the id in {@code chat_topic.project} and runs on the
+ * default project instead; the id no longer matching anything in {@link #options()} is precisely
+ * what tells the UI to say the project is gone.
  */
 @Slf4j
 @Service
@@ -107,7 +112,16 @@ public class ProjectCatalog {
                                                 + ")"));
     }
 
-    private static List<Project> resolve(List<ProjectOption> options, GitProperties gitProperties) {
+    private static List<Project> resolve(List<ProjectOption> all, GitProperties gitProperties) {
+        // Switched-off entries are dropped before anything else, validation included: a project
+        // prepared for later may well point at a path this deployment has not mounted yet.
+        List<ProjectOption> options = all.stream().filter(ProjectOption::enabled).toList();
+        if (!all.isEmpty() && options.isEmpty()) {
+            throw new IllegalStateException(
+                    "kb.projects: every configured project is disabled "
+                            + all.stream().map(ProjectOption::id).toList()
+                            + " — there is no repository left to serve");
+        }
         if (options.isEmpty()) {
             String path = gitProperties.projectPath();
             if (!StringUtils.hasText(path)) {
@@ -123,11 +137,12 @@ public class ProjectCatalog {
         // different file. Refusing the configuration is the cheaper failure.
         if (options.size() > 1) {
             throw new IllegalStateException(
-                    "kb.projects: several projects are configured "
+                    "kb.projects: several projects are enabled "
                             + options.stream().map(ProjectOption::id).toList()
                             + ", but only one is supported for now — file links and the file"
                             + " browser do not carry a project yet, so paths from a second"
-                            + " repository would resolve against the wrong one");
+                            + " repository would resolve against the wrong one. Prepare the others"
+                            + " with enabled: false");
         }
         List<Project> resolved = new ArrayList<>();
         Set<String> ids = new LinkedHashSet<>();

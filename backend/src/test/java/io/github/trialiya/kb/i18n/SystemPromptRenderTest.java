@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.i18n;
 
+import static java.util.stream.Collectors.toSet;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.Mockito.mock;
@@ -10,9 +11,15 @@ import io.github.trialiya.kb.service.ScriptGuideService;
 import io.github.trialiya.kb.service.script.ScriptEditPolicy;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.ai.template.st.StTemplateRenderer;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.util.StreamUtils;
@@ -51,6 +58,8 @@ class SystemPromptRenderTest {
                                 "script_instructions",
                                 handbook,
                                 "system_extended",
+                                "",
+                                "project_context",
                                 ""));
 
         // The handbook arrives verbatim: braces inside a substituted value are content, not syntax.
@@ -70,17 +79,66 @@ class SystemPromptRenderTest {
                                                 "script_instructions",
                                                 "",
                                                 "system_extended",
+                                                "",
+                                                "project_context",
                                                 "")))
                 .doesNotThrowAnyException();
     }
 
+    /**
+     * Обе стороны, а не одна: раньше здесь проверялось только наличие трёх имён, и плейсхолдер,
+     * которого не передавал один из вызывающих, тест проходил. Незаполненный — это отказ на каждом
+     * запросе чата, поэтому набор сверяется на равенство.
+     */
     @Test
     @Timeout(30)
     void hasExactlyThePlaceholdersTheApplicationFills() {
-        // Every {name} in the template must be one the call sites (ChatRunService) actually
-        // pass — an unfilled placeholder fails the render.
-        assertThat(systemPrompt())
-                .contains("{mode_instructions}", "{script_instructions}", "{system_extended}");
+        assertThat(placeholdersOf(systemPrompt()))
+                .containsExactlyInAnyOrderElementsOf(FILLED_BY_THE_APPLICATION);
+    }
+
+    /**
+     * Каждый вызывающий передаёт весь набор — иначе рендер падает именно на его пути, а не на
+     * общем. Синхронный {@code POST /messages} однажды уже разошёлся с фоновым прогоном.
+     */
+    @ParameterizedTest
+    @ValueSource(
+            classes = {
+                io.github.trialiya.kb.service.ChatRunService.class,
+                io.github.trialiya.kb.controller.ChatController.class
+            })
+    @Timeout(30)
+    void everyCallSitePassesThemAll(Class<?> callSite) {
+        String source = sourceOf(callSite);
+        Set<String> passed =
+                PARAM_CALL.matcher(source).results().map(m -> m.group(1)).collect(toSet());
+
+        assertThat(passed).containsAll(FILLED_BY_THE_APPLICATION);
+    }
+
+    /** {@code .param("name",} — как плейсхолдеры и передаются в шаблон системного промпта. */
+    private static final Pattern PARAM_CALL = Pattern.compile("\\.param\\(\\s*\"(\\w+)\"");
+
+    private static final Pattern PLACEHOLDER = Pattern.compile("\\{(\\w+)}");
+
+    private static final Set<String> FILLED_BY_THE_APPLICATION =
+            Set.of(
+                    "mode_instructions",
+                    "script_instructions",
+                    "system_extended",
+                    "project_context");
+
+    private static Set<String> placeholdersOf(String template) {
+        return PLACEHOLDER.matcher(template).results().map(m -> m.group(1)).collect(toSet());
+    }
+
+    private static String sourceOf(Class<?> type) {
+        Path path = Path.of("src/main/java", type.getName().replace('.', '/') + ".java");
+        try {
+            return Files.readString(path, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new IllegalStateException("Cannot read the source of " + type.getName(), e);
+        }
     }
 
     private static String systemPrompt() {

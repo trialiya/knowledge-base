@@ -3,6 +3,7 @@ package io.github.trialiya.kb.config.model;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
  * Binding for {@code kb.projects} — the repositories the assistant can work with.
@@ -16,10 +17,14 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *       edit-enabled: false
  * </pre>
  *
- * <p><b>Exactly one entry for now.</b> A chat picks its project and carries it to the tools, but a
- * file link does not: {@code /files?path=…} and the file browser name a path and no repository, so
- * with a second project the same path would open the wrong file. {@code ProjectCatalog} refuses the
- * configuration rather than let that happen silently.
+ * <p><b>Exactly one <em>enabled</em> entry for now.</b> A chat picks its project and carries it to
+ * the tools, but a file link does not: {@code /files?path=…} and the file browser name a path and
+ * no repository, so with a second live project the same path would open the wrong file. {@code
+ * ProjectCatalog} refuses such a configuration rather than let that happen silently.
+ *
+ * <p>Entries switched off with {@code enabled: false} do not count, which is how a second project
+ * is prepared before it can be served: its block sits in the configuration, validated by nothing
+ * and reachable by no one, until the flag flips.
  *
  * <p>Left empty, the single project is taken from the legacy {@code kb.git.project-path} (see
  * {@code ProjectCatalog}), so a deployment that only sets {@code PROJECT_PATH} keeps working.
@@ -42,9 +47,18 @@ public record ProjectProperties(List<ProjectOption> projects) {
      * @param editEnabled whether the working-tree edit tools may touch <em>this</em> repository;
      *     omitted, the deployment-wide {@code kb.git.edit-enabled} applies. Still not sufficient on
      *     its own — a read-only mount withholds writes regardless (see {@code GitRegistry})
+     * @param enabled {@code false} — the project is not served: no repository is opened for it, it
+     *     is absent from {@code GET /api/chats/projects}, and a call naming it is refused. Chats
+     *     that had chosen it keep the id in {@code chat_topic.project} and run on the default one,
+     *     which is what lets the UI say the project is gone instead of silently showing another
+     *     repository's files. Defaults to {@code true}
      */
     public record ProjectOption(
-            String id, @Nullable String label, String path, @Nullable Boolean editEnabled) {
+            String id,
+            @Nullable String label,
+            String path,
+            @Nullable Boolean editEnabled,
+            @DefaultValue("true") boolean enabled) {
 
         /** What to show when the config named no label. */
         public String displayLabel() {

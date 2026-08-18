@@ -231,8 +231,9 @@ public class GitFunction {
                     "Read file content (full or line range). Binary files flagged without content. "
                             + "Large files (>512 KB) return excerpt with truncated=true. When "
                             + "mentioning the file in your response, link it as "
-                            + "[filename](/files?path=PATH), where PATH is the path from the "
-                            + "response; append #Lfrom-Lto for a line range.",
+                            + "[filename](/files?path=PATH&project=ID), where PATH is the path "
+                            + "from the response and ID is the active project; append #Lfrom-Lto "
+                            + "for a line range.",
             resultConverter = CompactToolResultConverter.class)
     public GitFileContent getFileContent(
             ToolContext context,
