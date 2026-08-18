@@ -107,6 +107,8 @@ kb:
 #        # the same api-key. Set, it gets a connection of its own (ChatModelRegistry), and then
 #        # api-key is REQUIRED: a foreign host with the default host's token fails at startup.
 #        # api-key alone (no base-url) is allowed too: the same host, a separate token.
+#        # Only here, not on default-model above — that one's endpoint is spring.ai.openai.*. To
+#        # move the default model to a host of its own, add it here with the same id.
 #        base-url: ${KB_CHAT_MODELS_0_BASE_URL:}
 #        api-key: ${KB_CHAT_MODELS_0_API_KEY:}
     # Preset assistant modes: inject instruction fragments into the system prompt

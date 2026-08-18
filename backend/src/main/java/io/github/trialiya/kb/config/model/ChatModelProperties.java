@@ -12,6 +12,13 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
 
     public ChatModelProperties {
         models = models == null ? List.of() : List.copyOf(models);
+        if (defaultModel != null && defaultModel.hasOwnEndpoint()) {
+            throw new IllegalArgumentException(
+                    "kb.chat.default-model: base-url/api-key belong to spring.ai.openai.* here —"
+                            + " the default model is served by the autoconfigured connection, and a"
+                            + " second one for the same model would only shadow it. To give it an"
+                            + " endpoint of its own, list it under kb.chat.models with the same id.");
+        }
     }
 
     /**
@@ -24,7 +31,8 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
      *     usual case. Set — the model gets a connection of its own (see {@code ChatModelRegistry}),
      *     and then {@code apiKey} is mandatory: a foreign host and the default host's token is
      *     never a combination anyone means, so it fails at startup rather than at the first
-     *     request.
+     *     request. Only meaningful under {@code kb.chat.models}: the default model's endpoint is
+     *     {@code spring.ai.openai.*}, so naming one on {@code kb.chat.default-model} is rejected.
      * @param apiKey the token for this model. Inherited from {@code spring.ai.openai.api-key} when
      *     absent. May be set on its own — same host, separate token (separate quota or account) —
      *     but never omitted alongside a {@code baseUrl}.
@@ -41,11 +49,22 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
             apiKey = trimToNull(apiKey);
             if (baseUrl != null && apiKey == null) {
                 throw new IllegalArgumentException(
-                        "kb.chat.models["
+                        "kb.chat model \""
                                 + id
-                                + "]: base-url is set, so api-key must be set too — a model on its"
+                                + "\": base-url is set, so api-key must be set too — a model on its"
                                 + " own host cannot borrow the default host's token");
             }
+        }
+
+        /**
+         * Hides the token. {@code @JsonIgnore} covers only the JSON path, while the record's
+         * generated {@code toString} would print the raw key into any log line or diagnostic that
+         * renders the properties bean.
+         */
+        @Override
+        public String toString() {
+            return "ModelOption[id=%s, label=%s, weak=%s, baseUrl=%s, apiKey=%s]"
+                    .formatted(id, label, weak, baseUrl, apiKey == null ? null : "***");
         }
 
         /**

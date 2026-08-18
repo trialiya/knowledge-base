@@ -34,20 +34,30 @@ import org.springframework.beans.factory.ObjectProvider;
  */
 public class ChatModelRegistry {
 
+    private final String defaultModelId;
     private final OpenAiChatModel defaultModel;
     private final Map<String, OpenAiChatModel> byModelId;
 
-    public ChatModelRegistry(OpenAiChatModel defaultModel, Map<String, OpenAiChatModel> byModelId) {
+    public ChatModelRegistry(
+            String defaultModelId,
+            OpenAiChatModel defaultModel,
+            Map<String, OpenAiChatModel> byModelId) {
+        this.defaultModelId = defaultModelId;
         this.defaultModel = defaultModel;
         this.byModelId = Map.copyOf(byModelId);
     }
 
     /**
-     * The connection for {@code modelId}, falling back to the default one — for {@code null} (no
-     * override for this run), and for every model that did not ask for an endpoint of its own.
+     * The connection for {@code modelId}, falling back to the autoconfigured one for every model
+     * that did not ask for an endpoint of its own.
+     *
+     * <p>{@code null} — no override for this run — is not a fourth case: it means {@code
+     * kb.chat.default-model.id} and is resolved as such, so a {@code kb.chat.models} entry that
+     * repeats the default id with an endpoint of its own serves every run of that model, not only
+     * the ones where the picker named it explicitly.
      */
     public OpenAiChatModel forModel(@Nullable String modelId) {
-        return modelId == null ? defaultModel : byModelId.getOrDefault(modelId, defaultModel);
+        return byModelId.getOrDefault(modelId == null ? defaultModelId : modelId, defaultModel);
     }
 
     /** Model ids that got a connection of their own. */
@@ -90,7 +100,8 @@ public class ChatModelRegistry {
                                 customizers));
             }
         }
-        return new ChatModelRegistry(defaultModel, byModelId);
+        return new ChatModelRegistry(
+                chatModelProperties.defaultModel().id(), defaultModel, byModelId);
     }
 
     // Builder.toolCallingManager is deprecated for removal upstream (the advisor chain drives the
@@ -113,6 +124,17 @@ public class ChatModelRegistry {
                         commonProperties, chatProperties);
         if (option.baseUrl() != null) {
             connection.setBaseUrl(option.baseUrl());
+            // The provider of the default connection does not carry over to another host. In
+            // OpenAiSetup these flags outrank the URL: GitHub Models rewrites any other base-url
+            // back to models.github.ai, and Microsoft Foundry folds in the default deployment
+            // name and credential — either one would silently discard the URL configured here.
+            // The provider of the new host is still detected from the URL itself, so an entry
+            // pointing at an Azure or GitHub endpoint keeps its own dialect.
+            connection.setGitHubModels(false);
+            connection.setMicrosoftFoundry(false);
+            connection.setMicrosoftDeploymentName(null);
+            connection.setMicrosoftFoundryServiceVersion(null);
+            connection.setCredential(null);
         }
         if (option.apiKey() != null) {
             connection.setApiKey(option.apiKey());

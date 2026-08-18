@@ -15,19 +15,23 @@ import org.springframework.ai.chat.client.ChatClient;
  */
 public class ChatClientRegistry {
 
+    private final String defaultModelId;
     private final ChatClient defaultClient;
     private final Map<String, ChatClient> byModelId;
 
-    public ChatClientRegistry(ChatClient defaultClient, Map<String, ChatClient> byModelId) {
+    public ChatClientRegistry(
+            String defaultModelId, ChatClient defaultClient, Map<String, ChatClient> byModelId) {
+        this.defaultModelId = defaultModelId;
         this.defaultClient = defaultClient;
         this.byModelId = Map.copyOf(byModelId);
     }
 
     /**
-     * The client for {@code modelId}. {@code null} — no model override for this run — and any model
-     * without an endpoint of its own both get the default client.
+     * The client for {@code modelId}; a model without an endpoint of its own gets the default one.
+     * {@code null} means {@code kb.chat.default-model.id} and is resolved the same way — see {@link
+     * ChatModelRegistry#forModel(String)}, whose routing this one must mirror.
      */
     public ChatClient forModel(@Nullable String modelId) {
-        return modelId == null ? defaultClient : byModelId.getOrDefault(modelId, defaultClient);
+        return byModelId.getOrDefault(modelId == null ? defaultModelId : modelId, defaultClient);
     }
 }

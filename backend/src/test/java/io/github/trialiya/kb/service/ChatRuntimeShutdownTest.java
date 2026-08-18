@@ -155,7 +155,7 @@ class ChatRuntimeShutdownTest {
                                                                 new AssistantMessage("Привет"))))),
                                 Flux.never()));
         return new ChatRunService(
-                new ChatClientRegistry(chatClient, Map.of()),
+                new ChatClientRegistry("default-model", chatClient, Map.of()),
                 chatMemory,
                 chatMemoryService,
                 mock(SummarizeService.class),

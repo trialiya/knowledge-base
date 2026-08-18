@@ -53,7 +53,7 @@ class ChatRunRetryTest {
         chatMemoryService = mock(ChatMemoryService.class);
         runService =
                 new ChatRunService(
-                        new ChatClientRegistry(mock(ChatClient.class), Map.of()),
+                        new ChatClientRegistry("default-model", mock(ChatClient.class), Map.of()),
                         mock(ChatMemory.class),
                         chatMemoryService,
                         mock(SummarizeService.class),

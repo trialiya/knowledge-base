@@ -62,6 +62,26 @@ class ChatModelRegistryTest {
         assertThat(registry.forModel("shared")).isSameAs(defaultConnection);
     }
 
+    @Test
+    void anEntryRepeatingTheDefaultIdServesRunsWithoutAnOverrideToo() {
+        // Отдельный эндпоинт у модели по умолчанию задаётся строкой kb.chat.models с тем же id
+        // (см. ChatModelProperties). Прогон без явной модели идёт на неё же, иначе соединение
+        // работало бы только когда пользователь выбрал модель в списке руками.
+        OpenAiChatModel defaultConnection = mock(OpenAiChatModel.class);
+        ChatModelRegistry registry =
+                build(
+                        defaultConnection,
+                        new ModelOption(
+                                "default-model",
+                                "Default",
+                                true,
+                                "https://llm.example/v1",
+                                "sk-d"));
+
+        assertThat(registry.forModel(null)).isNotSameAs(defaultConnection);
+        assertThat(registry.forModel(null)).isSameAs(registry.forModel("default-model"));
+    }
+
     private static ChatModelRegistry build(
             OpenAiChatModel defaultConnection, ModelOption... models) {
         OpenAiCommonProperties common = new OpenAiCommonProperties();

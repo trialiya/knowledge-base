@@ -357,6 +357,7 @@ public class ChatConfig {
     public ChatClientRegistry chatClientRegistry(
             ChatClient chatClient,
             ChatModelRegistry chatModelRegistry,
+            ChatModelProperties chatModelProperties,
             ChatMemory chatMemory,
             @Value("classpath:prompt/sys.md") Resource sysPrompt,
             ToolCallingManager toolCallingManager,
@@ -374,7 +375,8 @@ public class ChatConfig {
                             chatToolset,
                             chatEventService));
         }
-        return new ChatClientRegistry(chatClient, byModelId);
+        return new ChatClientRegistry(
+                chatModelProperties.defaultModel().id(), chatClient, byModelId);
     }
 
     @Bean

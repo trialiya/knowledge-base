@@ -101,6 +101,32 @@ class ChatModelPropertiesTest {
     }
 
     @Test
+    void anEndpointOnTheDefaultModelIsRejected() {
+        // spring.ai.openai.* is the default model's endpoint; a second one here would bind and
+        // report ownEndpoint without ever being built, so the configuration must not accept it.
+        assertThatIllegalArgumentException()
+                .isThrownBy(
+                        () ->
+                                new ChatModelProperties(
+                                        new ModelOption(
+                                                "solo",
+                                                "Solo",
+                                                true,
+                                                "https://llm.example/v1",
+                                                "sk-solo"),
+                                        List.of()))
+                .withMessageContaining("kb.chat.models");
+    }
+
+    @Test
+    void theTokenIsNotPrinted() {
+        // @JsonIgnore covers the API; toString is the other way a secret reaches a log line.
+        ModelOption own =
+                new ModelOption("remote", "Remote", false, "https://llm.example/v1", "sk-remote");
+        assertThat(own.toString()).doesNotContain("sk-remote").contains("remote", "***");
+    }
+
+    @Test
     void isWeakDefaultsToTrueForAnUnknownId() {
         // Should not happen past isAllowed(), but the conservative fallback is "assume weak" —
         // missing the tutorial hurts a weak model more than an extra paragraph hurts a strong one.
