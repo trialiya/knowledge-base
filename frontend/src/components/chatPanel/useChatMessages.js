@@ -135,7 +135,7 @@ export const attachLeadingMetas = (bubbles, metas) => {
  * @param {string}   p.activeChatId   id активного чата
  * @param {Function} p.onLoadError    ({ notFound, status }) => void — показать модалку
  * @returns {{ loadingMessages: boolean,
- *             loadMessages: (id:string)=>Promise<void>,
+ *             loadMessages: (id:string)=>Promise<Array|undefined>,
  *             loadOlderMessages: (id:string)=>Promise<boolean>,
  *             failedChatIdsRef: object }}
  */
@@ -161,6 +161,11 @@ export default function useChatMessages({ chats, getChats, setChats, activeChatI
   // Загрузка сообщений: последняя страница (PAGE_SIZE) + метаданные чата.
   // Метаданные (model/topic) берём отдельным лёгким запросом includeMessages=false,
   // сами сообщения — пагинированным /messages. Это не тащит весь длинный чат.
+  //
+  // Возвращает уложенные в чат пузыри — их читает тот, кому мало самой загрузки:
+  // догоняющая сверка прогона достаёт из них вызовы инструментов, чьи события прошли
+  // мимо (см. useChatEventStream). undefined — загрузка не состоялась (уже идёт) или
+  // упала; на такой ответ рассчитывать нельзя.
   const loadMessages = useCallback(
     async (chatId) => {
       if (loadingMessagesRef.current.has(chatId)) return;
@@ -178,6 +183,7 @@ export default function useChatMessages({ chats, getChats, setChats, activeChatI
         ]);
         const { bubbles, leadingMetas } = transformPage(page.messages);
         const activeRunId = activeRun?.runId || null;
+        const messages = activeRunId ? trimActiveRunTail(bubbles) : bubbles;
 
         failedChatIdsRef.current.delete(chatId);
         setChats((prev) =>
@@ -185,7 +191,7 @@ export default function useChatMessages({ chats, getChats, setChats, activeChatI
             chat.id === chatId
               ? {
                   ...chat,
-                  messages: activeRunId ? trimActiveRunTail(bubbles) : bubbles,
+                  messages,
                   runId: activeRunId,
                   hasMore: !!page.hasMore,
                   oldestCursor: page.oldestCursor || null,
@@ -204,6 +210,7 @@ export default function useChatMessages({ chats, getChats, setChats, activeChatI
               : chat,
           ),
         );
+        return messages;
       } catch (err) {
         console.error('Ошибка загрузки сообщений:', err);
         const status = err.status || 'network';

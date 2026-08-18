@@ -154,7 +154,7 @@ describe('useChatEventStream doc/file mutation detection', () => {
 describe('useChatEventStream stale run reconciliation', () => {
   let chats;
 
-  function setup({ runId = 'r1', activeRun = {} } = {}) {
+  function setup({ runId = 'r1', activeRun = {}, reloaded } = {}) {
     chats = [{ id: 'c1', messages: [{ mid: 1 }], runId, notFound: false, loadError: false }];
     chatApi.getActiveRun.mockResolvedValue(activeRun);
     openChatEventStream.mockImplementation(() => () => {});
@@ -162,8 +162,10 @@ describe('useChatEventStream stale run reconciliation', () => {
     const setChats = vi.fn((fn) => {
       chats = typeof fn === 'function' ? fn(chats) : fn;
     });
-    const reloadMessages = vi.fn();
+    const reloadMessages = vi.fn().mockResolvedValue(reloaded);
     const onRunSettled = vi.fn();
+    const onDocChanged = vi.fn();
+    const onFileChanged = vi.fn();
 
     const view = renderHook(() =>
       useChatEventStream({
@@ -175,10 +177,12 @@ describe('useChatEventStream stale run reconciliation', () => {
         onChatDeleted: vi.fn(),
         onRunSettled,
         reloadMessages,
+        onDocChanged,
+        onFileChanged,
       }),
     );
 
-    return { view, setChats, reloadMessages, onRunSettled };
+    return { view, setChats, reloadMessages, onRunSettled, onDocChanged, onFileChanged };
   }
 
   afterEach(() => {
@@ -223,5 +227,99 @@ describe('useChatEventStream stale run reconciliation', () => {
     await act(async () => {});
 
     expect(chatApi.getActiveRun).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The TOOL_CALLS events of a run missed in the background carried the knowledge
+ * base / files cache invalidation too (see App.jsx). They are gone with the hub's
+ * event log, so the same tool call metas are read back from the reloaded history:
+ * otherwise a document the assistant wrote while another chat was open would keep
+ * showing its stale preview and tree row.
+ */
+describe('useChatEventStream stale run cache invalidation', () => {
+  let chats;
+
+  function setup({ activeRun = {}, reloaded = [] } = {}) {
+    chats = [{ id: 'c1', messages: [{ mid: 1 }], runId: 'r1', notFound: false, loadError: false }];
+    chatApi.getActiveRun.mockResolvedValue(activeRun);
+    openChatEventStream.mockImplementation(() => () => {});
+
+    const reloadMessages = vi.fn().mockResolvedValue(reloaded);
+    const onDocChanged = vi.fn();
+    const onFileChanged = vi.fn();
+
+    renderHook(() =>
+      useChatEventStream({
+        activeChatId: 'c1',
+        activeMessagesReady: true,
+        getChats: () => chats,
+        isLocalClientId: () => false,
+        setChats: vi.fn((fn) => {
+          chats = typeof fn === 'function' ? fn(chats) : fn;
+        }),
+        onChatDeleted: vi.fn(),
+        onRunSettled: vi.fn(),
+        reloadMessages,
+        onDocChanged,
+        onFileChanged,
+      }),
+    );
+
+    return { onDocChanged, onFileChanged };
+  }
+
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  test('invalidates the caches for the mutations of the run that finished unseen', async () => {
+    const { onDocChanged, onFileChanged } = setup({
+      reloaded: [
+        {
+          sender: 'ai',
+          toolCallsRunId: 'r1',
+          toolCalls: [
+            { name: 'updateDocument', status: 'OK', resultMeta: { id: 55, parent: 7 } },
+            { name: 'editFile', status: 'OK', resultMeta: { path: 'src/App.java', operation: 'edit' } },
+          ],
+        },
+      ],
+    });
+
+    await act(async () => {});
+
+    expect(onDocChanged).toHaveBeenCalledWith([expect.objectContaining({ id: '55', action: 'updateDocument' })]);
+    expect(onFileChanged).toHaveBeenCalledWith([expect.objectContaining({ path: 'src/App.java' })]);
+  });
+
+  test('takes only the missed run: earlier runs of the same chat were invalidated when they happened', async () => {
+    const { onDocChanged } = setup({
+      reloaded: [
+        {
+          sender: 'ai',
+          toolCallsRunId: 'r0',
+          toolCalls: [{ name: 'createDocument', status: 'OK', resultMeta: { id: 1 } }],
+        },
+        {
+          sender: 'ai',
+          toolCallsRunId: 'r1',
+          toolCalls: [{ name: 'createDocument', status: 'OK', resultMeta: { id: 2 } }],
+        },
+      ],
+    });
+
+    await act(async () => {});
+
+    expect(onDocChanged).toHaveBeenCalledWith([expect.objectContaining({ id: '2' })]);
+  });
+
+  test('a run that turned out to be alive touches no caches', async () => {
+    const { onDocChanged, onFileChanged } = setup({ activeRun: { runId: 'r1' } });
+
+    await act(async () => {});
+
+    expect(onDocChanged).not.toHaveBeenCalled();
+    expect(onFileChanged).not.toHaveBeenCalled();
   });
 });

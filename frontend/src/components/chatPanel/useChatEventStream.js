@@ -5,8 +5,19 @@ import { applyChatEvent } from './chatEventReducer';
 import chatApi from '../../api/chatApi';
 import { DRAFT_CHAT_ID } from '../../constants/storage';
 import { CHAT_EVENT } from '../../constants/chatEventTypes';
-import { TOOL_STATUS } from '../../constants/toolStatus';
-import { getDocChangeRef, getFileChangeRefs } from './toolMeta';
+import { collectChangeRefs } from './toolMeta';
+
+// Мутации ОДНОГО прогона по загруженной истории: вызовы инструментов лежат у пузырей
+// ассистента с его runId (см. transformPage). Дальше последней страницы не смотрим —
+// начало очень длинного прогона могло уехать в ещё не догруженные страницы, и там
+// найденное уже не окупает лишних запросов.
+const runChangeRefs = (msgs, runId) => {
+  const calls = [];
+  for (const m of msgs || []) {
+    if (m.toolCallsRunId === runId) calls.push(...(m.toolCalls || []));
+  }
+  return collectChangeRefs(calls);
+};
 
 /**
  * Подписка на поток событий активного чата: стриминг ответа + синхронизация между
@@ -28,10 +39,13 @@ import { getDocChangeRef, getFileChangeRefs } from './toolMeta';
  * @param {Function} p.onChatDeleted        (chatId) => void — внешнее удаление чата
  * @param {Function} p.onRunSettled         (chatId) => void — RUN_DONE/STOPPED/ERROR, а также
  *                                           когда прогон обнаружился завершённым без нас
- * @param {Function} p.reloadMessages       (chatId) => void — перезагрузка истории
+ * @param {Function} p.reloadMessages       (chatId) => Promise<Array|undefined> — перезагрузка
+ *                                           истории; вернувшиеся пузыри нужны для догоняющей
+ *                                           инвалидации кэшей (см. settleStaleRun)
  * @param {Function} [p.onDocChanged]       (refs) => void — успешные doc-мутации инструментов
  *                                           (createDocument/updateDocument/...) из ОДНОГО TOOL_CALLS
- *                                           события, refs — непустой массив из getDocChangeRef.
+ *                                           события (или из истории того же прогона, если событие
+ *                                           прошло мимо), refs — непустой массив из getDocChangeRef.
  *                                           Один вызов на событие (а не один на tool call): несколько
  *                                           setState подряд в одном тике React 18 схлопнёт до
  *                                           последнего, так что раздельные вызовы потеряли бы все
@@ -75,12 +89,22 @@ export default function useChatEventStream({
 
     let cancelled = false;
 
+    // Один вызов колбэка со ВСЕМ списком, а не по одному на tool call — см. JSDoc выше.
+    const fireChangeRefs = ({ docRefs, fileRefs }) => {
+      if (docRefs.length > 0) onDocChanged?.(docRefs);
+      if (fileRefs.length > 0) onFileChanged?.(fileRefs);
+    };
+
     // Прогон, который UI считает идущим, на бэке уже не тот (завершился или сменился
     // новым): показываем ответ из БД, разблокируем ввод и переоткрываем поток с нуля.
-    const settleStaleRun = () => {
+    const settleStaleRun = (staleRunId) => {
       seqByChatRef.current.delete(chatId);
       setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, runId: null } : c)));
-      reloadMessages(chatId);
+      // Вместе с событиями прогона мимо прошли и его doc/file-мутации, а кэши базы знаний
+      // и файлов ждут именно их. Достаём те же metas из перезагруженной истории — она и
+      // так грузится, отдельного запроса не нужно. Инвалидируем независимо от того, ушёл
+      // ли пользователь дальше (cancelled): кэши общие для всего приложения.
+      Promise.resolve(reloadMessages(chatId)).then((msgs) => fireChangeRefs(runChangeRefs(msgs, staleRunId)));
       onRunSettled(chatId);
       setResyncTick((n) => n + 1);
     };
@@ -95,7 +119,7 @@ export default function useChatEventStream({
           const cur = getChats().find((c) => c.id === chatId);
           if (!cur?.runId) return; // поток уже закрыл прогон сам — сверять нечего
           if (r?.runId === cur.runId) return; // прогон жив — поток догонит пропущенное сам
-          settleStaleRun();
+          settleStaleRun(cur.runId);
         })
         .catch(() => {});
 
@@ -117,20 +141,8 @@ export default function useChatEventStream({
         setChats((prev) => prev.map((c) => (c.id === chatId ? applyChatEvent(c, ev, ctx) : c)));
         // Итоговые metas прогона: resultMeta появляется только здесь (см. toolMeta.js), не в
         // живом TOOL_CALL — поэтому детектируем doc/file-мутации на этом событии.
-        if (ev.type === CHAT_EVENT.TOOL_CALLS && (onDocChanged || onFileChanged)) {
-          const docRefs = [];
-          const fileRefs = [];
-          for (const tc of ev.payload?.toolCalls || []) {
-            const docRef = getDocChangeRef(tc);
-            if (docRef && docRef.status !== TOOL_STATUS.ERROR) docRefs.push(docRef);
-            // Один вызов может принести несколько правок: runScript пишет пачкой.
-            for (const fileRef of getFileChangeRefs(tc)) {
-              if (fileRef.status !== TOOL_STATUS.ERROR) fileRefs.push(fileRef);
-            }
-          }
-          // Один вызов колбэка со ВСЕМ списком, а не по одному на tool call — см. JSDoc выше.
-          if (docRefs.length > 0) onDocChanged?.(docRefs);
-          if (fileRefs.length > 0) onFileChanged?.(fileRefs);
+        if (ev.type === CHAT_EVENT.TOOL_CALLS) {
+          fireChangeRefs(collectChangeRefs(ev.payload?.toolCalls));
         }
         if (ev.type === 'RUN_DONE' || ev.type === 'RUN_STOPPED' || ev.type === 'RUN_ERROR') {
           // Прогон завершён: хаб очистит свой лог, а следующий прогон в этом чате начнёт

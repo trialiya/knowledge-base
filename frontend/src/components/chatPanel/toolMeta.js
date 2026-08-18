@@ -1,6 +1,8 @@
 // Что чат достаёт из результата вызова инструмента, чтобы показать под ответом ИИ
 // блок изменений. Имена, иконки и лейблы инструментов — в common/toolNames.js.
 
+import { TOOL_STATUS } from '../../constants/toolStatus';
+
 // ── Документные мутации ───────────────────────────────────────────────────────
 // Инструменты, которые меняют документ и возвращают resultMeta { id, version }.
 // Для них в конце ответа ИИ показываем блок «посмотреть изменения» (см. MessageList.jsx),
@@ -72,4 +74,29 @@ export const getDocChangeRef = (tc) => {
     action: tc.name,
     status: tc.status,
   };
+};
+
+/**
+ * Успешные doc/file-мутации набора вызовов инструментов — вход для инвалидации кэшей
+ * базы знаний и файлов (см. App.jsx). Ошибочный вызов откатан на бэке, инвалидировать
+ * по нему нечего, поэтому такие записи отсеиваем.
+ *
+ * Один общий сбор на два источника: живые события прогона и его же вызовы, вычитанные
+ * из истории, когда события прошли мимо (см. useChatEventStream).
+ *
+ * @param {Array} toolCalls вызовы в форме metaToCall/TOOL_CALLS-события
+ * @returns {{ docRefs: Array, fileRefs: Array }} оба массива могут быть пустыми
+ */
+export const collectChangeRefs = (toolCalls) => {
+  const docRefs = [];
+  const fileRefs = [];
+  for (const tc of toolCalls || []) {
+    const docRef = getDocChangeRef(tc);
+    if (docRef && docRef.status !== TOOL_STATUS.ERROR) docRefs.push(docRef);
+    // Один вызов может принести несколько правок: runScript пишет пачкой.
+    for (const fileRef of getFileChangeRefs(tc)) {
+      if (fileRef.status !== TOOL_STATUS.ERROR) fileRefs.push(fileRef);
+    }
+  }
+  return { docRefs, fileRefs };
 };
