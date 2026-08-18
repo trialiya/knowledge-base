@@ -144,9 +144,10 @@ public class ChatConfig {
      * filesystem, no host classes and no threads (see {@code ScriptRunner}).
      *
      * <p>Whether scripts may also write is a second decision, made by {@code ScriptEditPolicy} from
-     * {@code kb.git.edit-enabled} + a writable tree + {@code kb.script.edit-enabled}. When the tool
-     * is absent, {@code ScriptGuideService} also yields an empty prompt fragment, so the model is
-     * never told about a tool it does not have.
+     * the project's own permission ({@code GitRegistry#editsAllowed} — configured plus a writable
+     * tree) and {@code kb.script.edit-enabled}. When the tool is absent, {@code ScriptGuideService}
+     * also yields an empty prompt fragment, so the model is never told about a tool it does not
+     * have.
      */
     @Bean
     @ConditionalOnProperty(prefix = "kb.script", name = "enabled", havingValue = "true")
@@ -290,8 +291,8 @@ public class ChatConfig {
                                 new AttachmentFunction(attachmentService)));
         // Present only when kb.search.subagent.enabled=true (see searchAgentService bean).
         searchAgentService.ifAvailable(svc -> functions.add(new SearchAgentFunction(svc)));
-        // Present only when kb.git.edit-enabled=true AND the tree is writable (see gitEditFunction
-        // bean) — in read-only mode the edit tools are not offered to the model at all.
+        // Present only when some project accepts writes (see gitEditFunction bean) — with none,
+        // the edit tools are not offered to the model at all.
         gitEditFunction.ifAvailable(functions::add);
         // Present only when kb.script.enabled=true (see scriptFunction bean).
         scriptFunction.ifAvailable(functions::add);

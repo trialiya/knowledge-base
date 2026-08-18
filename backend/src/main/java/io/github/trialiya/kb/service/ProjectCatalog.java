@@ -122,8 +122,15 @@ public class ProjectCatalog {
             if (!ids.add(id)) {
                 throw new IllegalStateException("kb.projects: duplicate id \"" + id + "\"");
             }
+            // Blank rather than absent is the shape an unconfigured deployment arrives in: the
+            // shipped yaml fills this from PROJECT_PATH, falling back to kb.git.project-path and
+            // then to nothing at all.
             if (!StringUtils.hasText(option.path())) {
-                throw new IllegalStateException("kb.projects[" + id + "]: path is required");
+                throw new IllegalStateException(
+                        "No project configured: kb.projects["
+                                + id
+                                + "].path is empty — set it, or PROJECT_PATH / the legacy"
+                                + " kb.git.project-path it defaults to");
             }
             resolved.add(
                     new Project(

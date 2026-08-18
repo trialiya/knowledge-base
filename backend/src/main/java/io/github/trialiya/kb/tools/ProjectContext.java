@@ -14,9 +14,10 @@ import org.springframework.ai.chat.model.ToolContext;
  * in something it has no way to know.
  *
  * <p>Nothing puts the key in yet: the chat has no project of its own until the selection is wired
- * (per-chat storage, endpoint, links). Absent means "the caller does not know", which {@code
- * GitRegistry} answers with the default project, so every tool already routes through the project
- * that a single-project deployment has.
+ * (per-chat storage, endpoint, links) — the search sub-agent only passes on whatever its parent run
+ * carried. Absent means "the caller does not know", which {@code GitRegistry} answers with the
+ * default project, so every tool already routes through the project a single-project deployment
+ * has.
  */
 public final class ProjectContext {
 

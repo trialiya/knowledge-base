@@ -102,7 +102,7 @@ class ProjectCatalogTest {
                                         List.of(new ProjectOption("kb", null, " ", null)),
                                         legacy(null, false)))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("path is required");
+                .hasMessageContaining("No project configured");
     }
 
     @Test

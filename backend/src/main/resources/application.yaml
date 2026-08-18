@@ -159,7 +159,7 @@ kb:
       label: ${PROJECT_LABEL:Project}
       # The Git repository indexed and served to the chat model (GitFunction/GitEditFunction).
       # kb.git.project-path is the pre-kb.projects spelling of the same thing and still works.
-      path: ${PROJECT_PATH:${kb.git.project-path}}
+      path: ${PROJECT_PATH:${kb.git.project-path:}}
       # Whether the edit tools may write to THIS repository; omitted — kb.git.edit-enabled below.
       # edit-enabled: false
   git:

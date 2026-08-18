@@ -2,11 +2,14 @@ package io.github.trialiya.kb.utils;
 
 import static io.github.trialiya.kb.functions.TopicFunction.USER_NAME;
 
+import io.github.trialiya.kb.tools.ProjectContext;
 import io.github.trialiya.kb.tools.RunCancellation;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.security.core.Authentication;
@@ -28,7 +31,23 @@ public class ChatUtils {
 
     // todo this is temporarily
     public static Map<String, Object> buildContext(String conversationId) {
-        return Map.of(ChatMemory.CONVERSATION_ID, conversationId, USER_NAME, getUser());
+        return buildContext(conversationId, (String) null);
+    }
+
+    /**
+     * As {@link #buildContext(String)}, plus the project the caller works on — {@code null} when it
+     * does not know one, which every caller does today and which tools read as "the default
+     * project" (see {@link ProjectContext}, {@code GitRegistry}).
+     */
+    public static Map<String, Object> buildContext(
+            String conversationId, @Nullable String projectId) {
+        Map<String, Object> context = new LinkedHashMap<>();
+        context.put(ChatMemory.CONVERSATION_ID, conversationId);
+        context.put(USER_NAME, getUser());
+        if (projectId != null) {
+            context.put(ProjectContext.KEY, projectId);
+        }
+        return Map.copyOf(context);
     }
 
     public static Map<String, Object> buildContext(
