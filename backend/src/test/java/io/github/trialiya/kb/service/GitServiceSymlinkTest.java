@@ -3,7 +3,7 @@ package io.github.trialiya.kb.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import io.github.trialiya.kb.config.model.GitProperties;
+import io.github.trialiya.kb.support.TestProjects;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -36,7 +36,7 @@ class GitServiceSymlinkTest {
         runGit("config", "user.email", "test@example.com");
         runGit("config", "user.name", "Test");
         write(outsideDir.resolve("secret.txt"), "PRIVATE KEY");
-        service = new GitService(new GitProperties(repoDir.toString(), true), new OutlineService());
+        service = TestProjects.gitService(repoDir, true);
     }
 
     @Test

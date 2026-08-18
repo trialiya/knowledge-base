@@ -74,15 +74,19 @@ kb:
       model-id: ${KB_SEARCH_SUBAGENT_MODEL:${kb.chat.default-model.id}}
 
   # ── Git project ──────────────────────────────────────────────────────────────
+  # Exactly one project is supported for now; a second entry fails startup.
+  projects:
+    - id: default
+      label: Project
+      # Absolute path to the repository root that will be indexed.
+      # Relative paths are resolved from the working directory of the JVM process,
+      # which is the run/ folder when started by the bundled scripts.
+      # Examples:
+      #   path: ..                   # parent of run/ (repo root)
+      #   path: /home/user/my-repo
+      #   path: C:/projects/my-repo
+      path: ..
   git:
-    # Absolute path to the repository root that will be indexed.
-    # Relative paths are resolved from the working directory of the JVM process,
-    # which is the run/ folder when started by the bundled scripts.
-    # Examples:
-    #   project-path: ..                   # parent of run/ (repo root)
-    #   project-path: /home/user/my-repo
-    #   project-path: C:/projects/my-repo
-    project-path: ..
     # Set to true to expose createFile/editFile tools to the chat model.
     edit-enabled: false
   # ── Document export ───────────────────────────────────────────────────────────

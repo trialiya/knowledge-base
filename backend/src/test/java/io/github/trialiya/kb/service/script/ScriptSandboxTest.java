@@ -6,14 +6,13 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.model.doc.dto.SearchResult;
 import io.github.trialiya.kb.model.script.ScriptError;
 import io.github.trialiya.kb.model.script.ScriptResult;
 import io.github.trialiya.kb.service.DocumentService;
-import io.github.trialiya.kb.service.GitService;
-import io.github.trialiya.kb.service.OutlineService;
+import io.github.trialiya.kb.service.GitRegistry;
+import io.github.trialiya.kb.support.TestProjects;
 import io.github.trialiya.kb.tools.RunCancellation;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -68,13 +67,12 @@ class ScriptSandboxTest {
 
     private ScriptRunner newRunner(
             ScriptProperties properties, @Nullable DocumentService documentService) {
-        GitProperties gitProperties = new GitProperties(repoDir.toString(), false);
-        GitService gitService = new GitService(gitProperties, new OutlineService());
+        GitRegistry gitRegistry = TestProjects.registry(repoDir, false);
         return new ScriptRunner(
-                gitService,
+                gitRegistry,
                 documentService,
                 properties,
-                new ScriptEditPolicy(gitProperties, properties, gitService));
+                new ScriptEditPolicy(gitRegistry, properties));
     }
 
     private ScriptResult run(String script) {

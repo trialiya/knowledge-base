@@ -149,11 +149,23 @@ kb:
   documents:
     export-path: ${DOCUMENTS_EXPORT_PATH}
     replace: true
+  # Repositories the assistant reads and (optionally) edits. Exactly ONE entry is supported for
+  # now and a second one fails startup (ProjectCatalog): nothing chooses between projects yet —
+  # not a chat, not an endpoint, not a link — so it would be configuration that does nothing.
+  # Everything downstream already addresses repositories by project id, and a caller that names
+  # none (every caller today) gets the first entry here.
+  projects:
+    - id: default
+      label: ${PROJECT_LABEL:Project}
+      # The Git repository indexed and served to the chat model (GitFunction/GitEditFunction).
+      # kb.git.project-path is the pre-kb.projects spelling of the same thing and still works.
+      path: ${PROJECT_PATH:${kb.git.project-path}}
+      # Whether the edit tools may write to THIS repository; omitted — kb.git.edit-enabled below.
+      # edit-enabled: false
   git:
-    # Path to the Git repository indexed and served to the chat model (GitFunction/GitEditFunction).
-    project-path: ${PROJECT_PATH}
-    # Expose file edit tools (createFile/editFile) to the chat model. Default off — read-only.
-    # Even when true, the tools are withheld if the working tree is not writable (ro mount).
+    # Default for kb.projects[].edit-enabled: expose file edit tools (createFile/editFile) to the
+    # chat model. Default off — read-only. Even when true, the tools are withheld if the working
+    # tree is not writable (ro mount).
     edit-enabled: ${KB_GIT_EDIT_ENABLED:false}
   script:
     # The runScript tool: the model writes a short JS script that walks the repository itself,

@@ -3,10 +3,9 @@ package io.github.trialiya.kb.service.script;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.config.model.ScriptProperties;
-import io.github.trialiya.kb.service.GitService;
-import io.github.trialiya.kb.service.OutlineService;
+import io.github.trialiya.kb.service.GitRegistry;
+import io.github.trialiya.kb.support.TestProjects;
 import io.github.trialiya.kb.tools.RunCancellation;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -38,8 +37,7 @@ class ScriptCancellationTest {
         runGit("init", "-q");
         runGit("config", "user.email", "test@example.com");
         runGit("config", "user.name", "Test");
-        GitProperties gitProperties = new GitProperties(repoDir.toString(), false);
-        GitService gitService = new GitService(gitProperties, new OutlineService());
+        GitRegistry gitRegistry = TestProjects.registry(repoDir, false);
         ScriptProperties properties =
                 new ScriptProperties(
                         true,
@@ -58,10 +56,10 @@ class ScriptCancellationTest {
                         null);
         runner =
                 new ScriptRunner(
-                        gitService,
+                        gitRegistry,
                         null,
                         properties,
-                        new ScriptEditPolicy(gitProperties, properties, gitService));
+                        new ScriptEditPolicy(gitRegistry, properties));
     }
 
     @Test

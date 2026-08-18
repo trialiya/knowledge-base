@@ -21,7 +21,7 @@ import io.github.trialiya.kb.service.ChatEventService;
 import io.github.trialiya.kb.service.ChatMemoryService;
 import io.github.trialiya.kb.service.ContextItemService;
 import io.github.trialiya.kb.service.DocumentService;
-import io.github.trialiya.kb.service.GitService;
+import io.github.trialiya.kb.service.GitRegistry;
 import io.github.trialiya.kb.service.ScriptGuideService;
 import io.github.trialiya.kb.service.SearchAgentService;
 import io.github.trialiya.kb.service.script.ScriptCancelledException;
@@ -108,36 +108,34 @@ public class ChatConfig {
     }
 
     @Bean
-    public GitFunction gitFunction(GitService gitService) {
-        return new GitFunction(gitService);
+    public GitFunction gitFunction(GitRegistry gitRegistry) {
+        return new GitFunction(gitRegistry);
     }
 
     /**
-     * Working-tree edit tools ({@code createFile}/{@code editFile}). Two gates, both required:
+     * Working-tree edit tools ({@code createFile}/{@code editFile}). Exposed when <em>some</em>
+     * project accepts writes — configured for it ({@code kb.projects[].edit-enabled}, defaulting to
+     * {@code kb.git.edit-enabled}) and its working tree actually writable. With none, the bean
+     * method returns {@code null} (Spring then registers no bean), so the model never sees tools
+     * that could only fail with an I/O error.
      *
-     * <ul>
-     *   <li>{@code kb.git.edit-enabled=true} — explicit opt-in, default off;
-     *   <li>the working tree is actually writable — with a read-only mount the bean method returns
-     *       {@code null} (Spring then registers no bean), so the model never sees tools that could
-     *       only fail with an I/O error.
-     * </ul>
+     * <p>Presence is therefore a weaker statement than it used to be: it says the tools are worth
+     * offering, not that any given project accepts them. A call naming a read-only project is
+     * refused by {@code GitRegistry#requireEditable}, through the tool error channel.
      *
-     * When absent, {@code chatClient} simply omits the tools — read-only mode needs no other
+     * <p>When absent, {@code chatClient} simply omits the tools — read-only mode needs no other
      * configuration. The search sub-agent is unaffected either way: its {@code allowed-tools} list
      * is an explicit allow-list of read-only tools.
      */
     @Bean
-    @ConditionalOnProperty(prefix = "kb.git", name = "edit-enabled", havingValue = "true")
     @Nullable
-    public GitEditFunction gitEditFunction(GitService gitService) {
-        if (!gitService.isRepoWritable()) {
-            log.warn(
-                    "kb.git.edit-enabled=true, but the repository working tree is not writable "
-                            + "(read-only mount?) — file edit tools are NOT exposed to the model");
+    public GitEditFunction gitEditFunction(GitRegistry gitRegistry) {
+        if (!gitRegistry.anyEditable()) {
+            log.info("File edit tools are NOT exposed to the model: no project accepts writes");
             return null;
         }
         log.info("Git edit tools enabled (createFile/editFile)");
-        return new GitEditFunction(gitService);
+        return new GitEditFunction(gitRegistry);
     }
 
     /**

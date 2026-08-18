@@ -2,10 +2,14 @@ package io.github.trialiya.kb.tools;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.trialiya.kb.service.GitRegistry;
+import io.github.trialiya.kb.service.GitService;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -104,6 +108,17 @@ class ToolArgumentGapsTest {
     }
 
     private static Object stubbed(Class<?> dependency) {
+        // A registry hands out collaborators rather than being one: mocked flat it would answer
+        // every lookup with null and the tool would die on the resolution instead of on the empty
+        // arguments this class is about. So it resolves — to a mocked repository, like every other
+        // dependency here.
+        if (dependency == GitRegistry.class) {
+            final GitRegistry registry = mock(GitRegistry.class);
+            final GitService gitService = mock(GitService.class);
+            when(registry.forProject(any())).thenReturn(gitService);
+            when(registry.requireEditable(any())).thenReturn(gitService);
+            return registry;
+        }
         if (!dependency.isPrimitive()) {
             return mock(dependency);
         }

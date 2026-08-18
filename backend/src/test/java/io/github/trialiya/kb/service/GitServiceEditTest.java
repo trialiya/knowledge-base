@@ -3,8 +3,8 @@ package io.github.trialiya.kb.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.model.git.dto.GitEditResult;
+import io.github.trialiya.kb.support.TestProjects;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -31,8 +31,7 @@ class GitServiceEditTest {
         runGit("init", "-q");
         runGit("config", "user.email", "test@example.com");
         runGit("config", "user.name", "Test");
-        service =
-                new GitService(new GitProperties(repoDir.toString(), false), new OutlineService());
+        service = TestProjects.gitService(repoDir, false);
     }
 
     // ── createFile ───────────────────────────────────────────────────────────

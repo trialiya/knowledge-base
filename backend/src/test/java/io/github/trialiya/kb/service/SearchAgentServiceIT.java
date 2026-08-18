@@ -7,10 +7,10 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.config.model.SubAgentConfig;
 import io.github.trialiya.kb.functions.GitFunction;
 import io.github.trialiya.kb.model.search.SearchAgentResult;
+import io.github.trialiya.kb.support.TestProjects;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -74,8 +74,7 @@ class SearchAgentServiceIT {
         git("add", "-A");
         git("commit", "-q", "-m", "init");
 
-        GitService gitService =
-                new GitService(new GitProperties(repo.toString(), false), new OutlineService());
+        GitRegistry gitRegistry = TestProjects.registry(repo, false);
 
         Set<String> allowed =
                 Set.of(
@@ -85,7 +84,7 @@ class SearchAgentServiceIT {
                         "getFileOutline",
                         "getFileContent");
         readOnlyTools =
-                Stream.of(ToolCallbacks.from(new GitFunction(gitService)))
+                Stream.of(ToolCallbacks.from(new GitFunction(gitRegistry)))
                         .filter(cb -> allowed.contains(cb.getToolDefinition().name()))
                         .toArray(ToolCallback[]::new);
 

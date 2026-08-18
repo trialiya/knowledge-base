@@ -6,6 +6,7 @@ import static io.github.trialiya.kb.tools.ToolArgs.requireText;
 import io.github.trialiya.kb.model.script.ScriptResult;
 import io.github.trialiya.kb.service.script.ScriptRunner;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
+import io.github.trialiya.kb.tools.ProjectContext;
 import io.github.trialiya.kb.tools.RunCancellation;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import lombok.AccessLevel;
@@ -90,7 +91,8 @@ public class ScriptFunction {
                         timeout,
                         RunCancellation.from(context),
                         forceReadOnly,
-                        ToolInvocationCollector.from(context));
+                        ToolInvocationCollector.from(context),
+                        ProjectContext.from(context));
         log.info("runScript finished: {}", result.getFormattedResponse());
         return result;
     }
