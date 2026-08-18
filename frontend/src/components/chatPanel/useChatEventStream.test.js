@@ -323,3 +323,79 @@ describe('useChatEventStream stale run cache invalidation', () => {
     expect(onFileChanged).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * The order inside settleStaleRun. Both hazards below end the same way — the run the
+ * user came back for is on screen, but half of it is missing — and neither shows up
+ * as an error anywhere.
+ */
+describe('useChatEventStream stale run resubscribe order', () => {
+  let chats;
+  let subscriptions;
+
+  function setup({ reload }) {
+    chats = [{ id: 'c1', messages: [{ mid: 1 }], runId: 'r1', notFound: false, loadError: false }];
+    chatApi.getActiveRun.mockResolvedValue({});
+    subscriptions = [];
+    openChatEventStream.mockImplementation((chatId, cb) => {
+      // prevClosed — состояние прошлой подписки на момент открытия этой: закрыть старый
+      // поток надо ДО переоткрытия, иначе он ещё успевает двигать курсор и писать в чат.
+      const sub = { ...cb, closed: false, prevClosed: subscriptions.at(-1)?.closed ?? null };
+      subscriptions.push(sub);
+      return () => {
+        sub.closed = true;
+      };
+    });
+
+    renderHook(() =>
+      useChatEventStream({
+        activeChatId: 'c1',
+        activeMessagesReady: true,
+        getChats: () => chats,
+        isLocalClientId: () => false,
+        setChats: vi.fn((fn) => {
+          chats = typeof fn === 'function' ? fn(chats) : fn;
+        }),
+        onChatDeleted: vi.fn(),
+        onRunSettled: vi.fn(),
+        reloadMessages: reload,
+      }),
+    );
+  }
+
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  test('resubscribes only once the reloaded history is in place', async () => {
+    // Поток подключается ТОЛЬКО поверх загруженной истории: реплей, легший в старые
+    // messages, затёрла бы пришедшая следом страница из БД.
+    let finishReload;
+    setup({ reload: vi.fn(() => new Promise((resolve) => (finishReload = () => resolve([])))) });
+
+    await act(async () => {});
+    expect(subscriptions).toHaveLength(1);
+
+    await act(async () => finishReload());
+    expect(subscriptions).toHaveLength(2);
+    expect(subscriptions[1].fromSeq).toBe(0);
+  });
+
+  test('closes the old stream as soon as the run turns out to be stale', async () => {
+    // Пока поток открыт, он продолжает двигать курсор seq и писать события в чат: дожить
+    // до уборки эффекта (целый рендер спустя) он не должен — за это время он и вернул бы
+    // выброшенный курсор, и попал бы под затирающую перезагрузку истории.
+    let finishReload;
+    setup({ reload: vi.fn(() => new Promise((resolve) => (finishReload = () => resolve([])))) });
+    const first = subscriptions[0];
+    first.onSeq(42); // прогон, за которым мы следили, успел дойти до seq=42
+
+    await act(async () => {});
+    expect(first.closed).toBe(true); // ещё до перезагрузки истории и переподписки
+
+    await act(async () => finishReload());
+    expect(subscriptions[1].prevClosed).toBe(true);
+    // Курсор выброшен и никем не восстановлен — новый прогон реплеится целиком.
+    expect(subscriptions[1].fromSeq).toBe(0);
+  });
+});
