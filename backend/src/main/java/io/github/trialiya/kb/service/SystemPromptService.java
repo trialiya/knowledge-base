@@ -10,10 +10,10 @@ import org.springframework.util.StreamUtils;
 
 /**
  * Provides the extended system prompt guidance for weak models. The base system prompt (reference
- * rules and tool selection) is loaded as {@code defaultSystem} in {@code
- * ChatConfig#chatClientBuilder} and applies to all models. This service provides only the extended
- * guidance (decision trees, workflow examples, common mistakes), which is injected via the {@code
- * {system_extended}} placeholder in the base system prompt.
+ * rules and tool selection) is loaded as {@code defaultSystem} in {@code ChatConfig#chatClient} and
+ * applies to all models. This service provides only the extended guidance (decision trees, workflow
+ * examples, common mistakes), which is injected via the {@code {system_extended}} placeholder in
+ * the base system prompt.
  *
  * <p>For weak models, the extended guidance is appended; for strong models, an empty string is
  * returned, saving context.

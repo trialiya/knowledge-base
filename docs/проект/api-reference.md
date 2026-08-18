@@ -458,13 +458,18 @@ runId активного прогона чата (или пустой объек
 **Response:** `ChatModelProperties`
 ```json
 {
-  "defaultModel": { "id": "gpt-4o", "label": "GPT-4o" },
+  "defaultModel": { "id": "gpt-4o", "label": "GPT-4o", "weak": false, "ownEndpoint": false },
   "models": [
-    { "id": "gpt-4o", "label": "GPT-4o" },
-    { "id": "gpt-4o-mini", "label": "GPT-4o Mini" }
+    { "id": "gpt-4o", "label": "GPT-4o", "weak": false, "ownEndpoint": false },
+    { "id": "gpt-4o-mini", "label": "GPT-4o Mini", "weak": true, "ownEndpoint": false },
+    { "id": "local-llm", "label": "Local", "weak": true, "ownEndpoint": true }
   ]
 }
 ```
+
+`ownEndpoint` — у модели свои `base-url`/`api-key` (см. «Модели чата» в
+[конфигурации](конфигурация.md)). Сами адрес и токен наружу не отдаются ни здесь, ни в
+`GET /api/settings/ai-config`.
 
 ---
 

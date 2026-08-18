@@ -10,6 +10,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.github.trialiya.kb.config.ChatClientRegistry;
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import java.time.Duration;
@@ -17,6 +18,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
@@ -153,7 +155,7 @@ class ChatRuntimeShutdownTest {
                                                                 new AssistantMessage("Привет"))))),
                                 Flux.never()));
         return new ChatRunService(
-                chatClient,
+                new ChatClientRegistry(chatClient, Map.of()),
                 chatMemory,
                 chatMemoryService,
                 mock(SummarizeService.class),

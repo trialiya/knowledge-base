@@ -19,11 +19,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * <p>{@code enabled} gates whether tools from connected MCP servers (see {@code
  * spring.ai.mcp.client.*}) are merged into the chat model's tool list — see {@code
- * ChatConfig.chatClientBuilder}. {@code bearerTokens} and {@code headers} keys match the connection
- * names under {@code spring.ai.mcp.client.sse.connections} / {@code .streamable-http.connections};
- * {@code bearerTokens} is applied as an {@code Authorization: Bearer <token>} header and {@code
- * headers} lets a connection send any additional header(s) a server requires on top of (or instead
- * of) that — see {@code McpClientConfig}.
+ * ChatConfig.chatClient}. {@code bearerTokens} and {@code headers} keys match the connection names
+ * under {@code spring.ai.mcp.client.sse.connections} / {@code .streamable-http.connections}; {@code
+ * bearerTokens} is applied as an {@code Authorization: Bearer <token>} header and {@code headers}
+ * lets a connection send any additional header(s) a server requires on top of (or instead of) that
+ * — see {@code McpClientConfig}.
  */
 @ConfigurationProperties(prefix = "kb.mcp")
 public record McpProperties(

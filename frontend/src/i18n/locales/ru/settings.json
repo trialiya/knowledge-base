@@ -47,7 +47,8 @@
     "available": {
       "label": "Доступные модели",
       "defaultBadge": "по умолчанию",
-      "weakBadge": "weak"
+      "weakBadge": "weak",
+      "ownEndpointBadge": "отдельное подключение"
     },
     "searchCodebase": {
       "label": "Агент поиска (searchCodebase)",

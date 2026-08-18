@@ -73,6 +73,9 @@ const ModelsSections = ({ config }) => {
               <span className="model-row__name">{m.id}</span>
               {m.label && m.label !== m.id && <span className="model-row__label">{m.label}</span>}
               {m.weak && <span className="config-badge">{t('models.available.weakBadge')}</span>}
+              {/* Модель отвечает не с общего эндпоинта: у неё свои base-url/api-key
+                  (kb.chat.models[].base-url). Сам адрес и токен наружу не отдаются. */}
+              {m.ownEndpoint && <span className="config-badge">{t('models.available.ownEndpointBadge')}</span>}
               {m.id === defaultId && <span className="config-badge">{t('models.available.defaultBadge')}</span>}
             </div>
           ))}

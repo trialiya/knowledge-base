@@ -10,11 +10,13 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.github.trialiya.kb.config.ChatClientRegistry;
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Executor;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,7 +53,7 @@ class ChatRunRetryTest {
         chatMemoryService = mock(ChatMemoryService.class);
         runService =
                 new ChatRunService(
-                        mock(ChatClient.class),
+                        new ChatClientRegistry(mock(ChatClient.class), Map.of()),
                         mock(ChatMemory.class),
                         chatMemoryService,
                         mock(SummarizeService.class),

@@ -1,5 +1,7 @@
 package io.github.trialiya.kb.config.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -17,8 +19,54 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
      *     script-run-extended.md} and its edit counterpart) spelled out — see {@code
      *     ScriptGuideService}. Defaults to {@code true} (the safe assumption for a model nobody has
      *     rated yet) when a deployment's config omits the field entirely.
+     * @param baseUrl the OpenAI-compatible endpoint this model lives behind. Omitted — the model is
+     *     served by {@code spring.ai.openai.base-url} with the deployment's own key, which is the
+     *     usual case. Set — the model gets a connection of its own (see {@code ChatModelRegistry}),
+     *     and then {@code apiKey} is mandatory: a foreign host and the default host's token is
+     *     never a combination anyone means, so it fails at startup rather than at the first
+     *     request.
+     * @param apiKey the token for this model. Inherited from {@code spring.ai.openai.api-key} when
+     *     absent. May be set on its own — same host, separate token (separate quota or account) —
+     *     but never omitted alongside a {@code baseUrl}.
      */
-    public record ModelOption(String id, String label, @DefaultValue("true") boolean weak) {}
+    public record ModelOption(
+            String id,
+            String label,
+            @DefaultValue("true") boolean weak,
+            @JsonIgnore @Nullable String baseUrl,
+            @JsonIgnore @Nullable String apiKey) {
+
+        public ModelOption {
+            baseUrl = trimToNull(baseUrl);
+            apiKey = trimToNull(apiKey);
+            if (baseUrl != null && apiKey == null) {
+                throw new IllegalArgumentException(
+                        "kb.chat.models["
+                                + id
+                                + "]: base-url is set, so api-key must be set too — a model on its"
+                                + " own host cannot borrow the default host's token");
+            }
+        }
+
+        /**
+         * Whether this model needs a connection of its own rather than the shared default one.
+         * Reported to the Settings panel (as {@code ownEndpoint}) because the URL and the token
+         * themselves are not: a panel that shows which model talks to a separate host leaks
+         * nothing, one that shows where and with what does.
+         */
+        @JsonProperty("ownEndpoint")
+        public boolean hasOwnEndpoint() {
+            return baseUrl != null || apiKey != null;
+        }
+
+        private static @Nullable String trimToNull(@Nullable String value) {
+            if (value == null) {
+                return null;
+            }
+            String trimmed = value.trim();
+            return trimmed.isEmpty() ? null : trimmed;
+        }
+    }
 
     public boolean isAllowed(@Nullable String id) {
         return id != null

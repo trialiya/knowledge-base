@@ -103,6 +103,12 @@ kb:
 #      - id: ${KB_CHAT_MODELS_0_ID}
 #        label: ${KB_CHAT_MODELS_0_LABEL}
 #        weak: ${KB_CHAT_MODELS_0_WEAK:true}
+#        # Own endpoint — optional. Omitted, the model is served by spring.ai.openai.base-url with
+#        # the same api-key. Set, it gets a connection of its own (ChatModelRegistry), and then
+#        # api-key is REQUIRED: a foreign host with the default host's token fails at startup.
+#        # api-key alone (no base-url) is allowed too: the same host, a separate token.
+#        base-url: ${KB_CHAT_MODELS_0_BASE_URL:}
+#        api-key: ${KB_CHAT_MODELS_0_API_KEY:}
     # Preset assistant modes: inject instruction fragments into the system prompt
     # (placeholder {mode_instructions} in prompt/sys.md). No mode → empty.
     modes:
