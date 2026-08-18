@@ -680,15 +680,18 @@
     profile: h2
     click: список групп «Настройки» → «Модели»
     data: |
-      Бэкенд поднят с AI_MODEL_WEAK=false и двумя доп. моделями:
+      Бэкенд поднят с AI_MODEL_WEAK=false и тремя доп. моделями:
       KB_CHAT_MODELS_0_ID=strong-model (weak=false),
-      KB_CHAT_MODELS_1_ID=weak-model (weak=true).
+      KB_CHAT_MODELS_1_ID=weak-model (weak=true),
+      KB_CHAT_MODELS_2_ID=remote-model (weak=false, со своими
+      KB_CHAT_MODELS_2_BASE_URL и KB_CHAT_MODELS_2_API_KEY).
   fixtures: ./fixtures/aiConfig.js#strongAndWeakModels
   expected:
     - 'В секции «Основная модель» под строкой модели — строка «Слабая модель (weak)» бейджем «да»/«нет» (не «включён»/«отключён»): это утверждение о модели, а не состояние функции'
     - Под ней пояснение мелким серым — что флаг меняет только объём руководства по runScript, и что по умолчанию true
     - 'В секции «Доступные модели» пилюля «weak» стоит только у weak-model; у strong-model её нет'
     - Пилюля «weak» и пилюля «по умолчанию» — один и тот же .config-badge и стоят в одной строке, weak первой
+    - 'У remote-model стоит пилюля «отдельное подключение»; ни base-url, ни api-key в панели не показаны — снимок их не содержит'
   notes: |
     Проверено на собранном jar с профилем h2 под Chromium (рецепт — в
     scripts/playwright-smoke.js), интерфейс был в английской локали.

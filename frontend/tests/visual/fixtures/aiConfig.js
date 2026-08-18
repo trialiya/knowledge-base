@@ -16,7 +16,7 @@
  */
 export const defaultAiConfig = {
   chat: {
-    defaultModel: { id: 'gpt-4o-mini', label: 'GPT-4o mini', weak: true },
+    defaultModel: { id: 'gpt-4o-mini', label: 'GPT-4o mini', weak: true, ownEndpoint: false },
     models: [],
     options: {
       maxTokens: 30000,
@@ -122,17 +122,20 @@ export const editEnabledButReadOnlyTree = {
 
 /**
  * Список моделей, в котором weak размечен по-разному: пилюля «weak» стоит у
- * одной строки и отсутствует у другой. На defaultAiConfig секции «Доступные
- * модели» нет вовсе — kb.chat.models пуст.
+ * одной строки и отсутствует у другой. Третья строка — модель со своим
+ * подключением (kb.chat.models[].base-url + api-key): наружу отдаётся только
+ * флаг ownEndpoint, ни адреса, ни токена в снимке нет. На defaultAiConfig
+ * секции «Доступные модели» нет вовсе — kb.chat.models пуст.
  */
 export const strongAndWeakModels = {
   ...defaultAiConfig,
   chat: {
     ...defaultAiConfig.chat,
-    defaultModel: { id: 'strong-model', label: 'Strong', weak: false },
+    defaultModel: { id: 'strong-model', label: 'Strong', weak: false, ownEndpoint: false },
     models: [
-      { id: 'strong-model', label: 'Strong', weak: false },
-      { id: 'weak-model', label: 'Weak', weak: true },
+      { id: 'strong-model', label: 'Strong', weak: false, ownEndpoint: false },
+      { id: 'weak-model', label: 'Weak', weak: true, ownEndpoint: false },
+      { id: 'remote-model', label: 'Remote', weak: false, ownEndpoint: true },
     ],
   },
 };

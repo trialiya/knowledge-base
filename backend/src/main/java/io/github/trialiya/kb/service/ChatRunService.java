@@ -10,6 +10,7 @@ import static io.github.trialiya.kb.model.chat.dto.ChatEventType.TOOL_CALLS;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.USER_MESSAGE;
 
 import com.openai.models.chat.completions.ChatCompletion;
+import io.github.trialiya.kb.config.ChatClientRegistry;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.StreamMessage;
 import io.github.trialiya.kb.model.chat.dto.ToolCallsMessage;
@@ -73,7 +74,7 @@ public class ChatRunService {
     /** Шаг опроса реестра прогонов в {@link #awaitQuiescence}. */
     private static final long QUIESCENCE_POLL_MS = 25;
 
-    private final ChatClient chatClient;
+    private final ChatClientRegistry chatClients;
     private final ChatMemory chatMemory;
     private final ChatMemoryService chatMemoryService;
     private final SummarizeService summarizeService;
@@ -90,7 +91,7 @@ public class ChatRunService {
             new ConcurrentHashMap<>();
 
     public ChatRunService(
-            ChatClient chatClient,
+            ChatClientRegistry chatClients,
             ChatMemory chatMemory,
             ChatMemoryService chatMemoryService,
             SummarizeService summarizeService,
@@ -98,7 +99,7 @@ public class ChatRunService {
             ScriptGuideService scriptGuideService,
             SystemPromptService systemPromptService,
             @Qualifier("chatRunExecutor") Executor executor) {
-        this.chatClient = chatClient;
+        this.chatClients = chatClients;
         this.chatMemory = chatMemory;
         this.chatMemoryService = chatMemoryService;
         this.summarizeService = summarizeService;
@@ -320,8 +321,11 @@ public class ChatRunService {
         events.publish(conversationId, RUN_STARTED, runId, clientMsgId, null);
 
         try {
+            // The client, not just the model option, follows the resolved model: an entry of
+            // kb.chat.models with its own base-url/api-key is served by a connection of its own.
             ChatClient.ChatClientRequestSpec spec =
-                    chatClient
+                    chatClients
+                            .forModel(resolvedModel)
                             .prompt()
                             .system(
                                     sp ->

@@ -6,6 +6,7 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
+import io.github.trialiya.kb.config.ChatClientRegistry;
 import io.github.trialiya.kb.config.model.ChatModeProperties;
 import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.model.chat.dto.Chat;
@@ -66,7 +67,7 @@ public class ChatController {
     private final ChatModelProperties chatModelProperties;
     private final ChatModeProperties chatModeProperties;
     private final ChatModeService chatModeService;
-    private final ChatClient chatClient;
+    private final ChatClientRegistry chatClients;
     private final ChatMemory chatMemory;
     private final ChatTopicRepository chatTopicRepository;
     private final ChatMemoryService chatMemoryService;
@@ -83,7 +84,7 @@ public class ChatController {
             ChatModelProperties chatModelProperties,
             ChatModeProperties chatModeProperties,
             ChatModeService chatModeService,
-            ChatClient chatClient,
+            ChatClientRegistry chatClients,
             ChatMemory chatMemory,
             ChatTopicRepository chatTopicRepository,
             ChatMemoryService chatMemoryService,
@@ -96,7 +97,7 @@ public class ChatController {
         this.chatModelProperties = chatModelProperties;
         this.chatModeProperties = chatModeProperties;
         this.chatModeService = chatModeService;
-        this.chatClient = chatClient;
+        this.chatClients = chatClients;
         this.chatMemory = chatMemory;
         this.chatTopicRepository = chatTopicRepository;
         this.chatMemoryService = chatMemoryService;
@@ -311,7 +312,8 @@ public class ChatController {
         final ToolInvocationCollector toolCollector = new ToolInvocationCollector();
 
         ChatClient.ChatClientRequestSpec spec =
-                chatClient
+                chatClients
+                        .forModel(resolvedModel)
                         .prompt()
                         .system(
                                 sp ->

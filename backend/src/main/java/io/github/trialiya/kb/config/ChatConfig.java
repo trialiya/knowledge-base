@@ -28,8 +28,12 @@ import io.github.trialiya.kb.service.script.ScriptCancelledException;
 import io.github.trialiya.kb.service.script.ScriptRunner;
 import io.github.trialiya.kb.tools.ChatToolset;
 import io.github.trialiya.kb.tools.RecordingToolCallback;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.observation.ObservationRegistry;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Stream;
@@ -42,9 +46,12 @@ import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.model.openai.autoconfigure.OpenAiChatProperties;
+import org.springframework.ai.model.openai.autoconfigure.OpenAiCommonProperties;
 import org.springframework.ai.model.tool.ToolCallingManager;
 import org.springframework.ai.model.tool.autoconfigure.ToolCallingProperties;
 import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.http.okhttp.OpenAiHttpClientBuilderCustomizer;
 import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
@@ -115,7 +122,7 @@ public class ChatConfig {
      *       only fail with an I/O error.
      * </ul>
      *
-     * When absent, {@code chatClientBuilder} simply omits the tools — read-only mode needs no other
+     * When absent, {@code chatClient} simply omits the tools — read-only mode needs no other
      * configuration. The search sub-agent is unaffected either way: its {@code allowed-tools} list
      * is an explicit allow-list of read-only tools.
      */
@@ -188,13 +195,13 @@ public class ChatConfig {
      * only git/document tools), which is the recursion guard.
      *
      * <p>Only wired when {@code kb.search.subagent.enabled=true}; when disabled the bean is absent
-     * entirely (so nothing reads {@code allowed-tools}) and {@code chatClientBuilder} simply omits
-     * the {@code searchCodebase} tool.
+     * entirely (so nothing reads {@code allowed-tools}) and {@code chatClient} simply omits the
+     * {@code searchCodebase} tool.
      */
     @Bean
     @ConditionalOnProperty(prefix = "kb.search.subagent", name = "enabled", havingValue = "true")
     public SearchAgentService searchAgentService(
-            OpenAiChatModel openAiChatModel,
+            ChatModelRegistry chatModelRegistry,
             ToolCallingManager toolCallingManager,
             SubAgentConfig subAgentConfig,
             @Value("classpath:prompt/search-agent.md") Resource searchAgentPrompt,
@@ -230,8 +237,10 @@ public class ChatConfig {
                         ? scriptGuideService.readOnlyInstructions(
                                 chatModelProperties.isWeak(subAgentConfig.modelId()))
                         : "";
+        // The sub-agent's model may be one of the kb.chat.models entries with an endpoint of its
+        // own, so the connection is looked up by id like the main chat's, not taken as the default.
         return new SearchAgentService(
-                openAiChatModel,
+                chatModelRegistry.forModel(subAgentConfig.modelId()),
                 toolCallingManager,
                 subAgentConfig,
                 searchAgentPrompt,
@@ -309,8 +318,69 @@ public class ChatConfig {
         return new ChatToolset(builtin, mcpCallbacks);
     }
 
+    /**
+     * Connections to the model endpoints: the autoconfigured one, plus one per {@code
+     * kb.chat.models} entry that named its own {@code base-url}/{@code api-key}.
+     */
     @Bean
-    public ChatClient chatClientBuilder(
+    public ChatModelRegistry chatModelRegistry(
+            OpenAiChatModel openAiChatModel,
+            ChatModelProperties chatModelProperties,
+            OpenAiCommonProperties commonProperties,
+            OpenAiChatProperties chatProperties,
+            ToolCallingManager toolCallingManager,
+            ObjectProvider<ObservationRegistry> observationRegistry,
+            ObjectProvider<MeterRegistry> meterRegistry,
+            ObjectProvider<OpenAiHttpClientBuilderCustomizer> httpClientCustomizers) {
+        ChatModelRegistry registry =
+                ChatModelRegistry.build(
+                        openAiChatModel,
+                        chatModelProperties,
+                        commonProperties,
+                        chatProperties,
+                        toolCallingManager,
+                        observationRegistry,
+                        meterRegistry,
+                        httpClientCustomizers);
+        if (!registry.ownEndpointModelIds().isEmpty()) {
+            log.info("Models with an endpoint of their own: {}", registry.ownEndpointModelIds());
+        }
+        return registry;
+    }
+
+    /**
+     * The {@link ChatClient} each chat run goes through — the default one, plus a copy over every
+     * connection built above. Every one of them goes through {@link #buildChatClient}, so an
+     * alternative endpoint cannot drift into a different advisor chain or a different tool set.
+     */
+    @Bean
+    public ChatClientRegistry chatClientRegistry(
+            ChatClient chatClient,
+            ChatModelRegistry chatModelRegistry,
+            ChatModelProperties chatModelProperties,
+            ChatMemory chatMemory,
+            @Value("classpath:prompt/sys.md") Resource sysPrompt,
+            ToolCallingManager toolCallingManager,
+            ChatToolset chatToolset,
+            ChatEventService chatEventService) {
+        Map<String, ChatClient> byModelId = new LinkedHashMap<>();
+        for (String modelId : chatModelRegistry.ownEndpointModelIds()) {
+            byModelId.put(
+                    modelId,
+                    buildChatClient(
+                            chatModelRegistry.forModel(modelId),
+                            chatMemory,
+                            sysPrompt,
+                            toolCallingManager,
+                            chatToolset,
+                            chatEventService));
+        }
+        return new ChatClientRegistry(
+                chatModelProperties.defaultModel().id(), chatClient, byModelId);
+    }
+
+    @Bean
+    public ChatClient chatClient(
             ChatModel chatModel,
             ChatMemory chatMemory,
             @Value("classpath:prompt/sys.md") Resource sysPrompt,
@@ -318,7 +388,22 @@ public class ChatConfig {
             ChatToolset chatToolset,
             ChatEventService chatEventService) {
         log.info("Model: {}", chatModel.getOptions());
+        return buildChatClient(
+                chatModel,
+                chatMemory,
+                sysPrompt,
+                toolCallingManager,
+                chatToolset,
+                chatEventService);
+    }
 
+    private static ChatClient buildChatClient(
+            ChatModel chatModel,
+            ChatMemory chatMemory,
+            Resource sysPrompt,
+            ToolCallingManager toolCallingManager,
+            ChatToolset chatToolset,
+            ChatEventService chatEventService) {
         // Advisor chain — outermost to innermost (ascending getOrder()):
         //
         //   ToolCallingAdvisor        (DEFAULT_ORDER     = MIN+300)  — drives the tool loop.

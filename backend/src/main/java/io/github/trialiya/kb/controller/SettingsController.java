@@ -41,6 +41,10 @@ import org.springframework.web.bind.annotation.RestController;
  * ({@code spring.ai.openai.api-key}), the MCP bearer tokens and custom headers ({@code
  * kb.mcp.bearer-tokens} / {@code kb.mcp.headers} — only connection <em>names</em> are reported) and
  * the datasource password cannot leak into the response. Keep it that way when adding fields.
+ *
+ * <p>The one property record reported as a whole is {@code ChatModelProperties.ModelOption}, which
+ * carries a per-model {@code base-url}/{@code api-key}; both are {@code @JsonIgnore} there, and the
+ * panel gets only the {@code ownEndpoint} flag derived from them.
  */
 @RestController
 @RequestMapping("/api/settings")

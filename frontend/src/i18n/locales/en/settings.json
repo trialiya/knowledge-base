@@ -47,7 +47,8 @@
     "available": {
       "label": "Available models",
       "defaultBadge": "default",
-      "weakBadge": "weak"
+      "weakBadge": "weak",
+      "ownEndpointBadge": "own connection"
     },
     "searchCodebase": {
       "label": "Search agent (searchCodebase)",

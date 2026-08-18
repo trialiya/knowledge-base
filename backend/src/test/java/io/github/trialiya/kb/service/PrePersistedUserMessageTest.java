@@ -106,9 +106,9 @@ class PrePersistedUserMessageTest {
     }
 
     /**
-     * Цепочка advisor-ов ровно как в {@code ChatConfig#chatClientBuilder}: tool-цикл снаружи,
-     * память внутри него. Проверять предсохранение на голом advisor памяти недостаточно — в проде
-     * {@code before()} вызывается на каждой итерации tool-цикла.
+     * Цепочка advisor-ов ровно как в {@code ChatConfig#chatClient}: tool-цикл снаружи, память
+     * внутри него. Проверять предсохранение на голом advisor памяти недостаточно — в проде {@code
+     * before()} вызывается на каждой итерации tool-цикла.
      */
     private ChatClient chatClient(ChatModel model, ChatMemoryService memory, boolean withToolLoop) {
         ChatMemory chatMemory =
