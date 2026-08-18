@@ -135,7 +135,7 @@ export const attachLeadingMetas = (bubbles, metas) => {
  * @param {string}   p.activeChatId   id активного чата
  * @param {Function} p.onLoadError    ({ notFound, status }) => void — показать модалку
  * @returns {{ loadingMessages: boolean,
- *             loadMessages: (id:string)=>Promise<void>,
+ *             loadMessages: (id:string)=>Promise<Array|undefined>,
  *             loadOlderMessages: (id:string)=>Promise<boolean>,
  *             failedChatIdsRef: object }}
  */
@@ -149,7 +149,10 @@ export default function useChatMessages({ chats, getChats, setChats, activeChatI
   // Защита от параллельных начальных загрузок сообщений одного чата.
   // Без неё при старте страницы loadMessages вызывается дважды: первый раз когда
   // chats=[] (до загрузки списка), второй — когда setChats(chatList) меняет стейт.
-  const loadingMessagesRef = useRef(new Set());
+  // Не Set, а Map chatId → промис самой загрузки: параллельный вызов получает тот же
+  // промис и дожидается страницы, вместо undefined. На нём построена догоняющая сверка
+  // прогона (useChatEventStream) — ей нужен результат, а не «кто-то уже грузит».
+  const loadingMessagesRef = useRef(new Map());
 
   // onLoadError может меняться между рендерами — держим в ref, чтобы loadMessages
   // оставался стабильным (его кладут в deps других эффектов/колбэков).
@@ -161,64 +164,79 @@ export default function useChatMessages({ chats, getChats, setChats, activeChatI
   // Загрузка сообщений: последняя страница (PAGE_SIZE) + метаданные чата.
   // Метаданные (model/topic) берём отдельным лёгким запросом includeMessages=false,
   // сами сообщения — пагинированным /messages. Это не тащит весь длинный чат.
+  //
+  // Возвращает разобранную страницу — пузыри ДО обрезки хвоста активного прогона. Их
+  // читает тот, кому мало самой загрузки: догоняющая сверка прогона достаёт из них вызовы
+  // инструментов, чьи события прошли мимо (см. useChatEventStream). Именно необрезанные:
+  // обрезка — про показ активного прогона, а мутации ищутся в ЗАВЕРШИВШЕМСЯ, чьи сегменты
+  // повтор (RETRY_MODE.CONTINUE) оставляет как раз в срезаемом хвосте — нового
+  // USER-сообщения он не добавляет. undefined — загрузка упала.
   const loadMessages = useCallback(
-    async (chatId) => {
-      if (loadingMessagesRef.current.has(chatId)) return;
-      loadingMessagesRef.current.add(chatId);
-      setLoadingMessages(true);
-      try {
-        // getActiveRun — восстановление состояния прогона после перезагрузки: если в чате
-        // прямо сейчас идёт генерация, её частично сохранённые сегменты убираем из
-        // загруженной истории (их пересоберёт SSE-реплей), а runId ставим сразу, чтобы UI
-        // показал «идёт ответ» без мигания до прихода RUN_STARTED из потока.
-        const [meta, page, activeRun] = await Promise.all([
-          chatApi.getChatMeta(chatId),
-          chatApi.getMessages(chatId, PAGE_SIZE),
-          chatApi.getActiveRun(chatId).catch(() => ({})),
-        ]);
-        const { bubbles, leadingMetas } = transformPage(page.messages);
-        const activeRunId = activeRun?.runId || null;
+    (chatId) => {
+      const inFlight = loadingMessagesRef.current.get(chatId);
+      if (inFlight) return inFlight;
+      const load = async () => {
+        setLoadingMessages(true);
+        try {
+          // getActiveRun — восстановление состояния прогона после перезагрузки: если в чате
+          // прямо сейчас идёт генерация, её частично сохранённые сегменты убираем из
+          // загруженной истории (их пересоберёт SSE-реплей), а runId ставим сразу, чтобы UI
+          // показал «идёт ответ» без мигания до прихода RUN_STARTED из потока.
+          const [meta, page, activeRun] = await Promise.all([
+            chatApi.getChatMeta(chatId),
+            chatApi.getMessages(chatId, PAGE_SIZE),
+            chatApi.getActiveRun(chatId).catch(() => ({})),
+          ]);
+          const { bubbles, leadingMetas } = transformPage(page.messages);
+          const activeRunId = activeRun?.runId || null;
+          const messages = activeRunId ? trimActiveRunTail(bubbles) : bubbles;
 
-        failedChatIdsRef.current.delete(chatId);
-        setChats((prev) =>
-          prev.map((chat) =>
-            chat.id === chatId
-              ? {
-                  ...chat,
-                  messages: activeRunId ? trimActiveRunTail(bubbles) : bubbles,
-                  runId: activeRunId,
-                  hasMore: !!page.hasMore,
-                  oldestCursor: page.oldestCursor || null,
-                  // metas, чей ассистент в ещё не загруженной более старой странице
-                  pendingLeadingMetas: leadingMetas,
-                  notFound: false,
-                  loadError: null,
-                  model: meta.model ?? null,
-                  // Метаданные для вкладки «Инфо». Из списка чатов они приходят
-                  // не всегда: чат, открытый прямой ссылкой, попадает в список
-                  // заглушкой без дат.
-                  createdAt: meta.createdAt ?? chat.createdAt ?? null,
-                  updatedAt: meta.updatedAt ?? chat.updatedAt ?? null,
-                  aiTopic: meta.aiTopic ?? chat.aiTopic ?? null,
-                }
-              : chat,
-          ),
-        );
-      } catch (err) {
-        console.error('Ошибка загрузки сообщений:', err);
-        const status = err.status || 'network';
-        const isNotFound = status === 404;
-        failedChatIdsRef.current.add(chatId);
-        setChats((prev) =>
-          prev.map((chat) =>
-            chat.id === chatId ? { ...chat, messages: [], notFound: isNotFound, loadError: status } : chat,
-          ),
-        );
-        onLoadErrorRef.current?.({ notFound: isNotFound, status });
-      } finally {
-        loadingMessagesRef.current.delete(chatId);
-        setLoadingMessages(false);
-      }
+          failedChatIdsRef.current.delete(chatId);
+          setChats((prev) =>
+            prev.map((chat) =>
+              chat.id === chatId
+                ? {
+                    ...chat,
+                    messages,
+                    runId: activeRunId,
+                    hasMore: !!page.hasMore,
+                    oldestCursor: page.oldestCursor || null,
+                    // metas, чей ассистент в ещё не загруженной более старой странице
+                    pendingLeadingMetas: leadingMetas,
+                    notFound: false,
+                    loadError: null,
+                    model: meta.model ?? null,
+                    // Метаданные для вкладки «Инфо». Из списка чатов они приходят
+                    // не всегда: чат, открытый прямой ссылкой, попадает в список
+                    // заглушкой без дат.
+                    createdAt: meta.createdAt ?? chat.createdAt ?? null,
+                    updatedAt: meta.updatedAt ?? chat.updatedAt ?? null,
+                    aiTopic: meta.aiTopic ?? chat.aiTopic ?? null,
+                  }
+                : chat,
+            ),
+          );
+          return bubbles;
+        } catch (err) {
+          console.error('Ошибка загрузки сообщений:', err);
+          const status = err.status || 'network';
+          const isNotFound = status === 404;
+          failedChatIdsRef.current.add(chatId);
+          setChats((prev) =>
+            prev.map((chat) =>
+              chat.id === chatId ? { ...chat, messages: [], notFound: isNotFound, loadError: status } : chat,
+            ),
+          );
+          onLoadErrorRef.current?.({ notFound: isNotFound, status });
+          return undefined;
+        } finally {
+          loadingMessagesRef.current.delete(chatId);
+          setLoadingMessages(false);
+        }
+      };
+      const loading = load();
+      loadingMessagesRef.current.set(chatId, loading);
+      return loading;
     },
     [setChats],
   );
