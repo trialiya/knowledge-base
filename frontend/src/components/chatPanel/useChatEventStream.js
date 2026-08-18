@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import i18n from '../../i18n';
 import { openChatEventStream } from '../../api/chatEvents';
 import { applyChatEvent } from './chatEventReducer';
@@ -26,7 +26,8 @@ import { getDocChangeRef, getFileChangeRefs } from './toolMeta';
  * @param {Function} p.isLocalClientId      (clientMsgId) => bool: своё сообщение (гасим эхо)
  * @param {Function} p.setChats
  * @param {Function} p.onChatDeleted        (chatId) => void — внешнее удаление чата
- * @param {Function} p.onRunSettled         (chatId) => void — RUN_DONE/STOPPED/ERROR
+ * @param {Function} p.onRunSettled         (chatId) => void — RUN_DONE/STOPPED/ERROR, а также
+ *                                           когда прогон обнаружился завершённым без нас
  * @param {Function} p.reloadMessages       (chatId) => void — перезагрузка истории
  * @param {Function} [p.onDocChanged]       (refs) => void — успешные doc-мутации инструментов
  *                                           (createDocument/updateDocument/...) из ОДНОГО TOOL_CALLS
@@ -61,11 +62,42 @@ export default function useChatEventStream({
   // задваивался бы (и выглядел бы как «данные другого чата», когда вопрос в чатах похож).
   const seqByChatRef = useRef(new Map());
 
+  // Счётчик переподписок. Сдвигается, когда обнаружено расхождение с бэком (см.
+  // settleStaleRun): поток нужно открыть заново — уже с fromSeq=0, потому что курсор
+  // прошлого прогона к новому хабу отношения не имеет.
+  const [resyncTick, setResyncTick] = useState(0);
+
   useEffect(() => {
     const chatId = activeChatId;
     if (!chatId || chatId === DRAFT_CHAT_ID) return undefined;
     const chat = getChats().find((c) => c.id === chatId);
     if (!chat || !Array.isArray(chat.messages) || chat.notFound || chat.loadError) return undefined;
+
+    let cancelled = false;
+
+    // Прогон, который UI считает идущим, на бэке уже не тот (завершился или сменился
+    // новым): показываем ответ из БД, разблокируем ввод и переоткрываем поток с нуля.
+    const settleStaleRun = () => {
+      seqByChatRef.current.delete(chatId);
+      setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, runId: null } : c)));
+      reloadMessages(chatId);
+      onRunSettled(chatId);
+      setResyncTick((n) => n + 1);
+    };
+
+    // Идёт ли ещё прогон, который показывает UI. Спрашиваем бэк и сверяем с runId чата
+    // на момент ОТВЕТА (за время запроса поток мог сам закрыть прогон).
+    const checkRunAlive = () =>
+      chatApi
+        .getActiveRun(chatId)
+        .then((r) => {
+          if (cancelled) return;
+          const cur = getChats().find((c) => c.id === chatId);
+          if (!cur?.runId) return; // поток уже закрыл прогон сам — сверять нечего
+          if (r?.runId === cur.runId) return; // прогон жив — поток догонит пропущенное сам
+          settleStaleRun();
+        })
+        .catch(() => {});
 
     const ctx = {
       isLocal: isLocalClientId,
@@ -73,7 +105,7 @@ export default function useChatEventStream({
       errorLabel: i18n.t('chat:window.genericError'),
       interruptedNote: `\n\n_**${i18n.t('chat:message.interrupted')}**_`,
     };
-    return openChatEventStream(chatId, {
+    const close = openChatEventStream(chatId, {
       fromSeq: seqByChatRef.current.get(chatId) || 0,
       onSeq: (seq) => seqByChatRef.current.set(chatId, seq),
       onEvent: (ev) => {
@@ -109,24 +141,25 @@ export default function useChatEventStream({
         }
       },
       onReconnect: () => {
-        // Соединение восстановилось. Что-то делаем только если UI думает, что идёт прогон.
-        const cur = getChats().find((c) => c.id === chatId);
-        if (!cur?.runId) return;
-        // Жив ли прогон на самом деле? Если ДА — переподключившийся поток сам догонит
-        // пропущенное (fromSeq = курсор чата) и допишет в уже собранный пузырь; трогать
-        // историю нельзя, иначе перезагрузка из БД обрезала бы начало ответа. Если НЕТ
-        // (бэк перезапустился / прогон завершился, пока рвалось соединение) — показываем
-        // ответ из БД и разблокируем ввод.
-        chatApi
-          .getActiveRun(chatId)
-          .then((r) => {
-            if (r?.runId) return; // прогон жив — поток продолжает сам
-            seqByChatRef.current.delete(chatId);
-            setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, runId: null } : c)));
-            reloadMessages(chatId);
-          })
-          .catch(() => {});
+        // Соединение восстановилось. Жив ли прогон на самом деле? Если ДА —
+        // переподключившийся поток сам догонит пропущенное (fromSeq = курсор чата) и
+        // допишет в уже собранный пузырь; трогать историю нельзя, иначе перезагрузка из
+        // БД обрезала бы начало ответа. Если НЕТ (бэк перезапустился / прогон завершился,
+        // пока рвалось соединение) — показываем ответ из БД и разблокируем ввод.
+        if (getChats().find((c) => c.id === chatId)?.runId) checkRunAlive();
       },
     });
-  }, [activeChatId, activeMessagesReady, onRunSettled, onChatDeleted, reloadMessages]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Вход в чат, который UI считает генерирующим. Пока чат не был активным, потока у него
+    // не было: прогон мог завершиться без нас, и реплей этого уже не покажет — хаб чистит
+    // лог событий в конце прогона (ConversationHub#endRun). Без этой сверки чат навсегда
+    // оставался бы с недописанным пузырём и заблокированным вводом, до перезагрузки
+    // страницы. Спрашиваем ПОСЛЕ подписки: пока идёт запрос, события уже не теряются.
+    if (chat.runId) checkRunAlive();
+
+    return () => {
+      cancelled = true;
+      close();
+    };
+  }, [activeChatId, activeMessagesReady, resyncTick, onRunSettled, onChatDeleted, reloadMessages]); // eslint-disable-line react-hooks/exhaustive-deps
 }

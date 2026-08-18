@@ -1,6 +1,7 @@
-import { renderHook } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 import useChatEventStream from './useChatEventStream';
 import { openChatEventStream } from '../../api/chatEvents';
+import chatApi from '../../api/chatApi';
 
 vi.mock('../../api/chatEvents');
 vi.mock('../../api/chatApi', () => ({ default: { getActiveRun: vi.fn() } }));
@@ -140,5 +141,87 @@ describe('useChatEventStream doc/file mutation detection', () => {
 
     expect(onDocChanged).not.toHaveBeenCalled();
     expect(onFileChanged).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Coming back to a chat whose answer finished while another chat was open. The
+ * event stream is open for the active chat only, so RUN_DONE was missed, and a
+ * replay will not bring it back: the hub clears its event log when the run ends.
+ * Without reconciling against the backend the chat would keep a half-written
+ * bubble and a blocked composer until the page is reloaded.
+ */
+describe('useChatEventStream stale run reconciliation', () => {
+  let chats;
+
+  function setup({ runId = 'r1', activeRun = {} } = {}) {
+    chats = [{ id: 'c1', messages: [{ mid: 1 }], runId, notFound: false, loadError: false }];
+    chatApi.getActiveRun.mockResolvedValue(activeRun);
+    openChatEventStream.mockImplementation(() => () => {});
+
+    const setChats = vi.fn((fn) => {
+      chats = typeof fn === 'function' ? fn(chats) : fn;
+    });
+    const reloadMessages = vi.fn();
+    const onRunSettled = vi.fn();
+
+    const view = renderHook(() =>
+      useChatEventStream({
+        activeChatId: 'c1',
+        activeMessagesReady: true,
+        getChats: () => chats,
+        isLocalClientId: () => false,
+        setChats,
+        onChatDeleted: vi.fn(),
+        onRunSettled,
+        reloadMessages,
+      }),
+    );
+
+    return { view, setChats, reloadMessages, onRunSettled };
+  }
+
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  test('run finished while the chat was in the background: unblocks input and reloads history', async () => {
+    const { reloadMessages, onRunSettled } = setup({ runId: 'r1', activeRun: {} });
+
+    await act(async () => {});
+
+    expect(chatApi.getActiveRun).toHaveBeenCalledWith('c1');
+    expect(chats[0].runId).toBeNull();
+    expect(reloadMessages).toHaveBeenCalledWith('c1');
+    // The backend names the chat once the run is over — that RUN_DONE was missed too.
+    expect(onRunSettled).toHaveBeenCalledWith('c1');
+  });
+
+  test('the same run is still alive: history is left alone, the stream catches up itself', async () => {
+    const { reloadMessages, onRunSettled } = setup({ runId: 'r1', activeRun: { runId: 'r1' } });
+
+    await act(async () => {});
+
+    expect(chats[0].runId).toBe('r1');
+    expect(reloadMessages).not.toHaveBeenCalled();
+    expect(onRunSettled).not.toHaveBeenCalled();
+  });
+
+  test('another run started meanwhile: resubscribes from scratch so its replay is not skipped', async () => {
+    const { reloadMessages } = setup({ runId: 'r1', activeRun: { runId: 'r2' } });
+
+    await act(async () => {});
+
+    expect(reloadMessages).toHaveBeenCalledWith('c1');
+    // The previous run's seq cursor is dropped: a fresh hub numbers its events from scratch.
+    expect(openChatEventStream).toHaveBeenLastCalledWith('c1', expect.objectContaining({ fromSeq: 0 }));
+  });
+
+  test('no run in the UI: nothing to reconcile, the backend is not asked', async () => {
+    setup({ runId: null });
+
+    await act(async () => {});
+
+    expect(chatApi.getActiveRun).not.toHaveBeenCalled();
   });
 });
