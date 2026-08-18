@@ -1,7 +1,7 @@
 package io.github.trialiya.kb.service;
 
 import static io.github.trialiya.kb.utils.ChatUtils.DEFAULT_CONVERSATION_ID;
-import static io.github.trialiya.kb.utils.ChatUtils.buildContext;
+import static io.github.trialiya.kb.utils.ChatUtils.context;
 import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
 
 import io.github.trialiya.kb.config.model.SubAgentConfig;
@@ -124,7 +124,7 @@ public class SearchAgentService {
                         .maxTokens(config.maxTokens())
                         .temperature(0.0)
                         .toolCallbacks(toolCallbacks)
-                        .toolContext(buildContext(conversationId, projectId))
+                        .toolContext(context(conversationId).project(projectId).build())
                         .build();
 
         final List<Message> messages = new ArrayList<>();

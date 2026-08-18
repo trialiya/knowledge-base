@@ -73,7 +73,7 @@ class ChatRunRetryTest {
         when(chatMemoryService.unansweredUserMessage(CONV)).thenReturn(Optional.of(userRow(42L)));
 
         final ChatRunService.StartedRun started =
-                runService.start(CONV, USER, null, List.of(), null, false, "", null);
+                runService.start(CONV, USER, null, List.of(), options(), null);
 
         assertThat(started.userMessageId()).isEqualTo(42L);
         verify(chatMemoryService, never()).saveUserMessage(anyString(), anyString(), anyList());
@@ -84,8 +84,7 @@ class ChatRunRetryTest {
     void retryIsRejectedOnceTheAnswerHasStarted() {
         when(chatMemoryService.unansweredUserMessage(CONV)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(
-                        () -> runService.start(CONV, USER, null, List.of(), null, false, "", null))
+        assertThatThrownBy(() -> runService.start(CONV, USER, null, List.of(), options(), null))
                 .isInstanceOf(ResponseStatusException.class)
                 .extracting(e -> ((ResponseStatusException) e).getStatusCode())
                 .isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
@@ -103,7 +102,7 @@ class ChatRunRetryTest {
     void repairsDanglingToolCallsBeforeDecidingWhetherRetryIsPossible() {
         when(chatMemoryService.unansweredUserMessage(CONV)).thenReturn(Optional.of(userRow(42L)));
 
-        runService.start(CONV, USER, null, List.of(), null, false, "", null);
+        runService.start(CONV, USER, null, List.of(), options(), null);
 
         final InOrder order = inOrder(chatMemoryService);
         order.verify(chatMemoryService).repairDanglingToolCalls(CONV);
@@ -116,9 +115,14 @@ class ChatRunRetryTest {
         when(chatMemoryService.saveUserMessage(CONV, QUESTION, List.of())).thenReturn(userRow(7L));
 
         final ChatRunService.StartedRun started =
-                runService.start(CONV, USER, QUESTION, List.of(), null, false, "", "msg-1");
+                runService.start(CONV, USER, QUESTION, List.of(), options(), "msg-1");
 
         assertThat(started.userMessageId()).isEqualTo(7L);
         verify(chatMemoryService, never()).unansweredUserMessage(anyString());
+    }
+
+    /** Дефолтные настройки прогона: модель/режим/проект не выбраны. */
+    private static ChatRunService.RunOptions options() {
+        return new ChatRunService.RunOptions(null, false, "", null);
     }
 }

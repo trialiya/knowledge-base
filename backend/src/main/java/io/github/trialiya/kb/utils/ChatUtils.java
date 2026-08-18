@@ -29,62 +29,82 @@ public class ChatUtils {
                 .orElse("default");
     }
 
-    // todo this is temporarily
-    public static Map<String, Object> buildContext(String conversationId) {
-        return buildContext(conversationId, (String) null);
+    /**
+     * Начало сборки {@code toolContext} прогона — того, что инструменты видят помимо своих
+     * аргументов: разговор, пользователь, проект, сборщик вызовов, флаг остановки.
+     *
+     * <p>Именно билдер, а не набор перегрузок: половина составляющих необязательна, а две из них —
+     * пользователь и проект — это две подряд идущие строки, которые в позиционном вызове меняются
+     * местами молча и без единой ошибки компиляции.
+     */
+    public static ToolContextBuilder context(String conversationId) {
+        return new ToolContextBuilder(conversationId);
     }
 
-    /**
-     * As {@link #buildContext(String)}, plus the project the caller works on — {@code null} when it
-     * does not know one, which every caller does today and which tools read as "the default
-     * project" (see {@link ProjectContext}, {@code GitRegistry}).
-     */
-    public static Map<String, Object> buildContext(
-            String conversationId, @Nullable String projectId) {
-        Map<String, Object> context = new LinkedHashMap<>();
-        context.put(ChatMemory.CONVERSATION_ID, conversationId);
-        context.put(USER_NAME, getUser());
-        if (projectId != null) {
-            context.put(ProjectContext.KEY, projectId);
+    /** Сборщик {@code toolContext}: см. {@link #context(String)}. */
+    public static final class ToolContextBuilder {
+
+        private final String conversationId;
+        private @Nullable String user;
+        private @Nullable String projectId;
+        private @Nullable ToolInvocationCollector toolCollector;
+        private @Nullable RunCancellation cancellation;
+
+        private ToolContextBuilder(String conversationId) {
+            this.conversationId = conversationId;
         }
-        return Map.copyOf(context);
-    }
 
-    public static Map<String, Object> buildContext(
-            String conversationId, ToolInvocationCollector toolCollector) {
-        return buildContext(conversationId, toolCollector, getUser());
-    }
+        /**
+         * Проект, в котором работает прогон; {@code null} — «вызывающий проект не назвал», и тогда
+         * ключа в контексте не будет вовсе, а инструменты поедут на дефолтном (см. {@link
+         * ProjectContext}, {@code GitRegistry}).
+         */
+        public ToolContextBuilder project(@Nullable String projectId) {
+            this.projectId = projectId;
+            return this;
+        }
 
-    /**
-     * Как {@link #buildContext(String, ToolInvocationCollector)}, но с явно переданным
-     * пользователем. Нужно для фоновой генерации: её инструменты исполняются на потоках Reactor,
-     * где {@link #getUser()} вернул бы анонима (SecurityContext туда не распространяется), поэтому
-     * пользователя захватываем на потоке запроса и протаскиваем сюда.
-     */
-    public static Map<String, Object> buildContext(
-            String conversationId, ToolInvocationCollector toolCollector, String user) {
-        return buildContext(conversationId, toolCollector, user, RunCancellation.none());
-    }
+        /**
+         * Пользователь, если его нельзя взять из {@link SecurityContextHolder}. Нужно фоновой
+         * генерации: её инструменты исполняются на потоках Reactor, куда SecurityContext не
+         * распространяется, поэтому пользователя захватывают на потоке запроса и передают сюда.
+         */
+        public ToolContextBuilder user(String user) {
+            this.user = user;
+            return this;
+        }
 
-    /**
-     * Как {@link #buildContext(String, ToolInvocationCollector, String)}, плюс флаг остановки
-     * прогона. Нужен инструментам, которые работают заметное время: остановка чата рвёт подписку на
-     * стрим, но уже запущенный инструмент об этом не узнаёт (см. {@link RunCancellation}).
-     */
-    public static Map<String, Object> buildContext(
-            String conversationId,
-            ToolInvocationCollector toolCollector,
-            String user,
-            RunCancellation cancellation) {
-        return Map.of(
-                ChatMemory.CONVERSATION_ID,
-                conversationId,
-                ToolInvocationCollector.KEY,
-                toolCollector,
-                USER_NAME,
-                user,
-                RunCancellation.KEY,
-                cancellation);
+        /** Сборщик вызовов инструментов — им прогон рисует «крошку» в чате. */
+        public ToolContextBuilder collector(ToolInvocationCollector toolCollector) {
+            this.toolCollector = toolCollector;
+            return this;
+        }
+
+        /**
+         * Флаг остановки прогона. Нужен инструментам, которые работают заметное время: остановка
+         * чата рвёт подписку на стрим, но уже запущенный инструмент об этом не узнаёт (см. {@link
+         * RunCancellation}).
+         */
+        public ToolContextBuilder cancellation(RunCancellation cancellation) {
+            this.cancellation = cancellation;
+            return this;
+        }
+
+        public Map<String, Object> build() {
+            Map<String, Object> context = new LinkedHashMap<>();
+            context.put(ChatMemory.CONVERSATION_ID, conversationId);
+            context.put(USER_NAME, user != null ? user : getUser());
+            if (projectId != null) {
+                context.put(ProjectContext.KEY, projectId);
+            }
+            if (toolCollector != null) {
+                context.put(ToolInvocationCollector.KEY, toolCollector);
+            }
+            if (cancellation != null) {
+                context.put(RunCancellation.KEY, cancellation);
+            }
+            return Map.copyOf(context);
+        }
     }
 
     /**

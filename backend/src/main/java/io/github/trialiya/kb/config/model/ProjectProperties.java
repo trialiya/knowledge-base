@@ -16,11 +16,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *       edit-enabled: false
  * </pre>
  *
- * <p><b>Exactly one entry for now.</b> Everything downstream is already addressed by project id —
- * the repositories live in {@code GitRegistry}, tools resolve theirs from the {@code ToolContext}
- * and a caller that names none gets the first one — but the selection is not wired to a chat, an
- * endpoint or a link yet, so a second entry here would be unreachable and is refused by {@code
- * ProjectCatalog} rather than silently ignored.
+ * <p><b>Exactly one entry for now.</b> A chat picks its project and carries it to the tools, but a
+ * file link does not: {@code /files?path=…} and the file browser name a path and no repository, so
+ * with a second project the same path would open the wrong file. {@code ProjectCatalog} refuses the
+ * configuration rather than let that happen silently.
  *
  * <p>Left empty, the single project is taken from the legacy {@code kb.git.project-path} (see
  * {@code ProjectCatalog}), so a deployment that only sets {@code PROJECT_PATH} keeps working.

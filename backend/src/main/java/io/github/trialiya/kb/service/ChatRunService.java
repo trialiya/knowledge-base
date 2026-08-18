@@ -126,18 +126,15 @@ public class ChatRunService {
      *     запрещён — 422.
      * @param contextItems приложенное к вопросу (вложения) — уже проверенное {@code
      *     ContextItemService}. На повторе игнорируется: контекст записан вместе с сообщением
-     * @param weakModel {@code ChatModelProperties#isWeak} результата резолва {@code resolvedModel}
-     *     — решает, попадёт ли в системный промпт обучающая половина руководства по скриптам (см.
-     *     {@code ScriptGuideService})
+     * @param options чем этот прогон отличается от дефолтного — модель, режим, проект (см. {@link
+     *     RunOptions})
      */
     public StartedRun start(
             String conversationId,
             String user,
             @Nullable String userMessage,
             List<ContextItem> contextItems,
-            @Nullable String resolvedModel,
-            boolean weakModel,
-            String modeInstructions,
+            RunOptions options,
             String clientMsgId) {
         final String runId = UUID.randomUUID().toString();
         // Атомарная заявка на чат: если генерация уже идёт (в т.ч. из другой вкладки) — 409,
@@ -187,17 +184,9 @@ public class ChatRunService {
         // executor — DelegatingSecurityContextExecutorService: проставит SecurityContext текущего
         // пользователя на worker-поток. Операторы Reactor-стрима исполняются на ДРУГИХ потоках,
         // куда thread-local контекст не доезжает, поэтому пользователя для инструментов передаём
-        // ещё и явно — через toolContext (см. buildContext ниже).
+        // ещё и явно — через toolContext (см. ChatUtils.context ниже).
         try {
-            executor.execute(
-                    () ->
-                            run(
-                                    handle,
-                                    userRow,
-                                    resolvedModel,
-                                    weakModel,
-                                    modeInstructions,
-                                    clientMsgId));
+            executor.execute(() -> run(handle, userRow, options, clientMsgId));
         } catch (RuntimeException e) {
             // например, RejectedExecutionException при остановке пула — не оставляем чат «занятым».
             // Сообщение пользователя при этом уже сохранено и останется в истории: вопрос без
@@ -214,6 +203,29 @@ public class ChatRunService {
      * сообщения только после перезагрузки страницы.
      */
     public record StartedRun(String runId, Long userMessageId) {}
+
+    /**
+     * Настройки одного прогона: что выбрано в чате (или передано параметром запроса) поверх
+     * дефолтов конфигурации. Собираются в контроллере — см. {@code ChatController#resolveRun}.
+     *
+     * <p>Записью, а не отдельными параметрами: три из четырёх полей — строки, и две из них
+     * (инструкции режима и id проекта) в позиционном вызове меняются местами без единой ошибки
+     * компиляции.
+     *
+     * @param model результат резолва модели; {@code null} — «не переопределять», т.е. модель из
+     *     конфигурации
+     * @param weakModel {@code ChatModelProperties#isWeak} от {@link #model} — решает, попадёт ли в
+     *     системный промпт обучающая половина руководства по скриптам (см. {@code
+     *     ScriptGuideService})
+     * @param modeInstructions инструкции выбранного режима; пустая строка — «без режима»
+     * @param project id проекта, в котором работают инструменты прогона; {@code null} — дефолтный
+     *     проект списка (см. {@code ProjectCatalog})
+     */
+    public record RunOptions(
+            @Nullable String model,
+            boolean weakModel,
+            String modeInstructions,
+            @Nullable String project) {}
 
     /** Останавливает прогон: dispose → CANCEL → частичное сохранение + событие RUN_STOPPED. */
     public boolean stop(String conversationId, String runId) {
@@ -286,12 +298,9 @@ public class ChatRunService {
     }
 
     private void run(
-            RunHandle handle,
-            ChatMessageEntity userRow,
-            @Nullable String resolvedModel,
-            boolean weakModel,
-            String modeInstructions,
-            String clientMsgId) {
+            RunHandle handle, ChatMessageEntity userRow, RunOptions options, String clientMsgId) {
+        final String resolvedModel = options.model();
+        final boolean weakModel = options.weakModel();
         final String conversationId = handle.conversationId();
         final String runId = handle.runId();
         final StringBuffer buffer = new StringBuffer();
@@ -329,7 +338,9 @@ public class ChatRunService {
                             .prompt()
                             .system(
                                     sp ->
-                                            sp.param("mode_instructions", modeInstructions)
+                                            sp.param(
+                                                            "mode_instructions",
+                                                            options.modeInstructions())
                                                     .param(
                                                             "script_instructions",
                                                             scriptGuideService.instructions(
@@ -343,11 +354,13 @@ public class ChatRunService {
                             // advisor памяти. Передать его ещё и сюда — значит сохранить вторым
                             // рядом; см. PrePersistedUserMessageTest.
                             .toolContext(
-                                    ChatUtils.buildContext(
-                                            conversationId,
-                                            toolCollector,
-                                            handle.user(),
-                                            new RunCancellation(handle.stopRequested())))
+                                    ChatUtils.context(conversationId)
+                                            .user(handle.user())
+                                            .project(options.project())
+                                            .collector(toolCollector)
+                                            .cancellation(
+                                                    new RunCancellation(handle.stopRequested()))
+                                            .build())
                             .advisors(
                                     a ->
                                             a.param(ChatMemory.CONVERSATION_ID, conversationId)

@@ -19,6 +19,7 @@ public class ChatTopicEntity implements Persistable<String> {
     @Nullable private final String aiTopic;
     @Nullable private final String model;
     @Nullable private final String mode;
+    @Nullable private final String project;
     @CreatedDate private final LocalDateTime createdAt;
     @LastModifiedDate private final LocalDateTime updatedAt;
     @Transient private final boolean isNew;
@@ -31,6 +32,7 @@ public class ChatTopicEntity implements Persistable<String> {
             @Nullable String aiTopic,
             @Nullable String model,
             @Nullable String mode,
+            @Nullable String project,
             LocalDateTime createdAt,
             LocalDateTime updatedAt,
             boolean isNew) {
@@ -40,6 +42,7 @@ public class ChatTopicEntity implements Persistable<String> {
         this.aiTopic = aiTopic;
         this.model = model;
         this.mode = mode;
+        this.project = project;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
         this.isNew = isNew;
@@ -54,9 +57,20 @@ public class ChatTopicEntity implements Persistable<String> {
             @Nullable String aiTopic,
             @Nullable String model,
             @Nullable String mode,
+            @Nullable String project,
             LocalDateTime createdAt,
             LocalDateTime updatedAt) {
-        this(conversationId, user, userTopic, aiTopic, model, mode, createdAt, updatedAt, false);
+        this(
+                conversationId,
+                user,
+                userTopic,
+                aiTopic,
+                model,
+                mode,
+                project,
+                createdAt,
+                updatedAt,
+                false);
     }
 
     public ChatTopicEntity(
@@ -74,6 +88,7 @@ public class ChatTopicEntity implements Persistable<String> {
                 userTopic,
                 aiTopic,
                 model,
+                null,
                 null,
                 LocalDateTime.now(),
                 LocalDateTime.now(),
@@ -114,6 +129,12 @@ public class ChatTopicEntity implements Persistable<String> {
     @Nullable
     public String getMode() {
         return mode;
+    }
+
+    /** Проект (репозиторий), выбранный в чате; {@code null} — дефолтный из {@code kb.projects}. */
+    @Nullable
+    public String getProject() {
+        return project;
     }
 
     public LocalDateTime getUpdatedAt() {

@@ -60,6 +60,7 @@ public class TopicFunction {
                         topic,
                         chatTopicOptional.map(ChatTopicEntity::getModel).orElse(null),
                         chatTopicOptional.map(ChatTopicEntity::getMode).orElse(null),
+                        chatTopicOptional.map(ChatTopicEntity::getProject).orElse(null),
                         // overwritten by @CreatedDate/@LastModifiedDate auditing before insert
                         // when there's no existing row to keep the timestamp from
                         chatTopicOptional

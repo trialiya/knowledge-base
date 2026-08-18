@@ -117,6 +117,42 @@ class ProjectCatalogTest {
         assertThat(catalog.require(null)).isEqualTo(catalog.defaultProject());
     }
 
+    /**
+     * {@code isAllowed} — не {@code find}: пустое имя здесь не «дефолт», а значение, которого никто
+     * не настраивал. На этом держится резолв выбранного в чате проекта, где «не назван» уже занят
+     * отдельным случаем.
+     */
+    @Test
+    void anUnsetProjectIsNotAllowedEvenThoughItResolvesToTheDefault() {
+        ProjectCatalog catalog =
+                catalog(
+                        List.of(new ProjectOption("kb", null, "/srv/kb", null)),
+                        legacy(null, false));
+
+        assertThat(catalog.isAllowed("kb")).isTrue();
+        assertThat(catalog.isAllowed("billing")).isFalse();
+        assertThat(catalog.isAllowed(null)).isFalse();
+        assertThat(catalog.isAllowed("")).isFalse();
+    }
+
+    @Test
+    void theSelectorIsOfferedTheListAndThePreselectedEntry() {
+        ProjectCatalog catalog =
+                catalog(
+                        List.of(new ProjectOption("kb", "KB", "/srv/kb", true)),
+                        legacy(null, false));
+
+        assertThat(catalog.options().defaultProject()).isEqualTo("kb");
+        assertThat(catalog.options().projects())
+                .singleElement()
+                .satisfies(
+                        p -> {
+                            assertThat(p.id()).isEqualTo("kb");
+                            assertThat(p.label()).isEqualTo("KB");
+                            assertThat(p.editEnabled()).isTrue();
+                        });
+    }
+
     @Test
     void anUnknownProjectIsAnErrorRatherThanASilentFallback() {
         ProjectCatalog catalog =

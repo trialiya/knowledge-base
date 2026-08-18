@@ -1,6 +1,6 @@
 package io.github.trialiya.kb.controller;
 
-import static io.github.trialiya.kb.utils.ChatUtils.buildContext;
+import static io.github.trialiya.kb.utils.ChatUtils.context;
 import static io.github.trialiya.kb.utils.ChatUtils.getUser;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.FORBIDDEN;
@@ -19,6 +19,7 @@ import io.github.trialiya.kb.model.chat.dto.StartRunRequest;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
+import io.github.trialiya.kb.model.project.ProjectOptions;
 import io.github.trialiya.kb.model.tool.ToolCallDetail;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.ChatEventService;
@@ -27,6 +28,7 @@ import io.github.trialiya.kb.service.ChatModeService;
 import io.github.trialiya.kb.service.ChatRunService;
 import io.github.trialiya.kb.service.ChatTopicService;
 import io.github.trialiya.kb.service.ContextItemService;
+import io.github.trialiya.kb.service.ProjectCatalog;
 import io.github.trialiya.kb.service.ScriptGuideService;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import jakarta.annotation.Nonnull;
@@ -76,6 +78,7 @@ public class ChatController {
     private final ScriptGuideService scriptGuideService;
     private final ContextItemService contextItemService;
     private final ChatTopicService chatTopicService;
+    private final ProjectCatalog projectCatalog;
 
     /** Часы аудита Spring Data — ими же датируется «тронуть чат», см. JdbcConfig#clock. */
     private final Clock clock;
@@ -93,6 +96,7 @@ public class ChatController {
             ScriptGuideService scriptGuideService,
             ContextItemService contextItemService,
             ChatTopicService chatTopicService,
+            ProjectCatalog projectCatalog,
             Clock clock) {
         this.chatModelProperties = chatModelProperties;
         this.chatModeProperties = chatModeProperties;
@@ -106,6 +110,7 @@ public class ChatController {
         this.scriptGuideService = scriptGuideService;
         this.contextItemService = contextItemService;
         this.chatTopicService = chatTopicService;
+        this.projectCatalog = projectCatalog;
         this.clock = clock;
     }
 
@@ -252,6 +257,30 @@ public class ChatController {
                 conversationId, ChatEventType.CHAT_DELETED, null, null, null);
     }
 
+    /** Проекты, между которыми можно выбирать, и какой из них дефолтный. */
+    @GetMapping("/projects")
+    public ProjectOptions getProjects() {
+        return projectCatalog.options();
+    }
+
+    /**
+     * Задать (или сбросить) проект чата. Пустое тело → возврат к дефолтному.
+     *
+     * <p>История при этом не правится: пока в конфигурации ровно один проект, сменить его не на
+     * что, и разделитель «всё выше относится к прежнему проекту» писать не о чем.
+     */
+    @PutMapping("/{conversationId}/project")
+    public void updateChatProject(
+            @PathVariable final String conversationId,
+            @RequestBody(required = false) final String project) {
+        getChatTopic(conversationId); // 404/403 + проверка владельца
+        final String trimmed = project == null ? "" : project.trim();
+        if (!trimmed.isEmpty() && !projectCatalog.isAllowed(trimmed)) {
+            throw new ResponseStatusException(BAD_REQUEST, "Unknown project: " + trimmed);
+        }
+        chatTopicRepository.updateProject(conversationId, trimmed.isEmpty() ? null : trimmed);
+    }
+
     /** Sets (or creates) the chat's topic. Idempotent, hence PUT. */
     @PutMapping("/{conversationId}/topic")
     public void updateChatTopic(
@@ -271,6 +300,7 @@ public class ChatController {
                                             chatTopicEntity.getAiTopic(),
                                             chatTopicEntity.getModel(),
                                             chatTopicEntity.getMode(),
+                                            chatTopicEntity.getProject(),
                                             chatTopicEntity.getCreatedAt(),
                                             chatTopicEntity.getUpdatedAt(),
                                             false));
@@ -281,6 +311,7 @@ public class ChatController {
                                                 conversationId,
                                                 getUser(),
                                                 topic,
+                                                null,
                                                 null,
                                                 null,
                                                 null,
@@ -304,11 +335,11 @@ public class ChatController {
             @PathVariable final String conversationId,
             @RequestParam(name = "model", required = false) final String model,
             @RequestParam(name = "mode", required = false) final String mode,
+            @RequestParam(name = "project", required = false) final String project,
             @RequestBody final String userMessage) {
         checkChat(conversationId, true);
-        final String resolvedModel = resolveModel(conversationId, model);
-        final String modeInstructions =
-                chatModeService.instructionsFor(resolveMode(conversationId, mode));
+        final ChatRunService.RunOptions options = resolveRun(conversationId, model, mode, project);
+        final String resolvedModel = options.model();
         final ToolInvocationCollector toolCollector = new ToolInvocationCollector();
 
         ChatClient.ChatClientRequestSpec spec =
@@ -317,14 +348,17 @@ public class ChatController {
                         .prompt()
                         .system(
                                 sp ->
-                                        sp.param("mode_instructions", modeInstructions)
+                                        sp.param("mode_instructions", options.modeInstructions())
                                                 .param(
                                                         "script_instructions",
                                                         scriptGuideService.instructions(
-                                                                chatModelProperties.isWeak(
-                                                                        resolvedModel))))
+                                                                options.weakModel())))
                         .user(userMessage)
-                        .toolContext(buildContext(conversationId, toolCollector))
+                        .toolContext(
+                                context(conversationId)
+                                        .project(options.project())
+                                        .collector(toolCollector)
+                                        .build())
                         .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId));
         if (resolvedModel != null) {
             spec = spec.options(OpenAiChatOptions.builder().model(resolvedModel));
@@ -368,6 +402,7 @@ public class ChatController {
             @PathVariable final String conversationId,
             @RequestParam(name = "model", required = false) final String model,
             @RequestParam(name = "mode", required = false) final String mode,
+            @RequestParam(name = "project", required = false) final String project,
             @RequestParam(name = "clientMsgId", required = false) final String clientMsgId,
             @RequestParam(name = "retry", defaultValue = "false") final boolean retry,
             @RequestBody(required = false) final StartRunRequest body) {
@@ -383,18 +418,13 @@ public class ChatController {
                         ? List.of()
                         : contextItemService.resolve(
                                 conversationId, body == null ? null : body.contextItems());
-        final String resolvedModel = resolveModel(conversationId, model);
-        final String modeInstructions =
-                chatModeService.instructionsFor(resolveMode(conversationId, mode));
         final ChatRunService.StartedRun started =
                 chatRunService.start(
                         conversationId,
                         getUser(),
                         retry ? null : userMessage,
                         contextItems,
-                        resolvedModel,
-                        chatModelProperties.isWeak(resolvedModel),
-                        modeInstructions,
+                        resolveRun(conversationId, model, mode, project),
                         clientMsgId);
         return Map.of("runId", started.runId(), "messageId", started.userMessageId());
     }
@@ -499,6 +529,7 @@ public class ChatController {
                 entity.getAiTopic(),
                 entity.getModel(),
                 entity.getMode(),
+                entity.getProject(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt(),
                 messages);
@@ -574,5 +605,44 @@ public class ChatController {
                 .filter(StringUtils::hasText)
                 .filter(chatModeProperties::isAllowed) // на случай, если режим убрали из конфига
                 .orElse(null);
+    }
+
+    /**
+     * Параметр запроса → сохранённый проект чата → null. {@code null} означает «проект не назван»:
+     * инструменты прогона поедут на первом проекте списка (см. {@code ProjectCatalog}). Параллель
+     * {@link #resolveModel}.
+     */
+    private @Nullable String resolveProject(final String conversationId, final String requested) {
+        if (StringUtils.hasText(requested)) {
+            if (!projectCatalog.isAllowed(requested)) {
+                throw new ResponseStatusException(BAD_REQUEST, "Unknown project: " + requested);
+            }
+            chatTopicRepository.updateProject(conversationId, requested); // «последний выбранный»
+            return requested;
+        }
+        return chatTopicRepository
+                .findById(conversationId)
+                .map(ChatTopicEntity::getProject)
+                .filter(StringUtils::hasText)
+                .filter(projectCatalog::isAllowed) // на случай, если проект убрали из конфига
+                .orElse(null);
+    }
+
+    /**
+     * Настройки прогона из параметров запроса и памяти чата — один вызов на оба пути генерации
+     * (синхронный {@link #createMessage} и фоновый {@link #startRun}), чтобы «что выбрано в этом
+     * чате» решалось для них одинаково.
+     */
+    private ChatRunService.RunOptions resolveRun(
+            final String conversationId,
+            final String model,
+            final String mode,
+            final String project) {
+        final String resolvedModel = resolveModel(conversationId, model);
+        return new ChatRunService.RunOptions(
+                resolvedModel,
+                chatModelProperties.isWeak(resolvedModel),
+                chatModeService.instructionsFor(resolveMode(conversationId, mode)),
+                resolveProject(conversationId, project));
     }
 }

@@ -4,6 +4,8 @@ import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.config.model.ProjectProperties;
 import io.github.trialiya.kb.config.model.ProjectProperties.ProjectOption;
 import io.github.trialiya.kb.model.project.Project;
+import io.github.trialiya.kb.model.project.ProjectOptions;
+import io.github.trialiya.kb.model.project.ProjectView;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -63,6 +65,24 @@ public class ProjectCatalog {
         return projects.getFirst();
     }
 
+    /**
+     * What the project selector offers — the list plus the entry a chat gets when it stores none.
+     */
+    public ProjectOptions options() {
+        return new ProjectOptions(
+                defaultProject().id(), projects.stream().map(ProjectView::of).toList());
+    }
+
+    /**
+     * Whether {@code projectId} names a configured project. Strict, unlike {@link #find}: a blank
+     * id is not "the default" here but an id nobody configured, because this answers "is this
+     * stored or requested value still usable", and there {@code null} has its own meaning already —
+     * the caller stated no project. Mirrors {@code ChatModelProperties#isAllowed}.
+     */
+    public boolean isAllowed(@Nullable String projectId) {
+        return projectId != null && projects.stream().anyMatch(p -> p.id().equals(projectId));
+    }
+
     /** The project {@code projectId} names; empty for an unknown id. {@code null} → the default. */
     public Optional<Project> find(@Nullable String projectId) {
         if (!StringUtils.hasText(projectId)) {
@@ -98,15 +118,16 @@ public class ProjectCatalog {
             return List.of(
                     new Project(LEGACY_ID, LEGACY_ID, absolute(path), gitProperties.editEnabled()));
         }
-        // One project is all the rest of the code can currently reach: nothing chooses between
-        // them yet — not a chat, not an endpoint, not a link — so a second entry would be
-        // configuration that silently does nothing.
+        // A chat can name its project now, but a file link cannot: /files?path=... and the file
+        // browser carry no project, so in a second repository the same path would quietly open a
+        // different file. Refusing the configuration is the cheaper failure.
         if (options.size() > 1) {
             throw new IllegalStateException(
                     "kb.projects: several projects are configured "
                             + options.stream().map(ProjectOption::id).toList()
-                            + ", but only one is supported for now — the project cannot be chosen"
-                            + " per chat yet, so every extra entry would be unreachable");
+                            + ", but only one is supported for now — file links and the file"
+                            + " browser do not carry a project yet, so paths from a second"
+                            + " repository would resolve against the wrong one");
         }
         List<Project> resolved = new ArrayList<>();
         Set<String> ids = new LinkedHashSet<>();
