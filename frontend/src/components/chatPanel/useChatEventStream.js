@@ -88,6 +88,11 @@ export default function useChatEventStream({
     if (!chat || !Array.isArray(chat.messages) || chat.notFound || chat.loadError) return undefined;
 
     let cancelled = false;
+    // Закрывалка потока. Объявлена здесь, до settleStaleRun, который её зовёт: держать
+    // её только в const ниже значило бы, что любой будущий СИНХРОННЫЙ вызов оттуда
+    // падает по TDZ — сейчас спасает лишь то, что все пути идут через колбэк промиса,
+    // а ESLint такую ловушку не видит. До подписки закрывать нечего — no-op.
+    let closeStream = () => {};
 
     // Один вызов колбэка со ВСЕМ списком, а не по одному на tool call — см. JSDoc выше.
     const fireChangeRefs = ({ docRefs, fileRefs }) => {
@@ -105,7 +110,7 @@ export default function useChatEventStream({
     // поверх загруженной истории (см. шапку хука) — иначе реплей лёг бы в старые messages,
     // а пришедшая следом страница из БД его затёрла.
     const settleStaleRun = (staleRunId) => {
-      close();
+      closeStream();
       seqByChatRef.current.delete(chatId);
       setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, runId: null } : c)));
       onRunSettled(chatId);
@@ -139,7 +144,7 @@ export default function useChatEventStream({
       errorLabel: i18n.t('chat:window.genericError'),
       interruptedNote: `\n\n_**${i18n.t('chat:message.interrupted')}**_`,
     };
-    const close = openChatEventStream(chatId, {
+    closeStream = openChatEventStream(chatId, {
       fromSeq: seqByChatRef.current.get(chatId) || 0,
       onSeq: (seq) => seqByChatRef.current.set(chatId, seq),
       onEvent: (ev) => {
@@ -181,7 +186,7 @@ export default function useChatEventStream({
 
     return () => {
       cancelled = true;
-      close();
+      closeStream();
     };
   }, [activeChatId, activeMessagesReady, resyncTick, onRunSettled, onChatDeleted, reloadMessages]); // eslint-disable-line react-hooks/exhaustive-deps
 }
