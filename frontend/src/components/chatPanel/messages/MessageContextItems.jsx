@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ContextChips from '../composer/ContextChips';
-import AttachmentModal from '../../common/AttachmentModal';
-import { CONTEXT_KIND } from '../../../constants/contextKind';
+import AttachmentModal from '@/components/common/attachments/AttachmentModal';
+import { CONTEXT_KIND } from '@/constants/contextKind';
 
 /**
  * Приложенное к вопросу — чипами под текстом сообщения, с открытием по клику.

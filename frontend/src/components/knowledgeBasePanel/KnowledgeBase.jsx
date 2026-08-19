@@ -2,25 +2,25 @@ import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import './KnowledgeBase.css';
 
-import TreeNode from './TreeNode';
-import TreeSearch from './TreeSearch';
-import FolderDetail from './FolderDetail';
-import DocumentDetail from './DocumentDetail';
-import DetailModals from './DetailModals';
-import AddModal from './AddModal';
-import MoveConfirmModal from './MoveConfirmModal';
-import ConfirmModal from '../common/ConfirmModal';
-import SearchResults from './SearchResults';
-import ErrorModal from '../common/ErrorModal';
-import WorkspaceLayout from '../common/WorkspaceLayout';
-import { IconPlus } from '../../icons';
-import { OWNER_TYPE } from '../../constants/ownerType';
-import useListNavigation from '../../hooks/useListNavigation';
+import TreeNode from './tree/TreeNode';
+import TreeSearch from './tree/TreeSearch';
+import FolderDetail from './detail/FolderDetail';
+import DocumentDetail from './detail/DocumentDetail';
+import DetailModals from './detail/DetailModals';
+import AddModal from './modals/AddModal';
+import MoveConfirmModal from './modals/MoveConfirmModal';
+import ConfirmModal from '@/components/common/modal/ConfirmModal';
+import SearchResults from './tree/SearchResults';
+import ErrorModal from '@/components/common/modal/ErrorModal';
+import WorkspaceLayout from '@/components/common/layout/WorkspaceLayout';
+import { IconPlus } from '@/icons/index';
+import { OWNER_TYPE } from '@/constants/ownerType';
+import useListNavigation from '@/components/common/search/useListNavigation';
 import useKnowledgeBase from './useKnowledgeBase';
-import useDetailPanel from './useDetailPanel';
-import useAttachmentCount from '../common/useAttachmentCount';
-import useFolderChildren from './useFolderChildren';
-import { buildDetailTabs } from './detailSidebar';
+import useDetailPanel from './detail/useDetailPanel';
+import useAttachmentCount from '@/components/common/attachments/useAttachmentCount';
+import useFolderChildren from './tree/useFolderChildren';
+import { buildDetailTabs } from './detail/detailSidebar';
 
 const KnowledgeBase = ({
   docId,

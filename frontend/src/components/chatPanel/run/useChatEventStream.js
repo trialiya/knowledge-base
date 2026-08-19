@@ -1,10 +1,10 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
-import i18n from '../../../i18n';
-import { openChatEventStream } from '../../../api/chatEvents';
+import i18n from '@/i18n/index';
+import { openChatEventStream } from '@/api/chatEvents';
 import { applyChatEvent } from './chatEventReducer';
-import chatApi from '../../../api/chatApi';
-import { DRAFT_CHAT_ID } from '../../../constants/storage';
-import { CHAT_EVENT } from '../../../constants/chatEventTypes';
+import chatApi from '@/api/chatApi';
+import { DRAFT_CHAT_ID } from '@/constants/storage';
+import { CHAT_EVENT } from '@/constants/chatEventTypes';
 import { collectChangeRefs } from '../messages/toolMeta';
 
 // Мутации ОДНОГО прогона по загруженной истории: вызовы инструментов лежат у пузырей

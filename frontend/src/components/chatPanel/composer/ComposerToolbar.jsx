@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next';
-import DefaultNoteSelect from '../../common/DefaultNoteSelect';
-import { markUnavailable } from '../../common/projectChoice';
+import DefaultNoteSelect from '@/components/common/config/DefaultNoteSelect';
+import { markUnavailable } from '@/components/common/config/projectChoice';
 import ModeSelector from './ModeSelector';
-import { IconSend, IconStop, IconPaperclip } from '../../../icons';
+import { IconSend, IconStop, IconPaperclip } from '@/icons/index';
 
 /**
  * Панель под полем ввода: слева — скрепка и селекторы модели и режима, справа —

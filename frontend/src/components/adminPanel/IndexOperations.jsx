@@ -1,11 +1,11 @@
 import { useTranslation } from 'react-i18next';
-import { SettingsContentHead, SettingsSection } from '../common/SettingsShell';
-import { ConfigRow, ConfigStatusRow, useDurationFormat } from '../common/ConfigGroup';
-import OperationRow, { useOperation } from '../common/OperationRow';
-import useConfigSnapshot from '../common/useConfigSnapshot';
-import { IconRefresh } from '../../icons';
-import documentsApi from '../../api/documentsApi';
-import settingsApi from '../../api/settingsApi';
+import { SettingsContentHead, SettingsSection } from '@/components/common/layout/SettingsShell';
+import { ConfigRow, ConfigStatusRow, useDurationFormat } from '@/components/common/config/ConfigGroup';
+import OperationRow, { useOperation } from '@/components/common/ui/OperationRow';
+import useConfigSnapshot from '@/components/common/config/useConfigSnapshot';
+import { IconRefresh } from '@/icons/index';
+import documentsApi from '@/api/documentsApi';
+import settingsApi from '@/api/settingsApi';
 
 /**
  * Семантический индекс: единственная реально работающая операция (полная

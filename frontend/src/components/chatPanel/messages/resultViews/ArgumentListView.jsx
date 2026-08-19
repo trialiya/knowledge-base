@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconChevronDown } from '../../../../icons';
+import { IconChevronDown } from '@/icons/index';
 import CodeLines from './codeLines';
 
 // Режим «Обзор» для секции аргументов: короткие значения строками, длинные —

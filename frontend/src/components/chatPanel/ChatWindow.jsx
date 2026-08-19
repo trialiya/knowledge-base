@@ -2,34 +2,34 @@ import { useState, useCallback, useRef, useEffect, useEffectEvent, useMemo } fro
 import { useTranslation } from 'react-i18next';
 // Перевод вне рендера берём у самого i18n, а не у t() из хука: колбэки стриминга
 // не должны пересоздаваться на смену языка, а зеркалить t в рефе — не за чем.
-import i18n from '../../i18n';
-import { STORAGE_KEY_ACTIVE_CHAT, DRAFT_CHAT_ID } from '../../constants/storage';
-import { getLastModel, getLastMode, getLastProject } from './lastChoiceStore';
-import useModelConfig from './useModelConfig';
-import useProjectConfig from '../common/useProjectConfig';
-import { resolveProjectChoice } from '../common/projectChoice';
-import useModeConfig from './useModeConfig';
+import i18n from '@/i18n/index';
+import { STORAGE_KEY_ACTIVE_CHAT, DRAFT_CHAT_ID } from '@/constants/storage';
+import { getLastModel, getLastMode, getLastProject } from './run/lastChoiceStore';
+import useModelConfig from './run/useModelConfig';
+import useProjectConfig from '@/components/common/config/useProjectConfig';
+import { resolveProjectChoice } from '@/components/common/config/projectChoice';
+import useModeConfig from './run/useModeConfig';
 import useChatList from './list/useChatList';
 import useChatMessages from './run/useChatMessages';
 import useChatEventStream from './run/useChatEventStream';
 import useChatRun from './run/useChatRun';
 import useChatAttachments from './run/useChatAttachments';
-import useInChatSearch from './useInChatSearch';
+import useInChatSearch from './center/useInChatSearch';
 import useChatDrafts from './composer/useChatDrafts';
 import useChatDeletion from './list/useChatDeletion';
-import useNotice from '../common/useNotice';
-import { chatLoadErrorNotice, CHAT_DELETED_NOTICE } from './chatNotices';
+import useNotice from '@/components/common/ui/useNotice';
+import { chatLoadErrorNotice, CHAT_DELETED_NOTICE } from './run/chatNotices';
 import { stampChipProject } from './composer/fileChips';
 
-import ChatCenter from './ChatCenter';
-import { buildChatTabs } from './chatSidebar';
+import ChatCenter from './center/ChatCenter';
+import { buildChatTabs } from './center/chatSidebar';
 import ChatList from './list/ChatList';
 import ChatSearch from './list/ChatSearch';
-import WorkspaceLayout from '../common/WorkspaceLayout';
-import { IconPlus } from '../../icons';
+import WorkspaceLayout from '@/components/common/layout/WorkspaceLayout';
+import { IconPlus } from '@/icons/index';
 import './chatWindow.css';
-import ErrorModal from '../common/ErrorModal';
-import ConfirmModal from '../common/ConfirmModal';
+import ErrorModal from '@/components/common/modal/ErrorModal';
+import ConfirmModal from '@/components/common/modal/ConfirmModal';
 
 const ChatWindow = ({
   onNavigateToDoc,

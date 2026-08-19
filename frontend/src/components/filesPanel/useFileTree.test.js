@@ -4,9 +4,9 @@ import { resetFileTreeCache, invalidatePath } from './fileTreeStore';
 
 /** Панель всегда смотрит в один проект — его и передаём хуку. */
 const PROJECT = 'kb';
-import gitApi from '../../api/gitApi';
+import gitApi from '@/api/gitApi';
 
-vi.mock('../../api/gitApi');
+vi.mock('@/api/gitApi');
 
 const nodeA = { path: 'a', name: 'a', type: 'directory', size: null };
 const nodeAB = { path: 'a/b', name: 'b', type: 'directory', size: null };

@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { IconChevronDown } from '../../../../icons';
+import { IconChevronDown } from '@/icons/index';
 import ResultSummary, { useExpandAll } from './resultSummary';
 
 // Режим «Обзор» для совпадений `grepContent`: файл → блоки строк с настоящими

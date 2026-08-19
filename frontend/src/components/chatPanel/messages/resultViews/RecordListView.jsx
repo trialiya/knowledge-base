@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconChevronDown } from '../../../../icons';
+import { IconChevronDown } from '@/icons/index';
 import { formatFieldValue } from './fieldValue';
 import ResultSummary, { useExpandAll } from './resultSummary';
 

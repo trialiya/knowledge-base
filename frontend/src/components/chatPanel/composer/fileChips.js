@@ -18,12 +18,12 @@
 //
 // doc/docref проект не несут и не могут: база знаний общая для всех проектов.
 
-import gitApi from '../../../api/gitApi';
-import documentsApi from '../../../api/documentsApi';
+import gitApi from '@/api/gitApi';
+import documentsApi from '@/api/documentsApi';
 // i18n-инстанс напрямую: модуль не компонент, useTranslation здесь недоступен.
 // Строки уходят в текст отправляемого сообщения и следуют языку интерфейса.
-import i18n from '../../../i18n';
-export { baseName } from '../../common/utils';
+import i18n from '@/i18n/index';
+export { baseName } from '@/components/common/ui/utils';
 
 const OPEN = '⟦'; // ⟦
 const CLOSE = '⟧'; // ⟧

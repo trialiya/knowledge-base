@@ -1,13 +1,13 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Phrases from './Phrases';
-import { fetchPhrases, toggleFavorite } from '../../../api/phrasesApi';
+import { fetchPhrases, toggleFavorite } from '@/api/phrasesApi';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key) => key }),
 }));
 
-vi.mock('../../../api/phrasesApi', () => ({
+vi.mock('@/api/phrasesApi', () => ({
   fetchPhrases: vi.fn(),
   toggleFavorite: vi.fn(),
 }));

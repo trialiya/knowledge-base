@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import highlightMatch, { highlightFileMatch } from '../../common/highlightMatch';
-import { IconFileText } from '../../../icons';
+import highlightMatch, { highlightFileMatch } from '@/components/common/search/highlightMatch';
+import { IconFileText } from '@/icons/index';
 
 /**
  * Плавающий список результатов поиска для триггеров `/file` и `/doc`.

@@ -1,9 +1,9 @@
 import { useTranslation } from 'react-i18next';
-import { SettingsSection } from '../common/SettingsShell';
-import ConfigGroup, { ConfigRow, ConfigBoolRow, useDurationFormat } from '../common/ConfigGroup';
-import useConfigSnapshot from '../common/useConfigSnapshot';
-import settingsApi from '../../api/settingsApi';
-import { formatDateTime } from '../../utils/formatting';
+import { SettingsSection } from '@/components/common/layout/SettingsShell';
+import ConfigGroup, { ConfigRow, ConfigBoolRow, useDurationFormat } from '@/components/common/config/ConfigGroup';
+import useConfigSnapshot from '@/components/common/config/useConfigSnapshot';
+import settingsApi from '@/api/settingsApi';
+import { formatDateTime } from '@/utils/formatting';
 
 /**
  * Как устроен сам сервер: профиль, база, индексируемый репозиторий, папка

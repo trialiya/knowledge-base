@@ -12,9 +12,9 @@
 // Проект уезжает в токен вместе с путём и хэшем: искали-то в репозитории чата, и
 // чип обязан помнить, в каком именно. Документам он не нужен — база знаний общая.
 
-import gitApi from '../../../api/gitApi';
+import gitApi from '@/api/gitApi';
 // i18n-инстанс напрямую: модуль не компонент, useTranslation здесь недоступен.
-import i18n from '../../../i18n';
+import i18n from '@/i18n/index';
 import { searchDocsAsync } from './chipTriggers';
 import { makeRefToken, makeDocRefToken, makeCommitToken } from './fileChips';
 

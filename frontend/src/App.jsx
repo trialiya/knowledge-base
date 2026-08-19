@@ -1,21 +1,21 @@
 import { useState, useEffect, useEffectEvent, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import ChatWindow from './components/chatPanel/ChatWindow';
-import KnowledgeBase from './components/knowledgeBasePanel/KnowledgeBase';
-import FilesPanel from './components/filesPanel/FilesPanel';
-import ConfirmModal from './components/common/ConfirmModal';
-import useAppNavigation from './useAppNavigation';
-import useUnsavedViewGuard from './useUnsavedViewGuard';
-import { registerFileNavigator } from './fileNavigationBus';
-import HeaderMenu from './components/common/HeaderMenu';
-import GlobalSearch from './components/common/GlobalSearch';
-import AdminPanel from './components/adminPanel/AdminPanel';
-import SettingsPanel from './components/settingsPanel/SettingsPanel';
-import { SEARCH_MODE } from './constants/searchMode';
-import { invalidateDocPreviewCache } from './components/common/useDocPreview';
-import { invalidateFilePreviewCache } from './components/common/useFilePreview';
-import { invalidatePath as invalidateFileTreePath } from './components/filesPanel/fileTreeStore';
-import './App.css';
+import ChatWindow from '@/components/chatPanel/ChatWindow';
+import KnowledgeBase from '@/components/knowledgeBasePanel/KnowledgeBase';
+import FilesPanel from '@/components/filesPanel/FilesPanel';
+import ConfirmModal from '@/components/common/modal/ConfirmModal';
+import useAppNavigation from '@/navigation/useAppNavigation';
+import useUnsavedViewGuard from '@/navigation/useUnsavedViewGuard';
+import { registerFileNavigator } from '@/navigation/fileNavigationBus';
+import HeaderMenu from '@/components/common/layout/HeaderMenu';
+import GlobalSearch from '@/components/common/search/GlobalSearch';
+import AdminPanel from '@/components/adminPanel/AdminPanel';
+import SettingsPanel from '@/components/settingsPanel/SettingsPanel';
+import { SEARCH_MODE } from '@/constants/searchMode';
+import { invalidateDocPreviewCache } from '@/components/common/preview/useDocPreview';
+import { invalidateFilePreviewCache } from '@/components/common/preview/useFilePreview';
+import { invalidatePath as invalidateFileTreePath } from '@/components/filesPanel/fileTreeStore';
+import '@/App.css';
 
 // Вкладки-иконки в левой зоне шапки. Подпись одна на кнопку: она же
 // всплывающая подсказка, она же имя для скринридера.

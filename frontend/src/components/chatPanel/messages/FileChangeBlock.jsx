@@ -3,12 +3,12 @@ import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getFileChangeRefs } from './toolMeta';
-import { TOOL_STATUS } from '../../../constants/toolStatus';
+import { TOOL_STATUS } from '@/constants/toolStatus';
 import { fetchContent } from '../composer/fileChips';
-import { IconChevronDown } from '../../../icons';
-import ModalShell from '../../common/ModalShell';
+import { IconChevronDown } from '@/icons/index';
+import ModalShell from '@/components/common/modal/ModalShell';
 import { DiffLines, DiffStats } from './diffRender';
-import { filesUrl } from '../../../urlScheme';
+import { filesUrl } from '@/navigation/urlScheme';
 import '../styles/doc-changes.css';
 import '../styles/file-changes.css';
 

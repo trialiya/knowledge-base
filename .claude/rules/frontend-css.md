@@ -28,7 +28,8 @@ paths:
 - `--ws-left-width` is **not** one of those: it lives on `:root` because the drag
   handle rewrites it there for every section at once. A `.workspace--*` override
   would outrank `:root` and freeze that section's width — never redeclare it.
-- `components/common/buttons.css` is the only place button looks live, and
-  `common/modalShell.css` the only place modal chrome does. The panel-local
-  families (`set-btn`, `detail-icon-btn`, `new-chat-button`, `modal-overlay`,
-  `tcd-overlay`, …) have been folded into them — keep it that way.
+- `components/common/ui/buttons.css` is the only place button looks live, and
+  `common/modal/modalShell.css` the only place modal chrome does. The
+  panel-local families (`set-btn`, `detail-icon-btn`, `new-chat-button`,
+  `modal-overlay`, `tcd-overlay`, …) have been folded into them — keep it
+  that way.

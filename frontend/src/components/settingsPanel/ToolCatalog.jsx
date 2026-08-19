@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { SettingsSection } from '../common/SettingsShell';
-import { ConfigTags } from '../common/ConfigGroup';
-import ListboxSelect from '../common/ListboxSelect';
-import useConfigSnapshot from '../common/useConfigSnapshot';
-import { getToolIcon, toolLabelKey, humanizeTool } from '../common/toolNames';
-import settingsApi from '../../api/settingsApi';
+import { SettingsSection } from '@/components/common/layout/SettingsShell';
+import { ConfigTags } from '@/components/common/config/ConfigGroup';
+import ListboxSelect from '@/components/common/ui/ListboxSelect';
+import useConfigSnapshot from '@/components/common/config/useConfigSnapshot';
+import { getToolIcon, toolLabelKey, humanizeTool } from '@/components/common/ui/toolNames';
+import settingsApi from '@/api/settingsApi';
 
 /**
  * Каталог инструментов, доступных модели: выпадашка со списком, под ней —

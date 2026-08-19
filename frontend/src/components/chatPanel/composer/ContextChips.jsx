@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { CONTEXT_KIND } from '../../../constants/contextKind';
+import { CONTEXT_KIND } from '@/constants/contextKind';
 
 // Иконка по виду контекста. Неизвестный вид (запись из более новой версии) рисуем
 // нейтрально, а не прячем: пользователь приложил его осознанно.

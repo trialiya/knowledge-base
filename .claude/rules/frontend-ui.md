@@ -13,7 +13,7 @@ never in big-bang rewrites.
 ## Section shell
 
 - Every section — chat, knowledge base, files, **and** Settings/Admin — renders
-  through the shared `<WorkspaceLayout>` (`components/common/`). It owns the
+  through the shared `<WorkspaceLayout>` (`components/common/layout/`). It owns the
   section container, the collapsible left panel (title · action · toolbar ·
   body), the center area and the right panel: a drawer collapsed by default that
   shows as an icon rail, with `<RightPanel>` rendering the expanded form.
@@ -33,7 +33,7 @@ never in big-bang rewrites.
   — dates, versions, path and author belong to the right panel's Info tab.
   `SettingsShell`'s head is deliberately two rows and does not line up; migrate
   it when its subtitle finds another home, and don't copy its metrics anywhere.
-- A path in a header is the shared `<HeadCrumbs>` (`common/HeadCrumbs.jsx`).
+- A path in a header is the shared `<HeadCrumbs>` (`common/layout/HeadCrumbs.jsx`).
   Sections pass `items` (`{ key, label, onNavigate? }` — an item without
   `onNavigate` is the current one) and `trailingSep` when the header's own title
   continues the chain (knowledge base) rather than ending it (files). Pass the
@@ -95,7 +95,7 @@ Panel open/closed state is **controlled state that lives in the URL**
 ## Left panel: lists and trees
 
 - Every row — chat list, knowledge tree, file tree, settings groups — is the
-  shared `.ws-item` from `common/sidePanel.css`. A section adds only modifiers
+  shared `.ws-item` from `common/layout/sidePanel.css`. A section adds only modifiers
   for its own behaviour **on top of** the shared block (the KB tree's
   `.tree-row--dragging`, the file tree's `.ws-item--nowrap`), never a parallel
   row family of its own.
@@ -137,13 +137,28 @@ Panel open/closed state is **controlled state that lives in the URL**
   `*-overlay` classes or per-modal overlay divs.
 - Backdrop close is `onMouseDown`, not `onClick`, so a text selection that ends
   outside the modal doesn't dismiss it.
-- Use the shared button classes from `components/common/buttons.css`: `btn`,
+- Use the shared button classes from `components/common/ui/buttons.css`: `btn`,
   `btn--primary`, `btn--ghost`, `btn--danger`, `btn--sm`, and `icon-btn`
   (+ `icon-btn--danger`, `icon-btn--done`, `icon-btn--star`) for icon-only
   buttons. Don't add new button families.
 
 ## Components and hooks
 
+- A file lives next to the feature it belongs to; its test and its `.css`
+  (when it has one styled just for it) sit right beside it — never in a
+  parallel `tests/` or `styles/` tree of their own. Code shared across
+  sections goes in `components/common/<domain>/` (`layout`, `modal`,
+  `preview`, `attachments`, `search`, `config`, `ui`) — pick the domain by
+  what the code is *for*, not by its file type. A within-feature import stays
+  relative (`./`, `../`); an import that crosses into another feature or into
+  `common/` uses the `@/` alias (`@/components/common/modal/ModalShell`) so
+  the path doesn't encode how deep the importer happens to be nested.
+- A folder that grows past ~15 files on one level is due for a split into
+  sub-feature folders, the way `chatPanel/` (`composer/`, `list/`, `messages/`,
+  `run/`, `center/`) and `knowledgeBasePanel/` (`tree/`, `detail/`, `editor/`,
+  `modals/`) are split — group by what the files do together (the tree, the
+  detail panel, the editor), not by file type (all hooks in one folder, all
+  modals in another).
 - Components render; hooks own state and API orchestration; pure logic goes in
   plain `.js` modules next to the feature (`treeOps.js`, `fileChips.js`).
 - Keep files focused: a file approaching ~300 lines or holding 2+ exported
@@ -185,7 +200,7 @@ Panel open/closed state is **controlled state that lives in the URL**
   deps it was hiding from, and whoever passes it memoizes it (`usePreviewCache`'s
   `seed`). A ref that survives is written from an effect or a handler, and is not
   passed into another hook — pass a getter if a hook needs to read it.
-- The two trees are intentionally separate: `knowledgeBasePanel/TreeNode`
+- The two trees are intentionally separate: `knowledgeBasePanel/tree/TreeNode`
   (editable — drag-drop, pagination) versus `filesPanel/FileTreeNode`
   (read-only). Do not unify them.
 

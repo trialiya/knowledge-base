@@ -4,7 +4,7 @@
 // STORAGE_KEY_CHAT_DRAFTS. Здесь только чистые операции над картой { chatId: text }
 // и её сериализация; тайминги записи (debounce) держит вызывающий компонент.
 
-import { STORAGE_KEY_CHAT_DRAFTS, STORAGE_KEY_CHAT_STAGED } from '../../../constants/storage';
+import { STORAGE_KEY_CHAT_DRAFTS, STORAGE_KEY_CHAT_STAGED } from '@/constants/storage';
 
 /** Прочитать карту из localStorage по ключу. Любой сбой → пустая карта. */
 function loadMap(key) {

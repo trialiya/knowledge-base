@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import OperationRow from '../common/OperationRow';
-import { IconArchive } from '../../icons';
-import api from '../../api/documentsApi';
+import OperationRow from '@/components/common/ui/OperationRow';
+import { IconArchive } from '@/icons/index';
+import api from '@/api/documentsApi';
 
 // ─── Операция: скачать всё дерево одним архивом ──────────────────────────────
 // Экспорт выше кладёт файлы в серверную папку — увидеть их может только тот, у

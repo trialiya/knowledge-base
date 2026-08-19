@@ -4,8 +4,8 @@
 // добавление нового типа — это один объект в TRIGGER_TYPES, а не разбросанные по
 // компоненту ветки `type === 'file' ? … : …`.
 
-import gitApi from '../../../api/gitApi';
-import documentsApi from '../../../api/documentsApi';
+import gitApi from '@/api/gitApi';
+import documentsApi from '@/api/documentsApi';
 import { makeToken, makeRefToken, makeDocToken, makeDocRefToken } from './fileChips';
 
 /**

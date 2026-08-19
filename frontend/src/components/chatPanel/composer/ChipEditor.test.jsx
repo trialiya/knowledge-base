@@ -3,11 +3,11 @@ import { render } from '@testing-library/react';
 import ChipEditor from './ChipEditor';
 import { getCaretOffset } from './fileChipEditorDom';
 
-vi.mock('../../../api/gitApi', () => ({
+vi.mock('@/api/gitApi', () => ({
   default: { searchFiles: vi.fn(), searchCommits: vi.fn(), getFileContent: vi.fn() },
 }));
 
-vi.mock('../../../api/documentsApi', () => ({
+vi.mock('@/api/documentsApi', () => ({
   default: { searchByName: vi.fn(), fetchById: vi.fn() },
 }));
 

@@ -1,0 +1,52 @@
+import { useTranslation } from 'react-i18next';
+import DetailHeader from './DetailHeader';
+import MarkdownEditor from '../editor/MarkdownEditor';
+
+/**
+ * Центр раздела «База знаний» для документа: шапка и редактор содержимого.
+ *
+ * AI-summary, вложения и метаданные живут в правой панели (см.
+ * detailSidebar.jsx), поэтому вкладок в центре больше нет — здесь ровно то, что
+ * пользователь читает и правит. Открывается редактор в режиме просмотра
+ * (`defaultPreview`): документ чаще читают, чем правят. Состояние
+ * черновика/полноэкранного режима поднято в KnowledgeBase (его делят центр и
+ * правая панель), сюда приходит пропсами.
+ */
+const DocumentDetail = ({
+  node,
+  path,
+  onUpdate,
+  onDelete,
+  onNavigate,
+  onRename,
+  tree = [],
+  contentDraft,
+  setContentDraft,
+  onExpandContent,
+  onHistory,
+}) => {
+  const { t } = useTranslation('knowledgeBase');
+
+  return (
+    <div className="detail-panel">
+      <DetailHeader node={node} path={path} onNavigate={onNavigate} onRename={onRename} onDelete={onDelete} />
+
+      <div className="detail-body">
+        <MarkdownEditor
+          value={contentDraft}
+          onChange={setContentDraft}
+          savedValue={node.description || ''}
+          placeholder={t('detail.docPlaceholder')}
+          onSave={(val) => onUpdate(node.id, { description: val })}
+          defaultPreview
+          onExpand={onExpandContent}
+          tree={tree}
+          onNavigate={onNavigate}
+          onHistory={onHistory}
+        />
+      </div>
+    </div>
+  );
+};
+
+export default DocumentDetail;

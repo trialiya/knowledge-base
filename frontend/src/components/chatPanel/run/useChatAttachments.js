@@ -1,11 +1,11 @@
 import { useCallback, useState } from 'react';
-import attachmentApi from '../../../api/attachmentApi';
-import { OWNER_TYPE } from '../../../constants/ownerType';
-import { CONTEXT_KIND } from '../../../constants/contextKind';
-import { DRAFT_CHAT_ID } from '../../../constants/storage';
-import { generateUUID } from '../../../utils/uuid';
-import useAttachmentCount from '../../common/useAttachmentCount';
-import { attachmentDeleteErrorNotice, UPLOAD_ERROR_NOTICE } from '../chatNotices';
+import attachmentApi from '@/api/attachmentApi';
+import { OWNER_TYPE } from '@/constants/ownerType';
+import { CONTEXT_KIND } from '@/constants/contextKind';
+import { DRAFT_CHAT_ID } from '@/constants/storage';
+import { generateUUID } from '@/utils/uuid';
+import useAttachmentCount from '@/components/common/attachments/useAttachmentCount';
+import { attachmentDeleteErrorNotice, UPLOAD_ERROR_NOTICE } from './chatNotices';
 
 /**
  * Вложения активного чата со стороны ChatWindow: счётчик для бейджа, сигнал на

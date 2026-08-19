@@ -4,12 +4,12 @@ import { useTranslation } from 'react-i18next';
 import Message from './Message';
 import DocChangeBlock from './DocChangeBlock';
 import FileChangeBlock from './FileChangeBlock';
-import { IconArrowDown } from '../../../icons';
-import { SENDER } from '../../../constants/messageSender';
+import { IconArrowDown } from '@/icons/index';
+import { SENDER } from '@/constants/messageSender';
 import {
   SCROLL_STICK_THRESHOLD as STICK_THRESHOLD,
   SCROLL_LOAD_THRESHOLD as LOAD_MORE_THRESHOLD,
-} from '../../../constants/ui';
+} from '@/constants/ui';
 
 // onLoadMore: async () => boolean — true если что-то догрузилось (для UI-индикатора).
 // hasMore: есть ли ещё более старые сообщения на бэке.
