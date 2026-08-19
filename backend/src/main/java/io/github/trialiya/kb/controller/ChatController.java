@@ -42,6 +42,7 @@ import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
@@ -627,20 +628,20 @@ public class ChatController {
      * инструменты прогона поедут на первом проекте списка (см. {@code ProjectCatalog}). Параллель
      * {@link #resolveModel}.
      *
-     * <p>{@code chat_topic.project} меняется только здесь — на приёме сообщения, и нигде больше:
-     * колонка означает «на каком проекте чат реально работал», а не «что выбрано в селекторе».
-     * Выбор, не подтверждённый отправкой, живёт на фронте; поэтому же сравнение с прежним значением
-     * колонки (см. {@link #projectSwitch}) и есть детекция настоящей смены проекта.
+     * <p>В отличие от модели и режима, колонку пишет не этот метод, а {@link #resolveRun} — одной
+     * записью «привести к тому, на чём прогон реально пошёл». Ответ здесь бывает не тем, что
+     * сохранено (выбывший из конфигурации проект вырождается в дефолтный), и записать надо именно
+     * ответ: {@code chat_topic.project} означает «на каком проекте чат реально работал», а не «что
+     * выбрано в селекторе». Выбор, не подтверждённый отправкой, живёт на фронте; поэтому же
+     * сравнение с прежним значением колонки (см. {@link #projectSwitch}) и есть детекция настоящей
+     * смены проекта.
      */
     private @Nullable String resolveProject(
-            final String conversationId,
-            final Optional<ChatTopicEntity> stored,
-            final String requested) {
+            final Optional<ChatTopicEntity> stored, final String requested) {
         if (StringUtils.hasText(requested)) {
             if (!projectCatalog.isAllowed(requested)) {
                 throw new ResponseStatusException(BAD_REQUEST, "Unknown project: " + requested);
             }
-            chatTopicRepository.updateProject(conversationId, requested);
             return requested;
         }
         return stored.map(ChatTopicEntity::getProject)
@@ -682,12 +683,21 @@ public class ChatController {
         final Optional<ChatTopicEntity> stored = chatTopicRepository.findById(conversationId);
         final String resolvedModel = resolveModel(conversationId, stored, model);
         final String previousProject = stored.map(ChatTopicEntity::getProject).orElse(null);
-        final String resolvedProject = resolveProject(conversationId, stored, project);
+        final String resolvedProject = resolveProject(stored, project);
+        final ProjectSwitch switched = projectSwitch(previousProject, resolvedProject);
+        if (!Objects.equals(previousProject, resolvedProject)) {
+            // Колонку приводим к тому, на чём прогон реально пошёл, — и когда проект назвали, и
+            // когда сохранённый выбыл из конфигурации и выродился в дефолтный. Второе не записать
+            // нельзя: следующее сообщение сравнилось бы с тем же выбывшим значением и повторило
+            // маркер, которому место ровно на одном вопросе — том, которым история сменила
+            // репозиторий.
+            chatTopicRepository.updateProject(conversationId, resolvedProject);
+        }
         return new ChatRunService.RunOptions(
                 resolvedModel,
                 chatModelProperties.isWeak(resolvedModel),
                 chatModeService.instructionsFor(resolveMode(conversationId, stored, mode)),
                 resolvedProject,
-                projectSwitch(previousProject, resolvedProject));
+                switched);
     }
 }

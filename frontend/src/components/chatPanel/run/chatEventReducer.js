@@ -82,6 +82,10 @@ const pushAi = (msgs, runId) => {
   return msgs.length - 1;
 };
 
+// Одна ли это плашка смены проекта. Сравнение по значению, а не по ссылке: из каждого эха
+// приезжает свежий объект, а отсутствие плашки — это и null, и undefined.
+const sameProjectSwitch = (a, b) => (a?.from ?? null) === (b?.from ?? null) && (a?.to ?? null) === (b?.to ?? null);
+
 // Снимает флаг «модель готовит вызов инструмента» со всех пузырей прогона.
 // Вызывается, как только появляется что-то осязаемое: текст, плашка вызова или
 // завершение прогона — индикатор «готовлю данные…» при этом исчезает.
@@ -130,14 +134,11 @@ export function applyChatEvent(chat, ev, ctx) {
         : null;
       // Своё эхо — уже показано оптимистично; дописать в него осталось только плашку.
       if (clientMsgId && ctx.isLocal?.(clientMsgId)) {
-        if (!projectSwitch) return chat;
         for (let i = msgs.length - 1; i >= 0; i--) {
           if (msgs[i].sender !== SENDER.USER) continue;
-          if (!msgs[i].projectSwitch) {
-            msgs[i] = { ...msgs[i], projectSwitch };
-            return { ...chat, messages: msgs };
-          }
-          return chat;
+          if (sameProjectSwitch(projectSwitch, msgs[i].projectSwitch)) return chat;
+          msgs[i] = { ...msgs[i], projectSwitch };
+          return { ...chat, messages: msgs };
         }
         return chat;
       }
@@ -169,7 +170,11 @@ export function applyChatEvent(chat, ev, ctx) {
             const patch = {
               ...(dbId != null && msgs[i].dbId == null ? { dbId } : {}),
               ...(contextItems && !msgs[i].contextItems?.length ? { contextItems } : {}),
-              ...(projectSwitch && !msgs[i].projectSwitch ? { projectSwitch } : {}),
+              // Плашка, в отличие от остального в этом патче, не «дописывается, если её нет», а
+              // берётся из эха как есть: повтор прогона считает смену заново, и уехавший в третий
+              // проект вопрос обязан потерять прежнюю плашку, а вернувшийся в исходный — вообще
+              // всякую (бэкенд её в этом случае снимает).
+              ...(sameProjectSwitch(projectSwitch, msgs[i].projectSwitch) ? {} : { projectSwitch }),
             };
             const patched = Object.keys(patch).length > 0;
             if (patched) msgs[i] = { ...msgs[i], ...patch };

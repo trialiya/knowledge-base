@@ -62,6 +62,12 @@ public class GitRegistry {
         }
         this.byProjectId = Map.copyOf(services);
         for (Project project : catalog.projects()) {
+            // Не открывшийся репозиторий сюда не попадает: про него уже сказано выше и по делу, а
+            // editsAllowed отвечает «нет» и на него тоже — предупреждение про права на дерево
+            // послало бы разбираться с монтированием ro вместо не доехавшего mount'а.
+            if (!byProjectId.containsKey(project.id())) {
+                continue;
+            }
             if (project.editEnabled() && !editsAllowed(project.id())) {
                 log.warn(
                         "Project {}: edits are enabled in configuration, but the working tree at {}"

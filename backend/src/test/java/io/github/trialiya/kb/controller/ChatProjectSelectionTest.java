@@ -167,6 +167,23 @@ class ChatProjectSelectionTest {
         assertThat(projectSwitch.to()).isEqualTo("kb");
     }
 
+    /**
+     * И ровно на одном вопросе: маркер говорит «выше история читана в другом репозитории», а не
+     * «этот чат когда-то выбрал выбывший проект». Поэтому уехавший на дефолтный чат приводит и
+     * колонку к тому, на чём реально работает, — иначе каждое следующее сообщение сравнивалось бы с
+     * тем же выбывшим значением и несло бы плашку заново.
+     */
+    @Test
+    void aRetiredProjectIsMarkedOnceAndThenForgotten() {
+        storedProject("retired");
+
+        assertThat(startRun(null).projectSwitch()).isNotNull();
+        verify(topicRepository).updateProject(CONV, null);
+
+        storedProject(null); // колонку только что привели к дефолтному
+        assertThat(startRun(null).projectSwitch()).isNull();
+    }
+
     private ChatRunService.RunOptions startRun(@Nullable String requested) {
         controller.startRun(CONV, null, null, requested, null, true, null);
         final ArgumentCaptor<ChatRunService.RunOptions> captor =

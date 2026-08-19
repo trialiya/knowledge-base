@@ -198,7 +198,9 @@ export default function useChatList({ initialActiveChatId, initialPropChatId, ma
           ...(newTitle ? { title: newTitle } : {}),
           model: data.model ?? chat.model ?? null,
           mode: data.mode ?? chat.mode ?? null,
-          project: data.project ?? chat.project ?? null,
+          // Проекта здесь нет намеренно: выбор в селекторе на бэк не пишется до отправки
+          // (см. changeProject), и ответ сервера про него отстаёт — взяв его, мы бы откатывали
+          // выбранный, но ещё не отправленный проект всякий раз, когда завершается прогон.
           // не затираем уже имеющийся createdAt, иначе берём из ответа
           createdAt: chat.createdAt ?? data.createdAt ?? null,
           // updatedAt, наоборот, всегда из ответа: ради него этот запрос

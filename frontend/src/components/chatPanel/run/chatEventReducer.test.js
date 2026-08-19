@@ -134,6 +134,33 @@ describe('applyChatEvent', () => {
     expect(chat).toBe(before);
   });
 
+  // Повтор прогона считает смену заново — эхо для плашки авторитетно, а не «дополняет пустое».
+  test('USER_MESSAGE re-aims the project switch of a retried question', () => {
+    const chat = applyChatEvent(
+      {
+        id: 'c',
+        messages: [{ text: 'посмотри', sender: 'user', dbId: 5, projectSwitch: { from: 'kb', to: 'billing' } }],
+        runId: null,
+      },
+      { type: 'USER_MESSAGE', payload: { id: 5, text: 'посмотри', project: 'docs', projectSwitchFrom: 'kb' } },
+      ctx,
+    );
+    expect(last(chat).projectSwitch).toEqual({ from: 'kb', to: 'docs' });
+  });
+
+  test('USER_MESSAGE clears the project switch when the retry went back to the original project', () => {
+    const chat = applyChatEvent(
+      {
+        id: 'c',
+        messages: [{ text: 'посмотри', sender: 'user', dbId: 5, projectSwitch: { from: 'kb', to: 'billing' } }],
+        runId: null,
+      },
+      { type: 'USER_MESSAGE', payload: { id: 5, text: 'посмотри', project: 'kb' } },
+      ctx,
+    );
+    expect(last(chat).projectSwitch).toBeNull();
+  });
+
   test('RUN_DONE finalizes without an error flag', () => {
     let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r3' }, ctx);
     chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r3', payload: { message: 'ответ' } }, ctx);

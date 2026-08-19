@@ -13,6 +13,14 @@
  *
  * @returns {{ selected: string, missing: string|null }}
  */
+export function resolveProjectChoice(project, projectOptions, defaultProjectId) {
+  const known = !project || projectOptions.length === 0 || projectOptions.some((o) => o.id === project);
+  return {
+    selected: (known && project) || defaultProjectId || '',
+    missing: known ? null : project,
+  };
+}
+
 /**
  * Пункты селектора с пометкой на недоступных проектах: репозиторий такого
  * проекта не открылся на сервере (не доехал mount), и любое обращение к нему
@@ -26,12 +34,4 @@
  */
 export function markUnavailable(projectOptions, note) {
   return projectOptions.map((o) => (o.available === false ? { ...o, note: `(${note})` } : o));
-}
-
-export function resolveProjectChoice(project, projectOptions, defaultProjectId) {
-  const known = !project || projectOptions.length === 0 || projectOptions.some((o) => o.id === project);
-  return {
-    selected: (known && project) || defaultProjectId || '',
-    missing: known ? null : project,
-  };
 }
