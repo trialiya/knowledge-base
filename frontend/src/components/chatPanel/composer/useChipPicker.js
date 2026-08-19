@@ -86,7 +86,12 @@ export default function useChipPicker(project) {
   }, []);
 
   // Токен для выбранного элемента по типу текущего триггера.
-  const tokenFor = useCallback((item, withContent) => tokenForItem(triggerRef.current?.type, item, withContent), []);
+  // Проект уезжает в токен: чип должен помнить репозиторий, в котором его нашли,
+  // а не тот, что окажется выбран, когда сообщение наконец отправят.
+  const tokenFor = useCallback(
+    (item, withContent) => tokenForItem(triggerRef.current?.type, item, withContent, project),
+    [project],
+  );
 
   return { picker, triggerRef, detectTrigger, dismissPicker, moveSelection, tokenFor };
 }

@@ -49,8 +49,8 @@ function buildTriggerRegex(triggers) {
  *   triggers     — команды-синонимы (первая — каноническая, для UI/тестов)
  *   regex        — матч у каретки: (?:^|\s)(cmd1|cmd2)\s*(query)$, группа 1 = команда, группа 2 = query
  *   search       — (query, signal, project) → Promise<node[]>; project — репозиторий чата
- *   refToken     — item → строка-токен «только ссылка»
- *   contentToken — item → строка-токен «с содержимым»
+ *   refToken     — (item, project) → строка-токен «только ссылка»
+ *   contentToken — (item, project) → строка-токен «с содержимым»
  */
 export const TRIGGER_TYPES = {
   file: {
@@ -58,8 +58,8 @@ export const TRIGGER_TYPES = {
     triggers: ['/file', '/файл'],
     regex: buildTriggerRegex(['/file', '/файл']),
     search: (q, signal, project) => gitApi.searchFiles(q, { limit: 10, project, signal }),
-    refToken: (item) => makeRefToken(item.path),
-    contentToken: (item) => makeToken(item.path),
+    refToken: (item, project) => makeRefToken(item.path, project),
+    contentToken: (item, project) => makeToken(item.path, { project }),
   },
   doc: {
     type: 'doc',
@@ -92,8 +92,11 @@ export function detectTriggerInText(before) {
   return null;
 }
 
-/** Токен для выбранного элемента: ссылка либо содержимое, по типу триггера. */
-export function tokenForItem(type, item, withContent) {
+/**
+ * Токен для выбранного элемента: ссылка либо содержимое, по типу триггера.
+ * `project` — репозиторий, в котором элемент нашли; он же вписывается в токен.
+ */
+export function tokenForItem(type, item, withContent, project) {
   const spec = TRIGGER_TYPES[type];
-  return withContent ? spec.contentToken(item) : spec.refToken(item);
+  return withContent ? spec.contentToken(item, project) : spec.refToken(item, project);
 }

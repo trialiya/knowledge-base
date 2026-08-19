@@ -2,7 +2,15 @@
 // The composer is a contentEditable div; this module builds/reads its DOM so
 // the component only wires events, never touches nodes directly.
 
-import { parseToken, parseDocToken, parseDocRefToken, parseCommitToken, baseName, TOKEN_RE } from './fileChips';
+import {
+  parseToken,
+  parseDocToken,
+  parseDocRefToken,
+  parseCommitToken,
+  baseName,
+  chipLabel,
+  TOKEN_RE,
+} from './fileChips';
 
 // ── Сериализация DOM ⇄ плоская строка с токенами ───────────────────────────────
 
@@ -69,8 +77,12 @@ function makeDocChipEl(token, { id, title }, refOnly) {
   });
 }
 
-/** Построить DOM-элемент чипа из строки-токена. */
-export function makeChipEl(token) {
+/**
+ * Построить DOM-элемент чипа из строки-токена.
+ * `project` — репозиторий чата: чип из другого проекта называет его в подписи,
+ * иначе два одинаковых пути из разных репозиториев неотличимы в поле ввода.
+ */
+export function makeChipEl(token, project) {
   const docRefParsed = parseDocRefToken(token);
   if (docRefParsed) return makeDocChipEl(token, docRefParsed, true);
 
@@ -84,8 +96,8 @@ export function makeChipEl(token) {
       token,
       modifiers: ' file-chip--commit',
       icon: '🔖',
-      label: hash,
-      title: subject ? `${hash} — ${subject}` : hash,
+      label: chipLabel(commitParsed.project, project, hash),
+      title: chipLabel(commitParsed.project, project, subject ? `${hash} — ${subject}` : hash),
     });
   }
 
@@ -98,11 +110,29 @@ export function makeChipEl(token) {
     token,
     modifiers: refOnly ? ' file-chip--ref' : '',
     icon: refOnly ? '📎' : '📄',
-    label: baseName(path) + range,
-    title: path + range,
+    label: chipLabel(parsed?.project, project, baseName(path) + range),
+    title: chipLabel(parsed?.project, project, path + range),
   });
   chip.dataset.path = path;
   return chip;
+}
+
+/**
+ * Переподписать уже стоящие чипы под другой проект чата: чужой репозиторий в
+ * подписи называется, свой — нет, и смена проекта переводит чипы из одних в другие.
+ *
+ * Именно переподписать, а не перерисовать поле целиком: renderValue пересобирает
+ * узлы, а вместе с ними теряются нативный стек отмены, позиция каретки и text-узел,
+ * на который смотрит открытый /file-триггер (вставка ушла бы в оторванное поддерево).
+ * Здесь же меняется только текст двух span'ов внутри чипа.
+ */
+export function relabelChips(root, project) {
+  root.querySelectorAll('.file-chip').forEach((chip) => {
+    const fresh = makeChipEl(chip.dataset.token || '', project);
+    const label = chip.querySelector('.file-chip__label');
+    if (label) label.textContent = fresh.querySelector('.file-chip__label').textContent;
+    chip.title = fresh.title;
+  });
 }
 
 /** Вставить текст с переносами как чередование text-нодов и &lt;br&gt;. */
@@ -169,12 +199,12 @@ export function normalizeTrailingSentinel(root) {
 }
 
 /** Отрисовать плоскую строку value в DOM editor (текстовые узлы + чипы). */
-export function renderValue(root, value) {
+export function renderValue(root, value, project) {
   root.textContent = '';
   let last = 0;
   for (const m of value.matchAll(TOKEN_RE)) {
     if (m.index > last) appendWithBreaks(root, value.slice(last, m.index));
-    root.appendChild(makeChipEl(m[0]));
+    root.appendChild(makeChipEl(m[0], project));
     last = m.index + m[0].length;
   }
   if (last < value.length) appendWithBreaks(root, value.slice(last));

@@ -1,9 +1,22 @@
 // ─── File chip token model ───────────────────────────────────────────────────
 // Файл в композере хранится как атомарный токен:
-//   ⟦file:PATH⟧            — весь файл (раскрывается в fenced-блок при отправке)
-//   ⟦file:PATH#FROM-TO⟧    — диапазон строк (1-based включительно)
-//   ⟦ref:PATH⟧             — только ссылка (раскрывается в `PATH`)
-//   ⟦commit:HASH:SUBJECT⟧  — коммит (раскрывается в хэш + тему, без запроса)
+//   ⟦file@PROJECT:PATH⟧            — весь файл (раскрывается в fenced-блок при отправке)
+//   ⟦file@PROJECT:PATH#FROM-TO⟧    — диапазон строк (1-based включительно)
+//   ⟦ref@PROJECT:PATH⟧             — только ссылка (раскрывается в `PATH`)
+//   ⟦commit@PROJECT:HASH:SUBJECT⟧  — коммит (раскрывается в хэш + тему, без запроса)
+//
+// Проект в токене — потому что путь `backend/pom.xml` есть в каждом репозитории, а
+// хэш коммита — ровно в одном: без имени проекта чип означал бы «тот репозиторий,
+// что выбран в чате сейчас», и смена проекта переписывала бы смысл уже набранного.
+// Форма `@ID`, а не второй сегмент через двоеточие: двоеточие в пути законно, и
+// `⟦file:docs:notes.md⟧` было бы не отличить от проекта `docs`. После имени вида
+// стоит либо `@` (проект назван), либо `:` (не назван) — разбор однозначен.
+//
+// Проект НЕ обязателен: токены без него лежат в сохранённых черновиках и означают
+// «репозиторий чата, из которого уходит сообщение». Смена проекта в чате вписывает
+// прежний проект в такие токены (stampChipProject) — там, где «прежний» ещё известен.
+//
+// doc/docref проект не несут и не могут: база знаний общая для всех проектов.
 
 import gitApi from '../../../api/gitApi';
 import documentsApi from '../../../api/documentsApi';
@@ -15,51 +28,74 @@ export { baseName } from '../../common/utils';
 const OPEN = '⟦'; // ⟦
 const CLOSE = '⟧'; // ⟧
 
+// Тот же набор символов, что у id проекта на бэкенде (ProjectCatalog.SAFE_ID):
+// расширится он — расширится и здесь, иначе новый id перестанет читаться в токене.
+const PROJECT_ID = '[a-z0-9][a-z0-9._-]*';
+// Хвост «@проект» или пусто; группа 1 везде — проект.
+const AT_PROJECT = `(?:@(${PROJECT_ID}))?`;
+
 // Глобальный матчер всех видов токенов. Захватных групп нет — parse* разбирают детально.
 // docref идёт перед doc, чтобы не срабатывал prefix-match при чтении.
-export const TOKEN_RE = new RegExp(`${OPEN}(?:file|ref|docref|doc|commit):[^${CLOSE}]+${CLOSE}`, 'g');
+export const TOKEN_RE = new RegExp(
+  `${OPEN}(?:file|ref|docref|doc|commit)(?:@${PROJECT_ID})?:[^${CLOSE}]+${CLOSE}`,
+  'g',
+);
 
-// Токены, чей смысл задан репозиторием: путь есть в каждом проекте, хэш коммита —
-// ровно в одном, и после смены проекта чипы означают уже не то, что при вставке.
-// doc/docref сюда не входят: база знаний общая для всех проектов.
-const PROJECT_BOUND_RE = new RegExp(`${OPEN}(?:file|ref|commit):[^${CLOSE}]+${CLOSE}`, 'g');
-
-/** Сколько в тексте чипов, привязанных к репозиторию. */
-export function countProjectBoundTokens(text) {
-  return text ? [...text.matchAll(PROJECT_BOUND_RE)].length : 0;
-}
+// Виды, привязанные к репозиторию. doc/docref сюда не входят — им проект не нужен.
+const UNQUALIFIED_RE = new RegExp(`${OPEN}(file|ref|commit):`, 'g');
 
 /**
- * Убрать из текста чипы прежнего проекта, не трогая остальное: набранное вокруг
- * них — мысль пользователя, и правим мы только то, что смена проекта обессмыслила.
+ * Вписать проект в чипы, которые его не называют. Токен без проекта означает
+ * «репозиторий чата», поэтому вписывать надо ровно в тот момент, когда чат ещё
+ * работает в нём: при смене проекта — прежний. Бэкенд делает то же самое с уже
+ * сохранёнными ссылками на файлы (FileLinkProjectBackfillService).
  */
-export function dropProjectBoundTokens(text) {
-  return text ? text.replace(PROJECT_BOUND_RE, '') : text;
+export function stampChipProject(text, project) {
+  if (!text || !project) return text;
+  return text.replace(UNQUALIFIED_RE, `${OPEN}$1@${project}:`);
+}
+
+const at = (project) => (project ? `@${project}` : '');
+
+/**
+ * Подпись чипа: имя проекта приписывается только к чужому — у чипа из репозитория
+ * чата приписывать нечего, а в поле ввода их большинство.
+ */
+export function chipLabel(own, current, text) {
+  return own && own !== current ? `${own} · ${text}` : text;
 }
 
 /** Токен «весь файл / диапазон». */
-export function makeToken(path, from, to) {
-  return from != null && to != null ? `${OPEN}file:${path}#${from}-${to}${CLOSE}` : `${OPEN}file:${path}${CLOSE}`;
+export function makeToken(path, { from, to, project } = {}) {
+  const range = from != null && to != null ? `#${from}-${to}` : '';
+  return `${OPEN}file${at(project)}:${path}${range}${CLOSE}`;
 }
 
 /** Токен «только путь» (без раскрытия содержимого). */
-export function makeRefToken(path) {
-  return `${OPEN}ref:${path}${CLOSE}`;
+export function makeRefToken(path, project) {
+  return `${OPEN}ref${at(project)}:${path}${CLOSE}`;
 }
 
 /**
  * Разобрать строку-токен.
- * Возвращает { path, from, to, refOnly } или null.
+ * Возвращает { project, path, from, to, refOnly } или null. `project === null` —
+ * токен старого образца: он о репозитории чата, чей это черновик.
  */
 export function parseToken(token) {
-  const fileRe = new RegExp(`^${OPEN}file:([^#${CLOSE}]+)(?:#(\\d+)-(\\d+))?${CLOSE}$`);
+  const fileRe = new RegExp(`^${OPEN}file${AT_PROJECT}:([^#${CLOSE}]+)(?:#(\\d+)-(\\d+))?${CLOSE}$`);
   const fm = token.match(fileRe);
   if (fm) {
-    return { path: fm[1], from: fm[2] ? Number(fm[2]) : null, to: fm[3] ? Number(fm[3]) : null, refOnly: false };
+    return {
+      project: fm[1] ?? null,
+      path: fm[2],
+      from: fm[3] ? Number(fm[3]) : null,
+      to: fm[4] ? Number(fm[4]) : null,
+      refOnly: false,
+    };
   }
-  const refRe = new RegExp(`^${OPEN}ref:([^${CLOSE}]+)${CLOSE}$`);
+  const refRe = new RegExp(`^${OPEN}ref${AT_PROJECT}:([^${CLOSE}]+)${CLOSE}$`);
   const rm = token.match(refRe);
-  if (rm) return { path: rm[1], from: null, to: null, refOnly: true };
+  if (rm) return { project: rm[1] ?? null, path: rm[2], from: null, to: null, refOnly: true };
   return null;
 }
 
@@ -106,21 +142,21 @@ export function parseDocRefToken(token) {
 }
 
 // ── Commit-токены ─────────────────────────────────────────────────────────────
-// ⟦commit:HASH:SUBJECT⟧ — тема коммита едет внутри токена, поэтому раскрытие при
-// отправке не ходит в сеть: хэша достаточно, чтобы модель сама достала диф.
+// ⟦commit@PROJECT:HASH:SUBJECT⟧ — тема коммита едет внутри токена, поэтому раскрытие
+// при отправке не ходит в сеть: хэша достаточно, чтобы модель сама достала диф.
 
 /** Токен коммита. `subject` — первая строка сообщения. */
-export function makeCommitToken(hash, subject) {
-  return `${OPEN}commit:${hash}:${safeChipLabel(subject)}${CLOSE}`;
+export function makeCommitToken(hash, subject, project) {
+  return `${OPEN}commit${at(project)}:${hash}:${safeChipLabel(subject)}${CLOSE}`;
 }
 
 /**
  * Разобрать commit-токен.
- * Возвращает { hash, subject } или null.
+ * Возвращает { project, hash, subject } или null.
  */
 export function parseCommitToken(token) {
-  const m = token.match(new RegExp(`^${OPEN}commit:([^:${CLOSE}]+):(.*)${CLOSE}$`));
-  if (m) return { hash: m[1], subject: m[2] };
+  const m = token.match(new RegExp(`^${OPEN}commit${AT_PROJECT}:([^:${CLOSE}]+):(.*)${CLOSE}$`));
+  if (m) return { project: m[1] ?? null, hash: m[2], subject: m[3] };
   return null;
 }
 
@@ -150,23 +186,28 @@ function fenceFor(content) {
 
 /**
  * Развернуть все токены в строке:
- *  ⟦file:PATH⟧            → fenced code block с содержимым
- *  ⟦ref:PATH⟧             → `PATH`
- *  ⟦commit:HASH:SUBJECT⟧  → `HASH` + тема
+ *  ⟦file@P:PATH⟧            → fenced code block с содержимым
+ *  ⟦ref@P:PATH⟧             → `PATH`
+ *  ⟦commit@P:HASH:SUBJECT⟧  → `HASH` + тема
  *
- * `project` — репозиторий чата: сам токен проект не несёт (его формат старше
- * проектов и лежит в сохранённых черновиках), поэтому путь разрешается в проекте
- * ТОГО чата, из которого уходит сообщение.
+ * `project` — репозиторий чата: им разрешаются токены, которые проект не назвали
+ * (старая форма из сохранённых черновиков). Названный проект берётся из самого
+ * токена и, если он не проектом чата, называется вслух рядом с путём: для модели
+ * это соседний репозиторий, и без имени она прочитает путь как свой.
  */
 export async function expandTokensForSend(text, project) {
   const tokens = [...text.matchAll(TOKEN_RE)];
   if (tokens.length === 0) return text;
 
+  // Метка «это из другого репозитория» — пусто для проекта чата и для токенов,
+  // которые проект не называют: там репозиторий и так один, называть нечего.
+  const foreign = (own) => (own && own !== project ? ` ${i18n.t('chat:fileChips.inProject', { project: own })}` : '');
+
   const blocks = await Promise.all(
     tokens.map(async (m) => {
       const commitParsed = parseCommitToken(m[0]);
       if (commitParsed) {
-        return i18n.t('chat:fileChips.commitRef', commitParsed);
+        return i18n.t('chat:fileChips.commitRef', commitParsed) + foreign(commitParsed.project);
       }
 
       const docRefParsed = parseDocRefToken(m[0]);
@@ -189,19 +230,20 @@ export async function expandTokensForSend(text, project) {
       const parsed = parseToken(m[0]);
       if (!parsed) return m[0];
       const { path, from, to, refOnly } = parsed;
+      const where = foreign(parsed.project);
 
-      if (refOnly) return `\`${path}\``;
+      if (refOnly) return `\`${path}\`${where}`;
 
       try {
-        const data = await fetchContent(path, { from, to, project });
+        const data = await fetchContent(path, { from, to, project: parsed.project || project });
         const range = from != null && to != null ? ` (${from}–${to})` : '';
-        if (data?.binary) return `\n\n\`${path}\`${range}: ${i18n.t('chat:fileChips.binaryFile')}\n`;
+        if (data?.binary) return `\n\n\`${path}\`${range}${where}: ${i18n.t('chat:fileChips.binaryFile')}\n`;
         const content = data?.content ?? '';
         const fence = fenceFor(content);
         const lang = data?.language || '';
-        return `\n\n\`${path}\`${range}:\n${fence}${lang}\n${content}\n${fence}\n`;
+        return `\n\n\`${path}\`${range}${where}:\n${fence}${lang}\n${content}\n${fence}\n`;
       } catch {
-        return `\n\n\`${path}\`: ${i18n.t('chat:fileChips.readFailed')}\n`;
+        return `\n\n\`${path}\`${where}: ${i18n.t('chat:fileChips.readFailed')}\n`;
       }
     }),
   );

@@ -2,13 +2,15 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { baseName } from './fileChips';
+import { baseName, chipLabel } from './fileChips';
 import ModalShell from '../../common/ModalShell';
 import { IconX } from '../../../icons';
 
 // ── Превью содержимого файла — полноэкранная модалка ─────────────────────────
 
-function FileChipPreview({ preview, onClose, onToggleRef }) {
+// `project` — репозиторий чата: путь чужого чипа показываем с именем его проекта,
+// иначе превью и чип рядом с ним рассказывают о разных репозиториях одно и то же.
+function FileChipPreview({ preview, project, onClose, onToggleRef }) {
   const { path, from, to, refOnly, loading, data, error } = preview;
   const { t } = useTranslation('chat');
   const name = baseName(path);
@@ -24,8 +26,8 @@ function FileChipPreview({ preview, onClose, onToggleRef }) {
             {name}
             {range}
           </span>
-          <span className="file-preview-modal__path" title={path}>
-            {path}
+          <span className="file-preview-modal__path" title={chipLabel(preview.project, project, path)}>
+            {chipLabel(preview.project, project, path)}
           </span>
         </div>
         {isMd && !refOnly && (

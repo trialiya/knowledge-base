@@ -8,6 +8,9 @@
 // ручные триггеры композера, и берут его ref-вариант: фраза называет объект
 // (путь, заголовок документа, тему коммита), а не тащит за собой его
 // содержимое — см. expandTokensForSend.
+//
+// Проект уезжает в токен вместе с путём и хэшем: искали-то в репозитории чата, и
+// чип обязан помнить, в каком именно. Документам он не нужен — база знаний общая.
 
 import gitApi from '../../../api/gitApi';
 // i18n-инстанс напрямую: модуль не компонент, useTranslation здесь недоступен.
@@ -24,7 +27,7 @@ const SEARCH_LIMIT = 10;
  *   inputType — тип <input> (только kind='text')
  *   search    — (query, signal) => Promise<item[]> (только kind='search')
  *   describe  — item => { key, icon, title, subtitle } для строки выдачи
- *   toValue   — выбранное значение => строка, которая встанет вместо плейсхолдера
+ *   toValue   — (выбранное значение, проект) => строка, которая встанет вместо плейсхолдера
  */
 export const PLACEHOLDER_FIELDS = {
   string: { kind: 'text', inputType: 'text' },
@@ -37,7 +40,7 @@ export const PLACEHOLDER_FIELDS = {
     kind: 'search',
     search: (q, signal, project) => gitApi.searchFiles(q, { limit: SEARCH_LIMIT, project, signal }),
     describe: (item) => ({ key: item.path, icon: '📄', title: item.name, subtitle: item.path }),
-    toValue: (item) => makeRefToken(item.path),
+    toValue: (item, project) => makeRefToken(item.path, project),
   },
   document: {
     kind: 'search',
@@ -54,7 +57,7 @@ export const PLACEHOLDER_FIELDS = {
       title: item.message,
       subtitle: `${item.shortHash} · ${item.author}`,
     }),
-    toValue: (item) => makeCommitToken(item.shortHash, item.message),
+    toValue: (item, project) => makeCommitToken(item.shortHash, item.message, project),
   },
 };
 
@@ -72,9 +75,10 @@ export function fieldSpec(type) {
  * Решение «заполнено» одно на оба, иначе превью показывало бы значение, которое
  * подстановка молча выбросит.
  *
+ * @param project репозиторий чата — уезжает в токены file/commit
  * @returns {{ filled: boolean, preview?: string, text?: string }}
  */
-export function resolveValue(type, value) {
+export function resolveValue(type, value, project) {
   const spec = fieldSpec(type);
   if (spec.kind === 'boolean') {
     const text = spec.toValue(Boolean(value));
@@ -82,7 +86,7 @@ export function resolveValue(type, value) {
   }
   if (spec.kind === 'search') {
     if (!value) return { filled: false };
-    return { filled: true, preview: spec.describe(value).title, text: spec.toValue(value) };
+    return { filled: true, preview: spec.describe(value).title, text: spec.toValue(value, project) };
   }
   const text = typeof value === 'string' ? value.trim() : '';
   return text ? { filled: true, preview: text, text } : { filled: false };

@@ -3,6 +3,7 @@ import {
   renderValue,
   normalizeTrailingSentinel,
   makeChipEl,
+  relabelChips,
   insertPlainText,
   getCaretOffset,
   placeCaretAtOffset,
@@ -124,6 +125,34 @@ describe('serialize', () => {
     root.appendChild(makeChipEl('⟦file:a.js⟧'));
     root.appendChild(document.createTextNode(' hello'));
     expect(serialize(root)).toBe('⟦file:a.js⟧ hello');
+  });
+});
+
+describe('relabelChips', () => {
+  const labelOf = (root) => root.querySelector('.file-chip__label').textContent;
+
+  it('names a foreign project and drops the name of the current one', () => {
+    const root = makeRoot();
+    root.appendChild(makeChipEl('⟦file@billing:src/a.js⟧', 'billing'));
+    expect(labelOf(root)).toBe('a.js');
+
+    relabelChips(root, 'kb');
+    expect(labelOf(root)).toBe('billing · a.js');
+
+    relabelChips(root, 'billing');
+    expect(labelOf(root)).toBe('a.js');
+  });
+
+  it('keeps the token and the node itself — the caret and the undo stack live there', () => {
+    const root = makeRoot();
+    root.appendChild(makeChipEl('⟦file@billing:src/a.js⟧', 'billing'));
+    root.appendChild(document.createTextNode(' hello'));
+    const chip = root.querySelector('.file-chip');
+
+    relabelChips(root, 'kb');
+
+    expect(root.querySelector('.file-chip')).toBe(chip);
+    expect(serialize(root)).toBe('⟦file@billing:src/a.js⟧ hello');
   });
 });
 

@@ -5,6 +5,7 @@ import {
   renderValue,
   placeCaretEnd,
   normalizeTrailingSentinel,
+  relabelChips,
   insertPlainText,
   getCaretOffset,
   placeCaretAtOffset,
@@ -48,12 +49,21 @@ function ChipEditor({ value, onChange, onSend, disabled, placeholder, chatId, pr
     internalRef.current = value;
     const root = editorRef.current;
     if (!root) return;
-    renderValue(root, value);
+    renderValue(root, value, project);
     if (document.activeElement === root) placeCaretEnd(root);
+    // project — не повод перерисовать поле (для этого relabelChips ниже), но
+    // рисовать надо уже с ним: подписи чипов зависят от проекта чата.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
+  // Смена проекта чата меняет только подписи чипов: свои теряют имя проекта, чужие
+  // получают. Правим их на месте — перерисовка поля стоила бы стека отмены и каретки.
   useEffect(() => {
-    if (editorRef.current) renderValue(editorRef.current, value);
+    if (editorRef.current) relabelChips(editorRef.current, project);
+  }, [project]);
+
+  useEffect(() => {
+    if (editorRef.current) renderValue(editorRef.current, value, project);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -117,7 +127,7 @@ function ChipEditor({ value, onChange, onSend, disabled, placeholder, chatId, pr
       const before = node.nodeValue.slice(0, start);
       const after = node.nodeValue.slice(cursorOffset);
 
-      const chip = makeChipEl(token);
+      const chip = makeChipEl(token, project);
       const tail = document.createTextNode(' ' + after);
       node.nodeValue = before;
       node.after(chip, tail);
@@ -133,7 +143,7 @@ function ChipEditor({ value, onChange, onSend, disabled, placeholder, chatId, pr
       emitChange();
       root.focus();
     },
-    [triggerRef, dismissPicker, emitChange],
+    [triggerRef, dismissPicker, emitChange, project],
   );
 
   // Вставить ссылку (по умолчанию: Enter / клик по строке)
@@ -185,12 +195,12 @@ function ChipEditor({ value, onChange, onSend, disabled, placeholder, chatId, pr
       document.execCommand('insertText', false, text);
       const offset = getCaretOffset(root);
       const v = serialize(root);
-      renderValue(root, v);
+      renderValue(root, v, project);
       if (offset != null) placeCaretAtOffset(root, offset);
       internalRef.current = v;
       onChange(v);
     },
-    [onChange, handleInput],
+    [onChange, handleInput, project],
   );
 
   const handleKeyDown = useCallback(
@@ -330,7 +340,9 @@ function ChipEditor({ value, onChange, onSend, disabled, placeholder, chatId, pr
         />
       )}
 
-      {preview && <FileChipPreview preview={preview} onClose={closePreview} onToggleRef={toggleRef} />}
+      {preview && (
+        <FileChipPreview preview={preview} project={project} onClose={closePreview} onToggleRef={toggleRef} />
+      )}
     </>
   );
 }

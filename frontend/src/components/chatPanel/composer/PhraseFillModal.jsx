@@ -37,7 +37,7 @@ const PhraseFillModal = ({ phraseText, phraseLabel, project, onSubmit, onCancel 
     e.preventDefault();
     const filled = {};
     for (const { raw, type } of fields) {
-      const { filled: done, text } = resolveValue(type, values[raw]);
+      const { filled: done, text } = resolveValue(type, values[raw], project);
       if (done) filled[raw] = text;
     }
     onSubmit(fillPlaceholders(phraseText, filled));
@@ -119,7 +119,7 @@ const PhraseFillModal = ({ phraseText, phraseLabel, project, onSubmit, onCancel 
           <p className="phrase-fill__preview-text">
             {parts.map((part, i) => {
               if (!part.raw) return <span key={i}>{part.text}</span>;
-              const { filled, preview } = resolveValue(part.type, values[part.raw]);
+              const { filled, preview } = resolveValue(part.type, values[part.raw], project);
               return (
                 <span key={i} className={`phrase-fill__slot${filled ? ' phrase-fill__slot--filled' : ''}`}>
                   {filled ? preview : part.label}

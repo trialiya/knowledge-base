@@ -56,10 +56,17 @@ describe('tokenForItem', () => {
     expect(tokenForItem('file', item, true)).toBe('⟦file:src/App.jsx⟧');
   });
 
+  it('writes the project the file was found in', () => {
+    const item = { path: 'src/App.jsx' };
+    expect(tokenForItem('file', item, false, 'kb')).toBe('⟦ref@kb:src/App.jsx⟧');
+    expect(tokenForItem('file', item, true, 'kb')).toBe('⟦file@kb:src/App.jsx⟧');
+  });
+
   it('builds ref vs content tokens for doc items', () => {
     const item = { id: 7, title: 'Guide' };
-    expect(tokenForItem('doc', item, false)).toBe('⟦docref:7:Guide⟧');
-    expect(tokenForItem('doc', item, true)).toBe('⟦doc:7:Guide⟧');
+    // Документам проект не приписывается и с ним: база знаний общая.
+    expect(tokenForItem('doc', item, false, 'kb')).toBe('⟦docref:7:Guide⟧');
+    expect(tokenForItem('doc', item, true, 'kb')).toBe('⟦doc:7:Guide⟧');
   });
 });
 

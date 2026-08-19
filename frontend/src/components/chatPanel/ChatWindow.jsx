@@ -19,7 +19,7 @@ import useChatDrafts from './composer/useChatDrafts';
 import useChatDeletion from './list/useChatDeletion';
 import useNotice from '../common/useNotice';
 import { chatLoadErrorNotice, CHAT_DELETED_NOTICE } from './chatNotices';
-import { countProjectBoundTokens, dropProjectBoundTokens } from './composer/fileChips';
+import { stampChipProject } from './composer/fileChips';
 
 import ChatCenter from './ChatCenter';
 import { buildChatTabs } from './chatSidebar';
@@ -85,7 +85,8 @@ const ChatWindow = ({
   const { modeOptions } = useModeConfig();
   const { projectOptions, defaultProjectId } = useProjectConfig();
   // Bump → MessageInput перечитает черновик: текст поля живёт в нём, и правка,
-  // сделанная здесь («удаление» черновика, вычистка чипов), иначе до него не дойдёт.
+  // сделанная здесь («удаление» черновика, простановка проекта в чипах), иначе до
+  // него не дойдёт.
   const [composerDraftSignal, setComposerDraftSignal] = useState(0);
   // Неотправленные черновики по чатам ({ chatId: text }, localStorage) — вынесено
   // в useChatDrafts (отложенная запись + flush на beforeunload/размонтирование).
@@ -382,34 +383,32 @@ const ChatWindow = ({
 
   const handleModelChange = useCallback((newId) => changeModel(activeChatId, newId), [activeChatId, changeModel]);
   const handleModeChange = useCallback((newId) => changeMode(activeChatId, newId), [activeChatId, changeMode]);
-  // Чипы файлов и коммитов в черновике сделаны из прежнего репозитория, а формат
-  // токена проекта не несёт: после смены проекта тот же путь либо не существует,
-  // либо ведёт в другой файл — и подставится он молча, уже в отправленном
-  // сообщении. Сам проект меняем сразу (пользователь просил именно этого), а про
-  // осиротевшие чипы спрашиваем: выкинуть их или дописывать текст дальше.
-  const [orphanChips, setOrphanChips] = useState(null); // { count, project } | null
+  // Чип в черновике мог остаться без имени проекта: так писала прежняя версия
+  // формата, и означает это «репозиторий чата». Пока чат ещё работает в прежнем,
+  // вписываем его в такие чипы — после смены проекта тот же путь вёл бы уже в
+  // другой файл, и подставился бы он молча, в отправленном сообщении.
+  //
+  // Сравниваем с РАЗРЕШЁННЫМ проектом, а не с записанным у чата: выбрать дефолт в
+  // чате, чей проект исчез из конфигурации, — способ убрать предупреждение, и
+  // репозиторий при этом не меняется.
   const handleProjectChange = useCallback(
     (newId) => {
-      changeProject(activeChatId, newId);
-      // Спрашиваем по РАЗРЕШЁННОМУ проекту, а не по записанному у чата: выбрать
-      // дефолт в чате, чей проект исчез из конфигурации, — это способ убрать
-      // предупреждение (запись меняется, репозиторий остаётся прежним), и чипы в
-      // этот момент по-прежнему свои.
-      if (newId === selectedProjectId) return;
-      const count = countProjectBoundTokens(getDraftFor(activeChatId));
-      if (count > 0) {
-        const label = projectOptions.find((o) => o.id === selectedProjectId)?.label;
-        setOrphanChips({ count, project: label || selectedProjectId });
+      if (newId !== selectedProjectId) {
+        const draft = getDraftFor(activeChatId);
+        const stamped = stampChipProject(draft, selectedProjectId);
+        if (stamped !== draft) {
+          handleComposerTextChange(activeChatId, stamped);
+          // Пишем на диск сразу, не дожидаясь отложенной записи: проект у чата
+          // меняется немедленно, и вкладка, погибшая в эти полсекунды, оставила бы
+          // в хранилище чипы без проекта — то есть уже про новый репозиторий.
+          flushDrafts();
+          setComposerDraftSignal((n) => n + 1);
+        }
       }
+      changeProject(activeChatId, newId);
     },
-    [activeChatId, changeProject, getDraftFor, projectOptions, selectedProjectId],
+    [activeChatId, changeProject, flushDrafts, getDraftFor, handleComposerTextChange, selectedProjectId],
   );
-
-  const dropOrphanChips = useCallback(() => {
-    handleComposerTextChange(activeChatId, dropProjectBoundTokens(getDraftFor(activeChatId)));
-    setComposerDraftSignal((n) => n + 1);
-    setOrphanChips(null);
-  }, [activeChatId, getDraftFor, handleComposerTextChange]);
 
   // Подписи модели и режима для вкладки «Инфо»: в чате хранятся id, а показывать
   // осмысленно человекочитаемый label из конфига.
@@ -566,16 +565,6 @@ const ChatWindow = ({
         cancelLabel={t('deleteModal.cancel')}
         onConfirm={confirmDeleteChat}
         onCancel={cancelDeleteChat}
-      />
-      <ConfirmModal
-        open={!!orphanChips}
-        icon="📎"
-        title={t('projectChips.title')}
-        message={t('projectChips.message', { n: orphanChips?.count ?? 0, project: orphanChips?.project ?? '' })}
-        confirmLabel={t('projectChips.confirm')}
-        cancelLabel={t('projectChips.cancel')}
-        onConfirm={dropOrphanChips}
-        onCancel={() => setOrphanChips(null)}
       />
       <ErrorModal
         open={!!notice}

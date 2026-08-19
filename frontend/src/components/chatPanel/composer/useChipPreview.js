@@ -5,7 +5,7 @@
 // чего зовёт onAfterToggle (обычно emitChange редактора), чтобы значение обновилось.
 
 import { useState, useCallback } from 'react';
-import { makeToken, makeRefToken, parseToken, baseName, fetchContent } from './fileChips';
+import { makeToken, makeRefToken, parseToken, baseName, chipLabel, fetchContent } from './fileChips';
 
 export default function useChipPreview({ chatId, project, onAfterToggle }) {
   // { path, from, to, refOnly, rect, chipEl, data, loading, error } | null
@@ -34,11 +34,15 @@ export default function useChipPreview({ chatId, project, onAfterToggle }) {
       const rect = chip.getBoundingClientRect();
       setPreview({ ...parsed, rect, chipEl: chip, loading: !parsed.refOnly, data: null, error: false });
       if (!parsed.refOnly) {
-        fetchContent(parsed.path, { from: parsed.from, to: parsed.to, project })
-          .then((data) => setPreview((pv) => (pv && pv.path === parsed.path ? { ...pv, loading: false, data } : pv)))
-          .catch(() =>
-            setPreview((pv) => (pv && pv.path === parsed.path ? { ...pv, loading: false, error: true } : pv)),
-          );
+        // Читаем из репозитория, названного в токене: чип может быть из соседнего
+        // проекта, и превью обязано показать тот файл, который уедет в сообщение.
+        // Ответ принимаем только тому превью, которое его и ждёт: путь один и тот
+        // же в каждом репозитории, поэтому чип сверяется парой «проект + путь» —
+        // иначе медленный ответ соседнего проекта показался бы в открытом позже.
+        const mine = (pv) => pv && pv.path === parsed.path && pv.project === parsed.project;
+        fetchContent(parsed.path, { from: parsed.from, to: parsed.to, project: parsed.project || project })
+          .then((data) => setPreview((pv) => (mine(pv) ? { ...pv, loading: false, data } : pv)))
+          .catch(() => setPreview((pv) => (mine(pv) ? { ...pv, loading: false, error: true } : pv)));
       }
     },
     [project],
@@ -50,11 +54,13 @@ export default function useChipPreview({ chatId, project, onAfterToggle }) {
       if (!pv) return pv;
       const { chipEl, path, from, to, refOnly } = pv;
       const newRefOnly = !refOnly;
-      const newToken = newRefOnly ? makeRefToken(path) : makeToken(path, from, to);
+      // Проект переезжает в новый токен: смена режима — это про содержимое, а не
+      // про репозиторий, и потерять его здесь значило бы отдать чип проекту чата.
+      const newToken = newRefOnly ? makeRefToken(path, pv.project) : makeToken(path, { from, to, project: pv.project });
       chipEl.dataset.token = newToken;
       const label = chipEl.querySelector('.file-chip__label');
       const range = from != null ? `:${from}-${to}` : '';
-      if (label) label.textContent = baseName(path) + range;
+      if (label) label.textContent = chipLabel(pv.project, project, baseName(path) + range);
       const icon = chipEl.querySelector('.file-chip__icon');
       if (icon) icon.textContent = newRefOnly ? '📎' : '📄';
       if (newRefOnly) chipEl.classList.add('file-chip--ref');
@@ -64,7 +70,7 @@ export default function useChipPreview({ chatId, project, onAfterToggle }) {
     });
     // onAfterToggle здесь — после обновления DOM чипа.
     setTimeout(() => onAfterToggle?.(), 0);
-  }, [onAfterToggle]);
+  }, [onAfterToggle, project]);
 
   return { preview, openFromChip, toggleRef, close, clear };
 }
