@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import MarkdownEditor from './MarkdownEditor';
-import ModalShell from '../../common/modal/ModalShell';
-import { IconX } from '../../../icons/index';
+import ModalShell from '@/components/common/modal/ModalShell';
+import { IconX } from '@/icons/index';
 
 /**
  * Полноэкранная модалка для разворачивания содержимого документа/папки.

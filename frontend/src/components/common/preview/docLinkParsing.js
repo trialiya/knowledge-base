@@ -1,4 +1,4 @@
-import { decodeFilePath } from '../../../navigation/urlScheme';
+import { decodeFilePath } from '@/navigation/urlScheme';
 
 /** Канонический путь документа: /knowledge/doc/123 (см. urlScheme.docPath). */
 const DOC_PATH = /^\/knowledge\/doc\/(\d+)\/?$/;

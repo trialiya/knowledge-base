@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { DiffLines, DiffStats } from '../diffRender';
-import { IconChevronDown } from '../../../../icons';
+import { IconChevronDown } from '@/icons/index';
 import ResultSummary, { useExpandAll } from './resultSummary';
 
 // Режим «Обзор» для формы «unified diff»: коммит → файлы → раскрашенный патч,

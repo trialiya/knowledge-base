@@ -1,9 +1,9 @@
 import ChatInfo from './ChatInfo';
-import AttachmentPanel from '../../common/attachments/AttachmentPanel';
-import { IconInfo, IconPaperclip } from '../../../icons/index';
-import { RIGHT_TAB } from '../../../constants/rightTabs';
-import { OWNER_TYPE } from '../../../constants/ownerType';
-import { DRAFT_CHAT_ID } from '../../../constants/storage';
+import AttachmentPanel from '@/components/common/attachments/AttachmentPanel';
+import { IconInfo, IconPaperclip } from '@/icons/index';
+import { RIGHT_TAB } from '@/constants/rightTabs';
+import { OWNER_TYPE } from '@/constants/ownerType';
+import { DRAFT_CHAT_ID } from '@/constants/storage';
 
 /**
  * Вкладки правой панели чата: метаданные и вложения.

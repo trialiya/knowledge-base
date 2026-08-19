@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import useSearchDropdown from './useSearchDropdown';
-import { IconSearch, IconX } from '../../../icons/index';
+import { IconSearch, IconX } from '@/icons/index';
 import './panelSearch.css';
 
 /**

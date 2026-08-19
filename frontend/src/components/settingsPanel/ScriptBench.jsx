@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { SettingsSection } from '../common/layout/SettingsShell';
-import settingsApi from '../../api/settingsApi';
-import { formatFileSize } from '../../utils/formatting';
+import { SettingsSection } from '@/components/common/layout/SettingsShell';
+import settingsApi from '@/api/settingsApi';
+import { formatFileSize } from '@/utils/formatting';
 import SCRIPT_EXAMPLE from './scriptExample';
 
 /**

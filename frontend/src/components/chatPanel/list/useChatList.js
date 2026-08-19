@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import i18n from '../../../i18n';
-import chatApi from '../../../api/chatApi';
-import { DRAFT_CHAT_ID } from '../../../constants/storage';
+import i18n from '@/i18n/index';
+import chatApi from '@/api/chatApi';
+import { DRAFT_CHAT_ID } from '@/constants/storage';
 
 /**
  * Владелец списка чатов: сам стейт, первичная загрузка с бэка и точечные правки

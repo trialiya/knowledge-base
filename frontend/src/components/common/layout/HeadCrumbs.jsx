@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconChevronRight } from '../../../icons/index';
-import { collapseCrumbs } from '../../../utils/breadcrumbs';
+import { IconChevronRight } from '@/icons/index';
+import { collapseCrumbs } from '@/utils/breadcrumbs';
 
 /**
  * Хлебные крошки в шапке центра (.workspace__head) — общие для разделов: и путь

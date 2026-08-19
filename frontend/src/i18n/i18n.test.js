@@ -35,7 +35,7 @@ import enKnowledgeBase from './locales/en/knowledgeBase.json';
 import enSettings from './locales/en/settings.json';
 import enFiles from './locales/en/files.json';
 
-import { TOOL_META } from '../components/common/ui/toolNames';
+import { TOOL_META } from '@/components/common/ui/toolNames';
 
 // ── Ресурсы по неймспейсам ──────────────────────────────────────────────────
 const RESOURCES = {

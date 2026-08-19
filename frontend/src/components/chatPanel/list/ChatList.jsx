@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import useListNavigation from '../../common/search/useListNavigation';
-import { IconTrash } from '../../../icons';
+import useListNavigation from '@/components/common/search/useListNavigation';
+import { IconTrash } from '@/icons/index';
 
 /**
  * Список чатов — содержимое левой панели рабочей области.

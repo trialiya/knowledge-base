@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import attachmentApi from '../../../api/attachmentApi';
-import ModalShell from '../modal/ModalShell';
-import '../ui/buttons.css';
+import attachmentApi from '@/api/attachmentApi';
+import ModalShell from '@/components/common/modal/ModalShell';
+import '@/components/common/ui/buttons.css';
 
 /**
  * Single modal for viewing an attachment's content or its summary.

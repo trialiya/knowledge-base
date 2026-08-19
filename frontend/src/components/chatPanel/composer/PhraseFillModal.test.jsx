@@ -1,20 +1,20 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import PhraseFillModal from './PhraseFillModal';
-import gitApi from '../../../api/gitApi';
-import documentsApi from '../../../api/documentsApi';
+import gitApi from '@/api/gitApi';
+import documentsApi from '@/api/documentsApi';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key) => key }),
 }));
 
-vi.mock('../../../i18n', () => ({ default: { t: (key) => key } }));
+vi.mock('@/i18n/index', () => ({ default: { t: (key) => key } }));
 
-vi.mock('../../../api/gitApi', () => ({
+vi.mock('@/api/gitApi', () => ({
   default: { searchFiles: vi.fn(), searchCommits: vi.fn(), getFileContent: vi.fn() },
 }));
 
-vi.mock('../../../api/documentsApi', () => ({
+vi.mock('@/api/documentsApi', () => ({
   default: { searchByName: vi.fn(), fetchById: vi.fn() },
 }));
 

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import SettingsShell from '../common/layout/SettingsShell';
-import { IconDatabase, IconDownload, IconInfo } from '../../icons';
+import SettingsShell from '@/components/common/layout/SettingsShell';
+import { IconDatabase, IconDownload, IconInfo } from '@/icons/index';
 import BulkOperations from './BulkOperations';
 import IndexOperations from './IndexOperations';
 import SystemInfo from './SystemInfo';

@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import HistoryModal from '../../knowledgeBasePanel/modals/HistoryModal';
+import HistoryModal from '@/components/knowledgeBasePanel/modals/HistoryModal';
 import { getDocChangeRef } from './toolMeta';
-import { TOOL_STATUS } from '../../../constants/toolStatus';
-import { IconChevronDown } from '../../../icons';
+import { TOOL_STATUS } from '@/constants/toolStatus';
+import { IconChevronDown } from '@/icons/index';
 import '../styles/doc-changes.css';
 
 /**

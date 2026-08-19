@@ -1,12 +1,12 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import AttachmentPanel from './AttachmentPanel';
-import attachmentApi from '../../../api/attachmentApi';
+import attachmentApi from '@/api/attachmentApi';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key) => key }),
 }));
 
-vi.mock('../../../api/attachmentApi', () => ({
+vi.mock('@/api/attachmentApi', () => ({
   default: { list: vi.fn(), upload: vi.fn(), delete: vi.fn(), summarize: vi.fn() },
 }));
 

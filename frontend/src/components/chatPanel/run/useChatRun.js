@@ -1,12 +1,12 @@
 import { useCallback, useRef, useState } from 'react';
 // Перевод вне рендера берём у самого i18n, а не у t() из хука: колбэки стриминга
 // не должны пересоздаваться на смену языка, а зеркалить t в рефе — не за чем.
-import i18n from '../../../i18n';
-import chatApi from '../../../api/chatApi';
-import { DRAFT_CHAT_ID } from '../../../constants/storage';
-import { SENDER } from '../../../constants/messageSender';
-import { RETRY_MODE } from '../../../constants/retryMode';
-import { generateUUID } from '../../../utils/uuid';
+import i18n from '@/i18n/index';
+import chatApi from '@/api/chatApi';
+import { DRAFT_CHAT_ID } from '@/constants/storage';
+import { SENDER } from '@/constants/messageSender';
+import { RETRY_MODE } from '@/constants/retryMode';
+import { generateUUID } from '@/utils/uuid';
 import { nextMessageId } from '../messages/messageId';
 import { getLastModel, setLastModel, getLastMode, setLastMode, setLastProject } from './lastChoiceStore';
 import { chatLoadErrorNotice, RUN_BUSY_NOTICE, RETRY_UNAVAILABLE_NOTICE } from './chatNotices';

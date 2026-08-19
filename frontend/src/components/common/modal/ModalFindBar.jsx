@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { IconSearch, IconX, IconChevronUp, IconChevronDown } from '../../../icons/index';
+import { IconSearch, IconX, IconChevronUp, IconChevronDown } from '@/icons/index';
 import './modalFind.css';
 
 /**

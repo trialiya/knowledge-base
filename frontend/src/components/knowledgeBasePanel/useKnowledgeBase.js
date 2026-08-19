@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import api from '../../api/documentsApi';
+import api from '@/api/documentsApi';
 import { getSiblings, applyReorder, parentTitle, isParentChange, updateNodeInTree, applyChildren } from './tree/treeOps';
-import { findNodeById, findPath } from '../common/ui/utils';
+import { findNodeById, findPath } from '@/components/common/ui/utils';
 import { isEditorDirty, clearEditorDirty } from './editor/editorDirtyStore';
-import { invalidateDocPreviewCache } from '../common/preview/useDocPreview';
-import { KB_PAGE_SIZE as PAGE_SIZE, KB_FULL_PAGE as FULL_PAGE } from '../../constants/pagination';
-import { SEARCH_MODE } from '../../constants/searchMode';
+import { invalidateDocPreviewCache } from '@/components/common/preview/useDocPreview';
+import { KB_PAGE_SIZE as PAGE_SIZE, KB_FULL_PAGE as FULL_PAGE } from '@/constants/pagination';
+import { SEARCH_MODE } from '@/constants/searchMode';
 
 const rootItems = (paged) => (Array.isArray(paged?.items) ? paged.items : []);
 

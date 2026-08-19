@@ -1,4 +1,4 @@
-import chatApi from '../../../api/chatApi';
+import chatApi from '@/api/chatApi';
 import useConfigSnapshot from './useConfigSnapshot';
 
 /**

@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import OperationRow from '../common/ui/OperationRow';
+import OperationRow from '@/components/common/ui/OperationRow';
 import useJobStream from './useJobStream';
 import SyncDiffList from './SyncDiffList';
 import SyncLog from './SyncLog';
 import { selectAllActionable, summarizeSelection, toggleEntry } from './syncSelection';
 import { appendLine, EMPTY_LOG } from './syncLogStore';
-import { IconRefreshCw, IconUpload } from '../../icons';
-import api from '../../api/documentsApi';
+import { IconRefreshCw, IconUpload } from '@/icons/index';
+import api from '@/api/documentsApi';
 
 // ─── Операции: сравнение и импорт из серверной папки ─────────────────────────
 // Сначала «Сравнить» — читающая операция, которая ничего не пишет и отвечает на

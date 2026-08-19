@@ -1,7 +1,7 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import useFolderChildren from './useFolderChildren';
 
-vi.mock('../../../api/documentsApi', () => ({
+vi.mock('@/api/documentsApi', () => ({
   default: { fetchChildren: vi.fn() },
 }));
 

@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import InfoList from '../../common/ui/InfoList';
-import { formatDateTime } from '../../../utils/formatting';
+import InfoList from '@/components/common/ui/InfoList';
+import { formatDateTime } from '@/utils/formatting';
 
 /**
  * Вкладка «Инфо» правой панели: метаданные узла базы знаний.

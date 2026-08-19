@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import chatApi from '../../../api/chatApi';
-import { STORAGE_KEY_ACTIVE_CHAT, DRAFT_CHAT_ID } from '../../../constants/storage';
-import { CHAT_PAGE_SIZE as PAGE_SIZE } from '../../../constants/pagination';
+import chatApi from '@/api/chatApi';
+import { STORAGE_KEY_ACTIVE_CHAT, DRAFT_CHAT_ID } from '@/constants/storage';
+import { CHAT_PAGE_SIZE as PAGE_SIZE } from '@/constants/pagination';
 import { nextMessageId } from '../messages/messageId';
-import { SENDER } from '../../../constants/messageSender';
+import { SENDER } from '@/constants/messageSender';
 
 const metaToCall = (x) => ({
   name: x.name,

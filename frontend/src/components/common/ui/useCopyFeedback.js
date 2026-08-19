@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { COPY_DONE_MS } from '../../../constants/ui';
+import { COPY_DONE_MS } from '@/constants/ui';
 
 /**
  * Копирование в буфер обмена с кратковременным состоянием «скопировано».

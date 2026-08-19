@@ -9,9 +9,9 @@
 // истории, не конфликтуя с ней.
 
 import { nextMessageId } from '../messages/messageId';
-import { CHAT_EVENT, FINISH_REASON } from '../../../constants/chatEventTypes';
-import { SENDER } from '../../../constants/messageSender';
-import { RETRY_MODE } from '../../../constants/retryMode';
+import { CHAT_EVENT, FINISH_REASON } from '@/constants/chatEventTypes';
+import { SENDER } from '@/constants/messageSender';
+import { RETRY_MODE } from '@/constants/retryMode';
 
 // Совпадение вызовов. Когда callIndex известен у обоих — он однозначен (имя +
 // порядковый номер в прогоне); иначе фолбэк на name+arguments. Фолбэк нужен для

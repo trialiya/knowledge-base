@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import PreviewTooltipShell from './PreviewTooltipShell';
-import { baseName } from '../ui/utils';
-import { IconFileText, IconExpand } from '../../../icons/index';
+import { baseName } from '@/components/common/ui/utils';
+import { IconFileText, IconExpand } from '@/icons/index';
 
 /** Nested preview card for DocLinkTooltip's internal repo file-link branch. */
 function FilePreviewTooltip({ file, loading, error, pos, onMouseEnter, onMouseLeave, onOpen, onExpand, ref }) {

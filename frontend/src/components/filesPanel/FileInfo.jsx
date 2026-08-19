@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
-import InfoList from '../common/ui/InfoList';
+import InfoList from '@/components/common/ui/InfoList';
 import useLastCommit from './useLastCommit';
-import { formatFileSize, formatDateTime } from '../../utils/formatting';
+import { formatFileSize, formatDateTime } from '@/utils/formatting';
 
 /**
  * Вкладка «Инфо» правой панели файлового браузера.

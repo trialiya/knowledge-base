@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { IconFolder, IconDoc } from '../../icons';
-import { formatFileSize } from '../../utils/formatting';
+import { IconFolder, IconDoc } from '@/icons/index';
+import { formatFileSize } from '@/utils/formatting';
 import Breadcrumb from './Breadcrumb';
 
 const isMarkdownPath = (path) => /\.mdx?$/i.test(path || '');

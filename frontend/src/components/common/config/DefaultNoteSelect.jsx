@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import ListboxSelect from '../ui/ListboxSelect';
+import ListboxSelect from '@/components/common/ui/ListboxSelect';
 
 /**
  * {@link ListboxSelect}, в котором один пункт помечен как дефолтный — тот, на который

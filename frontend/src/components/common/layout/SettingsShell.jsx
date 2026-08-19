@@ -1,5 +1,5 @@
 import WorkspaceLayout from './WorkspaceLayout';
-import useListNavigation from '../search/useListNavigation';
+import useListNavigation from '@/components/common/search/useListNavigation';
 import './settingsShell.css';
 
 /**

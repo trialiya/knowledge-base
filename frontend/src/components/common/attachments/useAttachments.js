@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import attachmentApi from '../../../api/attachmentApi';
+import attachmentApi from '@/api/attachmentApi';
 
 /**
  * Вложения одного владельца (чат или документ): список и операции над ним.

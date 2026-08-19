@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import api from '../../../api/documentsApi';
+import api from '@/api/documentsApi';
 import usePreviewCache, { createPreviewStore } from './usePreviewCache';
 
 /**

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import attachmentApi from '../../../api/attachmentApi';
+import attachmentApi from '@/api/attachmentApi';
 
 /**
  * Число вложений владельца (чат или документ) — для бейджа на свёрнутой правой

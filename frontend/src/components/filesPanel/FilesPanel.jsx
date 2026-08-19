@@ -6,11 +6,11 @@ import FileSearch from './FileSearch';
 import FileInfo from './FileInfo';
 import ProjectPicker from './ProjectPicker';
 import useFileTree from './useFileTree';
-import useProjectConfig from '../common/config/useProjectConfig';
-import { resolveProjectChoice } from '../common/config/projectChoice';
-import WorkspaceLayout from '../common/layout/WorkspaceLayout';
-import { IconInfo } from '../../icons';
-import { RIGHT_TAB } from '../../constants/rightTabs';
+import useProjectConfig from '@/components/common/config/useProjectConfig';
+import { resolveProjectChoice } from '@/components/common/config/projectChoice';
+import WorkspaceLayout from '@/components/common/layout/WorkspaceLayout';
+import { IconInfo } from '@/icons/index';
+import { RIGHT_TAB } from '@/constants/rightTabs';
 import './filesPanel.css';
 
 /**

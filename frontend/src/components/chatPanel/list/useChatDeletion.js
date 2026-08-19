@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import chatApi from '../../../api/chatApi';
+import chatApi from '@/api/chatApi';
 import { chatDeleteErrorNotice } from '../run/chatNotices';
 
 /**

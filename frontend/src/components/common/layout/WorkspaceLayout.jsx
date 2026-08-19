@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import RightPanel from './RightPanel';
 import useLeftPanelWidth, { MIN_LEFT_WIDTH, MAX_LEFT_WIDTH } from './useLeftPanelWidth';
-import { IconPanelLeft } from '../../../icons/index';
+import { IconPanelLeft } from '@/icons/index';
 import './workspaceLayout.css';
 import './sidePanel.css';
 

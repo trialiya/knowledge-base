@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { SEARCH_MODE } from '../constants/searchMode';
+import { SEARCH_MODE } from '@/constants/searchMode';
 import { readPanelState, savePanelState } from './panelState';
 import { decodeSegment, chatPath, docPath, filesPath, KNOWLEDGE_PATH, SEARCH_PATH } from './urlScheme';
 

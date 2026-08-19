@@ -1,9 +1,9 @@
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import OperationRow from '../common/ui/OperationRow';
+import OperationRow from '@/components/common/ui/OperationRow';
 import useJobStream from './useJobStream';
-import { IconDownload } from '../../icons';
-import api from '../../api/documentsApi';
+import { IconDownload } from '@/icons/index';
+import api from '@/api/documentsApi';
 
 // ─── Операция: выгрузка дерева в серверную папку ─────────────────────────────
 // Идёт через потоковый эндпоинт: на большом дереве обычный POST молчит до

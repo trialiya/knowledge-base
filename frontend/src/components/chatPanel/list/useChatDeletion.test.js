@@ -1,9 +1,9 @@
 import { renderHook, act } from '@testing-library/react';
 import useChatDeletion from './useChatDeletion';
 import { chatDeleteErrorNotice } from '../run/chatNotices';
-import chatApi from '../../../api/chatApi';
+import chatApi from '@/api/chatApi';
 
-vi.mock('../../../api/chatApi', () => ({ default: { deleteChat: vi.fn() } }));
+vi.mock('@/api/chatApi', () => ({ default: { deleteChat: vi.fn() } }));
 
 function setup(chats, overrides = {}) {
   let list = chats;

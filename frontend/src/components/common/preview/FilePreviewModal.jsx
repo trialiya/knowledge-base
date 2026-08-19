@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import gitApi from '../../../api/gitApi';
-import { FileView } from '../../filesPanel/FileContent';
-import ModalShell from '../modal/ModalShell';
-import { IconX } from '../../../icons/index';
+import gitApi from '@/api/gitApi';
+import { FileView } from '@/components/filesPanel/FileContent';
+import ModalShell from '@/components/common/modal/ModalShell';
+import { IconX } from '@/icons/index';
 
 /**
  * Read-only file preview modal opened from a chat file link (`/files?path=...`) — shows the

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import ListboxSelect from '../../common/ui/ListboxSelect';
+import ListboxSelect from '@/components/common/ui/ListboxSelect';
 
 /** Синтетический пункт «без режима»: пустой id → бэк не подставляет фрагмент. */
 export const NO_MODE = '';

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import gitApi from '../../api/gitApi';
+import gitApi from '@/api/gitApi';
 
 /**
  * Последний коммит, затронувший `path` (пустой путь — весь репозиторий).

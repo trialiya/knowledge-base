@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next';
-import { SettingsSection } from '../common/layout/SettingsShell';
-import ConfigGroup, { ConfigRow, ConfigStatusRow } from '../common/config/ConfigGroup';
-import useConfigSnapshot from '../common/config/useConfigSnapshot';
-import settingsApi from '../../api/settingsApi';
+import { SettingsSection } from '@/components/common/layout/SettingsShell';
+import ConfigGroup, { ConfigRow, ConfigStatusRow } from '@/components/common/config/ConfigGroup';
+import useConfigSnapshot from '@/components/common/config/useConfigSnapshot';
+import settingsApi from '@/api/settingsApi';
 
 /**
  * Снимок kb.search.* — лимиты и пороги трёх режимов поиска по базе знаний.

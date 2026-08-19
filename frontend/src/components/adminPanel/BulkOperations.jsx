@@ -1,11 +1,11 @@
 import { useTranslation } from 'react-i18next';
-import { SettingsContentHead, SettingsSection } from '../common/layout/SettingsShell';
-import { ConfigRow } from '../common/config/ConfigGroup';
-import useConfigSnapshot from '../common/config/useConfigSnapshot';
+import { SettingsContentHead, SettingsSection } from '@/components/common/layout/SettingsShell';
+import { ConfigRow } from '@/components/common/config/ConfigGroup';
+import useConfigSnapshot from '@/components/common/config/useConfigSnapshot';
 import ExportOperation from './ExportOperation';
 import ArchiveDownload from './ArchiveDownload';
 import ImportOperation from './ImportOperation';
-import settingsApi from '../../api/settingsApi';
+import settingsApi from '@/api/settingsApi';
 
 // ─── Группа: массовые операции ────────────────────────────────────────────────
 // Обе стороны обмена с файловой системой: выгрузка дерева в серверную папку и

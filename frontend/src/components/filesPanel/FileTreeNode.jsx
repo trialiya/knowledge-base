@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconFolder, IconDoc, IconChevron } from '../../icons';
+import { IconFolder, IconDoc, IconChevron } from '@/icons/index';
 
 const FileTreeNode = ({ node, level, selectedPath, expanded, treeCache, loadingDirs, onToggle, onSelect }) => {
   const { t } = useTranslation('files');

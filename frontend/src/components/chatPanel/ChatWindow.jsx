@@ -2,12 +2,12 @@ import { useState, useCallback, useRef, useEffect, useEffectEvent, useMemo } fro
 import { useTranslation } from 'react-i18next';
 // Перевод вне рендера берём у самого i18n, а не у t() из хука: колбэки стриминга
 // не должны пересоздаваться на смену языка, а зеркалить t в рефе — не за чем.
-import i18n from '../../i18n';
-import { STORAGE_KEY_ACTIVE_CHAT, DRAFT_CHAT_ID } from '../../constants/storage';
+import i18n from '@/i18n/index';
+import { STORAGE_KEY_ACTIVE_CHAT, DRAFT_CHAT_ID } from '@/constants/storage';
 import { getLastModel, getLastMode, getLastProject } from './run/lastChoiceStore';
 import useModelConfig from './run/useModelConfig';
-import useProjectConfig from '../common/config/useProjectConfig';
-import { resolveProjectChoice } from '../common/config/projectChoice';
+import useProjectConfig from '@/components/common/config/useProjectConfig';
+import { resolveProjectChoice } from '@/components/common/config/projectChoice';
 import useModeConfig from './run/useModeConfig';
 import useChatList from './list/useChatList';
 import useChatMessages from './run/useChatMessages';
@@ -17,7 +17,7 @@ import useChatAttachments from './run/useChatAttachments';
 import useInChatSearch from './center/useInChatSearch';
 import useChatDrafts from './composer/useChatDrafts';
 import useChatDeletion from './list/useChatDeletion';
-import useNotice from '../common/ui/useNotice';
+import useNotice from '@/components/common/ui/useNotice';
 import { chatLoadErrorNotice, CHAT_DELETED_NOTICE } from './run/chatNotices';
 import { stampChipProject } from './composer/fileChips';
 
@@ -25,11 +25,11 @@ import ChatCenter from './center/ChatCenter';
 import { buildChatTabs } from './center/chatSidebar';
 import ChatList from './list/ChatList';
 import ChatSearch from './list/ChatSearch';
-import WorkspaceLayout from '../common/layout/WorkspaceLayout';
-import { IconPlus } from '../../icons';
+import WorkspaceLayout from '@/components/common/layout/WorkspaceLayout';
+import { IconPlus } from '@/icons/index';
 import './chatWindow.css';
-import ErrorModal from '../common/modal/ErrorModal';
-import ConfirmModal from '../common/modal/ConfirmModal';
+import ErrorModal from '@/components/common/modal/ErrorModal';
+import ConfirmModal from '@/components/common/modal/ConfirmModal';
 
 const ChatWindow = ({
   onNavigateToDoc,

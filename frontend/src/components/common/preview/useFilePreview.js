@@ -1,4 +1,4 @@
-import gitApi from '../../../api/gitApi';
+import gitApi from '@/api/gitApi';
 import usePreviewCache, { createPreviewStore } from './usePreviewCache';
 
 /**

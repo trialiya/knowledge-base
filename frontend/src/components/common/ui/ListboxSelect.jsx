@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { IconChevronDown, IconCheck } from '../../../icons/index';
+import { IconChevronDown, IconCheck } from '@/icons/index';
 import './listboxSelect.css';
 
 /**

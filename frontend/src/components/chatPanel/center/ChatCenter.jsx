@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { UPLOAD_ACCEPT } from '../../../constants/uploadAccept';
+import { UPLOAD_ACCEPT } from '@/constants/uploadAccept';
 import ChatHeader from './ChatHeader';
 import ChatSearchBar from './ChatSearchBar';
 import MessageList from '../messages/MessageList';

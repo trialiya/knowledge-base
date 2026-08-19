@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ToolCallDetailModal from './ToolCallDetailModal';
-import { getToolIcon, toolLabelKey, humanizeTool } from '../../common/ui/toolNames';
-import { IconCopySmall, IconCopied, IconStatusStarted, IconStatusOk, IconStatusError } from '../../../icons';
-import { GIST_PREVIEW_LEN } from '../../../constants/ui';
-import useCopyFeedback from '../../common/ui/useCopyFeedback';
-import { TOOL_STATUS } from '../../../constants/toolStatus';
+import { getToolIcon, toolLabelKey, humanizeTool } from '@/components/common/ui/toolNames';
+import { IconCopySmall, IconCopied, IconStatusStarted, IconStatusOk, IconStatusError } from '@/icons/index';
+import { GIST_PREVIEW_LEN } from '@/constants/ui';
+import useCopyFeedback from '@/components/common/ui/useCopyFeedback';
+import { TOOL_STATUS } from '@/constants/toolStatus';
 import '../styles/tool-calls.css';
 
 // Inline-блок плашек вызовов инструментов под пузырём ответа ассистента.

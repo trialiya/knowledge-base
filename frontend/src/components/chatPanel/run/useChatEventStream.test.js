@@ -1,10 +1,10 @@
 import { act, renderHook } from '@testing-library/react';
 import useChatEventStream from './useChatEventStream';
-import { openChatEventStream } from '../../../api/chatEvents';
-import chatApi from '../../../api/chatApi';
+import { openChatEventStream } from '@/api/chatEvents';
+import chatApi from '@/api/chatApi';
 
-vi.mock('../../../api/chatEvents');
-vi.mock('../../../api/chatApi', () => ({ default: { getActiveRun: vi.fn() } }));
+vi.mock('@/api/chatEvents');
+vi.mock('@/api/chatApi', () => ({ default: { getActiveRun: vi.fn() } }));
 
 /**
  * onDocChanged/onFileChanged are the hook's contribution to KB/Files cache

@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { IconChevronRight } from '../../../icons/index';
+import { IconChevronRight } from '@/icons/index';
 
 /**
  * Правая панель рабочей области — раскрытое состояние.

@@ -3,7 +3,7 @@
 // Documents и chats используют одну форму, различаясь только URL-сегментом.
 
 import { request, requestRaw } from './client';
-import { OWNER_TYPE } from '../constants/ownerType';
+import { OWNER_TYPE } from '@/constants/ownerType';
 
 const seg = (ownerType) => (ownerType === OWNER_TYPE.DOCUMENT ? 'documents' : 'chats');
 

@@ -1,8 +1,8 @@
 import { act, renderHook } from '@testing-library/react';
 import useChatMessages from './useChatMessages';
-import chatApi from '../../../api/chatApi';
+import chatApi from '@/api/chatApi';
 
-vi.mock('../../../api/chatApi', () => ({
+vi.mock('@/api/chatApi', () => ({
   default: { getChatMeta: vi.fn(), getMessages: vi.fn(), getActiveRun: vi.fn() },
 }));
 

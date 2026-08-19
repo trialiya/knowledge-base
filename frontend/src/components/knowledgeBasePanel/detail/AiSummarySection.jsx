@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconSparkle, IconSparkleLoading } from '../../../icons/index';
+import { IconSparkle, IconSparkleLoading } from '@/icons/index';
 
 /**
  * Блок AI-описания документа: показывает готовое описание с кнопкой

@@ -1,4 +1,4 @@
-import i18n from '../../../../i18n';
+import i18n from '@/i18n/index';
 import { formatFieldValue } from './fieldValue';
 
 // Форматирование значения поля общее для списка записей, дерева и шапок, поэтому

@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next';
-import ModalShell from '../modal/ModalShell';
-import { FileView } from '../../filesPanel/FileContent';
-import { baseName } from '../ui/utils';
-import { IconX } from '../../../icons/index';
+import ModalShell from '@/components/common/modal/ModalShell';
+import { FileView } from '@/components/filesPanel/FileContent';
+import { baseName } from '@/components/common/ui/utils';
+import { IconX } from '@/icons/index';
 
 // Unlike the doc fullscreen path (FullscreenEditorModal → MarkdownEditor),
 // file content is source code, not markdown — rendering it through the

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconRefresh, IconCheck, IconChevron, IconDots, IconWorld, IconTool, IconSettings } from '../../../icons/index';
+import { IconRefresh, IconCheck, IconChevron, IconDots, IconWorld, IconTool, IconSettings } from '@/icons/index';
 import './headerMenu.css';
 
 const LANGS = [

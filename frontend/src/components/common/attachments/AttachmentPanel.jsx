@@ -1,12 +1,12 @@
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconTrash, IconDoc, IconEye, IconUpload, IconSummarize } from '../../../icons/index';
-import { UPLOAD_ACCEPT } from '../../../constants/uploadAccept';
-import { formatFileSize } from '../../../utils/formatting';
+import { IconTrash, IconDoc, IconEye, IconUpload, IconSummarize } from '@/icons/index';
+import { UPLOAD_ACCEPT } from '@/constants/uploadAccept';
+import { formatFileSize } from '@/utils/formatting';
 import useAttachments from './useAttachments';
 import AttachmentModal from './AttachmentModal';
-import ConfirmModal from '../modal/ConfirmModal';
-import ErrorModal from '../modal/ErrorModal';
+import ConfirmModal from '@/components/common/modal/ConfirmModal';
+import ErrorModal from '@/components/common/modal/ErrorModal';
 import './attachmentPanel.css';
 
 /**

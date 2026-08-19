@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import { SettingsContentHead } from '../layout/SettingsShell';
-import { splitDuration } from '../../../utils/formatting';
+import { SettingsContentHead } from '@/components/common/layout/SettingsShell';
+import { splitDuration } from '@/utils/formatting';
 import './configGroup.css';
 
 /**

@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import ModalShell from '../../common/modal/ModalShell';
+import ModalShell from '@/components/common/modal/ModalShell';
 import PlaceholderSearchField from './PlaceholderSearchField';
 import { fieldSpec, resolveValue } from './placeholderFields';
 import { parsePlaceholders, fillPlaceholders, splitPhrase } from './phrasePlaceholders';
-import '../../common/ui/buttons.css';
+import '@/components/common/ui/buttons.css';
 
 /**
  * Диалог заполнения плейсхолдеров выбранной фразы.

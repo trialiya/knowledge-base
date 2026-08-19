@@ -1,9 +1,9 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import chatApi from '../../../api/chatApi';
-import PanelSearch from '../../common/search/PanelSearch';
-import { highlightSubstring } from '../../common/search/highlightMatch';
-import { IconMessage } from '../../../icons';
+import chatApi from '@/api/chatApi';
+import PanelSearch from '@/components/common/search/PanelSearch';
+import { highlightSubstring } from '@/components/common/search/highlightMatch';
+import { IconMessage } from '@/icons/index';
 
 const DEBOUNCE_MS = 250;
 const RESULT_LIMIT = 15;

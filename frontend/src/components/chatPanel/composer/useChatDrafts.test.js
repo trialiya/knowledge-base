@@ -1,6 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import useChatDrafts from './useChatDrafts';
-import { STORAGE_KEY_CHAT_DRAFTS, STORAGE_KEY_CHAT_STAGED, DRAFT_CHAT_ID } from '../../../constants/storage';
+import { STORAGE_KEY_CHAT_DRAFTS, STORAGE_KEY_CHAT_STAGED, DRAFT_CHAT_ID } from '@/constants/storage';
 
 const ATTACHMENT = { kind: 'ATTACHMENT', ref: '7', label: 'report.md' };
 

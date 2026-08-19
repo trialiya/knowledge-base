@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { SettingsContentHead, SettingsSection } from '../common/layout/SettingsShell';
-import { IconPlus, IconEdit, IconTrash } from '../../icons';
-import ConfirmModal from '../common/modal/ConfirmModal';
+import { SettingsContentHead, SettingsSection } from '@/components/common/layout/SettingsShell';
+import { IconPlus, IconEdit, IconTrash } from '@/icons/index';
+import ConfirmModal from '@/components/common/modal/ConfirmModal';
 // Список типов берём у самого парсера, чтобы подсказка не разошлась с тем, что
 // диалог заполнения действительно понимает.
-import { PLACEHOLDER_TYPES } from '../chatPanel/composer/phrasePlaceholders';
+import { PLACEHOLDER_TYPES } from '@/components/chatPanel/composer/phrasePlaceholders';
 import {
   fetchAllPhrases,
   createPhrase,
@@ -14,7 +14,7 @@ import {
   adminToggleFavorite,
   adminToggleEnabled,
   movePhrase,
-} from '../../api/phrasesApi';
+} from '@/api/phrasesApi';
 
 const EMPTY_FORM = { category: '', label: '', text: '', enabled: true };
 

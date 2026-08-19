@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { IconCopySmall, IconCopied } from '../../../icons/index';
+import { IconCopySmall, IconCopied } from '@/icons/index';
 import useCopyFeedback from './useCopyFeedback';
 import './infoList.css';
 

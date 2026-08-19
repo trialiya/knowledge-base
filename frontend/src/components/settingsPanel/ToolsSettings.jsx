@@ -1,10 +1,10 @@
 import { useTranslation } from 'react-i18next';
-import { SettingsSection } from '../common/layout/SettingsShell';
-import ConfigGroup, { ConfigRow, ConfigStatusRow, ConfigBoolRow, ConfigTags, ConfigBlock } from '../common/config/ConfigGroup';
-import useConfigSnapshot from '../common/config/useConfigSnapshot';
+import { SettingsSection } from '@/components/common/layout/SettingsShell';
+import ConfigGroup, { ConfigRow, ConfigStatusRow, ConfigBoolRow, ConfigTags, ConfigBlock } from '@/components/common/config/ConfigGroup';
+import useConfigSnapshot from '@/components/common/config/useConfigSnapshot';
 import ToolCatalog from './ToolCatalog';
-import settingsApi from '../../api/settingsApi';
-import { formatFileSize } from '../../utils/formatting';
+import settingsApi from '@/api/settingsApi';
+import { formatFileSize } from '@/utils/formatting';
 
 /**
  * Что ассистент умеет помимо встроенных read-only инструментов: готовые режимы,

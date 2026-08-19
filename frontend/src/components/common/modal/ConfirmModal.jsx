@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import ModalShell from './ModalShell';
-import '../ui/buttons.css';
+import '@/components/common/ui/buttons.css';
 import './confirmModal.css';
 
 /**

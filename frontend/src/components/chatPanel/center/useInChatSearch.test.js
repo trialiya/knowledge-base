@@ -1,8 +1,8 @@
 import { renderHook, waitFor, act } from '@testing-library/react';
 import useInChatSearch, { resolveActiveMatchMid } from './useInChatSearch';
-import chatApi from '../../../api/chatApi';
+import chatApi from '@/api/chatApi';
 
-vi.mock('../../../api/chatApi');
+vi.mock('@/api/chatApi');
 
 // Пузыри как в стейте чата: загруженные из БД имеют dbId, свежие (отправка/стриминг
 // текущей сессии) — нет.

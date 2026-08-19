@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { fetchPhrases, toggleFavorite } from '../../../api/phrasesApi';
-import { IconStar, IconSparkleSimple } from '../../../icons';
+import { fetchPhrases, toggleFavorite } from '@/api/phrasesApi';
+import { IconStar, IconSparkleSimple } from '@/icons/index';
 import '../styles/phrases.css';
 
 // Сентинелы фильтров. Префиксы делают коллизию с пользовательской категорией

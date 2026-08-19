@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import PreviewTooltipShell from './PreviewTooltipShell';
-import { IconFolder, IconDoc, IconSparkle, IconExpand } from '../../../icons/index';
+import { IconFolder, IconDoc, IconSparkle, IconExpand } from '@/icons/index';
 
 /** Nested preview card for DocLinkTooltip's internal KB doc-link branch. */
 function DocPreviewTooltip({ node, loading, error, pos, onMouseEnter, onMouseLeave, onNavigate, onExpand, ref }) {

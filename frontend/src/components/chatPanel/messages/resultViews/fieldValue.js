@@ -1,8 +1,8 @@
 // Значение поля ответа → строка для показа. Общее для видов, которые печатают
 // произвольные поля DTO: список записей, дерево, шапки.
 
-import i18n from '../../../../i18n';
-import { formatFileSize } from '../../../../utils/formatting';
+import i18n from '@/i18n/index';
+import { formatFileSize } from '@/utils/formatting';
 
 // Только настоящие байты: `chars` — символы, и «210 B» на них было бы просто
 // неверной единицей.

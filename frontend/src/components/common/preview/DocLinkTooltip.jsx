@@ -6,15 +6,15 @@ import DocPreviewTooltip from './DocPreviewTooltip';
 import FilePreviewTooltip from './FilePreviewTooltip';
 import FileFullscreenModal from './FileFullscreenModal';
 import FilePreviewModal from './FilePreviewModal';
-import gitApi from '../../../api/gitApi';
-import documentsApi from '../../../api/documentsApi';
-import FullscreenEditorModal from '../../knowledgeBasePanel/editor/FullscreenEditorModal';
-import { navigateToFile } from '../../../navigation/fileNavigationBus';
+import gitApi from '@/api/gitApi';
+import documentsApi from '@/api/documentsApi';
+import FullscreenEditorModal from '@/components/knowledgeBasePanel/editor/FullscreenEditorModal';
+import { navigateToFile } from '@/navigation/fileNavigationBus';
 import { parseDocId, parseFileLink } from './docLinkParsing';
-import useProjectConfig from '../config/useProjectConfig';
-import { docPath, filesUrl } from '../../../navigation/urlScheme';
+import useProjectConfig from '@/components/common/config/useProjectConfig';
+import { docPath, filesUrl } from '@/navigation/urlScheme';
 import { scrollToHeading } from './anchorScroll';
-import { TOOLTIP_WIDTH, TOOLTIP_GAP, TOOLTIP_HEIGHT_ESTIMATE } from '../../../constants/ui';
+import { TOOLTIP_WIDTH, TOOLTIP_GAP, TOOLTIP_HEIGHT_ESTIMATE } from '@/constants/ui';
 
 /**
  * Wraps a `/?doc=N` link with a hover-activated preview tooltip. Shared by the

@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState, useSyncExternalStore } from 'react';
-import { STORAGE_KEY_LEFT_WIDTH } from '../../../constants/storage';
+import { STORAGE_KEY_LEFT_WIDTH } from '@/constants/storage';
 
 const DEFAULT_LEFT_WIDTH = 280;
 export const MIN_LEFT_WIDTH = 200;

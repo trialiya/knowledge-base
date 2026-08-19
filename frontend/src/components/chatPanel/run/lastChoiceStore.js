@@ -1,4 +1,4 @@
-import { STORAGE_KEY_LAST_MODEL, STORAGE_KEY_LAST_MODE, STORAGE_KEY_LAST_PROJECT } from '../../../constants/storage';
+import { STORAGE_KEY_LAST_MODEL, STORAGE_KEY_LAST_MODE, STORAGE_KEY_LAST_PROJECT } from '@/constants/storage';
 
 // ─── Модель и режим последней отправки ──────────────────────────────────────
 // Ими стартует новый чат и подстраховывается отправка, когда у чата своих не

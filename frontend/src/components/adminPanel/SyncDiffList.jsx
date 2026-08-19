@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { IconDoc, IconFolder } from '../../icons';
+import { IconDoc, IconFolder } from '@/icons/index';
 import { isActionable } from './syncSelection';
 
 // ─── Список различий папки экспорта и базы ───────────────────────────────────

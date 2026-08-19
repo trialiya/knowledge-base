@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { readJsonSseStream } from '../../api/sse';
+import { readJsonSseStream } from '@/api/sse';
 
 // ─── Длинная операция как поток событий ──────────────────────────────────────
 // Экспорт, сравнение и импорт устроены на бэке одинаково: кадр на каждый
