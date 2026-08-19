@@ -28,7 +28,7 @@
 
 - id: chat-header-single-row
   component: ChatHeader
-  path: frontend/src/components/chatPanel/ChatHeader.jsx
+  path: frontend/src/components/chatPanel/center/ChatHeader.jsx
   title: Шапка активного чата — одна строка, без даты создания
   status: verified
   origin:
@@ -52,7 +52,7 @@
 
 - id: kb-detail-header-document
   component: DetailHeader
-  path: frontend/src/components/knowledgeBasePanel/DetailHeader.jsx
+  path: frontend/src/components/knowledgeBasePanel/detail/DetailHeader.jsx
   title: Шапка документа базы знаний — крошки, иконка, имя и кнопки в одной строке
   status: verified
   origin:
@@ -165,7 +165,7 @@
 
 - id: kb-detail-header-deep-path
   component: DetailHeader
-  path: frontend/src/components/knowledgeBasePanel/DetailHeader.jsx
+  path: frontend/src/components/knowledgeBasePanel/detail/DetailHeader.jsx
   title: Шапка документа с длинным путём — крошки сжимаются, имя остаётся целым
   status: blocked
   origin:
@@ -193,7 +193,7 @@
 
 - id: kb-detail-header-system-node
   component: DetailHeader
-  path: frontend/src/components/knowledgeBasePanel/DetailHeader.jsx
+  path: frontend/src/components/knowledgeBasePanel/detail/DetailHeader.jsx
   title: Системный узел — замок вместо кнопки удаления, имя не открывает правку
   status: blocked
   origin:
@@ -214,7 +214,7 @@
 
 - id: kb-detail-header-folder
   component: DetailHeader
-  path: frontend/src/components/knowledgeBasePanel/DetailHeader.jsx
+  path: frontend/src/components/knowledgeBasePanel/detail/DetailHeader.jsx
   title: Шапка папки — вариант иконки --folder с непустыми крошками
   status: blocked
   origin:
@@ -234,7 +234,7 @@
 
 - id: kb-detail-header-rename-inline
   component: DetailHeader
-  path: frontend/src/components/knowledgeBasePanel/DetailHeader.jsx
+  path: frontend/src/components/knowledgeBasePanel/detail/DetailHeader.jsx
   title: Переименование узла кликом по имени — как в шапке чата, без кнопки-карандаша
   status: verified
   origin:
@@ -260,7 +260,7 @@
 
 - id: info-list-long-value-right
   component: InfoList
-  path: frontend/src/components/common/InfoList.jsx
+  path: frontend/src/components/common/ui/InfoList.jsx
   title: Вкладка «Инфо» — длинное значение справа, под лейблом только связный текст
   status: verified
   origin:
@@ -278,7 +278,7 @@
 
 - id: info-list-copy-values
   component: InfoList
-  path: frontend/src/components/common/InfoList.jsx
+  path: frontend/src/components/common/ui/InfoList.jsx
   title: Вкладка «Инфо» — кнопка копирования у каждого значения
   status: blocked
   origin:
@@ -333,7 +333,7 @@
 
 - id: kb-document-opens-in-preview
   component: DocumentDetail
-  path: frontend/src/components/knowledgeBasePanel/DocumentDetail.jsx
+  path: frontend/src/components/knowledgeBasePanel/detail/DocumentDetail.jsx
   title: Документ открывается в режиме просмотра, а не в правке
   status: verified
   origin:
@@ -358,7 +358,7 @@
 
 - id: kb-right-summary-ai-only
   component: detailSidebar
-  path: frontend/src/components/knowledgeBasePanel/detailSidebar.jsx
+  path: frontend/src/components/knowledgeBasePanel/detail/detailSidebar.jsx
   title: Вкладка «Summary» справа — только AI-описание, без копии содержимого
   status: verified
   origin:
@@ -486,7 +486,7 @@
 
 - id: config-row-long-value-right
   component: ConfigGroup
-  path: frontend/src/components/common/ConfigGroup.jsx
+  path: frontend/src/components/common/config/ConfigGroup.jsx
   title: Строка снимка — длинное значение остаётся справа, строка переносится целиком
   status: verified
   origin:
@@ -535,7 +535,7 @@
 
 - id: operation-row-states
   component: OperationRow
-  path: frontend/src/components/common/OperationRow.jsx
+  path: frontend/src/components/common/ui/OperationRow.jsx
   title: Строка-операция — состояния и одинаковый вид в обеих группах
   status: verified
   origin:
@@ -606,7 +606,7 @@
 
 - id: kb-detail-header-download
   component: DetailHeader
-  path: frontend/src/components/knowledgeBasePanel/DetailHeader.jsx
+  path: frontend/src/components/knowledgeBasePanel/detail/DetailHeader.jsx
   title: Шапка узла базы знаний — кнопка скачивания рядом с удалением
   status: verified
   origin:
@@ -899,7 +899,7 @@
 
 - id: chat-rename-reset-on-external-switch
   component: ChatHeader
-  path: frontend/src/components/chatPanel/ChatHeader.jsx
+  path: frontend/src/components/chatPanel/center/ChatHeader.jsx
   title: Незавершённое переименование заголовка не переезжает на другой чат
   status: verified
   origin:
@@ -929,7 +929,7 @@
 
 - id: files-crumbs-remeasured-on-new-path
   component: HeadCrumbs
-  path: frontend/src/components/common/HeadCrumbs.jsx
+  path: frontend/src/components/common/layout/HeadCrumbs.jsx
   title: Ручное раскрытие «…» относится к одному пути и не переносится на следующий
   status: verified
   origin:
@@ -997,7 +997,7 @@
 
 - id: header-menu-lang-submenu-collapses
   component: HeaderMenu
-  path: frontend/src/components/common/HeaderMenu.jsx
+  path: frontend/src/components/common/layout/HeaderMenu.jsx
   title: Подменю языка свёрнуто при каждом открытии меню
   status: verified
   origin:
@@ -1123,7 +1123,7 @@
 
 - id: modal-find-scoped-to-dialog
   component: ModalShell + ModalFindBar
-  path: frontend/src/components/common/ModalFindBar.jsx
+  path: frontend/src/components/common/modal/ModalFindBar.jsx
   title: Ctrl+F при открытой модалке ищет по диалогу, а не по странице под ним
   status: verified
   origin:
