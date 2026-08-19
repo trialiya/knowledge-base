@@ -119,6 +119,33 @@ class GitRegistryTest {
                 .hasMessageContaining("unavailable");
     }
 
+    /**
+     * Что видит селектор: список, дефолтный пункт и — главное — доступность. Настроенный, но не
+     * открывшийся проект остаётся в списке помеченным: спрятать его значило бы сказать «такого
+     * проекта нет», а чат, который его выбрал, ответил бы совсем другой репозиторий.
+     */
+    @Test
+    void theSelectorIsToldWhichEntryIsPreselectedAndWhichIsUnavailable() {
+        GitRegistry registry =
+                TestProjects.registry(
+                        List.of(
+                                TestProjects.project("kb", repoDir),
+                                TestProjects.project("billing", secondRepo))); // git init не звали
+
+        assertThat(registry.options().defaultProject()).isEqualTo("kb");
+        assertThat(registry.options().projects())
+                .satisfiesExactly(
+                        p -> {
+                            assertThat(p.id()).isEqualTo("kb");
+                            assertThat(p.label()).isEqualTo("kb");
+                            assertThat(p.available()).isTrue();
+                        },
+                        p -> {
+                            assertThat(p.id()).isEqualTo("billing");
+                            assertThat(p.available()).isFalse();
+                        });
+    }
+
     /** Дефолтный — исключение: без него не работает ничего, и это честный отказ старта. */
     @Test
     void aMissingDefaultRepositoryStillFailsStartup() {

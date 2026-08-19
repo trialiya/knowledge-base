@@ -1,6 +1,8 @@
 package io.github.trialiya.kb.service;
 
 import io.github.trialiya.kb.model.project.Project;
+import io.github.trialiya.kb.model.project.ProjectOptions;
+import io.github.trialiya.kb.model.project.ProjectView;
 import jakarta.annotation.PreDestroy;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -97,6 +99,19 @@ public class GitRegistry {
     /** The repository every caller that names no project gets. */
     public GitService defaultProject() {
         return forProject(null);
+    }
+
+    /**
+     * What the project selector offers — the list plus the entry a chat gets when it stores none.
+     * Built here rather than in {@code ProjectCatalog} because one field of it is only known here:
+     * whether the project's repository actually opened (see {@link ProjectView#available()}).
+     */
+    public ProjectOptions options() {
+        return new ProjectOptions(
+                catalog.defaultProject().id(),
+                catalog.projects().stream()
+                        .map(p -> ProjectView.of(p, byProjectId.containsKey(p.id())))
+                        .toList());
     }
 
     /**

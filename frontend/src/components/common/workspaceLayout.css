@@ -312,6 +312,13 @@
   text-overflow: ellipsis;
 }
 
+/* Заголовком боковой панели может быть не строка, а виджет — в «Файлах» это
+   селектор репозитория. Многоточие ему ни к чему, а overflow:hidden выше срезал
+   бы его выпадающий список. */
+.workspace__side-title--slot {
+  overflow: visible;
+}
+
 .workspace__head-title {
   font-size: 1rem;
   font-weight: 700;

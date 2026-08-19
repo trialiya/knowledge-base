@@ -17,7 +17,6 @@ import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.config.model.ProjectProperties;
 import io.github.trialiya.kb.config.model.ProjectProperties.ProjectOption;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
-import io.github.trialiya.kb.model.project.ProjectOptions;
 import io.github.trialiya.kb.model.project.ProjectSwitch;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.ChatEventService;
@@ -85,6 +84,7 @@ class ChatProjectSelectionTest {
                         contextItemService,
                         topicService,
                         catalog(),
+                        mock(io.github.trialiya.kb.service.GitRegistry.class),
                         mock(SystemPromptService.class),
                         new ProjectPromptService(catalog()),
                         Clock.systemUTC());
@@ -165,20 +165,6 @@ class ChatProjectSelectionTest {
         assertThat(projectSwitch).isNotNull();
         assertThat(projectSwitch.from()).isEqualTo("retired");
         assertThat(projectSwitch.to()).isEqualTo("kb");
-    }
-
-    @Test
-    void theSelectorIsToldWhichEntryIsPreselected() {
-        final ProjectOptions options = controller.getProjects();
-
-        assertThat(options.defaultProject()).isEqualTo("kb");
-        assertThat(options.projects())
-                .singleElement()
-                .satisfies(
-                        p -> {
-                            assertThat(p.id()).isEqualTo("kb");
-                            assertThat(p.label()).isEqualTo("KB");
-                        });
     }
 
     private ChatRunService.RunOptions startRun(@Nullable String requested) {

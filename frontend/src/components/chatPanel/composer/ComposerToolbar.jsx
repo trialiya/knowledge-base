@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import DefaultNoteSelect from '../../common/DefaultNoteSelect';
+import { markUnavailable } from '../../common/projectChoice';
 import ModeSelector from './ModeSelector';
 import { IconSend, IconStop, IconPaperclip } from '../../../icons';
 
@@ -62,7 +63,7 @@ const ComposerToolbar = ({ model, mode, project, disabled, sendDisabled, onAttac
           <DefaultNoteSelect
             value={project.selected}
             defaultId={project.defaultId}
-            options={project.options}
+            options={markUnavailable(project.options, t('project.unavailable'))}
             onChange={project.onChange}
             disabled={disabled}
             defaultNote={t('project.default')}

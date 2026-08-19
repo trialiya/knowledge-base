@@ -4,8 +4,6 @@ import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.config.model.ProjectProperties;
 import io.github.trialiya.kb.config.model.ProjectProperties.ProjectOption;
 import io.github.trialiya.kb.model.project.Project;
-import io.github.trialiya.kb.model.project.ProjectOptions;
-import io.github.trialiya.kb.model.project.ProjectView;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -33,7 +31,7 @@ import org.springframework.util.StringUtils;
  *
  * <p>A project switched off ({@code enabled: false}) is not here at all — not routable, not listed,
  * not opened. A chat that had chosen it keeps the id in {@code chat_topic.project} and runs on the
- * default project instead; the id no longer matching anything in {@link #options()} is precisely
+ * default project instead; the id no longer matching anything in {@link #projects()} is precisely
  * what tells the UI to say the project is gone.
  */
 @Slf4j
@@ -68,14 +66,6 @@ public class ProjectCatalog {
      */
     public Project defaultProject() {
         return projects.getFirst();
-    }
-
-    /**
-     * What the project selector offers — the list plus the entry a chat gets when it stores none.
-     */
-    public ProjectOptions options() {
-        return new ProjectOptions(
-                defaultProject().id(), projects.stream().map(ProjectView::of).toList());
     }
 
     /**

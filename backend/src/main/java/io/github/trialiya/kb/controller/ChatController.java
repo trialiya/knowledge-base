@@ -30,6 +30,7 @@ import io.github.trialiya.kb.service.ChatModeService;
 import io.github.trialiya.kb.service.ChatRunService;
 import io.github.trialiya.kb.service.ChatTopicService;
 import io.github.trialiya.kb.service.ContextItemService;
+import io.github.trialiya.kb.service.GitRegistry;
 import io.github.trialiya.kb.service.ProjectCatalog;
 import io.github.trialiya.kb.service.ProjectPromptService;
 import io.github.trialiya.kb.service.ScriptGuideService;
@@ -83,6 +84,7 @@ public class ChatController {
     private final ContextItemService contextItemService;
     private final ChatTopicService chatTopicService;
     private final ProjectCatalog projectCatalog;
+    private final GitRegistry gitRegistry;
     private final SystemPromptService systemPromptService;
     private final ProjectPromptService projectPromptService;
 
@@ -103,6 +105,7 @@ public class ChatController {
             ContextItemService contextItemService,
             ChatTopicService chatTopicService,
             ProjectCatalog projectCatalog,
+            GitRegistry gitRegistry,
             SystemPromptService systemPromptService,
             ProjectPromptService projectPromptService,
             Clock clock) {
@@ -119,6 +122,7 @@ public class ChatController {
         this.contextItemService = contextItemService;
         this.chatTopicService = chatTopicService;
         this.projectCatalog = projectCatalog;
+        this.gitRegistry = gitRegistry;
         this.systemPromptService = systemPromptService;
         this.projectPromptService = projectPromptService;
         this.clock = clock;
@@ -274,7 +278,7 @@ public class ChatController {
     /** Проекты, между которыми можно выбирать, и какой из них дефолтный. */
     @GetMapping("/projects")
     public ProjectOptions getProjects() {
-        return projectCatalog.options();
+        return gitRegistry.options();
     }
 
     /** Sets (or creates) the chat's topic. Idempotent, hence PUT. */

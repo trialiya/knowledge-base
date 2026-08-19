@@ -82,7 +82,6 @@ class ProjectCatalogTest {
 
         assertThat(catalog.projects()).extracting(Project::id).containsExactly("kb", "billing");
         assertThat(catalog.defaultProject().id()).isEqualTo("kb");
-        assertThat(catalog.options().defaultProject()).isEqualTo("kb");
         assertThat(catalog.isAllowed("billing")).isTrue();
         assertThat(catalog.require("billing").path())
                 .isEqualTo(Path.of("/srv/billing").toAbsolutePath().normalize());
@@ -105,7 +104,6 @@ class ProjectCatalogTest {
         assertThat(catalog.projects()).singleElement().extracting(Project::id).isEqualTo("kb");
         assertThat(catalog.isAllowed("billing")).isFalse();
         assertThat(catalog.find("billing")).isEmpty();
-        assertThat(catalog.options().projects()).hasSize(1);
     }
 
     /** Выключенный проект не проверяют: его путь может быть ещё не смонтирован. */
@@ -186,23 +184,6 @@ class ProjectCatalogTest {
         assertThat(catalog.isAllowed("billing")).isFalse();
         assertThat(catalog.isAllowed(null)).isFalse();
         assertThat(catalog.isAllowed("")).isFalse();
-    }
-
-    @Test
-    void theSelectorIsOfferedTheListAndThePreselectedEntry() {
-        ProjectCatalog catalog =
-                catalog(
-                        List.of(new ProjectOption("kb", "KB", "/srv/kb", true, true)),
-                        legacy(null, false));
-
-        assertThat(catalog.options().defaultProject()).isEqualTo("kb");
-        assertThat(catalog.options().projects())
-                .singleElement()
-                .satisfies(
-                        p -> {
-                            assertThat(p.id()).isEqualTo("kb");
-                            assertThat(p.label()).isEqualTo("KB");
-                        });
     }
 
     @Test
