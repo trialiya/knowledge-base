@@ -18,6 +18,12 @@ import org.springframework.stereotype.Service;
  * ProjectCatalog#defaultProject()} — the first configured project. An id that names no configured
  * project does fail, so a stale link cannot quietly read a different repository.
  *
+ * <p>A repository that fails to open — a mount that never arrived, a path that is no Git working
+ * tree — costs its own project and nothing else: the server starts, the other repositories serve,
+ * and calls naming the broken one are refused by name. The exception is the default project, which
+ * every caller that names none receives: without it the server does not work at all, so it still
+ * fails startup.
+ *
  * <p>This is also the single answer to "may the model write here": the configured intent ({@code
  * Project#editEnabled}) and the working tree's own permissions are two halves of one question, and
  * the {@code editFile} tool, the {@code runScript} write methods ({@code ScriptEditPolicy}) and the
@@ -34,7 +40,23 @@ public class GitRegistry {
         this.catalog = catalog;
         Map<String, GitService> services = new LinkedHashMap<>();
         for (Project project : catalog.projects()) {
-            services.put(project.id(), new GitService(project, outlineService));
+            try {
+                services.put(project.id(), new GitService(project, outlineService));
+            } catch (RuntimeException e) {
+                // Один не доехавший mount не должен уносить сервер: остальные репозитории
+                // обслуживаются, а этот отвечает отказом по имени проекта (см. forProject).
+                // Дефолтный — исключение: его получает всякий, кто проект не назвал, и сервер
+                // без него не работает, а не работает частично.
+                if (project.id().equals(catalog.defaultProject().id())) {
+                    throw e;
+                }
+                log.error(
+                        "Project {}: repository at {} could not be opened — the project stays"
+                                + " configured, but every call to it will be refused: {}",
+                        project.id(),
+                        project.path(),
+                        e.getMessage());
+            }
         }
         this.byProjectId = Map.copyOf(services);
         for (Project project : catalog.projects()) {
@@ -53,13 +75,21 @@ public class GitRegistry {
         byProjectId.values().forEach(GitService::closeRepository);
     }
 
-    /** The repository of {@code projectId}; {@code null} — the default project. */
+    /**
+     * The repository of {@code projectId}; {@code null} — the default project. A configured project
+     * whose repository could not be opened at startup (a mount that never arrived) is refused here
+     * by name: the failure belongs to that project, not to the server.
+     */
     public GitService forProject(@Nullable String projectId) {
-        // require() already refused every id this map does not hold — the two are built from the
-        // same catalog — so a miss here would be a bug in the registry, not a caller error.
-        GitService service = byProjectId.get(catalog.require(projectId).id());
+        Project project = catalog.require(projectId);
+        GitService service = byProjectId.get(project.id());
         if (service == null) {
-            throw new IllegalStateException("No repository opened for project: " + projectId);
+            throw new IllegalStateException(
+                    "Project \""
+                            + project.id()
+                            + "\" is unavailable: its repository at "
+                            + project.path()
+                            + " could not be opened at startup");
         }
         return service;
     }
@@ -86,9 +116,11 @@ public class GitRegistry {
      */
     public boolean editsAllowed(@Nullable String projectId) {
         Project project = catalog.require(projectId);
+        GitService service = byProjectId.get(project.id());
         // Asked of the filesystem on every call rather than cached: a mount can be remounted
-        // read-only under a running server, and the honest answer is the current one.
-        return project.editEnabled() && forProject(project.id()).isRepoWritable();
+        // read-only under a running server, and the honest answer is the current one. A project
+        // whose repository never opened accepts nothing — the question is answered, not thrown.
+        return project.editEnabled() && service != null && service.isRepoWritable();
     }
 
     /**

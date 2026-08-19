@@ -132,13 +132,17 @@ public class GitController {
 
     /**
      * Репозиторий запрошенного проекта; без параметра — дефолтный. Неизвестный id — 400: открыть
-     * «тот же путь, но в другом репозитории» молча хуже, чем не открыть ничего.
+     * «тот же путь, но в другом репозитории» молча хуже, чем не открыть ничего. Настроенный, но не
+     * открывшийся (не доехал mount) — 503: клиенту это отказ конкретного проекта, а не поломка
+     * запроса, и исправляют его на стороне деплоя.
      */
     private GitService git(@Nullable String project) {
         try {
             return gitRegistry.forProject(project);
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        } catch (IllegalStateException e) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage());
         }
     }
 

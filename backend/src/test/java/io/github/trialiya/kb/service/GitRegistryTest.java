@@ -7,6 +7,7 @@ import io.github.trialiya.kb.support.TestProjects;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -19,6 +20,12 @@ import org.junit.jupiter.api.io.TempDir;
 class GitRegistryTest {
 
     @TempDir Path repoDir;
+
+    /**
+     * Второй репозиторий — свой каталог; {@code git init} в нём зовут только те тесты, кому он
+     * нужен рабочим, остальным он изображает не доехавший mount.
+     */
+    @TempDir Path secondRepo;
 
     @BeforeEach
     void initRepo() {
@@ -76,14 +83,67 @@ class GitRegistryTest {
         assertThat(registry.requireEditable(null)).isSameAs(registry.defaultProject());
     }
 
+    // ── Несколько проектов ───────────────────────────────────────────────────
+
+    @Test
+    void everyConfiguredProjectGetsARepositoryOfItsOwn() {
+        runGit(secondRepo, "init", "-q");
+        GitRegistry registry =
+                TestProjects.registry(
+                        List.of(
+                                TestProjects.project("kb", repoDir),
+                                TestProjects.project("billing", secondRepo)));
+
+        assertThat(registry.forProject("billing")).isNotSameAs(registry.forProject("kb"));
+        assertThat(registry.defaultProject()).isSameAs(registry.forProject("kb"));
+        assertThat(registry.forProject("billing").project().path())
+                .isEqualTo(secondRepo.toAbsolutePath().normalize());
+        assertThat(registry.sameProject("kb", "billing")).isFalse();
+    }
+
+    /** Не доехавший mount стоит своего проекта — не сервера: остальные репозитории работают. */
+    @Test
+    void aProjectWhoseRepositoryIsMissingIsRefusedByNameWhileTheRestServe() {
+        GitRegistry registry =
+                TestProjects.registry(
+                        List.of(
+                                TestProjects.project("kb", repoDir),
+                                TestProjects.project("billing", secondRepo))); // git init не звали
+
+        assertThat(registry.defaultProject().project().path())
+                .isEqualTo(repoDir.toAbsolutePath().normalize());
+        assertThat(registry.editsAllowed("billing")).isFalse();
+        assertThatThrownBy(() -> registry.forProject("billing"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("billing")
+                .hasMessageContaining("unavailable");
+    }
+
+    /** Дефолтный — исключение: без него не работает ничего, и это честный отказ старта. */
+    @Test
+    void aMissingDefaultRepositoryStillFailsStartup() {
+        assertThatThrownBy(
+                        () ->
+                                TestProjects.registry(
+                                        List.of(
+                                                TestProjects.project("billing", secondRepo),
+                                                TestProjects.project("kb", repoDir))))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("billing");
+    }
+
     private void runGit(String... args) {
+        runGit(repoDir, args);
+    }
+
+    private void runGit(Path dir, String... args) {
         try {
             String[] command = new String[args.length + 1];
             command[0] = "git";
             System.arraycopy(args, 0, command, 1, args.length);
             Process process =
                     new ProcessBuilder(command)
-                            .directory(repoDir.toFile())
+                            .directory(dir.toFile())
                             .redirectErrorStream(true)
                             .start();
             if (process.waitFor() != 0) {

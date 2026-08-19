@@ -28,6 +28,10 @@ services:
       - "8080:8080"
     volumes:
       - ${PROJECT_PATH_MOUNT:-../}:/project:ro
+      # Второй и следующие проекты — по одному mount на проект, в контейнере /projects/<id>,
+      # где <id> совпадает с kb.projects[].id. Включается вместе с PROJECT2_ENABLED=true в .env
+      # (см. docs/проект/конфигурация.md); исключение git safe.directory для него добавит start.sh.
+      # - ${PROJECT2_PATH_MOUNT}:/projects/billing:ro
       - ${DOCUMENTS_EXPORT_PATH:-../doc-export}:/doc-export
       - kb-h2-data:/app/local-db
     healthcheck:

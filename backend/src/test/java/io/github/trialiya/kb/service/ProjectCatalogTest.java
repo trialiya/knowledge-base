@@ -69,21 +69,29 @@ class ProjectCatalogTest {
         assertThat(catalog.defaultProject().label()).isEqualTo("kb");
     }
 
+    /** Порядок записей — не украшение: первая и есть ответ на «проект не назван». */
     @Test
-    void aSecondEnabledProjectIsRefusedRatherThanIgnored() {
-        List<ProjectOption> two =
-                List.of(
-                        new ProjectOption("kb", null, "/srv/kb", null, true),
-                        new ProjectOption("billing", null, "/srv/billing", null, true));
+    void everyEnabledProjectIsServedAndTheFirstOneIsTheDefault() {
+        ProjectCatalog catalog =
+                catalog(
+                        List.of(
+                                new ProjectOption("kb", null, "/srv/kb", null, true),
+                                new ProjectOption(
+                                        "billing", "Billing", "/srv/billing", true, true)),
+                        legacy(null, false));
 
-        assertThatThrownBy(() -> catalog(two, legacy(null, false)))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("only one is supported");
+        assertThat(catalog.projects()).extracting(Project::id).containsExactly("kb", "billing");
+        assertThat(catalog.defaultProject().id()).isEqualTo("kb");
+        assertThat(catalog.options().defaultProject()).isEqualTo("kb");
+        assertThat(catalog.isAllowed("billing")).isTrue();
+        assertThat(catalog.require("billing").path())
+                .isEqualTo(Path.of("/srv/billing").toAbsolutePath().normalize());
+        assertThat(catalog.require("billing").editEnabled()).isTrue();
     }
 
     /**
-     * Так второй проект и готовят: его блок лежит в конфигурации выключенным, пока фронт и ссылки
-     * не научатся его различать. Выключенного проекта для приложения нет вовсе.
+     * Так проект и готовят до того, как доехал его mount: блок лежит в конфигурации выключенным.
+     * Выключенного проекта для приложения нет вовсе.
      */
     @Test
     void aDisabledProjectIsNeitherServedNorCounted() {

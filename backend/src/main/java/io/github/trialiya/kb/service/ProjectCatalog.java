@@ -132,21 +132,6 @@ public class ProjectCatalog {
             return List.of(
                     new Project(LEGACY_ID, LEGACY_ID, absolute(path), gitProperties.editEnabled()));
         }
-        // Addresses, chips, tool results and the chat history (the project-switch marker) all
-        // carry the project now; what is not in place yet is the deployment story for several
-        // repositories: the shipped compose mounts a single /project, git's safe.directory covers
-        // only that path (git grep runs as a subprocess), and one broken mount still fails the
-        // whole startup. Refusing the configuration is the cheaper failure — see the checklist in
-        // docs/todo/мульти-проекты-исследование.md §10.
-        if (options.size() > 1) {
-            throw new IllegalStateException(
-                    "kb.projects: several projects are enabled "
-                            + options.stream().map(ProjectOption::id).toList()
-                            + ", but only one is supported for now — the deployment is not ready"
-                            + " for several repositories (single /project mount, git"
-                            + " safe.directory, no degradation for a broken mount). Prepare the"
-                            + " others with enabled: false");
-        }
         List<Project> resolved = new ArrayList<>();
         Set<String> ids = new LinkedHashSet<>();
         for (ProjectOption option : options) {
