@@ -521,7 +521,7 @@ runId активного прогона чата (или пустой объек
 {
   "defaultProject": "kb",
   "projects": [
-    { "id": "kb", "label": "Knowledge Base", "editEnabled": false }
+    { "id": "kb", "label": "Knowledge Base" }
   ]
 }
 ```

@@ -194,7 +194,6 @@ class ProjectCatalogTest {
                         p -> {
                             assertThat(p.id()).isEqualTo("kb");
                             assertThat(p.label()).isEqualTo("KB");
-                            assertThat(p.editEnabled()).isTrue();
                         });
     }
 

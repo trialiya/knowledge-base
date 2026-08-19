@@ -102,7 +102,14 @@ public class FileLinkProjectBackfillService {
         String select =
                 "SELECT id, %s FROM %s WHERE %s LIKE '%%/files?path=%%' AND id > ? ORDER BY id LIMIT %d"
                         .formatted(column, table, column, PAGE);
-        String update = "UPDATE %s SET %s = ? WHERE id = ?".formatted(table, column);
+        // Условие по прочитанному тексту склеивает чтение и запись в одну операцию. Бэкафилл
+        // стартует, когда приложение уже отвечает на запросы, а колонки здесь живые: между SELECT
+        // и UPDATE ту же строку может переписать правка документа или дописанный ответ прогона.
+        // Без условия запись вернула бы строку к прочитанному тексту, то есть молча потеряла бы
+        // чужую правку. Пропустить такую строку безопасно: ссылки, которые пишутся уже сейчас,
+        // несут проект сами.
+        String update =
+                "UPDATE %s SET %s = ? WHERE id = ? AND %s = ?".formatted(table, column, column);
 
         long cursor = 0;
         int updated = 0;
@@ -122,12 +129,14 @@ public class FileLinkProjectBackfillService {
                                 ? null
                                 : DocumentLinkRewriter.stampProject(row.text(), projectId);
                 if (stamped != null) {
-                    batch.add(new Object[] {stamped, row.id()});
+                    batch.add(new Object[] {stamped, row.id(), row.text()});
                 }
             }
             if (!batch.isEmpty()) {
-                jdbc.batchUpdate(update, batch);
-                updated += batch.size();
+                for (int affected : jdbc.batchUpdate(update, batch)) {
+                    // Ноль — строку успели переписать между SELECT и UPDATE, она осталась чужой.
+                    updated += affected > 0 ? 1 : 0;
+                }
             }
             cursor = page.getLast().id();
         }

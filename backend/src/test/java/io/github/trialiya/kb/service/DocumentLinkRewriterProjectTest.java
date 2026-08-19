@@ -57,6 +57,24 @@ class DocumentLinkRewriterProjectTest {
                 .isEqualTo("[Q](/files?path=docs/Q&A.md&project=kb)");
     }
 
+    /**
+     * «&project=» внутри имени файла — не параметр, а часть пути: параметр этот класс дописывает
+     * последним и id в нём — из того же набора символов, что принимает ProjectCatalog. Иначе такая
+     * ссылка осталась бы без проекта (её сочли бы уже размеченной), а на экспорте потеряла бы
+     * половину имени.
+     */
+    @Test
+    void anAmpersandProjectInsideTheFileNameIsNotTheParameter() {
+        assertThat(DocumentLinkRewriter.stampProject("[N](/files?path=notes&project=x/n.md)", "kb"))
+                .isEqualTo("[N](/files?path=notes&project=x/n.md&project=kb)");
+        assertThat(DocumentLinkRewriter.flattenFileLinks("[N](/files?path=notes&project=x/n.md)"))
+                .isEqualTo("N (notes&project=x/n.md)");
+        assertThat(
+                        DocumentLinkRewriter.flattenFileLinks(
+                                "[N](/files?path=notes&project=x/n.md&project=kb)"))
+                .isEqualTo("N (notes&project=x/n.md)");
+    }
+
     /** Схлопывание таких же имён не должно обрезать путь по первому амперсанду. */
     @Test
     void flatteningKeepsAnAmpersandThatBelongsToTheFileName() {

@@ -1,7 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import ModelSelector from './ModelSelector';
+import DefaultNoteSelect from '../common/DefaultNoteSelect';
 import ModeSelector from './ModeSelector';
-import ProjectSelector from './ProjectSelector';
 import { IconSend, IconStop, IconPaperclip } from '../../icons';
 
 /**
@@ -41,24 +40,34 @@ const ComposerToolbar = ({ model, mode, project, disabled, sendDisabled, onAttac
 
       <div className="composer-toolbar__selectors">
         {model && model.options?.length > 0 && (
-          <ModelSelector
+          <DefaultNoteSelect
             value={model.selected}
             defaultId={model.config?.defaultModel?.id}
             options={model.options}
             onChange={model.onChange}
             disabled={disabled}
+            defaultNote={t('model.default')}
+            ariaLabel={t('model.aria')}
+            placement="up"
           />
         )}
         {mode && mode.options?.length > 0 && (
           <ModeSelector value={mode.selected} options={mode.options} onChange={mode.onChange} disabled={disabled} />
         )}
+        {/* Единственный проект показываем наравне с моделью и режимом, а не прячем, как
+            это делает панель «Файлы»: там селектор — переход в другой репозиторий, и с
+            одним ему некуда вести, здесь — ответ на вопрос «в каком репозитории работает
+            этот чат», нужный и когда репозиторий один (кейс chat-composer-project-selector). */}
         {project && project.options?.length > 0 && (
-          <ProjectSelector
+          <DefaultNoteSelect
             value={project.selected}
             defaultId={project.defaultId}
             options={project.options}
             onChange={project.onChange}
             disabled={disabled}
+            defaultNote={t('project.default')}
+            ariaLabel={t('project.aria')}
+            placement="up"
           />
         )}
         {/* Проект чата исчез из конфигурации: сказать об этом важнее, чем показать

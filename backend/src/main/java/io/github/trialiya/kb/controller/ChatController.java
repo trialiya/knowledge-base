@@ -584,8 +584,13 @@ public class ChatController {
     /**
      * Параметр запроса → сохранённая модель чата → null. {@code null} означает «не переопределять»,
      * т.е. едем на модели из application.yaml.
+     *
+     * @param stored строка чата, если её уже прочитали; пустая — параметр запроса всё решает сам
      */
-    private @Nullable String resolveModel(final String conversationId, final String requested) {
+    private @Nullable String resolveModel(
+            final String conversationId,
+            final Optional<ChatTopicEntity> stored,
+            final String requested) {
         if (StringUtils.hasText(requested)) {
             if (!chatModelProperties.isAllowed(requested)) {
                 throw new ResponseStatusException(BAD_REQUEST, "Unknown model: " + requested);
@@ -594,9 +599,7 @@ public class ChatController {
                     conversationId, requested); // запоминаем как «последнюю»
             return requested;
         }
-        return chatTopicRepository
-                .findById(conversationId)
-                .map(ChatTopicEntity::getModel)
+        return stored.map(ChatTopicEntity::getModel)
                 .filter(StringUtils::hasText)
                 .filter(chatModelProperties::isAllowed) // на случай, если модель убрали из конфига
                 .orElse(null);
@@ -607,7 +610,10 @@ public class ChatController {
      * (плейсхолдер {@code mode_instructions} заполняется пустой строкой). Параллель {@link
      * #resolveModel}.
      */
-    private @Nullable String resolveMode(final String conversationId, final String requested) {
+    private @Nullable String resolveMode(
+            final String conversationId,
+            final Optional<ChatTopicEntity> stored,
+            final String requested) {
         if (StringUtils.hasText(requested)) {
             if (!chatModeProperties.isAllowed(requested)) {
                 throw new ResponseStatusException(BAD_REQUEST, "Unknown mode: " + requested);
@@ -615,9 +621,7 @@ public class ChatController {
             chatTopicRepository.updateMode(conversationId, requested); // запоминаем как «последний»
             return requested;
         }
-        return chatTopicRepository
-                .findById(conversationId)
-                .map(ChatTopicEntity::getMode)
+        return stored.map(ChatTopicEntity::getMode)
                 .filter(StringUtils::hasText)
                 .filter(chatModeProperties::isAllowed) // на случай, если режим убрали из конфига
                 .orElse(null);
@@ -628,7 +632,10 @@ public class ChatController {
      * инструменты прогона поедут на первом проекте списка (см. {@code ProjectCatalog}). Параллель
      * {@link #resolveModel}.
      */
-    private @Nullable String resolveProject(final String conversationId, final String requested) {
+    private @Nullable String resolveProject(
+            final String conversationId,
+            final Optional<ChatTopicEntity> stored,
+            final String requested) {
         if (StringUtils.hasText(requested)) {
             if (!projectCatalog.isAllowed(requested)) {
                 throw new ResponseStatusException(BAD_REQUEST, "Unknown project: " + requested);
@@ -636,9 +643,7 @@ public class ChatController {
             chatTopicRepository.updateProject(conversationId, requested); // «последний выбранный»
             return requested;
         }
-        return chatTopicRepository
-                .findById(conversationId)
-                .map(ChatTopicEntity::getProject)
+        return stored.map(ChatTopicEntity::getProject)
                 .filter(StringUtils::hasText)
                 .filter(projectCatalog::isAllowed) // на случай, если проект убрали из конфига
                 .orElse(null);
@@ -654,11 +659,20 @@ public class ChatController {
             final String model,
             final String mode,
             final String project) {
-        final String resolvedModel = resolveModel(conversationId, model);
+        // Модель, режим и проект читают одну и ту же строку и только когда их параметр не пришёл.
+        // Читаем её здесь, а не в каждом разрешении: обычная отправка не переопределяет ничего, и
+        // тремя отдельными чтениями это был бы один и тот же SELECT трижды на сообщение.
+        final boolean allRequested =
+                StringUtils.hasText(model)
+                        && StringUtils.hasText(mode)
+                        && StringUtils.hasText(project);
+        final Optional<ChatTopicEntity> stored =
+                allRequested ? Optional.empty() : chatTopicRepository.findById(conversationId);
+        final String resolvedModel = resolveModel(conversationId, stored, model);
         return new ChatRunService.RunOptions(
                 resolvedModel,
                 chatModelProperties.isWeak(resolvedModel),
-                chatModeService.instructionsFor(resolveMode(conversationId, mode)),
-                resolveProject(conversationId, project));
+                chatModeService.instructionsFor(resolveMode(conversationId, stored, mode)),
+                resolveProject(conversationId, stored, project));
     }
 }

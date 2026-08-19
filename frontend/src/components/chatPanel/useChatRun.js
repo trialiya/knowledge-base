@@ -8,14 +8,7 @@ import { SENDER } from '../../constants/messageSender';
 import { RETRY_MODE } from '../../constants/retryMode';
 import { generateUUID } from '../../utils/uuid';
 import { nextMessageId } from './messageId';
-import {
-  getLastModel,
-  setLastModel,
-  getLastMode,
-  setLastMode,
-  getLastProject,
-  setLastProject,
-} from './lastChoiceStore';
+import { getLastModel, setLastModel, getLastMode, setLastMode, setLastProject } from './lastChoiceStore';
 import { chatLoadErrorNotice, RUN_BUSY_NOTICE, RETRY_UNAVAILABLE_NOTICE } from './chatNotices';
 
 /**
@@ -92,15 +85,17 @@ export default function useChatRun({
     [modeOptions],
   );
 
-  // Проект для отправки: выбранный у чата → последний → дефолтный. Валидируем по
-  // конфигу — проект могли выключить, и тогда прогон уедет на дефолтный, а не
-  // упадёт: чат обязан продолжать работать, о подмене говорит композер.
+  // Проект для отправки: выбранный у чата → дефолтный, если его убрали из конфига.
+  // Ровно то же считает selectedProjectId в ChatWindow, и это обязано совпадать: на
+  // экране стоит один проект, а прогон обязан уехать в него же. Через «последний
+  // выбранный» здесь не идём — новым чатом он подставляется в makeDraft, то есть
+  // виден в композере; молча взятый на отправке, он увёл бы прогон в репозиторий,
+  // о котором на экране нет ни слова, и записал бы его чату (бэкенд считает
+  // непустой project явным выбором пользователя).
   const resolveProjectForSend = useCallback(
     (chat) => {
       const selected = chat?.project;
       if (selected && projectOptions.some((o) => o.id === selected)) return selected;
-      const last = getLastProject();
-      if (last && projectOptions.some((o) => o.id === last)) return last;
       return defaultProjectId || null;
     },
     [projectOptions, defaultProjectId],

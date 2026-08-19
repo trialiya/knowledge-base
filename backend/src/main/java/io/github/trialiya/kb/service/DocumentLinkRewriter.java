@@ -57,6 +57,16 @@ public final class DocumentLinkRewriter {
     /** The query the model appends to a file link; there is exactly one parameter so far. */
     private static final String PROJECT_PARAM = "&project=";
 
+    /**
+     * That same query where a link actually carries one: at the very end of the target, holding an
+     * id {@code ProjectCatalog} would accept. Both halves matter because the path in front of it is
+     * unencoded — {@code notes&project=x/readme.md} is a legal file name, and only a tail that
+     * could be an id at all is the parameter this class writes. A file named exactly {@code
+     * X&project=<valid id>} stays indistinguishable from a stamped link and is read as the latter;
+     * nothing in the link tells those two apart.
+     */
+    private static final Pattern PROJECT_QUERY = Pattern.compile("&project=[a-z0-9][a-z0-9._-]*$");
+
     /** Any Markdown link target — the reverse direction has to inspect every one of them. */
     private static final Pattern ANY_LINK_TARGET = Pattern.compile("]\\(([^)\\s]*)\\)");
 
@@ -127,7 +137,7 @@ public final class DocumentLinkRewriter {
         while (m.find()) {
             String target = m.group();
             String replacement =
-                    m.group(1).contains(PROJECT_PARAM)
+                    PROJECT_QUERY.matcher(m.group(1)).find()
                             ? target
                             : target + PROJECT_PARAM + projectId;
             changed |= !replacement.equals(target);
@@ -142,8 +152,8 @@ public final class DocumentLinkRewriter {
 
     /** The path alone — the project the model appended is not part of the file's name. */
     private static String withoutProject(String pathWithQuery) {
-        int at = pathWithQuery.indexOf(PROJECT_PARAM);
-        return at < 0 ? pathWithQuery : pathWithQuery.substring(0, at);
+        Matcher m = PROJECT_QUERY.matcher(pathWithQuery);
+        return m.find() ? pathWithQuery.substring(0, m.start()) : pathWithQuery;
     }
 
     // ── Export → app ─────────────────────────────────────────────────────────

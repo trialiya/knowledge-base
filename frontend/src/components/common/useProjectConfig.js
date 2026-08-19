@@ -18,8 +18,7 @@ import useConfigSnapshot from './useConfigSnapshot';
  * нет», а это совсем другое утверждение. Отказ тоже считается ответом: ждать
  * вечно хуже, чем работать на «проект не назван», который бэкенд понимает.
  *
- * @returns {{ projectOptions: [{id,label,editEnabled}], defaultProjectId: string|null,
- *             ready: boolean }}
+ * @returns {{ projectOptions: [{id,label}], defaultProjectId: string|null, ready: boolean }}
  */
 export default function useProjectConfig() {
   const { data, error } = useConfigSnapshot(chatApi.getProjects);
