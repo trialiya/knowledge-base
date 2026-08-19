@@ -13,13 +13,20 @@ import useConfigSnapshot from './useConfigSnapshot';
  * иначе это правило пришлось бы повторить здесь и помнить о нём при каждой
  * правке порядка списка.
  *
- * @returns {{ projectOptions: [{id,label,editEnabled}], defaultProjectId: string|null }}
+ * `ready` — ответ получен (в том числе отказом). До него список пуст, и принимать
+ * решения о проекте по нему нельзя: пустой список неотличим от «такого проекта
+ * нет», а это совсем другое утверждение. Отказ тоже считается ответом: ждать
+ * вечно хуже, чем работать на «проект не назван», который бэкенд понимает.
+ *
+ * @returns {{ projectOptions: [{id,label,editEnabled}], defaultProjectId: string|null,
+ *             ready: boolean }}
  */
 export default function useProjectConfig() {
-  const { data } = useConfigSnapshot(chatApi.getProjects);
+  const { data, error } = useConfigSnapshot(chatApi.getProjects);
 
   return {
     projectOptions: Array.isArray(data?.projects) ? data.projects : [],
     defaultProjectId: data?.defaultProject || null,
+    ready: data !== null || error !== null,
   };
 }

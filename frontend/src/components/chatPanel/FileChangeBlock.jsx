@@ -8,7 +8,7 @@ import { fetchContent } from './fileChips';
 import { IconChevronDown } from '../../icons';
 import ModalShell from '../common/ModalShell';
 import { DiffLines, DiffStats } from './diffRender';
-import { filesPath } from '../../urlScheme';
+import { filesUrl } from '../../urlScheme';
 import './styles/doc-changes.css';
 import './styles/file-changes.css';
 
@@ -143,7 +143,7 @@ const FileDiffModal = ({ change, project, onClose }) => {
             {mdView ? '{ }' : '👁'}
           </button>
         )}
-        <a className="fcd-open-link" href={filesPath(change.path)} target="_blank" rel="noreferrer">
+        <a className="fcd-open-link" href={filesUrl(change.path, project)} target="_blank" rel="noreferrer">
           {t('fileChange.openFile')}
         </a>
         <button className="fcd-close" onClick={onClose} title={t('common:close')} type="button">

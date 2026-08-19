@@ -91,9 +91,13 @@ const FilesPanelForProject = ({
  * они живут в модуле и разложены по проектам (fileTreeStore).
  */
 const FilesPanel = ({ project, path, onPathChange, refreshToken, panels }) => {
-  const { projectOptions, defaultProjectId } = useProjectConfig();
-  // Адрес без проекта означает дефолтный; до загрузки списка он ещё неизвестен,
-  // и панель едет на «проект не назван» — то же, что понимает бэкенд.
+  const { projectOptions, defaultProjectId, ready } = useProjectConfig();
+  // Адрес без проекта означает дефолтный. Ждём ответа со списком: смонтироваться
+  // раньше — значит смонтироваться на пустом ключе и тут же перемонтироваться,
+  // то есть два запроса дерева, мигание и осиротевшая ветка кэша. Отказ запроса
+  // тоже считается ответом: тогда едем на «проект не назван», который бэкенд
+  // разрешает в дефолтный, — панель без списка проектов работать обязана.
+  if (!ready) return null;
   const current = project || defaultProjectId || '';
 
   return (

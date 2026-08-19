@@ -81,7 +81,7 @@ const ChatWindow = ({
   // Конфиг моделей и режимов грузится один раз — вынесено в отдельные хуки.
   const { modelConfig, modelOptions } = useModelConfig();
   const { modeOptions } = useModeConfig();
-  const { projectOptions, defaultProjectId } = useProjectConfig();
+  const { projectOptions, defaultProjectId, ready: projectsReady } = useProjectConfig();
   // Bump → очистить текст в MessageInput («удаление» черновика).
   const [composerResetSignal, setComposerResetSignal] = useState(0);
   // Неотправленные черновики по чатам ({ chatId: text }, localStorage) — вынесено
@@ -242,10 +242,16 @@ const ChatWindow = ({
   // Проект, выбранный в селекторе: у чата → дефолтный. Отдельно — id, который у чата
   // записан, но которого в конфиге больше нет: селектор показывает дефолт, а рядом
   // должно стоять предупреждение, иначе подмена репозитория пройдёт незамеченной.
+  // Пока список не приехал, любой проект считаем известным: пустой список — это
+  // «ещё не знаем», а не «такого проекта нет», и на каждой загрузке страницы
+  // вспыхивало бы предупреждение о вполне живом проекте.
   const chatProjectId = activeChat?.project ?? null;
-  const projectKnown = !chatProjectId || projectOptions.some((o) => o.id === chatProjectId);
+  const projectKnown = !chatProjectId || !projectsReady || projectOptions.some((o) => o.id === chatProjectId);
   const selectedProjectId = projectKnown && chatProjectId ? chatProjectId : defaultProjectId || '';
   const missingProjectId = projectKnown ? null : chatProjectId;
+  // Для адресов — только не-дефолтный проект: дефолтный в схеме не пишется, а
+  // пустое значение и означает его (см. urlScheme.filesUrl).
+  const projectInLinks = selectedProjectId && selectedProjectId !== defaultProjectId ? selectedProjectId : null;
 
   // Правку сделал инструмент прогона — значит, в проекте этого чата: сбрасывать
   // кэши файлов нужно именно там, иначе удар придётся по чужому репозиторию, в
@@ -501,6 +507,7 @@ const ChatWindow = ({
               options: projectOptions,
               defaultId: defaultProjectId,
               selected: selectedProjectId,
+              inLinks: projectInLinks,
               missing: missingProjectId,
               onChange: handleProjectChange,
             }}

@@ -17,7 +17,7 @@ import MessageInput from './MessageInput';
  * @param {object} p.search  результат useInChatSearch плюс `inputRef` и `canSearch`
  * @param {object} p.model   { config, options, selected, onChange } для селектора модели
  * @param {object} p.mode    { options, selected, onChange } для селектора режима
- * @param {object} p.project { options, defaultId, selected, missing, onChange } для селектора проекта
+ * @param {object} p.project { options, defaultId, selected, inLinks, missing, onChange } для селектора проекта
  */
 const ChatCenter = ({
   chat,
@@ -93,7 +93,7 @@ const ChatCenter = ({
         <MessageList
           key={chatId}
           conversationId={chatId}
-          project={project?.selected}
+          project={project?.inLinks}
           messages={messages}
           onNavigateToDoc={onNavigateToDoc}
           onLoadMore={onLoadOlder}

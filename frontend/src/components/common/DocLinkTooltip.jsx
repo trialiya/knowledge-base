@@ -11,6 +11,7 @@ import documentsApi from '../../api/documentsApi';
 import FullscreenEditorModal from '../knowledgeBasePanel/FullscreenEditorModal';
 import { navigateToFile } from '../../fileNavigationBus';
 import { parseDocId, parseFileLink } from './docLinkParsing';
+import useProjectConfig from './useProjectConfig';
 import { docPath, filesUrl } from '../../urlScheme';
 import { scrollToHeading } from './anchorScroll';
 import { TOOLTIP_WIDTH, TOOLTIP_GAP, TOOLTIP_HEIGHT_ESTIMATE } from '../../constants/ui';
@@ -81,7 +82,13 @@ const DocLinkTooltip = ({ href, children, tree = NO_TREE, onNavigate, ...rest })
   // всегда каноническая схема, независимо от того, в какой форме ссылка лежит в
   // markdown. Якорь раздела и диапазон строк файла сохраняем — они часть адреса.
   const docHref = isDocLink ? docPath(docId) + fragmentOf(href) : null;
+  // Два написания одного и того же проекта не должны разъезжаться. В АДРЕС идёт
+  // то, что назвала ссылка (дефолтный проект в схеме не пишется), а в ЗАПРОСЫ и
+  // ключи кэша — разрешённый id: сброс превью после правки файла приходит именно
+  // с ним, и ссылка без проекта иначе висела бы устаревшей весь TTL.
   const fileProject = fileLink?.project ?? null;
+  const { defaultProjectId } = useProjectConfig();
+  const fileProjectResolved = fileProject ?? defaultProjectId;
   const fileHref = isFileLink ? filesUrl(fileLink.path, fileProject) + lineHash(fileLink) : null;
 
   const { node, loading, error } = useDocPreview(docId, tree, visible && isDocLink);
@@ -89,7 +96,7 @@ const DocLinkTooltip = ({ href, children, tree = NO_TREE, onNavigate, ...rest })
     file,
     loading: fileLoading,
     error: fileError,
-  } = useFilePreview(fileLink?.path, fileProject, visible && isFileLink);
+  } = useFilePreview(fileLink?.path, fileProjectResolved, visible && isFileLink);
 
   // ── Position ────────────────────────────────────────────────────────────
 
@@ -219,7 +226,7 @@ const DocLinkTooltip = ({ href, children, tree = NO_TREE, onNavigate, ...rest })
       setFileFullscreenError(false);
       setFileFullscreenNode(null);
       gitApi
-        .getFileContent(f.path, { project: fileProject })
+        .getFileContent(f.path, { project: fileProjectResolved })
         .then((full) => {
           setFileFullscreenNode(full);
           setFileFullscreenLoading(false);
@@ -229,7 +236,7 @@ const DocLinkTooltip = ({ href, children, tree = NO_TREE, onNavigate, ...rest })
           setFileFullscreenLoading(false);
         });
     },
-    [fileProject],
+    [fileProjectResolved],
   );
 
   // ── In-document anchor (#heading) ──────────────────────────────────────────
