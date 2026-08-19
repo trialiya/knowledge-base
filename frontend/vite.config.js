@@ -1,9 +1,17 @@
+import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+
+  resolve: {
+    // Для кросс-фичевых импортов (например, components/*Panel в common/*),
+    // чтобы путь не зависел от глубины вложенности. Внутри одной фичи
+    // импорты остаются относительными — см. frontend-ui.md.
+    alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
+  },
 
   build: {
     // Раскладку CRA сохраняем: :frontend:copyFrontend забирает из build/
