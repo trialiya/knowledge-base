@@ -17,6 +17,7 @@ import io.github.trialiya.kb.model.chat.dto.ToolCallsMessage;
 import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
+import io.github.trialiya.kb.model.project.ProjectSwitch;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.tools.RunCancellation;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
@@ -157,7 +158,10 @@ public class ChatRunService {
             userRow =
                     userMessage != null
                             ? chatMemoryService.saveUserMessage(
-                                    conversationId, userMessage, contextItems)
+                                    conversationId,
+                                    userMessage,
+                                    contextItems,
+                                    options.projectSwitch())
                             // Повтор: вопрос уже в истории, ходом остаётся он же. Проверку делаем
                             // ПОСЛЕ ремонта хвоста — достроенный TOOL-ответ как раз и означает,
                             // что модель уже начала отвечать, и повторять этот ход нельзя.
@@ -223,12 +227,16 @@ public class ChatRunService {
      * @param modeInstructions инструкции выбранного режима; пустая строка — «без режима»
      * @param project id проекта, в котором работают инструменты прогона; {@code null} — дефолтный
      *     проект списка (см. {@code ProjectCatalog})
+     * @param projectSwitch смена проекта относительно предыдущих сообщений чата; {@code null} —
+     *     проект тот же. Оседает маркером в meta вопроса (см. {@code
+     *     ChatMemoryService#saveUserMessage})
      */
     public record RunOptions(
             @Nullable String model,
             boolean weakModel,
             String modeInstructions,
-            @Nullable String project) {}
+            @Nullable String project,
+            @Nullable ProjectSwitch projectSwitch) {}
 
     /** Останавливает прогон: dispose → CANCEL → частичное сохранение + событие RUN_STOPPED. */
     public boolean stop(String conversationId, String runId) {
@@ -329,7 +337,9 @@ public class ChatRunService {
                         userRow.getId(),
                         userRow.getContent(),
                         userRow.getCreatedAt(),
-                        userRow.getContextItems()));
+                        userRow.getContextItems(),
+                        userRow.getMeta() != null ? userRow.getMeta().project() : null,
+                        userRow.getMeta() != null ? userRow.getMeta().projectSwitchFrom() : null));
         events.publish(conversationId, RUN_STARTED, runId, clientMsgId, null);
 
         try {

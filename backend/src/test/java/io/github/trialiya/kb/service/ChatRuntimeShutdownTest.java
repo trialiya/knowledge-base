@@ -60,7 +60,7 @@ class ChatRuntimeShutdownTest {
         chatMemory = mock(ChatMemory.class);
         chatMemoryService = mock(ChatMemoryService.class);
         // Вопрос пользователя сохраняется до старта прогона — прогон берёт из ряда id и текст.
-        when(chatMemoryService.saveUserMessage(anyString(), anyString(), anyList()))
+        when(chatMemoryService.saveUserMessage(anyString(), anyString(), anyList(), any()))
                 .thenAnswer(
                         inv ->
                                 new ChatMessageEntity(
@@ -168,6 +168,6 @@ class ChatRuntimeShutdownTest {
 
     /** Дефолтные настройки прогона: модель/режим/проект не выбраны. */
     private static ChatRunService.RunOptions options() {
-        return new ChatRunService.RunOptions(null, false, "", null);
+        return new ChatRunService.RunOptions(null, false, "", null, null);
     }
 }

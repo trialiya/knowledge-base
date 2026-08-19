@@ -65,6 +65,24 @@
   opacity: 0.7;
 }
 
+/* Разделитель «проект переключён» — перед вопросом, которым чат сменил проект:
+   всё выше него относится к прежнему репозиторию (см. MessageList). */
+.project-switch-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--kb-muted);
+  font-size: 0.78rem;
+  text-align: center;
+  margin: 0.25rem 0;
+}
+.project-switch-divider::before,
+.project-switch-divider::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid var(--kb-border);
+}
+
 /* Заглушка правой панели, когда чат ещё не выбран. */
 .chat-empty-note {
   color: var(--kb-muted);

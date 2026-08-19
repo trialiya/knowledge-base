@@ -12,6 +12,7 @@ import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.chat.spring.IMessage;
 import io.github.trialiya.kb.model.chat.spring.UserChatMessage;
+import io.github.trialiya.kb.model.project.ProjectSwitch;
 import io.github.trialiya.kb.model.tool.ToolCallDetail;
 import io.github.trialiya.kb.model.tool.ToolCallIndexEntity;
 import io.github.trialiya.kb.model.tool.ToolData;
@@ -106,16 +107,25 @@ public class ChatMemoryService implements ChatMemoryRepository {
      *
      * <p>{@code contextItems} — приложенное к вопросу (вложения); уходит в {@code meta} той же
      * записью, поэтому привязка не требует ни второго запроса, ни знания id заранее.
+     *
+     * <p>{@code projectSwitch} — этим вопросом чат перешёл в другой проект; тоже оседает в {@code
+     * meta} и делает историю выше честной: и промпт (см. {@link #promptRow}), и фронт предупредят,
+     * что прочитанное раньше относится к прежнему репозиторию. Первому сообщению чата маркер не
+     * ставится: над пустой историей предупреждать не о чем, даже когда проект в нём назван явно.
      */
     @Transactional
     public ChatMessageEntity saveUserMessage(
-            String conversationId, String text, List<ContextItem> contextItems) {
+            String conversationId,
+            String text,
+            List<ContextItem> contextItems,
+            @Nullable ProjectSwitch projectSwitch) {
         final long position =
                 chatMessageRepository
                                 .findFirstByConversationIdOrderByPositionDesc(conversationId)
                                 .map(ChatMessageEntity::getPosition)
                                 .orElse(0L)
                         + 1;
+        final ProjectSwitch marked = position > 1 ? projectSwitch : null;
         return chatMessageRepository.save(
                 new ChatMessageEntity(
                         0,
@@ -126,9 +136,10 @@ public class ChatMemoryService implements ChatMemoryRepository {
                         false,
                         false,
                         LocalDateTime.now(),
-                        contextItems.isEmpty()
-                                ? null
-                                : ChatMessageMeta.ofContextItems(contextItems)));
+                        ChatMessageMeta.ofUserMessage(
+                                contextItems,
+                                marked == null ? null : marked.to(),
+                                marked == null ? null : marked.from())));
     }
 
     /**
@@ -486,13 +497,47 @@ public class ChatMemoryService implements ChatMemoryRepository {
      * модели был бы просто неправдой. Остальные отдают {@code content} как есть — этот путь
      * проходят все строки окна на каждой итерации tool-цикла, и склейка с пустой строкой заводила
      * бы новую копию текста на каждую.
+     *
+     * <p>Вопрос, которым чат сменил проект, дополнительно получает предупреждение ПЕРЕД текстом
+     * (см. {@link #projectSwitchNotice}): всё выше в истории читано в прежнем репозитории, и без
+     * этой строки модель сочтёт те пути и содержимое актуальными. Как и опись, предупреждение
+     * собирается при чтении и в БД не попадает.
      */
     private static PromptRow promptRow(ChatMessageEntity entity, @Nullable String inventory) {
+        if (entity.getType() != MessageType.USER) {
+            return new PromptRow(entity, entity.getContent());
+        }
+        final String notice = projectSwitchNotice(entity.getMeta());
+        if (notice.isEmpty() && inventory == null) {
+            return new PromptRow(entity, entity.getContent());
+        }
         return new PromptRow(
-                entity,
-                inventory == null || entity.getType() != MessageType.USER
-                        ? entity.getContent()
-                        : entity.getContent() + inventory);
+                entity, notice + entity.getContent() + (inventory == null ? "" : inventory));
+    }
+
+    /**
+     * Текст маркера смены проекта для модели. Требование «сохраняй дословно» адресовано
+     * summarizer'у: его вход строится из этих же {@code PromptRow}, и потерянный при сжатии маркер
+     * снова сделал бы раннюю историю «актуальной» (правило продублировано в {@code summarizer.md}).
+     */
+    private static String projectSwitchNotice(@Nullable ChatMessageMeta meta) {
+        if (meta == null || meta.projectSwitchFrom() == null) {
+            return "";
+        }
+        return "<project-switched from=\""
+                + meta.projectSwitchFrom()
+                + "\" to=\""
+                + meta.project()
+                + "\">\n"
+                + "The user switched this chat to another project at this message. Everything"
+                + " earlier in the conversation — file paths, file contents, grep and script"
+                + " results — belongs to project \""
+                + meta.projectSwitchFrom()
+                + "\"; do not assume any of it exists or looks the same in \""
+                + meta.project()
+                + "\". Re-read whatever you need with the tools. When summarizing, preserve this"
+                + " notice verbatim.\n"
+                + "</project-switched>\n\n";
     }
 
     @Override

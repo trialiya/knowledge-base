@@ -20,6 +20,7 @@ import io.github.trialiya.kb.model.chat.dto.ContextItemRequest;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.chat.entity.ContextItemKind;
+import io.github.trialiya.kb.model.project.ProjectSwitch;
 import io.github.trialiya.kb.repository.AttachmentRepository;
 import io.github.trialiya.kb.repository.BackfillStateRepository;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
@@ -169,7 +170,8 @@ class ContextItemsTest {
                 memoryService.saveUserMessage(
                         conversationId,
                         QUESTION,
-                        contextItemService.resolve(conversationId, List.of(attachmentRequest())));
+                        contextItemService.resolve(conversationId, List.of(attachmentRequest())),
+                        null);
 
         // В БД — только ссылка: содержимое файла в историю не разворачивается.
         assertThat(messageRepo.findById(saved.getId()))
@@ -216,7 +218,8 @@ class ContextItemsTest {
         memoryService.saveUserMessage(
                 conversationId,
                 QUESTION,
-                contextItemService.resolve(conversationId, List.of(attachmentRequest())));
+                contextItemService.resolve(conversationId, List.of(attachmentRequest())),
+                null);
 
         memoryService.saveAll(conversationId, memoryService.findByConversationId(conversationId));
 
@@ -237,7 +240,7 @@ class ContextItemsTest {
         String conversationId = UUID.randomUUID().toString();
         haveAttachment(conversationId, "report.md");
         var items = contextItemService.resolve(conversationId, List.of(attachmentRequest()));
-        memoryService.saveUserMessage(conversationId, QUESTION, items);
+        memoryService.saveUserMessage(conversationId, QUESTION, items, null);
 
         when(attachmentService.findSummaries(anyString(), any())).thenReturn(List.of());
 
@@ -261,7 +264,8 @@ class ContextItemsTest {
                 memoryService.saveUserMessage(
                         conversationId,
                         QUESTION,
-                        contextItemService.resolve(conversationId, List.of(attachmentRequest())));
+                        contextItemService.resolve(conversationId, List.of(attachmentRequest())),
+                        null);
 
         final String lookup =
                 new MessageLookupFunction(messageRepo, contextItemService)
@@ -277,7 +281,7 @@ class ContextItemsTest {
     void messageWithoutContextIsUntouched() {
         String conversationId = UUID.randomUUID().toString();
 
-        var saved = memoryService.saveUserMessage(conversationId, QUESTION, List.of());
+        var saved = memoryService.saveUserMessage(conversationId, QUESTION, List.of(), null);
 
         assertThat(saved.getMeta()).isNull();
         assertThat(memoryService.findByConversationId(conversationId))
@@ -330,6 +334,43 @@ class ContextItemsTest {
         entity.setCreatedAt(OffsetDateTime.now());
         entity.setUpdatedAt(OffsetDateTime.now());
         return Objects.requireNonNull(attachmentRepo.save(entity).getId());
+    }
+
+    // ── Маркер смены проекта: тот же круг «записали в meta → показали модели» ─
+
+    @Test
+    void aProjectSwitchIsStampedAndWarnsTheModel() {
+        String conversationId = UUID.randomUUID().toString();
+        memoryService.saveUserMessage(conversationId, "первый вопрос", List.of(), null);
+
+        var switched =
+                memoryService.saveUserMessage(
+                        conversationId, QUESTION, List.of(), new ProjectSwitch("kb", "billing"));
+
+        assertThat(messageRepo.findById(switched.getId()))
+                .hasValueSatisfying(
+                        row -> {
+                            assertThat(row.getMeta().project()).isEqualTo("billing");
+                            assertThat(row.getMeta().projectSwitchFrom()).isEqualTo("kb");
+                        });
+        var text = memoryService.promptRows(conversationId).getLast().text();
+        assertThat(text).startsWith("<project-switched from=\"kb\" to=\"billing\">");
+        assertThat(text).contains(QUESTION);
+        // Сохранённая строка — только вопрос: предупреждение собирается при чтении, как и опись.
+        assertThat(switched.getContent()).isEqualTo(QUESTION);
+    }
+
+    /** Первый вопрос чата ничего не «ломает» — маркер над пустой историей не ставится. */
+    @Test
+    void theFirstMessageOfAChatNeverCarriesASwitchMarker() {
+        String conversationId = UUID.randomUUID().toString();
+
+        var first =
+                memoryService.saveUserMessage(
+                        conversationId, QUESTION, List.of(), new ProjectSwitch("kb", "billing"));
+
+        assertThat(first.getMeta()).isNull();
+        assertThat(memoryService.promptRows(conversationId).getLast().text()).isEqualTo(QUESTION);
     }
 
     /**

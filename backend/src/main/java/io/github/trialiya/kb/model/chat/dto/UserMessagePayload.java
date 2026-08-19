@@ -13,6 +13,14 @@ import org.jspecify.annotations.Nullable;
  *     {@code null} — только у событий, отреплеенных из прогонов, записанных до этого изменения.
  * @param contextItems что приложено к вопросу — чтобы чипы вложений появились и в других вкладках,
  *     не дожидаясь перезагрузки
+ * @param project канонический id проекта, в который этот вопрос перевёл чат; вместе с {@code
+ *     projectSwitchFrom} — плашка смены проекта, живьём, как и чипы. {@code null} — смены не было
+ * @param projectSwitchFrom откуда чат ушёл (см. {@code ChatMessageMeta})
  */
 public record UserMessagePayload(
-        @Nullable Long id, String text, LocalDateTime createdAt, List<ContextItem> contextItems) {}
+        @Nullable Long id,
+        String text,
+        LocalDateTime createdAt,
+        List<ContextItem> contextItems,
+        @Nullable String project,
+        @Nullable String projectSwitchFrom) {}

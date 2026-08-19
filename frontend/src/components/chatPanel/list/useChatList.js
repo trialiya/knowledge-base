@@ -176,17 +176,14 @@ export default function useChatList({ initialActiveChatId, initialPropChatId, ma
     [patchChat],
   );
 
-  // Смена проекта чата. Пустой id ('') → вернуться к дефолтному.
+  // Смена проекта чата. Пустой id ('') → вернуться к дефолтному. На бэк не пишется:
+  // выбор становится проектом чата только с отправленным сообщением (?project= на
+  // прогоне) — так сохранённое значение всегда означает «на каком проекте шла
+  // история», и именно с ним бэкенд сверяется, ставя маркер смены проекта.
   const changeProject = useCallback(
-    async (chatId, newId) => {
+    (chatId, newId) => {
       if (!chatId) return;
       patchChat(chatId, { project: newId || null });
-      if (chatId === DRAFT_CHAT_ID) return;
-      try {
-        await chatApi.updateProject(chatId, newId);
-      } catch (err) {
-        console.error('Ошибка смены проекта чата:', err);
-      }
     },
     [patchChat],
   );

@@ -17,11 +17,11 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *       edit-enabled: false
  * </pre>
  *
- * <p><b>Exactly one <em>enabled</em> entry for now.</b> Addresses, chips and tool results all carry
- * the project already; what is still missing is the history side of switching one — nothing marks
- * the point in a chat where the project changed, so tool results read before the switch would pass
- * for the current repository's. {@code ProjectCatalog} refuses such a configuration rather than let
- * that happen silently (the remaining work is listed in {@code
+ * <p><b>Exactly one <em>enabled</em> entry for now.</b> Addresses, chips, tool results and the chat
+ * history (the project-switch marker) all carry the project already; what is still missing is the
+ * deployment story for several repositories — mounts, {@code git safe.directory}, degradation of a
+ * broken mount. {@code ProjectCatalog} refuses such a configuration rather than serve repositories
+ * the deployment cannot back (the remaining work is listed in {@code
  * docs/todo/мульти-проекты-исследование.md} §10).
  *
  * <p>Entries switched off with {@code enabled: false} do not count, which is how a second project

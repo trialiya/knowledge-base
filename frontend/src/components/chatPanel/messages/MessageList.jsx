@@ -56,6 +56,9 @@ const MessageList = ({
   // Проект чата в форме для адресов: null — дефолтный (см. ChatWindow.projectInLinks).
   // Годится и для запросов: «проект не назван» бэкенд разрешает в тот же дефолтный.
   project,
+  // Конфигурация проектов — подписи для плашки смены проекта. Пустой список — не беда:
+  // плашка покажет id, что честнее, чем прятать смену, пока конфигурация не доехала.
+  projectOptions = [],
   messages,
   onNavigateToDoc,
   onLoadMore,
@@ -243,8 +246,25 @@ const MessageList = ({
               if (messages[j].toolCalls?.length) groupToolCalls = [...messages[j].toolCalls, ...groupToolCalls];
             }
           }
+          // Подпись проекта для плашки: id, выбывший из конфигурации, показывается как есть.
+          const projectLabel = (id) => projectOptions.find((o) => o.id === id)?.label || id;
           return (
             <Fragment key={msg.mid ?? index}>
+              {msg.projectSwitch && (
+                <div
+                  className="project-switch-divider"
+                  role="note"
+                  title={t('project.switchedHint', {
+                    from: projectLabel(msg.projectSwitch.from),
+                    to: projectLabel(msg.projectSwitch.to),
+                  })}
+                >
+                  {t('project.switched', {
+                    from: projectLabel(msg.projectSwitch.from),
+                    to: projectLabel(msg.projectSwitch.to),
+                  })}
+                </div>
+              )}
               <Message
                 text={msg.text}
                 sender={msg.sender}

@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.config.model.SummarizeProperties;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
+import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.service.ChatMemoryService.PromptRow;
 import java.time.LocalDateTime;
@@ -86,6 +87,26 @@ class SummarizeServiceTest {
                 .contains("Continue from message 87");
     }
 
+    /**
+     * Сводка несёт проект, на котором закончилась сжатая часть: маркер смены проекта сжимается
+     * вместе со своим сообщением, а meta сводки остаётся его следом.
+     */
+    @Test
+    void theSummaryRowCarriesTheProjectTheCompressedSliceEndedOn() {
+        final List<PromptRow> live = new ArrayList<>(turns(44));
+        // Вопрос внутри сжимаемой части (позиции 0..86) сменил проект.
+        live.set(30, switchRow(30, "kb", "billing"));
+        givenLive(live);
+
+        service().doSummarize(CONV);
+
+        final ArgumentCaptor<ChatMessageEntity> saved =
+                ArgumentCaptor.forClass(ChatMessageEntity.class);
+        verify(repository).save(saved.capture());
+        assertThat(saved.getValue().getMeta()).isNotNull();
+        assertThat(saved.getValue().getMeta().project()).isEqualTo("billing");
+    }
+
     /** Пороги не достигнуты — ни модель, ни репозиторий трогать не за чем. */
     @Test
     void nothingHappensWhenNoThresholdIsReached() {
@@ -133,6 +154,22 @@ class SummarizeServiceTest {
             live.add(row(turn * 3 + 2, MessageType.TOOL, ""));
         }
         return live;
+    }
+
+    /** Вопрос, которым чат перешёл с {@code from} на {@code to}. */
+    private static PromptRow switchRow(long position, String from, String to) {
+        final ChatMessageEntity entity =
+                new ChatMessageEntity(
+                        position + 1,
+                        CONV,
+                        "question",
+                        MessageType.USER,
+                        position,
+                        false,
+                        false,
+                        LocalDateTime.now(),
+                        ChatMessageMeta.ofUserMessage(List.of(), to, from));
+        return new PromptRow(entity, "question");
     }
 
     private static PromptRow row(long position, MessageType type, String content) {

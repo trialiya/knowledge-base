@@ -100,14 +100,6 @@ const chatApi = {
       body: modeId || '',
     }),
 
-  /** Сменить проект чата. Тело — plain string ('' → вернуться к дефолтному). */
-  updateProject: (id, projectId) =>
-    request(`/api/chats/${enc(id)}/project`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-      body: projectId || '',
-    }),
-
   /**
    * Запустить генерацию ответа как фоновую задачу. Возвращает { runId, messageId }.
    * Сам ответ приходит не здесь, а потоком событий (chatEvents.js).

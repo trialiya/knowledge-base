@@ -2,6 +2,7 @@ package io.github.trialiya.kb.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.inOrder;
@@ -77,7 +78,8 @@ class ChatRunRetryTest {
                 runService.start(CONV, USER, null, List.of(), options(), null);
 
         assertThat(started.userMessageId()).isEqualTo(42L);
-        verify(chatMemoryService, never()).saveUserMessage(anyString(), anyString(), anyList());
+        verify(chatMemoryService, never())
+                .saveUserMessage(anyString(), anyString(), anyList(), any());
     }
 
     /** Модель успела начать ответ — повторять нечего: 422, и заявка на чат не удерживается. */
@@ -113,7 +115,8 @@ class ChatRunRetryTest {
     /** Обычная отправка режим повтора не задевает: вопрос по-прежнему пишется до прогона. */
     @Test
     void ordinarySendStillPersistsTheQuestion() {
-        when(chatMemoryService.saveUserMessage(CONV, QUESTION, List.of())).thenReturn(userRow(7L));
+        when(chatMemoryService.saveUserMessage(CONV, QUESTION, List.of(), null))
+                .thenReturn(userRow(7L));
 
         final ChatRunService.StartedRun started =
                 runService.start(CONV, USER, QUESTION, List.of(), options(), "msg-1");
@@ -124,6 +127,6 @@ class ChatRunRetryTest {
 
     /** Дефолтные настройки прогона: модель/режим/проект не выбраны. */
     private static ChatRunService.RunOptions options() {
-        return new ChatRunService.RunOptions(null, false, "", null);
+        return new ChatRunService.RunOptions(null, false, "", null, null);
     }
 }

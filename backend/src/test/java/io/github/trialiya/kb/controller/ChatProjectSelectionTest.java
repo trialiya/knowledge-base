@@ -18,6 +18,7 @@ import io.github.trialiya.kb.config.model.ProjectProperties;
 import io.github.trialiya.kb.config.model.ProjectProperties.ProjectOption;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.project.ProjectOptions;
+import io.github.trialiya.kb.model.project.ProjectSwitch;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.ChatEventService;
 import io.github.trialiya.kb.service.ChatMemoryService;
@@ -136,19 +137,34 @@ class ChatProjectSelectionTest {
                 .hasMessageContaining("Unknown project");
     }
 
+    /**
+     * Не названный проект и явно названный дефолтный — один и тот же репозиторий: ни первый выбор
+     * дефолта, ни его повторение сменой не считаются.
+     */
     @Test
-    void settingTheProjectStoresItAndClearingItReturnsToTheDefault() {
+    void namingTheProjectTheChatAlreadyRunsOnIsNotASwitch() {
         storedProject(null);
+        assertThat(startRun("kb").projectSwitch()).isNull();
 
-        controller.updateChatProject(CONV, "kb");
-        verify(topicRepository).updateProject(CONV, "kb");
+        storedProject("kb");
+        assertThat(startRun(null).projectSwitch()).isNull();
+        assertThat(startRun("kb").projectSwitch()).isNull();
+    }
 
-        controller.updateChatProject(CONV, "  ");
-        verify(topicRepository).updateProject(CONV, null);
+    /**
+     * Проект чата исчез из конфигурации — прогон уезжает на дефолтный, и это настоящая смена:
+     * история читана в другом репозитории, и {@code from} называет его как есть, хоть
+     * канонизировать выбывший id уже не во что.
+     */
+    @Test
+    void aChatWhoseProjectWasRetiredSwitchesToTheDefault() {
+        storedProject("retired");
 
-        assertThatThrownBy(() -> controller.updateChatProject(CONV, "retired"))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("Unknown project");
+        final ProjectSwitch projectSwitch = startRun(null).projectSwitch();
+
+        assertThat(projectSwitch).isNotNull();
+        assertThat(projectSwitch.from()).isEqualTo("retired");
+        assertThat(projectSwitch.to()).isEqualTo("kb");
     }
 
     @Test
@@ -169,7 +185,8 @@ class ChatProjectSelectionTest {
         controller.startRun(CONV, null, null, requested, null, true, null);
         final ArgumentCaptor<ChatRunService.RunOptions> captor =
                 ArgumentCaptor.forClass(ChatRunService.RunOptions.class);
-        verify(runService).start(eq(CONV), eq(USER), any(), any(), captor.capture(), any());
+        verify(runService, org.mockito.Mockito.atLeastOnce())
+                .start(eq(CONV), eq(USER), any(), any(), captor.capture(), any());
         return captor.getValue();
     }
 

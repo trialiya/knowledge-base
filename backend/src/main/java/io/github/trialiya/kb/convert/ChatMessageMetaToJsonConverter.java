@@ -24,7 +24,9 @@ public final class ChatMessageMetaToJsonConverter {
             @Nullable String runId,
             @Nullable Boolean toolCalls,
             List<ToolInvocationMeta> invocations,
-            @Nullable List<ContextItemJson> contextItems) {}
+            @Nullable List<ContextItemJson> contextItems,
+            @Nullable String project,
+            @Nullable String projectSwitchFrom) {}
 
     /**
      * {@code kind} читается строкой, а не сразу {@link ContextItemKind}: вид, которого эта версия
@@ -90,7 +92,9 @@ public final class ChatMessageMetaToJsonConverter {
                         json.runId(),
                         Boolean.TRUE.equals(json.toolCalls()),
                         json.invocations(),
-                        contextItemsOf(json.contextItems()));
+                        contextItemsOf(json.contextItems()),
+                        json.project(),
+                        json.projectSwitchFrom());
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to deserialize chat message meta", e);
             }
@@ -122,7 +126,9 @@ public final class ChatMessageMetaToJsonConverter {
                                                                 i.ref(),
                                                                 i.label(),
                                                                 i.payload()))
-                                        .toList()));
+                                        .toList(),
+                                source.project(),
+                                source.projectSwitchFrom()));
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to serialize chat message meta", e);
             }

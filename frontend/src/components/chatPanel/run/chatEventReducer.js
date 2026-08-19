@@ -123,8 +123,24 @@ export function applyChatEvent(chat, ev, ctx) {
 
   switch (type) {
     case CHAT_EVENT.USER_MESSAGE: {
-      // Своё эхо — уже показано оптимистично.
-      if (clientMsgId && ctx.isLocal?.(clientMsgId)) return chat;
+      // Этим вопросом чат сменил проект. Решает это бэкенд (сравнением с сохранённым у чата),
+      // поэтому оптимистичный пузырь плашку не знал — она доезжает только эхом.
+      const projectSwitch = payload?.projectSwitchFrom
+        ? { from: payload.projectSwitchFrom, to: payload.project }
+        : null;
+      // Своё эхо — уже показано оптимистично; дописать в него осталось только плашку.
+      if (clientMsgId && ctx.isLocal?.(clientMsgId)) {
+        if (!projectSwitch) return chat;
+        for (let i = msgs.length - 1; i >= 0; i--) {
+          if (msgs[i].sender !== SENDER.USER) continue;
+          if (!msgs[i].projectSwitch) {
+            msgs[i] = { ...msgs[i], projectSwitch };
+            return { ...chat, messages: msgs };
+          }
+          return chat;
+        }
+        return chat;
+      }
       const text = payload?.text || '';
       // id сохранённого сообщения: бэк пишет вопрос до обращения к модели, поэтому он есть
       // уже в событии. Событиям, отреплеенным из прогонов до этого изменения, его взять
@@ -153,6 +169,7 @@ export function applyChatEvent(chat, ev, ctx) {
             const patch = {
               ...(dbId != null && msgs[i].dbId == null ? { dbId } : {}),
               ...(contextItems && !msgs[i].contextItems?.length ? { contextItems } : {}),
+              ...(projectSwitch && !msgs[i].projectSwitch ? { projectSwitch } : {}),
             };
             const patched = Object.keys(patch).length > 0;
             if (patched) msgs[i] = { ...msgs[i], ...patch };
@@ -168,6 +185,7 @@ export function applyChatEvent(chat, ev, ctx) {
         text,
         sender: SENDER.USER,
         ...(contextItems ? { contextItems } : {}),
+        ...(projectSwitch ? { projectSwitch } : {}),
         timestamp: new Date().toISOString(),
       });
       return { ...chat, messages: msgs };
