@@ -7,6 +7,7 @@ import io.github.trialiya.kb.model.git.dto.FileEntryType;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
+import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.model.git.dto.GitTreeLevel;
 import io.github.trialiya.kb.support.TestProjects;
 import java.io.IOException;
@@ -156,6 +157,25 @@ class GitServiceTest {
         assertThatThrownBy(() -> service.getFileContent("does-not-exist.txt"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("File not found: does-not-exist.txt");
+    }
+
+    @Test
+    void getFileContentEchoesTheServicesOwnProject() {
+        writeFile("tracked.txt", "tracked");
+        commitAll();
+
+        assertThat(service.getFileContent("tracked.txt").project()).isEqualTo(TestProjects.ID);
+    }
+
+    @Test
+    void grepContentEchoesTheServicesOwnProjectOnEveryMatch() {
+        writeFile("tracked.txt", "needle\nhaystack");
+        commitAll();
+
+        List<GitGrepMatch> matches = service.grepContent("needle", null, false, 0, 10);
+
+        assertThat(matches).isNotEmpty();
+        assertThat(matches).allSatisfy(m -> assertThat(m.project()).isEqualTo(TestProjects.ID));
     }
 
     @Test

@@ -33,7 +33,16 @@ const MAX_ITEMS = 20;
 
 // Факты в шапке блока, в порядке вывода. Значения — как есть; форматирует их
 // компонент (размер — через formatFileSize, подписи — через i18n).
-const FACT_FIELDS = ['language', 'contentType', 'type', 'lineCount', 'sizeBytes', 'fileSize', 'descriptionVersion'];
+const FACT_FIELDS = [
+  'project',
+  'language',
+  'contentType',
+  'type',
+  'lineCount',
+  'sizeBytes',
+  'fileSize',
+  'descriptionVersion',
+];
 
 const EXT_LANGUAGE = {
   md: 'markdown',

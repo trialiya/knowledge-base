@@ -52,6 +52,7 @@ const GrepMatchesView = ({ data }) => {
         {t('toolCall.detail.grep.matches', { count: data.matches })}
         {' · '}
         {t('toolCall.detail.grep.files', { count: data.files.length })}
+        {data.project && ` · ${t('toolCall.detail.fact.project')} ${data.project}`}
       </ResultSummary>
 
       {data.files.map((file) => (

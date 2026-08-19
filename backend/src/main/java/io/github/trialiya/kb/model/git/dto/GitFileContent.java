@@ -9,6 +9,9 @@ import org.jspecify.annotations.Nullable;
 /**
  * Содержимое файла из репозитория, обогащённое метаданными для ИИ.
  *
+ * @param project id репозитория, из которого прочитан файл — обязателен в ответе, потому что {@code
+ *     getFileContent} умеет читать не только активный проект чата (см. {@code
+ *     GitFunction#getFileContent}), и без эха модель не отличит, откуда пришло содержимое
  * @param path относительный путь
  * @param content текстовое содержимое (null для бинарных файлов); при усечении/диапазоне — только
  *     запрошенная или укороченная часть
@@ -22,6 +25,7 @@ import org.jspecify.annotations.Nullable;
  * @param toLine последняя возвращённая строка (1-based, включительно), либо null если весь файл
  */
 public record GitFileContent(
+        String project,
         String path,
         @Nullable String content,
         boolean binary,
@@ -37,6 +41,7 @@ public record GitFileContent(
     public String getFormattedResponse() {
         String head =
                 Compact.tag("file:" + path)
+                        .add("project", project)
                         .add("lang", language)
                         .add("lines", lineCount)
                         .add("range", fromLine == null ? null : fromLine + "-" + toLine)

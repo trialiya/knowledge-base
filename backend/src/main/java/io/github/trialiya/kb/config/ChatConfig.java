@@ -151,9 +151,9 @@ public class ChatConfig {
      */
     @Bean
     @ConditionalOnProperty(prefix = "kb.script", name = "enabled", havingValue = "true")
-    public ScriptFunction scriptFunction(ScriptRunner scriptRunner) {
+    public ScriptFunction scriptFunction(ScriptRunner scriptRunner, GitRegistry gitRegistry) {
         log.info("Script tool enabled (runScript)");
-        return ScriptFunction.forChat(scriptRunner);
+        return ScriptFunction.forChat(scriptRunner, gitRegistry);
     }
 
     /**
@@ -208,6 +208,7 @@ public class ChatConfig {
             DocumentFunction documentFunction,
             ScriptProperties scriptProperties,
             ScriptRunner scriptRunner,
+            GitRegistry gitRegistry,
             ScriptGuideService scriptGuideService,
             ChatModelProperties chatModelProperties) {
         // Two gates, and both matter. kb.script.enabled decides whether the tool exists anywhere —
@@ -217,7 +218,7 @@ public class ChatConfig {
         boolean scriptsAvailable = subAgentScriptsAvailable(scriptProperties, subAgentConfig);
         List<Object> functions = new ArrayList<>(List.of(gitFunction, documentFunction));
         if (scriptsAvailable) {
-            functions.add(ScriptFunction.readOnly(scriptRunner));
+            functions.add(ScriptFunction.readOnly(scriptRunner, gitRegistry));
         }
         ToolCallback[] readOnly =
                 Stream.of(ToolCallbacks.from(functions.toArray()))

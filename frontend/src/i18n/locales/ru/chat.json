@@ -78,6 +78,7 @@
       },
       "showAll": "Показать ещё {{count}} строк",
       "fact": {
+        "project": "проект",
         "lines": "строки",
         "language": "язык",
         "contentType": "тип",

@@ -16,6 +16,10 @@ import org.jspecify.annotations.Nullable;
  * gets to see how far the script got ({@code log}, {@code stats}) before it broke. The one
  * exception is a user-cancelled run, which never reaches the model at all.
  *
+ * @param project id of the repository the script ran against — obligatory in the response because
+ *     {@code runScript} can target a project other than the chat's active one (see {@code
+ *     ScriptFunction#runScript}); without it the model cannot tell which repository {@code
+ *     filesRead} and {@code edits} belong to
  * @param value the script's return value, converted from JSON; null when it returned nothing
  * @param log lines collected via {@code kb.log}
  * @param stats what the run consumed; see {@link ScriptStats}
@@ -25,6 +29,7 @@ import org.jspecify.annotations.Nullable;
  *     failed run, which writes nothing at all
  */
 public record ScriptResult(
+        String project,
         @Nullable Object value,
         List<String> log,
         ScriptStats stats,
@@ -39,6 +44,7 @@ public record ScriptResult(
     @Override
     public String getFormattedResponse() {
         return Compact.tag("script")
+                .add("project", project)
                 .add("files", stats.filesRead())
                 .add("bytes", stats.bytesRead())
                 .add("calls", stats.calls())

@@ -63,6 +63,12 @@ const ScriptRunView = ({ data }) => {
   return (
     <div className="tool-script">
       <div className="tool-script__stats">
+        {data.project && (
+          <div className="tool-script__stat">
+            <span className="tool-script__stat-value">{data.project}</span>
+            <span className="tool-script__stat-label">{t('toolCall.detail.fact.project')}</span>
+          </div>
+        )}
         {data.stats.map(({ key, value }) => (
           <div key={key} className="tool-script__stat">
             <span className="tool-script__stat-value">{formatFieldValue(key, value, i18n.language)}</span>

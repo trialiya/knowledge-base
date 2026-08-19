@@ -33,7 +33,11 @@ public class ProjectPromptService {
         return """
         ### Active project
         Files, commits and scripts in this chat read the **%s** repository — project id `%s`.
-        Every repo-file link must carry it: `[filename](/files?path=PATH&project=%s)`.\
+        Every repo-file link must carry it: `[filename](/files?path=PATH&project=%s)`.
+        `getFileContent`, `grepContent` and `runScript` accept an optional `project` argument to
+        read a different repository instead, for a cross-project question — leave it out to use
+        this one. Reading only: edits always land in this project, and a `runScript` that names
+        another one cannot write at all.\
         """
                 .formatted(project.label(), project.id(), project.id());
     }
