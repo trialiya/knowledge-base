@@ -51,6 +51,14 @@ public final class ScriptSession {
     private final @Nullable ToolInvocationCollector priorInvocations;
 
     /**
+     * The id this run actually reads and writes (resolved by {@code ScriptRunner} before the
+     * session is built). What {@link #requireRead} passes to {@link
+     * ToolInvocationCollector#hasSeenFile} — a read of the same path in a different project must
+     * not satisfy this run's own read-before-edit rule.
+     */
+    private final String project;
+
+    /**
      * Files whose content this run was actually handed. Reported back in {@code
      * ScriptResult.filesRead}, which is serialised into the tool result and read again by {@code
      * ToolInvocationCollector.hasSeenFile} — so a path lands here only when the script really was
@@ -111,13 +119,17 @@ public final class ScriptSession {
     /**
      * @param priorInvocations the chat-response session's tool history, or null when this run has
      *     none (background jobs, tests) — see {@link #priorInvocations}.
+     * @param project the id this run reads and writes — see {@link #project}.
      */
     public ScriptSession(
-            ScriptProperties properties, @Nullable ToolInvocationCollector priorInvocations) {
+            ScriptProperties properties,
+            @Nullable ToolInvocationCollector priorInvocations,
+            String project) {
         this.limits = properties.limits();
         this.denyGlobs = properties.denyGlobs();
         this.allowGlobs = properties.allowGlobs();
         this.priorInvocations = priorInvocations;
+        this.project = project;
     }
 
     // ── Calls (charged once, then answered from the run's cache) ─────────────
@@ -415,7 +427,7 @@ public final class ScriptSession {
         if (filesSeen.contains(path)) {
             return;
         }
-        if (priorInvocations != null && priorInvocations.hasSeenFile(path)) {
+        if (priorInvocations != null && priorInvocations.hasSeenFile(path, project)) {
             return;
         }
         throw new IllegalArgumentException(

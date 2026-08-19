@@ -120,22 +120,25 @@ public class GitEditFunction {
                 oldString.length(),
                 newString.length(),
                 all);
-        requireFileSeenInThisResponse(context, filePath);
-        return editable(context).editFile(filePath, oldString, newString, all);
+        final GitService service = editable(context);
+        requireFileSeenInThisResponse(context, filePath, service.project().id());
+        return service.editFile(filePath, oldString, newString, all);
     }
 
     /**
      * Rejects an edit when nothing in this chat-response session shows the model has actually seen
-     * the target file — see {@link ToolInvocationCollector#hasSeenFile} for what counts as seen.
-     * Skipped when no {@link ToolInvocationCollector} is present (background jobs, tests).
+     * the target file in this same project — see {@link ToolInvocationCollector#hasSeenFile} for
+     * what counts as seen. Skipped when no {@link ToolInvocationCollector} is present (background
+     * jobs, tests).
      */
-    private static void requireFileSeenInThisResponse(ToolContext context, String filePath) {
+    private static void requireFileSeenInThisResponse(
+            ToolContext context, String filePath, String project) {
         final ToolInvocationCollector collector = ToolInvocationCollector.from(context);
         if (collector == null) {
             return;
         }
         final String path = filePath.strip().replace('\\', '/');
-        if (!collector.hasSeenFile(path)) {
+        if (!collector.hasSeenFile(path, project)) {
             throw new IllegalStateException(
                     "File "
                             + path

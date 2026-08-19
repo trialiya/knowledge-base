@@ -180,13 +180,14 @@ public class ScriptRunner {
             boolean forceReadOnly,
             @Nullable ToolInvocationCollector priorInvocations,
             @Nullable String projectId) {
-        ScriptSession session = new ScriptSession(properties, priorInvocations);
         // One repository for the whole run: resolved once here, so a script cannot end up reading
         // one project and writing another.
         GitService gitService = gitRegistry.forProject(projectId);
         // The id actually resolved, not the argument — echoed into every ScriptResult so the model
-        // knows which repository filesRead/edits belong to even when it named no project itself.
+        // knows which repository filesRead/edits belong to even when it named no project itself,
+        // and also what ScriptSession#requireRead compares a prior read's project against.
         String project = gitService.project().id();
+        ScriptSession session = new ScriptSession(properties, priorInvocations, project);
         // Which object is bound IS the permission: with writes off, kb.edit does not exist.
         KbScriptApi api =
                 editPolicy.enabled(projectId) && !forceReadOnly

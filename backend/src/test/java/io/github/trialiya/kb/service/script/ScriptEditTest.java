@@ -236,7 +236,7 @@ class ScriptEditTest {
                         null,
                         null,
                         null,
-                        ORIGINAL,
+                        "{\"project\":\"" + TestProjects.ID + "\",\"path\":\"" + APP_JAVA + "\"}",
                         collector.nextCallIndex()));
 
         ScriptResult result =
@@ -265,7 +265,9 @@ class ScriptEditTest {
                         null,
                         null,
                         null,
-                        "{\"value\":\"ok\",\"filesRead\":[\"src/App.java\"]}",
+                        "{\"project\":\""
+                                + TestProjects.ID
+                                + "\",\"value\":\"ok\",\"filesRead\":[\"src/App.java\"]}",
                         collector.nextCallIndex()));
 
         ScriptResult result =
@@ -276,6 +278,34 @@ class ScriptEditTest {
 
         assertThat(result.error()).isNull();
         assertThat(fileText(APP_JAVA)).startsWith("class FromEarlierScript");
+    }
+
+    /**
+     * A read of the same path is not evidence when it came from another repository: {@code
+     * getFileContent}'s own {@code project} override let the model read a same-named file in a
+     * different project, and that read must not stand in for this run's own file.
+     */
+    @Test
+    void aReadOfTheSamePathFromAnotherProjectDoesNotCount() {
+        ToolInvocationCollector collector = new ToolInvocationCollector();
+        collector.record(
+                new ToolInvocation(
+                        "getFileContent",
+                        Map.of("filePath", APP_JAVA, "project", "billing"),
+                        ToolInvocationCollector.ToolInvocationStatus.OK,
+                        null,
+                        null,
+                        null,
+                        null,
+                        "{\"project\":\"billing\",\"path\":\"" + APP_JAVA + "\"}",
+                        collector.nextCallIndex()));
+
+        ScriptResult result =
+                run("kb.edit('src/App.java', 'class App', 'class Blind'); return 'ok';", collector);
+
+        assertThat(result.error()).isNotNull();
+        assertThat(result.error().message()).contains("has not looked at it");
+        assertThat(fileText(APP_JAVA)).isEqualTo(ORIGINAL);
     }
 
     /** Only a completed read counts — a call still in flight has not shown the model anything. */
