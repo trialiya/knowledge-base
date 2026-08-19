@@ -132,16 +132,18 @@ public class ProjectCatalog {
             return List.of(
                     new Project(LEGACY_ID, LEGACY_ID, absolute(path), gitProperties.editEnabled()));
         }
-        // A chat can name its project now, but a file link cannot: /files?path=... and the file
-        // browser carry no project, so in a second repository the same path would quietly open a
-        // different file. Refusing the configuration is the cheaper failure.
+        // Addresses, chips and tool results all carry the project now; what does not exist yet is
+        // the history side of switching one: nothing marks the point where a chat's project
+        // changed, so file contents and grep results read before the switch would pass for the
+        // current repository's. Refusing the configuration is the cheaper failure — see
+        // docs/todo/мульти-проекты-исследование.md §6 and the checklist in §10.
         if (options.size() > 1) {
             throw new IllegalStateException(
                     "kb.projects: several projects are enabled "
                             + options.stream().map(ProjectOption::id).toList()
-                            + ", but only one is supported for now — file links and the file"
-                            + " browser do not carry a project yet, so paths from a second"
-                            + " repository would resolve against the wrong one. Prepare the others"
+                            + ", but only one is supported for now — switching a chat between"
+                            + " projects leaves its history unmarked, so tool results from the"
+                            + " previous repository would read as current ones. Prepare the others"
                             + " with enabled: false");
         }
         List<Project> resolved = new ArrayList<>();

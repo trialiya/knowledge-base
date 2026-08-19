@@ -653,7 +653,7 @@ runId активного прогона чата (или пустой объек
 | `script` | String | Тело скрипта; выполняется как тело функции — верхнеуровневый `return` разрешён |
 | `timeoutSeconds` | int? | Бюджет прогона; `null` — `kb.script.timeout`, больше `kb.script.max-timeout` — молча урезается |
 
-**Response:** `ScriptResult` — `{ value, log, stats, error, filesRead, edits }`. Упавший скрипт — это `200 OK` с заполненным `error` (`kind` = `SYNTAX|RUNTIME|TIMEOUT|BUDGET`), а не HTTP-ошибка: разбирать причину и есть смысл стенда. Исключение — `maxResultChars`: превышение не даёт `error`, а обрезает `value` до лимита и добавляет предупреждение в `log`.
+**Response:** `ScriptResult` — `{ project, value, log, stats, error, filesRead, edits }`. Упавший скрипт — это `200 OK` с заполненным `error` (`kind` = `SYNTAX|RUNTIME|TIMEOUT|BUDGET`), а не HTTP-ошибка: разбирать причину и есть смысл стенда. Исключение — `maxResultChars`: превышение не даёт `error`, а обрезает `value` до лимита и добавляет предупреждение в `log`.
 
 Запуск **всегда read-only**: методы записи (`kb.edit`, `kb.create`, `kb.writeBytes`, `kb.createBytes`) в песочницу не привязываются, как бы ни был выставлен `kb.script.edit-enabled`, поэтому `edits` здесь всегда пуст.
 
@@ -690,7 +690,7 @@ Fuzzy-поиск tracked-файлов по имени (subsequence match, рег
 | `to` | int? | `null` | Последняя строка (1-based, включительно) |
 | `project` | String? | `null` | ID проекта; пусто — дефолтный |
 
-**Response:** `GitFileContent` — `{ path, content, binary, sizeBytes, language, totalLines, ... }`
+**Response:** `GitFileContent` — `{ project, path, content, binary, sizeBytes, language, totalLines, ... }`
 
 **Ошибки:** `400` — путь пустой или содержит `..`, `/`, `-` в начале, `\0`
 

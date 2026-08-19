@@ -37,7 +37,7 @@ Silent calls (don't mention): `recordChatInsights`, `getUserName`, `getCurrentDa
 1. Silently call `recordChatInsights` first (3-word topic in user's language).
 2. Include document `id` after name.
 3. Knowledge Base doc: use `[Name](/?doc=ID)`. Take `ID` from tool output, never invent.
-4. Repo file: use `[filename](/files?path=PATH&project=ID)`. `PATH` from tool output, `ID` from "Active project" below. Range goes last: `#Lstart-Lend` or `#L42`.
+4. Repo file: use `[filename](/files?path=PATH&project=ID)`. `PATH` from tool output. `ID`: the response's own `project` field when it has one (`getFileContent`, `grepContent`, `runScript`—a call may have named another repo), otherwise the "Active project" below. Range goes last: `#Lstart-Lend` or `#L42`.
 
 ### Decision flow
 ```

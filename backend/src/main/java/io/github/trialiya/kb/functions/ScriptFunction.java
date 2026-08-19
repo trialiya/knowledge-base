@@ -4,6 +4,7 @@ import static io.github.trialiya.kb.tools.ToolArgs.positiveOrDefault;
 import static io.github.trialiya.kb.tools.ToolArgs.requireText;
 
 import io.github.trialiya.kb.model.script.ScriptResult;
+import io.github.trialiya.kb.service.GitRegistry;
 import io.github.trialiya.kb.service.script.ScriptRunner;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
 import io.github.trialiya.kb.tools.ProjectContext;
@@ -41,6 +42,9 @@ public class ScriptFunction {
 
     private final ScriptRunner scriptRunner;
 
+    /** Only to tell "the project the model named" from "the project this run is on". */
+    private final GitRegistry gitRegistry;
+
     /**
      * Withholds the write methods whatever {@code ScriptEditPolicy} says. Set for the search
      * sub-agent's copy of the tool, whose whole contract is that it only reads.
@@ -48,13 +52,13 @@ public class ScriptFunction {
     private final boolean forceReadOnly;
 
     /** The chat model's copy: writes follow {@code ScriptEditPolicy}. */
-    public static ScriptFunction forChat(ScriptRunner scriptRunner) {
-        return new ScriptFunction(scriptRunner, false);
+    public static ScriptFunction forChat(ScriptRunner scriptRunner, GitRegistry gitRegistry) {
+        return new ScriptFunction(scriptRunner, gitRegistry, false);
     }
 
     /** The search sub-agent's copy: never writes. */
-    public static ScriptFunction readOnly(ScriptRunner scriptRunner) {
-        return new ScriptFunction(scriptRunner, true);
+    public static ScriptFunction readOnly(ScriptRunner scriptRunner, GitRegistry gitRegistry) {
+        return new ScriptFunction(scriptRunner, gitRegistry, true);
     }
 
     @Tool(
@@ -81,18 +85,39 @@ public class ScriptFunction {
                             description =
                                     "Time limit in seconds. Default 10, max 30 (values over max truncated silently).",
                             required = false)
-                    @Nullable Integer timeoutSeconds) {
+                    @Nullable Integer timeoutSeconds,
+            @ToolParam(
+                            description =
+                                    "Optional: read a different project (repository id) than the chat's "
+                                            + "active one, for a cross-project question. Such a run is "
+                                            + "read-only whatever the other project allows — to write, "
+                                            + "switch the chat's project. Omit to use the active project. "
+                                            + "The result's \"project\" field names which repository "
+                                            + "actually ran — check it, don't assume.",
+                            required = false)
+                    @Nullable String project) {
         requireText(script, "script");
         final int timeout = positiveOrDefault(timeoutSeconds, 10);
-        log.info("runScript called: {} chars, timeoutSeconds={}", script.length(), timeout);
+        final String projectId = ProjectContext.resolve(context, project);
+        // Naming another project buys reading, never writing: the repository the user chose for
+        // this chat is the only one a run may touch. Without this the argument would be a way
+        // around that choice — the reason createFile/editFile were not given one at all.
+        final boolean readOnly =
+                forceReadOnly || !gitRegistry.sameProject(projectId, ProjectContext.from(context));
+        log.info(
+                "runScript called: {} chars, timeoutSeconds={}, project='{}', readOnly={}",
+                script.length(),
+                timeout,
+                projectId,
+                readOnly);
         ScriptResult result =
                 scriptRunner.run(
                         script,
                         timeout,
                         RunCancellation.from(context),
-                        forceReadOnly,
+                        readOnly,
                         ToolInvocationCollector.from(context),
-                        ProjectContext.from(context));
+                        projectId);
         log.info("runScript finished: {}", result.getFormattedResponse());
         return result;
     }

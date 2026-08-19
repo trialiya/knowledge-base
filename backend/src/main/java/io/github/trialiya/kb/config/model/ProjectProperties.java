@@ -17,10 +17,12 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *       edit-enabled: false
  * </pre>
  *
- * <p><b>Exactly one <em>enabled</em> entry for now.</b> A chat picks its project and carries it to
- * the tools, but a file link does not: {@code /files?path=…} and the file browser name a path and
- * no repository, so with a second live project the same path would open the wrong file. {@code
- * ProjectCatalog} refuses such a configuration rather than let that happen silently.
+ * <p><b>Exactly one <em>enabled</em> entry for now.</b> Addresses, chips and tool results all carry
+ * the project already; what is still missing is the history side of switching one — nothing marks
+ * the point in a chat where the project changed, so tool results read before the switch would pass
+ * for the current repository's. {@code ProjectCatalog} refuses such a configuration rather than let
+ * that happen silently (the remaining work is listed in {@code
+ * docs/todo/мульти-проекты-исследование.md} §10).
  *
  * <p>Entries switched off with {@code enabled: false} do not count, which is how a second project
  * is prepared before it can be served: its block sits in the configuration, validated by nothing

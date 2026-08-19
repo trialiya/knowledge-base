@@ -180,10 +180,14 @@ public class ScriptRunner {
             boolean forceReadOnly,
             @Nullable ToolInvocationCollector priorInvocations,
             @Nullable String projectId) {
-        ScriptSession session = new ScriptSession(properties, priorInvocations);
         // One repository for the whole run: resolved once here, so a script cannot end up reading
         // one project and writing another.
         GitService gitService = gitRegistry.forProject(projectId);
+        // The id actually resolved, not the argument — echoed into every ScriptResult so the model
+        // knows which repository filesRead/edits belong to even when it named no project itself,
+        // and also what ScriptSession#requireRead compares a prior read's project against.
+        String project = gitService.project().id();
+        ScriptSession session = new ScriptSession(properties, priorInvocations, project);
         // Which object is bound IS the permission: with writes off, kb.edit does not exist.
         KbScriptApi api =
                 editPolicy.enabled(projectId) && !forceReadOnly
@@ -215,19 +219,20 @@ public class ScriptRunner {
             // Only now, with the script finished and its result already converted, does anything
             // reach disk. Every earlier exit — a throw, a budget, a timeout, a user stop — leaves
             // the working tree exactly as the run found it.
-            return success(value, session, applyPendingWrites(session, gitService));
+            return success(project, value, session, applyPendingWrites(session, gitService));
         } catch (PolyglotException e) {
-            return failure(e, session, cancelReason.get(), timeout);
+            return failure(project, e, session, cancelReason.get(), timeout);
         } catch (ScriptLimitExceededException e) {
             // A budget blown outside guest code (converting the return value, say).
-            return failed(session, ScriptError.of(Kind.BUDGET, String.valueOf(e.getMessage())));
+            return failed(
+                    project, session, ScriptError.of(Kind.BUDGET, String.valueOf(e.getMessage())));
         } catch (IllegalStateException e) {
             // The watchdog closed the context while this thread was between guest calls, so the
             // cancellation surfaces as "context is closed" rather than as a guest exception.
             if (cancelReason.get() == null) {
                 throw e;
             }
-            return stopped(session, cancelReason.get(), timeout);
+            return stopped(project, session, cancelReason.get(), timeout);
         } finally {
             stopWatchdog(finished, watchdog);
             closeQuietly(context);
@@ -304,14 +309,29 @@ public class ScriptRunner {
     // ── Results ─────────────────────────────────────────────────────────────
 
     private ScriptResult success(
-            @Nullable Object value, ScriptSession session, List<GitEditResult> edits) {
+            String project,
+            @Nullable Object value,
+            ScriptSession session,
+            List<GitEditResult> edits) {
         return new ScriptResult(
-                value, session.logLines(), session.stats(), null, session.filesRead(), edits);
+                project,
+                value,
+                session.logLines(),
+                session.stats(),
+                null,
+                session.filesRead(),
+                edits);
     }
 
-    private ScriptResult failed(ScriptSession session, ScriptError error) {
+    private ScriptResult failed(String project, ScriptSession session, ScriptError error) {
         return new ScriptResult(
-                null, session.logLines(), session.stats(), error, session.filesRead(), List.of());
+                project,
+                null,
+                session.logLines(),
+                session.stats(),
+                error,
+                session.filesRead(),
+                List.of());
     }
 
     /**
@@ -368,37 +388,45 @@ public class ScriptRunner {
      * the run that asked for the script is already gone, so it is rethrown instead.
      */
     private ScriptResult failure(
+            String project,
             PolyglotException e,
             ScriptSession session,
             @Nullable Kind cancelReason,
             Duration timeout) {
         if (e.isCancelled() || e.isInterrupted()) {
-            return stopped(session, cancelReason, timeout);
+            return stopped(project, session, cancelReason, timeout);
         }
         if (e.isHostException()
                 && e.asHostException() instanceof ScriptLimitExceededException limit) {
-            return failed(session, ScriptError.of(Kind.BUDGET, String.valueOf(limit.getMessage())));
+            return failed(
+                    project,
+                    session,
+                    ScriptError.of(Kind.BUDGET, String.valueOf(limit.getMessage())));
         }
         if (e.isHostException()) {
             // A tool-level failure surfaced through the guest: an unknown path, an unsupported
             // language for outline, an invalid regex. The message is already model-readable.
             return failed(
+                    project,
                     session,
                     new ScriptError(Kind.RUNTIME, String.valueOf(e.getMessage()), line(e)));
         }
         Kind kind = e.isSyntaxError() ? Kind.SYNTAX : Kind.RUNTIME;
-        return failed(session, new ScriptError(kind, String.valueOf(e.getMessage()), line(e)));
+        return failed(
+                project, session, new ScriptError(kind, String.valueOf(e.getMessage()), line(e)));
     }
 
     /**
      * The watchdog fired. A timeout is a recoverable result the model can respond to; a user stop
      * is not — nobody is left to read it, so it leaves as an exception.
      */
-    private ScriptResult stopped(ScriptSession session, @Nullable Kind reason, Duration timeout) {
+    private ScriptResult stopped(
+            String project, ScriptSession session, @Nullable Kind reason, Duration timeout) {
         if (reason == Kind.CANCELLED) {
             throw new ScriptCancelledException("Script cancelled: the chat response was stopped");
         }
         return failed(
+                project,
                 session,
                 ScriptError.of(
                         Kind.TIMEOUT,

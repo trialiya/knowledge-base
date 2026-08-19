@@ -70,6 +70,17 @@ public class GitRegistry {
     }
 
     /**
+     * Whether two ids name the same repository, {@code null} and the default project's own id
+     * included. Asked where "did the caller name a project other than this run's" has to be
+     * answered ({@code ScriptFunction#runScript}): a chat that stored no project runs on the
+     * default one, so comparing the raw ids would read an explicit "the default project" as a
+     * switch away from it.
+     */
+    public boolean sameProject(@Nullable String a, @Nullable String b) {
+        return catalog.require(a).id().equals(catalog.require(b).id());
+    }
+
+    /**
      * Whether working-tree writes are available for this project right now: configured <em>and</em>
      * physically possible. A read-only mount withholds them whatever the configuration says.
      */

@@ -674,7 +674,7 @@ public class GitService {
         }
 
         List<String> lines = exec(args);
-        return parseGrepOutput(lines, ctx, limit);
+        return parseGrepOutput(lines, ctx, limit, project.id());
     }
 
     /**
@@ -695,7 +695,8 @@ public class GitService {
      * whose {@code text} reproduces the git grep format ({@code :N:} for matches, {@code -N-} for
      * context). The {@code matchLine} field holds the line number of the first match in the block.
      */
-    private static List<GitGrepMatch> parseGrepOutput(List<String> lines, int ctx, int limit) {
+    private static List<GitGrepMatch> parseGrepOutput(
+            List<String> lines, int ctx, int limit, String project) {
 
         List<GitGrepMatch> results = new ArrayList<>();
 
@@ -705,7 +706,7 @@ public class GitService {
                 if (line.isBlank()) continue;
                 ParsedLine pl = parseLine(line);
                 if (pl == null) continue;
-                results.add(new GitGrepMatch(pl.path, pl.lineNum, pl.text));
+                results.add(new GitGrepMatch(project, pl.path, pl.lineNum, pl.text));
                 if (results.size() >= limit) break;
             }
             return results;
@@ -722,7 +723,9 @@ public class GitService {
             if (line.equals("--")) {
                 // Flush current block
                 if (currentPath != null && firstMatchLine >= 0) {
-                    results.add(new GitGrepMatch(currentPath, firstMatchLine, blockBuf.toString()));
+                    results.add(
+                            new GitGrepMatch(
+                                    project, currentPath, firstMatchLine, blockBuf.toString()));
                     if (results.size() >= limit) return results;
                 }
                 currentPath = null;
@@ -740,7 +743,9 @@ public class GitService {
             // so path should be consistent within a block; reset on path change just in case.
             if (!pl.path.equals(currentPath)) {
                 if (currentPath != null && firstMatchLine >= 0) {
-                    results.add(new GitGrepMatch(currentPath, firstMatchLine, blockBuf.toString()));
+                    results.add(
+                            new GitGrepMatch(
+                                    project, currentPath, firstMatchLine, blockBuf.toString()));
                     if (results.size() >= limit) return results;
                 }
                 currentPath = pl.path;
@@ -759,7 +764,8 @@ public class GitService {
 
         // Flush last block
         if (currentPath != null && firstMatchLine >= 0 && results.size() < limit) {
-            results.add(new GitGrepMatch(currentPath, firstMatchLine, blockBuf.toString()));
+            results.add(
+                    new GitGrepMatch(project, currentPath, firstMatchLine, blockBuf.toString()));
         }
 
         return results;
@@ -875,7 +881,7 @@ public class GitService {
 
         if (fb.binary()) {
             return new GitFileContent(
-                    fb.path(), null, true, fb.size(), language, 0, false, null, null);
+                    project.id(), fb.path(), null, true, fb.size(), language, 0, false, null, null);
         }
 
         // Normalize CRLF → LF so Windows working-tree files don't leave \r at the end of each line.
@@ -890,12 +896,30 @@ public class GitService {
         if (!rangeRequested && fb.size() > MAX_FILE_SIZE) {
             String excerpt = headTailExcerpt(lines);
             return new GitFileContent(
-                    fb.path(), excerpt, false, fb.size(), language, total, true, null, null);
+                    project.id(),
+                    fb.path(),
+                    excerpt,
+                    false,
+                    fb.size(),
+                    language,
+                    total,
+                    true,
+                    null,
+                    null);
         }
 
         if (!rangeRequested) {
             return new GitFileContent(
-                    fb.path(), full, false, fb.size(), language, total, false, null, null);
+                    project.id(),
+                    fb.path(),
+                    full,
+                    false,
+                    fb.size(),
+                    language,
+                    total,
+                    false,
+                    null,
+                    null);
         }
 
         // Clamp the requested range into [1, total].
@@ -904,6 +928,7 @@ public class GitService {
         if (from > total || from > to) {
             // Empty/invalid slice — return no content but keep metadata truthful.
             return new GitFileContent(
+                    project.id(),
                     fb.path(),
                     "",
                     false,
@@ -917,7 +942,16 @@ public class GitService {
         String slice = String.join("\n", java.util.Arrays.asList(lines).subList(from - 1, to));
         boolean truncated = from > 1 || to < total;
         return new GitFileContent(
-                fb.path(), slice, false, fb.size(), language, total, truncated, from, to);
+                project.id(),
+                fb.path(),
+                slice,
+                false,
+                fb.size(),
+                language,
+                total,
+                truncated,
+                from,
+                to);
     }
 
     /** Convenience overload: full file, no range. */

@@ -33,6 +33,12 @@ describe('detectScriptRun — что попадает в «Обзор»', () => 
     expect(data.error).toBeNull();
   });
 
+  it('проект берётся из ответа: прогон мог читать соседний репозиторий', () => {
+    expect(detect(JSON.stringify(result({ project: 'billing' }))).project).toBe('billing');
+    // Старый ответ без проекта разбор не ломает.
+    expect(detect(JSON.stringify(result())).project).toBeNull();
+  });
+
   it('правки разбирает вид diff’а, а не второй такой же разбор здесь', () => {
     const data = detect(JSON.stringify(result({ edits: [edit('a.jsx'), edit('b.css')], stats: { filesEdited: 2 } })));
     expect(data.edits).toHaveLength(1);

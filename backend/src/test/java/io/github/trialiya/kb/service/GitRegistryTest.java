@@ -36,6 +36,18 @@ class GitRegistryTest {
     }
 
     @Test
+    void namingNoProjectAndNamingTheDefaultOneAreTheSameProject() {
+        GitRegistry registry = TestProjects.registry(repoDir, false);
+
+        // What tells "the model named another repository" from "it named this one": a chat that
+        // stored no project still runs on the default one, so the raw values differ but the
+        // project does not.
+        assertThat(registry.sameProject(null, TestProjects.ID)).isTrue();
+        assertThat(registry.sameProject(TestProjects.ID, null)).isTrue();
+        assertThat(registry.sameProject(null, null)).isTrue();
+    }
+
+    @Test
     void anUnknownProjectIsRefused() {
         GitRegistry registry = TestProjects.registry(repoDir, false);
 

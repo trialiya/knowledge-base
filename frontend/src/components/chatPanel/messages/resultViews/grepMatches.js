@@ -62,5 +62,10 @@ export const detectGrepMatches = ({ parsed, isJson }) => {
     else byPath.set(match.path, { key: `file-${i}`, path: match.path, blocks: [block] });
   });
 
-  return { files: [...byPath.values()], matches: parsed.length };
+  // Проект у всех совпадений один — вызов ищет в одном репозитории, — но брать
+  // его надо из ответа, а не из проекта чата: у grepContent есть аргумент
+  // project, и вызов мог искать в соседнем.
+  const project = parsed.find((match) => match.project)?.project ?? null;
+
+  return { files: [...byPath.values()], matches: parsed.length, project };
 };

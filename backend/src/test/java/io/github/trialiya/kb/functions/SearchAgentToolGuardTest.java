@@ -52,7 +52,7 @@ class SearchAgentToolGuardTest {
                         ToolCallbacks.from(
                                 new GitFunction(null),
                                 new DocumentFunction(null, null),
-                                ScriptFunction.readOnly(null)))
+                                ScriptFunction.readOnly(null, null)))
                 .map(cb -> cb.getToolDefinition().name())
                 .filter(ALLOWED::contains)
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());

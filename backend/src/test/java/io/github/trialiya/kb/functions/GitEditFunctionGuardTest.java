@@ -13,11 +13,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.model.git.dto.GitEditResult;
+import io.github.trialiya.kb.model.project.Project;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.service.GitRegistry;
 import io.github.trialiya.kb.service.GitService;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
+import java.nio.file.Path;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -50,6 +52,7 @@ class GitEditFunctionGuardTest {
         context = new ToolContext(Map.of(ToolInvocationCollector.KEY, collector));
         when(gitService.editFile(anyString(), anyString(), anyString(), anyBoolean()))
                 .thenReturn(new GitEditResult("edit", PATH, 1, 1, 10, "diff"));
+        when(gitService.project()).thenReturn(new Project("kb", "KB", Path.of("."), true));
     }
 
     @Test
@@ -63,11 +66,29 @@ class GitEditFunctionGuardTest {
 
     @Test
     void editAfterGetFileContentOfSameFilePasses() {
-        record("getFileContent", Map.of("filePath", PATH), OK, null);
+        record(
+                "getFileContent",
+                Map.of("filePath", PATH),
+                OK,
+                "{\"project\":\"kb\",\"path\":\"" + PATH + "\"}");
 
         assertThatCode(() -> function.editFile(context, PATH, "a", "b", false))
                 .doesNotThrowAnyException();
         verify(gitService).editFile(PATH, "a", "b", false);
+    }
+
+    @Test
+    void getFileContentOfSameFileButAnotherProjectDoesNotCount() {
+        // Same path, but read from a different repository via getFileContent's own "project"
+        // argument — the read never showed this run's target project's version of the file.
+        record(
+                "getFileContent",
+                Map.of("filePath", PATH, "project", "billing"),
+                OK,
+                "{\"project\":\"billing\",\"path\":\"" + PATH + "\"}");
+
+        assertThatThrownBy(() -> function.editFile(context, PATH, "a", "b", false))
+                .isInstanceOf(IllegalStateException.class);
     }
 
     @Test
@@ -84,10 +105,24 @@ class GitEditFunctionGuardTest {
                 "grepContent",
                 Map.of("pattern", "foo"),
                 OK,
-                "[{\"path\":\"" + PATH + "\",\"line\":3,\"text\":\"foo\"}]");
+                "[{\"project\":\"kb\",\"path\":\"" + PATH + "\",\"line\":3,\"text\":\"foo\"}]");
 
         assertThatCode(() -> function.editFile(context, PATH, "a", "b", false))
                 .doesNotThrowAnyException();
+    }
+
+    @Test
+    void grepResultFromAnotherProjectMentioningThePathDoesNotCount() {
+        record(
+                "grepContent",
+                Map.of("pattern", "foo", "project", "billing"),
+                OK,
+                "[{\"project\":\"billing\",\"path\":\""
+                        + PATH
+                        + "\",\"line\":3,\"text\":\"foo\"}]");
+
+        assertThatThrownBy(() -> function.editFile(context, PATH, "a", "b", false))
+                .isInstanceOf(IllegalStateException.class);
     }
 
     @Test

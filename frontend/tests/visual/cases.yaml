@@ -1437,6 +1437,29 @@
     Нечем прогнать: вторую включённую запись kb.projects бэкенд отклоняет на
     старте (ProjectCatalog), а с одним проектом чужих чипов взяться неоткуда.
 
+- id: tool-call-foreign-project
+  component: ToolCallDetailModal
+  path: frontend/src/components/chatPanel/messages/ToolCallDetailModal.jsx
+  title: Детали вызова — какой репозиторий отвечал
+  status: blocked
+  origin:
+    - Сессия 2026-08-19, проект в аргументах инструментов (фаза 2)
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /
+    backend: kb.projects — две включённые записи
+    steps: задать кросс-проектный вопрос, открыть детали вызова getFileContent и grepContent
+  expected:
+    - '«Обзор» у getFileContent показывает факт «проект» рядом с языком и размером'
+    - Шапка «Обзора» у grepContent называет проект рядом с числом совпадений и файлов
+    - У runScript проект стоит первой плиткой среди счётчиков
+    - Значение берётся из ответа, а не из селектора проекта — они могут различаться
+  notes: |
+    Нечем прогнать по той же причине, что и chat-chip-foreign-project: вторую
+    включённую запись kb.projects бэкенд отклоняет на старте (ProjectCatalog),
+    а с одним проектом аргумент project всегда совпадает с проектом чата.
+
 - id: files-panel-project-picker
   component: FilesPanel
   path: frontend/src/components/filesPanel/FilesPanel.jsx

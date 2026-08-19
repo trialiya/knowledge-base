@@ -43,6 +43,18 @@ describe('detectGrepMatches — что попадает в «Обзор»', () =
   });
 });
 
+describe('detectGrepMatches — проект вызова', () => {
+  it('берётся из ответа: grepContent мог искать в соседнем репозитории', () => {
+    const data = detect(JSON.stringify([{ project: 'billing', path: 'a/A.java', matchLine: 1, text: 'x' }]));
+    expect(data.project).toBe('billing');
+  });
+
+  it('старый ответ без проекта не ломает разбор', () => {
+    const data = detect(JSON.stringify([{ path: 'a/A.java', matchLine: 1, text: 'x' }]));
+    expect(data.project).toBeNull();
+  });
+});
+
 describe('detectGrepMatches — что остаётся другим видам', () => {
   it('запись без номера строки или без текста', () => {
     expect(detect(JSON.stringify([{ path: 'a/A.java', text: 'x' }]))).toBeNull();

@@ -78,6 +78,7 @@
       },
       "showAll": "Show {{count}} more lines",
       "fact": {
+        "project": "project",
         "lines": "lines",
         "language": "language",
         "contentType": "type",

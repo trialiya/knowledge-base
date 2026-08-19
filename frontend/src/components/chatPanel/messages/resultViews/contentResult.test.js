@@ -40,6 +40,22 @@ describe('detectContentResult — что попадает в «Обзор»', ()
     expect(items[0].facts.map((f) => f.key)).toEqual(['language', 'lineCount', 'sizeBytes']);
   });
 
+  it('getFileContent: проект показан фактом — вызов мог прочитать соседний репозиторий', () => {
+    const items = detect(
+      JSON.stringify({
+        project: 'billing',
+        path: 'pom.xml',
+        content: long('line'),
+        binary: false,
+        sizeBytes: 11542,
+        language: 'xml',
+        lineCount: 323,
+        truncated: false,
+      }),
+    );
+    expect(items[0].facts).toContainEqual({ key: 'project', value: 'billing' });
+  });
+
   it('бинарный файл — блок без текста, а не отсутствие обзора', () => {
     const items = detect(
       JSON.stringify({ path: 'logo.png', content: null, binary: true, sizeBytes: 2048, lineCount: 0 }),

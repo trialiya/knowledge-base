@@ -30,7 +30,13 @@ class ScriptTestControllerTest {
 
     private static final ScriptResult EMPTY_RESULT =
             new ScriptResult(
-                    null, List.of(), new ScriptStats(0, 0, 0, 0, 0), null, List.of(), List.of());
+                    "default",
+                    null,
+                    List.of(),
+                    new ScriptStats(0, 0, 0, 0, 0),
+                    null,
+                    List.of(),
+                    List.of());
 
     private static ScriptProperties properties(boolean enabled) {
         return new ScriptProperties(

@@ -30,17 +30,12 @@ import org.springframework.ai.tool.annotation.ToolParam;
  * that names no project reads the default one. The {@code ToolContext} parameter is not part of a
  * tool's schema, so the model neither sees nor fills it in.
  *
- * <p>Seven capabilities are exposed:
- *
- * <ul>
- *   <li>{@link #getFileTree} — browse tracked files/directories one level at a time.
- *   <li>{@link #getCommitLog} — recent commit history, optionally filtered by file.
- *   <li>{@link #getCommitDiff} — changed files and patches for one or more commits.
- *   <li>{@link #searchFiles} — find tracked files by name/path substring.
- *   <li>{@link #getFileOutline} — structural map (classes/methods) of a source file.
- *   <li>{@link #getFileContent} — read the full UTF-8 text, or a line range, of a tracked file.
- *   <li>{@link #getUncommittedChanges} — staged and unstaged working-tree changes.
- * </ul>
+ * <p>{@link #getFileContent} and {@link #grepContent} additionally take an optional {@code project}
+ * argument that overrides the context's project for that one call — the model's way to ask a
+ * cross-project question ("how does A do this, versus B") without switching the chat's project.
+ * Every response from these two carries a {@code project} field naming the repository it actually
+ * came from, so a model that forgets which call used the override still knows what it is looking
+ * at.
  *
  * <p><b>Security constraints:</b> all operations are strictly read-only. Only files tracked by Git
  * are accessible — untracked files (including those matching {@code .gitignore}) are refused even
@@ -56,6 +51,14 @@ public class GitFunction {
     /** The repository this call works on — the run's project, or the default one. */
     private GitService git(@Nullable ToolContext context) {
         return gitRegistry.forProject(ProjectContext.from(context));
+    }
+
+    /**
+     * As {@link #git(ToolContext)}, but {@code project} — when the model named one, for a
+     * cross-project question — overrides the run's own project for this one call.
+     */
+    private GitService git(@Nullable ToolContext context, @Nullable String project) {
+        return gitRegistry.forProject(ProjectContext.resolve(context, project));
     }
 
     // ── File tree ────────────────────────────────────────────────────────────
@@ -232,8 +235,8 @@ public class GitFunction {
                             + "Large files (>512 KB) return excerpt with truncated=true. When "
                             + "mentioning the file in your response, link it as "
                             + "[filename](/files?path=PATH&project=ID), where PATH is the path "
-                            + "from the response and ID is the active project; append #Lfrom-Lto "
-                            + "for a line range.",
+                            + "from the response and ID is the response's project field; append "
+                            + "#Lfrom-Lto for a line range.",
             resultConverter = CompactToolResultConverter.class)
     public GitFileContent getFileContent(
             ToolContext context,
@@ -247,14 +250,25 @@ public class GitFunction {
                             description =
                                     "Last line to read (1-based, inclusive). Null for end of file.",
                             required = false)
-                    @Nullable Integer toLine) {
+                    @Nullable Integer toLine,
+            @ToolParam(
+                            description =
+                                    "Optional: read from a different project (repository id) than the "
+                                            + "chat's active one, for a cross-project question. Omit to use "
+                                            + "the active project. The response's \"project\" field names "
+                                            + "which repository the content actually came from — check it, "
+                                            + "don't assume.",
+                            required = false)
+                    @Nullable String project) {
         requireText(filePath, "filePath");
         log.info(
-                "getFileContent called: filePath='{}', fromLine={}, toLine={}",
+                "getFileContent called: filePath='{}', fromLine={}, toLine={}, project='{}'",
                 filePath,
                 fromLine,
-                toLine);
-        GitFileContent fileContent = git(context).getFileContent(filePath, fromLine, toLine);
+                toLine,
+                project);
+        GitFileContent fileContent =
+                git(context, project).getFileContent(filePath, fromLine, toLine);
         log.info("getFileContent called: fileContent='{}'", fileContent);
         return fileContent;
     }
@@ -322,7 +336,16 @@ public class GitFunction {
             @ToolParam(
                             description = "Maximum matches to return (1–200, default 50).",
                             required = false)
-                    @Nullable Integer maxResults) {
+                    @Nullable Integer maxResults,
+            @ToolParam(
+                            description =
+                                    "Optional: search a different project (repository id) than the "
+                                            + "chat's active one, for a cross-project question. Omit to "
+                                            + "use the active project. Each match's \"project\" field "
+                                            + "names which repository it came from — check it, don't "
+                                            + "assume.",
+                            required = false)
+                    @Nullable String project) {
         requireText(pattern, "pattern");
         final boolean useRegex = orDefault(regex, true);
         // contextLines defaults through orDefault rather than positiveOrDefault: 0 means "the
@@ -330,14 +353,16 @@ public class GitFunction {
         final int ctx = orDefault(contextLines, 1);
         final int limit = positiveOrDefault(maxResults, 50);
         log.info(
-                "grepContent called: pattern='{}', pathGlob='{}', regex={}, contextLines={}, maxResults={}",
+                "grepContent called: pattern='{}', pathGlob='{}', regex={}, contextLines={},"
+                        + " maxResults={}, project='{}'",
                 pattern,
                 pathGlob,
                 useRegex,
                 ctx,
-                limit);
+                limit,
+                project);
         List<GitGrepMatch> matches =
-                git(context).grepContent(pattern, pathGlob, useRegex, ctx, limit);
+                git(context, project).grepContent(pattern, pathGlob, useRegex, ctx, limit);
         log.info("grepContent called: {} matches found", matches.size());
         return matches;
     }

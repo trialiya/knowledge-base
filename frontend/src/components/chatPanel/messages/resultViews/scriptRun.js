@@ -69,5 +69,15 @@ export const detectScriptRun = ({ parsed, isJson }) => {
       }
     : null;
 
-  return { stats, value: scriptValue(parsed.value), log: parsed.log, filesRead: parsed.filesRead, edits, error };
+  return {
+    stats,
+    // Из ответа, а не из проекта чата: у runScript есть аргумент project, и
+    // прогон мог читать соседний репозиторий — тогда filesRead и edits о нём.
+    project: str(parsed.project) || null,
+    value: scriptValue(parsed.value),
+    log: parsed.log,
+    filesRead: parsed.filesRead,
+    edits,
+    error,
+  };
 };
