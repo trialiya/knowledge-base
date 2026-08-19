@@ -333,7 +333,10 @@
     "default": "default",
     "gone": "project “{{id}}” is unavailable",
     "goneHint": "Project “{{id}}” is no longer configured on the server — answers will use the default project. Pick a project again.",
-    "goneValue": "{{id}} — no longer available"
+    "goneValue": "{{id}} — no longer available",
+    "switched": "Project switched: {{from}} → {{to}}",
+    "switchedHint": "Messages above refer to “{{from}}”; the assistant re-reads files from “{{to}}” from here on.",
+    "unavailable": "unavailable"
   },
   "contextItems": {
     "staged": "Attached to this message",

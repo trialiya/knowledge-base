@@ -17,16 +17,15 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *       edit-enabled: false
  * </pre>
  *
- * <p><b>Exactly one <em>enabled</em> entry for now.</b> Addresses, chips and tool results all carry
- * the project already; what is still missing is the history side of switching one — nothing marks
- * the point in a chat where the project changed, so tool results read before the switch would pass
- * for the current repository's. {@code ProjectCatalog} refuses such a configuration rather than let
- * that happen silently (the remaining work is listed in {@code
- * docs/todo/мульти-проекты-исследование.md} §10).
+ * <p>Several entries are served at once: each is a repository of its own with its own mount, and
+ * every path that names a repository — addresses, chips, tool arguments and results, the chat's
+ * stored project and the switch marker in its history — carries the project id. The deployment has
+ * to back them: one mount per project, and {@code git safe.directory} covering each mounted path
+ * ({@code git grep} runs as a subprocess), see {@code docs/проект/конфигурация.md}.
  *
- * <p>Entries switched off with {@code enabled: false} do not count, which is how a second project
- * is prepared before it can be served: its block sits in the configuration, validated by nothing
- * and reachable by no one, until the flag flips.
+ * <p>Entries switched off with {@code enabled: false} do not count and are not validated, which is
+ * how a project is prepared before its mount exists: the block sits in the configuration, reachable
+ * by no one, until the flag flips.
  *
  * <p>Left empty, the single project is taken from the legacy {@code kb.git.project-path} (see
  * {@code ProjectCatalog}), so a deployment that only sets {@code PROJECT_PATH} keeps working.

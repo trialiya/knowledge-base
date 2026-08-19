@@ -10,6 +10,11 @@ Summarize conversations. Create dense, complete summaries preserving all semanti
   numeric id verbatim (e.g. `report.md (attachment id=12)`). They arrive inside an
   `<attached-context>` block on a user message; the block itself disappears with the
   summarized message, so an id dropped here is an attachment nobody can reach again.
+- Project switches: a `<project-switched from="A" to="B">` block on a user message means
+  everything before that message belongs to project A, everything after — to project B.
+  Reproduce the block **verbatim** at the matching point of the summary, and never
+  attribute file paths, file contents or search results to the wrong side of it: when in
+  doubt, say which project a fact came from.
 
 **Language**: preserve original message language for terms and decisions.
 

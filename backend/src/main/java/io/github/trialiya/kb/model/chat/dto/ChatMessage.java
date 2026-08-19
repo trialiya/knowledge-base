@@ -14,4 +14,6 @@ public record ChatMessage(
         @Nullable List<ToolInvocationMeta> toolInvocationMetas,
         @Nullable String runId,
         boolean toolCalls,
-        List<ContextItem> contextItems) {}
+        List<ContextItem> contextItems,
+        @Nullable String project,
+        @Nullable String projectSwitchFrom) {}

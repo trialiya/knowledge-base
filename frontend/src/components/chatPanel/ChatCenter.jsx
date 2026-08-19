@@ -94,6 +94,7 @@ const ChatCenter = ({
           key={chatId}
           conversationId={chatId}
           project={project?.inLinks}
+          projectOptions={project?.options}
           messages={messages}
           onNavigateToDoc={onNavigateToDoc}
           onLoadMore={onLoadOlder}

@@ -47,6 +47,10 @@ services:
       # docker compose подставляет переменные из env_file сервиса
       # в блок volumes начиная с Compose Spec (v3.9+).
       - ${PROJECT_PATH_MOUNT:-../}:/project:ro
+      # Второй и следующие проекты — по одному mount на проект, в контейнере /projects/<id>,
+      # где <id> совпадает с kb.projects[].id. Включается вместе с PROJECT2_ENABLED=true в .env
+      # (см. docs/проект/конфигурация.md); исключение git safe.directory для него добавит start.sh.
+      # - ${PROJECT2_PATH_MOUNT}:/projects/billing:ro
       - ${DOCUMENTS_EXPORT_PATH:-../doc-export}:/doc-export
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]

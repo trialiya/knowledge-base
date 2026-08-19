@@ -17,7 +17,7 @@ import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.config.model.ProjectProperties;
 import io.github.trialiya.kb.config.model.ProjectProperties.ProjectOption;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
-import io.github.trialiya.kb.model.project.ProjectOptions;
+import io.github.trialiya.kb.model.project.ProjectSwitch;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.ChatEventService;
 import io.github.trialiya.kb.service.ChatMemoryService;
@@ -84,6 +84,7 @@ class ChatProjectSelectionTest {
                         contextItemService,
                         topicService,
                         catalog(),
+                        mock(io.github.trialiya.kb.service.GitRegistry.class),
                         mock(SystemPromptService.class),
                         new ProjectPromptService(catalog()),
                         Clock.systemUTC());
@@ -136,40 +137,59 @@ class ChatProjectSelectionTest {
                 .hasMessageContaining("Unknown project");
     }
 
+    /**
+     * Не названный проект и явно названный дефолтный — один и тот же репозиторий: ни первый выбор
+     * дефолта, ни его повторение сменой не считаются.
+     */
     @Test
-    void settingTheProjectStoresItAndClearingItReturnsToTheDefault() {
+    void namingTheProjectTheChatAlreadyRunsOnIsNotASwitch() {
         storedProject(null);
+        assertThat(startRun("kb").projectSwitch()).isNull();
 
-        controller.updateChatProject(CONV, "kb");
-        verify(topicRepository).updateProject(CONV, "kb");
-
-        controller.updateChatProject(CONV, "  ");
-        verify(topicRepository).updateProject(CONV, null);
-
-        assertThatThrownBy(() -> controller.updateChatProject(CONV, "retired"))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("Unknown project");
+        storedProject("kb");
+        assertThat(startRun(null).projectSwitch()).isNull();
+        assertThat(startRun("kb").projectSwitch()).isNull();
     }
 
+    /**
+     * Проект чата исчез из конфигурации — прогон уезжает на дефолтный, и это настоящая смена:
+     * история читана в другом репозитории, и {@code from} называет его как есть, хоть
+     * канонизировать выбывший id уже не во что.
+     */
     @Test
-    void theSelectorIsToldWhichEntryIsPreselected() {
-        final ProjectOptions options = controller.getProjects();
+    void aChatWhoseProjectWasRetiredSwitchesToTheDefault() {
+        storedProject("retired");
 
-        assertThat(options.defaultProject()).isEqualTo("kb");
-        assertThat(options.projects())
-                .singleElement()
-                .satisfies(
-                        p -> {
-                            assertThat(p.id()).isEqualTo("kb");
-                            assertThat(p.label()).isEqualTo("KB");
-                        });
+        final ProjectSwitch projectSwitch = startRun(null).projectSwitch();
+
+        assertThat(projectSwitch).isNotNull();
+        assertThat(projectSwitch.from()).isEqualTo("retired");
+        assertThat(projectSwitch.to()).isEqualTo("kb");
+    }
+
+    /**
+     * И ровно на одном вопросе: маркер говорит «выше история читана в другом репозитории», а не
+     * «этот чат когда-то выбрал выбывший проект». Поэтому уехавший на дефолтный чат приводит и
+     * колонку к тому, на чём реально работает, — иначе каждое следующее сообщение сравнивалось бы с
+     * тем же выбывшим значением и несло бы плашку заново.
+     */
+    @Test
+    void aRetiredProjectIsMarkedOnceAndThenForgotten() {
+        storedProject("retired");
+
+        assertThat(startRun(null).projectSwitch()).isNotNull();
+        verify(topicRepository).updateProject(CONV, null);
+
+        storedProject(null); // колонку только что привели к дефолтному
+        assertThat(startRun(null).projectSwitch()).isNull();
     }
 
     private ChatRunService.RunOptions startRun(@Nullable String requested) {
         controller.startRun(CONV, null, null, requested, null, true, null);
         final ArgumentCaptor<ChatRunService.RunOptions> captor =
                 ArgumentCaptor.forClass(ChatRunService.RunOptions.class);
-        verify(runService).start(eq(CONV), eq(USER), any(), any(), captor.capture(), any());
+        verify(runService, org.mockito.Mockito.atLeastOnce())
+                .start(eq(CONV), eq(USER), any(), any(), captor.capture(), any());
         return captor.getValue();
     }
 

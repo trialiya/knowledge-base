@@ -56,12 +56,16 @@ const FilesPanelForProject = ({
       className="workspace--files"
       {...panels}
       left={{
-        title: t('panel.tree'),
-        // Единственный проект выбирать не из чего — селектор появляется со вторым.
-        action:
+        // Заголовок панели — сам селектор репозитория: панель показывает один
+        // репозиторий, и его имя и есть её заголовок, отдельной строки под выбор
+        // не нужно. Единственный проект выбирать не из чего — остаётся надпись.
+        title:
           projectOptions.length > 1 ? (
             <ProjectPicker value={project} options={projectOptions} onChange={onProjectChange} />
-          ) : null,
+          ) : (
+            t('panel.tree')
+          ),
+        ariaLabel: t('panel.tree'),
         toolbar: <FileSearch project={project} onSelect={onPathChange} />,
         // Дерево прокручивает себя само (строки шире панели — нужен и
         // горизонтальный скролл), поэтому тело панели скролл не берёт.

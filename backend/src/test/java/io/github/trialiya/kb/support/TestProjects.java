@@ -23,14 +23,20 @@ public final class TestProjects {
 
     /** A registry over the single repository at {@code repoDir}. */
     public static GitRegistry registry(Path repoDir, boolean editEnabled) {
-        ProjectProperties properties =
-                new ProjectProperties(
-                        List.of(
-                                new ProjectOption(
-                                        ID, null, repoDir.toString(), editEnabled, true)));
+        return registry(
+                List.of(new ProjectOption(ID, null, repoDir.toString(), editEnabled, true)));
+    }
+
+    /** A registry over several configured projects — the first one is the default. */
+    public static GitRegistry registry(List<ProjectOption> projects) {
         return new GitRegistry(
-                new ProjectCatalog(properties, new GitProperties(null, false)),
+                new ProjectCatalog(new ProjectProperties(projects), new GitProperties(null, false)),
                 new OutlineService());
+    }
+
+    /** A read-only project entry at {@code path}. */
+    public static ProjectOption project(String id, Path path) {
+        return new ProjectOption(id, null, path.toString(), false, true);
     }
 
     /** The {@link GitService} of that single repository. */

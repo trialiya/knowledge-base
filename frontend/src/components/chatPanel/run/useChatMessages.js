@@ -80,6 +80,8 @@ export const transformPage = (rawMsgs) => {
       timestamp: m.timestamp || null,
       // Приложенное к вопросу (вложения) — чипы под текстом пузыря.
       ...(m.contextItems?.length ? { contextItems: m.contextItems } : {}),
+      // Этим вопросом чат сменил проект — плашка-разделитель перед пузырём.
+      ...(m.projectSwitchFrom ? { projectSwitch: { from: m.projectSwitchFrom, to: m.project } } : {}),
       // Вызовы инструментов этого сегмента (раздельное сохранение): плашки под пузырём.
       ...(metas.length && type !== 'user'
         ? { toolCalls: metas.map(metaToCall), ...(m.runId ? { toolCallsRunId: m.runId } : {}) }

@@ -52,7 +52,12 @@ RUN apt-get update \
 
 ENV PROJECT_PATH=/project
 
-RUN git config --system safe.directory /project
+# The mount belongs to the host user, the container runs as kb — without this exception git
+# refuses the working tree with "dubious ownership". JGit does not check, but `git grep` runs as
+# a subprocess (GitService), so it does. Exceptions are exact paths (no globs), and the paths of
+# further projects are known only at runtime — start.sh adds those; this line covers the first
+# project, whose path is fixed by the image.
+RUN git config --system safe.directory "$PROJECT_PATH"
 
 RUN groupadd --system kb && useradd --system --gid kb kb
 
@@ -60,6 +65,9 @@ RUN groupadd --system kb && useradd --system --gid kb kb
 RUN mkdir -p /app/local-db && chown -R kb:kb /app
 
 WORKDIR /app
+# kb is a system user without a home directory; start.sh writes git exceptions to ~/.gitconfig,
+# and /app is the one place it owns.
+ENV HOME=/app
 USER kb
 
 COPY --chmod=755 docker/start.sh /start.sh

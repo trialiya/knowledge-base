@@ -23,9 +23,11 @@ import './sidePanel.css';
  * экземпляра (их несколько смонтировано разом), ни в ссылке.
  *
  * props:
- *   left  — { title, action, toolbar, children, bodyScroll } — левая панель.
+ *   left  — { title, ariaLabel, action, toolbar, children, bodyScroll } — левая панель.
  *           bodyScroll=false отдаёт прокрутку самому содержимому: так дерево
  *           файлов сохраняет свой двухосевой скролл (строки шире панели).
+ *           title может быть узлом, а не строкой (в «Файлах» заголовок — селектор
+ *           репозитория); тогда имя панели для скринридера берётся из ariaLabel.
  *   center — узел основной области
  *   right — [{ key, label, icon, badge, content }] — вкладки правой панели.
  *           Пустой массив/undefined → правой панели и её рельса нет вовсе.
@@ -66,9 +68,18 @@ const WorkspaceLayout = ({
           </button>
         </div>
       ) : (
-        <aside className="workspace__side workspace__side--left" aria-label={left?.title}>
+        <aside
+          className="workspace__side workspace__side--left"
+          aria-label={typeof left?.title === 'string' ? left.title : left?.ariaLabel}
+        >
           <div className="workspace__side-head">
-            <span className="workspace__side-title">{left?.title}</span>
+            <span
+              className={`workspace__side-title${
+                typeof left?.title === 'string' ? '' : ' workspace__side-title--slot'
+              }`}
+            >
+              {left?.title}
+            </span>
             <button
               type="button"
               className="icon-btn"

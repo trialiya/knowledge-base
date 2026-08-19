@@ -13,6 +13,24 @@
   --ws-indent: 12px;
 }
 
+/* ── Project picker ── */
+
+/* Селектор репозитория стоит на месте заголовка панели, поэтому и выглядит
+   заголовком: моноширинный «технический» вид триггера (он же — вид селекторов
+   модели и режима в чате) рядом с заголовками остальных панелей читался бы как
+   чужая строка. Акцент на наведении и при открытом списке остаётся — без него
+   заголовок не читается как кнопка. */
+.files-project-picker .lb-select__trigger {
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  color: var(--kb-text);
+}
+.files-project-picker .lb-select__trigger:hover:not(:disabled),
+.files-project-picker .lb-select__trigger[aria-expanded='true'] {
+  color: var(--kb-accent);
+}
+
 /* ── Tree ── */
 
 .files-panel-tree {

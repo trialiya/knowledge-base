@@ -98,6 +98,69 @@ describe('applyChatEvent', () => {
     expect(last(chat).contextItems).toEqual(items);
   });
 
+  test('USER_MESSAGE from another tab carries the project switch', () => {
+    const chat = applyChatEvent(
+      { id: 'c', messages: [], runId: null },
+      { type: 'USER_MESSAGE', payload: { id: 5, text: 'посмотри', project: 'billing', projectSwitchFrom: 'kb' } },
+      ctx,
+    );
+    expect(last(chat)).toMatchObject({ sender: 'user', projectSwitch: { from: 'kb', to: 'billing' } });
+  });
+
+  test('USER_MESSAGE own echo backfills the project switch onto the optimistic bubble', () => {
+    // Смену проекта решает бэкенд — оптимистичный пузырь её не знал; эхо дописывает.
+    const local = { ...ctx, isLocal: () => true };
+    const chat = applyChatEvent(
+      { id: 'c', messages: [{ text: 'посмотри', sender: 'user', dbId: 5 }], runId: null },
+      {
+        type: 'USER_MESSAGE',
+        clientMsgId: 'mine',
+        payload: { id: 5, text: 'посмотри', project: 'billing', projectSwitchFrom: 'kb' },
+      },
+      local,
+    );
+    expect(chat.messages).toHaveLength(1);
+    expect(last(chat).projectSwitch).toEqual({ from: 'kb', to: 'billing' });
+  });
+
+  test('USER_MESSAGE own echo without a switch changes nothing', () => {
+    const local = { ...ctx, isLocal: () => true };
+    const before = { id: 'c', messages: [{ text: 'посмотри', sender: 'user', dbId: 5 }], runId: null };
+    const chat = applyChatEvent(
+      before,
+      { type: 'USER_MESSAGE', clientMsgId: 'mine', payload: { id: 5, text: 'посмотри' } },
+      local,
+    );
+    expect(chat).toBe(before);
+  });
+
+  // Повтор прогона считает смену заново — эхо для плашки авторитетно, а не «дополняет пустое».
+  test('USER_MESSAGE re-aims the project switch of a retried question', () => {
+    const chat = applyChatEvent(
+      {
+        id: 'c',
+        messages: [{ text: 'посмотри', sender: 'user', dbId: 5, projectSwitch: { from: 'kb', to: 'billing' } }],
+        runId: null,
+      },
+      { type: 'USER_MESSAGE', payload: { id: 5, text: 'посмотри', project: 'docs', projectSwitchFrom: 'kb' } },
+      ctx,
+    );
+    expect(last(chat).projectSwitch).toEqual({ from: 'kb', to: 'docs' });
+  });
+
+  test('USER_MESSAGE clears the project switch when the retry went back to the original project', () => {
+    const chat = applyChatEvent(
+      {
+        id: 'c',
+        messages: [{ text: 'посмотри', sender: 'user', dbId: 5, projectSwitch: { from: 'kb', to: 'billing' } }],
+        runId: null,
+      },
+      { type: 'USER_MESSAGE', payload: { id: 5, text: 'посмотри', project: 'kb' } },
+      ctx,
+    );
+    expect(last(chat).projectSwitch).toBeNull();
+  });
+
   test('RUN_DONE finalizes without an error flag', () => {
     let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r3' }, ctx);
     chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r3', payload: { message: 'ответ' } }, ctx);

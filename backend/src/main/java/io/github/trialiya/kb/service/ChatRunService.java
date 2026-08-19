@@ -17,6 +17,7 @@ import io.github.trialiya.kb.model.chat.dto.ToolCallsMessage;
 import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
+import io.github.trialiya.kb.model.project.ProjectSwitch;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.tools.RunCancellation;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
@@ -157,18 +158,27 @@ public class ChatRunService {
             userRow =
                     userMessage != null
                             ? chatMemoryService.saveUserMessage(
-                                    conversationId, userMessage, contextItems)
+                                    conversationId,
+                                    userMessage,
+                                    contextItems,
+                                    options.projectSwitch())
                             // Повтор: вопрос уже в истории, ходом остаётся он же. Проверку делаем
                             // ПОСЛЕ ремонта хвоста — достроенный TOOL-ответ как раз и означает,
                             // что модель уже начала отвечать, и повторять этот ход нельзя.
-                            : chatMemoryService
-                                    .unansweredUserMessage(conversationId)
-                                    .orElseThrow(
-                                            () ->
-                                                    new ResponseStatusException(
-                                                            HttpStatus.UNPROCESSABLE_CONTENT,
-                                                            "Nothing to retry: the last message is"
-                                                                    + " not an unanswered question"));
+                            // Проект при повторе выбирают заново, поэтому маркер смены может
+                            // появиться и здесь — на том же вопросе.
+                            : retried(
+                                    chatMemoryService
+                                            .unansweredUserMessage(conversationId)
+                                            .orElseThrow(
+                                                    () ->
+                                                            new ResponseStatusException(
+                                                                    HttpStatus
+                                                                            .UNPROCESSABLE_CONTENT,
+                                                                    "Nothing to retry: the last"
+                                                                            + " message is not an"
+                                                                            + " unanswered question")),
+                                    options);
         } catch (RuntimeException e) {
             // Заявку на чат не удерживаем: генерация так и не началась.
             activeByConversation.remove(conversationId, runId);
@@ -201,6 +211,17 @@ public class ChatRunService {
     }
 
     /**
+     * Вопрос, который повторяют, с маркером смены проекта, если повтор поехал в другой проект:
+     * проект при повторе выбирают заново, и «всё выше читано в прежнем репозитории» становится
+     * правдой ровно так же, как при новом вопросе.
+     */
+    private ChatMessageEntity retried(ChatMessageEntity question, RunOptions options) {
+        return options.projectSwitch() == null
+                ? question
+                : chatMemoryService.markProjectSwitch(question, options.projectSwitch());
+    }
+
+    /**
      * Результат запуска: id прогона и id уже сохранённого сообщения пользователя. Второй нужен
      * отправившей вкладке — она гасит своё эхо по {@code clientMsgId} и иначе узнала бы id
      * сообщения только после перезагрузки страницы.
@@ -223,12 +244,16 @@ public class ChatRunService {
      * @param modeInstructions инструкции выбранного режима; пустая строка — «без режима»
      * @param project id проекта, в котором работают инструменты прогона; {@code null} — дефолтный
      *     проект списка (см. {@code ProjectCatalog})
+     * @param projectSwitch смена проекта относительно предыдущих сообщений чата; {@code null} —
+     *     проект тот же. Оседает маркером в meta вопроса (см. {@code
+     *     ChatMemoryService#saveUserMessage})
      */
     public record RunOptions(
             @Nullable String model,
             boolean weakModel,
             String modeInstructions,
-            @Nullable String project) {}
+            @Nullable String project,
+            @Nullable ProjectSwitch projectSwitch) {}
 
     /** Останавливает прогон: dispose → CANCEL → частичное сохранение + событие RUN_STOPPED. */
     public boolean stop(String conversationId, String runId) {
@@ -329,7 +354,9 @@ public class ChatRunService {
                         userRow.getId(),
                         userRow.getContent(),
                         userRow.getCreatedAt(),
-                        userRow.getContextItems()));
+                        userRow.getContextItems(),
+                        userRow.getMeta() != null ? userRow.getMeta().project() : null,
+                        userRow.getMeta() != null ? userRow.getMeta().projectSwitchFrom() : null));
         events.publish(conversationId, RUN_STARTED, runId, clientMsgId, null);
 
         try {

@@ -19,7 +19,9 @@ import io.github.trialiya.kb.model.chat.dto.StartRunRequest;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
+import io.github.trialiya.kb.model.project.Project;
 import io.github.trialiya.kb.model.project.ProjectOptions;
+import io.github.trialiya.kb.model.project.ProjectSwitch;
 import io.github.trialiya.kb.model.tool.ToolCallDetail;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.ChatEventService;
@@ -28,6 +30,7 @@ import io.github.trialiya.kb.service.ChatModeService;
 import io.github.trialiya.kb.service.ChatRunService;
 import io.github.trialiya.kb.service.ChatTopicService;
 import io.github.trialiya.kb.service.ContextItemService;
+import io.github.trialiya.kb.service.GitRegistry;
 import io.github.trialiya.kb.service.ProjectCatalog;
 import io.github.trialiya.kb.service.ProjectPromptService;
 import io.github.trialiya.kb.service.ScriptGuideService;
@@ -39,6 +42,7 @@ import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
@@ -81,6 +85,7 @@ public class ChatController {
     private final ContextItemService contextItemService;
     private final ChatTopicService chatTopicService;
     private final ProjectCatalog projectCatalog;
+    private final GitRegistry gitRegistry;
     private final SystemPromptService systemPromptService;
     private final ProjectPromptService projectPromptService;
 
@@ -101,6 +106,7 @@ public class ChatController {
             ContextItemService contextItemService,
             ChatTopicService chatTopicService,
             ProjectCatalog projectCatalog,
+            GitRegistry gitRegistry,
             SystemPromptService systemPromptService,
             ProjectPromptService projectPromptService,
             Clock clock) {
@@ -117,6 +123,7 @@ public class ChatController {
         this.contextItemService = contextItemService;
         this.chatTopicService = chatTopicService;
         this.projectCatalog = projectCatalog;
+        this.gitRegistry = gitRegistry;
         this.systemPromptService = systemPromptService;
         this.projectPromptService = projectPromptService;
         this.clock = clock;
@@ -237,7 +244,11 @@ public class ChatController {
                                                         e, page.messages()),
                                                 e.getMeta() != null ? e.getMeta().runId() : null,
                                                 isToolCalls(e),
-                                                e.getContextItems()))
+                                                e.getContextItems(),
+                                                e.getMeta() != null ? e.getMeta().project() : null,
+                                                e.getMeta() != null
+                                                        ? e.getMeta().projectSwitchFrom()
+                                                        : null))
                         .toList();
         return new MessagePage(dtos, page.hasMore(), page.oldestCursor());
     }
@@ -268,25 +279,7 @@ public class ChatController {
     /** Проекты, между которыми можно выбирать, и какой из них дефолтный. */
     @GetMapping("/projects")
     public ProjectOptions getProjects() {
-        return projectCatalog.options();
-    }
-
-    /**
-     * Задать (или сбросить) проект чата. Пустое тело → возврат к дефолтному.
-     *
-     * <p>История при этом не правится: пока в конфигурации ровно один проект, сменить его не на
-     * что, и разделитель «всё выше относится к прежнему проекту» писать не о чем.
-     */
-    @PutMapping("/{conversationId}/project")
-    public void updateChatProject(
-            @PathVariable final String conversationId,
-            @RequestBody(required = false) final String project) {
-        getChatTopic(conversationId); // 404/403 + проверка владельца
-        final String trimmed = project == null ? "" : project.trim();
-        if (!trimmed.isEmpty() && !projectCatalog.isAllowed(trimmed)) {
-            throw new ResponseStatusException(BAD_REQUEST, "Unknown project: " + trimmed);
-        }
-        chatTopicRepository.updateProject(conversationId, trimmed.isEmpty() ? null : trimmed);
+        return gitRegistry.options();
     }
 
     /** Sets (or creates) the chat's topic. Idempotent, hence PUT. */
@@ -565,15 +558,18 @@ public class ChatController {
         } else {
             message = chatMessageEntity.getText();
         }
+        final var meta = chatMessageEntity.getMeta();
         return new ChatMessage(
                 chatMessageEntity.getId(),
                 message,
                 chatMessageEntity.getMessageType().getValue(),
                 chatMessageEntity.getCreatedAt(),
                 chatMessageEntity.getInvocations(),
-                chatMessageEntity.getMeta() != null ? chatMessageEntity.getMeta().runId() : null,
+                meta != null ? meta.runId() : null,
                 isToolCalls(chatMessageEntity),
-                chatMessageEntity.getContextItems());
+                chatMessageEntity.getContextItems(),
+                meta != null ? meta.project() : null,
+                meta != null ? meta.projectSwitchFrom() : null);
     }
 
     /** «Крошка» вызовов инструментов — служебное сообщение, которое не показываем пользователю. */
@@ -631,22 +627,43 @@ public class ChatController {
      * Параметр запроса → сохранённый проект чата → null. {@code null} означает «проект не назван»:
      * инструменты прогона поедут на первом проекте списка (см. {@code ProjectCatalog}). Параллель
      * {@link #resolveModel}.
+     *
+     * <p>В отличие от модели и режима, колонку пишет не этот метод, а {@link #resolveRun} — одной
+     * записью «привести к тому, на чём прогон реально пошёл». Ответ здесь бывает не тем, что
+     * сохранено (выбывший из конфигурации проект вырождается в дефолтный), и записать надо именно
+     * ответ: {@code chat_topic.project} означает «на каком проекте чат реально работал», а не «что
+     * выбрано в селекторе». Выбор, не подтверждённый отправкой, живёт на фронте; поэтому же
+     * сравнение с прежним значением колонки (см. {@link #projectSwitch}) и есть детекция настоящей
+     * смены проекта.
      */
     private @Nullable String resolveProject(
-            final String conversationId,
-            final Optional<ChatTopicEntity> stored,
-            final String requested) {
+            final Optional<ChatTopicEntity> stored, final String requested) {
         if (StringUtils.hasText(requested)) {
             if (!projectCatalog.isAllowed(requested)) {
                 throw new ResponseStatusException(BAD_REQUEST, "Unknown project: " + requested);
             }
-            chatTopicRepository.updateProject(conversationId, requested); // «последний выбранный»
             return requested;
         }
         return stored.map(ChatTopicEntity::getProject)
                 .filter(StringUtils::hasText)
                 .filter(projectCatalog::isAllowed) // на случай, если проект убрали из конфига
                 .orElse(null);
+    }
+
+    /**
+     * Смена проекта относительно того, на котором чат работал до этого сообщения. Сравнение — по
+     * каноническим id: не названный проект и явно названный дефолтный означают один репозиторий.
+     * Проект, выбывший из конфигурации, канонизировать не во что — его id сравнивается как есть, и
+     * переезд с него на дефолтный тоже смена: история-то читана в другом репозитории.
+     */
+    private @Nullable ProjectSwitch projectSwitch(
+            @Nullable final String previous, @Nullable final String resolved) {
+        final String to = projectCatalog.require(resolved).id();
+        final String from =
+                previous == null
+                        ? projectCatalog.defaultProject().id()
+                        : projectCatalog.find(previous).map(Project::id).orElse(previous);
+        return to.equals(from) ? null : new ProjectSwitch(from, to);
     }
 
     /**
@@ -659,20 +676,28 @@ public class ChatController {
             final String model,
             final String mode,
             final String project) {
-        // Модель, режим и проект читают одну и ту же строку и только когда их параметр не пришёл.
-        // Читаем её здесь, а не в каждом разрешении: обычная отправка не переопределяет ничего, и
-        // тремя отдельными чтениями это был бы один и тот же SELECT трижды на сообщение.
-        final boolean allRequested =
-                StringUtils.hasText(model)
-                        && StringUtils.hasText(mode)
-                        && StringUtils.hasText(project);
-        final Optional<ChatTopicEntity> stored =
-                allRequested ? Optional.empty() : chatTopicRepository.findById(conversationId);
+        // Одна строка chat_topic на все три разрешения (тремя отдельными чтениями это был бы тот
+        // же SELECT трижды на сообщение). Проекту она нужна даже при пришедшем параметре: прежнее
+        // значение колонки — это «на каком проекте шла история», и сравнение с ним даёт маркер
+        // смены проекта.
+        final Optional<ChatTopicEntity> stored = chatTopicRepository.findById(conversationId);
         final String resolvedModel = resolveModel(conversationId, stored, model);
+        final String previousProject = stored.map(ChatTopicEntity::getProject).orElse(null);
+        final String resolvedProject = resolveProject(stored, project);
+        final ProjectSwitch switched = projectSwitch(previousProject, resolvedProject);
+        if (!Objects.equals(previousProject, resolvedProject)) {
+            // Колонку приводим к тому, на чём прогон реально пошёл, — и когда проект назвали, и
+            // когда сохранённый выбыл из конфигурации и выродился в дефолтный. Второе не записать
+            // нельзя: следующее сообщение сравнилось бы с тем же выбывшим значением и повторило
+            // маркер, которому место ровно на одном вопросе — том, которым история сменила
+            // репозиторий.
+            chatTopicRepository.updateProject(conversationId, resolvedProject);
+        }
         return new ChatRunService.RunOptions(
                 resolvedModel,
                 chatModelProperties.isWeak(resolvedModel),
                 chatModeService.instructionsFor(resolveMode(conversationId, stored, mode)),
-                resolveProject(conversationId, stored, project));
+                resolvedProject,
+                switched);
     }
 }

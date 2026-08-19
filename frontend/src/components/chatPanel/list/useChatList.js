@@ -176,17 +176,14 @@ export default function useChatList({ initialActiveChatId, initialPropChatId, ma
     [patchChat],
   );
 
-  // Смена проекта чата. Пустой id ('') → вернуться к дефолтному.
+  // Смена проекта чата. Пустой id ('') → вернуться к дефолтному. На бэк не пишется:
+  // выбор становится проектом чата только с отправленным сообщением (?project= на
+  // прогоне) — так сохранённое значение всегда означает «на каком проекте шла
+  // история», и именно с ним бэкенд сверяется, ставя маркер смены проекта.
   const changeProject = useCallback(
-    async (chatId, newId) => {
+    (chatId, newId) => {
       if (!chatId) return;
       patchChat(chatId, { project: newId || null });
-      if (chatId === DRAFT_CHAT_ID) return;
-      try {
-        await chatApi.updateProject(chatId, newId);
-      } catch (err) {
-        console.error('Ошибка смены проекта чата:', err);
-      }
     },
     [patchChat],
   );
@@ -201,7 +198,9 @@ export default function useChatList({ initialActiveChatId, initialPropChatId, ma
           ...(newTitle ? { title: newTitle } : {}),
           model: data.model ?? chat.model ?? null,
           mode: data.mode ?? chat.mode ?? null,
-          project: data.project ?? chat.project ?? null,
+          // Проекта здесь нет намеренно: выбор в селекторе на бэк не пишется до отправки
+          // (см. changeProject), и ответ сервера про него отстаёт — взяв его, мы бы откатывали
+          // выбранный, но ещё не отправленный проект всякий раз, когда завершается прогон.
           // не затираем уже имеющийся createdAt, иначе берём из ответа
           createdAt: chat.createdAt ?? data.createdAt ?? null,
           // updatedAt, наоборот, всегда из ответа: ради него этот запрос

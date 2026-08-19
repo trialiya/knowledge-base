@@ -20,3 +20,18 @@ export function resolveProjectChoice(project, projectOptions, defaultProjectId) 
     missing: known ? null : project,
   };
 }
+
+/**
+ * Пункты селектора с пометкой на недоступных проектах: репозиторий такого
+ * проекта не открылся на сервере (не доехал mount), и любое обращение к нему
+ * ответит отказом — увидеть это в списке лучше, чем узнать из ошибки.
+ *
+ * Пометка, а не скрытие: «проекта нет в списке» уже означает другое — его
+ * выключили или переименовали (см. {@link resolveProjectChoice}), и чат,
+ * который его выбрал, об этом предупреждают отдельно.
+ *
+ * Подпись принимает готовой: у панели «Файлы» и у композера свои неймспейсы.
+ */
+export function markUnavailable(projectOptions, note) {
+  return projectOptions.map((o) => (o.available === false ? { ...o, note: `(${note})` } : o));
+}

@@ -6,6 +6,7 @@ import com.google.common.util.concurrent.Striped;
 import io.github.trialiya.kb.config.model.SummarizeProperties;
 import io.github.trialiya.kb.functions.MessageLookupFunction;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
+import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.service.ChatMemoryService.PromptRow;
@@ -15,6 +16,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.locks.Lock;
+import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.client.ChatClient;
@@ -304,6 +306,7 @@ public class SummarizeService implements DisposableBean {
         final ChatMessageEntity firstMsg =
                 collapseSummaries ? existingSummaries.getFirst() : oldMessages.getFirst().entity();
         final ChatMessageEntity lastMsg = oldMessages.getLast().entity();
+        final @Nullable String project = lastProject(oldMessages, existingSummaries);
 
         transactionTemplate.executeWithoutResult(
                 s -> {
@@ -319,7 +322,23 @@ public class SummarizeService implements DisposableBean {
                                     false,
                                     true,
                                     lastMsg.getCreatedAt(),
-                                    null));
+                                    project == null ? null : ChatMessageMeta.ofProject(project)));
                 });
+    }
+
+    /**
+     * On which project the compressed slice ended — carried onto the summary row so the trace of a
+     * project switch survives its own marker being summarized away. {@code null} when the slice
+     * never switched (the chat's own project covers it).
+     */
+    private static @Nullable String lastProject(
+            List<PromptRow> oldMessages, List<ChatMessageEntity> existingSummaries) {
+        return Stream.concat(
+                        existingSummaries.stream(), oldMessages.stream().map(PromptRow::entity))
+                .map(ChatMessageEntity::getMeta)
+                .filter(meta -> meta != null && meta.project() != null)
+                .reduce((first, second) -> second)
+                .map(ChatMessageMeta::project)
+                .orElse(null);
     }
 }
