@@ -2,7 +2,14 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import api from '@/api/documentsApi';
-import { getSiblings, applyReorder, parentTitle, isParentChange, updateNodeInTree, applyChildren } from './tree/treeOps';
+import {
+  getSiblings,
+  applyReorder,
+  parentTitle,
+  isParentChange,
+  updateNodeInTree,
+  applyChildren,
+} from './tree/treeOps';
 import { findNodeById, findPath } from '@/components/common/ui/utils';
 import { isEditorDirty, clearEditorDirty } from './editor/editorDirtyStore';
 import { invalidateDocPreviewCache } from '@/components/common/preview/useDocPreview';
