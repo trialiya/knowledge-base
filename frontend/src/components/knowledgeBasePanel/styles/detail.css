@@ -50,29 +50,21 @@
   color: var(--kb-muted);
 }
 
-/* Заголовок — общий .workspace__head-title. Кнопка переименования проявляется
-   по наведению на шапку (и по фокусу с клавиатуры), но место под неё занято
-   всегда: гасим прозрачностью, а не размонтированием — иначе соседняя кнопка
-   удаления ездила бы под курсором. */
-.detail-header__rename-btn {
-  opacity: 0;
-  transition: opacity 0.15s;
+/* Заголовок — общий .workspace__head-title; клик по нему открывает
+   переименование, поэтому имя ведёт себя как кнопка. У системного узла этого
+   модификатора нет — его не переименовать. */
+.detail-header__title {
+  cursor: pointer;
 }
-.detail-header:hover .detail-header__rename-btn,
-.detail-header:focus-within .detail-header__rename-btn {
-  opacity: 1;
+.detail-header__title:hover {
+  color: var(--kb-accent);
 }
 
-/* Inline rename — стоит на месте заголовка, поэтому тянется так же
-   (.workspace__head-edit). */
-.inline-rename {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.inline-rename__input {
-  flex: 1;
-  min-width: 0;
+/* Поле инлайн-переименования: раскладка общая (.workspace__head-edit — стоит на
+   месте заголовка и тянется так же), здесь только вид самого поля. */
+.detail-header__edit {
+  display: block;
+  box-sizing: border-box;
   font-size: 1rem;
   font-weight: 700;
   color: var(--kb-text);
