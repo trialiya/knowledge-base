@@ -30,7 +30,7 @@ const ChatCenter = ({
   search,
   staged,
   initialText,
-  composerResetSignal,
+  composerDraftSignal,
   model,
   mode,
   project,
@@ -131,7 +131,7 @@ const ChatCenter = ({
           staged={staged}
           onUnstage={onUnstage}
           isEmpty={isChatEmpty && !loadingMessages}
-          resetSignal={composerResetSignal}
+          draftSignal={composerDraftSignal}
           active={isActive}
           chatId={chatId}
           initialText={initialText}

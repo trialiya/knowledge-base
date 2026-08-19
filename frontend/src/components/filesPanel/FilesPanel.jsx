@@ -7,6 +7,7 @@ import FileInfo from './FileInfo';
 import ProjectPicker from './ProjectPicker';
 import useFileTree from './useFileTree';
 import useProjectConfig from '../common/useProjectConfig';
+import { resolveProjectChoice } from '../common/projectChoice';
 import WorkspaceLayout from '../common/WorkspaceLayout';
 import { IconInfo } from '../../icons';
 import { RIGHT_TAB } from '../../constants/rightTabs';
@@ -101,13 +102,9 @@ const FilesPanel = ({ project, path, onPathChange, refreshToken, panels }) => {
   // Проект из адреса сверяем со списком: сохранённая или присланная ссылка могла
   // пережить и выключение проекта, и переименование id, а бэкенд на неизвестный
   // отвечает 400 — панель показала бы одну ошибку вместо дерева, и починить адрес
-  // было бы негде, при одном проекте селектор скрыт. Уезжаем на дефолтный, как чат.
-  //
-  // Пустой список — это «списка нет» (запрос отказал, см. выше), а не «такого
-  // проекта нет»: судить по нему нельзя, иначе сбой запроса конфигурации молча
-  // подменял бы репозиторий в совершенно живом адресе.
-  const known = !project || projectOptions.length === 0 || projectOptions.some((o) => o.id === project);
-  const current = (known && project) || defaultProjectId || '';
+  // было бы негде, при одном проекте селектор скрыт. Уезжаем на дефолтный, как чат;
+  // сказать об этом, в отличие от чата, некому — у панели нет своей строки состояния.
+  const { selected: current } = resolveProjectChoice(project, projectOptions, defaultProjectId);
 
   return (
     <FilesPanelForProject

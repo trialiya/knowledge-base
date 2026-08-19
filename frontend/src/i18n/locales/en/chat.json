@@ -329,9 +329,15 @@
   "project": {
     "aria": "Project",
     "default": "default",
-    "gone": "project \u201c{{id}}\u201d is unavailable",
-    "goneHint": "Project \u201c{{id}}\u201d is no longer configured on the server \u2014 answers will use the default project. Pick a project again.",
-    "goneValue": "{{id}} \u2014 no longer available"
+    "gone": "project “{{id}}” is unavailable",
+    "goneHint": "Project “{{id}}” is no longer configured on the server — answers will use the default project. Pick a project again.",
+    "goneValue": "{{id}} — no longer available"
+  },
+  "projectChips": {
+    "title": "Files from the previous project",
+    "message": "The draft still holds {{n}} file and commit chip(s) from project “{{project}}”. In the new project the same paths point at other files, and those commit hashes are not there at all. Remove them from the draft?",
+    "confirm": "Remove",
+    "cancel": "Keep"
   },
   "contextItems": {
     "staged": "Attached to this message",

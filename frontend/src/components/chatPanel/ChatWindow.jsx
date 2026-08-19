@@ -7,6 +7,7 @@ import { STORAGE_KEY_ACTIVE_CHAT, DRAFT_CHAT_ID } from '../../constants/storage'
 import { getLastModel, getLastMode, getLastProject } from './lastChoiceStore';
 import useModelConfig from './useModelConfig';
 import useProjectConfig from '../common/useProjectConfig';
+import { resolveProjectChoice } from '../common/projectChoice';
 import useModeConfig from './useModeConfig';
 import useChatList from './useChatList';
 import useChatMessages from './useChatMessages';
@@ -18,6 +19,7 @@ import useChatDrafts from './useChatDrafts';
 import useChatDeletion from './useChatDeletion';
 import useNotice from '../common/useNotice';
 import { chatLoadErrorNotice, CHAT_DELETED_NOTICE } from './chatNotices';
+import { countProjectBoundTokens, dropProjectBoundTokens } from './fileChips';
 
 import ChatCenter from './ChatCenter';
 import { buildChatTabs } from './chatSidebar';
@@ -81,9 +83,10 @@ const ChatWindow = ({
   // Конфиг моделей и режимов грузится один раз — вынесено в отдельные хуки.
   const { modelConfig, modelOptions } = useModelConfig();
   const { modeOptions } = useModeConfig();
-  const { projectOptions, defaultProjectId, ready: projectsReady } = useProjectConfig();
-  // Bump → очистить текст в MessageInput («удаление» черновика).
-  const [composerResetSignal, setComposerResetSignal] = useState(0);
+  const { projectOptions, defaultProjectId } = useProjectConfig();
+  // Bump → MessageInput перечитает черновик: текст поля живёт в нём, и правка,
+  // сделанная здесь («удаление» черновика, вычистка чипов), иначе до него не дойдёт.
+  const [composerDraftSignal, setComposerDraftSignal] = useState(0);
   // Неотправленные черновики по чатам ({ chatId: text }, localStorage) — вынесено
   // в useChatDrafts (отложенная запись + flush на beforeunload/размонтирование).
   const {
@@ -242,13 +245,11 @@ const ChatWindow = ({
   // Проект, выбранный в селекторе: у чата → дефолтный. Отдельно — id, который у чата
   // записан, но которого в конфиге больше нет: селектор показывает дефолт, а рядом
   // должно стоять предупреждение, иначе подмена репозитория пройдёт незамеченной.
-  // Пока список не приехал, любой проект считаем известным: пустой список — это
-  // «ещё не знаем», а не «такого проекта нет», и на каждой загрузке страницы
-  // вспыхивало бы предупреждение о вполне живом проекте.
-  const chatProjectId = activeChat?.project ?? null;
-  const projectKnown = !chatProjectId || !projectsReady || projectOptions.some((o) => o.id === chatProjectId);
-  const selectedProjectId = projectKnown && chatProjectId ? chatProjectId : defaultProjectId || '';
-  const missingProjectId = projectKnown ? null : chatProjectId;
+  const { selected: selectedProjectId, missing: missingProjectId } = resolveProjectChoice(
+    activeChat?.project ?? null,
+    projectOptions,
+    defaultProjectId,
+  );
   // Для адресов — только не-дефолтный проект: дефолтный в схеме не пишется, а
   // пустое значение и означает его (см. urlScheme.filesUrl).
   const projectInLinks = selectedProjectId && selectedProjectId !== defaultProjectId ? selectedProjectId : null;
@@ -347,7 +348,7 @@ const ChatWindow = ({
         // У черновика нет сущности на бэке — «удаление» лишь очищает поле ввода.
         // Сам черновик и выбранная модель остаются.
         clearDraft(DRAFT_CHAT_ID);
-        setComposerResetSignal((n) => n + 1);
+        setComposerDraftSignal((n) => n + 1);
         return;
       }
       requestDeleteChat(id);
@@ -381,7 +382,34 @@ const ChatWindow = ({
 
   const handleModelChange = useCallback((newId) => changeModel(activeChatId, newId), [activeChatId, changeModel]);
   const handleModeChange = useCallback((newId) => changeMode(activeChatId, newId), [activeChatId, changeMode]);
-  const handleProjectChange = useCallback((newId) => changeProject(activeChatId, newId), [activeChatId, changeProject]);
+  // Чипы файлов и коммитов в черновике сделаны из прежнего репозитория, а формат
+  // токена проекта не несёт: после смены проекта тот же путь либо не существует,
+  // либо ведёт в другой файл — и подставится он молча, уже в отправленном
+  // сообщении. Сам проект меняем сразу (пользователь просил именно этого), а про
+  // осиротевшие чипы спрашиваем: выкинуть их или дописывать текст дальше.
+  const [orphanChips, setOrphanChips] = useState(null); // { count, project } | null
+  const handleProjectChange = useCallback(
+    (newId) => {
+      changeProject(activeChatId, newId);
+      // Спрашиваем по РАЗРЕШЁННОМУ проекту, а не по записанному у чата: выбрать
+      // дефолт в чате, чей проект исчез из конфигурации, — это способ убрать
+      // предупреждение (запись меняется, репозиторий остаётся прежним), и чипы в
+      // этот момент по-прежнему свои.
+      if (newId === selectedProjectId) return;
+      const count = countProjectBoundTokens(getDraftFor(activeChatId));
+      if (count > 0) {
+        const label = projectOptions.find((o) => o.id === selectedProjectId)?.label;
+        setOrphanChips({ count, project: label || selectedProjectId });
+      }
+    },
+    [activeChatId, changeProject, getDraftFor, projectOptions, selectedProjectId],
+  );
+
+  const dropOrphanChips = useCallback(() => {
+    handleComposerTextChange(activeChatId, dropProjectBoundTokens(getDraftFor(activeChatId)));
+    setComposerDraftSignal((n) => n + 1);
+    setOrphanChips(null);
+  }, [activeChatId, getDraftFor, handleComposerTextChange]);
 
   // Подписи модели и режима для вкладки «Инфо»: в чате хранятся id, а показывать
   // осмысленно человекочитаемый label из конфига.
@@ -491,7 +519,7 @@ const ChatWindow = ({
             search={{ ...inChatSearch, inputRef: inChatSearchInputRef, canSearch: canSearchChat }}
             staged={getStagedFor(activeChatId)}
             initialText={getDraftFor(activeChatId)}
-            composerResetSignal={composerResetSignal}
+            composerDraftSignal={composerDraftSignal}
             model={{
               config: modelConfig,
               options: modelOptions,
@@ -538,6 +566,16 @@ const ChatWindow = ({
         cancelLabel={t('deleteModal.cancel')}
         onConfirm={confirmDeleteChat}
         onCancel={cancelDeleteChat}
+      />
+      <ConfirmModal
+        open={!!orphanChips}
+        icon="📎"
+        title={t('projectChips.title')}
+        message={t('projectChips.message', { n: orphanChips?.count ?? 0, project: orphanChips?.project ?? '' })}
+        confirmLabel={t('projectChips.confirm')}
+        cancelLabel={t('projectChips.cancel')}
+        onConfirm={dropOrphanChips}
+        onCancel={() => setOrphanChips(null)}
       />
       <ErrorModal
         open={!!notice}

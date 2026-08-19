@@ -18,7 +18,7 @@ const MessageInput = ({
   disabled,
   onAttach,
   isEmpty = false,
-  resetSignal = 0,
+  draftSignal = 0,
   active = true,
   chatId = null,
   initialText = '',
@@ -35,9 +35,9 @@ const MessageInput = ({
   const [sending, setSending] = useState(false); // идёт разворачивание токенов перед отправкой
   const [pendingPhrase, setPendingPhrase] = useState(null); // { text, label } фразы, ждущей заполнения
   const inputRef = useRef(null);
-  // Чтобы эффект resetSignal не сработал на МОНТировании (resetSignal=0) и не стёр
+  // Чтобы эффект draftSignal не сработал на МОНТировании (draftSignal=0) и не стёр
   // только что восстановленный из localStorage черновик — пропускаем первый прогон.
-  const resetMountedRef = useRef(false);
+  const draftSignalMountedRef = useRef(false);
 
   // Смена чата — подставляем его черновик (или пусто). Текст набирается локально,
   // поэтому родитель не ре-рендерится на каждый keystroke; черновик приезжает только
@@ -53,16 +53,19 @@ const MessageInput = ({
     inputRef.current?.focus();
   }, [chatId]);
 
-  // Внешний сброс поля ввода (например, «удаление» черновика чата). Только на реальное
-  // изменение resetSignal, не на монтировании — иначе затрём восстановленный черновик.
+  // Черновик переписали снаружи — «удалением» черновика чата, вычисткой чипов
+  // прежнего проекта — и поле обязано показать новую версию: текст живёт здесь, и
+  // без этого правка осталась бы только в хранилище. Сигнал не несёт самого текста:
+  // хранилище уже обновлено, и родитель отдал его в initialText этим же рендером.
+  // Только на реальное изменение draftSignal, не на монтировании — иначе затрём
+  // восстановленный черновик.
   useEffect(() => {
-    if (!resetMountedRef.current) {
-      resetMountedRef.current = true;
+    if (!draftSignalMountedRef.current) {
+      draftSignalMountedRef.current = true;
       return;
     }
-    setText('');
-    onTextChange?.('');
-  }, [resetSignal]); // eslint-disable-line react-hooks/exhaustive-deps
+    setText(initialText);
+  }, [draftSignal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!disabled) inputRef.current?.focus();

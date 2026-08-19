@@ -19,6 +19,24 @@ const CLOSE = '⟧'; // ⟧
 // docref идёт перед doc, чтобы не срабатывал prefix-match при чтении.
 export const TOKEN_RE = new RegExp(`${OPEN}(?:file|ref|docref|doc|commit):[^${CLOSE}]+${CLOSE}`, 'g');
 
+// Токены, чей смысл задан репозиторием: путь есть в каждом проекте, хэш коммита —
+// ровно в одном, и после смены проекта чипы означают уже не то, что при вставке.
+// doc/docref сюда не входят: база знаний общая для всех проектов.
+const PROJECT_BOUND_RE = new RegExp(`${OPEN}(?:file|ref|commit):[^${CLOSE}]+${CLOSE}`, 'g');
+
+/** Сколько в тексте чипов, привязанных к репозиторию. */
+export function countProjectBoundTokens(text) {
+  return text ? [...text.matchAll(PROJECT_BOUND_RE)].length : 0;
+}
+
+/**
+ * Убрать из текста чипы прежнего проекта, не трогая остальное: набранное вокруг
+ * них — мысль пользователя, и правим мы только то, что смена проекта обессмыслила.
+ */
+export function dropProjectBoundTokens(text) {
+  return text ? text.replace(PROJECT_BOUND_RE, '') : text;
+}
+
 /** Токен «весь файл / диапазон». */
 export function makeToken(path, from, to) {
   return from != null && to != null ? `${OPEN}file:${path}#${from}-${to}${CLOSE}` : `${OPEN}file:${path}${CLOSE}`;
