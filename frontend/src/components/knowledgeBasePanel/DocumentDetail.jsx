@@ -27,14 +27,9 @@ const DocumentDetail = ({
 }) => {
   const { t } = useTranslation('knowledgeBase');
 
-  const handleRename = (id, name) => {
-    if (onRename) onRename(id, name);
-    if (onUpdate) onUpdate(id, { title: name });
-  };
-
   return (
     <div className="detail-panel">
-      <DetailHeader node={node} path={path} onNavigate={onNavigate} onRename={handleRename} onDelete={onDelete} />
+      <DetailHeader node={node} path={path} onNavigate={onNavigate} onRename={onRename} onDelete={onDelete} />
 
       <div className="detail-body">
         <MarkdownEditor
