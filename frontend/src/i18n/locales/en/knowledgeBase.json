@@ -25,7 +25,7 @@
   "detail": {
     "breadcrumb": "Path",
     "systemBadge": "System document: renaming and deletion are disabled",
-    "rename": "Rename",
+    "renameHint": "Click to rename",
     "delete": "Delete",
     "folderPlaceholder": "Folder description...",
     "docPlaceholder": "# Markdown content...",

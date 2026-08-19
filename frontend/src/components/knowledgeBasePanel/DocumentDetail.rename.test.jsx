@@ -29,9 +29,9 @@ describe('DocumentDetail: переименование', () => {
       />,
     );
 
-    await user.click(screen.getByTitle('detail.rename'));
-    await user.clear(container.querySelector('.inline-rename__input'));
-    await user.type(container.querySelector('.inline-rename__input'), 'Новое имя{Enter}');
+    await user.click(screen.getByText('Старое имя'));
+    await user.clear(container.querySelector('.detail-header__edit'));
+    await user.type(container.querySelector('.detail-header__edit'), 'Новое имя{Enter}');
 
     expect(onRename).toHaveBeenCalledTimes(1);
     expect(onRename).toHaveBeenCalledWith(7, 'Новое имя');

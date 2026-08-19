@@ -1,46 +1,14 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconFolder, IconDoc, IconEdit, IconTrash, IconCheck, IconX, IconLock, IconDownload } from '../../icons';
+import { IconFolder, IconDoc, IconTrash, IconLock, IconDownload } from '../../icons';
 import HeadCrumbs from '../common/HeadCrumbs';
 import documentsApi from '../../api/documentsApi';
-
-// ─── Inline rename ────────────────────────────────────────────────────────────
-
-const InlineRename = ({ value, onSave, onCancel }) => {
-  const [val, setVal] = useState(value);
-  const ref = useRef(null);
-  useEffect(() => {
-    ref.current?.focus();
-    ref.current?.select();
-  }, []);
-
-  return (
-    <span className="inline-rename workspace__head-edit">
-      <input
-        ref={ref}
-        className="inline-rename__input"
-        value={val}
-        onChange={(e) => setVal(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') onSave(val);
-          if (e.key === 'Escape') onCancel();
-        }}
-      />
-      <button className="icon-btn" onClick={() => onSave(val)}>
-        <IconCheck />
-      </button>
-      <button className="icon-btn" onClick={onCancel}>
-        <IconX />
-      </button>
-    </span>
-  );
-};
 
 // ─── DetailHeader ─────────────────────────────────────────────────────────────
 
 /**
  * Шапка открытого узла базы знаний: путь к нему, иконка типа, имя с
- * переименованием на месте и удаление.
+ * переименованием на месте (клик по имени, как в шапке чата) и удаление.
  *
  * Оболочка общая — .workspace__head (common/workspaceLayout.css), высота та же,
  * что у шапок боковых панелей, поэтому строка ровно одна. Отсюда убраны:
@@ -59,14 +27,28 @@ const InlineRename = ({ value, onSave, onCancel }) => {
  */
 const DetailHeader = ({ node, path, onNavigate, onRename, onDelete }) => {
   const { t } = useTranslation('knowledgeBase');
-  const [renaming, setRenaming] = useState(false);
+  // Черновик переименования храним вместе с id узла, которому он принадлежит:
+  // коммит идёт по blur и может прийти уже после смены выделения — переименовать
+  // надо тот узел, чьё имя правили.
+  const [editing, setEditing] = useState(null); // null | { id, draft }
+  // Отмена по Escape: blur после него приходит с уже устаревшим замыканием,
+  // поэтому флаг живёт в ref. Гасится в обработчике blur и ещё раз при начале
+  // новой правки — Escape уносит поле из DOM, и blur может не прийти.
+  const cancelRef = useRef(false);
   const isFolder = node.type === 'folder';
+
+  const commitRename = () => {
+    const cancelled = cancelRef.current;
+    cancelRef.current = false;
+    if (!cancelled && editing?.draft.trim()) onRename(editing.id, editing.draft.trim());
+    setEditing(null);
+  };
+
   // Системный узел не переименовать и не удалить — вместо кнопок замок,
-  // объясняющий, почему их нет. Во время правки имени кнопки тоже не нужны:
-  // подтверждение и отмена стоят в самом поле (InlineRename).
+  // объясняющий, почему их нет.
   // Скачивание — обычная ссылка, а не fetch: браузер сам стримит ответ в файл,
   // и содержимое папки не проходит через память вкладки.
-  const download = !renaming && (
+  const download = (
     <a
       className="icon-btn"
       href={documentsApi.downloadUrl(node.id)}
@@ -87,20 +69,9 @@ const DetailHeader = ({ node, path, onNavigate, onRename, onDelete }) => {
   ) : (
     <>
       {download}
-      {!renaming && (
-        <>
-          <button
-            className="icon-btn detail-header__rename-btn"
-            title={t('detail.rename')}
-            onClick={() => setRenaming(true)}
-          >
-            <IconEdit />
-          </button>
-          <button className="icon-btn" title={t('detail.delete')} onClick={() => onDelete(node.id)}>
-            <IconTrash />
-          </button>
-        </>
-      )}
+      <button className="icon-btn" title={t('detail.delete')} onClick={() => onDelete(node.id)}>
+        <IconTrash />
+      </button>
     </>
   );
 
@@ -118,17 +89,34 @@ const DetailHeader = ({ node, path, onNavigate, onRename, onDelete }) => {
         {isFolder ? <IconFolder size={15} /> : <IconDoc size={13} />}
       </span>
 
-      {renaming ? (
-        <InlineRename
-          value={node.title}
-          onSave={(name) => {
-            onRename(node.id, name);
-            setRenaming(false);
+      {editing ? (
+        <input
+          className="workspace__head-edit detail-header__edit"
+          value={editing.draft}
+          autoFocus
+          onChange={(e) => setEditing((ed) => (ed ? { ...ed, draft: e.target.value } : ed))}
+          onBlur={commitRename}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.target.blur();
+            if (e.key === 'Escape') {
+              cancelRef.current = true;
+              e.target.blur();
+            }
           }}
-          onCancel={() => setRenaming(false)}
         />
-      ) : (
+      ) : node.system ? (
         <h2 className="workspace__head-title">{node.title}</h2>
+      ) : (
+        <h2
+          className="workspace__head-title detail-header__title"
+          title={t('detail.renameHint')}
+          onClick={() => {
+            cancelRef.current = false;
+            setEditing({ id: node.id, draft: node.title });
+          }}
+        >
+          {node.title}
+        </h2>
       )}
 
       <div className="workspace__head-actions">{actions}</div>
