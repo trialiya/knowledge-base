@@ -53,6 +53,7 @@ public class ChatTopicService {
                                             null,
                                             null,
                                             null,
+                                            null,
                                             // перезаписывается аудитом
                                             // @CreatedDate/@LastModifiedDate перед вставкой
                                             LocalDateTime.now(),

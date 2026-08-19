@@ -19,8 +19,10 @@ import org.springframework.web.server.ResponseStatusException;
  * Read-only Git endpoints backing the chat composer's {@code /file} autocomplete and the file
  * browser panel.
  *
- * <p>These endpoints carry no project of their own yet, so they serve the default project (see
- * {@code GitRegistry}) — the same repository the tools read when a run names none.
+ * <p>Every endpoint takes an optional {@code project}: the panel showing a chat's repository asks
+ * for that chat's project, and a request that names none gets the default one (see {@link
+ * GitRegistry}) — the same repository the tools read when a run names no project. An unknown id is
+ * a 400 rather than a silent read of the wrong repository.
  *
  * <p>{@code GET /search} fuzzy-matches tracked file names for the picker; {@code GET /content}
  * returns a file (optionally a line range) so an inserted chip can be previewed and expanded into
@@ -34,21 +36,22 @@ import org.springframework.web.server.ResponseStatusException;
 @RequestMapping("/api/git")
 public class GitController {
 
-    private final GitService gitService;
+    private final GitRegistry gitRegistry;
 
     public GitController(GitRegistry gitRegistry) {
-        this.gitService = gitRegistry.defaultProject();
+        this.gitRegistry = gitRegistry;
     }
 
     /** Fuzzy file-name search for the composer picker, e.g. {@code ?q=mgi} → MessageInput. */
     @GetMapping("/files/search")
     public List<GitFileNode> searchFiles(
             @RequestParam("q") String query,
-            @RequestParam(name = "limit", defaultValue = "10") int limit) {
+            @RequestParam(name = "limit", defaultValue = "10") int limit,
+            @RequestParam(name = "project", required = false) @Nullable String project) {
         // Allow only letters (any script incl. Cyrillic), digits, dot, dash, underscore.
         String sanitized = query.replaceAll("[^\\p{L}\\p{N}_.\\-]", "");
         if (sanitized.isBlank()) return List.of();
-        return gitService.searchFiles(sanitized, limit);
+        return git(project).searchFiles(sanitized, limit);
     }
 
     /** File content for chip preview/expansion; {@code from}/{@code to} are 1-based inclusive. */
@@ -56,9 +59,10 @@ public class GitController {
     public GitFileContent getFileContent(
             @RequestParam("path") String path,
             @RequestParam(name = "from", required = false) @Nullable Integer from,
-            @RequestParam(name = "to", required = false) @Nullable Integer to) {
+            @RequestParam(name = "to", required = false) @Nullable Integer to,
+            @RequestParam(name = "project", required = false) @Nullable String project) {
         requireSafePath(path);
-        return gitService.getFileContent(path, from, to);
+        return git(project).getFileContent(path, from, to);
     }
 
     /**
@@ -69,11 +73,12 @@ public class GitController {
     @GetMapping("/commits")
     public List<GitCommit> getCommits(
             @RequestParam(name = "path", required = false) @Nullable String path,
-            @RequestParam(name = "limit", defaultValue = "20") int limit) {
+            @RequestParam(name = "limit", defaultValue = "20") int limit,
+            @RequestParam(name = "project", required = false) @Nullable String project) {
         if (path != null && !path.isBlank()) {
             requireSafePath(path);
         }
-        return gitService.getCommitLog(limit, path);
+        return git(project).getCommitLog(limit, path);
     }
 
     /**
@@ -84,10 +89,11 @@ public class GitController {
     @GetMapping("/commits/search")
     public List<GitCommit> searchCommits(
             @RequestParam("q") String query,
-            @RequestParam(name = "limit", defaultValue = "10") int limit) {
+            @RequestParam(name = "limit", defaultValue = "10") int limit,
+            @RequestParam(name = "project", required = false) @Nullable String project) {
         String sanitized = query.strip();
         if (sanitized.isBlank()) return List.of();
-        return gitService.searchCommits(sanitized, limit);
+        return git(project).searchCommits(sanitized, limit);
     }
 
     /**
@@ -102,11 +108,12 @@ public class GitController {
     @GetMapping("/browse")
     public GitPathView browse(
             @RequestParam(name = "path", required = false) @Nullable String path,
-            @RequestParam(name = "ancestors", defaultValue = "true") boolean ancestors) {
+            @RequestParam(name = "ancestors", defaultValue = "true") boolean ancestors,
+            @RequestParam(name = "project", required = false) @Nullable String project) {
         if (path != null && !path.isBlank()) {
             requireSafePath(path);
         }
-        return gitService.browsePath(path, ancestors);
+        return git(project).browsePath(path, ancestors);
     }
 
     /**
@@ -115,11 +122,24 @@ public class GitController {
      */
     @GetMapping("/tree")
     public List<GitFileNode> getTree(
-            @RequestParam(name = "path", required = false) @Nullable String path) {
+            @RequestParam(name = "path", required = false) @Nullable String path,
+            @RequestParam(name = "project", required = false) @Nullable String project) {
         if (path != null && !path.isBlank()) {
             requireSafePath(path);
         }
-        return gitService.getFileTree(path);
+        return git(project).getFileTree(path);
+    }
+
+    /**
+     * Репозиторий запрошенного проекта; без параметра — дефолтный. Неизвестный id — 400: открыть
+     * «тот же путь, но в другом репозитории» молча хуже, чем не открыть ничего.
+     */
+    private GitService git(@Nullable String project) {
+        try {
+            return gitRegistry.forProject(project);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
     }
 
     private static void requireSafePath(@Nullable String path) {

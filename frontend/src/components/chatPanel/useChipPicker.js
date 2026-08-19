@@ -19,7 +19,12 @@ const INITIAL = {
   type: 'file',
 };
 
-export default function useChipPicker() {
+/**
+ * @param project репозиторий активного чата — в нём и ищет `/file`. Обычный
+ *   параметр, а не зеркало в рефе: значение просто входит в зависимости
+ *   runSearch, иначе колбэк застрял бы на проекте, открытом при монтировании.
+ */
+export default function useChipPicker(project) {
   const [picker, setPicker] = useState(INITIAL);
   // Триггер, вокруг которого откроется список: узел, границы команды и тип.
   const triggerRef = useRef(null);
@@ -33,18 +38,21 @@ export default function useChipPicker() {
     setPicker((p) => (p.open ? { ...p, open: false, results: [], query: '' } : p));
   }, []);
 
-  const runSearch = useCallback((q, type) => {
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    setPicker((p) => ({ ...p, loading: true }));
-    TRIGGER_TYPES[type]
-      .search(q, controller.signal)
-      .then((data) => setPicker((p) => ({ ...p, loading: false, results: Array.isArray(data) ? data : [], idx: 0 })))
-      .catch((err) => {
-        if (err.name !== 'AbortError') setPicker((p) => ({ ...p, loading: false, results: [] }));
-      });
-  }, []);
+  const runSearch = useCallback(
+    (q, type) => {
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+      setPicker((p) => ({ ...p, loading: true }));
+      TRIGGER_TYPES[type]
+        .search(q, controller.signal, project)
+        .then((data) => setPicker((p) => ({ ...p, loading: false, results: Array.isArray(data) ? data : [], idx: 0 })))
+        .catch((err) => {
+          if (err.name !== 'AbortError') setPicker((p) => ({ ...p, loading: false, results: [] }));
+        });
+    },
+    [project],
+  );
 
   const detectTrigger = useCallback(() => {
     const sel = window.getSelection();

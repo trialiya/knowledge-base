@@ -15,6 +15,9 @@ import org.jspecify.annotations.Nullable;
  *     display what the assistant would have called it. {@code userTopic} itself isn't exposed:
  *     nothing needs it once {@code topic} and {@code aiTopic} disagree, that already means the user
  *     renamed the chat.
+ * @param project id of the project the chat runs its tools in. {@code null} — the chat never chose
+ *     one and rides the default (the first entry of {@code kb.projects}), which the selector learns
+ *     from {@code ProjectOptions.defaultProject}.
  * @param messages {@code null} for the metadata-only projection ({@code includeMessages=false} or
  *     the chat list), populated otherwise.
  */
@@ -25,6 +28,7 @@ public record Chat(
         @Nullable String aiTopic,
         @Nullable String model,
         @Nullable String mode,
+        @Nullable String project,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
         @Nullable List<ChatMessage> messages) {}

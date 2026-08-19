@@ -4,8 +4,9 @@ import { useTranslation } from 'react-i18next';
 // не должны пересоздаваться на смену языка, а зеркалить t в рефе — не за чем.
 import i18n from '../../i18n';
 import { STORAGE_KEY_ACTIVE_CHAT, DRAFT_CHAT_ID } from '../../constants/storage';
-import { getLastModel, getLastMode } from './lastChoiceStore';
+import { getLastModel, getLastMode, getLastProject } from './lastChoiceStore';
 import useModelConfig from './useModelConfig';
+import useProjectConfig from '../common/useProjectConfig';
 import useModeConfig from './useModeConfig';
 import useChatList from './useChatList';
 import useChatMessages from './useChatMessages';
@@ -69,6 +70,7 @@ const ChatWindow = ({
       messages: [],
       model: getLastModel(),
       mode: getLastMode() || null,
+      project: getLastProject(),
       draft: true,
     }),
     [],
@@ -79,6 +81,7 @@ const ChatWindow = ({
   // Конфиг моделей и режимов грузится один раз — вынесено в отдельные хуки.
   const { modelConfig, modelOptions } = useModelConfig();
   const { modeOptions } = useModeConfig();
+  const { projectOptions, defaultProjectId, ready: projectsReady } = useProjectConfig();
   // Bump → очистить текст в MessageInput («удаление» черновика).
   const [composerResetSignal, setComposerResetSignal] = useState(0);
   // Неотправленные черновики по чатам ({ chatId: text }, localStorage) — вынесено
@@ -104,6 +107,7 @@ const ChatWindow = ({
     renameChat,
     changeModel,
     changeMode,
+    changeProject,
     fetchAndUpdateTitle,
   } = useChatList({
     initialActiveChatId: activeChatId,
@@ -158,6 +162,8 @@ const ChatWindow = ({
     modelConfig,
     modelOptions,
     modeOptions,
+    projectOptions,
+    defaultProjectId,
     notify,
   });
 
@@ -233,6 +239,28 @@ const ChatWindow = ({
     return m && modeOptions.some((o) => o.id === m) ? m : '';
   }, [activeChat, modeOptions]);
 
+  // Проект, выбранный в селекторе: у чата → дефолтный. Отдельно — id, который у чата
+  // записан, но которого в конфиге больше нет: селектор показывает дефолт, а рядом
+  // должно стоять предупреждение, иначе подмена репозитория пройдёт незамеченной.
+  // Пока список не приехал, любой проект считаем известным: пустой список — это
+  // «ещё не знаем», а не «такого проекта нет», и на каждой загрузке страницы
+  // вспыхивало бы предупреждение о вполне живом проекте.
+  const chatProjectId = activeChat?.project ?? null;
+  const projectKnown = !chatProjectId || !projectsReady || projectOptions.some((o) => o.id === chatProjectId);
+  const selectedProjectId = projectKnown && chatProjectId ? chatProjectId : defaultProjectId || '';
+  const missingProjectId = projectKnown ? null : chatProjectId;
+  // Для адресов — только не-дефолтный проект: дефолтный в схеме не пишется, а
+  // пустое значение и означает его (см. urlScheme.filesUrl).
+  const projectInLinks = selectedProjectId && selectedProjectId !== defaultProjectId ? selectedProjectId : null;
+
+  // Правку сделал инструмент прогона — значит, в проекте этого чата: сбрасывать
+  // кэши файлов нужно именно там, иначе удар придётся по чужому репозиторию, в
+  // котором просто есть файл с тем же путём.
+  const handleFileChanged = useCallback(
+    (refs) => onFileChanged?.(refs, selectedProjectId),
+    [onFileChanged, selectedProjectId],
+  );
+
   // Чат считается пустым ТОЛЬКО когда сообщения уже загружены (messages !== null)
   // и среди них нет ни одного реального (с полем sender). Пока messages === null
   // (идёт загрузка старого чата), блок не показываем — иначе он мелькает.
@@ -296,7 +324,9 @@ const ChatWindow = ({
     onRunSettled: fetchAndUpdateTitle,
     reloadMessages: loadMessages,
     onDocChanged,
-    onFileChanged,
+    // Правку сделал инструмент этого прогона — значит, в проекте этого чата.
+    // Без проекта сброс кэша ударил бы по чужому репозиторию с тем же путём.
+    onFileChanged: handleFileChanged,
   });
 
   // Вложения активного чата: бейдж, скрепка в композере, чипы отложенных файлов.
@@ -351,6 +381,7 @@ const ChatWindow = ({
 
   const handleModelChange = useCallback((newId) => changeModel(activeChatId, newId), [activeChatId, changeModel]);
   const handleModeChange = useCallback((newId) => changeMode(activeChatId, newId), [activeChatId, changeMode]);
+  const handleProjectChange = useCallback((newId) => changeProject(activeChatId, newId), [activeChatId, changeProject]);
 
   // Подписи модели и режима для вкладки «Инфо»: в чате хранятся id, а показывать
   // осмысленно человекочитаемый label из конфига.
@@ -361,6 +392,15 @@ const ChatWindow = ({
   const selectedModeLabel = useMemo(
     () => modeOptions.find((o) => o.id === selectedModeId)?.label || null,
     [modeOptions, selectedModeId],
+  );
+  // Исчезнувший проект показываем самим id и говорим, что его больше нет: подписи
+  // для него уже нет, а «пусто» читалось бы как «проект не выбран».
+  const selectedProjectLabel = useMemo(
+    () =>
+      missingProjectId
+        ? t('project.goneValue', { id: missingProjectId })
+        : projectOptions.find((o) => o.id === selectedProjectId)?.label || null,
+    [missingProjectId, projectOptions, selectedProjectId, t],
   );
 
   // Мемо ниже держится на этом срезе, а не на самом activeChat: объект чата
@@ -397,6 +437,7 @@ const ChatWindow = ({
         infoChat,
         modelLabel: selectedModelLabel,
         modeLabel: selectedModeLabel,
+        projectLabel: selectedProjectLabel,
         attachmentCount: attachCount,
         onAttachmentCountChange: setAttachCount,
         attachmentsRefreshSignal: refreshSignal,
@@ -412,6 +453,7 @@ const ChatWindow = ({
       infoChat,
       selectedModelLabel,
       selectedModeLabel,
+      selectedProjectLabel,
     ],
   );
 
@@ -460,6 +502,14 @@ const ChatWindow = ({
               options: modeOptions,
               selected: selectedModeId,
               onChange: handleModeChange,
+            }}
+            project={{
+              options: projectOptions,
+              defaultId: defaultProjectId,
+              selected: selectedProjectId,
+              inLinks: projectInLinks,
+              missing: missingProjectId,
+              onChange: handleProjectChange,
             }}
             onRename={renameChat}
             onDelete={handleDeleteChat}

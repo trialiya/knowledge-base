@@ -149,11 +149,11 @@ kb:
   documents:
     export-path: ${DOCUMENTS_EXPORT_PATH}
     replace: true
-  # Repositories the assistant reads and (optionally) edits. Exactly ONE entry is supported for
-  # now and a second one fails startup (ProjectCatalog): nothing chooses between projects yet —
-  # not a chat, not an endpoint, not a link — so it would be configuration that does nothing.
-  # Everything downstream already addresses repositories by project id, and a caller that names
-  # none (every caller today) gets the first entry here.
+  # Repositories the assistant reads and (optionally) edits. Exactly ONE *enabled* entry is
+  # supported for now and a second one fails startup (ProjectCatalog): a chat picks its project
+  # and carries it to the tools, but a file link does not — /files?path=… names a path and no
+  # repository, so the same path would open the wrong file. A caller that names no project
+  # (a summary, a background job, a chat that never chose) gets the first entry here.
   projects:
     - id: default
       label: ${PROJECT_LABEL:Project}
@@ -162,6 +162,13 @@ kb:
       path: ${PROJECT_PATH:${kb.git.project-path:}}
       # Whether the edit tools may write to THIS repository; omitted — kb.git.edit-enabled below.
       # edit-enabled: false
+    # A second repository is prepared switched off: enabled: false keeps it out of the catalogue
+    # entirely — not opened, not listed, not routable — and out of the one-project count, so its
+    # block (and its mount) can land before the UI can tell two projects apart.
+    # - id: billing
+    #   label: Billing
+    #   path: /projects/billing
+    #   enabled: false
   git:
     # Default for kb.projects[].edit-enabled: expose file edit tools (createFile/editFile) to the
     # chat model. Default off — read-only. Even when true, the tools are withheld if the working

@@ -26,6 +26,12 @@ function contentOf(view, path) {
  *
  * Одиночный `/tree` остаётся для раскрытия каталога шевроном (ensureDir).
  *
+ * `project` — репозиторий, который показывает панель. Внутри жизни хука он
+ * постоянен: смену проекта FilesPanel делает перемонтированием (key), иначе
+ * пришлось бы по отдельности сбрасывать дерево, раскрытые узлы, содержимое,
+ * запросы в полёте и ключ ответа — пять сбросов вместо одного, и любой забытый
+ * показал бы файлы прежнего репозитория.
+ *
  * `refreshToken` — внешний сигнал «что-то в репозитории могло поменяться»
  * (правка файла инструментом чата, см. App.jsx): рост значения перезапускает
  * эффект открытия пути ниже, даже если сам `path` не изменился. Каталоги,
@@ -33,15 +39,15 @@ function contentOf(view, path) {
  * перезапрошены как недостающие; сам открытый путь всегда перезапрашивается
  * заново вне зависимости от кэша.
  */
-export default function useFileTree({ path, onPathChange, refreshToken }) {
-  const [treeCache, setTreeCache] = useState(readDirs);
+export default function useFileTree({ project, path, onPathChange, refreshToken }) {
+  const [treeCache, setTreeCache] = useState(() => readDirs(project));
   // Каталоги, которые тянет ensureDir (раскрытие шевроном). Предки открываемого
   // пути сюда не попадают — их спиннеры выводятся ниже из самого запроса.
   const [expandingDirs, setExpandingDirs] = useState(() => new Set());
   // Предков открываемого пути раскрываем сразу на монтировании, не дожидаясь
   // ответа: уровни, уже лежащие в кэше, отрисуются мгновенно.
   const [expanded, setExpanded] = useState(() => {
-    const stored = readExpanded();
+    const stored = readExpanded(project);
     ancestorsOf(path).forEach((dir) => stored.add(dir));
     return stored;
   });
@@ -50,13 +56,16 @@ export default function useFileTree({ path, onPathChange, refreshToken }) {
   const inFlightRef = useRef(new Map()); // dirPath -> Promise, dedups concurrent fetches
 
   // Кэш каталогов и раскрытые узлы переживают размонтирование панели.
-  const cacheDirs = useCallback((entries) => {
-    putDirs(entries);
-    setTreeCache((prev) => ({ ...prev, ...entries }));
-  }, []);
+  const cacheDirs = useCallback(
+    (entries) => {
+      putDirs(project, entries);
+      setTreeCache((prev) => ({ ...prev, ...entries }));
+    },
+    [project],
+  );
   useEffect(() => {
-    putExpanded(expanded);
-  }, [expanded]);
+    putExpanded(project, expanded);
+  }, [project, expanded]);
 
   const markLoading = useCallback((dirs, loading) => {
     if (dirs.length === 0) return;
@@ -71,7 +80,7 @@ export default function useFileTree({ path, onPathChange, refreshToken }) {
     (dirPath) => {
       // Спрашиваем сам кэш, а не состояние: `treeCache` — его снимок для
       // отрисовки, и зеркалить снимок обратно нечем.
-      const cached = readDir(dirPath);
+      const cached = readDir(project, dirPath);
       if (cached) return Promise.resolve(cached);
       if (inFlightRef.current.has(dirPath)) {
         return inFlightRef.current.get(dirPath);
@@ -82,7 +91,7 @@ export default function useFileTree({ path, onPathChange, refreshToken }) {
       // запрос. Промис отклоняется, и следующий ensureDir(dirPath) (повторный
       // клик по шеврону) увидит, что в кэше ничего нет, и запросит заново.
       const promise = gitApi
-        .getTree(dirPath)
+        .getTree(dirPath, { project })
         .then((nodes) => {
           cacheDirs({ [dirPath]: nodes });
           return nodes;
@@ -94,7 +103,7 @@ export default function useFileTree({ path, onPathChange, refreshToken }) {
       inFlightRef.current.set(dirPath, promise);
       return promise;
     },
-    [cacheDirs, markLoading],
+    [project, cacheDirs, markLoading],
   );
 
   const toggleExpand = useCallback(
@@ -153,11 +162,11 @@ export default function useFileTree({ path, onPathChange, refreshToken }) {
   // not-found, ошибка) — иначе в центре навсегда остаётся «Загрузка…».
   useEffect(() => {
     let cancelled = false;
-    const missing = ancestorsOf(path).filter((dir) => !readDir(dir));
+    const missing = ancestorsOf(path).filter((dir) => !readDir(project, dir));
 
     (async () => {
       try {
-        const view = await gitApi.browse(path, missing.length > 0);
+        const view = await gitApi.browse(path, { ancestors: missing.length > 0, project });
         if (cancelled) return;
 
         const levels = Object.fromEntries((view.tree ?? []).map((level) => [level.path, level.nodes]));
@@ -179,7 +188,7 @@ export default function useFileTree({ path, onPathChange, refreshToken }) {
     return () => {
       cancelled = true;
     };
-  }, [contentKey, path, cacheDirs]);
+  }, [contentKey, project, path, cacheDirs]);
 
   const selectNode = useCallback((node) => onPathChange(node.path), [onPathChange]);
 

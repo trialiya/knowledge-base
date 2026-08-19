@@ -1,4 +1,15 @@
-import { readDir, readDirs, readExpanded, putDirs, putExpanded, resetFileTreeCache } from './fileTreeStore';
+import {
+  readDir,
+  readDirs,
+  readExpanded,
+  putDirs,
+  putExpanded,
+  invalidatePath,
+  resetFileTreeCache,
+} from './fileTreeStore';
+
+/** Кэш разложен по проектам — тесты работают в одном. */
+const PROJECT = 'kb';
 
 /**
  * Регрессия: readDir зовётся не только при монтировании (как readDirs/
@@ -20,25 +31,56 @@ describe('fileTreeStore: TTL и expanded', () => {
   });
 
   it('протухание dirs, обнаруженное через readDir, не стирает expanded', () => {
-    putDirs({ a: [], 'a/b': [] });
-    putExpanded(new Set(['', 'a', 'a/b']));
+    putDirs(PROJECT, { a: [], 'a/b': [] });
+    putExpanded(PROJECT, new Set(['', 'a', 'a/b']));
 
     vi.advanceTimersByTime(61_000); // > TTL_MS, dirs не запрашивали
 
-    expect(readDir('a')).toBeUndefined(); // протух, кэш каталогов сброшен
-    putDirs({ a: [], 'a/b': [] }); // тут же перезапрошен и наполнен заново
+    expect(readDir(PROJECT, 'a')).toBeUndefined(); // протух, кэш каталогов сброшен
+    putDirs(PROJECT, { a: [], 'a/b': [] }); // тут же перезапрошен и наполнен заново
 
-    expect(Object.keys(readDirs())).toEqual(expect.arrayContaining(['a', 'a/b']));
-    expect([...readExpanded()]).toEqual(expect.arrayContaining(['', 'a', 'a/b']));
+    expect(Object.keys(readDirs(PROJECT))).toEqual(expect.arrayContaining(['a', 'a/b']));
+    expect([...readExpanded(PROJECT)]).toEqual(expect.arrayContaining(['', 'a', 'a/b']));
   });
 
   it('протухание, обнаруженное через readDirs/readExpanded на монтировании, всё ещё сбрасывает dirs', () => {
-    putDirs({ a: [] });
-    putExpanded(new Set(['', 'a']));
+    putDirs(PROJECT, { a: [] });
+    putExpanded(PROJECT, new Set(['', 'a']));
 
     vi.advanceTimersByTime(61_000);
 
-    expect(readDirs()).toEqual({});
-    expect([...readExpanded()]).toEqual(expect.arrayContaining(['', 'a']));
+    expect(readDirs(PROJECT)).toEqual({});
+    expect([...readExpanded(PROJECT)]).toEqual(expect.arrayContaining(['', 'a']));
+  });
+});
+
+/**
+ * Кэш каталогов — на проект. Общий на всех он показал бы дерево одного
+ * репозитория в другом: пути совпадают, и подмена выглядит как обычная выдача.
+ */
+describe('fileTreeStore: проекты не делят кэш', () => {
+  beforeEach(() => resetFileTreeCache());
+
+  it('листинги и раскрытые узлы разных проектов не пересекаются', () => {
+    putDirs('kb', { '': [{ path: 'kb.txt' }] });
+    putExpanded('kb', new Set(['', 'src']));
+
+    expect(readDir('billing', '')).toBeUndefined();
+    expect(readDirs('billing')).toEqual({});
+    expect([...readExpanded('billing')]).toEqual(['']);
+
+    putDirs('billing', { '': [{ path: 'billing.txt' }] });
+    expect(readDir('kb', '')).toEqual([{ path: 'kb.txt' }]);
+    expect(readDir('billing', '')).toEqual([{ path: 'billing.txt' }]);
+  });
+
+  it('сброс по правке файла бьёт только по своему проекту', () => {
+    putDirs('kb', { '': [], a: [] });
+    putDirs('billing', { '': [], a: [] });
+
+    invalidatePath('kb', 'a/new.txt');
+
+    expect(readDir('kb', 'a')).toBeUndefined();
+    expect(readDir('billing', 'a')).toEqual([]);
   });
 });

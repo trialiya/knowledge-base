@@ -25,7 +25,9 @@ public final class TestProjects {
     public static GitRegistry registry(Path repoDir, boolean editEnabled) {
         ProjectProperties properties =
                 new ProjectProperties(
-                        List.of(new ProjectOption(ID, null, repoDir.toString(), editEnabled)));
+                        List.of(
+                                new ProjectOption(
+                                        ID, null, repoDir.toString(), editEnabled, true)));
         return new GitRegistry(
                 new ProjectCatalog(properties, new GitProperties(null, false)),
                 new OutlineService());

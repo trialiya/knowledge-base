@@ -64,3 +64,20 @@ export function filesPath(path) {
   const encoded = encodeFilePath(path);
   return encoded ? `/files/${encoded}` : '/files';
 }
+
+/**
+ * Полный адрес файла со ссылки: путь плюс проект, если он не дефолтный.
+ *
+ * Проект — в query, хотя это и часть идентичности ресурса: сегментом его от
+ * каталога репозитория не отличить (`/files/docs/...` — это проект `docs` или
+ * папка `docs`?), а разбирать URL, дожидаясь списка проектов, значит не уметь
+ * прочитать адрес синхронно. В той же форме проект стоит и в markdown-ссылках,
+ * которые пишет модель (`/files?path=…&project=…`).
+ *
+ * Дефолтный проект не пишем — как и любое значение по умолчанию в этой схеме;
+ * адрес без проекта означает именно его.
+ */
+export function filesUrl(path, project) {
+  const base = filesPath(path);
+  return project ? `${base}?project=${encodeURIComponent(project)}` : base;
+}

@@ -48,7 +48,7 @@ function buildTriggerRegex(triggers) {
  * Описание типов триггеров. Каждый объект самодостаточен:
  *   triggers     — команды-синонимы (первая — каноническая, для UI/тестов)
  *   regex        — матч у каретки: (?:^|\s)(cmd1|cmd2)\s*(query)$, группа 1 = команда, группа 2 = query
- *   search       — (query, signal) → Promise<node[]>
+ *   search       — (query, signal, project) → Promise<node[]>; project — репозиторий чата
  *   refToken     — item → строка-токен «только ссылка»
  *   contentToken — item → строка-токен «с содержимым»
  */
@@ -57,7 +57,7 @@ export const TRIGGER_TYPES = {
     type: 'file',
     triggers: ['/file', '/файл'],
     regex: buildTriggerRegex(['/file', '/файл']),
-    search: (q, signal) => gitApi.searchFiles(q, 10, signal),
+    search: (q, signal, project) => gitApi.searchFiles(q, { limit: 10, project, signal }),
     refToken: (item) => makeRefToken(item.path),
     contentToken: (item) => makeToken(item.path),
   },

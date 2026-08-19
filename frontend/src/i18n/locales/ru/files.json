@@ -6,6 +6,9 @@
     "loading": "Загрузка…",
     "empty": "Пусто"
   },
+  "project": {
+    "aria": "Проект"
+  },
   "search": {
     "open": "Найти файл",
     "placeholder": "Найти файл…",

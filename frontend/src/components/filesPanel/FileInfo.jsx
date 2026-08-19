@@ -17,7 +17,7 @@ import { formatFileSize, formatDateTime } from '../../utils/formatting';
  * истории ушёл бы сначала за старым путём, а потом за новым — два `git log`
  * на каждый переход по дереву.
  */
-const FileInfo = ({ content, loading, path = '' }) => {
+const FileInfo = ({ content, loading, path = '', project }) => {
   const { t, i18n } = useTranslation('files');
 
   const type = content?.type;
@@ -26,7 +26,7 @@ const FileInfo = ({ content, loading, path = '' }) => {
   // нечего. Пока путь грузится, тип ещё неизвестен — и мы всё равно спрашиваем,
   // параллельно с содержимым: ждать ответа центра значило бы отложить `git log`
   // ещё на один round-trip, а промах (путь не существует) стоит пустой истории.
-  const { commit, loading: commitLoading, error: commitError } = useLastCommit(path, loading || known);
+  const { commit, loading: commitLoading, error: commitError } = useLastCommit(path, project, loading || known);
 
   if (loading) {
     return <p className="info-list__hint">{t('loading')}</p>;

@@ -4,7 +4,9 @@ import FileTree from './FileTree';
 import FileContent from './FileContent';
 import FileSearch from './FileSearch';
 import FileInfo from './FileInfo';
+import ProjectPicker from './ProjectPicker';
 import useFileTree from './useFileTree';
+import useProjectConfig from '../common/useProjectConfig';
 import WorkspaceLayout from '../common/WorkspaceLayout';
 import { IconInfo } from '../../icons';
 import { RIGHT_TAB } from '../../constants/rightTabs';
@@ -14,10 +16,23 @@ import './filesPanel.css';
  * GitHub-стиль просмотр репозитория: дерево слева, содержимое файла/каталога
  * в центре. Раскладка — общая (WorkspaceLayout); справа вкладка «Инфо»
  * (метаданные пути и последний коммит), как в чате и базе знаний.
+ *
+ * `project` — репозиторий, который показывает панель; приходит из адреса
+ * (пусто — дефолтный). Смена проекта — это перемонтирование всего содержимого
+ * (см. FilesPanelForProject ниже), а не набор сбросов состояния.
  */
-const FilesPanel = ({ path, onPathChange, refreshToken, panels }) => {
+const FilesPanelForProject = ({
+  project,
+  projectOptions,
+  path,
+  onPathChange,
+  onProjectChange,
+  refreshToken,
+  panels,
+}) => {
   const { t } = useTranslation('files');
   const { treeCache, loadingDirs, expanded, toggleExpand, content, contentLoading, selectNode } = useFileTree({
+    project,
     path,
     onPathChange,
     refreshToken,
@@ -29,10 +44,10 @@ const FilesPanel = ({ path, onPathChange, refreshToken, panels }) => {
         key: RIGHT_TAB.INFO,
         label: t('tabs.info'),
         icon: <IconInfo size={15} />,
-        content: <FileInfo content={content} loading={contentLoading} path={path} />,
+        content: <FileInfo content={content} loading={contentLoading} path={path} project={project} />,
       },
     ],
-    [t, content, contentLoading, path],
+    [t, content, contentLoading, path, project],
   );
 
   return (
@@ -41,7 +56,12 @@ const FilesPanel = ({ path, onPathChange, refreshToken, panels }) => {
       {...panels}
       left={{
         title: t('panel.tree'),
-        toolbar: <FileSearch onSelect={onPathChange} />,
+        // Единственный проект выбирать не из чего — селектор появляется со вторым.
+        action:
+          projectOptions.length > 1 ? (
+            <ProjectPicker value={project} options={projectOptions} onChange={onProjectChange} />
+          ) : null,
+        toolbar: <FileSearch project={project} onSelect={onPathChange} />,
         // Дерево прокручивает себя само (строки шире панели — нужен и
         // горизонтальный скролл), поэтому тело панели скролл не берёт.
         bodyScroll: false,
@@ -60,6 +80,47 @@ const FilesPanel = ({ path, onPathChange, refreshToken, panels }) => {
       }}
       center={<FileContent content={content} path={path} loading={contentLoading} onNavigate={onPathChange} />}
       right={rightTabs}
+    />
+  );
+};
+
+/**
+ * Смена проекта перемонтирует панель по `key`: дерево, раскрытые узлы,
+ * содержимое, запросы в полёте и ключ ответа — пять состояний, и любое забытое
+ * при сбросе показало бы файлы прежнего репозитория. Кэши при этом не теряются:
+ * они живут в модуле и разложены по проектам (fileTreeStore).
+ */
+const FilesPanel = ({ project, path, onPathChange, refreshToken, panels }) => {
+  const { projectOptions, defaultProjectId, ready } = useProjectConfig();
+  // Адрес без проекта означает дефолтный. Ждём ответа со списком: смонтироваться
+  // раньше — значит смонтироваться на пустом ключе и тут же перемонтироваться,
+  // то есть два запроса дерева, мигание и осиротевшая ветка кэша. Отказ запроса
+  // тоже считается ответом: тогда едем на «проект не назван», который бэкенд
+  // разрешает в дефолтный, — панель без списка проектов работать обязана.
+  if (!ready) return null;
+  // Проект из адреса сверяем со списком: сохранённая или присланная ссылка могла
+  // пережить и выключение проекта, и переименование id, а бэкенд на неизвестный
+  // отвечает 400 — панель показала бы одну ошибку вместо дерева, и починить адрес
+  // было бы негде, при одном проекте селектор скрыт. Уезжаем на дефолтный, как чат.
+  //
+  // Пустой список — это «списка нет» (запрос отказал, см. выше), а не «такого
+  // проекта нет»: судить по нему нельзя, иначе сбой запроса конфигурации молча
+  // подменял бы репозиторий в совершенно живом адресе.
+  const known = !project || projectOptions.length === 0 || projectOptions.some((o) => o.id === project);
+  const current = (known && project) || defaultProjectId || '';
+
+  return (
+    <FilesPanelForProject
+      key={current}
+      project={current}
+      projectOptions={projectOptions}
+      path={path}
+      onPathChange={onPathChange}
+      // Путь из одного репозитория в другом ничего не значит — уходим в корень.
+      // Дефолтный проект в адрес не пишем: пустое значение и означает его.
+      onProjectChange={(id) => onPathChange('', id === defaultProjectId ? '' : id)}
+      refreshToken={refreshToken}
+      panels={panels}
     />
   );
 };

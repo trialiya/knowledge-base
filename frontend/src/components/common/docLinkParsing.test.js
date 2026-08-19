@@ -57,3 +57,29 @@ describe('parseFileLink', () => {
     expect(parseFileLink('/?doc=70')).toBeNull();
   });
 });
+
+/**
+ * Проект — часть адреса файла: один и тот же путь есть в каждом репозитории, и
+ * ссылка, потерявшая проект, откроет файл, который всего лишь совпал путём.
+ */
+describe('parseFileLink: проект', () => {
+  it('читает проект в обеих формах ссылки', () => {
+    expect(parseFileLink('/files?path=a/B.java&project=kb')).toEqual({
+      project: 'kb',
+      path: 'a/B.java',
+      fromLine: null,
+      toLine: null,
+    });
+    expect(parseFileLink('/files/a/B.java?project=kb#L10-L20')).toEqual({
+      project: 'kb',
+      path: 'a/B.java',
+      fromLine: 10,
+      toLine: 20,
+    });
+  });
+
+  it('ссылка без проекта означает дефолтный — так написаны все старые', () => {
+    expect(parseFileLink('/files?path=a/B.java')?.project).toBeNull();
+    expect(parseFileLink('/files/a/B.java')?.project).toBeNull();
+  });
+});

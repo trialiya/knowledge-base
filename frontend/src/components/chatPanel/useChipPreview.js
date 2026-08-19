@@ -7,7 +7,7 @@
 import { useState, useCallback } from 'react';
 import { makeToken, makeRefToken, parseToken, baseName, fetchContent } from './fileChips';
 
-export default function useChipPreview({ chatId, onAfterToggle }) {
+export default function useChipPreview({ chatId, project, onAfterToggle }) {
   // { path, from, to, refOnly, rect, chipEl, data, loading, error } | null
   const [preview, setPreview] = useState(null);
 
@@ -24,20 +24,25 @@ export default function useChipPreview({ chatId, onAfterToggle }) {
   // Мягкое закрытие: только если что-то открыто (для пути input, без лишних ре-рендеров).
   const clear = useCallback(() => setPreview((pv) => (pv ? null : pv)), []);
 
-  const openFromChip = useCallback((chip) => {
-    const token = chip.dataset.token;
-    // Превью есть только у файловых чипов: у doc- и commit-чипов нечего показывать
-    // инлайн — их содержимое уже целиком в самом токене.
-    const parsed = parseToken(token);
-    if (!parsed) return;
-    const rect = chip.getBoundingClientRect();
-    setPreview({ ...parsed, rect, chipEl: chip, loading: !parsed.refOnly, data: null, error: false });
-    if (!parsed.refOnly) {
-      fetchContent(parsed.path, parsed.from, parsed.to)
-        .then((data) => setPreview((pv) => (pv && pv.path === parsed.path ? { ...pv, loading: false, data } : pv)))
-        .catch(() => setPreview((pv) => (pv && pv.path === parsed.path ? { ...pv, loading: false, error: true } : pv)));
-    }
-  }, []);
+  const openFromChip = useCallback(
+    (chip) => {
+      const token = chip.dataset.token;
+      // Превью есть только у файловых чипов: у doc- и commit-чипов нечего показывать
+      // инлайн — их содержимое уже целиком в самом токене.
+      const parsed = parseToken(token);
+      if (!parsed) return;
+      const rect = chip.getBoundingClientRect();
+      setPreview({ ...parsed, rect, chipEl: chip, loading: !parsed.refOnly, data: null, error: false });
+      if (!parsed.refOnly) {
+        fetchContent(parsed.path, { from: parsed.from, to: parsed.to, project })
+          .then((data) => setPreview((pv) => (pv && pv.path === parsed.path ? { ...pv, loading: false, data } : pv)))
+          .catch(() =>
+            setPreview((pv) => (pv && pv.path === parsed.path ? { ...pv, loading: false, error: true } : pv)),
+          );
+      }
+    },
+    [project],
+  );
 
   // Переключение чипа между режимами «содержимое» и «только путь».
   const toggleRef = useCallback(() => {

@@ -81,7 +81,7 @@ class ChatRuntimeShutdownTest {
     void cancelsRunsAndClosesSubscriptionsOnContextClosed() {
         runService = runService(Runnable::run);
         final SseEmitter emitter = events.subscribe(CONV, 0);
-        runService.start(CONV, USER, "привет", List.of(), null, false, "", "msg-1");
+        runService.start(CONV, USER, "привет", List.of(), options(), "msg-1");
 
         assertThat(runService.activeRunCount()).isEqualTo(1);
         assertThat(events.hubCount()).isEqualTo(1);
@@ -104,7 +104,7 @@ class ChatRuntimeShutdownTest {
     @Test
     void cancelsRunThatHasNotSubscribedYet() {
         runService = runService(deferred);
-        runService.start(CONV, USER, "привет", List.of(), null, false, "", "msg-1");
+        runService.start(CONV, USER, "привет", List.of(), options(), "msg-1");
 
         assertThat(runService.stopAll()).isEqualTo(1);
         assertThat(runService.activeRunCount()).isEqualTo(1); // задача ещё не стартовала
@@ -162,6 +162,12 @@ class ChatRuntimeShutdownTest {
                 events,
                 mock(ScriptGuideService.class),
                 mock(SystemPromptService.class),
+                mock(ProjectPromptService.class),
                 executor);
+    }
+
+    /** Дефолтные настройки прогона: модель/режим/проект не выбраны. */
+    private static ChatRunService.RunOptions options() {
+        return new ChatRunService.RunOptions(null, false, "", null);
     }
 }

@@ -53,6 +53,9 @@ const setHighlight = (name, ranges) => {
 
 const MessageList = ({
   conversationId,
+  // Проект чата в форме для адресов: null — дефолтный (см. ChatWindow.projectInLinks).
+  // Годится и для запросов: «проект не назван» бэкенд разрешает в тот же дефолтный.
+  project,
   messages,
   onNavigateToDoc,
   onLoadMore,
@@ -262,7 +265,7 @@ const MessageList = ({
               {groupEnd && groupToolCalls.length > 0 && (
                 <>
                   <DocChangeBlock toolCalls={groupToolCalls} onNavigateToDoc={onNavigateToDoc} />
-                  <FileChangeBlock toolCalls={groupToolCalls} />
+                  <FileChangeBlock toolCalls={groupToolCalls} project={project} />
                 </>
               )}
             </Fragment>

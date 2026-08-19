@@ -1,6 +1,6 @@
 package io.github.trialiya.kb.service;
 
-import static io.github.trialiya.kb.utils.ChatUtils.buildContext;
+import static io.github.trialiya.kb.utils.ChatUtils.context;
 
 import com.google.common.util.concurrent.Striped;
 import io.github.trialiya.kb.config.model.SummarizeProperties;
@@ -229,7 +229,7 @@ public class SummarizeService implements DisposableBean {
 
         return chatClient
                 .prompt(prompt.toString())
-                .toolContext(buildContext(conversationId))
+                .toolContext(context(conversationId).build())
                 .call()
                 .content();
     }

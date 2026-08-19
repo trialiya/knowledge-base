@@ -11,7 +11,8 @@ import documentsApi from '../../api/documentsApi';
 import FullscreenEditorModal from '../knowledgeBasePanel/FullscreenEditorModal';
 import { navigateToFile } from '../../fileNavigationBus';
 import { parseDocId, parseFileLink } from './docLinkParsing';
-import { docPath, filesPath } from '../../urlScheme';
+import useProjectConfig from './useProjectConfig';
+import { docPath, filesUrl } from '../../urlScheme';
 import { scrollToHeading } from './anchorScroll';
 import { TOOLTIP_WIDTH, TOOLTIP_GAP, TOOLTIP_HEIGHT_ESTIMATE } from '../../constants/ui';
 
@@ -81,10 +82,21 @@ const DocLinkTooltip = ({ href, children, tree = NO_TREE, onNavigate, ...rest })
   // всегда каноническая схема, независимо от того, в какой форме ссылка лежит в
   // markdown. Якорь раздела и диапазон строк файла сохраняем — они часть адреса.
   const docHref = isDocLink ? docPath(docId) + fragmentOf(href) : null;
-  const fileHref = isFileLink ? filesPath(fileLink.path) + lineHash(fileLink) : null;
+  // Два написания одного и того же проекта не должны разъезжаться. В АДРЕС идёт
+  // то, что назвала ссылка (дефолтный проект в схеме не пишется), а в ЗАПРОСЫ и
+  // ключи кэша — разрешённый id: сброс превью после правки файла приходит именно
+  // с ним, и ссылка без проекта иначе висела бы устаревшей весь TTL.
+  const fileProject = fileLink?.project ?? null;
+  const { defaultProjectId } = useProjectConfig();
+  const fileProjectResolved = fileProject ?? defaultProjectId;
+  const fileHref = isFileLink ? filesUrl(fileLink.path, fileProject) + lineHash(fileLink) : null;
 
   const { node, loading, error } = useDocPreview(docId, tree, visible && isDocLink);
-  const { file, loading: fileLoading, error: fileError } = useFilePreview(fileLink?.path, visible && isFileLink);
+  const {
+    file,
+    loading: fileLoading,
+    error: fileError,
+  } = useFilePreview(fileLink?.path, fileProjectResolved, visible && isFileLink);
 
   // ── Position ────────────────────────────────────────────────────────────
 
@@ -180,8 +192,8 @@ const DocLinkTooltip = ({ href, children, tree = NO_TREE, onNavigate, ...rest })
   const openInFilesPanel = useCallback(() => {
     clearTimeout(enterTimer.current);
     setVisible(false);
-    navigateToFile(fileLink?.path);
-  }, [fileLink]);
+    navigateToFile(fileLink?.path, fileProject);
+  }, [fileLink, fileProject]);
 
   // То же для fullscreen-превью документа, открываемого из тултипа. Узел
   // снимается в отдельный стейт, потому что node из useDocPreview обнуляется
@@ -204,25 +216,28 @@ const DocLinkTooltip = ({ href, children, tree = NO_TREE, onNavigate, ...rest })
       });
   }, []);
 
-  const openFileFullscreen = useCallback((f) => {
-    clearTimeout(enterTimer.current);
-    setVisible(false);
-    setFileFullscreenOpen(true);
-    setFileFullscreenPath(f.path);
-    setFileFullscreenLoading(true);
-    setFileFullscreenError(false);
-    setFileFullscreenNode(null);
-    gitApi
-      .getFileContent(f.path)
-      .then((full) => {
-        setFileFullscreenNode(full);
-        setFileFullscreenLoading(false);
-      })
-      .catch(() => {
-        setFileFullscreenError(true);
-        setFileFullscreenLoading(false);
-      });
-  }, []);
+  const openFileFullscreen = useCallback(
+    (f) => {
+      clearTimeout(enterTimer.current);
+      setVisible(false);
+      setFileFullscreenOpen(true);
+      setFileFullscreenPath(f.path);
+      setFileFullscreenLoading(true);
+      setFileFullscreenError(false);
+      setFileFullscreenNode(null);
+      gitApi
+        .getFileContent(f.path, { project: fileProjectResolved })
+        .then((full) => {
+          setFileFullscreenNode(full);
+          setFileFullscreenLoading(false);
+        })
+        .catch(() => {
+          setFileFullscreenError(true);
+          setFileFullscreenLoading(false);
+        });
+    },
+    [fileProjectResolved],
+  );
 
   // ── In-document anchor (#heading) ──────────────────────────────────────────
   // Scroll to the slugged heading within THIS rendered-markdown container.
@@ -301,6 +316,7 @@ const DocLinkTooltip = ({ href, children, tree = NO_TREE, onNavigate, ...rest })
         {filePreviewOpen && (
           <FilePreviewModal
             path={fileLink.path}
+            project={fileProject}
             fromLine={fileLink.fromLine}
             toLine={fileLink.toLine}
             onClose={() => setFilePreviewOpen(false)}

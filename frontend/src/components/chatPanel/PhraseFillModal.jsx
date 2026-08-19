@@ -23,7 +23,7 @@ import '../common/buttons.css';
  *   onSubmit    — (filledText) => void
  *   onCancel    — закрытие без подстановки
  */
-const PhraseFillModal = ({ phraseText, phraseLabel, onSubmit, onCancel }) => {
+const PhraseFillModal = ({ phraseText, phraseLabel, project, onSubmit, onCancel }) => {
   const { t } = useTranslation('chat');
   const fields = useMemo(() => parsePlaceholders(phraseText), [phraseText]);
   const parts = useMemo(() => splitPhrase(phraseText), [phraseText]);
@@ -69,6 +69,7 @@ const PhraseFillModal = ({ phraseText, phraseLabel, onSubmit, onCancel }) => {
                 {spec.kind === 'search' && (
                   <PlaceholderSearchField
                     spec={spec}
+                    project={project}
                     inputId={id}
                     selected={value ?? null}
                     onSelect={(item) => setValue(field.raw, item)}

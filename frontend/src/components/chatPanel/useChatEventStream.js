@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import i18n from '../../i18n';
 import { openChatEventStream } from '../../api/chatEvents';
 import { applyChatEvent } from './chatEventReducer';
@@ -81,6 +81,14 @@ export default function useChatEventStream({
   // прошлого прогона к новому хабу отношения не имеет.
   const [resyncTick, setResyncTick] = useState(0);
 
+  // Колбэки мутаций зовём только из эффекта, поэтому useEffectEvent: в зависимости они
+  // не входят (подписку нельзя пересоздавать на каждый чанк), но вызов обязан попадать
+  // в свежее замыкание. Замороженное на момент подписки сбрасывало бы кэши файлов по
+  // проекту, выбранному в чате ТОГДА, — то есть по чужому репозиторию, если проект чата
+  // с тех пор сменили (см. handleFileChanged в ChatWindow).
+  const fireDocChanged = useEffectEvent((refs) => onDocChanged?.(refs));
+  const fireFileChanged = useEffectEvent((refs) => onFileChanged?.(refs));
+
   useEffect(() => {
     const chatId = activeChatId;
     if (!chatId || chatId === DRAFT_CHAT_ID) return undefined;
@@ -96,8 +104,8 @@ export default function useChatEventStream({
 
     // Один вызов колбэка со ВСЕМ списком, а не по одному на tool call — см. JSDoc выше.
     const fireChangeRefs = ({ docRefs, fileRefs }) => {
-      if (docRefs.length > 0) onDocChanged?.(docRefs);
-      if (fileRefs.length > 0) onFileChanged?.(fileRefs);
+      if (docRefs.length > 0) fireDocChanged(docRefs);
+      if (fileRefs.length > 0) fireFileChanged(fileRefs);
     };
 
     // Прогон, который UI считает идущим, на бэке уже не тот (завершился или сменился

@@ -44,6 +44,10 @@ public interface ChatTopicRepository extends CrudRepository<ChatTopicEntity, Str
     @Query("UPDATE chat_topic SET mode = :mode WHERE conversation_id = :convId")
     void updateMode(@Param("convId") String convId, @Param("mode") @Nullable String mode);
 
+    @Modifying
+    @Query("UPDATE chat_topic SET project = :project WHERE conversation_id = :convId")
+    void updateProject(@Param("convId") String convId, @Param("project") @Nullable String project);
+
     /**
      * Чаты пользователя, чьё название содержит q (поиск по чатам). Ищет по отображаемому названию —
      * пользовательское имя, если задано, иначе предложенное ИИ (см. {@link

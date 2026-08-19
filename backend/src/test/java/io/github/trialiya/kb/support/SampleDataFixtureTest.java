@@ -45,6 +45,21 @@ class SampleDataFixtureTest {
     @Autowired private DocumentRepository documentRepo;
     @Autowired private ChatMessageRepository chatMessageRepo;
 
+    /**
+     * The chat names the project its tools ran in. Asserted because the column is nullable and the
+     * fixture would keep loading without it — the fixture is also manual-QA data, and a chat with
+     * no project shows the selector's fallback rather than a real selection.
+     */
+    @Test
+    void theFixtureChatNamesItsProject() {
+        assertThat(
+                        jdbc.queryForObject(
+                                "select project from chat_topic where conversation_id = ?",
+                                String.class,
+                                "c5dfa618-0ad2-4845-a976-ada46c50f9a4"))
+                .isEqualTo("default");
+    }
+
     @Test
     void loadsAllFixtureTables() {
         assertThat(jdbc.queryForObject("select count(*) from chat_topic", Integer.class))

@@ -18,6 +18,7 @@ export function buildChatTabs({
   infoChat,
   modelLabel,
   modeLabel,
+  projectLabel,
   attachmentCount,
   onAttachmentCountChange,
   attachmentsRefreshSignal,
@@ -29,7 +30,7 @@ export function buildChatTabs({
       key: RIGHT_TAB.INFO,
       label: t('tabs.info'),
       icon: <IconInfo size={16} />,
-      content: <ChatInfo chat={infoChat} modelLabel={modelLabel} modeLabel={modeLabel} />,
+      content: <ChatInfo chat={infoChat} modelLabel={modelLabel} modeLabel={modeLabel} projectLabel={projectLabel} />,
     },
     {
       key: RIGHT_TAB.ATTACHMENTS,

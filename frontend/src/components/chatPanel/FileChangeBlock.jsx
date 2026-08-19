@@ -8,7 +8,7 @@ import { fetchContent } from './fileChips';
 import { IconChevronDown } from '../../icons';
 import ModalShell from '../common/ModalShell';
 import { DiffLines, DiffStats } from './diffRender';
-import { filesPath } from '../../urlScheme';
+import { filesUrl } from '../../urlScheme';
 import './styles/doc-changes.css';
 import './styles/file-changes.css';
 
@@ -18,7 +18,7 @@ import './styles/file-changes.css';
  * diff'ами правок этого файла из данного ответа (diff приходит в resultMeta —
  * работает и в live-стриме, и после перезагрузки чата, как у DocChangeBlock).
  */
-const FileChangeBlock = ({ toolCalls }) => {
+const FileChangeBlock = ({ toolCalls, project }) => {
   const { t } = useTranslation('chat');
   const [target, setTarget] = useState(null); // { path, operation, additions, deletions, diffs } | null
   const [open, setOpen] = useState(false);
@@ -85,14 +85,14 @@ const FileChangeBlock = ({ toolCalls }) => {
           </button>
         ))}
 
-      {target && <FileDiffModal change={target} onClose={() => setTarget(null)} />}
+      {target && <FileDiffModal change={target} project={project} onClose={() => setTarget(null)} />}
     </div>
   );
 };
 
 const isMarkdownPath = (path) => /\.mdx?$/i.test(path || '');
 
-const FileDiffModal = ({ change, onClose }) => {
+const FileDiffModal = ({ change, project, onClose }) => {
   const { t } = useTranslation('chat');
   const isMd = isMarkdownPath(change.path);
   const [mdView, setMdView] = useState(false);
@@ -102,16 +102,16 @@ const FileDiffModal = ({ change, onClose }) => {
   // кадр с содержимым предыдущего.
   const [answer, setAnswer] = useState(null); // { content, error } | null
 
-  const [req, setReq] = useState({ path: change.path, showsContent });
-  if (req.path !== change.path || req.showsContent !== showsContent) {
-    setReq({ path: change.path, showsContent });
+  const [req, setReq] = useState({ path: change.path, project, showsContent });
+  if (req.path !== change.path || req.project !== project || req.showsContent !== showsContent) {
+    setReq({ path: change.path, project, showsContent });
     setAnswer(null);
   }
 
   useEffect(() => {
     if (!showsContent) return undefined;
     let cancelled = false;
-    fetchContent(change.path)
+    fetchContent(change.path, { project })
       .then((data) => {
         if (!cancelled) setAnswer({ content: data, error: false });
       })
@@ -121,7 +121,7 @@ const FileDiffModal = ({ change, onClose }) => {
     return () => {
       cancelled = true;
     };
-  }, [change.path, showsContent]);
+  }, [change.path, project, showsContent]);
 
   const loading = showsContent && answer === null;
   const content = answer?.content ?? null;
@@ -143,7 +143,7 @@ const FileDiffModal = ({ change, onClose }) => {
             {mdView ? '{ }' : '👁'}
           </button>
         )}
-        <a className="fcd-open-link" href={filesPath(change.path)} target="_blank" rel="noreferrer">
+        <a className="fcd-open-link" href={filesUrl(change.path, project)} target="_blank" rel="noreferrer">
           {t('fileChange.openFile')}
         </a>
         <button className="fcd-close" onClick={onClose} title={t('common:close')} type="button">

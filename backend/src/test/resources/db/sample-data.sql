@@ -43,8 +43,12 @@
 -- needs, matching the existing rows.
 
 -- ── chat_topic ────────────────────────────────────────────────────────────
-INSERT INTO chat_topic (conversation_id, "user", user_topic, ai_topic, model, created_at, updated_at) VALUES
-    ('c5dfa618-0ad2-4845-a976-ada46c50f9a4', 'admin', NULL, 'История коммитов backend/build.gradle', NULL, '2026-07-18 20:59:02.915088', '2026-07-18 21:01:19.071770');
+-- project — репозиторий, в котором работают инструменты этого чата. Стоит 'default':
+-- это id, который ProjectCatalog даёт конфигурации без kb.projects, то есть той самой,
+-- в которой фикстуру и гоняют вручную (PROJECT_PATH=. на h2-профиле). Чужой id здесь
+-- показывал бы предупреждение «проект недоступен» на каждом открытии чата.
+INSERT INTO chat_topic (conversation_id, "user", user_topic, ai_topic, model, project, created_at, updated_at) VALUES
+    ('c5dfa618-0ad2-4845-a976-ada46c50f9a4', 'admin', NULL, 'История коммитов backend/build.gradle', NULL, 'default', '2026-07-18 20:59:02.915088', '2026-07-18 21:01:19.071770');
 
 -- ── chat_message (captured conversation, position 1..16) ────────────────────
 INSERT INTO chat_message (id, conversation_id, content, created_at, position, summarized, summary, type, meta, tool_data) VALUES

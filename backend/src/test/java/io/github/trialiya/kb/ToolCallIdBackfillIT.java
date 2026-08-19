@@ -76,6 +76,7 @@ class ToolCallIdBackfillIT extends AbstractPostgresIntegrationTest {
                         "t",
                         null,
                         null,
+                        null,
                         LocalDateTime.now(),
                         LocalDateTime.now(),
                         true));

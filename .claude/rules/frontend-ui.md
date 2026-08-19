@@ -70,11 +70,15 @@ screen state**:
 
 ```
 /chat/<chatId>                   /knowledge/doc/<docId>
-/knowledge/search?q=&mode=       /files/<path/to/file>
+/knowledge/search?q=&mode=       /files/<path/to/file>?project=<id>
 /admin  /settings                (+ ?left=0 / ?right=<tab> anywhere)
 ```
 
-Only non-default values are written, so addresses stay short. Old query-form
+Only non-default values are written, so addresses stay short — the default
+project is one of them, so a `/files/...` address without `?project=` means it.
+The project is the one resource identifier that lives in the query: as a segment
+it is indistinguishable from a top-level repo directory, and resolving that would
+mean waiting for the project list before the address can be read at all. Old query-form
 links (`?view=`, `?doc=`, `?path=`, `?chat=`, `?tab=`) still open and are
 canonicalized on load — keep that fallback when touching `readUrl`. Panel toggles
 use `replaceState` (they are not navigation); real transitions use `pushState`.

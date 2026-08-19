@@ -14,6 +14,15 @@ const chatApi = {
   /** Готовые режимы ассистента: [{ id, label }]. «Без режима» на фронте — синтетический пункт. */
   getModes: () => request('/api/chats/modes'),
 
+  /**
+   * Проекты (репозитории), между которыми можно выбирать:
+   * { defaultProject, projects: [{ id, label }] }.
+   *
+   * Дефолтный назван явно, а не подразумевается первым: чат хранит project=null,
+   * пока пользователь ничего не выбирал, и селектору нужно знать, что подсветить.
+   */
+  getProjects: () => request('/api/chats/projects'),
+
   /** Список всех чатов. */
   listChats: () => request('/api/chats'),
 
@@ -91,6 +100,14 @@ const chatApi = {
       body: modeId || '',
     }),
 
+  /** Сменить проект чата. Тело — plain string ('' → вернуться к дефолтному). */
+  updateProject: (id, projectId) =>
+    request(`/api/chats/${enc(id)}/project`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+      body: projectId || '',
+    }),
+
   /**
    * Запустить генерацию ответа как фоновую задачу. Возвращает { runId, messageId }.
    * Сам ответ приходит не здесь, а потоком событий (chatEvents.js).
@@ -107,10 +124,11 @@ const chatApi = {
    * retry — повтор упавшего прогона: тела не передаём вовсе, ходом остаётся уже сохранённый
    * вопрос со своим контекстом. Если модель успела начать ответ, бэк отвечает 422.
    */
-  startRun: (id, text, { model, mode, clientMsgId, retry, contextItems } = {}) => {
+  startRun: (id, text, { model, mode, project, clientMsgId, retry, contextItems } = {}) => {
     const params = new URLSearchParams();
     if (model) params.set('model', model);
     if (mode) params.set('mode', mode);
+    if (project) params.set('project', project);
     if (clientMsgId) params.set('clientMsgId', clientMsgId);
     if (retry) params.set('retry', 'true');
     const qs = params.toString();

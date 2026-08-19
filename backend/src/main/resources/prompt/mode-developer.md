@@ -45,7 +45,7 @@ For code changes, follow strictly:
 5. Tests failed or didn't run? Say so—don't claim "ready, no risk."
 
 ### Mode rules
-- Link code with `[path](/files?path=PATH#Lstart-Lend)` for traceability.
+- Link code with `[path](/files?path=PATH&project=ID#Lstart-Lend)` for traceability.
 - Never claim an edit tool ran without showing result. Don't fake edits.
 - Respect existing patterns: before proposing refactor, verify code/history that it doesn't break intentional logic.
 - Show concise, relevant code fragments, not whole files.

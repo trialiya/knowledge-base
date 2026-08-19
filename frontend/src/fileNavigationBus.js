@@ -27,6 +27,11 @@ export function registerFileNavigator(fn) {
   };
 }
 
-export function navigateToFile(path) {
-  navigator?.(path);
+/**
+ * @param project репозиторий пути; переход по ссылке из чата обязан открыть файл
+ *   ИМЕННО в том проекте, который назвала ссылка, переключив панель. Не назван —
+ *   дефолтный (так выглядит любая ссылка, написанная до появления проектов).
+ */
+export function navigateToFile(path, project) {
+  navigator?.(path, project);
 }

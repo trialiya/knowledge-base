@@ -1,4 +1,4 @@
-import { STORAGE_KEY_LAST_MODEL, STORAGE_KEY_LAST_MODE } from '../../constants/storage';
+import { STORAGE_KEY_LAST_MODEL, STORAGE_KEY_LAST_MODE, STORAGE_KEY_LAST_PROJECT } from '../../constants/storage';
 
 // ─── Модель и режим последней отправки ──────────────────────────────────────
 // Ими стартует новый чат и подстраховывается отправка, когда у чата своих не
@@ -11,6 +11,7 @@ import { STORAGE_KEY_LAST_MODEL, STORAGE_KEY_LAST_MODE } from '../../constants/s
 
 let lastModel = read(STORAGE_KEY_LAST_MODEL) || null;
 let lastMode = read(STORAGE_KEY_LAST_MODE) || '';
+let lastProject = read(STORAGE_KEY_LAST_PROJECT) || null;
 
 function read(key) {
   try {
@@ -46,4 +47,14 @@ export function getLastMode() {
 export function setLastMode(mode) {
   lastMode = mode || '';
   write(STORAGE_KEY_LAST_MODE, lastMode);
+}
+
+/** Проект последней отправки; null — отправок ещё не было. */
+export function getLastProject() {
+  return lastProject;
+}
+
+export function setLastProject(project) {
+  lastProject = project || null;
+  write(STORAGE_KEY_LAST_PROJECT, lastProject || '');
 }

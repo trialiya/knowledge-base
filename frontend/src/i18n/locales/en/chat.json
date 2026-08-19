@@ -32,6 +32,7 @@
     "updated": "Last change",
     "model": "Model",
     "mode": "Mode",
+    "project": "Project",
     "id": "ID",
     "draftNote": "Draft: the chat is created on the server with the first message."
   },
@@ -324,6 +325,13 @@
   "mode": {
     "aria": "Mode",
     "none": "No mode"
+  },
+  "project": {
+    "aria": "Project",
+    "default": "default",
+    "gone": "project \u201c{{id}}\u201d is unavailable",
+    "goneHint": "Project \u201c{{id}}\u201d is no longer configured on the server \u2014 answers will use the default project. Pick a project again.",
+    "goneValue": "{{id}} \u2014 no longer available"
   },
   "contextItems": {
     "staged": "Attached to this message",

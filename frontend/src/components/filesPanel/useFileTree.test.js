@@ -1,6 +1,9 @@
 import { renderHook, waitFor, act } from '@testing-library/react';
 import useFileTree from './useFileTree';
 import { resetFileTreeCache, invalidatePath } from './fileTreeStore';
+
+/** Панель всегда смотрит в один проект — его и передаём хуку. */
+const PROJECT = 'kb';
 import gitApi from '../../api/gitApi';
 
 vi.mock('../../api/gitApi');
@@ -36,14 +39,14 @@ describe('useFileTree', () => {
   test('opens a deep-linked path with a single request and expands its ancestors', async () => {
     gitApi.browse.mockResolvedValue(fileView());
 
-    const { result } = renderHook(() => useFileTree({ path: 'a/b/c.txt', onPathChange: vi.fn() }));
+    const { result } = renderHook(() => useFileTree({ project: PROJECT, path: 'a/b/c.txt', onPathChange: vi.fn() }));
 
     await waitFor(() => expect(result.current.contentLoading).toBe(false));
 
     // Раньше на каждый уровень вложенности уходил свой /tree, и только потом
     // запрос содержимого — здесь всё приходит одним ответом.
     expect(gitApi.browse).toHaveBeenCalledTimes(1);
-    expect(gitApi.browse).toHaveBeenCalledWith('a/b/c.txt', true);
+    expect(gitApi.browse).toHaveBeenCalledWith('a/b/c.txt', { ancestors: true, project: PROJECT });
     expect(gitApi.getTree).not.toHaveBeenCalled();
     expect(gitApi.getFileContent).not.toHaveBeenCalled();
 
@@ -70,7 +73,7 @@ describe('useFileTree', () => {
       ],
     });
 
-    const { result } = renderHook(() => useFileTree({ path: 'a/b', onPathChange: vi.fn() }));
+    const { result } = renderHook(() => useFileTree({ project: PROJECT, path: 'a/b', onPathChange: vi.fn() }));
     await waitFor(() => expect(result.current.contentLoading).toBe(false));
 
     expect(result.current.content).toEqual({ type: 'directory', path: 'a/b', nodes: [nodeC] });
@@ -82,7 +85,7 @@ describe('useFileTree', () => {
   test('a missing path resolves to not-found instead of an error', async () => {
     gitApi.browse.mockResolvedValue({ path: 'a/gone.txt', type: 'missing', file: null, nodes: null, tree: [] });
 
-    const { result } = renderHook(() => useFileTree({ path: 'a/gone.txt', onPathChange: vi.fn() }));
+    const { result } = renderHook(() => useFileTree({ project: PROJECT, path: 'a/gone.txt', onPathChange: vi.fn() }));
     await waitFor(() => expect(result.current.contentLoading).toBe(false));
 
     expect(result.current.content).toEqual({ type: 'not-found', path: 'a/gone.txt' });
@@ -90,9 +93,12 @@ describe('useFileTree', () => {
 
   test('already-cached ancestors are not requested again on the next navigation', async () => {
     gitApi.browse.mockResolvedValue(fileView());
-    const { result, rerender } = renderHook(({ path }) => useFileTree({ path, onPathChange: vi.fn() }), {
-      initialProps: { path: 'a/b/c.txt' },
-    });
+    const { result, rerender } = renderHook(
+      ({ path }) => useFileTree({ project: PROJECT, path, onPathChange: vi.fn() }),
+      {
+        initialProps: { path: 'a/b/c.txt' },
+      },
+    );
     await waitFor(() => expect(result.current.contentLoading).toBe(false));
 
     gitApi.browse.mockResolvedValue({
@@ -105,25 +111,25 @@ describe('useFileTree', () => {
     rerender({ path: 'a/b/d.txt' });
     await waitFor(() => expect(result.current.content?.path).toBe('a/b/d.txt'));
 
-    expect(gitApi.browse).toHaveBeenLastCalledWith('a/b/d.txt', false);
+    expect(gitApi.browse).toHaveBeenLastCalledWith('a/b/d.txt', { ancestors: false, project: PROJECT });
     // Дерево от прошлого пути никуда не делось.
     expect(result.current.treeCache['a/b']).toEqual([nodeC]);
   });
 
   test('the tree cache survives unmounting the panel (leaving the section and coming back)', async () => {
     gitApi.browse.mockResolvedValue(fileView());
-    const first = renderHook(() => useFileTree({ path: 'a/b/c.txt', onPathChange: vi.fn() }));
+    const first = renderHook(() => useFileTree({ project: PROJECT, path: 'a/b/c.txt', onPathChange: vi.fn() }));
     await waitFor(() => expect(first.result.current.contentLoading).toBe(false));
     first.unmount();
 
     gitApi.browse.mockResolvedValue(fileView(false));
-    const second = renderHook(() => useFileTree({ path: 'a/b/c.txt', onPathChange: vi.fn() }));
+    const second = renderHook(() => useFileTree({ project: PROJECT, path: 'a/b/c.txt', onPathChange: vi.fn() }));
 
     // Дерево нарисовано ещё до ответа — из модульного кэша.
     expect(second.result.current.treeCache['a/b']).toEqual([nodeC]);
     expect(second.result.current.expanded.has('a/b')).toBe(true);
     await waitFor(() => expect(second.result.current.contentLoading).toBe(false));
-    expect(gitApi.browse).toHaveBeenLastCalledWith('a/b/c.txt', false);
+    expect(gitApi.browse).toHaveBeenLastCalledWith('a/b/c.txt', { ancestors: false, project: PROJECT });
   });
 
   test('a shared ancestor does not flicker when a second navigation starts before the first resolves', async () => {
@@ -137,9 +143,12 @@ describe('useFileTree', () => {
     });
     gitApi.browse.mockImplementationOnce(() => firstPromise).mockImplementationOnce(() => secondPromise);
 
-    const { result, rerender } = renderHook(({ path }) => useFileTree({ path, onPathChange: vi.fn() }), {
-      initialProps: { path: 'a/b/c.txt' },
-    });
+    const { result, rerender } = renderHook(
+      ({ path }) => useFileTree({ project: PROJECT, path, onPathChange: vi.fn() }),
+      {
+        initialProps: { path: 'a/b/c.txt' },
+      },
+    );
     await waitFor(() => expect(gitApi.browse).toHaveBeenCalledTimes(1));
 
     // Second navigation to a sibling file (same ancestors) fires before the
@@ -187,7 +196,7 @@ describe('useFileTree', () => {
     gitApi.browse.mockResolvedValue({ path: '', type: 'directory', file: null, nodes: [], tree: [] });
     gitApi.getTree.mockRejectedValue(new Error('boom'));
 
-    const { result } = renderHook(() => useFileTree({ path: '', onPathChange: vi.fn() }));
+    const { result } = renderHook(() => useFileTree({ project: PROJECT, path: '', onPathChange: vi.fn() }));
     await waitFor(() => expect(result.current.contentLoading).toBe(false));
 
     act(() => result.current.toggleExpand('broken'));
@@ -210,28 +219,28 @@ describe('useFileTree', () => {
 
   test('invalidatePath evicts an already-cached ancestor, so the next mount re-fetches it', async () => {
     gitApi.browse.mockResolvedValue(fileView());
-    const first = renderHook(() => useFileTree({ path: 'a/b/c.txt', onPathChange: vi.fn() }));
+    const first = renderHook(() => useFileTree({ project: PROJECT, path: 'a/b/c.txt', onPathChange: vi.fn() }));
     await waitFor(() => expect(first.result.current.contentLoading).toBe(false));
     expect(first.result.current.treeCache['a/b']).toEqual([nodeC]);
     first.unmount();
 
     // A chat-driven edit under 'a/b' invalidates that directory (and its
     // ancestors) from outside React, same as App.jsx does on a file mutation.
-    invalidatePath('a/b/new.txt');
+    invalidatePath(PROJECT, 'a/b/new.txt');
 
     gitApi.browse.mockResolvedValue(fileView(false));
-    const second = renderHook(() => useFileTree({ path: 'a/b/c.txt', onPathChange: vi.fn() }));
+    const second = renderHook(() => useFileTree({ project: PROJECT, path: 'a/b/c.txt', onPathChange: vi.fn() }));
     await waitFor(() => expect(second.result.current.contentLoading).toBe(false));
 
     // Unlike the "survives unmounting" test above, 'a/b' was evicted, so this
     // mount must ask the server for ancestors again instead of trusting cache.
-    expect(gitApi.browse).toHaveBeenLastCalledWith('a/b/c.txt', true);
+    expect(gitApi.browse).toHaveBeenLastCalledWith('a/b/c.txt', { ancestors: true, project: PROJECT });
   });
 
   test('bumping refreshToken re-fetches the currently open path even though it did not change', async () => {
     gitApi.browse.mockResolvedValue(fileView());
     const { result, rerender } = renderHook(
-      ({ refreshToken }) => useFileTree({ path: 'a/b/c.txt', onPathChange: vi.fn(), refreshToken }),
+      ({ refreshToken }) => useFileTree({ project: PROJECT, path: 'a/b/c.txt', onPathChange: vi.fn(), refreshToken }),
       { initialProps: { refreshToken: 0 } },
     );
     await waitFor(() => expect(result.current.contentLoading).toBe(false));

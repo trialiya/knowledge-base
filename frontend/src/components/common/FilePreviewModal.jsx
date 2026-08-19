@@ -17,23 +17,23 @@ import { IconX } from '../../icons';
  *   fromLine, toLine  — optional 1-based inclusive line range (from a `#Lx-Ly` link anchor)
  *   onClose           — () => void
  */
-const FilePreviewModal = ({ path, fromLine, toLine, onClose }) => {
+const FilePreviewModal = ({ path, project, fromLine, toLine, onClose }) => {
   const { t } = useTranslation('files');
   // Ответ сервера; null — запрос ещё идёт. Отдельного `loading` нет: он выводится
   // из ответа, а сброс на смену файла делается в рендере, чтобы кадра с
   // содержимым предыдущего файла не было.
   const [answer, setAnswer] = useState(null); // { file, error } | null
 
-  const [req, setReq] = useState({ path, fromLine, toLine });
-  if (req.path !== path || req.fromLine !== fromLine || req.toLine !== toLine) {
-    setReq({ path, fromLine, toLine });
+  const [req, setReq] = useState({ path, project, fromLine, toLine });
+  if (req.path !== path || req.project !== project || req.fromLine !== fromLine || req.toLine !== toLine) {
+    setReq({ path, project, fromLine, toLine });
     setAnswer(null);
   }
 
   useEffect(() => {
     let cancelled = false;
     gitApi
-      .getFileContent(path, fromLine, toLine)
+      .getFileContent(path, { from: fromLine, to: toLine, project })
       .then((result) => {
         if (!cancelled) setAnswer({ file: result, error: false });
       })
@@ -43,7 +43,7 @@ const FilePreviewModal = ({ path, fromLine, toLine, onClose }) => {
     return () => {
       cancelled = true;
     };
-  }, [path, fromLine, toLine]);
+  }, [path, project, fromLine, toLine]);
 
   const loading = answer === null;
   const file = answer?.file ?? null;
