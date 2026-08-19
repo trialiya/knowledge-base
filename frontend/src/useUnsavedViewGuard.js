@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { isEditorDirty } from './components/knowledgeBasePanel/editorDirtyStore';
+import { isEditorDirty } from './components/knowledgeBasePanel/editor/editorDirtyStore';
 
 /**
  * Предупреждение о несохранённых правках при уходе из базы знаний в любой другой

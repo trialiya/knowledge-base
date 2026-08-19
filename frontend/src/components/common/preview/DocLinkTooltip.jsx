@@ -8,7 +8,7 @@ import FileFullscreenModal from './FileFullscreenModal';
 import FilePreviewModal from './FilePreviewModal';
 import gitApi from '../../../api/gitApi';
 import documentsApi from '../../../api/documentsApi';
-import FullscreenEditorModal from '../../knowledgeBasePanel/FullscreenEditorModal';
+import FullscreenEditorModal from '../../knowledgeBasePanel/editor/FullscreenEditorModal';
 import { navigateToFile } from '../../../fileNavigationBus';
 import { parseDocId, parseFileLink } from './docLinkParsing';
 import useProjectConfig from '../config/useProjectConfig';

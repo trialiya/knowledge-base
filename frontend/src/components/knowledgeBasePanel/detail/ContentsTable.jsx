@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { IconFolder, IconDoc } from '../../icons';
-import { makeSnippet } from '../common/ui/utils';
-import { KB_PAGE_SIZE as PAGE_SIZE } from '../../constants/pagination';
+import { IconFolder, IconDoc } from '../../../icons/index';
+import { makeSnippet } from '../../common/ui/utils';
+import { KB_PAGE_SIZE as PAGE_SIZE } from '../../../constants/pagination';
 
 const ContentsTable = ({ items, onNavigate }) => {
   const { t, i18n } = useTranslation('knowledgeBase');

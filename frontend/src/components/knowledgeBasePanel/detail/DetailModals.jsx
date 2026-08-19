@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import FullscreenEditorModal from './FullscreenEditorModal';
-import HistoryModal from './HistoryModal';
+import FullscreenEditorModal from '../editor/FullscreenEditorModal';
+import HistoryModal from '../modals/HistoryModal';
 
 /**
  * The fullscreen-editor + history modal tail shared verbatim by FolderDetail

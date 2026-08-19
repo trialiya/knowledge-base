@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconFolder, IconDoc, IconChevron, IconLock, IconDragHandle, IconTrash } from '../../icons';
-import { findNodeById } from '../common/ui/utils';
-import { KB_PAGE_SIZE as PAGE_SIZE } from '../../constants/pagination';
+import { IconFolder, IconDoc, IconChevron, IconLock, IconDragHandle, IconTrash } from '../../../icons/index';
+import { findNodeById } from '../../common/ui/utils';
+import { KB_PAGE_SIZE as PAGE_SIZE } from '../../../constants/pagination';
 
 /*
  * Shared module-level drag state.

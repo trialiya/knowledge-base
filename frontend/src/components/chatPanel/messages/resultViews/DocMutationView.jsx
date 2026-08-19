@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import HistoryModal from '../../../knowledgeBasePanel/HistoryModal';
+import HistoryModal from '../../../knowledgeBasePanel/modals/HistoryModal';
 import { formatFieldValue } from './fieldValue';
 
 // Режим «Обзор» для формы «мутация документа»: карточка правки со ссылкой в

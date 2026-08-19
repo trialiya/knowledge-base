@@ -1,10 +1,10 @@
 import AiSummarySection from './AiSummarySection';
 import ContentsTable from './ContentsTable';
 import DetailInfo from './DetailInfo';
-import AttachmentPanel from '../common/attachments/AttachmentPanel';
-import { IconSparkle, IconPaperclip, IconList, IconInfo } from '../../icons';
-import { DOC_TAB } from '../../constants/docTabs';
-import { OWNER_TYPE } from '../../constants/ownerType';
+import AttachmentPanel from '../../common/attachments/AttachmentPanel';
+import { IconSparkle, IconPaperclip, IconList, IconInfo } from '../../../icons/index';
+import { DOC_TAB } from '../../../constants/docTabs';
+import { OWNER_TYPE } from '../../../constants/ownerType';
 
 /**
  * Вкладки правой панели для выбранного узла базы знаний.

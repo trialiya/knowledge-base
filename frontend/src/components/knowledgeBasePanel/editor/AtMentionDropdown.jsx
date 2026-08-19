@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconFolder, IconDoc } from '../../icons';
+import { IconFolder, IconDoc } from '../../../icons/index';
 
 /**
  * Floating dropdown that renders document search results for @mention.

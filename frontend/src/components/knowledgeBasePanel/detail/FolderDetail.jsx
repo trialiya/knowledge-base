@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import DetailHeader from './DetailHeader';
-import MarkdownEditor from './MarkdownEditor';
+import MarkdownEditor from '../editor/MarkdownEditor';
 
 /**
  * Центр раздела «База знаний» для папки: шапка и редактор её описания.

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import HistoryModal from '../../knowledgeBasePanel/HistoryModal';
+import HistoryModal from '../../knowledgeBasePanel/modals/HistoryModal';
 import { getDocChangeRef } from './toolMeta';
 import { TOOL_STATUS } from '../../../constants/toolStatus';
 import { IconChevronDown } from '../../../icons';

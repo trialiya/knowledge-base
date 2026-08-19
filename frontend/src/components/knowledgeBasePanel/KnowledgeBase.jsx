@@ -2,25 +2,25 @@ import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import './KnowledgeBase.css';
 
-import TreeNode from './TreeNode';
-import TreeSearch from './TreeSearch';
-import FolderDetail from './FolderDetail';
-import DocumentDetail from './DocumentDetail';
-import DetailModals from './DetailModals';
-import AddModal from './AddModal';
-import MoveConfirmModal from './MoveConfirmModal';
+import TreeNode from './tree/TreeNode';
+import TreeSearch from './tree/TreeSearch';
+import FolderDetail from './detail/FolderDetail';
+import DocumentDetail from './detail/DocumentDetail';
+import DetailModals from './detail/DetailModals';
+import AddModal from './modals/AddModal';
+import MoveConfirmModal from './modals/MoveConfirmModal';
 import ConfirmModal from '../common/modal/ConfirmModal';
-import SearchResults from './SearchResults';
+import SearchResults from './tree/SearchResults';
 import ErrorModal from '../common/modal/ErrorModal';
 import WorkspaceLayout from '../common/layout/WorkspaceLayout';
 import { IconPlus } from '../../icons';
 import { OWNER_TYPE } from '../../constants/ownerType';
 import useListNavigation from '../common/search/useListNavigation';
 import useKnowledgeBase from './useKnowledgeBase';
-import useDetailPanel from './useDetailPanel';
+import useDetailPanel from './detail/useDetailPanel';
 import useAttachmentCount from '../common/attachments/useAttachmentCount';
-import useFolderChildren from './useFolderChildren';
-import { buildDetailTabs } from './detailSidebar';
+import useFolderChildren from './tree/useFolderChildren';
+import { buildDetailTabs } from './detail/detailSidebar';
 
 const KnowledgeBase = ({
   docId,

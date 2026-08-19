@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { diffLines } from 'diff';
-import MarkdownEditor from './MarkdownEditor';
-import api from '../../api/documentsApi';
-import ModalShell from '../common/modal/ModalShell';
-import { IconX } from '../../icons';
+import MarkdownEditor from '../editor/MarkdownEditor';
+import api from '../../../api/documentsApi';
+import ModalShell from '../../common/modal/ModalShell';
+import { IconX } from '../../../icons/index';
 
 /**
  * Полноэкранная панель истории изменений описания документа.
