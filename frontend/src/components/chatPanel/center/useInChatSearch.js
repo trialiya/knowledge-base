@@ -7,8 +7,8 @@
 // (см. MessageList: именно оно делает финальный скролл и подсветку по mid).
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import chatApi from '../../api/chatApi';
-import { DRAFT_CHAT_ID } from '../../constants/storage';
+import chatApi from '../../../api/chatApi';
+import { DRAFT_CHAT_ID } from '../../../constants/storage';
 
 const DEBOUNCE_MS = 250;
 // Стабильный «нет совпадений»: сброс делается прямо в рендере, и новый литерал

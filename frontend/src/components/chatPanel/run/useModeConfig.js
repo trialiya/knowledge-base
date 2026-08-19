@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import chatApi from '../../api/chatApi';
+import chatApi from '../../../api/chatApi';
 
 /**
  * Загружает список готовых режимов ассистента (GET /api/chats/modes) один раз.

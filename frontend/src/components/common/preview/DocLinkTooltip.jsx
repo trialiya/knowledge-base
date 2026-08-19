@@ -9,10 +9,10 @@ import FilePreviewModal from './FilePreviewModal';
 import gitApi from '../../../api/gitApi';
 import documentsApi from '../../../api/documentsApi';
 import FullscreenEditorModal from '../../knowledgeBasePanel/editor/FullscreenEditorModal';
-import { navigateToFile } from '../../../fileNavigationBus';
+import { navigateToFile } from '../../../navigation/fileNavigationBus';
 import { parseDocId, parseFileLink } from './docLinkParsing';
 import useProjectConfig from '../config/useProjectConfig';
-import { docPath, filesUrl } from '../../../urlScheme';
+import { docPath, filesUrl } from '../../../navigation/urlScheme';
 import { scrollToHeading } from './anchorScroll';
 import { TOOLTIP_WIDTH, TOOLTIP_GAP, TOOLTIP_HEIGHT_ESTIMATE } from '../../../constants/ui';
 

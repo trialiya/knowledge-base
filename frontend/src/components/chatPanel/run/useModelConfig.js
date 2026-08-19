@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import chatApi from '../../api/chatApi';
+import chatApi from '../../../api/chatApi';
 
 /**
  * Загружает конфиг моделей (GET /api/chats/models) один раз и отдаёт его вместе с

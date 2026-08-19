@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { IconSearch, IconX, IconChevronUp, IconChevronDown } from '../../icons';
+import { IconSearch, IconX, IconChevronUp, IconChevronDown } from '../../../icons/index';
 
 /**
  * Find-бар для поиска сообщений внутри открытого чата (Ctrl+F / кнопка-лупа

@@ -5,7 +5,7 @@ import { CONTEXT_KIND } from '../../../constants/contextKind';
 import { DRAFT_CHAT_ID } from '../../../constants/storage';
 import { generateUUID } from '../../../utils/uuid';
 import useAttachmentCount from '../../common/attachments/useAttachmentCount';
-import { attachmentDeleteErrorNotice, UPLOAD_ERROR_NOTICE } from '../chatNotices';
+import { attachmentDeleteErrorNotice, UPLOAD_ERROR_NOTICE } from './chatNotices';
 
 /**
  * Вложения активного чата со стороны ChatWindow: счётчик для бейджа, сигнал на

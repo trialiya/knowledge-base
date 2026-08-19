@@ -8,8 +8,8 @@ import { SENDER } from '../../../constants/messageSender';
 import { RETRY_MODE } from '../../../constants/retryMode';
 import { generateUUID } from '../../../utils/uuid';
 import { nextMessageId } from '../messages/messageId';
-import { getLastModel, setLastModel, getLastMode, setLastMode, setLastProject } from '../lastChoiceStore';
-import { chatLoadErrorNotice, RUN_BUSY_NOTICE, RETRY_UNAVAILABLE_NOTICE } from '../chatNotices';
+import { getLastModel, setLastModel, getLastMode, setLastMode, setLastProject } from './lastChoiceStore';
+import { chatLoadErrorNotice, RUN_BUSY_NOTICE, RETRY_UNAVAILABLE_NOTICE } from './chatNotices';
 
 /**
  * Отправка сообщения, повтор после ошибки и остановка генерации.

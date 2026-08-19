@@ -8,7 +8,7 @@ import { fetchContent } from '../composer/fileChips';
 import { IconChevronDown } from '../../../icons';
 import ModalShell from '../../common/modal/ModalShell';
 import { DiffLines, DiffStats } from './diffRender';
-import { filesUrl } from '../../../urlScheme';
+import { filesUrl } from '../../../navigation/urlScheme';
 import '../styles/doc-changes.css';
 import '../styles/file-changes.css';
 

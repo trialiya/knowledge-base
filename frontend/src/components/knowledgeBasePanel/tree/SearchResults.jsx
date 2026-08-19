@@ -1,7 +1,7 @@
 import { Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconDoc, IconFolder, IconChevronRight, IconSparkle } from '../../../icons/index';
-import { docPath } from '../../../urlScheme';
+import { docPath } from '../../../navigation/urlScheme';
 
 // Хлебные крошки строятся из parentList, который приходит с бэка вместе с
 // результатом (корень → непосредственный родитель, без самого документа).

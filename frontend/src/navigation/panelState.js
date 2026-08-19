@@ -1,4 +1,4 @@
-import { STORAGE_KEY_PANELS } from './constants/storage';
+import { STORAGE_KEY_PANELS } from '../constants/storage';
 
 /**
  * Память состояния боковых панелей рабочей области — ОТДЕЛЬНО ДЛЯ КАЖДОГО view.

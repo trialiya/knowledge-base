@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import chatApi from '../../../api/chatApi';
-import { chatDeleteErrorNotice } from '../chatNotices';
+import { chatDeleteErrorNotice } from '../run/chatNotices';
 
 /**
  * Владелец подтверждения и самого удаления чата. Вынесено из ChatWindow:

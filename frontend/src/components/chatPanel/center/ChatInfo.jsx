@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
-import InfoList from '../common/ui/InfoList';
-import { formatDateTime } from '../../utils/formatting';
-import { DRAFT_CHAT_ID } from '../../constants/storage';
+import InfoList from '../../common/ui/InfoList';
+import { formatDateTime } from '../../../utils/formatting';
+import { DRAFT_CHAT_ID } from '../../../constants/storage';
 
 /**
  * Вкладка «Инфо» правой панели чата: метаданные активного чата.

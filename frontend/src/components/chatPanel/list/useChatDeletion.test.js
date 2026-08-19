@@ -1,6 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import useChatDeletion from './useChatDeletion';
-import { chatDeleteErrorNotice } from '../chatNotices';
+import { chatDeleteErrorNotice } from '../run/chatNotices';
 import chatApi from '../../../api/chatApi';
 
 vi.mock('../../../api/chatApi', () => ({ default: { deleteChat: vi.fn() } }));

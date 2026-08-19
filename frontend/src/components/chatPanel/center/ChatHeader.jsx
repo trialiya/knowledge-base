@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { IconTrash, IconSearch } from '../../icons';
+import { IconTrash, IconSearch } from '../../../icons/index';
 
 /**
  * Шапка активного чата: заголовок с инлайн-переименованием и кнопки

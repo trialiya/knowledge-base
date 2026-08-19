@@ -1,6 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import useAppNavigation from './useAppNavigation';
-import { STORAGE_KEY_PANELS } from './constants/storage';
+import { STORAGE_KEY_PANELS } from '../constants/storage';
 
 /** Текущий адрес в том же виде, в каком его строит хук. */
 const url = () => window.location.pathname + window.location.search;
