@@ -278,7 +278,7 @@
 
 - id: chat-list-no-inline-rename
   component: ChatList
-  path: frontend/src/components/chatPanel/ChatList.jsx
+  path: frontend/src/components/chatPanel/list/ChatList.jsx
   title: Список чатов — переименование только в шапке, в строке лишь удаление
   status: blocked
   origin:
@@ -758,7 +758,7 @@
 
 - id: composer-paste-undo-and-linebreaks
   component: ChipEditor
-  path: frontend/src/components/chatPanel/ChipEditor.jsx
+  path: frontend/src/components/chatPanel/composer/ChipEditor.jsx
   title: 'Композер — вставка: Ctrl+Z отменяет её, переносы строк не двоятся'
   status: verified
   origin:
@@ -810,7 +810,7 @@
 
 - id: context-chips-in-message
   component: MessageContextItems
-  path: frontend/src/components/chatPanel/MessageContextItems.jsx
+  path: frontend/src/components/chatPanel/messages/MessageContextItems.jsx
   title: Приложенное к вопросу — чип под текстом в пузыре пользователя
   status: verified
   origin:
@@ -841,7 +841,7 @@
 
 - id: attach-in-new-chat
   component: ComposerToolbar + ContextChips + AttachmentPanel
-  path: frontend/src/components/chatPanel/ComposerToolbar.jsx
+  path: frontend/src/components/chatPanel/composer/ComposerToolbar.jsx
   title: Скрепка в новом чате — файл заводит чат и встаёт чипом над полем ввода
   status: verified
   origin:
@@ -948,7 +948,7 @@
 
 - id: composer-focus-on-section-return
   component: MessageInput
-  path: frontend/src/components/chatPanel/MessageInput.jsx
+  path: frontend/src/components/chatPanel/composer/MessageInput.jsx
   title: Возврат на раздел чата ставит фокус в поле ввода
   status: verified
   origin:
@@ -990,7 +990,7 @@
 
 - id: phrase-fill-typed-placeholders
   component: PhraseFillModal
-  path: frontend/src/components/chatPanel/PhraseFillModal.jsx
+  path: frontend/src/components/chatPanel/composer/PhraseFillModal.jsx
   title: Диалог заполнения плейсхолдеров — поле на каждый тип и превью фразы под ними
   status: verified
   origin:
@@ -1135,7 +1135,7 @@
 
 - id: tool-call-detail-content-overview
   component: ToolCallDetailModal + ContentResultView
-  path: frontend/src/components/chatPanel/resultViews/ContentResultView.jsx
+  path: frontend/src/components/chatPanel/messages/resultViews/ContentResultView.jsx
   title: Детали вызова — текстовый результат в режиме «Обзор» вместо JSON-строки
   status: verified
   origin:
@@ -1180,7 +1180,7 @@
 
 - id: tool-call-detail-diff-overview
   component: ToolCallDetailModal + DiffResultView
-  path: frontend/src/components/chatPanel/resultViews/DiffResultView.jsx
+  path: frontend/src/components/chatPanel/messages/resultViews/DiffResultView.jsx
   title: Детали вызова — изменения файлов в режиме «Обзор»
   status: verified
   origin:
@@ -1221,7 +1221,7 @@
 
 - id: tool-call-detail-records-and-scalar
   component: ToolCallDetailModal + RecordListView + ScalarResultView
-  path: frontend/src/components/chatPanel/resultViews/RecordListView.jsx
+  path: frontend/src/components/chatPanel/messages/resultViews/RecordListView.jsx
   title: Детали вызова — список однотипных записей и короткое значение
   status: verified
   origin:
@@ -1257,7 +1257,7 @@
 
 - id: tool-call-detail-tree-and-grep
   component: ToolCallDetailModal + TreeResultView + GrepMatchesView
-  path: frontend/src/components/chatPanel/resultViews/TreeResultView.jsx
+  path: frontend/src/components/chatPanel/messages/resultViews/TreeResultView.jsx
   title: Детали вызова — иерархии и совпадения поиска по коду
   status: verified
   origin:
@@ -1294,7 +1294,7 @@
 
 - id: tool-call-detail-doc-script-args
   component: ToolCallDetailModal + DocMutationView + ScriptRunView + ArgumentListView
-  path: frontend/src/components/chatPanel/resultViews/ScriptRunView.jsx
+  path: frontend/src/components/chatPanel/messages/resultViews/ScriptRunView.jsx
   title: Детали вызова — правка документа, прогон скрипта и разбор аргументов
   status: verified
   origin:
@@ -1331,7 +1331,7 @@
 
 - id: chat-switch-during-run
   component: useChatEventStream + ChatWindow
-  path: frontend/src/components/chatPanel/useChatEventStream.js
+  path: frontend/src/components/chatPanel/run/useChatEventStream.js
   title: Переключение чатов во время генерации — ответ дописывается без перезагрузки
   status: verified
   origin:
@@ -1371,7 +1371,7 @@
 
 - id: chat-composer-project-selector
   component: ComposerToolbar
-  path: frontend/src/components/chatPanel/ComposerToolbar.jsx
+  path: frontend/src/components/chatPanel/composer/ComposerToolbar.jsx
   title: Композер — третий селектор «Проект» рядом с моделью и режимом
   status: verified
   origin:
@@ -1394,7 +1394,7 @@
 
 - id: chat-composer-project-gone
   component: ComposerToolbar
-  path: frontend/src/components/chatPanel/ComposerToolbar.jsx
+  path: frontend/src/components/chatPanel/composer/ComposerToolbar.jsx
   title: Композер — предупреждение, когда проект чата исчез из конфигурации
   status: blocked
   origin:
@@ -1413,6 +1413,29 @@
     PUT /api/chats/{id}/project, который несуществующий id отклоняет (400), —
     состояние возникает уже после того, как проект убрали из kb.projects.
     Воспроизводится правкой строки в БД руками.
+
+- id: chat-chip-foreign-project
+  component: ChipEditor
+  path: frontend/src/components/chatPanel/composer/ChipEditor.jsx
+  title: Композер — чип из другого репозитория подписан именем проекта
+  status: blocked
+  origin:
+    - Сессия 2026-08-19, квалификация чипов проектом (фаза 2)
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /
+    backend: kb.projects — две включённые записи
+    steps: вставить чип файла и чип коммита, сменить проект в селекторе, вставить ещё один чип
+  expected:
+    - Чипы, вставленные до смены проекта, получают в подписи имя своего репозитория («billing · pom.xml»)
+    - Чип, вставленный после, подписан коротким именем файла — он из проекта чата
+    - 'Превью по клику показывает файл из репозитория чипа, а не из текущего: путь один, содержимое разное'
+    - Переключение превью «содержимое ⇄ только путь» подпись и репозиторий чипа сохраняет
+    - В отправленном сообщении рядом с путём чужого чипа стоит «(проект `billing`)»
+  notes: |
+    Нечем прогнать: вторую включённую запись kb.projects бэкенд отклоняет на
+    старте (ProjectCatalog), а с одним проектом чужих чипов взяться неоткуда.
 
 - id: files-panel-project-picker
   component: FilesPanel

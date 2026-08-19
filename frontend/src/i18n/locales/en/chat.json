@@ -213,7 +213,8 @@
     "docLoadFailed": "[Document #{{id}}: failed to load]",
     "binaryFile": "[binary file]",
     "readFailed": "[failed to read file]",
-    "commitRef": "commit `{{hash}}` — {{subject}}"
+    "commitRef": "commit `{{hash}}` — {{subject}}",
+    "inProject": "(project `{{project}}`)"
   },
   "list": {
     "title": "Chats",
@@ -329,9 +330,9 @@
   "project": {
     "aria": "Project",
     "default": "default",
-    "gone": "project \u201c{{id}}\u201d is unavailable",
-    "goneHint": "Project \u201c{{id}}\u201d is no longer configured on the server \u2014 answers will use the default project. Pick a project again.",
-    "goneValue": "{{id}} \u2014 no longer available"
+    "gone": "project “{{id}}” is unavailable",
+    "goneHint": "Project “{{id}}” is no longer configured on the server — answers will use the default project. Pick a project again.",
+    "goneValue": "{{id}} — no longer available"
   },
   "contextItems": {
     "staged": "Attached to this message",

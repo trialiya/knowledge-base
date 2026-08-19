@@ -5,7 +5,7 @@ import { IconPlus, IconEdit, IconTrash } from '../../icons';
 import ConfirmModal from '../common/ConfirmModal';
 // Список типов берём у самого парсера, чтобы подсказка не разошлась с тем, что
 // диалог заполнения действительно понимает.
-import { PLACEHOLDER_TYPES } from '../chatPanel/phrasePlaceholders';
+import { PLACEHOLDER_TYPES } from '../chatPanel/composer/phrasePlaceholders';
 import {
   fetchAllPhrases,
   createPhrase,

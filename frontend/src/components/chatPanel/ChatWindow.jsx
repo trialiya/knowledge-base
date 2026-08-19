@@ -7,22 +7,24 @@ import { STORAGE_KEY_ACTIVE_CHAT, DRAFT_CHAT_ID } from '../../constants/storage'
 import { getLastModel, getLastMode, getLastProject } from './lastChoiceStore';
 import useModelConfig from './useModelConfig';
 import useProjectConfig from '../common/useProjectConfig';
+import { resolveProjectChoice } from '../common/projectChoice';
 import useModeConfig from './useModeConfig';
-import useChatList from './useChatList';
-import useChatMessages from './useChatMessages';
-import useChatEventStream from './useChatEventStream';
-import useChatRun from './useChatRun';
-import useChatAttachments from './useChatAttachments';
+import useChatList from './list/useChatList';
+import useChatMessages from './run/useChatMessages';
+import useChatEventStream from './run/useChatEventStream';
+import useChatRun from './run/useChatRun';
+import useChatAttachments from './run/useChatAttachments';
 import useInChatSearch from './useInChatSearch';
-import useChatDrafts from './useChatDrafts';
-import useChatDeletion from './useChatDeletion';
+import useChatDrafts from './composer/useChatDrafts';
+import useChatDeletion from './list/useChatDeletion';
 import useNotice from '../common/useNotice';
 import { chatLoadErrorNotice, CHAT_DELETED_NOTICE } from './chatNotices';
+import { stampChipProject } from './composer/fileChips';
 
 import ChatCenter from './ChatCenter';
 import { buildChatTabs } from './chatSidebar';
-import ChatList from './ChatList';
-import ChatSearch from './ChatSearch';
+import ChatList from './list/ChatList';
+import ChatSearch from './list/ChatSearch';
 import WorkspaceLayout from '../common/WorkspaceLayout';
 import { IconPlus } from '../../icons';
 import './chatWindow.css';
@@ -81,9 +83,11 @@ const ChatWindow = ({
   // Конфиг моделей и режимов грузится один раз — вынесено в отдельные хуки.
   const { modelConfig, modelOptions } = useModelConfig();
   const { modeOptions } = useModeConfig();
-  const { projectOptions, defaultProjectId, ready: projectsReady } = useProjectConfig();
-  // Bump → очистить текст в MessageInput («удаление» черновика).
-  const [composerResetSignal, setComposerResetSignal] = useState(0);
+  const { projectOptions, defaultProjectId } = useProjectConfig();
+  // Bump → MessageInput перечитает черновик: текст поля живёт в нём, и правка,
+  // сделанная здесь («удаление» черновика, простановка проекта в чипах), иначе до
+  // него не дойдёт.
+  const [composerDraftSignal, setComposerDraftSignal] = useState(0);
   // Неотправленные черновики по чатам ({ chatId: text }, localStorage) — вынесено
   // в useChatDrafts (отложенная запись + flush на beforeunload/размонтирование).
   const {
@@ -242,13 +246,11 @@ const ChatWindow = ({
   // Проект, выбранный в селекторе: у чата → дефолтный. Отдельно — id, который у чата
   // записан, но которого в конфиге больше нет: селектор показывает дефолт, а рядом
   // должно стоять предупреждение, иначе подмена репозитория пройдёт незамеченной.
-  // Пока список не приехал, любой проект считаем известным: пустой список — это
-  // «ещё не знаем», а не «такого проекта нет», и на каждой загрузке страницы
-  // вспыхивало бы предупреждение о вполне живом проекте.
-  const chatProjectId = activeChat?.project ?? null;
-  const projectKnown = !chatProjectId || !projectsReady || projectOptions.some((o) => o.id === chatProjectId);
-  const selectedProjectId = projectKnown && chatProjectId ? chatProjectId : defaultProjectId || '';
-  const missingProjectId = projectKnown ? null : chatProjectId;
+  const { selected: selectedProjectId, missing: missingProjectId } = resolveProjectChoice(
+    activeChat?.project ?? null,
+    projectOptions,
+    defaultProjectId,
+  );
   // Для адресов — только не-дефолтный проект: дефолтный в схеме не пишется, а
   // пустое значение и означает его (см. urlScheme.filesUrl).
   const projectInLinks = selectedProjectId && selectedProjectId !== defaultProjectId ? selectedProjectId : null;
@@ -347,7 +349,7 @@ const ChatWindow = ({
         // У черновика нет сущности на бэке — «удаление» лишь очищает поле ввода.
         // Сам черновик и выбранная модель остаются.
         clearDraft(DRAFT_CHAT_ID);
-        setComposerResetSignal((n) => n + 1);
+        setComposerDraftSignal((n) => n + 1);
         return;
       }
       requestDeleteChat(id);
@@ -381,7 +383,32 @@ const ChatWindow = ({
 
   const handleModelChange = useCallback((newId) => changeModel(activeChatId, newId), [activeChatId, changeModel]);
   const handleModeChange = useCallback((newId) => changeMode(activeChatId, newId), [activeChatId, changeMode]);
-  const handleProjectChange = useCallback((newId) => changeProject(activeChatId, newId), [activeChatId, changeProject]);
+  // Чип в черновике мог остаться без имени проекта: так писала прежняя версия
+  // формата, и означает это «репозиторий чата». Пока чат ещё работает в прежнем,
+  // вписываем его в такие чипы — после смены проекта тот же путь вёл бы уже в
+  // другой файл, и подставился бы он молча, в отправленном сообщении.
+  //
+  // Сравниваем с РАЗРЕШЁННЫМ проектом, а не с записанным у чата: выбрать дефолт в
+  // чате, чей проект исчез из конфигурации, — способ убрать предупреждение, и
+  // репозиторий при этом не меняется.
+  const handleProjectChange = useCallback(
+    (newId) => {
+      if (newId !== selectedProjectId) {
+        const draft = getDraftFor(activeChatId);
+        const stamped = stampChipProject(draft, selectedProjectId);
+        if (stamped !== draft) {
+          handleComposerTextChange(activeChatId, stamped);
+          // Пишем на диск сразу, не дожидаясь отложенной записи: проект у чата
+          // меняется немедленно, и вкладка, погибшая в эти полсекунды, оставила бы
+          // в хранилище чипы без проекта — то есть уже про новый репозиторий.
+          flushDrafts();
+          setComposerDraftSignal((n) => n + 1);
+        }
+      }
+      changeProject(activeChatId, newId);
+    },
+    [activeChatId, changeProject, flushDrafts, getDraftFor, handleComposerTextChange, selectedProjectId],
+  );
 
   // Подписи модели и режима для вкладки «Инфо»: в чате хранятся id, а показывать
   // осмысленно человекочитаемый label из конфига.
@@ -491,7 +518,7 @@ const ChatWindow = ({
             search={{ ...inChatSearch, inputRef: inChatSearchInputRef, canSearch: canSearchChat }}
             staged={getStagedFor(activeChatId)}
             initialText={getDraftFor(activeChatId)}
-            composerResetSignal={composerResetSignal}
+            composerDraftSignal={composerDraftSignal}
             model={{
               config: modelConfig,
               options: modelOptions,

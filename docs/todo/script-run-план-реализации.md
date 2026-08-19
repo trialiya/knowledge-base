@@ -305,7 +305,7 @@ public ScriptFunction scriptFunction(...) { ... }
   чтобы в чате строка тула читалась осмысленно (`RecordingToolCallback` берёт gist сам).
 - `resultMeta` — счётчики + список тронутых путей: их подхватывает существующая логика
   file-chips во фронте.
-- Frontend: `frontend/src/components/chatPanel/toolMeta.js` — `runScript: { icon: '⚙️',
+- Frontend: `frontend/src/components/chatPanel/messages/toolMeta.js` — `runScript: { icon: '⚙️',
   category: 'git' }`; ключ `tools.runScript` в `i18n/locales/{en,ru}/chat.json`.
 
 ### 1.8 Документация
