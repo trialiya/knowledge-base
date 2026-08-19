@@ -221,7 +221,7 @@ MCP тоже. При отрисовке любого JSON-узла:
 список представлений, первое подошедшее выигрывает:
 
 ```js
-// chatPanel/resultViews/registry.js — { id, detect(input), View }
+// chatPanel/messages/resultViews/registry.js — { id, detect(input), View }
 // input = { parsed, isJson, resultText, argumentsRaw }: разбор один на все виды.
 [
   scriptRun,     // ✅ объект с stats + log + edits        → runScript
@@ -389,7 +389,7 @@ backend/…/functions/GitFunction.java   ·   java   ·   строки 59–120 
    на все виды (`parseResult`). Новые виды добавляются выше `content`: он ловит
    любой длинный текст и потому всегда последний.
 3. ✅ **`diffList`.** Сделано: раскраска вынесена из `FileDiffModal` в общий
-   `chatPanel/diffRender.jsx` (`DiffLines` + `DiffStats`, стили в `styles/diff.css`),
+   `chatPanel/messages/diffRender.jsx` (`DiffLines` + `DiffStats`, стили в `styles/diff.css`),
    детект — `resultViews/diffResult.js` по паре счётчиков `additions`/`deletions`
    при поле `path`. Закрывает `getCommitDiff`, `getUncommittedChanges`,
    `editFile`/`createFile`. `runScript` остаётся этапу 5: его `edits` лежат внутри

@@ -3,8 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { UPLOAD_ACCEPT } from '../../constants/uploadAccept';
 import ChatHeader from './ChatHeader';
 import ChatSearchBar from './ChatSearchBar';
-import MessageList from './MessageList';
-import MessageInput from './MessageInput';
+import MessageList from './messages/MessageList';
+import MessageInput from './composer/MessageInput';
 
 /**
  * Центральная колонка чата: шапка, find-бар, лента сообщений и композер.

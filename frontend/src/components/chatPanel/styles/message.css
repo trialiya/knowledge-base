@@ -1,0 +1,12 @@
+/* ═══════════════════════════════════════════════
+   CHAT MESSAGE — style barrel
+   Каждая зона ответственности в своём парциальном файле.
+   Порядок импорта важен: bubbles → markdown → toolbar → tooltips.
+   tool-calls.css и doc-changes.css переехали к своим компонентам
+   (ToolCallNotifications.jsx, DocChangeBlock.jsx) — CSS импортирует владелец.
+═══════════════════════════════════════════════ */
+
+@import './bubbles.css';
+@import './markdown.css';
+@import './toolbar.css';
+@import './doc-tooltip.css';

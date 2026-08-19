@@ -104,6 +104,6 @@ OpenAI и дополнительная проводка в `ChatConfig`. Сто�
 
 - `backend/src/main/java/io/github/trialiya/kb/advisor/ToolPreparingAdvisor.java` — существующий advisor, публикует событие когда видит `hasToolCalls()`; остаётся рабочим, просто сигнал поздний
 - `backend/src/main/java/io/github/trialiya/kb/config/ChatConfig.java` — регистрирует `ToolPreparingAdvisor` как самый внутренний advisor (LOWEST_PRECEDENCE)
-- `frontend/src/components/chatPanel/chatEventReducer.js` — обработчик `TOOL_PREPARING` отключён (no-op)
-- `frontend/src/components/chatPanel/Message.jsx` — `ToolPreparingIndicator` + `showPreparing`-логика готовы к использованию
+- `frontend/src/components/chatPanel/run/chatEventReducer.js` — обработчик `TOOL_PREPARING` отключён (no-op)
+- `frontend/src/components/chatPanel/messages/Message.jsx` — `ToolPreparingIndicator` + `showPreparing`-логика готовы к использованию
 - `docs/проект/диагностика-tool-preparing-стриминг.md` — история диагностики (Spring AI 1.1.x)
