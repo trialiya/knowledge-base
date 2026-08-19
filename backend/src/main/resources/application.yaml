@@ -150,10 +150,10 @@ kb:
     export-path: ${DOCUMENTS_EXPORT_PATH}
     replace: true
   # Repositories the assistant reads and (optionally) edits. Exactly ONE *enabled* entry is
-  # supported for now and a second one fails startup (ProjectCatalog): a chat picks its project
-  # and carries it to the tools, but a file link does not — /files?path=… names a path and no
-  # repository, so the same path would open the wrong file. A caller that names no project
-  # (a summary, a background job, a chat that never chose) gets the first entry here.
+  # supported for now and a second one fails startup (ProjectCatalog): the deployment side is not
+  # ready — the shipped compose mounts a single /project and the image's git safe.directory covers
+  # exactly that path. A caller that names no project (a summary, a background job, a chat that
+  # never chose) gets the first entry here.
   projects:
     - id: default
       label: ${PROJECT_LABEL:Project}

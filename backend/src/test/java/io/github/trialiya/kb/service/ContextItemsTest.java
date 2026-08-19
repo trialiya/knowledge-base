@@ -374,6 +374,30 @@ class ContextItemsTest {
     }
 
     /**
+     * Повтор прогона в другом проекте: нового вопроса не появляется, маркер садится на тот же.
+     * Второй повтор не переписывает {@code from} — история выше как относилась к «kb», так и
+     * относится; возврат в «kb» маркер снимает.
+     */
+    @Test
+    void aRetryInAnotherProjectMarksTheQuestionItRepeats() {
+        String conversationId = UUID.randomUUID().toString();
+        memoryService.saveUserMessage(conversationId, "первый вопрос", List.of(), null);
+        var question = memoryService.saveUserMessage(conversationId, QUESTION, List.of(), null);
+
+        var marked = memoryService.markProjectSwitch(question, new ProjectSwitch("kb", "billing"));
+        assertThat(marked.getMeta().projectSwitchFrom()).isEqualTo("kb");
+        assertThat(marked.getMeta().project()).isEqualTo("billing");
+
+        var again = memoryService.markProjectSwitch(marked, new ProjectSwitch("billing", "docs"));
+        assertThat(again.getMeta().projectSwitchFrom()).isEqualTo("kb");
+        assertThat(again.getMeta().project()).isEqualTo("docs");
+
+        var back = memoryService.markProjectSwitch(again, new ProjectSwitch("docs", "kb"));
+        assertThat(back.getMeta().projectSwitchFrom()).isNull();
+        assertThat(memoryService.promptRows(conversationId).getLast().text()).isEqualTo(QUESTION);
+    }
+
+    /**
      * Вид контекста, которого эта версия не знает, обязан выпадать из списка, а не ронять чтение.
      * Иначе откат приложения после появления нового вида превращался бы в отказ открыть чат, где
      * такой элемент записан.

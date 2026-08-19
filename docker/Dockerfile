@@ -52,7 +52,11 @@ RUN apt-get update \
 
 ENV PROJECT_PATH=/project
 
-RUN git config --system safe.directory /project
+# The mount belongs to the host user, the container runs as kb — without this exception git
+# refuses the working tree with "dubious ownership". JGit does not check, but `git grep` runs as
+# a subprocess (GitService), so it does. Tied to PROJECT_PATH: the exception is one path, and a
+# second repository would need its own line here as well as its own mount.
+RUN git config --system safe.directory "$PROJECT_PATH"
 
 RUN groupadd --system kb && useradd --system --gid kb kb
 

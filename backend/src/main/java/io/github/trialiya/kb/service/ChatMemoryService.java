@@ -143,6 +143,37 @@ public class ChatMemoryService implements ChatMemoryRepository {
     }
 
     /**
+     * Тот же маркер, но на уже записанном вопросе — путь повтора прогона: нового сообщения не
+     * появляется, а проект прогона сменился, и предупредить о прежнем репозитории всё равно надо.
+     *
+     * <p>Если маркер на вопросе уже стоит, {@code from} сохраняется прежним: он говорит, к какому
+     * репозиторию относится история ВЫШЕ, и от повторов её содержимое не меняется. Возврат туда же
+     * маркер снимает — сменой относительно истории выше он больше не является.
+     */
+    @Transactional
+    public ChatMessageEntity markProjectSwitch(
+            ChatMessageEntity question, ProjectSwitch projectSwitch) {
+        final ChatMessageMeta meta = question.getMeta();
+        if (question.getPosition() <= 1) {
+            return question;
+        }
+        final String from =
+                meta != null && meta.projectSwitchFrom() != null
+                        ? meta.projectSwitchFrom()
+                        : projectSwitch.from();
+        final boolean switched = !from.equals(projectSwitch.to());
+        return chatMessageRepository.save(
+                question.withMeta(
+                        new ChatMessageMeta(
+                                meta == null ? null : meta.runId(),
+                                meta != null && meta.toolCalls(),
+                                meta == null ? List.of() : meta.invocations(),
+                                meta == null ? List.of() : meta.contextItems(),
+                                switched ? projectSwitch.to() : null,
+                                switched ? from : null)));
+    }
+
+    /**
      * Последнее сообщение чата — но только если это вопрос пользователя, на который модель ещё
      * ничего не ответила. Единственное состояние, из которого «Повторить» означает продолжить тот
      * же ход: дописывать в историю нечего, прогон просто запускается заново поверх неё (см. {@code

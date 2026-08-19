@@ -165,14 +165,20 @@ public class ChatRunService {
                             // Повтор: вопрос уже в истории, ходом остаётся он же. Проверку делаем
                             // ПОСЛЕ ремонта хвоста — достроенный TOOL-ответ как раз и означает,
                             // что модель уже начала отвечать, и повторять этот ход нельзя.
-                            : chatMemoryService
-                                    .unansweredUserMessage(conversationId)
-                                    .orElseThrow(
-                                            () ->
-                                                    new ResponseStatusException(
-                                                            HttpStatus.UNPROCESSABLE_CONTENT,
-                                                            "Nothing to retry: the last message is"
-                                                                    + " not an unanswered question"));
+                            // Проект при повторе выбирают заново, поэтому маркер смены может
+                            // появиться и здесь — на том же вопросе.
+                            : retried(
+                                    chatMemoryService
+                                            .unansweredUserMessage(conversationId)
+                                            .orElseThrow(
+                                                    () ->
+                                                            new ResponseStatusException(
+                                                                    HttpStatus
+                                                                            .UNPROCESSABLE_CONTENT,
+                                                                    "Nothing to retry: the last"
+                                                                            + " message is not an"
+                                                                            + " unanswered question")),
+                                    options);
         } catch (RuntimeException e) {
             // Заявку на чат не удерживаем: генерация так и не началась.
             activeByConversation.remove(conversationId, runId);
@@ -202,6 +208,17 @@ public class ChatRunService {
             throw e;
         }
         return new StartedRun(runId, userRow.getId());
+    }
+
+    /**
+     * Вопрос, который повторяют, с маркером смены проекта, если повтор поехал в другой проект:
+     * проект при повторе выбирают заново, и «всё выше читано в прежнем репозитории» становится
+     * правдой ровно так же, как при новом вопросе.
+     */
+    private ChatMessageEntity retried(ChatMessageEntity question, RunOptions options) {
+        return options.projectSwitch() == null
+                ? question
+                : chatMemoryService.markProjectSwitch(question, options.projectSwitch());
     }
 
     /**
