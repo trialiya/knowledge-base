@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import ModalShell from '../common/ModalShell';
-import '../common/buttons.css';
+import ModalShell from '../common/modal/ModalShell';
+import '../common/ui/buttons.css';
 
 /**
  * Modal shown when a drag-and-drop would move a node to a different parent.

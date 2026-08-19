@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ContextChips from '../composer/ContextChips';
-import AttachmentModal from '../../common/AttachmentModal';
+import AttachmentModal from '../../common/attachments/AttachmentModal';
 import { CONTEXT_KIND } from '../../../constants/contextKind';
 
 /**

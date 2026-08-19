@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { SettingsSection } from '../common/SettingsShell';
+import { SettingsSection } from '../common/layout/SettingsShell';
 import ConfigGroup, {
   ConfigRow,
   ConfigStatusRow,
@@ -7,8 +7,8 @@ import ConfigGroup, {
   ConfigTags,
   ConfigBlock,
   useDurationFormat,
-} from '../common/ConfigGroup';
-import useConfigSnapshot from '../common/useConfigSnapshot';
+} from '../common/config/ConfigGroup';
+import useConfigSnapshot from '../common/config/useConfigSnapshot';
 import settingsApi from '../../api/settingsApi';
 
 /**

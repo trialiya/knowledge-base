@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import useListNavigation from '../../../hooks/useListNavigation';
+import useListNavigation from '../../common/search/useListNavigation';
 import { IconTrash } from '../../../icons';
 
 /**

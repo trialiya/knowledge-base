@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconFolder, IconDoc, IconTrash, IconLock, IconDownload } from '../../icons';
-import HeadCrumbs from '../common/HeadCrumbs';
+import HeadCrumbs from '../common/layout/HeadCrumbs';
 import documentsApi from '../../api/documentsApi';
 
 // ─── DetailHeader ─────────────────────────────────────────────────────────────

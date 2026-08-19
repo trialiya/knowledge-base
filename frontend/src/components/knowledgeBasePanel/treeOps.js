@@ -2,7 +2,7 @@
 // Side-effect-free helpers for manipulating the document tree. No React, no
 // fetch — easy to reason about and test in isolation.
 
-import { findNodeById } from '../common/utils';
+import { findNodeById } from '../common/ui/utils';
 
 /** Structural deep clone of a tree (single source of the clone idiom). */
 export function cloneTree(tree) {

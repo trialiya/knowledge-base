@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import FileTreeNode from './FileTreeNode';
-import useListNavigation from '../../hooks/useListNavigation';
+import useListNavigation from '../common/search/useListNavigation';
 
 const FileTree = ({ treeCache, loadingDirs, expanded, selectedPath, onToggle, onSelect }) => {
   const { t } = useTranslation('files');

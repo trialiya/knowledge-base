@@ -4,7 +4,7 @@ import { OWNER_TYPE } from '../../../constants/ownerType';
 import { CONTEXT_KIND } from '../../../constants/contextKind';
 import { DRAFT_CHAT_ID } from '../../../constants/storage';
 import { generateUUID } from '../../../utils/uuid';
-import useAttachmentCount from '../../common/useAttachmentCount';
+import useAttachmentCount from '../../common/attachments/useAttachmentCount';
 import { attachmentDeleteErrorNotice, UPLOAD_ERROR_NOTICE } from '../chatNotices';
 
 /**

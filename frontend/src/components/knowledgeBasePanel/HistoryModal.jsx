@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { diffLines } from 'diff';
 import MarkdownEditor from './MarkdownEditor';
 import api from '../../api/documentsApi';
-import ModalShell from '../common/ModalShell';
+import ModalShell from '../common/modal/ModalShell';
 import { IconX } from '../../icons';
 
 /**

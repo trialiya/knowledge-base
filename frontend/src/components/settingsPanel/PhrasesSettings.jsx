@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { SettingsContentHead, SettingsSection } from '../common/SettingsShell';
+import { SettingsContentHead, SettingsSection } from '../common/layout/SettingsShell';
 import { IconPlus, IconEdit, IconTrash } from '../../icons';
-import ConfirmModal from '../common/ConfirmModal';
+import ConfirmModal from '../common/modal/ConfirmModal';
 // Список типов берём у самого парсера, чтобы подсказка не разошлась с тем, что
 // диалог заполнения действительно понимает.
 import { PLACEHOLDER_TYPES } from '../chatPanel/composer/phrasePlaceholders';

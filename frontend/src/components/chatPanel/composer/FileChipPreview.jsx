@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { baseName, chipLabel } from './fileChips';
-import ModalShell from '../../common/ModalShell';
+import ModalShell from '../../common/modal/ModalShell';
 import { IconX } from '../../../icons';
 
 // ── Превью содержимого файла — полноэкранная модалка ─────────────────────────

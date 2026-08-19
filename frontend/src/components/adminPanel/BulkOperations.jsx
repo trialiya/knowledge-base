@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
-import { SettingsContentHead, SettingsSection } from '../common/SettingsShell';
-import { ConfigRow } from '../common/ConfigGroup';
-import useConfigSnapshot from '../common/useConfigSnapshot';
+import { SettingsContentHead, SettingsSection } from '../common/layout/SettingsShell';
+import { ConfigRow } from '../common/config/ConfigGroup';
+import useConfigSnapshot from '../common/config/useConfigSnapshot';
 import ExportOperation from './ExportOperation';
 import ArchiveDownload from './ArchiveDownload';
 import ImportOperation from './ImportOperation';

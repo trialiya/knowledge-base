@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import chatApi from '../../../api/chatApi';
-import { getToolIcon, humanizeTool, toolLabelKey } from '../../common/toolNames';
+import { getToolIcon, humanizeTool, toolLabelKey } from '../../common/ui/toolNames';
 import { IconCopySmall, IconCopied } from '../../../icons';
-import useCopyFeedback from '../../../hooks/useCopyFeedback';
-import ModalShell from '../../common/ModalShell';
+import useCopyFeedback from '../../common/ui/useCopyFeedback';
+import ModalShell from '../../common/modal/ModalShell';
 import { detectResultView } from './resultViews/registry';
 import { detectArgumentList } from './resultViews/argumentList';
 import ArgumentListView from './resultViews/ArgumentListView';

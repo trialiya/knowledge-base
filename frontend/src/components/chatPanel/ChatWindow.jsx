@@ -6,8 +6,8 @@ import i18n from '../../i18n';
 import { STORAGE_KEY_ACTIVE_CHAT, DRAFT_CHAT_ID } from '../../constants/storage';
 import { getLastModel, getLastMode, getLastProject } from './lastChoiceStore';
 import useModelConfig from './useModelConfig';
-import useProjectConfig from '../common/useProjectConfig';
-import { resolveProjectChoice } from '../common/projectChoice';
+import useProjectConfig from '../common/config/useProjectConfig';
+import { resolveProjectChoice } from '../common/config/projectChoice';
 import useModeConfig from './useModeConfig';
 import useChatList from './list/useChatList';
 import useChatMessages from './run/useChatMessages';
@@ -17,7 +17,7 @@ import useChatAttachments from './run/useChatAttachments';
 import useInChatSearch from './useInChatSearch';
 import useChatDrafts from './composer/useChatDrafts';
 import useChatDeletion from './list/useChatDeletion';
-import useNotice from '../common/useNotice';
+import useNotice from '../common/ui/useNotice';
 import { chatLoadErrorNotice, CHAT_DELETED_NOTICE } from './chatNotices';
 import { stampChipProject } from './composer/fileChips';
 
@@ -25,11 +25,11 @@ import ChatCenter from './ChatCenter';
 import { buildChatTabs } from './chatSidebar';
 import ChatList from './list/ChatList';
 import ChatSearch from './list/ChatSearch';
-import WorkspaceLayout from '../common/WorkspaceLayout';
+import WorkspaceLayout from '../common/layout/WorkspaceLayout';
 import { IconPlus } from '../../icons';
 import './chatWindow.css';
-import ErrorModal from '../common/ErrorModal';
-import ConfirmModal from '../common/ConfirmModal';
+import ErrorModal from '../common/modal/ErrorModal';
+import ConfirmModal from '../common/modal/ConfirmModal';
 
 const ChatWindow = ({
   onNavigateToDoc,

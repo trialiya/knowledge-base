@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconFolder, IconChevron } from '../../icons';
-import { findNodeById } from '../common/utils';
-import ModalShell from '../common/ModalShell';
-import '../common/buttons.css';
+import { findNodeById } from '../common/ui/utils';
+import ModalShell from '../common/modal/ModalShell';
+import '../common/ui/buttons.css';
 
 // ─── Folder tree picker ───────────────────────────────────────────────────────
 

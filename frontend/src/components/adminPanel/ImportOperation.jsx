@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import OperationRow from '../common/OperationRow';
+import OperationRow from '../common/ui/OperationRow';
 import useJobStream from './useJobStream';
 import SyncDiffList from './SyncDiffList';
 import SyncLog from './SyncLog';

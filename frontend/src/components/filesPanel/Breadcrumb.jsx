@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import HeadCrumbs from '../common/HeadCrumbs';
+import HeadCrumbs from '../common/layout/HeadCrumbs';
 
 /** Строит цепочку {name, path} от корня до полного пути (сам путь не включает корень). */
 function segmentsOf(path) {

@@ -26,13 +26,13 @@ import {
   IconHistory,
   IconJira,
 } from '../../icons';
-import DocLinkTooltip from '../common/DocLinkTooltip';
+import DocLinkTooltip from '../common/preview/DocLinkTooltip';
 import AtMentionDropdown from './AtMentionDropdown';
 import useAtMention from './useAtMention';
-import CodeBlock from '../common/CodeBlock';
+import CodeBlock from '../common/ui/CodeBlock';
 import { setEditorDirty } from './editorDirtyStore';
 import { markdownToJira } from '../../utils/markdownToJira';
-import useCopyFeedback from '../../hooks/useCopyFeedback';
+import useCopyFeedback from '../common/ui/useCopyFeedback';
 
 // remark / rehype plugin arrays — stable references so ReactMarkdown doesn't
 // rebuild its processor on every render. rehypeSlug adds GitHub-style `id`s to

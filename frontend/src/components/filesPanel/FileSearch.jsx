@@ -1,8 +1,8 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import gitApi from '../../api/gitApi';
-import PanelSearch from '../common/PanelSearch';
-import { highlightFileMatch } from '../common/highlightMatch';
+import PanelSearch from '../common/search/PanelSearch';
+import { highlightFileMatch } from '../common/search/highlightMatch';
 import { IconDoc } from '../../icons';
 
 const RESULT_LIMIT = 15;

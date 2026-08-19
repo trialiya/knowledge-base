@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import InfoList from '../common/InfoList';
+import InfoList from '../common/ui/InfoList';
 import { formatDateTime } from '../../utils/formatting';
 
 /**

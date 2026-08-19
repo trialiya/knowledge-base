@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import OperationRow from '../common/OperationRow';
+import OperationRow from '../common/ui/OperationRow';
 import { IconArchive } from '../../icons';
 import api from '../../api/documentsApi';
 

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import ListboxSelect from '../common/ListboxSelect';
-import { markUnavailable } from '../common/projectChoice';
+import ListboxSelect from '../common/ui/ListboxSelect';
+import { markUnavailable } from '../common/config/projectChoice';
 
 /**
  * Выбор репозитория в шапке левой панели «Файлы» — он же её заголовок: панель

@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
-import { SettingsSection } from '../common/SettingsShell';
-import ConfigGroup, { ConfigRow, ConfigStatusRow, ConfigBoolRow, ConfigTags, ConfigBlock } from '../common/ConfigGroup';
-import useConfigSnapshot from '../common/useConfigSnapshot';
+import { SettingsSection } from '../common/layout/SettingsShell';
+import ConfigGroup, { ConfigRow, ConfigStatusRow, ConfigBoolRow, ConfigTags, ConfigBlock } from '../common/config/ConfigGroup';
+import useConfigSnapshot from '../common/config/useConfigSnapshot';
 import ToolCatalog from './ToolCatalog';
 import settingsApi from '../../api/settingsApi';
 import { formatFileSize } from '../../utils/formatting';

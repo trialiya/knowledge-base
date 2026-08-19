@@ -1,5 +1,5 @@
 import ChatInfo from './ChatInfo';
-import AttachmentPanel from '../common/AttachmentPanel';
+import AttachmentPanel from '../common/attachments/AttachmentPanel';
 import { IconInfo, IconPaperclip } from '../../icons';
 import { RIGHT_TAB } from '../../constants/rightTabs';
 import { OWNER_TYPE } from '../../constants/ownerType';

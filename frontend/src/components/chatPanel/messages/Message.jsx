@@ -2,13 +2,13 @@ import { useState, useEffect, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useTranslation } from 'react-i18next';
-import DocLinkTooltip from '../../common/DocLinkTooltip';
+import DocLinkTooltip from '../../common/preview/DocLinkTooltip';
 import '../styles/message.css';
-import CodeBlock from '../../common/CodeBlock';
+import CodeBlock from '../../common/ui/CodeBlock';
 import ToolCallNotifications from './ToolCallNotifications';
 import MessageContextItems from './MessageContextItems';
 import { IconCopySmall, IconCopied } from '../../../icons';
-import useCopyFeedback from '../../../hooks/useCopyFeedback';
+import useCopyFeedback from '../../common/ui/useCopyFeedback';
 import { SENDER } from '../../../constants/messageSender';
 
 /** Кнопка «копировать всё сообщение» — копирует исходный текст сообщения. */

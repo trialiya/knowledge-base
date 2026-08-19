@@ -6,7 +6,7 @@ import { getFileChangeRefs } from './toolMeta';
 import { TOOL_STATUS } from '../../../constants/toolStatus';
 import { fetchContent } from '../composer/fileChips';
 import { IconChevronDown } from '../../../icons';
-import ModalShell from '../../common/ModalShell';
+import ModalShell from '../../common/modal/ModalShell';
 import { DiffLines, DiffStats } from './diffRender';
 import { filesUrl } from '../../../urlScheme';
 import '../styles/doc-changes.css';

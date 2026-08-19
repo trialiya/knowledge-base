@@ -1,8 +1,8 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import documentsApi from '../../api/documentsApi';
-import PanelSearch from '../common/PanelSearch';
-import { highlightSubstring } from '../common/highlightMatch';
+import PanelSearch from '../common/search/PanelSearch';
+import { highlightSubstring } from '../common/search/highlightMatch';
 import { IconFolder, IconDoc } from '../../icons';
 
 const RESULT_LIMIT = 15;

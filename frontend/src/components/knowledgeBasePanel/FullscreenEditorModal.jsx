@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import MarkdownEditor from './MarkdownEditor';
-import ModalShell from '../common/ModalShell';
+import ModalShell from '../common/modal/ModalShell';
 import { IconX } from '../../icons';
 
 /**

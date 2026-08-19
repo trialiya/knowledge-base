@@ -1,8 +1,8 @@
 import { useCallback, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import useSearchDropdown from '../../../hooks/useSearchDropdown';
-import highlightMatch from '../../common/highlightMatch';
+import useSearchDropdown from '../../common/search/useSearchDropdown';
+import highlightMatch from '../../common/search/highlightMatch';
 
 /**
  * Комбобокс для плейсхолдеров-указателей (file / document / commit).

@@ -1,7 +1,7 @@
 import AiSummarySection from './AiSummarySection';
 import ContentsTable from './ContentsTable';
 import DetailInfo from './DetailInfo';
-import AttachmentPanel from '../common/AttachmentPanel';
+import AttachmentPanel from '../common/attachments/AttachmentPanel';
 import { IconSparkle, IconPaperclip, IconList, IconInfo } from '../../icons';
 import { DOC_TAB } from '../../constants/docTabs';
 import { OWNER_TYPE } from '../../constants/ownerType';

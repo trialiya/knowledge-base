@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import SettingsShell from '../common/SettingsShell';
+import SettingsShell from '../common/layout/SettingsShell';
 import { IconMessage, IconSliders, IconSearch, IconTool, IconCodeBlock } from '../../icons';
 import PhrasesSettings from './PhrasesSettings';
 import ModelsSettings from './ModelsSettings';
