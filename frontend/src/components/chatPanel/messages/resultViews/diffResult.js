@@ -16,8 +16,9 @@ const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.
 
 /**
  * Буква статуса файла: A (added), M (modified), D (deleted), R (renamed),
- * C (copied). `GitDiffEntry` отдаёт её напрямую, `GitEditResult` — через
- * `operation`, у остального diff без статуса считается изменением.
+ * C (copied), U (untracked — файл вне git, из allow-globs проекта).
+ * `GitDiffEntry` отдаёт её напрямую, `GitEditResult` — через `operation`,
+ * у остального diff без статуса считается изменением.
  */
 const statusOf = (obj) => {
   const status = str(obj.status);

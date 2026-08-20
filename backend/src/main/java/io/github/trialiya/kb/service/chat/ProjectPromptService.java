@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.service.chat;
 
 import io.github.trialiya.kb.model.project.Project;
+import io.github.trialiya.kb.service.file.GitRegistry;
 import io.github.trialiya.kb.service.file.ProjectCatalog;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
@@ -22,8 +23,15 @@ public class ProjectPromptService {
 
     private final ProjectCatalog catalog;
 
-    public ProjectPromptService(ProjectCatalog catalog) {
+    /**
+     * Пишем ли мы вообще в этот проект — вопрос к реестру, а не к настройке: при ro-монтировании
+     * инструментов правки у модели нет, и обещать ей что-либо про них нельзя.
+     */
+    private final GitRegistry gitRegistry;
+
+    public ProjectPromptService(ProjectCatalog catalog, GitRegistry gitRegistry) {
         this.catalog = catalog;
+        this.gitRegistry = gitRegistry;
     }
 
     /**
@@ -41,7 +49,7 @@ public class ProjectPromptService {
         another one cannot write at all.\
         """
                         .formatted(project.label(), project.id(), project.id())
-                + allowGlobs(project);
+                + allowGlobs(project, gitRegistry.editsAllowed(project.id()));
     }
 
     /**
@@ -50,8 +58,12 @@ public class ProjectPromptService {
      *
      * <p>Без неё модель считает untracked-файлы недоступными и не пойдёт их искать: правило в
      * промпте статичное, а исключение из него — настройка конкретного проекта.
+     *
+     * <p>Правку этих файлов проект разрешает отдельно ({@code untracked-edit-enabled}), и сказано
+     * это в обе стороны: без явного «нельзя» модель, увидев файл в выдаче, потратит вызов {@code
+     * editFile} на отказ, а потом ещё один — на попытку обойти его через {@code runScript}.
      */
-    private static String allowGlobs(Project project) {
+    private static String allowGlobs(Project project, boolean editsAllowed) {
         if (project.allowGlobs().isEmpty()) {
             return "";
         }
@@ -59,9 +71,35 @@ public class ProjectPromptService {
 
         Beyond the tracked files, this project also serves untracked files matching %s, whatever
         `.gitignore` says about them — build reports and local notes live there. They are listed
-        and readable like any other file and `editFile` works on them, but they cannot be created,
-        and `grepContent` skips them unless you pass `includeUntracked: true`.\
+        and readable like any other file, `grepContent` skips them unless you pass
+        `includeUntracked: true`, and `getUncommittedChanges` reports them as `U`. %s\
         """
-                .formatted(String.join(", ", project.allowGlobs()));
+                // stripTrailing: у проекта без правок вторая подстановка пуста, и без этого
+                // абзац кончался бы висящим пробелом.
+                .formatted(
+                        String.join(", ", project.allowGlobs()),
+                        untrackedEdits(project, editsAllowed))
+                .stripTrailing();
+    }
+
+    /**
+     * Что можно делать с untracked-файлами проекта — одной фразой, без «возможно». Проекту, который
+     * не пишет вовсе, фразы не достаётся: правила про `editFile` там незачем — самого инструмента у
+     * модели нет.
+     */
+    private static String untrackedEdits(Project project, boolean editsAllowed) {
+        if (!editsAllowed) {
+            return "";
+        }
+        return project.untrackedEditEnabled()
+                ? """
+                Editing them is allowed: `editFile` works on them and leaves them untracked (they
+                are never staged), but they cannot be created — `createFile` there is refused.\
+                """
+                : """
+                Editing them is NOT allowed: they are read-only here, and `editFile`, `createFile`
+                and the `runScript` write methods all refuse them. Only tracked files can be
+                changed in this project.\
+                """;
     }
 }

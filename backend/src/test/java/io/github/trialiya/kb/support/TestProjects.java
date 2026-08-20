@@ -24,7 +24,9 @@ public final class TestProjects {
     /** A registry over the single repository at {@code repoDir}. */
     public static GitRegistry registry(Path repoDir, boolean editEnabled) {
         return registry(
-                List.of(new ProjectOption(ID, null, repoDir.toString(), editEnabled, null, true)));
+                List.of(
+                        new ProjectOption(
+                                ID, null, repoDir.toString(), editEnabled, false, null, true)));
     }
 
     /** A registry over several configured projects — the first one is the default. */
@@ -36,7 +38,7 @@ public final class TestProjects {
 
     /** A read-only project entry at {@code path}. */
     public static ProjectOption project(String id, Path path) {
-        return new ProjectOption(id, null, path.toString(), false, null, true);
+        return new ProjectOption(id, null, path.toString(), false, false, null, true);
     }
 
     /** The {@link GitService} of that single repository. */
@@ -44,9 +46,18 @@ public final class TestProjects {
         return registry(repoDir, editEnabled).defaultProject();
     }
 
-    /** As {@link #gitService(Path, boolean)}, with the project's untracked {@code allow-globs}. */
+    /**
+     * As {@link #gitService(Path, boolean)}, with the project's untracked {@code allow-globs}. The
+     * admitted area is read-only, as it is for a project that does not ask for anything else.
+     */
     public static GitService gitService(
             Path repoDir, boolean editEnabled, List<String> allowGlobs) {
+        return gitService(repoDir, editEnabled, allowGlobs, false);
+    }
+
+    /** As above, with {@code untracked-edit-enabled} spelled out. */
+    public static GitService gitService(
+            Path repoDir, boolean editEnabled, List<String> allowGlobs, boolean untrackedEdits) {
         return registry(
                         List.of(
                                 new ProjectOption(
@@ -54,6 +65,7 @@ public final class TestProjects {
                                         null,
                                         repoDir.toString(),
                                         editEnabled,
+                                        untrackedEdits,
                                         allowGlobs,
                                         true)))
                 .defaultProject();

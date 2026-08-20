@@ -64,6 +64,7 @@ public final class KbEditScriptApi extends KbScriptApi {
         // file on disk — silently discarding the first.
         String canonical = canonical(path);
         session.requireRead(canonical);
+        requireEditableTarget(canonical);
         if (oldString.isEmpty()) {
             throw new IllegalArgumentException("oldString must not be empty: " + canonical);
         }
@@ -163,6 +164,22 @@ public final class KbEditScriptApi extends KbScriptApi {
         }
         session.stageBinaryEdit(canonical, bytes);
         return bytesResult(canonical, "write", bytes.length);
+    }
+
+    /**
+     * Refuses now what the apply step would refuse later: an untracked file on a project that
+     * serves its {@code allow-globs} area for reading only. Same argument as {@code kb.create}
+     * validating its path — the permission does not change while the script runs, and finding out
+     * at apply time would leave the run's earlier files on disk.
+     *
+     * <p>A file this run created itself is skipped: it is on no disk and in no index yet, so the
+     * check would refuse the very file the script has just written.
+     */
+    private void requireEditableTarget(String canonical) {
+        if (session.pending(canonical).filter(ScriptSession.PendingWrite::created).isPresent()) {
+            return;
+        }
+        gitService.requireEditable(canonical);
     }
 
     /** Refuses a text file, naming the method that edits one — see {@link #writeBytes}. */

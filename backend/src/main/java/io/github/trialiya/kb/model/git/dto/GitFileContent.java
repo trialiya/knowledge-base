@@ -13,6 +13,10 @@ import org.jspecify.annotations.Nullable;
  *     getFileContent} умеет читать не только активный проект чата (см. {@code
  *     GitFunction#getFileContent}), и без эха модель не отличит, откуда пришло содержимое
  * @param path относительный путь
+ * @param tracked отслеживается ли файл git'ом. {@code false} — файл виден только через {@code
+ *     allow-globs} проекта: он читается как любой другой, но живёт вне истории, и правка в нём
+ *     остаётся неотслеживаемой (а на проекте без {@code untracked-edit-enabled} запрещена вовсе).
+ *     Модель должна знать это до правки, а не узнавать из отказа
  * @param content текстовое содержимое (null для бинарных файлов); при усечении/диапазоне — только
  *     запрошенная или укороченная часть
  * @param binary true если файл бинарный
@@ -27,6 +31,7 @@ import org.jspecify.annotations.Nullable;
 public record GitFileContent(
         String project,
         String path,
+        boolean tracked,
         @Nullable String content,
         boolean binary,
         long sizeBytes,
@@ -43,6 +48,7 @@ public record GitFileContent(
                 Compact.tag("file:" + path)
                         .add("project", project)
                         .add("lang", language)
+                        .add("untracked", tracked ? null : "1")
                         .add("lines", lineCount)
                         .add("range", fromLine == null ? null : fromLine + "-" + toLine)
                         .add("truncated", truncated ? "1" : null)

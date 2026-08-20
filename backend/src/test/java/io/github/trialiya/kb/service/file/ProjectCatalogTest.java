@@ -52,22 +52,54 @@ class ProjectCatalogTest {
                 catalog(
                         List.of(
                                 new ProjectOption(
-                                        "kb", null, "/srv/kb", true, List.of("notes/**"), true),
+                                        "kb",
+                                        null,
+                                        "/srv/kb",
+                                        true,
+                                        true,
+                                        List.of("notes/**"),
+                                        true),
                                 new ProjectOption(
-                                        "billing", null, "/srv/billing", false, null, true)),
+                                        "billing", null, "/srv/billing", false, false, null, true)),
                         legacy(null));
 
         assertThat(catalog.require("kb").editEnabled()).isTrue();
+        assertThat(catalog.require("kb").untrackedEditEnabled()).isTrue();
         assertThat(catalog.require("kb").allowGlobs()).containsExactly("notes/**");
         assertThat(catalog.require("billing").editEnabled()).isFalse();
+        assertThat(catalog.require("billing").untrackedEditEnabled()).isFalse();
         assertThat(catalog.require("billing").allowGlobs()).isEmpty();
+    }
+
+    /**
+     * {@code untracked-edit-enabled} только сужает правки, а не открывает их: на проекте без {@code
+     * edit-enabled} он не должен пролезть в {@link Project} — иначе один флаг в конфиге сделал бы
+     * репозиторий записываемым в обход второго.
+     */
+    @Test
+    void untrackedEditsNeedTheProjectToAllowEditsAtAll() {
+        ProjectCatalog catalog =
+                catalog(
+                        List.of(
+                                new ProjectOption(
+                                        "kb",
+                                        null,
+                                        "/srv/kb",
+                                        false,
+                                        true,
+                                        List.of("notes/**"),
+                                        true)),
+                        legacy(null));
+
+        assertThat(catalog.require("kb").editEnabled()).isFalse();
+        assertThat(catalog.require("kb").untrackedEditEnabled()).isFalse();
     }
 
     @Test
     void theLabelDefaultsToTheId() {
         ProjectCatalog catalog =
                 catalog(
-                        List.of(new ProjectOption("kb", " ", "/srv/kb", false, null, true)),
+                        List.of(new ProjectOption("kb", " ", "/srv/kb", false, false, null, true)),
                         legacy(null));
 
         assertThat(catalog.defaultProject().label()).isEqualTo("kb");
@@ -79,9 +111,15 @@ class ProjectCatalogTest {
         ProjectCatalog catalog =
                 catalog(
                         List.of(
-                                new ProjectOption("kb", null, "/srv/kb", false, null, true),
+                                new ProjectOption("kb", null, "/srv/kb", false, false, null, true),
                                 new ProjectOption(
-                                        "billing", "Billing", "/srv/billing", true, null, true)),
+                                        "billing",
+                                        "Billing",
+                                        "/srv/billing",
+                                        true,
+                                        false,
+                                        null,
+                                        true)),
                         legacy(null));
 
         assertThat(catalog.projects()).extracting(Project::id).containsExactly("kb", "billing");
@@ -101,9 +139,15 @@ class ProjectCatalogTest {
         ProjectCatalog catalog =
                 catalog(
                         List.of(
-                                new ProjectOption("kb", null, "/srv/kb", false, null, true),
+                                new ProjectOption("kb", null, "/srv/kb", false, false, null, true),
                                 new ProjectOption(
-                                        "billing", null, "/srv/billing", false, null, false)),
+                                        "billing",
+                                        null,
+                                        "/srv/billing",
+                                        false,
+                                        false,
+                                        null,
+                                        false)),
                         legacy(null));
 
         assertThat(catalog.projects()).singleElement().extracting(Project::id).isEqualTo("kb");
@@ -117,8 +161,9 @@ class ProjectCatalogTest {
         ProjectCatalog catalog =
                 catalog(
                         List.of(
-                                new ProjectOption("kb", null, "/srv/kb", false, null, true),
-                                new ProjectOption("Not An Id", null, "", false, null, false)),
+                                new ProjectOption("kb", null, "/srv/kb", false, false, null, true),
+                                new ProjectOption(
+                                        "Not An Id", null, "", false, false, null, false)),
                         legacy(null));
 
         assertThat(catalog.defaultProject().id()).isEqualTo("kb");
@@ -131,7 +176,8 @@ class ProjectCatalogTest {
                                 catalog(
                                         List.of(
                                                 new ProjectOption(
-                                                        "kb", null, "/srv/kb", false, null, false)),
+                                                        "kb", null, "/srv/kb", false, false, null,
+                                                        false)),
                                         legacy("/srv/legacy")))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("every configured project is disabled");
@@ -144,8 +190,8 @@ class ProjectCatalogTest {
                                 catalog(
                                         List.of(
                                                 new ProjectOption(
-                                                        "My Repo", null, "/srv/kb", false, null,
-                                                        true)),
+                                                        "My Repo", null, "/srv/kb", false, false,
+                                                        null, true)),
                                         legacy(null)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("My Repo");
@@ -158,7 +204,7 @@ class ProjectCatalogTest {
                                 catalog(
                                         List.of(
                                                 new ProjectOption(
-                                                        "kb", null, " ", false, null, true)),
+                                                        "kb", null, " ", false, false, null, true)),
                                         legacy(null)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("No project configured");
@@ -168,7 +214,7 @@ class ProjectCatalogTest {
     void namingNoProjectMeansTheFirstOne() {
         ProjectCatalog catalog =
                 catalog(
-                        List.of(new ProjectOption("kb", null, "/srv/kb", false, null, true)),
+                        List.of(new ProjectOption("kb", null, "/srv/kb", false, false, null, true)),
                         legacy(null));
 
         assertThat(catalog.find(null)).contains(catalog.defaultProject());
@@ -185,7 +231,7 @@ class ProjectCatalogTest {
     void anUnsetProjectIsNotAllowedEvenThoughItResolvesToTheDefault() {
         ProjectCatalog catalog =
                 catalog(
-                        List.of(new ProjectOption("kb", null, "/srv/kb", false, null, true)),
+                        List.of(new ProjectOption("kb", null, "/srv/kb", false, false, null, true)),
                         legacy(null));
 
         assertThat(catalog.isAllowed("kb")).isTrue();
@@ -198,7 +244,7 @@ class ProjectCatalogTest {
     void anUnknownProjectIsAnErrorRatherThanASilentFallback() {
         ProjectCatalog catalog =
                 catalog(
-                        List.of(new ProjectOption("kb", null, "/srv/kb", false, null, true)),
+                        List.of(new ProjectOption("kb", null, "/srv/kb", false, false, null, true)),
                         legacy(null));
 
         assertThat(catalog.find("billing")).isEmpty();

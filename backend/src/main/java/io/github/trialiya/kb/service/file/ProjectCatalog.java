@@ -50,9 +50,15 @@ public class ProjectCatalog {
         this.projects = resolve(projectProperties.projects(), gitProperties);
         log.info(
                 "Projects: {}",
-                projects.stream()
-                        .map(p -> p.id() + " → " + p.path() + (p.editEnabled() ? " (rw)" : ""))
-                        .toList());
+                projects.stream().map(p -> p.id() + " → " + p.path() + mode(p)).toList());
+    }
+
+    /** What the startup line says about a project's writes: nothing, {@code rw}, or both. */
+    private static String mode(Project project) {
+        if (!project.editEnabled()) {
+            return "";
+        }
+        return project.untrackedEditEnabled() ? " (rw, untracked rw)" : " (rw)";
     }
 
     /** Every configured project, in configuration order. Never empty. */
@@ -121,7 +127,8 @@ public class ProjectCatalog {
             }
             // The legacy form carries no edit flag and no globs: edits and untracked access are
             // per-project opt-ins, and opting in means writing the kb.projects entry out.
-            return List.of(new Project(LEGACY_ID, LEGACY_ID, absolute(path), false, List.of()));
+            return List.of(
+                    new Project(LEGACY_ID, LEGACY_ID, absolute(path), false, false, List.of()));
         }
         List<Project> resolved = new ArrayList<>();
         Set<String> ids = new LinkedHashSet<>();
@@ -154,9 +161,44 @@ public class ProjectCatalog {
                             option.displayLabel(),
                             absolute(option.path()),
                             option.editEnabled(),
+                            untrackedEdits(option),
                             option.allowGlobs()));
         }
         return List.copyOf(resolved);
+    }
+
+    /**
+     * Whether this project really lets a write land on an untracked file: {@code
+     * untracked-edit-enabled} <em>and</em> {@code edit-enabled}, because the flag only narrows the
+     * edits a project already permits.
+     *
+     * <p>The two configurations it cannot satisfy are logged rather than refused — neither is
+     * ambiguous, both are safe (no write becomes possible), and failing a deployment's startup over
+     * a flag that grants nothing would be worse than the flag quietly granting nothing:
+     *
+     * <ul>
+     *   <li>edits off for the project — the flag names a permission there is nothing to widen;
+     *   <li>no {@code allow-globs} — the project serves no untracked file for it to apply to.
+     * </ul>
+     */
+    private static boolean untrackedEdits(ProjectOption option) {
+        if (!option.untrackedEditEnabled()) {
+            return false;
+        }
+        if (!option.editEnabled()) {
+            log.warn(
+                    "kb.projects[{}]: untracked-edit-enabled is set while edit-enabled is false —"
+                            + " the project stays read-only",
+                    option.id());
+            return false;
+        }
+        if (option.allowGlobs().isEmpty()) {
+            log.warn(
+                    "kb.projects[{}]: untracked-edit-enabled is set while allow-globs is empty —"
+                            + " the project serves no untracked file to edit",
+                    option.id());
+        }
+        return true;
     }
 
     /**

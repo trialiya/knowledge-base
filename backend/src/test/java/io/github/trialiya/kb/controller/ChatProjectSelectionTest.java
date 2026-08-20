@@ -86,14 +86,18 @@ class ChatProjectSelectionTest {
                         catalog(),
                         mock(io.github.trialiya.kb.service.file.GitRegistry.class),
                         mock(SystemPromptService.class),
-                        new ProjectPromptService(catalog()),
+                        new ProjectPromptService(
+                                catalog(),
+                                mock(io.github.trialiya.kb.service.file.GitRegistry.class)),
                         Clock.systemUTC());
     }
 
     private static ProjectCatalog catalog() {
         return new ProjectCatalog(
                 new ProjectProperties(
-                        List.of(new ProjectOption("kb", "KB", "/srv/kb", false, null, true))),
+                        List.of(
+                                new ProjectOption(
+                                        "kb", "KB", "/srv/kb", false, false, null, true))),
                 new GitProperties(null));
     }
 

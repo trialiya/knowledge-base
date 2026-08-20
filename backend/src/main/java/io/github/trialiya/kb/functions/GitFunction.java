@@ -237,7 +237,8 @@ public class GitFunction {
                             + "mentioning the file in your response, link it as "
                             + "[filename](/files?path=PATH&project=ID), where PATH is the path "
                             + "from the response and ID is the response's project field; append "
-                            + "#Lfrom-Lto for a line range.",
+                            + "#Lfrom-Lto for a line range. tracked=false marks a file git does "
+                            + "not track, served through the project's allow-globs.",
             resultConverter = CompactToolResultConverter.class)
     public GitFileContent getFileContent(
             ToolContext context,
@@ -275,16 +276,17 @@ public class GitFunction {
     }
 
     /**
-     * Returns uncommitted changes to tracked files in the working tree. Untracked files (including
-     * those matched by {@code .gitignore}) are not reported — same tracked-only rule the read tools
-     * enforce.
+     * Returns uncommitted changes to tracked files in the working tree, plus the untracked files
+     * the project's {@code allow-globs} admit under a status of their own, {@code U}. Every other
+     * untracked file (including everything {@code .gitignore} matches) is not reported — same rule
+     * the read tools enforce.
      *
      * @param includePatch whether to include unified diff text for modified files (default false)
      */
     @Tool(
             name = "getUncommittedChanges",
             description =
-                    "Uncommitted changes in working tree (staged and unstaged), plus any untracked file the project's allow-globs admit, reported as A. Status: A/M/D/R. Optional: include unified diff.",
+                    "Uncommitted changes in working tree (staged and unstaged), plus any untracked file the project's allow-globs admit. Status: A/M/D/R for tracked files, U for an untracked one (not in git, will not be committed with the rest). Optional: include unified diff.",
             resultConverter = CompactToolResultConverter.class)
     public List<GitDiffEntry> getUncommittedChanges(
             ToolContext context,
