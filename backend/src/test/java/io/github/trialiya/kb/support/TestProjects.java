@@ -24,23 +24,38 @@ public final class TestProjects {
     /** A registry over the single repository at {@code repoDir}. */
     public static GitRegistry registry(Path repoDir, boolean editEnabled) {
         return registry(
-                List.of(new ProjectOption(ID, null, repoDir.toString(), editEnabled, true)));
+                List.of(new ProjectOption(ID, null, repoDir.toString(), editEnabled, null, true)));
     }
 
     /** A registry over several configured projects — the first one is the default. */
     public static GitRegistry registry(List<ProjectOption> projects) {
         return new GitRegistry(
-                new ProjectCatalog(new ProjectProperties(projects), new GitProperties(null, false)),
+                new ProjectCatalog(new ProjectProperties(projects), new GitProperties(null)),
                 new OutlineService());
     }
 
     /** A read-only project entry at {@code path}. */
     public static ProjectOption project(String id, Path path) {
-        return new ProjectOption(id, null, path.toString(), false, true);
+        return new ProjectOption(id, null, path.toString(), false, null, true);
     }
 
     /** The {@link GitService} of that single repository. */
     public static GitService gitService(Path repoDir, boolean editEnabled) {
         return registry(repoDir, editEnabled).defaultProject();
+    }
+
+    /** As {@link #gitService(Path, boolean)}, with the project's untracked {@code allow-globs}. */
+    public static GitService gitService(
+            Path repoDir, boolean editEnabled, List<String> allowGlobs) {
+        return registry(
+                        List.of(
+                                new ProjectOption(
+                                        ID,
+                                        null,
+                                        repoDir.toString(),
+                                        editEnabled,
+                                        allowGlobs,
+                                        true)))
+                .defaultProject();
     }
 }

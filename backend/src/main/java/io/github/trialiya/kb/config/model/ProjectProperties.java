@@ -15,6 +15,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *       label: Knowledge Base
  *       path: /project
  *       edit-enabled: false
+ *       allow-globs: []
  * </pre>
  *
  * <p>Several entries are served at once: each is a repository of its own with its own mount, and
@@ -45,9 +46,14 @@ public record ProjectProperties(List<ProjectOption> projects) {
      *     {@code . _ -} because it is meant to survive a trip through a URL segment unescaped
      * @param label human-readable name; defaults to {@link #id()} when omitted
      * @param path filesystem path of the Git working tree, as {@code kb.git.project-path} was
-     * @param editEnabled whether the working-tree edit tools may touch <em>this</em> repository;
-     *     omitted, the deployment-wide {@code kb.git.edit-enabled} applies. Still not sufficient on
-     *     its own — a read-only mount withholds writes regardless (see {@code GitRegistry})
+     * @param editEnabled whether the working-tree edit tools may touch <em>this</em> repository —
+     *     set per project, there is no deployment-wide default. Still not sufficient on its own — a
+     *     read-only mount withholds writes regardless (see {@code GitRegistry}). Defaults to {@code
+     *     false}
+     * @param allowGlobs Ant-style globs naming the <em>untracked</em> files of this repository the
+     *     assistant may also work with — read, edit, create without staging. Untracked here means
+     *     what {@code git status} calls untracked: files matched by {@code .gitignore} stay hidden
+     *     whatever the globs say. Empty by default — tracked files only, as everywhere else
      * @param enabled {@code false} — the project is not served: no repository is opened for it, it
      *     is absent from {@code GET /api/chats/projects}, and a call naming it is refused. Chats
      *     that had chosen it keep the id in {@code chat_topic.project} and run on the default one,
@@ -58,8 +64,13 @@ public record ProjectProperties(List<ProjectOption> projects) {
             String id,
             @Nullable String label,
             String path,
-            @Nullable Boolean editEnabled,
+            @DefaultValue("false") boolean editEnabled,
+            List<String> allowGlobs,
             @DefaultValue("true") boolean enabled) {
+
+        public ProjectOption {
+            allowGlobs = allowGlobs == null ? List.of() : List.copyOf(allowGlobs);
+        }
 
         /** What to show when the config named no label. */
         public String displayLabel() {

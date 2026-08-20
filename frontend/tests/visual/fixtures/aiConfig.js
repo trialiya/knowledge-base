@@ -94,8 +94,6 @@ export const defaultAiConfig = {
       maxEditedFiles: 20,
       maxEditedBytes: 262144,
     },
-    denyGlobs: [],
-    allowGlobs: [],
   },
 };
 

@@ -52,7 +52,8 @@ class GitEditFunctionGuardTest {
         context = new ToolContext(Map.of(ToolInvocationCollector.KEY, collector));
         when(gitService.editFile(anyString(), anyString(), anyString(), anyBoolean()))
                 .thenReturn(new GitEditResult("edit", PATH, 1, 1, 10, "diff"));
-        when(gitService.project()).thenReturn(new Project("kb", "KB", Path.of("."), true));
+        when(gitService.project())
+                .thenReturn(new Project("kb", "KB", Path.of("."), true, java.util.List.of()));
     }
 
     @Test

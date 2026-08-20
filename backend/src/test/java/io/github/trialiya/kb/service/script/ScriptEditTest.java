@@ -145,8 +145,6 @@ class ScriptEditTest {
                                 Duration.ofSeconds(1),
                                 Duration.ofSeconds(2),
                                 Duration.ofMillis(20),
-                                null,
-                                null,
                                 null));
 
         ScriptResult result =
@@ -481,32 +479,6 @@ class ScriptEditTest {
         assertThat(result.edits()).isEmpty();
     }
 
-    @Test
-    void refusesToEditAFileHiddenByTheGlobPolicy() {
-        ScriptProperties hidden =
-                new ScriptProperties(
-                        true,
-                        true,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        List.of("src/**"),
-                        null);
-        runner = newRunner(true, hidden);
-
-        ScriptResult result =
-                run("kb.edit('src/App.java', 'class App', 'class Sneaky'); return 'ok';");
-
-        assertThat(result.error()).isNotNull();
-        assertThat(result.error().message()).contains("File not found");
-        assertThat(fileText(APP_JAVA)).isEqualTo(ORIGINAL);
-    }
-
     // ── One spelling per path ───────────────────────────────────────────────
 
     /**
@@ -546,24 +518,6 @@ class ScriptEditTest {
         assertThat(result.stats().filesEdited()).isEqualTo(1);
         // Both edits survived — the second saw the first, rather than the original on disk.
         assertThat(fileText(APP_JAVA)).contains("class AppOne").contains("void start");
-    }
-
-    /**
-     * The glob policy is checked on the path, so it is only as strong as the spelling reaching it.
-     * {@code secrets/**} does not match {@code ./secrets/x.pem}: before the paths were canonical
-     * this slipped past the check and was stopped only by JGit declining to stage it — after the
-     * content had already been written to disk once.
-     */
-    @Test
-    void aDeniedPathCannotBeReachedByRespellingIt() {
-        runner = newRunner(true, withDenyGlobs(List.of("secrets/**")));
-
-        ScriptResult result = run("kb.create('./secrets/leak.pem', 'PRIVATE KEY'); return 1;");
-
-        assertThat(result.error()).isNotNull();
-        assertThat(result.error().message()).contains("File not found");
-        assertThat(result.error().kind()).isEqualTo(ScriptError.Kind.RUNTIME);
-        assertThat(repoDir.resolve("secrets/leak.pem")).doesNotExist();
     }
 
     // ── Binary files ────────────────────────────────────────────────────────
@@ -858,11 +812,6 @@ class ScriptEditTest {
                 gitRegistry, null, properties, new ScriptEditPolicy(gitRegistry, properties));
     }
 
-    private static ScriptProperties withDenyGlobs(List<String> deny) {
-        return new ScriptProperties(
-                true, true, null, null, null, null, null, null, null, null, deny, null);
-    }
-
     private static ScriptProperties withEditLimits(int maxEditedFiles) {
         return new ScriptProperties(
                 true,
@@ -881,9 +830,7 @@ class ScriptEditTest {
                         20_000,
                         20_000,
                         maxEditedFiles,
-                        DataSize.ofKilobytes(256)),
-                null,
-                null);
+                        DataSize.ofKilobytes(256)));
     }
 
     private String fileText(String relativePath) {

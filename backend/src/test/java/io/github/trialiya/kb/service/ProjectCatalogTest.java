@@ -22,49 +22,53 @@ class ProjectCatalogTest {
         return new ProjectCatalog(new ProjectProperties(projects), git);
     }
 
-    private static GitProperties legacy(String path, boolean editEnabled) {
-        return new GitProperties(path, editEnabled);
+    private static GitProperties legacy(String path) {
+        return new GitProperties(path);
     }
 
     @Test
-    void anEmptyListFallsBackToTheLegacySingleProject() {
-        ProjectCatalog catalog = catalog(List.of(), legacy("/srv/repo", true));
+    void anEmptyListFallsBackToTheLegacyReadOnlySingleProject() {
+        ProjectCatalog catalog = catalog(List.of(), legacy("/srv/repo"));
 
         Project project = catalog.defaultProject();
         assertThat(catalog.projects()).hasSize(1);
         assertThat(project.id()).isEqualTo("default");
         assertThat(project.path()).isEqualTo(Path.of("/srv/repo").toAbsolutePath().normalize());
-        assertThat(project.editEnabled()).isTrue();
+        // The legacy form carries no edit opt-in: writes require a kb.projects entry of their own.
+        assertThat(project.editEnabled()).isFalse();
+        assertThat(project.allowGlobs()).isEmpty();
     }
 
     @Test
     void withNothingConfiguredAtAllTheContextFails() {
-        assertThatThrownBy(() -> catalog(List.of(), legacy(null, false)))
+        assertThatThrownBy(() -> catalog(List.of(), legacy(null)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("kb.projects[0].path");
     }
 
     @Test
-    void aProjectWithoutItsOwnFlagInheritsTheDeploymentWideOne() {
-        ProjectCatalog inherited =
+    void editsAndAllowGlobsAreCarriedPerProject() {
+        ProjectCatalog catalog =
                 catalog(
-                        List.of(new ProjectOption("kb", null, "/srv/kb", null, true)),
-                        legacy(null, true));
-        ProjectCatalog own =
-                catalog(
-                        List.of(new ProjectOption("kb", null, "/srv/kb", false, true)),
-                        legacy(null, true));
+                        List.of(
+                                new ProjectOption(
+                                        "kb", null, "/srv/kb", true, List.of("notes/**"), true),
+                                new ProjectOption(
+                                        "billing", null, "/srv/billing", false, null, true)),
+                        legacy(null));
 
-        assertThat(inherited.defaultProject().editEnabled()).isTrue();
-        assertThat(own.defaultProject().editEnabled()).isFalse();
+        assertThat(catalog.require("kb").editEnabled()).isTrue();
+        assertThat(catalog.require("kb").allowGlobs()).containsExactly("notes/**");
+        assertThat(catalog.require("billing").editEnabled()).isFalse();
+        assertThat(catalog.require("billing").allowGlobs()).isEmpty();
     }
 
     @Test
     void theLabelDefaultsToTheId() {
         ProjectCatalog catalog =
                 catalog(
-                        List.of(new ProjectOption("kb", " ", "/srv/kb", null, true)),
-                        legacy(null, false));
+                        List.of(new ProjectOption("kb", " ", "/srv/kb", false, null, true)),
+                        legacy(null));
 
         assertThat(catalog.defaultProject().label()).isEqualTo("kb");
     }
@@ -75,10 +79,10 @@ class ProjectCatalogTest {
         ProjectCatalog catalog =
                 catalog(
                         List.of(
-                                new ProjectOption("kb", null, "/srv/kb", null, true),
+                                new ProjectOption("kb", null, "/srv/kb", false, null, true),
                                 new ProjectOption(
-                                        "billing", "Billing", "/srv/billing", true, true)),
-                        legacy(null, false));
+                                        "billing", "Billing", "/srv/billing", true, null, true)),
+                        legacy(null));
 
         assertThat(catalog.projects()).extracting(Project::id).containsExactly("kb", "billing");
         assertThat(catalog.defaultProject().id()).isEqualTo("kb");
@@ -97,9 +101,10 @@ class ProjectCatalogTest {
         ProjectCatalog catalog =
                 catalog(
                         List.of(
-                                new ProjectOption("kb", null, "/srv/kb", null, true),
-                                new ProjectOption("billing", null, "/srv/billing", null, false)),
-                        legacy(null, false));
+                                new ProjectOption("kb", null, "/srv/kb", false, null, true),
+                                new ProjectOption(
+                                        "billing", null, "/srv/billing", false, null, false)),
+                        legacy(null));
 
         assertThat(catalog.projects()).singleElement().extracting(Project::id).isEqualTo("kb");
         assertThat(catalog.isAllowed("billing")).isFalse();
@@ -112,9 +117,9 @@ class ProjectCatalogTest {
         ProjectCatalog catalog =
                 catalog(
                         List.of(
-                                new ProjectOption("kb", null, "/srv/kb", null, true),
-                                new ProjectOption("Not An Id", null, "", null, false)),
-                        legacy(null, false));
+                                new ProjectOption("kb", null, "/srv/kb", false, null, true),
+                                new ProjectOption("Not An Id", null, "", false, null, false)),
+                        legacy(null));
 
         assertThat(catalog.defaultProject().id()).isEqualTo("kb");
     }
@@ -126,8 +131,8 @@ class ProjectCatalogTest {
                                 catalog(
                                         List.of(
                                                 new ProjectOption(
-                                                        "kb", null, "/srv/kb", null, false)),
-                                        legacy("/srv/legacy", false)))
+                                                        "kb", null, "/srv/kb", false, null, false)),
+                                        legacy("/srv/legacy")))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("every configured project is disabled");
     }
@@ -139,8 +144,9 @@ class ProjectCatalogTest {
                                 catalog(
                                         List.of(
                                                 new ProjectOption(
-                                                        "My Repo", null, "/srv/kb", null, true)),
-                                        legacy(null, false)))
+                                                        "My Repo", null, "/srv/kb", false, null,
+                                                        true)),
+                                        legacy(null)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("My Repo");
     }
@@ -150,8 +156,10 @@ class ProjectCatalogTest {
         assertThatThrownBy(
                         () ->
                                 catalog(
-                                        List.of(new ProjectOption("kb", null, " ", null, true)),
-                                        legacy(null, false)))
+                                        List.of(
+                                                new ProjectOption(
+                                                        "kb", null, " ", false, null, true)),
+                                        legacy(null)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("No project configured");
     }
@@ -160,8 +168,8 @@ class ProjectCatalogTest {
     void namingNoProjectMeansTheFirstOne() {
         ProjectCatalog catalog =
                 catalog(
-                        List.of(new ProjectOption("kb", null, "/srv/kb", null, true)),
-                        legacy(null, false));
+                        List.of(new ProjectOption("kb", null, "/srv/kb", false, null, true)),
+                        legacy(null));
 
         assertThat(catalog.find(null)).contains(catalog.defaultProject());
         assertThat(catalog.find("")).contains(catalog.defaultProject());
@@ -177,8 +185,8 @@ class ProjectCatalogTest {
     void anUnsetProjectIsNotAllowedEvenThoughItResolvesToTheDefault() {
         ProjectCatalog catalog =
                 catalog(
-                        List.of(new ProjectOption("kb", null, "/srv/kb", null, true)),
-                        legacy(null, false));
+                        List.of(new ProjectOption("kb", null, "/srv/kb", false, null, true)),
+                        legacy(null));
 
         assertThat(catalog.isAllowed("kb")).isTrue();
         assertThat(catalog.isAllowed("billing")).isFalse();
@@ -190,8 +198,8 @@ class ProjectCatalogTest {
     void anUnknownProjectIsAnErrorRatherThanASilentFallback() {
         ProjectCatalog catalog =
                 catalog(
-                        List.of(new ProjectOption("kb", null, "/srv/kb", null, true)),
-                        legacy(null, false));
+                        List.of(new ProjectOption("kb", null, "/srv/kb", false, null, true)),
+                        legacy(null));
 
         assertThat(catalog.find("billing")).isEmpty();
         assertThatThrownBy(() -> catalog.require("billing"))

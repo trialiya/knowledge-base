@@ -159,8 +159,15 @@ kb:
       # The Git repository indexed and served to the chat model (GitFunction/GitEditFunction).
       # kb.git.project-path is the pre-kb.projects spelling of the same thing and still works.
       path: ${PROJECT_PATH:${kb.git.project-path:}}
-      # Whether the edit tools may write to THIS repository; omitted — kb.git.edit-enabled below.
-      # edit-enabled: false
+      # Whether the edit tools (createFile/editFile) may write to THIS repository. Set per project —
+      # there is no deployment-wide default. Even when true, writes are withheld if the working
+      # tree is not writable (ro mount); see GitRegistry.
+      edit-enabled: ${KB_GIT_EDIT_ENABLED:false}
+      # Ant-style globs naming UNTRACKED files of this repository the assistant may also work with
+      # (read, edit, create — created/edited files stay untracked). "Untracked" is git status's
+      # word: paths matched by .gitignore stay hidden whatever the globs say. Empty — tracked
+      # files only. e.g. ["notes/**", "**/*.draft.md"]
+      allow-globs: []
     # A slot for a second repository, switched off until PROJECT2_ENABLED=true. Off, it is out of
     # the catalogue entirely — not opened, not validated, not listed, not routable — so this block
     # (and its mount) can land before anyone serves it. Turning it on takes the flag, the mount at
@@ -170,13 +177,9 @@ kb:
     - id: ${PROJECT2_ID:billing}
       label: ${PROJECT2_LABEL:}
       path: ${PROJECT2_PATH:/projects/billing}
-      edit-enabled: ${PROJECT2_EDIT_ENABLED:${KB_GIT_EDIT_ENABLED:false}}
+      edit-enabled: ${PROJECT2_EDIT_ENABLED:false}
+      allow-globs: []
       enabled: ${PROJECT2_ENABLED:false}
-  git:
-    # Default for kb.projects[].edit-enabled: expose file edit tools (createFile/editFile) to the
-    # chat model. Default off — read-only. Even when true, the tools are withheld if the working
-    # tree is not writable (ro mount).
-    edit-enabled: ${KB_GIT_EDIT_ENABLED:false}
   script:
     # The runScript tool: the model writes a short JS script that walks the repository itself,
     # instead of a dozen grep/read round-trips. The script has NO filesystem — the engine is built
@@ -184,9 +187,9 @@ kb:
     # same tracked-files rules as every other tool. Still an explicit opt-in: it is executed code.
     enabled: ${KB_SCRIPT_ENABLED:false}
     # Let scripts write (kb.edit/kb.create for text, kb.writeBytes/kb.createBytes for bytes).
-    # Necessary but not sufficient: kb.git.edit-enabled must
-    # also be on and the working tree writable — the same two gates as the editFile tool, so scripts
-    # can never be a way around a read-only deployment. Separate flag so a deployment can keep the
+    # Necessary but not sufficient: the project's kb.projects[].edit-enabled must also be on and
+    # its working tree writable — the same two gates as the editFile tool, so scripts can never be
+    # a way around a read-only deployment. Separate flag so a deployment can keep the
     # edit tools and still hand the model read-only scripts. See ScriptEditPolicy.
     edit-enabled: ${KB_SCRIPT_EDIT_ENABLED:true}
     # Handbook injected into the system prompt while the tool is enabled (ScriptGuideService),
@@ -220,12 +223,6 @@ kb:
       max-result-chars: 20000
       max-edited-files: 20      # writes only; a buggy loop must not rewrite the repository
       max-edited-bytes: 256KB
-    # Optional, empty by default. Ant-style globs (**/*.pem matches at any depth, including root).
-    # deny-globs hides paths from scripts ON TOP OF .gitignore, which already excludes untracked
-    # secrets; allow-globs, when non-empty, narrows scripts to those paths only. A hidden file
-    # looks exactly like a missing one, so a script cannot probe the policy.
-    deny-globs: []      # e.g. ["**/*.pem", "**/secrets/**"]
-    allow-globs: []     # e.g. ["docs/**", "backend/src/**"]
   mcp:
     # Expose tools from external MCP (Model Context Protocol) servers to the chat model, in
     # addition to the built-in git/document tools. Default off — external MCP servers run

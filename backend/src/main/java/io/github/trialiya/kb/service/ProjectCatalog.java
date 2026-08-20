@@ -119,8 +119,9 @@ public class ProjectCatalog {
                         "No project configured: set kb.projects[0].path (or the legacy"
                                 + " kb.git.project-path)");
             }
-            return List.of(
-                    new Project(LEGACY_ID, LEGACY_ID, absolute(path), gitProperties.editEnabled()));
+            // The legacy form carries no edit flag and no globs: edits and untracked access are
+            // per-project opt-ins, and opting in means writing the kb.projects entry out.
+            return List.of(new Project(LEGACY_ID, LEGACY_ID, absolute(path), false, List.of()));
         }
         List<Project> resolved = new ArrayList<>();
         Set<String> ids = new LinkedHashSet<>();
@@ -151,9 +152,8 @@ public class ProjectCatalog {
                             id,
                             option.displayLabel(),
                             absolute(option.path()),
-                            option.editEnabled() != null
-                                    ? option.editEnabled()
-                                    : gitProperties.editEnabled()));
+                            option.editEnabled(),
+                            option.allowGlobs()));
         }
         return List.copyOf(resolved);
     }

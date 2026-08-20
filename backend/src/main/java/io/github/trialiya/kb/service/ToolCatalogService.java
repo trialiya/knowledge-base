@@ -21,8 +21,8 @@ import org.springframework.stereotype.Service;
  *
  * <p>The source is {@link ChatToolset} — the very callbacks handed to the {@code ChatClient} — so
  * what the panel lists is what the model has, including the tools that appear only with {@code
- * kb.git.edit-enabled}, {@code kb.script.enabled} or an MCP server configured. Nothing here is
- * curated by hand; a new {@code @Tool} shows up in the panel with no edit on this side.
+ * kb.projects[].edit-enabled}, {@code kb.script.enabled} or an MCP server configured. Nothing here
+ * is curated by hand; a new {@code @Tool} shows up in the panel with no edit on this side.
  *
  * <p>Built once: the tool set is fixed when the context starts, and re-reading the schemas per
  * request would only re-parse constants.

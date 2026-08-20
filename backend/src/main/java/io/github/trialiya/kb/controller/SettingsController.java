@@ -203,9 +203,7 @@ public class SettingsController {
                         limits.maxLogChars(),
                         limits.maxResultChars(),
                         limits.maxEditedFiles(),
-                        limits.maxEditedBytes().toBytes()),
-                scriptProperties.denyGlobs(),
-                scriptProperties.allowGlobs());
+                        limits.maxEditedBytes().toBytes()));
     }
 
     /**
@@ -305,9 +303,7 @@ public class SettingsController {
             long timeoutSeconds,
             long maxTimeoutSeconds,
             long cancelPollMillis,
-            ScriptLimits limits,
-            List<String> denyGlobs,
-            List<String> allowGlobs) {}
+            ScriptLimits limits) {}
 
     /** {@code kb.script.limits.*}, with the two {@code DataSize} values flattened to bytes. */
     public record ScriptLimits(

@@ -614,9 +614,7 @@ runId активного прогона чата (или пустой объек
       "maxResultChars": 20000,
       "maxEditedFiles": 20,
       "maxEditedBytes": 262144
-    },
-    "denyGlobs": [],
-    "allowGlobs": []
+    }
   }
 }
 ```
@@ -628,7 +626,7 @@ runId активного прогона чата (или пустой объек
 ---
 
 ### GET `/api/settings/tools`
-Каталог инструментов, доступных модели прямо сейчас, для группы «Настройки → Инструменты». Список собран из тех же `ToolCallback`, что отданы `ChatClient` (`ChatToolset` → `ToolCatalogService`), поэтому отражает фактическую конфигурацию: без `kb.git.edit-enabled` в нём нет `createFile`/`editFile`, без `kb.script.enabled` — `runScript`, а инструменты внешних MCP-серверов появляются только при `kb.mcp.enabled`.
+Каталог инструментов, доступных модели прямо сейчас, для группы «Настройки → Инструменты». Список собран из тех же `ToolCallback`, что отданы `ChatClient` (`ChatToolset` → `ToolCatalogService`), поэтому отражает фактическую конфигурацию: без `kb.projects[].edit-enabled` в нём нет `createFile`/`editFile`, без `kb.script.enabled` — `runScript`, а инструменты внешних MCP-серверов появляются только при `kb.mcp.enabled`.
 
 **Response:** `List<ToolInfo>`, отсортирован по имени
 ```json

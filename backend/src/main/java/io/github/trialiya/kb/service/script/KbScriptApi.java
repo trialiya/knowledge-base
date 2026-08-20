@@ -28,8 +28,9 @@ import org.springframework.util.AntPathMatcher;
  * <p>The script's engine is built with no filesystem, no host class lookup and no threads (see
  * {@code ScriptRunner}), so there is no {@code java.io} to restrict in the first place; file access
  * exists only because these methods provide it. Each one goes through {@link GitService}, which
- * serves tracked files only and confines every path to the working tree, and through {@link
- * ScriptSession}, which applies the configured glob policy and the per-run budgets.
+ * serves tracked files (plus the untracked ones the project's {@code allow-globs} admit) and
+ * confines every path to the working tree, and through {@link ScriptSession}, which applies the
+ * per-run budgets.
  *
  * <p>Methods are annotated {@link HostAccess.Export} one by one and the context is built with
  * {@code HostAccess.EXPLICIT}: anything not annotated here — including everything inherited from
@@ -90,9 +91,8 @@ public class KbScriptApi {
 
     /**
      * The path as the repository spells it. Every path a script names is put through this before
-     * anything is decided about it, because the glob policy is a string match: a script asking for
-     * {@code "./secrets/key.pem"} must be answered by the same rule that covers {@code
-     * "secrets/key.pem"}, and a deny-glob written the obvious way matches only the latter.
+     * anything is decided about it, so the session keys its bookkeeping (reads seen, pending
+     * writes) on one spelling per file.
      *
      * <p>It also spares the model a whole class of dead end. A leading {@code ./} is a natural
      * thing to write and every {@code kb} method used to refuse it — reads as "File not found" for
@@ -104,7 +104,7 @@ public class KbScriptApi {
 
     // ── Listing ─────────────────────────────────────────────────────────────
 
-    /** Every tracked path the script is allowed to see. */
+    /** Every path the script is allowed to see. */
     @HostAccess.Export
     public Object files() {
         return files(null);
@@ -121,9 +121,6 @@ public class KbScriptApi {
                         () -> {
                             List<String> result = new ArrayList<>();
                             for (String path : gitService.listTrackedFiles()) {
-                                if (!session.isVisible(path)) {
-                                    continue;
-                                }
                                 if (glob == null || glob.isBlank() || MATCHER.match(glob, path)) {
                                     result.add(path);
                                 }
@@ -152,7 +149,6 @@ public class KbScriptApi {
         return session.call(
                 Arrays.<Object>asList("read", canonical, fromLine, toLine),
                 () -> {
-                    session.requireVisible(canonical);
                     GitFileContent content =
                             gitService.getFileContent(
                                     canonical,
@@ -215,7 +211,6 @@ public class KbScriptApi {
                 session.call(
                         Arrays.<Object>asList("stat", canonical),
                         () -> {
-                            session.requireVisible(canonical);
                             GitFileInfo info = gitService.getFileInfo(canonical);
                             Map<String, Object> result = new LinkedHashMap<>();
                             result.put("path", info.path());
@@ -272,7 +267,6 @@ public class KbScriptApi {
         return session.call(
                 Arrays.<Object>asList("hash", canonical),
                 () -> {
-                    session.requireVisible(canonical);
                     String hex = gitService.hashFile(canonical);
                     session.chargeScan(canonical);
                     return hex;
@@ -297,7 +291,6 @@ public class KbScriptApi {
         return session.call(
                 Arrays.<Object>asList("bytes", canonical, offset, length),
                 () -> {
-                    session.requireVisible(canonical);
                     long size = gitService.getFileInfo(canonical).sizeBytes();
                     long from = Math.min(Math.max(offset, 0), size);
                     long want = length > 0 ? Math.min(length, size - from) : size - from;
@@ -338,7 +331,6 @@ public class KbScriptApi {
                 session.call(
                         Arrays.<Object>asList("outline", canonical),
                         () -> {
-                            session.requireVisible(canonical);
                             GitFileOutline outline = gitService.getFileOutline(canonical);
                             session.chargeRead(outline.path(), 0);
                             List<Map<String, Object>> rows = new ArrayList<>();
@@ -396,9 +388,6 @@ public class KbScriptApi {
                             List<Map<String, Object>> result = new ArrayList<>();
                             long bytes = 0;
                             for (GitGrepMatch match : matches) {
-                                if (!session.isVisible(match.path())) {
-                                    continue;
-                                }
                                 Map<String, Object> row = new LinkedHashMap<>();
                                 row.put("path", match.path());
                                 row.put("line", match.matchLine());
@@ -409,9 +398,6 @@ public class KbScriptApi {
                                 // is what the edit rule asks for — see ScriptSession.requireRead.
                                 session.noteSeen(match.path());
                             }
-                            // Only what the script actually gets back is charged: a match inside a
-                            // denied path was never handed over, and charging for it would let the
-                            // glob policy spend someone's budget.
                             session.chargeSearch(bytes);
                             return result;
                         });

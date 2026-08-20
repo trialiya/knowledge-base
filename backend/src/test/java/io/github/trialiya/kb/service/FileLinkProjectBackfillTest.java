@@ -51,8 +51,10 @@ class FileLinkProjectBackfillTest {
         ProjectCatalog catalog =
                 new ProjectCatalog(
                         new ProjectProperties(
-                                List.of(new ProjectOption("kb", "KB", "/srv/kb", null, true))),
-                        new GitProperties(null, false));
+                                List.of(
+                                        new ProjectOption(
+                                                "kb", "KB", "/srv/kb", false, null, true))),
+                        new GitProperties(null));
         service = new FileLinkProjectBackfillService(jdbc, backfillStateRepository, catalog);
     }
 
