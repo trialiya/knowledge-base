@@ -230,7 +230,7 @@ public class GitService {
      */
     public List<GitFileNode> getFileTree(@Nullable String subPath) {
         String base = normalizeSub(subPath);
-        return listDirectories(visiblePaths(), Set.of(base)).getOrDefault(base, List.of());
+        return listDirectories(visible(), Set.of(base)).getOrDefault(base, List.of());
     }
 
     /**
@@ -246,16 +246,12 @@ public class GitService {
      * only admitted by {@code allow-globs}, or the directory holds no tracked file at all. That is
      * what the file browser greys out, and what tells the model the path carries no history.
      *
-     * @param visible paths to build the listings from, as returned by {@link #visiblePaths()}
+     * @param visible what to build the listings from, and which of it git knows about
      * @param bases directory paths to list ("" — repo root); paths that are not directories simply
      *     come back with an empty listing
      */
-    private Map<String, List<GitFileNode>> listDirectories(
-            List<String> visible, Set<String> bases) {
-        // Without globs every visible path came out of the index, so there is no second read to do
-        // and the empty set stands for "all tracked".
-        Set<String> tracked =
-                project.allowGlobs().isEmpty() ? Set.of() : new LinkedHashSet<>(trackedPaths());
+    private Map<String, List<GitFileNode>> listDirectories(Visible visible, Set<String> bases) {
+        Set<String> tracked = visible.tracked();
         // Directory nodes de-duplicate by path (many files share one subdirectory), hence the
         // LinkedHashMap per base rather than a plain list.
         Map<String, LinkedHashMap<String, GitFileNode>> acc = new LinkedHashMap<>();
@@ -263,8 +259,8 @@ public class GitService {
             acc.put(base, new LinkedHashMap<>());
         }
 
-        for (String path : visible) {
-            boolean isTracked = tracked.isEmpty() || tracked.contains(path);
+        for (String path : visible.paths()) {
+            boolean isTracked = tracked.contains(path);
             int from = 0;
             while (true) {
                 int slash = path.indexOf('/', from);
@@ -314,15 +310,15 @@ public class GitService {
      */
     public GitPathView browsePath(@Nullable String path, boolean includeAncestors) {
         String target = normalizeSub(path);
-        List<String> tracked = visiblePaths();
-        @Nullable FileEntryType type = resolvePathType(target, tracked);
+        Visible visible = visible();
+        @Nullable FileEntryType type = resolvePathType(target, visible.paths());
 
         List<String> ancestors = includeAncestors ? ancestorDirs(target) : List.of();
         Set<String> bases = new LinkedHashSet<>(ancestors);
         boolean isDirectory = type == FileEntryType.DIRECTORY;
         if (isDirectory) bases.add(target);
         Map<String, List<GitFileNode>> listings =
-                bases.isEmpty() ? Map.of() : listDirectories(tracked, bases);
+                bases.isEmpty() ? Map.of() : listDirectories(visible, bases);
 
         List<GitTreeLevel> tree =
                 ancestors.stream()
@@ -339,19 +335,16 @@ public class GitService {
                 isDirectory ? listings.getOrDefault(target, List.of()) : null,
                 tree,
                 // The root and any missing path count as tracked: there is nothing to warn about.
-                project.allowGlobs().isEmpty()
-                        || target.isEmpty()
+                target.isEmpty()
                         || type == null
-                        || isTracked(target)
-                        || isTrackedPrefix(target));
+                        || visible.tracked().contains(target)
+                        || isTrackedPrefix(visible.tracked(), target));
     }
 
-    /**
-     * Whether any tracked file lives under {@code dir} — the directory form of {@link #isTracked}.
-     */
-    private boolean isTrackedPrefix(String dir) {
+    /** Whether any tracked file lives under {@code dir} — the directory form of the membership. */
+    private static boolean isTrackedPrefix(Set<String> tracked, String dir) {
         String prefix = dir + "/";
-        return trackedPaths().stream().anyMatch(p -> p.startsWith(prefix));
+        return tracked.stream().anyMatch(p -> p.startsWith(prefix));
     }
 
     /**
@@ -566,9 +559,9 @@ public class GitService {
         String q = pattern.strip().toLowerCase();
         int limit = Math.min(Math.max(maxResults, 1), 50);
 
-        List<String> allFiles = visiblePaths();
-        Set<String> tracked =
-                project.allowGlobs().isEmpty() ? Set.of() : new LinkedHashSet<>(trackedPaths());
+        Visible visible = visible();
+        List<String> allFiles = visible.paths();
+        Set<String> tracked = visible.tracked();
 
         record Scored(String path, int score) {}
         return allFiles.stream()
@@ -608,9 +601,7 @@ public class GitService {
                                     name,
                                     FileEntryType.FILE,
                                     fileSize(s.path()),
-                                    // No globs configured ⇒ everything visible is tracked, and the
-                                    // empty set stands for that rather than for "nothing is".
-                                    tracked.isEmpty() || tracked.contains(s.path()));
+                                    tracked.contains(s.path()));
                         })
                 .toList();
     }
@@ -688,7 +679,9 @@ public class GitService {
      * @param maxResults maximum number of match blocks to return; capped at 200
      * @param includeUntracked also search the untracked files this project's {@code allow-globs}
      *     admit; off by default, so a plain search answers about the committed codebase
-     * @return list of match blocks in order of appearance; empty list if nothing matched
+     * @return match blocks in order of appearance; with {@code includeUntracked} the two runs are
+     *     merged and the whole list comes back ordered by path instead, so a file's blocks stay
+     *     together rather than splitting around the seam between the runs. Empty if nothing matched
      */
     public List<GitGrepMatch> grepContent(
             @NonNull String pattern,
@@ -712,7 +705,9 @@ public class GitService {
         List<GitGrepMatch> tracked =
                 parseGrepOutput(
                         exec(grepArgs(pattern, glob, regex, ctx, null)), ctx, limit, project.id());
-        if (!includeUntracked || project.allowGlobs().isEmpty()) {
+        // No roots left to search is not "search everywhere": without a pathspec the untracked run
+        // would sweep the whole working tree.
+        if (!includeUntracked || allowGlobRoots.isEmpty()) {
             return tracked;
         }
 
@@ -728,13 +723,14 @@ public class GitService {
                         Integer.MAX_VALUE,
                         project.id());
         Set<String> trackedPaths = new LinkedHashSet<>(trackedPaths());
+        @Nullable Pathspec pathspec = Pathspec.of(glob);
         List<GitGrepMatch> merged = new ArrayList<>(tracked);
         extra.stream()
                 // The roots are wider than the globs, and `--untracked` reports tracked files too;
                 // `glob` is re-applied by hand because it is spent on the pathspec above.
                 .filter(m -> !trackedPaths.contains(m.path()))
                 .filter(m -> matchesAllowGlobs(m.path()))
-                .filter(m -> matchesPathspec(glob, m.path()))
+                .filter(m -> pathspec == null || pathspec.matches(m.path()))
                 .forEach(merged::add);
         // Cut only once everything invisible is gone, or a large untracked area would spend the
         // whole cap on matches nobody gets to see.
@@ -745,24 +741,55 @@ public class GitService {
     }
 
     /**
-     * Re-applies the caller's {@code pathGlob} by hand, the way git's own pathspec would.
+     * The caller's {@code pathGlob}, compiled to match the way git's own pathspec matches.
      *
      * <p>Needed because the untracked run spends its pathspec slot on {@link #allowGlobRoots} —
      * pathspecs combine as OR, so passing the caller's glob alongside them would widen the search
-     * instead of narrowing it. The one rule that has to be reproduced is git's: a glob with no
-     * {@code /} in it matches the file <em>name</em> at any depth, which is what makes {@code
-     * *.java} — the tool's own documented example — mean what the caller expects. Anything else is
-     * matched against the whole path, as everywhere in this class.
+     * instead of narrowing it. Re-applying it by hand only works if it means the same thing in both
+     * runs, so this reproduces git's rules rather than {@link #GLOB_MATCHER}'s Ant ones, which
+     * differ on both counts that matter here: a glob with no {@code /} matches the file
+     * <em>name</em> at any depth (this is what makes {@code *.java} — the tool's own documented
+     * example — find anything at all), and a wildcard crosses {@code /} freely, so {@code
+     * src/*.java} reaches {@code src/a/b/C.java}. Ant says no to both.
      */
-    private static boolean matchesPathspec(@Nullable String glob, String path) {
-        if (glob == null) {
-            return true;
+    private record Pathspec(Pattern pattern, boolean nameOnly) {
+
+        /** {@code null} for "no glob given" — matches everything. */
+        static @Nullable Pathspec of(@Nullable String glob) {
+            if (glob == null) {
+                return null;
+            }
+            StringBuilder regex = new StringBuilder();
+            for (int i = 0; i < glob.length(); i++) {
+                char c = glob.charAt(i);
+                switch (c) {
+                    // git's wildmatch runs without WM_PATHNAME here, so both cross '/', and '**'
+                    // falls out of '*' repeated rather than needing a rule of its own.
+                    case '*' -> regex.append(".*");
+                    case '?' -> regex.append('.');
+                    case '[' -> {
+                        int close = glob.indexOf(']', i + 1);
+                        if (close < 0) {
+                            regex.append("\\[");
+                        } else {
+                            // Java's class syntax is git's, save for the negation character.
+                            String body = glob.substring(i + 1, close);
+                            regex.append('[')
+                                    .append(body.startsWith("!") ? "^" + body.substring(1) : body)
+                                    .append(']');
+                            i = close;
+                        }
+                    }
+                    default -> regex.append(Pattern.quote(String.valueOf(c)));
+                }
+            }
+            return new Pathspec(Pattern.compile(regex.toString()), glob.indexOf('/') < 0);
         }
-        if (glob.indexOf('/') < 0) {
-            String name = path.substring(path.lastIndexOf('/') + 1);
-            return GLOB_MATCHER.match(glob, name);
+
+        boolean matches(String path) {
+            String subject = nameOnly ? path.substring(path.lastIndexOf('/') + 1) : path;
+            return pattern.matcher(subject).matches();
         }
-        return GLOB_MATCHER.match(glob, path);
     }
 
     /**
@@ -1316,18 +1343,36 @@ public class GitService {
      * order (tracked first, then the admitted untracked ones sorted by path).
      */
     private List<String> visiblePaths() {
+        return visible().paths();
+    }
+
+    /**
+     * What the read tools see, and which part of it git knows about — from a single index read.
+     *
+     * <p>Listings need both halves at once: the paths to build the tree from, and the answer to
+     * "does this one have history" for every node in it. Handing them out together is what keeps a
+     * browse request at one {@code DirCache} read instead of one per question asked of it.
+     *
+     * @param paths every visible path, as {@link #visiblePaths()} describes them
+     * @param tracked the subset of them that is in the index — a plain membership test, with no
+     *     second meaning attached to it being empty (an unborn branch has no entries yet)
+     */
+    private record Visible(List<String> paths, Set<String> tracked) {}
+
+    private Visible visible() {
         List<String> tracked = trackedPaths();
+        Set<String> trackedSet = Set.copyOf(tracked);
         if (project.allowGlobs().isEmpty()) {
-            return tracked;
+            return new Visible(tracked, trackedSet);
         }
-        List<String> admitted = admittedUntracked();
+        List<String> admitted = admittedUntracked(trackedSet);
         if (admitted.isEmpty()) {
-            return tracked;
+            return new Visible(tracked, trackedSet);
         }
         List<String> all = new ArrayList<>(tracked.size() + admitted.size());
         all.addAll(tracked);
         all.addAll(admitted);
-        return List.copyOf(all);
+        return new Visible(List.copyOf(all), trackedSet);
     }
 
     /**
@@ -1339,10 +1384,14 @@ public class GitService {
      * is the size of the named area and not of the repository.
      */
     private List<String> admittedUntracked() {
+        return admittedUntracked(Set.copyOf(trackedPaths()));
+    }
+
+    /** As above, for a caller that has already read the index. */
+    private List<String> admittedUntracked(Set<String> tracked) {
         if (project.allowGlobs().isEmpty()) {
             return List.of();
         }
-        Set<String> tracked = new LinkedHashSet<>(trackedPaths());
         List<String> admitted = new ArrayList<>();
         for (String root : allowGlobRoots) {
             Path start = repoPath.resolve(root).normalize();
@@ -1373,12 +1422,19 @@ public class GitService {
     /**
      * The directory each glob is rooted in — {@code "notes/**"} yields {@code "notes"}. Every glob
      * has one: {@code ProjectCatalog} refuses a configuration where it would not.
+     *
+     * <p>A root inside {@code .git} is dropped rather than walked: {@link #matchesAllowGlobs}
+     * discards everything found there anyway, and the object database is the one directory in a
+     * repository where a pointless full walk really costs something.
      */
     private static List<String> globRoots(List<String> globs) {
         Set<String> roots = new LinkedHashSet<>();
         for (String glob : globs) {
             int wildcard = indexOfWildcard(glob);
-            roots.add(wildcard < 0 ? glob : glob.substring(0, glob.lastIndexOf('/', wildcard)));
+            String root = wildcard < 0 ? glob : glob.substring(0, glob.lastIndexOf('/', wildcard));
+            if (!isInsideGitDir(root)) {
+                roots.add(root);
+            }
         }
         return List.copyOf(roots);
     }

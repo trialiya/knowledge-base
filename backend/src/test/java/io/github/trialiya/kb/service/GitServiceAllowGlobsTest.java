@@ -129,6 +129,37 @@ class GitServiceAllowGlobsTest {
                 .containsExactly("notes/Draft.java");
     }
 
+    /**
+     * У git wildcard в pathspec переходит через {@code /} — иначе один и тот же {@code pathGlob}
+     * отбирал бы tracked- и untracked-попадания по разным правилам.
+     */
+    @Test
+    void aPathGlobWildcardCrossesDirectoriesForBothRunsAlike() {
+        writeFile("src/deep/Tracked.java", "class Tracked { String milk; }\n");
+        runGit("add", "src/deep/Tracked.java");
+        writeFile("notes/deep/Admitted.java", "class Admitted { String milk; }\n");
+
+        assertThat(service.grepContent("milk", "*/deep/*.java", false, 0, 50, true))
+                .extracting(GitGrepMatch::path)
+                .containsExactly("notes/deep/Admitted.java", "src/deep/Tracked.java");
+    }
+
+    /** Пустой индекс — это «tracked нет ни одного», а не «tracked все». */
+    @Test
+    void anEmptyIndexStillMarksAdmittedFilesAsUntracked() {
+        Path bare = repoDir.resolve("bare");
+        GitService fresh = freshRepo(bare);
+
+        assertThat(fresh.getFileTree("notes"))
+                .singleElement()
+                .extracting(GitFileNode::tracked)
+                .isEqualTo(false);
+        assertThat(fresh.searchFiles("todo", 5))
+                .singleElement()
+                .extracting(GitFileNode::tracked)
+                .isEqualTo(false);
+    }
+
     /** Отказ должен наступать до записи: иначе прогон скрипта уронит уже разложенные файлы. */
     @Test
     void theRefusalToCreateHappensBeforeAnythingIsWritten() {
@@ -235,6 +266,18 @@ class GitServiceAllowGlobsTest {
         assertThat(plain.listTrackedFiles()).doesNotContain("notes/todo.md");
     }
 
+    /** Репозиторий без единого коммита, в котором есть только admitted-файл. */
+    private GitService freshRepo(Path dir) {
+        try {
+            Files.createDirectories(dir.resolve("notes"));
+            Files.writeString(dir.resolve("notes/todo.md"), "remember the milk\n");
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        runGitIn(dir, "init", "-q");
+        return TestProjects.gitService(dir, true, List.of("notes/**"));
+    }
+
     private void writeFile(String relativePath, String content) {
         try {
             Path file = repoDir.resolve(relativePath);
@@ -260,13 +303,17 @@ class GitServiceAllowGlobsTest {
     }
 
     private String runGitOutput(String... args) {
+        return runGitIn(repoDir, args);
+    }
+
+    private String runGitIn(Path dir, String... args) {
         try {
             var command = new java.util.ArrayList<String>();
             command.add("git");
             command.addAll(List.of(args));
             Process process =
                     new ProcessBuilder(command)
-                            .directory(repoDir.toFile())
+                            .directory(dir.toFile())
                             .redirectErrorStream(true)
                             .start();
             String output =

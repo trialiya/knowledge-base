@@ -166,7 +166,7 @@
 
 ### `grepContent`
 Поиск текста внутри файлов репозитория (git grep).
-- **Параметры:** `pattern` (String), `pathGlob` (String|null), `regex` (Boolean|null, default true), `contextLines` (Integer|null, default 1), `maxResults` (Integer|null, default 50), `includeUntracked` (Boolean|null, default false — искать ещё и в untracked-файлах, разрешённых проекту `allow-globs`), `project` (String|null — искать в другом репозитории вместо проекта чата, см. «Проект в аргументах» ниже)
+- **Параметры:** `pattern` (String), `pathGlob` (String|null — по правилам git pathspec: глоб без `/` матчит имя файла на любой глубине, а wildcard переходит через `/`), `regex` (Boolean|null, default true), `contextLines` (Integer|null, default 1), `maxResults` (Integer|null, default 50), `includeUntracked` (Boolean|null, default false — искать ещё и в untracked-файлах, разрешённых проекту `allow-globs`), `project` (String|null — искать в другом репозитории вместо проекта чата, см. «Проект в аргументах» ниже)
 - **Возвращает:** список `GitGrepMatch` с полями: `project` (id репозитория, в котором найдено совпадение), `path`, `matchLine` (int — номер строки совпадения), `text` (строка с совпадением)
 - **Предупреждение:** если pattern содержит regex-символы (`|`, `.*`, `^`, `$` и др.) но `regex=false` — возвращается предупреждение
 
