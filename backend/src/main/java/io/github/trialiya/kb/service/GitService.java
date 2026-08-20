@@ -1355,9 +1355,13 @@ public class GitService {
     }
 
     /**
-     * Creates a new file in the working tree and stages it ({@code git add}), so it immediately
-     * becomes <em>tracked</em> and visible to every read tool of this service (which serve tracked
-     * files only).
+     * Creates a new file in the working tree, visible to every read tool of this service from the
+     * moment it returns.
+     *
+     * <p>Normally that means staging it ({@code git add}), since the read tools serve tracked
+     * files. A path this project's {@code allow-globs} admit is left untracked instead — the globs
+     * name a working area that stays out of commits, and staging it would take it out of that area
+     * — unless the path is already in the index, which is the tracked-but-deleted case below.
      *
      * <p>Refused when: the path already exists on disk, the path is matched by {@code .gitignore}
      * (staging would silently skip it, leaving an unreadable orphan — the file is removed again and
