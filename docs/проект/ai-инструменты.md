@@ -136,9 +136,11 @@
 
 Все инструменты чтения обслуживают **отслеживаемые** файлы (по индексу Git; `.gitignore` исключён,
 как в самом git) плюс untracked-файлы, которые проекту явно разрешили Ant-глобами
-`kb.projects[].allow-globs` (см. [Конфигурация](конфигурация.md)). Разрешённые глобами файлы видны
-в дереве и поиске, читаются, правятся и создаются — но остаются untracked: правка их не индексирует.
-Пути под `.gitignore` скрыты всегда, независимо от глобов.
+`kb.projects[].allow-globs` (см. [Конфигурация](конфигурация.md)). Внутри этих глобов истина —
+рабочее дерево: `.gitignore` там ничего не скрывает. Такие файлы видны в дереве и в поиске по
+имени, читаются и правятся (правка не индексирует их), но **создать** файл в этой зоне нельзя, а
+`grepContent` заходит туда только по явному `includeUntracked=true`. В выдаче инструментов они
+помечены `[untracked]`.
 
 ### `getFileTree`
 Получение дерева файлов репозитория (один уровень).
@@ -164,7 +166,7 @@
 
 ### `grepContent`
 Поиск текста внутри файлов репозитория (git grep).
-- **Параметры:** `pattern` (String), `pathGlob` (String|null), `regex` (Boolean|null, default true), `contextLines` (Integer|null, default 1), `maxResults` (Integer|null, default 50), `project` (String|null — искать в другом репозитории вместо проекта чата, см. «Проект в аргументах» ниже)
+- **Параметры:** `pattern` (String), `pathGlob` (String|null), `regex` (Boolean|null, default true), `contextLines` (Integer|null, default 1), `maxResults` (Integer|null, default 50), `includeUntracked` (Boolean|null, default false — искать ещё и в untracked-файлах, разрешённых проекту `allow-globs`), `project` (String|null — искать в другом репозитории вместо проекта чата, см. «Проект в аргументах» ниже)
 - **Возвращает:** список `GitGrepMatch` с полями: `project` (id репозитория, в котором найдено совпадение), `path`, `matchLine` (int — номер строки совпадения), `text` (строка с совпадением)
 - **Предупреждение:** если pattern содержит regex-символы (`|`, `.*`, `^`, `$` и др.) но `regex=false` — возвращается предупреждение
 

@@ -17,10 +17,13 @@ import org.jspecify.annotations.Nullable;
  * @param nodes прямые потомки — только для {@code type=DIRECTORY}
  * @param tree листинги каталогов-предков (от корня до родителя пути); пуст, если клиент их не
  *     запрашивал (уже есть в его кэше) либо путь лежит в корне
+ * @param tracked отслеживается ли путь git — см. {@link GitFileNode#tracked()}. Тот же признак, что
+ *     у узла дерева, но браузер открывает путь и по прямой ссылке, когда узла в кэше ещё нет
  */
 public record GitPathView(
         String path,
         @Nullable FileEntryType type,
         @Nullable GitFileContent file,
         @Nullable List<GitFileNode> nodes,
-        List<GitTreeLevel> tree) {}
+        List<GitTreeLevel> tree,
+        boolean tracked) {}

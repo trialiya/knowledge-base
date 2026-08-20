@@ -19,8 +19,9 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * The per-project {@code allow-globs}: the one hole in the tracked-files rule, cut exactly where
- * the configuration says — untracked files matching the globs are served and editable, everything
- * else untracked stays invisible, and {@code .gitignore} stays authoritative over the globs.
+ * the configuration says. Inside the globs the working tree is the truth — {@code .gitignore}
+ * included — everything else untracked stays invisible, and what the hole admits is readable and
+ * editable but never creatable.
  */
 class GitServiceAllowGlobsTest {
 
@@ -34,14 +35,14 @@ class GitServiceAllowGlobsTest {
         runGit("config", "user.email", "test@example.com");
         runGit("config", "user.name", "Test");
         writeFile("src/App.java", "class App {}\n");
-        writeFile(".gitignore", "notes/private/\n");
+        writeFile(".gitignore", "notes/generated/\n");
         runGit("add", "-A");
         runGit("commit", "-q", "-m", "init");
 
-        // The untracked working area the globs admit, one file outside it, one ignored inside it.
+        // The untracked working area the globs admit, one file outside it, one gitignored inside.
         writeFile("notes/todo.md", "remember the milk\n");
         writeFile("scratch.txt", "not admitted\n");
-        writeFile("notes/private/secret.md", "hidden by .gitignore\n");
+        writeFile("notes/generated/report.md", "generated, and gitignored\n");
 
         service = TestProjects.gitService(repoDir, true, List.of("notes/**"));
     }
@@ -56,6 +57,17 @@ class GitServiceAllowGlobsTest {
                 .contains("notes/todo.md");
     }
 
+    /**
+     * Ради этого всё и делалось: отчёты сборки и логи лежат ровно в игнорируемом каталоге, и без
+     * этого прохода маска над ним была бы бесполезна.
+     */
+    @Test
+    void gitignoreDoesNotHideWhatTheGlobsAdmit() {
+        assertThat(service.getFileContent("notes/generated/report.md").content())
+                .isEqualTo("generated, and gitignored\n");
+        assertThat(service.listTrackedFiles()).contains("notes/generated/report.md");
+    }
+
     @Test
     void anUntrackedFileOutsideTheGlobsStaysInvisible() {
         assertThatThrownBy(() -> service.getFileContent("scratch.txt"))
@@ -64,12 +76,25 @@ class GitServiceAllowGlobsTest {
         assertThat(service.listTrackedFiles()).doesNotContain("scratch.txt");
     }
 
+    /** Служебный каталог git не открывает никакая маска. */
     @Test
-    void gitignoreStillWinsOverTheGlobs() {
-        assertThatThrownBy(() -> service.getFileContent("notes/private/secret.md"))
+    void theGitDirectoryIsNeverAdmitted() {
+        GitService wide = TestProjects.gitService(repoDir, true, List.of(".git/**"));
+
+        assertThatThrownBy(() -> wide.getFileContent(".git/config"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("File not found");
-        assertThat(service.listTrackedFiles()).doesNotContain("notes/private/secret.md");
+    }
+
+    /**
+     * Обход рабочего дерева укоренён в литеральном префиксе маски, и он же — граница радиуса
+     * поражения от опечатки, раз маска перекрывает {@code .gitignore}.
+     */
+    @Test
+    void aGlobWithoutADirectoryRootIsRefusedAtStartup() {
+        assertThatThrownBy(() -> TestProjects.gitService(repoDir, true, List.of("**/*.md")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("must start with a directory");
     }
 
     @Test
@@ -80,35 +105,46 @@ class GitServiceAllowGlobsTest {
         assertThat(runGitOutput("status", "--porcelain", "-uall")).contains("?? notes/todo.md");
     }
 
+    /**
+     * Файлы в разрешённой зоне производит кто-то другой — сборка, человек. Новый файл, положенный
+     * туда ассистентом, либо ушёл бы в индекс и покинул зону, либо остался бы вне git навсегда.
+     */
     @Test
-    void creatingInsideTheGlobsLeavesTheFileUntracked() {
-        service.createFile("notes/new.md", "fresh\n");
-
-        assertThat(readFile("notes/new.md")).isEqualTo("fresh\n");
-        assertThat(service.getFileContent("notes/new.md").content()).isEqualTo("fresh\n");
-        assertThat(runGitOutput("status", "--porcelain", "-uall")).contains("?? notes/new.md");
-    }
-
-    @Test
-    void creatingAGitignoredPathIsRefusedEvenInsideTheGlobs() {
-        assertThatThrownBy(() -> service.createFile("notes/private/more.md", "x"))
+    void creatingInsideTheGlobsIsRefused() {
+        assertThatThrownBy(() -> service.createFile("notes/new.md", "fresh\n"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining(".gitignore");
-        assertThat(repoDir.resolve("notes/private/more.md")).doesNotExist();
+                .hasMessageContaining("not created");
+        assertThat(repoDir.resolve("notes/new.md")).doesNotExist();
     }
 
     @Test
-    void grepSearchesAdmittedUntrackedFilesButNotTheRest() {
-        List<GitGrepMatch> hits = service.grepContent("milk", null, false, 0, 50);
-        assertThat(hits).extracting(GitGrepMatch::path).containsExactly("notes/todo.md");
+    void creatingOutsideTheGlobsStillStagesTheFile() {
+        service.createFile("src/New.java", "class New {}\n");
 
-        assertThat(service.grepContent("not admitted", null, false, 0, 50)).isEmpty();
+        assertThat(runGitOutput("status", "--porcelain")).contains("A  src/New.java");
+    }
+
+    @Test
+    void grepSearchesTrackedFilesOnlyUnlessAsked() {
+        assertThat(service.grepContent("milk", null, false, 0, 50, false)).isEmpty();
+
+        assertThat(service.grepContent("milk", null, false, 0, 50, true))
+                .extracting(GitGrepMatch::path)
+                .containsExactly("notes/todo.md");
+    }
+
+    @Test
+    void grepReachesGitignoredFilesInsideTheGlobsButNothingElse() {
+        assertThat(service.grepContent("and gitignored", null, false, 0, 50, true))
+                .extracting(GitGrepMatch::path)
+                .containsExactly("notes/generated/report.md");
+
+        assertThat(service.grepContent("not admitted", null, false, 0, 50, true)).isEmpty();
     }
 
     /**
-     * The limit is a limit on answers, not on lines read: {@code --untracked} also matches files
-     * the globs do not admit, and cutting to the limit before dropping those would spend the whole
-     * cap on hits nobody gets to see.
+     * Лимит ограничивает ответы, а не прочитанные строки: невидимое отсеивается до обрезки, иначе
+     * весь лимит ушёл бы на совпадения, которых никто не увидит.
      */
     @Test
     void theResultLimitCountsOnlyVisibleMatches() {
@@ -116,37 +152,37 @@ class GitServiceAllowGlobsTest {
         writeFile("src/App.java", "class App { String milk; }\n");
         runGit("add", "src/App.java");
 
-        // git grep walks in path order, so the invisible scratch.txt sits between the two hits
-        // that count: a cut applied before the filter would leave only notes/todo.md.
-        List<GitGrepMatch> hits = service.grepContent("milk", null, false, 0, 2);
+        List<GitGrepMatch> hits = service.grepContent("milk", null, false, 0, 2, true);
 
         assertThat(hits)
                 .extracting(GitGrepMatch::path)
                 .containsExactly("notes/todo.md", "src/App.java");
     }
 
-    /** {@code createFile} is the only way back for a tracked file deleted from the working tree. */
-    @Test
-    void restoringADeletedTrackedFileInsideTheGlobsStagesItAgain() {
-        writeFile("notes/tracked.md", "kept in git\n");
-        runGit("add", "notes/tracked.md");
-        runGit("commit", "-q", "-m", "tracked note");
-        // Gone from the working tree, still in the index — the case createFile exists to undo.
-        deleteFile("notes/tracked.md");
-
-        service.createFile("notes/tracked.md", "restored\n");
-
-        assertThat(service.getFileContent("notes/tracked.md").content()).isEqualTo("restored\n");
-        assertThat(runGitOutput("status", "--porcelain", "-uall"))
-                .doesNotContain("?? notes/tracked.md");
-    }
-
-    /** Файлы, которые ассистент пишет в разрешённой зоне, обязаны быть видны в списке изменений. */
+    /** Правки ассистента в разрешённой зоне обязаны быть видны в списке изменений. */
     @Test
     void admittedUntrackedFilesShowUpAmongTheUncommittedChanges() {
         assertThat(service.getUncommittedChanges(false))
                 .extracting(GitDiffEntry::path)
                 .containsExactly("notes/todo.md");
+    }
+
+    /** Сборочный артефакт читается, но изменением не является — в ревью ему делать нечего. */
+    @Test
+    void gitignoredFilesStayOutOfTheUncommittedChanges() {
+        assertThat(service.getUncommittedChanges(false))
+                .extracting(GitDiffEntry::path)
+                .doesNotContain("notes/generated/report.md");
+    }
+
+    @Test
+    void theTreeMarksAnAdmittedFileAsUntracked() {
+        assertThat(service.getFileTree("notes"))
+                .filteredOn(n -> "notes/todo.md".equals(n.path()))
+                .singleElement()
+                .extracting(GitFileNode::tracked)
+                .isEqualTo(false);
+        assertThat(service.getFileTree("src")).allSatisfy(n -> assertThat(n.tracked()).isTrue());
     }
 
     @Test
@@ -166,14 +202,6 @@ class GitServiceAllowGlobsTest {
                 Files.createDirectories(file.getParent());
             }
             Files.writeString(file, content, StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    private void deleteFile(String relativePath) {
-        try {
-            Files.delete(repoDir.resolve(relativePath));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

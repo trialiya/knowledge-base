@@ -163,10 +163,11 @@ kb:
       # there is no deployment-wide default. Even when true, writes are withheld if the working
       # tree is not writable (ro mount); see GitRegistry.
       edit-enabled: ${KB_GIT_EDIT_ENABLED:false}
-      # Ant-style globs naming UNTRACKED files of this repository the assistant may also work with
-      # (read, edit, create — created/edited files stay untracked). "Untracked" is git status's
-      # word: paths matched by .gitignore stay hidden whatever the globs say. Empty — tracked
-      # files only. e.g. ["notes/**", "**/*.draft.md"]
+      # Ant-style globs naming untracked files of this repository the assistant may also read and
+      # edit (never create; an edit leaves them untracked). Inside these globs the working tree is
+      # the truth — .gitignore does not hide anything from them — so each glob must start with a
+      # real directory, and the app refuses to start otherwise. grepContent skips these files
+      # unless asked. Empty — tracked files only. e.g. ["notes/**", "build/reports/**"]
       allow-globs: []
     # A slot for a second repository, switched off until PROJECT2_ENABLED=true. Off, it is out of
     # the catalogue entirely — not opened, not validated, not listed, not routable — so this block

@@ -4,7 +4,8 @@
   },
   "tree": {
     "loading": "Загрузка…",
-    "empty": "Пусто"
+    "empty": "Пусто",
+    "untracked": "не отслеживается git"
   },
   "project": {
     "aria": "Проект",
@@ -40,7 +41,8 @@
     "modified": "Последнее изменение",
     "author": "Кто изменил",
     "commit": "Коммит",
-    "commitMessage": "Название коммита"
+    "commitMessage": "Название коммита",
+    "untracked": "не отслеживается git"
   },
   "preview": {
     "close": "Закрыть"

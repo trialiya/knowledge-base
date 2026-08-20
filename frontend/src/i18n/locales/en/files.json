@@ -4,7 +4,8 @@
   },
   "tree": {
     "loading": "Loading…",
-    "empty": "Empty"
+    "empty": "Empty",
+    "untracked": "not tracked by git"
   },
   "project": {
     "aria": "Project",
@@ -40,7 +41,8 @@
     "modified": "Last change",
     "author": "Changed by",
     "commit": "Commit",
-    "commitMessage": "Commit message"
+    "commitMessage": "Commit message",
+    "untracked": "not tracked by git"
   },
   "preview": {
     "close": "Close"

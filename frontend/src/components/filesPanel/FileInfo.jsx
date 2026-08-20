@@ -43,7 +43,12 @@ const FileInfo = ({ content, loading, path = '', project }) => {
   const rows = [
     { label: t('info.name'), value: name },
     { label: t('info.path'), value: path || '/', mono: true },
-    { label: t('info.type'), value: isDir ? t('info.typeDirectory') : t('info.typeFile') },
+    {
+      label: t('info.type'),
+      value: `${isDir ? t('info.typeDirectory') : t('info.typeFile')}${
+        content.tracked === false ? ` — ${t('info.untracked')}` : ''
+      }`,
+    },
     { label: t('info.items'), value: isDir ? String(content.nodes?.length ?? 0) : null },
     { label: t('info.size'), value: !isDir && file?.sizeBytes != null ? formatFileSize(file.sizeBytes) : null },
     { label: t('info.language'), value: !isDir ? file?.language : null },
