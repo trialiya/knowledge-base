@@ -9,8 +9,8 @@ import org.springframework.data.relational.core.mapping.Table;
 /**
  * One row in {@code tool_call_index}: protocol {@code callId} → the {@code chat_message} rows that
  * hold its full details (the ASSISTANT segment that issued it, the TOOL row with its result, if
- * any). Lets {@link io.github.trialiya.kb.service.ChatMemoryService#findToolCallDetail} do a plain
- * lookup by {@code callId} instead of the positional/offset arithmetic the old
+ * any). Lets {@link io.github.trialiya.kb.service.chat.memory.ChatMemoryService#findToolCallDetail}
+ * do a plain lookup by {@code callId} instead of the positional/offset arithmetic the old
  * messageId/callId/responseMessageId-in-meta design needed.
  */
 @Data

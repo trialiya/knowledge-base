@@ -19,7 +19,7 @@ import org.springframework.data.relational.core.mapping.Table;
  * <em>not yet supported</em>; the column is nullable so it can be extended later.
  *
  * <p>{@link #summary} holds an AI-generated description of the file, populated on demand via {@link
- * io.github.trialiya.kb.service.AttachmentService#summarize}.
+ * io.github.trialiya.kb.service.chat.AttachmentService#summarize}.
  */
 @Data
 // Hydrated by Spring Data JDBC via the no-args constructor + setters; see DocumentEmbeddingEntity.

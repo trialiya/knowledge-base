@@ -23,7 +23,7 @@ public record ToolInvocationMeta(
          * Протокольный id вызова ({@code tool_call.id} / {@code ToolData.Call#id}) — единственный
          * ключ, нужный модалке деталей: {@code GET /tool-calls} находит messageId/responseMessageId
          * сам, через {@code tool_call_index} (см. {@link
-         * io.github.trialiya.kb.service.ChatMemoryService#findToolCallDetail}). null у старых
-         * записей.
+         * io.github.trialiya.kb.service.chat.memory.ChatMemoryService#findToolCallDetail}). null у
+         * старых записей.
          */
         @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String callId) {}

@@ -3,7 +3,7 @@ package io.github.trialiya.kb.config;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import io.github.trialiya.kb.service.script.ScriptCancelledException;
+import io.github.trialiya.kb.service.chat.script.ScriptCancelledException;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.model.tool.autoconfigure.ToolCallingProperties;
 import org.springframework.ai.tool.definition.DefaultToolDefinition;

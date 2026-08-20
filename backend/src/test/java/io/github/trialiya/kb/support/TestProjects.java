@@ -3,10 +3,10 @@ package io.github.trialiya.kb.support;
 import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.config.model.ProjectProperties;
 import io.github.trialiya.kb.config.model.ProjectProperties.ProjectOption;
-import io.github.trialiya.kb.service.GitRegistry;
-import io.github.trialiya.kb.service.GitService;
-import io.github.trialiya.kb.service.OutlineService;
-import io.github.trialiya.kb.service.ProjectCatalog;
+import io.github.trialiya.kb.service.file.GitRegistry;
+import io.github.trialiya.kb.service.file.GitService;
+import io.github.trialiya.kb.service.file.OutlineService;
+import io.github.trialiya.kb.service.file.ProjectCatalog;
 import java.nio.file.Path;
 import java.util.List;
 

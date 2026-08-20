@@ -1,0 +1,578 @@
+package io.github.trialiya.kb.service.chat.run;
+
+import static io.github.trialiya.kb.advisor.ToolPreparingAdvisor.RUN_ID_PARAM;
+import static io.github.trialiya.kb.model.chat.dto.ChatEventType.RUN_DONE;
+import static io.github.trialiya.kb.model.chat.dto.ChatEventType.RUN_ERROR;
+import static io.github.trialiya.kb.model.chat.dto.ChatEventType.RUN_STARTED;
+import static io.github.trialiya.kb.model.chat.dto.ChatEventType.RUN_STOPPED;
+import static io.github.trialiya.kb.model.chat.dto.ChatEventType.STREAM;
+import static io.github.trialiya.kb.model.chat.dto.ChatEventType.TOOL_CALLS;
+import static io.github.trialiya.kb.model.chat.dto.ChatEventType.USER_MESSAGE;
+
+import com.openai.models.chat.completions.ChatCompletion;
+import io.github.trialiya.kb.config.ChatClientRegistry;
+import io.github.trialiya.kb.model.chat.dto.ChatEventType;
+import io.github.trialiya.kb.model.chat.dto.StreamMessage;
+import io.github.trialiya.kb.model.chat.dto.ToolCallsMessage;
+import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
+import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
+import io.github.trialiya.kb.model.chat.entity.ContextItem;
+import io.github.trialiya.kb.model.project.ProjectSwitch;
+import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
+import io.github.trialiya.kb.service.chat.ProjectPromptService;
+import io.github.trialiya.kb.service.chat.SystemPromptService;
+import io.github.trialiya.kb.service.chat.memory.ChatMemoryService;
+import io.github.trialiya.kb.service.chat.memory.SummarizeService;
+import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
+import io.github.trialiya.kb.tools.RunCancellation;
+import io.github.trialiya.kb.tools.ToolInvocationCollector;
+import io.github.trialiya.kb.utils.ChatUtils;
+import java.time.Duration;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
+import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.messages.AbstractMessage;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.metadata.ChatGenerationMetadata;
+import org.springframework.ai.chat.metadata.ChatResponseMetadata;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.model.Generation;
+import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+import reactor.core.Disposable;
+import reactor.core.publisher.SignalType;
+
+/**
+ * Запускает генерацию ответа как фоновую задачу, независимую от HTTP-запроса, и транслирует её ход
+ * в {@link ChatEventService}. Благодаря этому: ответ продолжает генерироваться после перезагрузки
+ * страницы, его видят все вкладки, а остановка — это явный сигнал, а не разрыв соединения.
+ */
+@Slf4j
+@Service
+public class ChatRunService {
+
+    /** Пометки в конце сохранённого оборванного ответа (видно после reload). */
+    private static final String STOPPED_MARKER = "[stopped]";
+
+    private static final String ERROR_MARKER = "[error]";
+
+    public static final String _UNKNOWN_FINISH_REASON =
+            ChatCompletion.Choice.FinishReason.Value._UNKNOWN.name();
+
+    /** finishReason чанка-границы tool-цикла (Spring AI отдаёт его в верхнем регистре). */
+    private static final String TOOL_CALLS_FINISH_REASON =
+            ChatCompletion.Choice.FinishReason.Value.TOOL_CALLS.name();
+
+    /** Шаг опроса реестра прогонов в {@link #awaitQuiescence}. */
+    private static final long QUIESCENCE_POLL_MS = 25;
+
+    private final ChatClientRegistry chatClients;
+    private final ChatMemory chatMemory;
+    private final ChatMemoryService chatMemoryService;
+    private final SummarizeService summarizeService;
+    private final ChatEventService events;
+    private final ScriptGuideService scriptGuideService;
+    private final SystemPromptService systemPromptService;
+    private final ProjectPromptService projectPromptService;
+    private final Executor executor;
+
+    /** runId -&gt; дескриптор активного прогона (для остановки). */
+    private final ConcurrentHashMap<String, RunHandle> runs = new ConcurrentHashMap<>();
+
+    /** conversationId -&gt; runId: гарантирует не более одного активного прогона на чат. */
+    private final ConcurrentHashMap<String, String> activeByConversation =
+            new ConcurrentHashMap<>();
+
+    public ChatRunService(
+            ChatClientRegistry chatClients,
+            ChatMemory chatMemory,
+            ChatMemoryService chatMemoryService,
+            SummarizeService summarizeService,
+            ChatEventService events,
+            ScriptGuideService scriptGuideService,
+            SystemPromptService systemPromptService,
+            ProjectPromptService projectPromptService,
+            @Qualifier("chatRunExecutor") Executor executor) {
+        this.chatClients = chatClients;
+        this.chatMemory = chatMemory;
+        this.chatMemoryService = chatMemoryService;
+        this.summarizeService = summarizeService;
+        this.events = events;
+        this.scriptGuideService = scriptGuideService;
+        this.systemPromptService = systemPromptService;
+        this.projectPromptService = projectPromptService;
+        this.executor = executor;
+    }
+
+    private record RunHandle(
+            String runId,
+            String conversationId,
+            String user,
+            AtomicReference<Disposable> disposable,
+            AtomicBoolean stopRequested,
+            AtomicBoolean persisted) {}
+
+    /**
+     * Запускает генерацию в фоне и сразу возвращает runId — HTTP-запрос не держим.
+     *
+     * @param userMessage вопрос пользователя; {@code null} — это повтор упавшего прогона: нового
+     *     сообщения не появляется, ходом становится последний неотвеченный вопрос из истории (см.
+     *     {@link ChatMemoryService#unansweredUserMessage}). Повтор поверх начатого ответа модели
+     *     запрещён — 422.
+     * @param contextItems приложенное к вопросу (вложения) — уже проверенное {@code
+     *     ContextItemService}. На повторе игнорируется: контекст записан вместе с сообщением
+     * @param options чем этот прогон отличается от дефолтного — модель, режим, проект (см. {@link
+     *     RunOptions})
+     */
+    public StartedRun start(
+            String conversationId,
+            String user,
+            @Nullable String userMessage,
+            List<ContextItem> contextItems,
+            RunOptions options,
+            String clientMsgId) {
+        final String runId = UUID.randomUUID().toString();
+        // Атомарная заявка на чат: если генерация уже идёт (в т.ч. из другой вкладки) — 409,
+        // фронт предложит дождаться или остановить текущую.
+        if (activeByConversation.putIfAbsent(conversationId, runId) != null) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "A response is already being generated for this chat");
+        }
+        final ChatMessageEntity userRow;
+        try {
+            // Прошлый прогон могли оборвать во время выполнения инструментов (в т.ч. падением
+            // процесса) — тогда в хвосте истории висит assistant.tool_calls без TOOL-ответа,
+            // и модель отвергла бы такой диалог. Достраиваем пару СТРОГО ДО записи вопроса:
+            // repairDanglingToolCalls смотрит только на последнюю строку, и записанное первым
+            // сообщение пользователя навсегда спрятало бы от неё оборванную пару.
+            chatMemoryService.repairDanglingToolCalls(conversationId);
+            userRow =
+                    userMessage != null
+                            ? chatMemoryService.saveUserMessage(
+                                    conversationId,
+                                    userMessage,
+                                    contextItems,
+                                    options.projectSwitch())
+                            // Повтор: вопрос уже в истории, ходом остаётся он же. Проверку делаем
+                            // ПОСЛЕ ремонта хвоста — достроенный TOOL-ответ как раз и означает,
+                            // что модель уже начала отвечать, и повторять этот ход нельзя.
+                            // Проект при повторе выбирают заново, поэтому маркер смены может
+                            // появиться и здесь — на том же вопросе.
+                            : retried(
+                                    chatMemoryService
+                                            .unansweredUserMessage(conversationId)
+                                            .orElseThrow(
+                                                    () ->
+                                                            new ResponseStatusException(
+                                                                    HttpStatus
+                                                                            .UNPROCESSABLE_CONTENT,
+                                                                    "Nothing to retry: the last"
+                                                                            + " message is not an"
+                                                                            + " unanswered question")),
+                                    options);
+        } catch (RuntimeException e) {
+            // Заявку на чат не удерживаем: генерация так и не началась.
+            activeByConversation.remove(conversationId, runId);
+            throw e;
+        }
+        final RunHandle handle =
+                new RunHandle(
+                        runId,
+                        conversationId,
+                        user,
+                        new AtomicReference<>(),
+                        new AtomicBoolean(),
+                        new AtomicBoolean());
+        runs.put(runId, handle);
+        events.startRun(conversationId, runId);
+        // executor — DelegatingSecurityContextExecutorService: проставит SecurityContext текущего
+        // пользователя на worker-поток. Операторы Reactor-стрима исполняются на ДРУГИХ потоках,
+        // куда thread-local контекст не доезжает, поэтому пользователя для инструментов передаём
+        // ещё и явно — через toolContext (см. ChatUtils.context ниже).
+        try {
+            executor.execute(() -> run(handle, userRow, options, clientMsgId));
+        } catch (RuntimeException e) {
+            // например, RejectedExecutionException при остановке пула — не оставляем чат «занятым».
+            // Сообщение пользователя при этом уже сохранено и останется в истории: вопрос без
+            // ответа честнее молча потерянного вопроса.
+            cleanup(handle);
+            throw e;
+        }
+        return new StartedRun(runId, userRow.getId());
+    }
+
+    /**
+     * Вопрос, который повторяют, с маркером смены проекта, если повтор поехал в другой проект:
+     * проект при повторе выбирают заново, и «всё выше читано в прежнем репозитории» становится
+     * правдой ровно так же, как при новом вопросе.
+     */
+    private ChatMessageEntity retried(ChatMessageEntity question, RunOptions options) {
+        return options.projectSwitch() == null
+                ? question
+                : chatMemoryService.markProjectSwitch(question, options.projectSwitch());
+    }
+
+    /**
+     * Результат запуска: id прогона и id уже сохранённого сообщения пользователя. Второй нужен
+     * отправившей вкладке — она гасит своё эхо по {@code clientMsgId} и иначе узнала бы id
+     * сообщения только после перезагрузки страницы.
+     */
+    public record StartedRun(String runId, Long userMessageId) {}
+
+    /**
+     * Настройки одного прогона: что выбрано в чате (или передано параметром запроса) поверх
+     * дефолтов конфигурации. Собираются в контроллере — см. {@code ChatController#resolveRun}.
+     *
+     * <p>Записью, а не отдельными параметрами: три из четырёх полей — строки, и две из них
+     * (инструкции режима и id проекта) в позиционном вызове меняются местами без единой ошибки
+     * компиляции.
+     *
+     * @param model результат резолва модели; {@code null} — «не переопределять», т.е. модель из
+     *     конфигурации
+     * @param weakModel {@code ChatModelProperties#isWeak} от {@link #model} — решает, попадёт ли в
+     *     системный промпт обучающая половина руководства по скриптам (см. {@code
+     *     ScriptGuideService})
+     * @param modeInstructions инструкции выбранного режима; пустая строка — «без режима»
+     * @param project id проекта, в котором работают инструменты прогона; {@code null} — дефолтный
+     *     проект списка (см. {@code ProjectCatalog})
+     * @param projectSwitch смена проекта относительно предыдущих сообщений чата; {@code null} —
+     *     проект тот же. Оседает маркером в meta вопроса (см. {@code
+     *     ChatMemoryService#saveUserMessage})
+     */
+    public record RunOptions(
+            @Nullable String model,
+            boolean weakModel,
+            String modeInstructions,
+            @Nullable String project,
+            @Nullable ProjectSwitch projectSwitch) {}
+
+    /** Останавливает прогон: dispose → CANCEL → частичное сохранение + событие RUN_STOPPED. */
+    public boolean stop(String conversationId, String runId) {
+        final RunHandle handle = runs.get(runId);
+        if (handle == null || !handle.conversationId().equals(conversationId)) {
+            return false;
+        }
+        cancel(handle);
+        return true;
+    }
+
+    /**
+     * Останавливает все активные прогоны — при остановке приложения (см. {@link
+     * ChatRuntimeShutdown}). Возвращает число прогонов, которым послан сигнал.
+     */
+    public int stopAll() {
+        final List<RunHandle> snapshot = List.copyOf(runs.values());
+        snapshot.forEach(this::cancel);
+        return snapshot.size();
+    }
+
+    /**
+     * Ждёт (не дольше {@code timeout}), пока реестр прогонов опустеет. Терминальная обработка идёт
+     * на других потоках и пишет в БД, поэтому после {@link #stopAll} нужна эта пауза: без неё
+     * shutdown закрыл бы пул соединений раньше, чем сохранится оборванный ответ.
+     *
+     * @return {@code true}, если все прогоны успели завершиться
+     */
+    public boolean awaitQuiescence(Duration timeout) {
+        final long deadline = System.nanoTime() + timeout.toNanos();
+        while (!runs.isEmpty()) {
+            if (System.nanoTime() - deadline >= 0) {
+                return false;
+            }
+            try {
+                Thread.sleep(QUIESCENCE_POLL_MS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return runs.isEmpty();
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Сигнал остановки прогону. Флаг ставим ДО чтения disposable, а {@link #run} ставит disposable
+     * ДО чтения флага — так остановка не проваливается в окно между постановкой задачи в пул и
+     * подпиской на стрим (иначе прогон остался бы неостанавливаемым до конца генерации).
+     */
+    private void cancel(RunHandle handle) {
+        handle.stopRequested().set(true);
+        final Disposable disposable = handle.disposable().get();
+        if (disposable != null && !disposable.isDisposed()) {
+            disposable.dispose();
+        }
+    }
+
+    public Optional<String> activeRun(String conversationId) {
+        return events.activeRunId(conversationId);
+    }
+
+    /** Число прогонов в реестре — для мониторинга утечек (см. ChatRuntimeMonitor). */
+    public int activeRunCount() {
+        return runs.size();
+    }
+
+    /** Число чатов с удержанной заявкой — в норме совпадает с {@link #activeRunCount()}. */
+    public int claimedConversationCount() {
+        return activeByConversation.size();
+    }
+
+    private void run(
+            RunHandle handle, ChatMessageEntity userRow, RunOptions options, String clientMsgId) {
+        final String resolvedModel = options.model();
+        final boolean weakModel = options.weakModel();
+        final String conversationId = handle.conversationId();
+        final String runId = handle.runId();
+        final StringBuffer buffer = new StringBuffer();
+        final Consumer<Object> liveSink =
+                payload -> events.publish(conversationId, eventType(payload), runId, null, payload);
+        // Инструмент пошёл — значит, итерация стрима завершилась и её сегмент уже сохранён
+        // advisor-цепочкой. Сбрасываем буфер здесь: это надёжная граница, в отличие от
+        // finishReason=TOOL_CALLS (агрегированный tool-чанк с ним ToolCallingAdvisor
+        // отфильтровывает из потока и до onNext он не доходит). Сами live-события TOOL_CALL
+        // публикует ChatMemoryService.saveAll при сохранении tool-данных сегмента.
+        final ToolInvocationCollector toolCollector =
+                new ToolInvocationCollector(() -> buffer.setLength(0));
+
+        // На повторе сообщение не новое, но событие всё равно нужно: вкладки сверяют пузырь по id
+        // и срезают всё, что стоит после него, — так пузырь с ошибкой упавшего прогона исчезает
+        // везде, а не только там, где нажали «Повторить».
+        events.publish(
+                conversationId,
+                USER_MESSAGE,
+                runId,
+                clientMsgId,
+                new UserMessagePayload(
+                        userRow.getId(),
+                        userRow.getContent(),
+                        userRow.getCreatedAt(),
+                        userRow.getContextItems(),
+                        userRow.getMeta() != null ? userRow.getMeta().project() : null,
+                        userRow.getMeta() != null ? userRow.getMeta().projectSwitchFrom() : null));
+        events.publish(conversationId, RUN_STARTED, runId, clientMsgId, null);
+
+        try {
+            // The client, not just the model option, follows the resolved model: an entry of
+            // kb.chat.models with its own base-url/api-key is served by a connection of its own.
+            ChatClient.ChatClientRequestSpec spec =
+                    chatClients
+                            .forModel(resolvedModel)
+                            .prompt()
+                            .system(
+                                    sp ->
+                                            sp.param(
+                                                            "mode_instructions",
+                                                            options.modeInstructions())
+                                                    .param(
+                                                            "script_instructions",
+                                                            scriptGuideService.instructions(
+                                                                    weakModel, options.project()))
+                                                    .param(
+                                                            "system_extended",
+                                                            systemPromptService.systemExtended(
+                                                                    weakModel))
+                                                    .param(
+                                                            "project_context",
+                                                            projectPromptService.context(
+                                                                    options.project())))
+                            // Своего .user(...) здесь намеренно нет: вопрос уже сохранён в
+                            // истории (см. ChatMemoryService.saveUserMessage), и его подмешает
+                            // advisor памяти. Передать его ещё и сюда — значит сохранить вторым
+                            // рядом; см. PrePersistedUserMessageTest.
+                            .toolContext(
+                                    ChatUtils.context(conversationId)
+                                            .user(handle.user())
+                                            .project(options.project())
+                                            .collector(toolCollector)
+                                            .cancellation(
+                                                    new RunCancellation(handle.stopRequested()))
+                                            .build())
+                            .advisors(
+                                    a ->
+                                            a.param(ChatMemory.CONVERSATION_ID, conversationId)
+                                                    .param(RUN_ID_PARAM, runId));
+            if (resolvedModel != null) {
+                spec = spec.options(OpenAiChatOptions.builder().model(resolvedModel));
+            }
+
+            final Disposable disposable =
+                    spec.stream()
+                            .chatResponse()
+                            .doFinally(signal -> onTerminal(handle, buffer, toolCollector, signal))
+                            .subscribe(
+                                    response ->
+                                            onNext(
+                                                    conversationId,
+                                                    runId,
+                                                    buffer,
+                                                    liveSink,
+                                                    response),
+                                    error -> log.error("Stream error {}", conversationId, error),
+                                    () -> onComplete(handle, toolCollector, liveSink));
+            handle.disposable().set(disposable);
+            // Остановку могли запросить, пока задача ещё не подписалась на стрим — см. cancel().
+            if (handle.stopRequested().get()) {
+                disposable.dispose();
+            }
+        } catch (Exception e) {
+            log.error("Failed to run {}", conversationId, e);
+            events.publish(
+                    conversationId, RUN_ERROR, runId, null, Map.of("message", "start failed"));
+            cleanup(handle);
+        }
+    }
+
+    private void onNext(
+            String conversationId,
+            String runId,
+            StringBuffer buffer,
+            Consumer<Object> liveSink,
+            ChatResponse response) {
+        final String chunk =
+                Optional.ofNullable(response)
+                        .map(ChatResponse::getResult)
+                        .map(Generation::getOutput)
+                        .map(AbstractMessage::getText)
+                        .orElse("");
+        final String finishReason =
+                Optional.ofNullable(response)
+                        .map(ChatResponse::getResult)
+                        .map(Generation::getMetadata)
+                        .map(ChatGenerationMetadata::getFinishReason)
+                        .filter(Predicate.not(_UNKNOWN_FINISH_REASON::equals))
+                        .orElse(null);
+        if (!chunk.isEmpty()) {
+            buffer.append(chunk);
+        }
+        // Граница сегмента: текст до вызова инструментов уже сохранён advisor-цепочкой
+        // (MessageChatMemoryAdvisor внутри tool-цикла), в буфере держим только хвост
+        // текущего сегмента — иначе persistPartial задублировал бы сохранённые сегменты.
+        if (TOOL_CALLS_FINISH_REASON.equals(finishReason)) {
+            buffer.setLength(0);
+        }
+        liveSink.accept(new StreamMessage(chunk, finishReason));
+        printUsageStatistics(conversationId, response, finishReason);
+    }
+
+    private void onComplete(
+            RunHandle handle, ToolInvocationCollector toolCollector, Consumer<Object> liveSink) {
+        handle.persisted().set(true);
+        // Персист сначала, затем live-событие с уже персистнутыми metas (messageId/callId/
+        // responseMessageId в них есть только после attachRunMeta — она же вырезает SKIP_TOOLS,
+        // так что после перезагрузки они не покажутся, а тут — так же, одним и тем же списком).
+        final List<ToolInvocationMeta> metas =
+                chatMemoryService.attachRunMeta(
+                        handle.conversationId(), handle.runId(), toolCollector.completedSnapshot());
+        liveSink.accept(new ToolCallsMessage(metas));
+        events.publish(handle.conversationId(), RUN_DONE, handle.runId(), null, null);
+        summarizeService.trySummarize(handle.conversationId());
+    }
+
+    /**
+     * Терминальная обработка (после onComplete/onError/cancel). На прерывание и ошибку спасаем
+     * накопленный текст и сообщаем вкладкам; в любом случае снимаем прогон с учёта.
+     */
+    private void onTerminal(
+            RunHandle handle,
+            StringBuffer buffer,
+            ToolInvocationCollector toolCollector,
+            SignalType signal) {
+        if (signal == SignalType.CANCEL) {
+            persistPartial(handle, buffer, toolCollector, STOPPED_MARKER);
+            events.publish(handle.conversationId(), RUN_STOPPED, handle.runId(), null, null);
+        } else if (signal == SignalType.ON_ERROR) {
+            persistPartial(handle, buffer, toolCollector, ERROR_MARKER);
+            events.publish(
+                    handle.conversationId(),
+                    RUN_ERROR,
+                    handle.runId(),
+                    null,
+                    Map.of("message", "stream error"));
+        }
+        cleanup(handle);
+    }
+
+    private void cleanup(RunHandle handle) {
+        // Сначала закрываем хаб прогона, и только потом снимаем заявку на чат. Иначе новый прогон
+        // мог бы стартовать (заявка свободна) и записаться в хаб, который этот cleanup как раз
+        // закрывает, — событие новой генерации потерялось бы.
+        events.endRun(handle.conversationId(), handle.runId());
+        runs.remove(handle.runId());
+        activeByConversation.remove(handle.conversationId(), handle.runId());
+    }
+
+    private void persistPartial(
+            RunHandle handle,
+            StringBuffer buffer,
+            ToolInvocationCollector toolCollector,
+            String marker) {
+        if (!handle.persisted().compareAndSet(false, true)) {
+            // Уже сохранили (onError + doFinally могут прийти оба).
+            return;
+        }
+        final String conversationId = handle.conversationId();
+        // В буфере — только хвост текущего сегмента: завершённые сегменты (и их tool-сообщения)
+        // advisor-цепочка уже сохранила по ходу прогона (см. onNext).
+        final String partial = buffer.toString().strip();
+        try {
+            // Прервали во время выполнения инструментов — хвостовой assistant.tool_calls
+            // остался без TOOL-ответа; достраиваем пару СТРОГО ДО записи частичного текста:
+            // repairDanglingToolCalls смотрит только на последнюю строку, и записанный первым
+            // partial навсегда спрятал бы от него оборванную пару (модель отвечала бы 400 на
+            // каждый следующий запрос этого чата).
+            chatMemoryService.repairDanglingToolCalls(conversationId);
+            if (!partial.isBlank()) {
+                // Помечаем сохранённый ответ как оборванный — чтобы после reload было видно,
+                // что генерацию остановили/она упала, а не получился полный ответ.
+                chatMemory.add(conversationId, new AssistantMessage(partial + "\n\n" + marker));
+                log.info("Saved partial reply for {} ({} chars)", conversationId, partial.length());
+            }
+            chatMemoryService.attachRunMeta(
+                    conversationId, handle.runId(), toolCollector.completedSnapshot());
+        } catch (Exception e) {
+            log.warn("Failed to persist partial reply for {}", conversationId, e);
+        }
+    }
+
+    private void printUsageStatistics(
+            String conversationId, ChatResponse response, @Nullable String finishReason) {
+        if (finishReason == null
+                || finishReason.isEmpty()
+                || finishReason.equals(_UNKNOWN_FINISH_REASON)) {
+            return;
+        }
+        Optional.ofNullable(response)
+                .map(ChatResponse::getMetadata)
+                .map(ChatResponseMetadata::getUsage)
+                .ifPresent(
+                        usage -> {
+                            log.info("[{}] FinishReason: {}", conversationId, finishReason);
+                            log.info(
+                                    "[{}] Usage:\n PromptToken: {}\n CompletionTokens: {}\n TotalTokens: {}",
+                                    conversationId,
+                                    usage.getPromptTokens(),
+                                    usage.getCompletionTokens(),
+                                    usage.getTotalTokens());
+                        });
+    }
+
+    private static ChatEventType eventType(Object payload) {
+        return switch (payload) {
+            case ToolCallsMessage _ -> TOOL_CALLS;
+            default -> STREAM;
+        };
+    }
+}

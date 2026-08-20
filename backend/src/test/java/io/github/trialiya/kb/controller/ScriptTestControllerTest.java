@@ -13,7 +13,7 @@ import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.controller.ScriptTestController.ScriptRunRequest;
 import io.github.trialiya.kb.model.script.ScriptResult;
 import io.github.trialiya.kb.model.script.ScriptStats;
-import io.github.trialiya.kb.service.script.ScriptRunner;
+import io.github.trialiya.kb.service.chat.script.ScriptRunner;
 import io.github.trialiya.kb.tools.RunCancellation;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
