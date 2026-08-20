@@ -694,7 +694,7 @@ public class GitService {
      * Returns the content of a <b>tracked</b> file, optimised for AI/LLM consumption.
      *
      * <p>Only files tracked by Git are served (checked against the index), plus the untracked files
-     * the project's {@code allow-globs} explicitly admit ({@link #isUntrackedAllowed}). Any other
+     * the project's {@code allow-globs} explicitly admit (see {@link VisibleFiles}). Any other
      * untracked file is rejected even though it exists on disk: its content is unreviewed
      * working-tree state and serving it would both leak arbitrary local files and feed unverified
      * data to the model. Ignored files (via {@code .gitignore}) are rejected always, globs or not.
@@ -723,7 +723,7 @@ public class GitService {
     /**
      * @param knownTracked true when the caller already verified {@code filePath} against a
      *     previously-read index (e.g. {@link #browsePath}'s {@code tracked} list) — skips the
-     *     redundant {@link #isTracked} re-check that would otherwise re-read the Git index.
+     *     redundant {@link VisibleFiles#require} re-check that would otherwise re-read the index.
      */
     private GitFileContent getFileContent(
             @NonNull String filePath,
@@ -964,8 +964,8 @@ public class GitService {
 
     /**
      * @param knownTracked true when the caller already confirmed {@code filePath} is tracked
-     *     against a previously-read index — skips the {@link #isTracked} re-check (and the index
-     *     re-read it entails). Never set this from a caller that hasn't actually done that check:
+     *     against a previously-read index — skips the {@link VisibleFiles#require} re-check (and
+     *     the index re-read it entails). Never set this from a caller that hasn't done that check:
      *     it is the gate that stops untracked/gitignored files from being served.
      */
     private FileBytes readTrackedFile(String filePath, boolean knownTracked) {
