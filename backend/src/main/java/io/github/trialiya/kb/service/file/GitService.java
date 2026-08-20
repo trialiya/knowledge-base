@@ -894,7 +894,7 @@ public class GitService {
      */
     public GitFileInfo getFileInfo(@NonNull String filePath) {
         String normalized = normalizePath(filePath);
-        Path absolute = requireTracked(normalized, false);
+        Path absolute = requireTracked(normalized).absolute();
         return new GitFileInfo(
                 normalized,
                 sizeOf(normalized, absolute),
@@ -916,7 +916,7 @@ public class GitService {
      */
     public GitFileBytes getFileBytes(@NonNull String filePath, long offset, long length) {
         String normalized = normalizePath(filePath);
-        Path absolute = requireTracked(normalized, false);
+        Path absolute = requireTracked(normalized).absolute();
         long size = sizeOf(normalized, absolute);
         long from = Math.min(Math.max(offset, 0), size);
         long want = length > 0 ? Math.min(length, size - from) : size - from;
@@ -950,7 +950,7 @@ public class GitService {
      */
     public String hashFile(@NonNull String filePath) {
         String normalized = normalizePath(filePath);
-        Path absolute = requireTracked(normalized, false);
+        Path absolute = requireTracked(normalized).absolute();
         MessageDigest digest;
         try {
             digest = MessageDigest.getInstance("SHA-256");
@@ -988,8 +988,17 @@ public class GitService {
      */
     private FileBytes readTrackedFile(String filePath, boolean knownTracked) {
         String normalized = normalizePath(filePath);
-        Path absolute = requireTracked(normalized, knownTracked);
+        Path absolute =
+                knownTracked
+                        // Security: confine to the repo before touching the filesystem — the only
+                        // half of the gate a vouched-for path still has to pass.
+                        ? paths.confine(normalized)
+                        : requireTracked(normalized).absolute();
+        return readBytes(normalized, absolute);
+    }
 
+    /** Reads a file the gate has already cleared. */
+    private static FileBytes readBytes(String normalized, Path absolute) {
         long size = sizeOf(normalized, absolute);
         byte[] bytes;
         try {
@@ -997,9 +1006,17 @@ public class GitService {
         } catch (IOException e) {
             throw new IllegalStateException("Cannot read file: " + normalized, e);
         }
-
         return new FileBytes(normalized, bytes, size, isBinary(bytes));
     }
+
+    /**
+     * What the gate established about a path: where it is, and what the index said about it.
+     *
+     * @param tracked whether the index held the path at the moment the gate read it. Every {@link
+     *     Resolved} comes from that one read, so a caller that needs both answers — a write, which
+     *     must know whether staging is allowed — gets them without asking the index twice.
+     */
+    private record Resolved(Path absolute, boolean tracked) {}
 
     /**
      * The gate in front of every read: the path is confined to the working tree and must be
@@ -1008,16 +1025,15 @@ public class GitService {
      * <p>The refusal message is the same whether the path is untracked-but-present or genuinely
      * missing, so a caller can't use it to fingerprint which unrelated files (e.g. a gitignored
      * {@code .env}) happen to exist on disk.
-     *
-     * @return the absolute path of the file, confined to the repository
      */
-    private Path requireTracked(String normalized, boolean knownTracked) {
+    private Resolved requireTracked(String normalized) {
         // Security: confine to the repo before touching the filesystem.
         Path absolute = paths.confine(normalized);
-        if (!knownTracked && !isTracked(normalized) && !isUntrackedAllowed(normalized)) {
+        boolean tracked = isTracked(normalized);
+        if (!tracked && !isUntrackedAllowed(normalized)) {
             throw new IllegalArgumentException("File not found: " + normalized);
         }
-        return absolute;
+        return new Resolved(absolute, tracked);
     }
 
     // ── Untracked files admitted by the project's allow-globs ───────────────
@@ -1377,12 +1393,12 @@ public class GitService {
      * that they differ.
      */
     public GitEditResult replaceTrackedBytes(@NonNull String filePath, byte @NonNull [] content) {
-        String normalized = requireReplaceable(filePath, content);
-        Path absolute = paths.resolve(normalized);
-        long before = sizeOf(normalized, absolute);
+        String normalized = requireWritable(filePath, content);
+        Resolved resolved = requireTracked(normalized);
+        long before = sizeOf(normalized, resolved.absolute());
 
         writeAtomically(normalized, content);
-        stageIfTracked(normalized);
+        stageIfTracked(normalized, resolved.tracked());
 
         log.info("wrote '{}' ({} → {} bytes)", normalized, before, content.length);
         String diff =
@@ -1412,15 +1428,19 @@ public class GitService {
      */
     public String requireReplaceable(@NonNull String filePath, byte @NonNull [] content) {
         String normalized = requireWritable(filePath, content);
-        requireTracked(normalized, false);
+        requireTracked(normalized);
         return normalized;
     }
 
     /**
-     * A tracked text file, read and validated for editing: its LF-normalised text, and whether the
-     * bytes on disk used CRLF — which the write has to put back.
+     * A tracked text file, read and validated for editing: its LF-normalised text, whether the
+     * bytes on disk used CRLF — which the write has to put back — and whether git knows the path.
+     *
+     * @param tracked straight from the gate {@link #readEditable} ran, so the write at the end of
+     *     the edit decides on staging without a second look at the index. Only {@link
+     *     #readEditable} builds one of these, and it always runs that gate.
      */
-    private record Editable(String path, String text, boolean crlf) {}
+    private record Editable(String path, String text, boolean crlf, boolean tracked) {}
 
     /**
      * Reads a tracked file the edit paths may write to: not binary, not oversized, decoded as UTF-8
@@ -1428,7 +1448,9 @@ public class GitService {
      * exact-match contract of {@link #editFile} is defined against.
      */
     private Editable readEditable(String filePath) {
-        FileBytes fb = readTrackedFile(filePath);
+        String normalized = normalizePath(filePath);
+        Resolved resolved = requireTracked(normalized);
+        FileBytes fb = readBytes(normalized, resolved.absolute());
         if (fb.binary()) {
             throw new IllegalArgumentException("Cannot edit a binary file: " + fb.path());
         }
@@ -1438,7 +1460,11 @@ public class GitService {
         }
         String original = new String(fb.bytes(), StandardCharsets.UTF_8);
         boolean crlf = original.contains("\r\n");
-        return new Editable(fb.path(), crlf ? original.replace("\r\n", "\n") : original, crlf);
+        return new Editable(
+                fb.path(),
+                crlf ? original.replace("\r\n", "\n") : original,
+                crlf,
+                resolved.tracked());
     }
 
     /** Shared tail of the two edit paths: diff, atomic write, stage, report. */
@@ -1446,7 +1472,7 @@ public class GitService {
         String path = file.path();
         DiffStats stats = diffStrings(file.text(), updated);
         writeAtomically(path, file.crlf() ? updated.replace("\n", "\r\n") : updated);
-        stageIfTracked(path);
+        stageIfTracked(path, file.tracked());
 
         int lines = updated.isEmpty() ? 0 : updated.split("\n", -1).length;
         log.info("wrote '{}' (+{}/-{})", path, stats.additions(), stats.deletions());
@@ -1508,8 +1534,8 @@ public class GitService {
      * {@code allow-globs} must stay untracked through an edit — staging it would silently promote a
      * deliberately-uncommitted file into the next commit.
      */
-    private void stageIfTracked(String normalized) {
-        if (isTracked(normalized)) {
+    private void stageIfTracked(String normalized, boolean tracked) {
+        if (tracked) {
             stage(normalized);
         }
     }
@@ -1716,12 +1742,7 @@ public class GitService {
      * are sorted by path, so duplicates are adjacent and the set stays in ls-files order).
      */
     private List<String> trackedPaths() {
-        DirCache cache;
-        try {
-            cache = repository.readDirCache();
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to read Git index: " + paths.root(), e);
-        }
+        DirCache cache = readIndex();
         Set<String> paths = LinkedHashSet.newLinkedHashSet(cache.getEntryCount());
         for (int i = 0; i < cache.getEntryCount(); i++) {
             paths.add(cache.getEntry(i).getPathString());
@@ -1806,14 +1827,26 @@ public class GitService {
         return visiblePaths();
     }
 
-    private boolean isTracked(String path) {
+    /**
+     * The Git index as it is on disk right now.
+     *
+     * <p>Deliberately never cached in a field: {@link #createFile} stages a file and then asks the
+     * index whether the staging took, and a snapshot from before the {@code git add} would answer
+     * about the wrong index. Within one operation the answer is passed along instead (see {@link
+     * Resolved}), which is what keeps an edit at a single read.
+     */
+    private DirCache readIndex() {
         try {
-            // getEntry(path) returns the path's first index entry — stage 0 normally, stage 1+
-            // while a merge conflict is unresolved. Either way the file is tracked.
-            return repository.readDirCache().getEntry(path) != null;
+            return repository.readDirCache();
         } catch (IOException e) {
             throw new IllegalStateException("Failed to read Git index: " + paths.root(), e);
         }
+    }
+
+    private boolean isTracked(String path) {
+        // getEntry(path) returns the path's first index entry — stage 0 normally, stage 1+ while a
+        // merge conflict is unresolved. Either way the file is tracked.
+        return readIndex().getEntry(path) != null;
     }
 
     private static GitCommit toGitCommit(
