@@ -7,8 +7,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.config.model.ScriptProperties;
-import io.github.trialiya.kb.service.ScriptGuideService;
-import io.github.trialiya.kb.service.script.ScriptEditPolicy;
+import io.github.trialiya.kb.service.chat.script.ScriptEditPolicy;
+import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -104,7 +104,7 @@ class SystemPromptRenderTest {
     @ParameterizedTest
     @ValueSource(
             classes = {
-                io.github.trialiya.kb.service.ChatRunService.class,
+                io.github.trialiya.kb.service.chat.run.ChatRunService.class,
                 io.github.trialiya.kb.controller.ChatController.class
             })
     @Timeout(30)

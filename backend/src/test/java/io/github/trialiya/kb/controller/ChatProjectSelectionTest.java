@@ -19,16 +19,16 @@ import io.github.trialiya.kb.config.model.ProjectProperties.ProjectOption;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.project.ProjectSwitch;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
-import io.github.trialiya.kb.service.ChatEventService;
-import io.github.trialiya.kb.service.ChatMemoryService;
-import io.github.trialiya.kb.service.ChatModeService;
-import io.github.trialiya.kb.service.ChatRunService;
-import io.github.trialiya.kb.service.ChatTopicService;
-import io.github.trialiya.kb.service.ContextItemService;
-import io.github.trialiya.kb.service.ProjectCatalog;
-import io.github.trialiya.kb.service.ProjectPromptService;
-import io.github.trialiya.kb.service.ScriptGuideService;
-import io.github.trialiya.kb.service.SystemPromptService;
+import io.github.trialiya.kb.service.chat.ChatModeService;
+import io.github.trialiya.kb.service.chat.ChatTopicService;
+import io.github.trialiya.kb.service.chat.ContextItemService;
+import io.github.trialiya.kb.service.chat.ProjectPromptService;
+import io.github.trialiya.kb.service.chat.SystemPromptService;
+import io.github.trialiya.kb.service.chat.memory.ChatMemoryService;
+import io.github.trialiya.kb.service.chat.run.ChatEventService;
+import io.github.trialiya.kb.service.chat.run.ChatRunService;
+import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
+import io.github.trialiya.kb.service.file.ProjectCatalog;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -84,7 +84,7 @@ class ChatProjectSelectionTest {
                         contextItemService,
                         topicService,
                         catalog(),
-                        mock(io.github.trialiya.kb.service.GitRegistry.class),
+                        mock(io.github.trialiya.kb.service.file.GitRegistry.class),
                         mock(SystemPromptService.class),
                         new ProjectPromptService(catalog()),
                         Clock.systemUTC());

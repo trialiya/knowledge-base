@@ -8,8 +8,8 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.github.trialiya.kb.service.GitRegistry;
-import io.github.trialiya.kb.service.GitService;
+import io.github.trialiya.kb.service.file.GitRegistry;
+import io.github.trialiya.kb.service.file.GitService;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Comparator;

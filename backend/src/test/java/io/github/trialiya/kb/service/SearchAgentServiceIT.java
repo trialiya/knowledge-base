@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import io.github.trialiya.kb.config.model.SubAgentConfig;
 import io.github.trialiya.kb.functions.GitFunction;
 import io.github.trialiya.kb.model.search.SearchAgentResult;
+import io.github.trialiya.kb.service.file.GitRegistry;
 import io.github.trialiya.kb.support.TestProjects;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;

@@ -2,7 +2,7 @@ package io.github.trialiya.kb.controller;
 
 import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.model.script.ScriptResult;
-import io.github.trialiya.kb.service.script.ScriptRunner;
+import io.github.trialiya.kb.service.chat.script.ScriptRunner;
 import io.github.trialiya.kb.tools.RunCancellation;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;

@@ -12,8 +12,8 @@ import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.model.script.ScriptResult;
 import io.github.trialiya.kb.model.script.ScriptStats;
-import io.github.trialiya.kb.service.GitRegistry;
-import io.github.trialiya.kb.service.script.ScriptRunner;
+import io.github.trialiya.kb.service.chat.script.ScriptRunner;
+import io.github.trialiya.kb.service.file.GitRegistry;
 import io.github.trialiya.kb.tools.ProjectContext;
 import java.util.List;
 import java.util.Map;

@@ -4,7 +4,7 @@ import static io.github.trialiya.kb.tools.ToolArgs.requireNonEmpty;
 import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
 
 import io.github.trialiya.kb.repository.ChatMessageRepository;
-import io.github.trialiya.kb.service.ContextItemService;
+import io.github.trialiya.kb.service.chat.ContextItemService;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
 import java.util.List;
 import java.util.stream.Collectors;

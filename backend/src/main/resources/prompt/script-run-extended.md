@@ -80,13 +80,13 @@ return sizes.slice(0, 10);
 
 Outline large file, read only target method:
 ```js
-var symbols = kb.outline("backend/src/main/java/io/github/trialiya/kb/service/GitService.java");
+var symbols = kb.outline("backend/src/main/java/io/github/trialiya/kb/service/file/GitService.java");
 var target = symbols.filter(function (s) { return s.name === "editFile"; })[0];
 if (!target) { return { found: false }; }
 return {
   found: true,
   startLine: target.startLine,
-  body: kb.read("backend/src/main/java/io/github/trialiya/kb/service/GitService.java",
+  body: kb.read("backend/src/main/java/io/github/trialiya/kb/service/file/GitService.java",
                 target.startLine, target.endLine)
 };
 ```
