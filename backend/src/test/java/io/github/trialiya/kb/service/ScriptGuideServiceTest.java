@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -138,6 +139,22 @@ class ScriptGuideServiceTest {
         assertThat(service.readOnlyInstructions(true)).doesNotContain("kb.edit");
     }
 
+    /**
+     * {@code edit-enabled} задаётся на проект, а {@code kb} в песочницу связывает {@code
+     * ScriptRunner} по проекту прогона — справочник обязан описывать тот же объект.
+     */
+    @Test
+    void theWriteAppendixFollowsTheRunsProjectNotTheDefaultOne() {
+        ScriptProperties properties = ScriptProperties.enabledWithDefaults();
+        ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
+        when(policy.enabled(nullable(String.class))).thenReturn(true);
+        when(policy.enabled("readonly")).thenReturn(false);
+        ScriptGuideService service = new ScriptGuideService(properties, policy);
+
+        assertThat(service.instructions(true, "writable")).contains("kb.edit");
+        assertThat(service.instructions(true, "readonly")).doesNotContain("kb.edit");
+    }
+
     /** {@code properties} with one guide and one byte budget varied; the rest stay at defaults. */
     private static ScriptProperties sized(Resource guide, DataSize maxBytesRead) {
         return new ScriptProperties(
@@ -157,6 +174,7 @@ class ScriptGuideServiceTest {
     private static ScriptGuideService guide(ScriptProperties properties, boolean editEnabled) {
         ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
         when(policy.enabled()).thenReturn(editEnabled);
+        when(policy.enabled(nullable(String.class))).thenReturn(editEnabled);
         return new ScriptGuideService(properties, policy);
     }
 }

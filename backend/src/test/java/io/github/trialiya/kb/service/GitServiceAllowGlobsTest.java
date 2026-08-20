@@ -254,6 +254,20 @@ class GitServiceAllowGlobsTest {
                 .doesNotContain("notes/generated/report.md");
     }
 
+    /** Список изменений — такое же чтение, как остальные: за пределы репозитория он не ходит. */
+    @Test
+    void anAdmittedSymlinkOutOfTheRepositoryYieldsNoContent() throws IOException {
+        Path outside = Files.createTempFile("outside", ".md");
+        Files.writeString(outside, "secret\n");
+        Files.createSymbolicLink(repoDir.resolve("notes/link.md"), outside);
+
+        assertThat(service.getUncommittedChanges(true))
+                .filteredOn(e -> "notes/link.md".equals(e.path()))
+                .singleElement()
+                .extracting(GitDiffEntry::patch)
+                .isNull();
+    }
+
     @Test
     void theTreeMarksAnAdmittedFileAsUntracked() {
         assertThat(service.getFileTree("notes"))

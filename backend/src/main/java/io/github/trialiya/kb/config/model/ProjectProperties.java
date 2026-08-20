@@ -51,9 +51,12 @@ public record ProjectProperties(List<ProjectOption> projects) {
      *     read-only mount withholds writes regardless (see {@code GitRegistry}). Defaults to {@code
      *     false}
      * @param allowGlobs Ant-style globs naming the <em>untracked</em> files of this repository the
-     *     assistant may also work with — read, edit, create without staging. Untracked here means
-     *     what {@code git status} calls untracked: files matched by {@code .gitignore} stay hidden
-     *     whatever the globs say. Empty by default — tracked files only, as everywhere else
+     *     assistant may also work with — read and edit, never create, and never staged. Inside the
+     *     globs the working tree is the truth and git is not consulted, so {@code .gitignore} hides
+     *     nothing there: that is the point (build reports and logs live in an ignored directory),
+     *     and it is why every glob has to start with a real directory rather than a wildcard —
+     *     {@code ProjectCatalog} refuses to start otherwise. Empty by default — tracked files only,
+     *     as everywhere else
      * @param enabled {@code false} — the project is not served: no repository is opened for it, it
      *     is absent from {@code GET /api/chats/projects}, and a call naming it is refused. Chats
      *     that had chosen it keep the id in {@code chat_topic.project} and run on the default one,

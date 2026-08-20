@@ -1524,15 +1524,13 @@ public class GitService {
      * Creates a new file in the working tree, visible to every read tool of this service from the
      * moment it returns.
      *
-     * <p>Normally that means staging it ({@code git add}), since the read tools serve tracked
-     * files. A path this project's {@code allow-globs} admit is left untracked instead — the globs
-     * name a working area that stays out of commits, and staging it would take it out of that area
-     * — unless the path is already in the index, which is the tracked-but-deleted case below.
+     * <p>That means staging it ({@code git add}), since the read tools serve tracked files.
      *
-     * <p>Refused when: the path already exists on disk, the path is matched by {@code .gitignore}
-     * (staging would silently skip it, leaving an unreadable orphan — the file is removed again and
-     * the call fails), the name is an OS/IDE junk artefact, or the content exceeds {@value
-     * #MAX_FILE_SIZE} bytes.
+     * <p>Refused when: the path falls inside this project's {@code allow-globs} (that area holds
+     * what something else produces — see {@link #requireCreatable}), the path already exists on
+     * disk, the path is matched by {@code .gitignore} (staging would silently skip it, leaving an
+     * unreadable orphan — the file is removed again and the call fails), the name is an OS/IDE junk
+     * artefact, or the content exceeds {@value #MAX_FILE_SIZE} bytes.
      */
     public GitEditResult createFile(@NonNull String filePath, @NonNull String content) {
         byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
@@ -1953,9 +1951,12 @@ public class GitService {
     private GitDiffEntry untrackedDiffEntry(String path, boolean includePatch) {
         byte @Nullable [] content;
         try {
-            Path absolute = repoPath.resolve(path).normalize();
+            // Through confineToRepo like every other read: an admitted untracked path may be a
+            // symlink out of the repository, and the change list must not be the one place that
+            // follows it.
+            Path absolute = confineToRepo(path);
             content = Files.size(absolute) > MAX_FILE_SIZE ? null : Files.readAllBytes(absolute);
-        } catch (IOException e) {
+        } catch (IOException | IllegalArgumentException e) {
             log.warn("Cannot read untracked file {} for the change list", path, e);
             content = null;
         }

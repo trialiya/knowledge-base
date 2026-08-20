@@ -47,9 +47,10 @@ public class ScriptEditPolicy {
     }
 
     /**
-     * The answer for the default project. What the Settings panel reports and what {@code
-     * ScriptGuideService} renders the handbook against — both are per deployment, and with the
-     * project not yet selectable per chat the default project is the whole deployment.
+     * The answer for the default project — what the Settings panel reports, that panel being per
+     * deployment rather than per chat. A run asks {@link #enabled(String)} with its own project
+     * instead: {@code edit-enabled} is configured per project, so the default's answer is not the
+     * deployment's.
      */
     public boolean enabled() {
         return enabled(null);

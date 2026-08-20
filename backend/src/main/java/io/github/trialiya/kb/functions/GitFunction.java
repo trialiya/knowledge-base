@@ -38,9 +38,10 @@ import org.springframework.ai.tool.annotation.ToolParam;
  * at.
  *
  * <p><b>Security constraints:</b> all operations are strictly read-only. Only files tracked by Git
- * are accessible — untracked files (including those matching {@code .gitignore}) are refused even
- * if they exist on disk. Binary files and files larger than 512 KB are detected and returned
- * without content so they never bloat the model context.
+ * are accessible — an untracked file is refused even if it exists on disk, unless the project
+ * configures {@code allow-globs} and the path falls inside them, which opens that named area as it
+ * is on disk, {@code .gitignore} included. Binary files and files larger than 512 KB are detected
+ * and returned without content so they never bloat the model context.
  */
 @Slf4j
 @AllArgsConstructor
@@ -283,7 +284,7 @@ public class GitFunction {
     @Tool(
             name = "getUncommittedChanges",
             description =
-                    "Uncommitted changes to tracked files in working tree (staged and unstaged); untracked files excluded. Status: A/M/D/R. Optional: include unified diff.",
+                    "Uncommitted changes in working tree (staged and unstaged), plus any untracked file the project's allow-globs admit, reported as A. Status: A/M/D/R. Optional: include unified diff.",
             resultConverter = CompactToolResultConverter.class)
     public List<GitDiffEntry> getUncommittedChanges(
             ToolContext context,
