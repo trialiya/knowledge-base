@@ -172,7 +172,7 @@ class GitServiceTest {
         writeFile("tracked.txt", "needle\nhaystack");
         commitAll();
 
-        List<GitGrepMatch> matches = service.grepContent("needle", null, false, 0, 10);
+        List<GitGrepMatch> matches = service.grepContent("needle", null, false, 0, 10, false);
 
         assertThat(matches).isNotEmpty();
         assertThat(matches).allSatisfy(m -> assertThat(m.project()).isEqualTo(TestProjects.ID));

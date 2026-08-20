@@ -359,7 +359,9 @@ public class KbScriptApi {
     }
 
     /**
-     * As {@link #grep(String)}, with an options object: {@code {glob, regex, context, max}}.
+     * As {@link #grep(String)}, with an options object: {@code {glob, regex, context, max,
+     * untracked}}. {@code untracked: true} widens the search to the untracked files the project's
+     * {@code allow-globs} admit; without it the search covers tracked files only.
      *
      * @param options guest object; missing and mistyped members fall back to the defaults
      */
@@ -369,10 +371,12 @@ public class KbScriptApi {
         Boolean regex = member(options, "regex", Value::isBoolean, Value::asBoolean);
         Integer context = member(options, "context", Value::isNumber, Value::asInt);
         Integer max = member(options, "max", Value::isNumber, Value::asInt);
+        Boolean untracked = member(options, "untracked", Value::isBoolean, Value::asBoolean);
 
         List<Map<String, Object>> rows =
                 session.call(
-                        Arrays.<Object>asList("grep", pattern, glob, regex, context, max),
+                        Arrays.<Object>asList(
+                                "grep", pattern, glob, regex, context, max, untracked),
                         () -> {
                             List<GitGrepMatch> matches =
                                     gitService.grepContent(
@@ -383,7 +387,8 @@ public class KbScriptApi {
                                             // GitService caps every caller at 200; passing the
                                             // request through means a script asking for fewer gets
                                             // fewer, and asking for more is not an error.
-                                            max != null && max > 0 ? max : Integer.MAX_VALUE);
+                                            max != null && max > 0 ? max : Integer.MAX_VALUE,
+                                            untracked != null && untracked);
 
                             List<Map<String, Object>> result = new ArrayList<>();
                             long bytes = 0;

@@ -54,6 +54,18 @@
   flex-direction: column;
 }
 
+/* Файл вне git (виден через allow-globs проекта). Приглушён только маркер —
+   имя остаётся полноконтрастным, потому что такой файл читается и правится. */
+.file-tree-untracked {
+  flex: none;
+  margin-left: 0.4em;
+  color: var(--kb-muted);
+  font-size: 0.75em;
+  font-weight: 600;
+  line-height: 1;
+  cursor: default;
+}
+
 /* ── Content ── */
 
 .file-content {

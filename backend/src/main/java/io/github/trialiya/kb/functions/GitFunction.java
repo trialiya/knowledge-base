@@ -38,9 +38,10 @@ import org.springframework.ai.tool.annotation.ToolParam;
  * at.
  *
  * <p><b>Security constraints:</b> all operations are strictly read-only. Only files tracked by Git
- * are accessible — untracked files (including those matching {@code .gitignore}) are refused even
- * if they exist on disk. Binary files and files larger than 512 KB are detected and returned
- * without content so they never bloat the model context.
+ * are accessible — an untracked file is refused even if it exists on disk, unless the project
+ * configures {@code allow-globs} and the path falls inside them, which opens that named area as it
+ * is on disk, {@code .gitignore} included. Binary files and files larger than 512 KB are detected
+ * and returned without content so they never bloat the model context.
  */
 @Slf4j
 @AllArgsConstructor
@@ -283,7 +284,7 @@ public class GitFunction {
     @Tool(
             name = "getUncommittedChanges",
             description =
-                    "Uncommitted changes to tracked files in working tree (staged and unstaged); untracked files excluded. Status: A/M/D/R. Optional: include unified diff.",
+                    "Uncommitted changes in working tree (staged and unstaged), plus any untracked file the project's allow-globs admit, reported as A. Status: A/M/D/R. Optional: include unified diff.",
             resultConverter = CompactToolResultConverter.class)
     public List<GitDiffEntry> getUncommittedChanges(
             ToolContext context,
@@ -309,6 +310,7 @@ public class GitFunction {
      * @param regex if true, treat pattern as an extended regular expression
      * @param contextLines lines of context before/after each match (0–10, default 1)
      * @param maxResults maximum number of matches to return (1–200, default 50)
+     * @param includeUntracked also search the project's admitted untracked files (default false)
      * @return list of matches with file path, line number, and line text
      */
     @Tool(
@@ -339,6 +341,14 @@ public class GitFunction {
                     @Nullable Integer maxResults,
             @ToolParam(
                             description =
+                                    "Also search the project's untracked files, where it allows any "
+                                            + "(build reports, local notes — see the active project "
+                                            + "note). Default false: a plain search answers about "
+                                            + "the committed codebase.",
+                            required = false)
+                    @Nullable Boolean includeUntracked,
+            @ToolParam(
+                            description =
                                     "Optional: search a different project (repository id) than the "
                                             + "chat's active one, for a cross-project question. Omit to "
                                             + "use the active project. Each match's \"project\" field "
@@ -352,17 +362,20 @@ public class GitFunction {
         // matching line only", a real answer the model can give. GitService clamps to 0–10.
         final int ctx = orDefault(contextLines, 1);
         final int limit = positiveOrDefault(maxResults, 50);
+        final boolean untracked = orDefault(includeUntracked, false);
         log.info(
                 "grepContent called: pattern='{}', pathGlob='{}', regex={}, contextLines={},"
-                        + " maxResults={}, project='{}'",
+                        + " maxResults={}, includeUntracked={}, project='{}'",
                 pattern,
                 pathGlob,
                 useRegex,
                 ctx,
                 limit,
+                untracked,
                 project);
         List<GitGrepMatch> matches =
-                git(context, project).grepContent(pattern, pathGlob, useRegex, ctx, limit);
+                git(context, project)
+                        .grepContent(pattern, pathGlob, useRegex, ctx, limit, untracked);
         log.info("grepContent called: {} matches found", matches.size());
         return matches;
     }

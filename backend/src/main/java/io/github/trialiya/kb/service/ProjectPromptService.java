@@ -56,9 +56,10 @@ public class ProjectPromptService {
         }
         return """
 
-        Beyond the tracked files, this project also serves untracked files matching %s — readable,
-        editable and creatable like any other, and they stay untracked. `.gitignore` still hides
-        what it hides.\
+        Beyond the tracked files, this project also serves untracked files matching %s, whatever
+        `.gitignore` says about them — build reports and local notes live there. They are listed
+        and readable like any other file and `editFile` works on them, but they cannot be created,
+        and `grepContent` skips them unless you pass `includeUntracked: true`.\
         """
                 .formatted(String.join(", ", project.allowGlobs()));
     }

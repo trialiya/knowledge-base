@@ -374,7 +374,7 @@ public class ChatRunService {
                                                     .param(
                                                             "script_instructions",
                                                             scriptGuideService.instructions(
-                                                                    weakModel))
+                                                                    weakModel, options.project()))
                                                     .param(
                                                             "system_extended",
                                                             systemPromptService.systemExtended(

@@ -13,13 +13,25 @@ import org.jspecify.annotations.Nullable;
  * @param name имя файла/каталога
  * @param type тип записи (файл или директория)
  * @param size размер в байтах (только для файлов, у каталогов — null)
+ * @param tracked отслеживается ли git. {@code false} — файл виден только через {@code
+ *     kb.projects[].allow-globs} проекта: читать и править можно, но истории у него нет, он не
+ *     попадёт в коммит, и создать рядом новый нельзя
  */
-public record GitFileNode(String path, String name, FileEntryType type, @Nullable Long size)
+public record GitFileNode(
+        String path, String name, FileEntryType type, @Nullable Long size, boolean tracked)
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
+
+    /** Отслеживаемый узел — обычный случай, для него и есть этот конструктор. */
+    public GitFileNode(String path, String name, FileEntryType type, @Nullable Long size) {
+        this(path, name, type, size, true);
+    }
 
     @Override
     public String getFormattedResponse() {
-        return type == FileEntryType.DIRECTORY ? path + "/" : path + " (" + size + "B)";
+        String suffix = tracked ? "" : " [untracked]";
+        return type == FileEntryType.DIRECTORY
+                ? path + "/" + suffix
+                : path + " (" + size + "B)" + suffix;
     }
 
     @Override
@@ -29,6 +41,7 @@ public record GitFileNode(String path, String name, FileEntryType type, @Nullabl
         meta.put("name", name);
         meta.put("sizeBytes", size);
         meta.put("type", type);
+        meta.put("tracked", tracked);
         return meta;
     }
 }

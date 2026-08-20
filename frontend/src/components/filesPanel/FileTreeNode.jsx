@@ -85,6 +85,14 @@ const FileTreeNode = ({ node, level, selectedPath, expanded, treeCache, loadingD
         <span ref={labelRef} className="ws-item__label">
           {node.name}
         </span>
+        {/* Метка сохраняет полный контраст, приглушён только маркер: приглушённый текст в
+            дереве уже занят подсказками («Загрузка…», «Пусто») и читался бы как «недоступно»,
+            хотя такой файл как раз читается и правится. */}
+        {node.tracked === false && (
+          <span className="file-tree-untracked" title={t('tree.untracked')} aria-label={t('tree.untracked')}>
+            U
+          </span>
+        )}
       </div>
 
       {isDir && isOpen && (

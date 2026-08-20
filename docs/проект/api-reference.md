@@ -683,7 +683,7 @@ Fuzzy-поиск tracked-файлов по имени (subsequence match, рег
 | `limit` | int | `10` | Макс. результатов |
 | `project` | String? | `null` | ID проекта; пусто — дефолтный |
 
-**Response:** `List<GitFileNode>` — `{ path, name, type: "file", size }`
+**Response:** `List<GitFileNode>` — `{ path, name, type: "file", size, tracked }`. `tracked: false` — файл виден только через `kb.projects[].allow-globs` проекта (истории в git у него нет); интерфейс помечает такие узлы.
 
 ---
 
@@ -712,7 +712,7 @@ Fuzzy-поиск tracked-файлов по имени (subsequence match, рег
 | `ancestors` | boolean | `true` | `false` — не отдавать листинги предков (клиент уже держит их в кэше) |
 | `project` | String? | `null` | ID проекта; пусто — дефолтный |
 
-**Response:** `GitPathView` — `{ path, type: "file"|"directory"|null, file?, nodes?, tree: [{ path, nodes }] }`. `file` — только для файла, `nodes` (потомки) — только для каталога, `tree` — листинги от корня до родителя пути.
+**Response:** `GitPathView` — `{ path, type: "file"|"directory"|null, file?, nodes?, tree: [{ path, nodes }], tracked }`. `file` — только для файла, `nodes` (потомки) — только для каталога, `tree` — листинги от корня до родителя пути.
 
 **Ошибки:** `400` — путь содержит `..`, `/`, `-` в начале, `\0`. Несуществующий путь — не ошибка, а `type: null`.
 

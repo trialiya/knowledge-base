@@ -43,7 +43,7 @@ class SystemPromptRenderTest {
     void rendersWithTheScriptHandbookInjected() throws IOException {
         // With writes on, so the appendix — and its JavaScript examples — is in the fragment too.
         ScriptEditPolicy policy = mock(ScriptEditPolicy.class);
-        when(policy.enabled()).thenReturn(true);
+        when(policy.enabled(org.mockito.ArgumentMatchers.nullable(String.class))).thenReturn(true);
         String handbook =
                 new ScriptGuideService(ScriptProperties.enabledWithDefaults(), policy)
                         .instructions(true);

@@ -147,6 +147,7 @@ public class ProjectCatalog {
                                 + "].path is empty — set it, or PROJECT_PATH / the legacy"
                                 + " kb.git.project-path it defaults to");
             }
+            requireRootedGlobs(id, option.allowGlobs());
             resolved.add(
                     new Project(
                             id,
@@ -156,6 +157,39 @@ public class ProjectCatalog {
                             option.allowGlobs()));
         }
         return List.copyOf(resolved);
+    }
+
+    /**
+     * Refuses an {@code allow-globs} entry whose first path segment is already a wildcard.
+     *
+     * <p>Two reasons, and the second is why this is a hard failure rather than a warning. The
+     * working-tree walk behind these globs is rooted at the glob's literal prefix, so a glob
+     * without one would scan the whole tree on every listing. And since these globs override {@code
+     * .gitignore}, the blast radius of {@code **}{@code /*} is every secret in the repository — a
+     * deployment should have to name the directory it is opening up.
+     *
+     * <p>Validated here rather than in {@link GitService}, which builds the repository: a project
+     * that fails to open is dropped from the catalogue with a logged error, and a misconfigured
+     * glob silently losing the project is the opposite of what a refusal is for.
+     */
+    private static void requireRootedGlobs(String id, List<String> globs) {
+        List<String> unrooted = globs.stream().filter(ProjectCatalog::isUnrooted).toList();
+        if (!unrooted.isEmpty()) {
+            throw new IllegalStateException(
+                    "kb.projects["
+                            + id
+                            + "].allow-globs must start with a directory, not a wildcard: "
+                            + String.join(", ", unrooted)
+                            + " — these globs override .gitignore, so the area has to be named");
+        }
+    }
+
+    private static boolean isUnrooted(String glob) {
+        int wildcard = -1;
+        for (int i = 0; i < glob.length() && wildcard < 0; i++) {
+            if (glob.charAt(i) == '*' || glob.charAt(i) == '?') wildcard = i;
+        }
+        return wildcard >= 0 && glob.lastIndexOf('/', wildcard) <= 0;
     }
 
     private static Path absolute(String path) {

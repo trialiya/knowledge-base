@@ -49,7 +49,8 @@ class GitFunctionTest {
                                 false,
                                 null,
                                 null));
-        when(billing.grepContent(anyString(), any(), anyBoolean(), anyInt(), anyInt()))
+        when(billing.grepContent(
+                        anyString(), any(), anyBoolean(), anyInt(), anyInt(), anyBoolean()))
                 .thenReturn(List.of(new GitGrepMatch("billing", "pom.xml", 1, "<project/>")));
         when(gitRegistry.forProject("billing")).thenReturn(billing);
     }
@@ -95,7 +96,7 @@ class GitFunctionTest {
         ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "kb"));
 
         List<GitGrepMatch> matches =
-                function.grepContent(context, "needle", null, null, null, null, "billing");
+                function.grepContent(context, "needle", null, null, null, null, null, "billing");
 
         verify(gitRegistry).forProject("billing");
         assertThat(matches).allSatisfy(m -> assertThat(m.project()).isEqualTo("billing"));

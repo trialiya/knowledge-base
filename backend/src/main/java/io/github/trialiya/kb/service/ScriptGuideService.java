@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StreamUtils;
@@ -42,17 +43,17 @@ import org.springframework.util.unit.DataSize;
 @Service
 public class ScriptGuideService {
 
+    private final ScriptEditPolicy editPolicy;
     private final String instructionsForWeakModel;
     private final String instructionsForStrongModel;
     private final String readOnlyInstructionsForWeakModel;
     private final String readOnlyInstructionsForStrongModel;
 
     public ScriptGuideService(ScriptProperties properties, ScriptEditPolicy editPolicy) {
-        boolean editEnabled = editPolicy.enabled();
-        this.instructionsForWeakModel =
-                properties.enabled() ? render(properties, true, editEnabled) : "";
+        this.editPolicy = editPolicy;
+        this.instructionsForWeakModel = properties.enabled() ? render(properties, true, true) : "";
         this.instructionsForStrongModel =
-                properties.enabled() ? render(properties, false, editEnabled) : "";
+                properties.enabled() ? render(properties, false, true) : "";
         this.readOnlyInstructionsForWeakModel =
                 properties.enabled() ? render(properties, true, false) : "";
         this.readOnlyInstructionsForStrongModel =
@@ -64,11 +65,24 @@ public class ScriptGuideService {
      * kb.script.enabled=false}. Never null: the placeholder must always receive a value or the
      * prompt template fails to render.
      *
+     * <p>The write appendix follows the run's own project, not the deployment: {@code edit-enabled}
+     * is per project, and the handbook has to describe the {@code kb} object {@code ScriptRunner}
+     * will actually bind for this run.
+     *
      * @param weak {@code ChatModelProperties.ModelOption#weak} of the model the run actually uses —
      *     picks the tutorial-included or reference-only rendering
+     * @param projectId the project the run works against; {@code null} — the default one
      */
-    public String instructions(boolean weak) {
+    public String instructions(boolean weak, @Nullable String projectId) {
+        if (!editPolicy.enabled(projectId)) {
+            return readOnlyInstructions(weak);
+        }
         return weak ? instructionsForWeakModel : instructionsForStrongModel;
+    }
+
+    /** The handbook for the default project — for a caller that has no project in hand. */
+    public String instructions(boolean weak) {
+        return instructions(weak, null);
     }
 
     /**

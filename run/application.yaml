@@ -88,8 +88,9 @@ kb:
       path: ..
       # Set to true to expose createFile/editFile tools to the chat model.
       edit-enabled: false
-      # Untracked files inside these globs are readable and editable too, and stay
-      # untracked. Empty means tracked files only. e.g. ["notes/**", "scratch/**"]
+      # Untracked files inside these globs are readable and editable too (never creatable),
+      # .gitignore included. Each glob must start with a real directory. Empty means tracked
+      # files only. e.g. ["notes/**", "build/reports/**"]
       allow-globs: []
   # ── Document export ───────────────────────────────────────────────────────────
   documents:

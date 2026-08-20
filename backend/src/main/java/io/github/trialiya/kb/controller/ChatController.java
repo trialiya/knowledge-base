@@ -353,7 +353,8 @@ public class ChatController {
                                                 .param(
                                                         "script_instructions",
                                                         scriptGuideService.instructions(
-                                                                options.weakModel()))
+                                                                options.weakModel(),
+                                                                options.project()))
                                                 .param(
                                                         "system_extended",
                                                         systemPromptService.systemExtended(
