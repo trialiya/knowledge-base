@@ -3,6 +3,7 @@ package io.github.trialiya.kb.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.support.TestProjects;
@@ -104,6 +105,50 @@ class GitServiceAllowGlobsTest {
         assertThat(service.grepContent("not admitted", null, false, 0, 50)).isEmpty();
     }
 
+    /**
+     * The limit is a limit on answers, not on lines read: {@code --untracked} also matches files
+     * the globs do not admit, and cutting to the limit before dropping those would spend the whole
+     * cap on hits nobody gets to see.
+     */
+    @Test
+    void theResultLimitCountsOnlyVisibleMatches() {
+        writeFile("scratch.txt", "remember the milk\n");
+        writeFile("src/App.java", "class App { String milk; }\n");
+        runGit("add", "src/App.java");
+
+        // git grep walks in path order, so the invisible scratch.txt sits between the two hits
+        // that count: a cut applied before the filter would leave only notes/todo.md.
+        List<GitGrepMatch> hits = service.grepContent("milk", null, false, 0, 2);
+
+        assertThat(hits)
+                .extracting(GitGrepMatch::path)
+                .containsExactly("notes/todo.md", "src/App.java");
+    }
+
+    /** {@code createFile} is the only way back for a tracked file deleted from the working tree. */
+    @Test
+    void restoringADeletedTrackedFileInsideTheGlobsStagesItAgain() {
+        writeFile("notes/tracked.md", "kept in git\n");
+        runGit("add", "notes/tracked.md");
+        runGit("commit", "-q", "-m", "tracked note");
+        // Gone from the working tree, still in the index — the case createFile exists to undo.
+        deleteFile("notes/tracked.md");
+
+        service.createFile("notes/tracked.md", "restored\n");
+
+        assertThat(service.getFileContent("notes/tracked.md").content()).isEqualTo("restored\n");
+        assertThat(runGitOutput("status", "--porcelain", "-uall"))
+                .doesNotContain("?? notes/tracked.md");
+    }
+
+    /** Файлы, которые ассистент пишет в разрешённой зоне, обязаны быть видны в списке изменений. */
+    @Test
+    void admittedUntrackedFilesShowUpAmongTheUncommittedChanges() {
+        assertThat(service.getUncommittedChanges(false))
+                .extracting(GitDiffEntry::path)
+                .containsExactly("notes/todo.md");
+    }
+
     @Test
     void withoutGlobsUntrackedFilesStayInvisible() {
         GitService plain = TestProjects.gitService(repoDir, true);
@@ -121,6 +166,14 @@ class GitServiceAllowGlobsTest {
                 Files.createDirectories(file.getParent());
             }
             Files.writeString(file, content, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private void deleteFile(String relativePath) {
+        try {
+            Files.delete(repoDir.resolve(relativePath));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

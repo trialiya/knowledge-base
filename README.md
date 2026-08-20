@@ -54,7 +54,7 @@ history, documentation that doesn't drift from the code.
 
 ### Code editing — optional
 
-- 🔒 **Disabled by default** — enabled with the `kb.git.edit-enabled` flag
+- 🔒 **Disabled by default** — enabled per project with the `kb.projects[].edit-enabled` flag
 - ✍️ **Creating and editing files** in the working tree — only within the
   repository
 - 🚫 **No command execution** — the model doesn't get a shell; you run
