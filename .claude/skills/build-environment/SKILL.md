@@ -1,6 +1,6 @@
 ---
 name: build-environment
-description: Environment scaffolding for the Knowledge Base build — the Java 25 toolchain and its Java 21 fallback, the system Gradle in the Claude Code web sandbox, and Testcontainers image pulls. Read it when running Gradle by hand, or when a build fails on the Java toolchain, a blocked download, or a container image.
+description: Environment scaffolding for the Knowledge Base build — the Java 25 toolchain and its Java 21 fallback, Gradle in the Claude Code web sandbox, and Testcontainers image pulls. Read it when running Gradle by hand, or when a build fails on the Java toolchain, a blocked download, or a container image.
 ---
 
 # Build environment
@@ -26,18 +26,20 @@ force it with `KB_JAVA21=1` (always) or `KB_JAVA21=0` (never). Keep
 
 ## The Claude Code web sandbox
 
-**`./gradlew` does not work here** — the gradle-9.6.1 download is blocked. Use
-the system Gradle at `/opt/gradle/bin/gradle`.
+`./gradlew` works here — the sandbox proxy lets the Gradle distribution
+download through, a JDK 25 is installed (and is the default `java`), so no
+`GRADLE` override and no Java 21 fallback are needed. Maven Central,
+plugins.gradle.org, nodejs.org and Docker Hub are all reachable.
 
 A SessionStart hook (`.claude/hooks/session-start.sh`, web-only) already sets
-`LANG=C.utf8`, exports `GRADLE=/opt/gradle/bin/gradle`, and pre-compiles backend
-main + test classes on the Java 25 toolchain — so the dependency cache is warm
-and `spotlessCheck` / unit tests start fast with no extra setup.
+`LANG=C.utf8` and pre-compiles backend main + test classes — so the wrapper
+distribution and dependency caches are warm and `spotlessCheck` / unit tests
+start fast with no extra setup.
 
-`run/test.sh` needs nothing extra here: it picks up the hook's `GRADLE` and
-starts `dockerd` itself for the `*IT` suites. Maven Central, plugins.gradle.org,
-nodejs.org and Docker Hub are all reachable; only the Gradle distribution
-download is blocked.
+`run/test.sh` needs nothing extra here: it uses `./gradlew` and starts
+`dockerd` itself for the `*IT` suites. If the distribution download ever fails
+(proxy hiccup), a system Gradle at `/opt/gradle/bin/gradle` still exists —
+point `GRADLE` at it as a fallback.
 
 ## Testcontainers image caching
 

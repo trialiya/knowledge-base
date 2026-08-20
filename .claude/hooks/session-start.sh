@@ -12,16 +12,21 @@ cd "$CLAUDE_PROJECT_DIR"
 # The sandbox has no locale configured; a bare JVM defaults to ASCII and
 # GitService throws on non-ASCII repo paths.
 echo 'export LANG=C.utf8' >> "$CLAUDE_ENV_FILE"
-# ./gradlew can't download the distribution here — use the system Gradle.
-echo 'export GRADLE=/opt/gradle/bin/gradle' >> "$CLAUDE_ENV_FILE"
 
-# Warm the dependency cache and compile backend main+test classes so
-# `gradle :backend:test` / `spotlessCheck` start fast. The image ships a JDK 25
-# next to the JDK 21 that JAVA_HOME points at, and Gradle auto-detects it for
-# the toolchain — so this compiles against the same Java 25 run/test.sh will
-# use, with no init script and the configuration cache left on. Idempotent:
+# The sandbox's JAVA_HOME points at a JDK 21, but the build targets Java 25 —
+# a JAR run through run/run.sh (which honors JAVA_HOME) would die with
+# UnsupportedClassVersionError. The default `java` on PATH is already 25;
+# align JAVA_HOME with it.
+if [ -d /usr/lib/jvm/java-25-openjdk-amd64 ]; then
+  echo 'export JAVA_HOME=/usr/lib/jvm/java-25-openjdk-amd64' >> "$CLAUDE_ENV_FILE"
+fi
+
+# Warm the caches: the first ./gradlew run downloads the wrapper distribution,
+# then this compiles backend main+test classes so `:backend:test` /
+# `spotlessCheck` start fast. A JDK 25 is installed and is the sandbox default,
+# so no init script is needed and the configuration cache stays on. Idempotent:
 # incremental no-op on a warm cache. Best-effort: a warm-up that cannot run
 # must not take the session down with it — the checks themselves still work.
-if ! /opt/gradle/bin/gradle :backend:testClasses --quiet; then
+if ! ./gradlew :backend:testClasses --quiet; then
   echo "session-start: backend warm-up failed; './run/test.sh unit' will rebuild" >&2
 fi

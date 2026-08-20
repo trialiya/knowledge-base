@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Run the Knowledge Base checks on Linux or macOS.
 #
-# One entry point for every suite, so the awkward parts (system Gradle in the
-# web sandbox, the Java 21 fallback, starting dockerd for Testcontainers) are
-# decided here instead of being retyped every session.
+# One entry point for every suite, so the awkward parts (which Gradle to use,
+# the Java 21 fallback, starting dockerd for Testcontainers) are decided here
+# instead of being retyped every session.
 #
 # Usage:
 #   ./test.sh [suite ...] [-- <extra gradle args>]
@@ -43,8 +43,8 @@
 #   ./test.sh clean build     # rebuild from scratch
 #
 # Environment:
-#   GRADLE      path to the Gradle to use (the web sandbox sets it; otherwise
-#               ./gradlew is used, falling back to gradle on PATH)
+#   GRADLE      path to a Gradle to use instead of ./gradlew (which is the
+#               default, falling back to gradle on PATH)
 #   KB_JAVA21   1 forces the Java 21 init script, 0 forbids it. Unset = decide by
 #               whether a JDK 25 is installed anywhere Gradle looks for
 #               toolchains (the build targets Java 25, see backend/build.gradle).
@@ -60,8 +60,8 @@ export LANG="${LANG:-C.utf8}"
 export LC_ALL="${LC_ALL:-C.utf8}"
 
 # ── Which Gradle ──────────────────────────────────────────────────────────────
-# ./gradlew cannot download its distribution in the web sandbox, so a GRADLE
-# pointing at a system install wins when it is set.
+# A GRADLE pointing at a system install wins when it is set — the escape hatch
+# for environments where ./gradlew cannot download its distribution.
 if [ -n "${GRADLE:-}" ]; then
   GRADLE_BIN="$GRADLE"
 elif [ -x "$ROOT/gradlew" ]; then
