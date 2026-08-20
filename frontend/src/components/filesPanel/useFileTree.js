@@ -2,10 +2,11 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import gitApi from '@/api/gitApi';
 import { readDir, readDirs, readExpanded, putDirs, putExpanded, ancestorsOf } from './fileTreeStore';
 
-/** Ответ /api/git/browse → содержимое центра ({ type, path, file|nodes }). */
+/** Ответ /api/git/browse → содержимое центра ({ type, path, tracked, file|nodes }). */
 function contentOf(view, path) {
-  if (view.type === 'file') return { type: 'file', path: view.path, file: view.file };
-  if (view.type === 'directory') return { type: 'directory', path: view.path, nodes: view.nodes ?? [] };
+  if (view.type === 'file') return { type: 'file', path: view.path, tracked: view.tracked, file: view.file };
+  if (view.type === 'directory')
+    return { type: 'directory', path: view.path, tracked: view.tracked, nodes: view.nodes ?? [] };
   return { type: 'not-found', path };
 }
 

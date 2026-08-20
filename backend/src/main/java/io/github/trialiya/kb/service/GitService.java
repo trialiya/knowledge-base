@@ -173,12 +173,11 @@ public class GitService {
     /**
      * The directories {@code allow-globs} match under, so the working-tree walk behind {@link
      * #visiblePaths} covers those instead of the whole repository. Empty only when the project
-     * configures no globs at all — {@link #requireRootedGlobs} rejects a glob without a root.
+     * configures no globs at all — {@code ProjectCatalog} rejects a glob without a root.
      */
     private final List<String> allowGlobRoots;
 
     public GitService(Project project, OutlineService outlineService) {
-        requireRootedGlobs(project);
         this.project = project;
         this.allowGlobRoots = globRoots(project.allowGlobs());
         this.repoPath = project.path();
@@ -253,7 +252,10 @@ public class GitService {
      */
     private Map<String, List<GitFileNode>> listDirectories(
             List<String> visible, Set<String> bases) {
-        Set<String> tracked = new LinkedHashSet<>(trackedPaths());
+        // Without globs every visible path came out of the index, so there is no second read to do
+        // and the empty set stands for "all tracked".
+        Set<String> tracked =
+                project.allowGlobs().isEmpty() ? Set.of() : new LinkedHashSet<>(trackedPaths());
         // Directory nodes de-duplicate by path (many files share one subdirectory), hence the
         // LinkedHashMap per base rather than a plain list.
         Map<String, LinkedHashMap<String, GitFileNode>> acc = new LinkedHashMap<>();
@@ -262,7 +264,7 @@ public class GitService {
         }
 
         for (String path : visible) {
-            boolean isTracked = tracked.contains(path);
+            boolean isTracked = tracked.isEmpty() || tracked.contains(path);
             int from = 0;
             while (true) {
                 int slash = path.indexOf('/', from);
@@ -337,7 +339,11 @@ public class GitService {
                 isDirectory ? listings.getOrDefault(target, List.of()) : null,
                 tree,
                 // The root and any missing path count as tracked: there is nothing to warn about.
-                target.isEmpty() || type == null || isTracked(target) || isTrackedPrefix(target));
+                project.allowGlobs().isEmpty()
+                        || target.isEmpty()
+                        || type == null
+                        || isTracked(target)
+                        || isTrackedPrefix(target));
     }
 
     /**
@@ -561,6 +567,8 @@ public class GitService {
         int limit = Math.min(Math.max(maxResults, 1), 50);
 
         List<String> allFiles = visiblePaths();
+        Set<String> tracked =
+                project.allowGlobs().isEmpty() ? Set.of() : new LinkedHashSet<>(trackedPaths());
 
         record Scored(String path, int score) {}
         return allFiles.stream()
@@ -596,7 +604,13 @@ public class GitService {
                                             ? s.path().substring(s.path().lastIndexOf('/') + 1)
                                             : s.path();
                             return new GitFileNode(
-                                    s.path(), name, FileEntryType.FILE, fileSize(s.path()));
+                                    s.path(),
+                                    name,
+                                    FileEntryType.FILE,
+                                    fileSize(s.path()),
+                                    // No globs configured ⇒ everything visible is tracked, and the
+                                    // empty set stands for that rather than for "nothing is".
+                                    tracked.isEmpty() || tracked.contains(s.path()));
                         })
                 .toList();
     }
@@ -720,7 +734,7 @@ public class GitService {
                 // `glob` is re-applied by hand because it is spent on the pathspec above.
                 .filter(m -> !trackedPaths.contains(m.path()))
                 .filter(m -> matchesAllowGlobs(m.path()))
-                .filter(m -> glob == null || GLOB_MATCHER.match(glob, m.path()))
+                .filter(m -> matchesPathspec(glob, m.path()))
                 .forEach(merged::add);
         // Cut only once everything invisible is gone, or a large untracked area would spend the
         // whole cap on matches nobody gets to see.
@@ -728,6 +742,27 @@ public class GitService {
                 .sorted(Comparator.comparing(GitGrepMatch::path))
                 .limit(limit)
                 .toList();
+    }
+
+    /**
+     * Re-applies the caller's {@code pathGlob} by hand, the way git's own pathspec would.
+     *
+     * <p>Needed because the untracked run spends its pathspec slot on {@link #allowGlobRoots} —
+     * pathspecs combine as OR, so passing the caller's glob alongside them would widen the search
+     * instead of narrowing it. The one rule that has to be reproduced is git's: a glob with no
+     * {@code /} in it matches the file <em>name</em> at any depth, which is what makes {@code
+     * *.java} — the tool's own documented example — mean what the caller expects. Anything else is
+     * matched against the whole path, as everywhere in this class.
+     */
+    private static boolean matchesPathspec(@Nullable String glob, String path) {
+        if (glob == null) {
+            return true;
+        }
+        if (glob.indexOf('/') < 0) {
+            String name = path.substring(path.lastIndexOf('/') + 1);
+            return GLOB_MATCHER.match(glob, name);
+        }
+        return GLOB_MATCHER.match(glob, path);
     }
 
     /**
@@ -1311,6 +1346,14 @@ public class GitService {
         List<String> admitted = new ArrayList<>();
         for (String root : allowGlobRoots) {
             Path start = repoPath.resolve(root).normalize();
+            // A wildcard-free glob names one file, and its "root" is that file: walking would skip
+            // it and the path would read fine while being absent from every listing.
+            if (Files.isRegularFile(start)) {
+                if (!tracked.contains(root) && matchesAllowGlobs(root)) {
+                    admitted.add(root);
+                }
+                continue;
+            }
             if (!Files.isDirectory(start)) {
                 continue;
             }
@@ -1329,7 +1372,7 @@ public class GitService {
 
     /**
      * The directory each glob is rooted in — {@code "notes/**"} yields {@code "notes"}. Every glob
-     * has one: {@link #requireRootedGlobs} refuses a configuration where it would not.
+     * has one: {@code ProjectCatalog} refuses a configuration where it would not.
      */
     private static List<String> globRoots(List<String> globs) {
         Set<String> roots = new LinkedHashSet<>();
@@ -1338,31 +1381,6 @@ public class GitService {
             roots.add(wildcard < 0 ? glob : glob.substring(0, glob.lastIndexOf('/', wildcard)));
         }
         return List.copyOf(roots);
-    }
-
-    /**
-     * Refuses {@code allow-globs} whose first path segment is already a wildcard.
-     *
-     * <p>Two reasons, and the second is why this is a hard failure rather than a warning. The walk
-     * behind {@link #admittedUntracked} is rooted at the glob's literal prefix, so a glob without
-     * one would scan the whole working tree on every tree expand. And since these globs override
-     * {@code .gitignore}, the blast radius of {@code **}{@code /*} is every secret in the tree — a
-     * deployment should have to name the directory it is opening up.
-     */
-    private static void requireRootedGlobs(Project project) {
-        List<String> unrooted =
-                project.allowGlobs().stream()
-                        .filter(glob -> indexOfWildcard(glob) >= 0)
-                        .filter(glob -> glob.lastIndexOf('/', indexOfWildcard(glob)) <= 0)
-                        .toList();
-        if (!unrooted.isEmpty()) {
-            throw new IllegalStateException(
-                    "kb.projects["
-                            + project.id()
-                            + "].allow-globs must start with a directory, not a wildcard: "
-                            + String.join(", ", unrooted)
-                            + " — these globs override .gitignore, so the area has to be named");
-        }
     }
 
     private static int indexOfWildcard(String glob) {
@@ -1481,17 +1499,6 @@ public class GitService {
         if (Files.exists(absolute)) {
             throw new IllegalArgumentException(
                     "File already exists: " + normalized + ". Use editFile to modify it.");
-        }
-
-        // Nothing is created that would stay untracked. The allow-globs area is served for reading
-        // and editing what is already there — the files in it are produced by something else (a
-        // build, a person's notes), and a new one staged into the index would leave that area
-        // whether the model meant to or not. Checked before the write, so nothing reaches disk.
-        if (!isTracked(normalized) && matchesAllowGlobs(normalized)) {
-            throw new IllegalArgumentException(
-                    "Cannot create files under the project's allow-globs: "
-                            + normalized
-                            + ". Files there can be read and edited, not created.");
         }
 
         try {
@@ -1970,12 +1977,24 @@ public class GitService {
      * @return the normalized path, as {@link #createFile} will spell it
      */
     public String requireCreatable(@NonNull String filePath, @NonNull String content) {
-        return requireWritable(filePath, content.getBytes(StandardCharsets.UTF_8));
+        return requireCreatable(filePath, content.getBytes(StandardCharsets.UTF_8));
     }
 
     /** As {@link #requireCreatable(String, String)}, for a file created from raw bytes. */
     public String requireCreatable(@NonNull String filePath, byte @NonNull [] content) {
-        return requireWritable(filePath, content);
+        String normalized = requireWritable(filePath, content);
+        // Nothing is created that would stay untracked. The allow-globs area is served for reading
+        // and editing what is already there — the files in it are produced by something else (a
+        // build, a person's notes) — and a new one would either be staged out of that area or live
+        // outside git for good. The refusal depends only on the path, so it belongs here, where a
+        // script's third kb.create fails before the first two have reached disk.
+        if (!isTracked(normalized) && matchesAllowGlobs(normalized)) {
+            throw new IllegalArgumentException(
+                    "Cannot create files under the project's allow-globs: "
+                            + normalized
+                            + ". Files there can be read and edited, not created.");
+        }
+        return normalized;
     }
 
     /**

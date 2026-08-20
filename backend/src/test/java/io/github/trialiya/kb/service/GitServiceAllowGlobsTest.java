@@ -88,13 +88,53 @@ class GitServiceAllowGlobsTest {
 
     /**
      * Обход рабочего дерева укоренён в литеральном префиксе маски, и он же — граница радиуса
-     * поражения от опечатки, раз маска перекрывает {@code .gitignore}.
+     * поражения от опечатки, раз маска перекрывает {@code .gitignore}. Отказ обязан ронять старт, а
+     * не гасить проект: {@code GitRegistry} глушит ошибку открытия репозитория логом.
      */
     @Test
     void aGlobWithoutADirectoryRootIsRefusedAtStartup() {
         assertThatThrownBy(() -> TestProjects.gitService(repoDir, true, List.of("**/*.md")))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("must start with a directory");
+    }
+
+    /** Маска без wildcard называет один файл — его «корень» это он сам, а не каталог. */
+    @Test
+    void aGlobNamingOneFileAdmitsItEverywhereAndNotOnlyByPath() {
+        GitService exact = TestProjects.gitService(repoDir, true, List.of("scratch.txt"));
+
+        assertThat(exact.getFileContent("scratch.txt").content()).isEqualTo("not admitted\n");
+        assertThat(exact.listTrackedFiles()).contains("scratch.txt");
+        assertThat(exact.searchFiles("scratch", 5))
+                .extracting(GitFileNode::path)
+                .containsExactly("scratch.txt");
+    }
+
+    @Test
+    void fuzzySearchMarksAnAdmittedFileAsUntracked() {
+        assertThat(service.searchFiles("todo", 5))
+                .singleElement()
+                .extracting(GitFileNode::tracked)
+                .isEqualTo(false);
+        assertThat(service.searchFiles("App", 5)).allSatisfy(n -> assertThat(n.tracked()).isTrue());
+    }
+
+    /** {@code *.java} у git означает имя файла на любой глубине — иначе фильтр съедал бы всё. */
+    @Test
+    void aPathGlobWithoutASlashMatchesTheFileNameAtAnyDepth() {
+        writeFile("notes/Draft.java", "class Draft { String milk; }\n");
+
+        assertThat(service.grepContent("milk", "*.java", false, 0, 50, true))
+                .extracting(GitGrepMatch::path)
+                .containsExactly("notes/Draft.java");
+    }
+
+    /** Отказ должен наступать до записи: иначе прогон скрипта уронит уже разложенные файлы. */
+    @Test
+    void theRefusalToCreateHappensBeforeAnythingIsWritten() {
+        assertThatThrownBy(() -> service.requireCreatable("notes/new.md", "fresh\n"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("not created");
     }
 
     @Test
