@@ -747,17 +747,21 @@ public class GitService {
      * pathspecs combine as OR, so passing the caller's glob alongside them would widen the search
      * instead of narrowing it. Re-applying it by hand only works if it means the same thing in both
      * runs, so this reproduces git's rules rather than {@link #GLOB_MATCHER}'s Ant ones, which
-     * differ on both counts that matter here: a glob with no {@code /} matches the file
-     * <em>name</em> at any depth (this is what makes {@code *.java} — the tool's own documented
-     * example — find anything at all), and a wildcard crosses {@code /} freely, so {@code
-     * src/*.java} reaches {@code src/a/b/C.java}. Ant says no to both.
+     * differ on both counts that matter here. A pathspec with no wildcard in it is a path
+     * <em>prefix</em>, so {@code notes} means everything under {@code notes/}; and a wildcard
+     * crosses {@code /} freely, so {@code src/*.java} reaches {@code src/a/b/C.java} and {@code
+     * *.java} — the tool's own documented example — reaches every {@code .java} in the tree. Ant
+     * says no to both.
      */
-    private record Pathspec(Pattern pattern, boolean nameOnly) {
+    private record Pathspec(@Nullable Pattern pattern, String literal) {
 
         /** {@code null} for "no glob given" — matches everything. */
         static @Nullable Pathspec of(@Nullable String glob) {
             if (glob == null) {
                 return null;
+            }
+            if (indexOfWildcard(glob) < 0) {
+                return new Pathspec(null, glob);
             }
             StringBuilder regex = new StringBuilder();
             for (int i = 0; i < glob.length(); i++) {
@@ -783,12 +787,14 @@ public class GitService {
                     default -> regex.append(Pattern.quote(String.valueOf(c)));
                 }
             }
-            return new Pathspec(Pattern.compile(regex.toString()), glob.indexOf('/') < 0);
+            return new Pathspec(Pattern.compile(regex.toString()), glob);
         }
 
         boolean matches(String path) {
-            String subject = nameOnly ? path.substring(path.lastIndexOf('/') + 1) : path;
-            return pattern.matcher(subject).matches();
+            if (pattern == null) {
+                return path.equals(literal) || path.startsWith(literal + "/");
+            }
+            return pattern.matcher(path).matches();
         }
     }
 

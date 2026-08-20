@@ -119,14 +119,22 @@ class GitServiceAllowGlobsTest {
         assertThat(service.searchFiles("App", 5)).allSatisfy(n -> assertThat(n.tracked()).isTrue());
     }
 
-    /** {@code *.java} у git означает имя файла на любой глубине — иначе фильтр съедал бы всё. */
+    /** {@code *.java} достаёт файл на любой глубине — иначе фильтр съедал бы всё. */
     @Test
-    void aPathGlobWithoutASlashMatchesTheFileNameAtAnyDepth() {
+    void aPathGlobReachesAFileAtAnyDepth() {
         writeFile("notes/Draft.java", "class Draft { String milk; }\n");
 
         assertThat(service.grepContent("milk", "*.java", false, 0, 50, true))
                 .extracting(GitGrepMatch::path)
                 .containsExactly("notes/Draft.java");
+    }
+
+    /** Pathspec без wildcard — это префикс пути, а не имя файла и не точное совпадение. */
+    @Test
+    void aPathGlobWithoutAWildcardNamesADirectory() {
+        assertThat(service.grepContent("milk", "notes", false, 0, 50, true))
+                .extracting(GitGrepMatch::path)
+                .containsExactly("notes/todo.md");
     }
 
     /**
