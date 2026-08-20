@@ -85,6 +85,7 @@ public class SystemInfoController {
                 new GitInfo(
                         project.path().toString(),
                         project.editEnabled(),
+                        project.untrackedEditEnabled(),
                         gitService.isRepoWritable()),
                 new DocumentsInfo(
                         documentsConfiguration.exportPath(), documentsConfiguration.replace()),
@@ -174,8 +175,16 @@ public class SystemInfoController {
 
     /**
      * @param editActive is not reported here — it is AI-side and lives in {@code /ai-config}.
+     * @param untrackedEditEnabled {@code kb.projects[].untracked-edit-enabled} — whether an edit
+     *     may also land on an untracked file admitted by {@code allow-globs}. Meaningless (and
+     *     always {@code false}) on a project that does not opt into it in the first place, since it
+     *     only narrows {@code editEnabled}.
      */
-    public record GitInfo(String projectPath, boolean editEnabled, boolean writable) {}
+    public record GitInfo(
+            String projectPath,
+            boolean editEnabled,
+            boolean untrackedEditEnabled,
+            boolean writable) {}
 
     public record DocumentsInfo(String exportPath, boolean replace) {}
 

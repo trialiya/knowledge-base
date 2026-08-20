@@ -31,6 +31,7 @@ export const h2SystemInfo = {
   git: {
     projectPath: '/home/user/knowledge-base',
     editEnabled: false,
+    untrackedEditEnabled: false,
     writable: true,
   },
   documents: {
