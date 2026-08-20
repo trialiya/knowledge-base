@@ -246,6 +246,20 @@ class GitServiceAllowGlobsTest {
                 .containsExactly("notes/todo.md");
     }
 
+    /**
+     * Список изменений строится из git status, а тот про целиком неотслеживаемый каталог мог бы
+     * ответить одной строкой «notes/» вместо файлов внутри. Правка на дне такого каталога — как раз
+     * то, что при этом пропало бы из ревью.
+     */
+    @Test
+    void anAdmittedFileDeepInsideAnUntrackedDirectoryIsListed() {
+        writeFile("notes/a/b/deep.md", "deep\n");
+
+        assertThat(service.getUncommittedChanges(false))
+                .extracting(GitDiffEntry::path)
+                .containsExactly("notes/a/b/deep.md", "notes/todo.md");
+    }
+
     /** Сборочный артефакт читается, но изменением не является — в ревью ему делать нечего. */
     @Test
     void gitignoredFilesStayOutOfTheUncommittedChanges() {

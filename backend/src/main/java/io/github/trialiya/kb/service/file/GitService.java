@@ -40,7 +40,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
@@ -96,9 +95,6 @@ import org.springframework.util.AntPathMatcher;
 @Slf4j
 public class GitService {
 
-    private static final Pattern SAFE_GIT_RELATIVE_PATH =
-            Pattern.compile("^[\\p{L}\\p{N}._/\\- ]+$");
-
     /**
      * Ant semantics for {@code Project#allowGlobs}, not {@code java.nio} glob: {@code notes/**} has
      * to match {@code notes/todo.md} and {@code notes/a/b.md} alike, and Ant is also what {@code
@@ -144,27 +140,10 @@ public class GitService {
             Comparator.<GitFileNode, Boolean>comparing(n -> FileEntryType.DIRECTORY != n.type())
                     .thenComparing(GitFileNode::name, String.CASE_INSENSITIVE_ORDER);
 
-    /** File names to always exclude from uncommitted changes (OS/IDE junk). */
-    private static final Set<String> IGNORED_FILES =
-            Set.of(".DS_Store", "Thumbs.db", "desktop.ini", ".directory");
-
-    /** File extensions to always exclude from uncommitted changes. */
-    private static final Set<String> IGNORED_EXTENSIONS =
-            Set.of(
-                    ".class", ".jar", ".war", ".ear", ".o", ".so", ".dylib", ".dll", ".exe", ".pyc",
-                    ".pyo", ".swp", ".swo", ".bak", ".tmp", ".orig");
-
     private final Project project;
 
-    private final Path repoPath;
-
-    /**
-     * {@link #repoPath} with every symlink in it resolved. Comparison base for {@link
-     * #requireInsideRepo}: the repository itself may legitimately live behind a symlinked parent (a
-     * {@code /tmp} → {@code /private/tmp} style mount), in which case real paths of its own files
-     * would never start with the textual {@link #repoPath}.
-     */
-    private final Path repoRealPath;
+    /** Where the working tree is, and every rule about which paths may reach into it. */
+    private final RepoPaths paths;
 
     private final Repository repository;
     private final Git git;
@@ -180,17 +159,13 @@ public class GitService {
     public GitService(Project project, OutlineService outlineService) {
         this.project = project;
         this.allowGlobRoots = globRoots(project.allowGlobs());
-        this.repoPath = project.path();
-        try {
-            this.repoRealPath = repoPath.toRealPath();
-        } catch (IOException e) {
-            throw new IllegalStateException("Cannot resolve repository path: " + repoPath, e);
-        }
+        this.paths = new RepoPaths(project.path());
         this.outlineService = outlineService;
         try {
-            this.repository = new FileRepositoryBuilder().setWorkTree(repoPath.toFile()).build();
+            this.repository =
+                    new FileRepositoryBuilder().setWorkTree(paths.root().toFile()).build();
         } catch (IOException e) {
-            throw new IllegalStateException("Failed to open Git repository at " + repoPath, e);
+            throw new IllegalStateException("Failed to open Git repository at " + paths.root(), e);
         }
         // FileRepositoryBuilder.build() never touches disk to verify a .git dir exists — without
         // this check a bad configured path would silently produce empty results from every tool
@@ -201,10 +176,10 @@ public class GitService {
                     "Not a Git repository (no .git found) for project \""
                             + project.id()
                             + "\": "
-                            + repoPath);
+                            + paths.root());
         }
         this.git = new Git(repository);
-        log.info("GitService initialised for project {}: {}", project.id(), repoPath);
+        log.info("GitService initialised for project {}: {}", project.id(), paths.root());
     }
 
     /**
@@ -229,7 +204,7 @@ public class GitService {
      * {@link #visiblePaths()}).
      */
     public List<GitFileNode> getFileTree(@Nullable String subPath) {
-        String base = normalizeSub(subPath);
+        String base = RepoPaths.normalizeDir(subPath);
         return listDirectories(visible(), Set.of(base)).getOrDefault(base, List.of());
     }
 
@@ -309,7 +284,7 @@ public class GitService {
      *     them cached passes false and gets only the path itself
      */
     public GitPathView browsePath(@Nullable String path, boolean includeAncestors) {
-        String target = normalizeSub(path);
+        String target = RepoPaths.normalizeDir(path);
         Visible visible = visible();
         @Nullable FileEntryType type = resolvePathType(target, visible.paths());
 
@@ -387,7 +362,7 @@ public class GitService {
         try (ObjectReader reader = repository.newObjectReader()) {
             var logCommand = git.log().setMaxCount(limit);
             if (filePath != null && !filePath.isBlank()) {
-                logCommand.addPath(toForwardSlashes(filePath.strip()));
+                logCommand.addPath(RepoPaths.toForwardSlashes(filePath.strip()));
             }
             List<GitCommit> commits = new ArrayList<>();
             for (RevCommit commit : logCommand.call()) {
@@ -474,7 +449,7 @@ public class GitService {
         String spec =
                 (filePath == null || filePath.isBlank())
                         ? null
-                        : toForwardSlashes(filePath.strip());
+                        : RepoPaths.toForwardSlashes(filePath.strip());
         List<GitCommit> result = new ArrayList<>();
         for (String hash : commitHashes.split(",")) {
             String h = hash.strip();
@@ -563,14 +538,11 @@ public class GitService {
         List<String> allFiles = visible.paths();
         Set<String> tracked = visible.tracked();
 
-        record Scored(String path, int score) {}
+        record Scored(String path, String name, int score) {}
         return allFiles.stream()
                 .map(
                         path -> {
-                            String name =
-                                    path.contains("/")
-                                            ? path.substring(path.lastIndexOf('/') + 1)
-                                            : path;
+                            String name = RepoPaths.fileName(path);
                             int score = fuzzyScore(q, name);
                             if (score < 0) {
                                 // Name alone didn't match — try the whole path, but rank it
@@ -582,27 +554,22 @@ public class GitService {
                             if (score > 0 && isTestPath(path)) {
                                 score = score * 7 / 10;
                             }
-                            return new Scored(path, score);
+                            return new Scored(path, name, score);
                         })
                 .filter(s -> s.score() >= 0)
                 .sorted(
-                        java.util.Comparator.comparingInt(Scored::score)
+                        Comparator.comparingInt(Scored::score)
                                 .reversed()
                                 .thenComparingInt(s -> s.path().length()))
                 .limit(limit)
                 .map(
-                        s -> {
-                            String name =
-                                    s.path().contains("/")
-                                            ? s.path().substring(s.path().lastIndexOf('/') + 1)
-                                            : s.path();
-                            return new GitFileNode(
-                                    s.path(),
-                                    name,
-                                    FileEntryType.FILE,
-                                    fileSize(s.path()),
-                                    tracked.contains(s.path()));
-                        })
+                        s ->
+                                new GitFileNode(
+                                        s.path(),
+                                        s.name(),
+                                        FileEntryType.FILE,
+                                        fileSize(s.path()),
+                                        tracked.contains(s.path())))
                 .toList();
     }
 
@@ -701,10 +668,15 @@ public class GitService {
         }
 
         String glob =
-                pathGlob == null || pathGlob.isBlank() ? null : toForwardSlashes(pathGlob.strip());
+                pathGlob == null || pathGlob.isBlank()
+                        ? null
+                        : RepoPaths.toForwardSlashes(pathGlob.strip());
         List<GitGrepMatch> tracked =
-                parseGrepOutput(
-                        exec(grepArgs(pattern, glob, regex, ctx, null)), ctx, limit, project.id());
+                GitGrep.parse(
+                        exec(GitGrep.args(pattern, glob, regex, ctx, null)),
+                        ctx,
+                        limit,
+                        project.id());
         // No roots left to search is not "search everywhere": without a pathspec the untracked run
         // would sweep the whole working tree.
         if (!includeUntracked || allowGlobRoots.isEmpty()) {
@@ -717,12 +689,12 @@ public class GitService {
         // would send it through node_modules and build/. Rooting it at the globs' own directories
         // keeps the walk the size of the named area.
         List<GitGrepMatch> extra =
-                parseGrepOutput(
-                        exec(grepArgs(pattern, null, regex, ctx, allowGlobRoots)),
+                GitGrep.parse(
+                        exec(GitGrep.args(pattern, null, regex, ctx, allowGlobRoots)),
                         ctx,
                         Integer.MAX_VALUE,
                         project.id());
-        Set<String> trackedPaths = new LinkedHashSet<>(trackedPaths());
+        Set<String> trackedPaths = Set.copyOf(trackedPaths());
         @Nullable Pathspec pathspec = Pathspec.of(glob);
         List<GitGrepMatch> merged = new ArrayList<>(tracked);
         extra.stream()
@@ -738,259 +710,6 @@ public class GitService {
                 .sorted(Comparator.comparing(GitGrepMatch::path))
                 .limit(limit)
                 .toList();
-    }
-
-    /**
-     * The caller's {@code pathGlob}, compiled to match the way git's own pathspec matches.
-     *
-     * <p>Needed because the untracked run spends its pathspec slot on {@link #allowGlobRoots} —
-     * pathspecs combine as OR, so passing the caller's glob alongside them would widen the search
-     * instead of narrowing it. Re-applying it by hand only works if it means the same thing in both
-     * runs, so this reproduces git's rules rather than {@link #GLOB_MATCHER}'s Ant ones, which
-     * differ on both counts that matter here. A pathspec with no wildcard in it is a path
-     * <em>prefix</em>, so {@code notes} means everything under {@code notes/}; and a wildcard
-     * crosses {@code /} freely, so {@code src/*.java} reaches {@code src/a/b/C.java} and {@code
-     * *.java} — the tool's own documented example — reaches every {@code .java} in the tree. Ant
-     * says no to both.
-     */
-    private record Pathspec(@Nullable Pattern pattern, String literal) {
-
-        /** {@code null} for "no glob given" — matches everything. */
-        static @Nullable Pathspec of(@Nullable String glob) {
-            if (glob == null) {
-                return null;
-            }
-            if (indexOfWildcard(glob) < 0) {
-                return new Pathspec(null, glob);
-            }
-            StringBuilder regex = new StringBuilder();
-            for (int i = 0; i < glob.length(); i++) {
-                char c = glob.charAt(i);
-                switch (c) {
-                    // git's wildmatch runs without WM_PATHNAME here, so both cross '/', and '**'
-                    // falls out of '*' repeated rather than needing a rule of its own.
-                    case '*' -> regex.append(".*");
-                    case '?' -> regex.append('.');
-                    case '[' -> {
-                        int close = glob.indexOf(']', i + 1);
-                        if (close < 0) {
-                            regex.append("\\[");
-                        } else {
-                            // Java's class syntax is git's, save for the negation character.
-                            String body = glob.substring(i + 1, close);
-                            regex.append('[')
-                                    .append(body.startsWith("!") ? "^" + body.substring(1) : body)
-                                    .append(']');
-                            i = close;
-                        }
-                    }
-                    default -> regex.append(Pattern.quote(String.valueOf(c)));
-                }
-            }
-            return new Pathspec(Pattern.compile(regex.toString()), glob);
-        }
-
-        boolean matches(String path) {
-            if (pattern == null) {
-                return path.equals(literal) || path.startsWith(literal + "/");
-            }
-            return pattern.matcher(path).matches();
-        }
-    }
-
-    /**
-     * One {@code git grep} invocation: {@code git grep -n -i [--untracked --no-exclude-standard]
-     * [--fixed-strings|-E] [-C ctx] -- <pattern> [-- <pathspec>…]}.
-     *
-     * @param roots when non-null, the run covers untracked and {@code .gitignore}d files under
-     *     these directories instead of the index
-     */
-    private static List<String> grepArgs(
-            String pattern,
-            @Nullable String pathspec,
-            boolean regex,
-            int ctx,
-            @Nullable List<String> roots) {
-        List<String> args = new ArrayList<>(List.of("git", "grep", "-n", "-i"));
-        if (roots != null) {
-            args.add("--untracked");
-            args.add("--no-exclude-standard");
-        }
-        args.add(regex ? "-E" : "--fixed-strings");
-        if (ctx > 0) {
-            args.add("-C");
-            args.add(String.valueOf(ctx));
-        }
-        args.add("--");
-        args.add(pattern);
-        if (pathspec != null || roots != null) {
-            args.add("--"); // second -- separates the pattern from pathspecs
-        }
-        if (pathspec != null) {
-            args.add(pathspec);
-        }
-        if (roots != null) {
-            args.addAll(roots);
-        }
-        return args;
-    }
-
-    /**
-     * Parses raw {@code git grep [-C ctx]} output into grouped {@link GitGrepMatch} blocks.
-     *
-     * <p>Without context (ctx=0) each output line is {@code path:linenum:text} and maps directly to
-     * one match block.
-     *
-     * <p>With context git grep emits:
-     *
-     * <ul>
-     *   <li>{@code path:linenum:text} — match line (separator {@code :})
-     *   <li>{@code path-linenum-text} — context line (separator {@code -})
-     *   <li>{@code --} — group separator between non-adjacent blocks
-     * </ul>
-     *
-     * Adjacent lines belonging to the same file+block are folded into one {@link GitGrepMatch}
-     * whose {@code text} reproduces the git grep format ({@code :N:} for matches, {@code -N-} for
-     * context). The {@code matchLine} field holds the line number of the first match in the block.
-     */
-    private static List<GitGrepMatch> parseGrepOutput(
-            List<String> lines, int ctx, int limit, String project) {
-
-        List<GitGrepMatch> results = new ArrayList<>();
-
-        if (ctx == 0) {
-            // Simple case: one match per line, format "path:linenum:text"
-            for (String line : lines) {
-                if (line.isBlank()) continue;
-                ParsedLine pl = parseLine(line);
-                if (pl == null) continue;
-                results.add(new GitGrepMatch(project, pl.path, pl.lineNum, pl.text));
-                if (results.size() >= limit) break;
-            }
-            return results;
-        }
-
-        // Context case: group consecutive lines into blocks separated by "--"
-        // A "block" = all lines until the next "--" separator.
-        // Within a block we accumulate lines and track the first match line number.
-        String currentPath = null;
-        int firstMatchLine = -1;
-        var blockBuf = new StringBuilder();
-
-        for (String line : lines) {
-            if (line.equals("--")) {
-                // Flush current block
-                if (currentPath != null && firstMatchLine >= 0) {
-                    results.add(
-                            new GitGrepMatch(
-                                    project, currentPath, firstMatchLine, blockBuf.toString()));
-                    if (results.size() >= limit) return results;
-                }
-                currentPath = null;
-                firstMatchLine = -1;
-                blockBuf.setLength(0);
-                continue;
-            }
-            if (line.isBlank()) continue;
-
-            ParsedLine pl = parseLine(line);
-            if (pl == null) continue;
-
-            // Start new block or continue existing one.
-            // git grep -C groups lines from the same file together between "--" separators,
-            // so path should be consistent within a block; reset on path change just in case.
-            if (!pl.path.equals(currentPath)) {
-                if (currentPath != null && firstMatchLine >= 0) {
-                    results.add(
-                            new GitGrepMatch(
-                                    project, currentPath, firstMatchLine, blockBuf.toString()));
-                    if (results.size() >= limit) return results;
-                }
-                currentPath = pl.path;
-                firstMatchLine = -1;
-                blockBuf.setLength(0);
-            }
-
-            // Append formatted line: ":N:text" for match, "-N-text" for context
-            char sep = pl.isMatch ? ':' : '-';
-            blockBuf.append(sep).append(pl.lineNum).append(sep).append(pl.text).append('\n');
-
-            if (pl.isMatch && firstMatchLine < 0) {
-                firstMatchLine = pl.lineNum;
-            }
-        }
-
-        // Flush last block
-        if (currentPath != null && firstMatchLine >= 0 && results.size() < limit) {
-            results.add(
-                    new GitGrepMatch(project, currentPath, firstMatchLine, blockBuf.toString()));
-        }
-
-        return results;
-    }
-
-    /** Parsed representation of one raw git grep output line. */
-    private record ParsedLine(String path, int lineNum, String text, boolean isMatch) {}
-
-    /**
-     * Parses one raw git grep line.
-     *
-     * <p>Format: {@code <path><sep><linenum><sep><text>} where sep is {@code ':'} for match lines
-     * and {@code '-'} for context lines.
-     *
-     * <p>Returns {@code null} if the line cannot be parsed.
-     */
-    @Nullable
-    private static ParsedLine parseLine(String line) {
-        // Find first separator that matches pattern <sep><digits><sep>
-        int sepIdx = findFirstFieldSep(line);
-        if (sepIdx < 0) return null;
-
-        char sep = line.charAt(sepIdx);
-        boolean isMatch = sep == ':';
-        String path = line.substring(0, sepIdx);
-        String rest = line.substring(sepIdx + 1); // "linenum<sep>text"
-
-        // rest starts with digits followed by sep
-        int numEnd = findLineNumEnd(rest);
-        if (numEnd < 0) return null;
-
-        int lineNum;
-        try {
-            lineNum = Integer.parseInt(rest.substring(0, numEnd));
-        } catch (NumberFormatException e) {
-            return null;
-        }
-        String text = rest.substring(numEnd + 1);
-        return new ParsedLine(path, lineNum, text, isMatch);
-    }
-
-    /**
-     * Returns the index of the first {@code ':'} or {@code '-'} in {@code s} that is followed
-     * immediately by one or more digits and then another {@code ':'} or {@code '-'} — i.e. the git
-     * grep field separator between path and line number.
-     */
-    private static int findFirstFieldSep(String s) {
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            if (c != ':' && c != '-') continue;
-            int j = i + 1;
-            if (j >= s.length() || !Character.isDigit(s.charAt(j))) continue;
-            while (j < s.length() && Character.isDigit(s.charAt(j))) j++;
-            if (j < s.length() && (s.charAt(j) == ':' || s.charAt(j) == '-')) return i;
-        }
-        return -1;
-    }
-
-    /**
-     * Given {@code rest} = {@code "<digits><sep><text>"}, returns the index of {@code <sep>}.
-     * Returns -1 if the string does not start with digits followed by {@code ':'} or {@code '-'}.
-     */
-    private static int findLineNumEnd(String s) {
-        int i = 0;
-        while (i < s.length() && Character.isDigit(s.charAt(i))) i++;
-        if (i > 0 && i < s.length() && (s.charAt(i) == ':' || s.charAt(i) == '-')) return i;
-        return -1;
     }
 
     // ── File content ────────────────────────────────────────────────────────
@@ -1043,8 +762,7 @@ public class GitService {
                     project.id(), fb.path(), null, true, fb.size(), language, 0, false, null, null);
         }
 
-        // Normalize CRLF → LF so Windows working-tree files don't leave \r at the end of each line.
-        String full = new String(fb.bytes(), StandardCharsets.UTF_8).replace("\r\n", "\n");
+        String full = decodeToLf(fb.bytes());
         // Split keeping a stable line index; -1 keeps trailing empty lines.
         String[] lines = full.split("\n", -1);
         int total = lines.length;
@@ -1098,7 +816,7 @@ public class GitService {
                     from,
                     Math.max(from, to));
         }
-        String slice = String.join("\n", java.util.Arrays.asList(lines).subList(from - 1, to));
+        String slice = String.join("\n", Arrays.asList(lines).subList(from - 1, to));
         boolean truncated = from > 1 || to < total;
         return new GitFileContent(
                 project.id(),
@@ -1141,8 +859,7 @@ public class GitService {
                             + " (supported: java, javascript, typescript, python, sql)");
         }
 
-        // Normalize CRLF → LF so Windows working-tree files don't leave \r at the end of each line.
-        String source = new String(fb.bytes(), StandardCharsets.UTF_8).replace("\r\n", "\n");
+        String source = decodeToLf(fb.bytes());
         int total = source.split("\n", -1).length;
         OutlineResult result = outlineService.outline(language, source);
         return new GitFileOutline(fb.path(), language, total, result.parser(), result.symbols());
@@ -1296,7 +1013,7 @@ public class GitService {
      */
     private Path requireTracked(String normalized, boolean knownTracked) {
         // Security: confine to the repo before touching the filesystem.
-        Path absolute = confineToRepo(normalized);
+        Path absolute = paths.confine(normalized);
         if (!knownTracked && !isTracked(normalized) && !isUntrackedAllowed(normalized)) {
             throw new IllegalArgumentException("File not found: " + normalized);
         }
@@ -1313,7 +1030,7 @@ public class GitService {
      * consumer of the globs picks it up.
      */
     private boolean matchesAllowGlobs(String normalized) {
-        if (isInsideGitDir(normalized)) {
+        if (RepoPaths.isInsideGitDir(normalized)) {
             return false;
         }
         for (String glob : project.allowGlobs()) {
@@ -1335,12 +1052,7 @@ public class GitService {
      * {@link #globRoots}) instead of sweeping the repository.
      */
     private boolean isUntrackedAllowed(String normalized) {
-        return matchesAllowGlobs(normalized)
-                && Files.isRegularFile(repoPath.resolve(normalized).normalize());
-    }
-
-    private static boolean isInsideGitDir(String normalized) {
-        return normalized.equals(".git") || normalized.startsWith(".git/");
+        return matchesAllowGlobs(normalized) && Files.isRegularFile(paths.resolve(normalized));
     }
 
     /**
@@ -1388,19 +1100,16 @@ public class GitService {
      * wholly-ignored directory and reports {@code build/} instead of the report files inside it,
      * which are the point of the feature. The walk starts at {@link #allowGlobRoots}, so its cost
      * is the size of the named area and not of the repository.
+     *
+     * @param tracked the index, already read by the caller
      */
-    private List<String> admittedUntracked() {
-        return admittedUntracked(Set.copyOf(trackedPaths()));
-    }
-
-    /** As above, for a caller that has already read the index. */
     private List<String> admittedUntracked(Set<String> tracked) {
         if (project.allowGlobs().isEmpty()) {
             return List.of();
         }
         List<String> admitted = new ArrayList<>();
         for (String root : allowGlobRoots) {
-            Path start = repoPath.resolve(root).normalize();
+            Path start = paths.resolve(root);
             // A wildcard-free glob names one file, and its "root" is that file: walking would skip
             // it and the path would read fine while being absent from every listing.
             if (Files.isRegularFile(start)) {
@@ -1414,7 +1123,7 @@ public class GitService {
             }
             try (Stream<Path> walk = Files.walk(start)) {
                 walk.filter(Files::isRegularFile)
-                        .map(p -> toForwardSlashes(repoPath.relativize(p).toString()))
+                        .map(p -> RepoPaths.toForwardSlashes(paths.root().relativize(p).toString()))
                         .filter(p -> !tracked.contains(p))
                         .filter(this::matchesAllowGlobs)
                         .forEach(admitted::add);
@@ -1436,23 +1145,13 @@ public class GitService {
     private static List<String> globRoots(List<String> globs) {
         Set<String> roots = new LinkedHashSet<>();
         for (String glob : globs) {
-            int wildcard = indexOfWildcard(glob);
+            int wildcard = RepoPaths.indexOfWildcard(glob);
             String root = wildcard < 0 ? glob : glob.substring(0, glob.lastIndexOf('/', wildcard));
-            if (!isInsideGitDir(root)) {
+            if (!RepoPaths.isInsideGitDir(root)) {
                 roots.add(root);
             }
         }
         return List.copyOf(roots);
-    }
-
-    private static int indexOfWildcard(String glob) {
-        for (int i = 0; i < glob.length(); i++) {
-            char c = glob.charAt(i);
-            if (c == '*' || c == '?') {
-                return i;
-            }
-        }
-        return -1;
     }
 
     private static long sizeOf(String normalized, Path absolute) {
@@ -1486,6 +1185,14 @@ public class GitService {
     }
 
     /**
+     * File bytes as text: UTF-8, with CRLF normalised to LF so a Windows working-tree file does not
+     * leave a {@code \r} at the end of every line for the caller to trip over.
+     */
+    private static String decodeToLf(byte[] bytes) {
+        return new String(bytes, StandardCharsets.UTF_8).replace("\r\n", "\n");
+    }
+
+    /**
      * Heuristic binary detection matching Git's own behaviour: a file is treated as binary if a NUL
      * byte appears within the first {@value #BINARY_SNIFF_BYTES} bytes. Cheap and allocation-free,
      * and accurate for the source/text files an AI assistant is asked to read.
@@ -1509,7 +1216,7 @@ public class GitService {
      * says.
      */
     public boolean isRepoWritable() {
-        return Files.isWritable(repoPath);
+        return Files.isWritable(paths.root());
     }
 
     /**
@@ -1517,7 +1224,7 @@ public class GitService {
      * visible which working tree the model actually reads.
      */
     public Path repoPath() {
-        return repoPath;
+        return paths.root();
     }
 
     /**
@@ -1555,7 +1262,7 @@ public class GitService {
         // Only presence on disk blocks creation. A tracked-but-deleted file (removed from the
         // working tree, still in the index) is deliberately allowed — editFile can't read it, so
         // createFile is the only way to restore it; the staging below refreshes the index entry.
-        Path absolute = repoPath.resolve(normalized).normalize();
+        Path absolute = paths.resolve(normalized);
         if (Files.exists(absolute)) {
             throw new IllegalArgumentException(
                     "File already exists: " + normalized + ". Use editFile to modify it.");
@@ -1575,10 +1282,10 @@ public class GitService {
         // ignored path is silently NOT added — detect that, roll the write back and fail loudly
         // instead of leaving an untracked file no read tool can see.
         try {
-            git.add().addFilepattern(normalized).call();
-        } catch (GitAPIException e) {
+            stage(normalized);
+        } catch (RuntimeException e) {
             deleteQuietly(absolute);
-            throw new IllegalStateException("Failed to stage created file: " + normalized, e);
+            throw e;
         }
         if (!isTracked(normalized)) {
             deleteQuietly(absolute);
@@ -1616,18 +1323,8 @@ public class GitService {
             throw new IllegalArgumentException("oldString and newString are identical");
         }
 
-        FileBytes fb = readTrackedFile(filePath);
-        if (fb.binary()) {
-            throw new IllegalArgumentException("Cannot edit a binary file: " + fb.path());
-        }
-        if (fb.size() > MAX_FILE_SIZE) {
-            throw new IllegalArgumentException(
-                    "File too large to edit (max " + MAX_FILE_SIZE / 1024 + " KB): " + fb.path());
-        }
-
-        String original = new String(fb.bytes(), StandardCharsets.UTF_8);
-        boolean crlf = original.contains("\r\n");
-        String text = crlf ? original.replace("\r\n", "\n") : original;
+        Editable file = readEditable(filePath);
+        String text = file.text();
         String oldLf = oldString.replace("\r\n", "\n");
         String newLf = newString.replace("\r\n", "\n");
 
@@ -1635,7 +1332,7 @@ public class GitService {
         if (occurrences == 0) {
             throw new IllegalArgumentException(
                     "oldString not found in "
-                            + fb.path()
+                            + file.path()
                             + ". Re-read the current content (getFileContent) and pass an exact,"
                             + " character-for-character fragment including whitespace.");
         }
@@ -1644,14 +1341,14 @@ public class GitService {
                     "oldString occurs "
                             + occurrences
                             + " times in "
-                            + fb.path()
+                            + file.path()
                             + ". Extend it with surrounding lines to make it unique, or pass"
                             + " replaceAll=true to replace every occurrence.");
         }
 
         String updated = text.replace(oldLf, newLf);
-        log.info("editFile: '{}' — {} occurrence(s) replaced", fb.path(), occurrences);
-        return writeUpdatedText(fb, text, updated, crlf);
+        log.info("editFile: '{}' — {} occurrence(s) replaced", file.path(), occurrences);
+        return writeUpdatedText(file, updated);
     }
 
     /**
@@ -1666,18 +1363,7 @@ public class GitService {
      * forces a model to quote real content, and nothing should be able to skip it.
      */
     public GitEditResult replaceTrackedFile(@NonNull String filePath, @NonNull String newContent) {
-        FileBytes fb = readTrackedFile(filePath);
-        if (fb.binary()) {
-            throw new IllegalArgumentException("Cannot edit a binary file: " + fb.path());
-        }
-        if (fb.size() > MAX_FILE_SIZE) {
-            throw new IllegalArgumentException(
-                    "File too large to edit (max " + MAX_FILE_SIZE / 1024 + " KB): " + fb.path());
-        }
-        String original = new String(fb.bytes(), StandardCharsets.UTF_8);
-        boolean crlf = original.contains("\r\n");
-        String text = crlf ? original.replace("\r\n", "\n") : original;
-        return writeUpdatedText(fb, text, newContent.replace("\r\n", "\n"), crlf);
+        return writeUpdatedText(readEditable(filePath), newContent.replace("\r\n", "\n"));
     }
 
     /**
@@ -1692,7 +1378,7 @@ public class GitService {
      */
     public GitEditResult replaceTrackedBytes(@NonNull String filePath, byte @NonNull [] content) {
         String normalized = requireReplaceable(filePath, content);
-        Path absolute = repoPath.resolve(normalized).normalize();
+        Path absolute = paths.resolve(normalized);
         long before = sizeOf(normalized, absolute);
 
         writeAtomically(normalized, content);
@@ -1730,20 +1416,54 @@ public class GitService {
         return normalized;
     }
 
+    /**
+     * A tracked text file, read and validated for editing: its LF-normalised text, and whether the
+     * bytes on disk used CRLF — which the write has to put back.
+     */
+    private record Editable(String path, String text, boolean crlf) {}
+
+    /**
+     * Reads a tracked file the edit paths may write to: not binary, not oversized, decoded as UTF-8
+     * and normalised to LF — the same view {@code getFileContent} returns, which is what the
+     * exact-match contract of {@link #editFile} is defined against.
+     */
+    private Editable readEditable(String filePath) {
+        FileBytes fb = readTrackedFile(filePath);
+        if (fb.binary()) {
+            throw new IllegalArgumentException("Cannot edit a binary file: " + fb.path());
+        }
+        if (fb.size() > MAX_FILE_SIZE) {
+            throw new IllegalArgumentException(
+                    "File too large to edit (max " + MAX_FILE_SIZE / 1024 + " KB): " + fb.path());
+        }
+        String original = new String(fb.bytes(), StandardCharsets.UTF_8);
+        boolean crlf = original.contains("\r\n");
+        return new Editable(fb.path(), crlf ? original.replace("\r\n", "\n") : original, crlf);
+    }
+
     /** Shared tail of the two edit paths: diff, atomic write, stage, report. */
-    private GitEditResult writeUpdatedText(
-            FileBytes fb, String text, String updated, boolean crlf) {
-        DiffStats stats = diffStrings(text, updated);
-        writeAtomically(fb.path(), crlf ? updated.replace("\n", "\r\n") : updated);
-        stageIfTracked(fb.path());
+    private GitEditResult writeUpdatedText(Editable file, String updated) {
+        String path = file.path();
+        DiffStats stats = diffStrings(file.text(), updated);
+        writeAtomically(path, file.crlf() ? updated.replace("\n", "\r\n") : updated);
+        stageIfTracked(path);
 
         int lines = updated.isEmpty() ? 0 : updated.split("\n", -1).length;
-        log.info("wrote '{}' (+{}/-{})", fb.path(), stats.additions(), stats.deletions());
+        log.info("wrote '{}' (+{}/-{})", path, stats.additions(), stats.deletions());
         return new GitEditResult(
-                "edit", fb.path(), stats.additions(), stats.deletions(), lines, stats.diff());
+                "edit", path, stats.additions(), stats.deletions(), lines, stats.diff());
     }
 
     private record DiffStats(int additions, int deletions, String diff) {}
+
+    /** Caps a unified diff at {@value #MAX_DIFF_LINES} lines, marking it when it was cut. */
+    private static String truncateDiff(String diff) {
+        if (diff.lines().count() <= MAX_DIFF_LINES) {
+            return diff;
+        }
+        return diff.lines().limit(MAX_DIFF_LINES).collect(Collectors.joining("\n"))
+                + "\n... (truncated)";
+    }
 
     /** Unified diff + added/removed line counts between two in-memory revisions of one file. */
     private static DiffStats diffStrings(String before, String after) {
@@ -1764,13 +1484,7 @@ public class GitService {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to format diff", e);
         }
-        String diff = out.toString(StandardCharsets.UTF_8);
-        if (diff.lines().count() > MAX_DIFF_LINES) {
-            diff =
-                    diff.lines().limit(MAX_DIFF_LINES).collect(Collectors.joining("\n"))
-                            + "\n... (truncated)";
-        }
-        return new DiffStats(add, del, diff);
+        return new DiffStats(add, del, truncateDiff(out.toString(StandardCharsets.UTF_8)));
     }
 
     /**
@@ -1780,14 +1494,12 @@ public class GitService {
      * "racily clean" and JGit's status (unlike native git) can miss it entirely — the index update
      * makes the change deterministically visible to {@link #getUncommittedChanges}. It also matches
      * {@link #createFile}: everything the model changed is staged, ready for user review.
-     *
-     * @param what how to name the file if staging fails ({@code "created"} / {@code "edited"})
      */
-    private void stage(String normalized, String what) {
+    private void stage(String normalized) {
         try {
             git.add().addFilepattern(normalized).call();
         } catch (GitAPIException e) {
-            throw new IllegalStateException("Failed to stage " + what + " file: " + normalized, e);
+            throw new IllegalStateException("Failed to stage file: " + normalized, e);
         }
     }
 
@@ -1798,7 +1510,7 @@ public class GitService {
      */
     private void stageIfTracked(String normalized) {
         if (isTracked(normalized)) {
-            stage(normalized, "edited");
+            stage(normalized);
         }
     }
 
@@ -1808,7 +1520,7 @@ public class GitService {
 
     /** Writes via a temp file + atomic move so a crash never leaves a half-written file. */
     private void writeAtomically(String relativePath, byte[] content) {
-        Path target = repoPath.resolve(relativePath).normalize();
+        Path target = paths.resolve(relativePath);
         Path tmp = null;
         try {
             tmp = Files.createTempFile(target.getParent(), ".kb-edit-", ".tmp");
@@ -1844,11 +1556,11 @@ public class GitService {
      */
     private String validateWritablePath(String filePath) {
         String normalized = normalizePath(filePath);
-        confineToRepo(normalized);
+        paths.confine(normalized);
         if (normalized.equals(".git") || normalized.startsWith(".git/")) {
             throw new IllegalArgumentException("Writing into .git is not allowed");
         }
-        if (isJunkFile(normalized)) {
+        if (RepoPaths.isJunkFile(normalized)) {
             throw new IllegalArgumentException("Refusing to create junk file: " + normalized);
         }
         return normalized;
@@ -1926,7 +1638,7 @@ public class GitService {
                     for (DiffEntry entry : formatter.scan(oldTree, newTree)) {
                         GitDiffEntry mapped =
                                 toGitDiffEntry(entry, formatter, includePatch, patchOut);
-                        if (isJunkFile(mapped.path())) continue;
+                        if (RepoPaths.isJunkFile(mapped.path())) continue;
                         entries.add(mapped);
                     }
                 }
@@ -1935,10 +1647,14 @@ public class GitService {
             }
         }
 
-        for (String path : admittedUntracked()) {
-            if (isJunkFile(path) || !status.getUntracked().contains(path)) continue;
-            entries.add(untrackedDiffEntry(path, includePatch));
-        }
+        // Straight off the status: what git already reported as untracked is by definition
+        // untracked and not ignored, so the globs are the only question left to ask about it —
+        // walking the allow-glob area again would answer nothing this does not.
+        status.getUntracked().stream()
+                .filter(path -> !RepoPaths.isJunkFile(path))
+                .filter(this::matchesAllowGlobs)
+                .sorted()
+                .forEach(path -> entries.add(untrackedDiffEntry(path, includePatch)));
 
         return entries;
     }
@@ -1954,7 +1670,7 @@ public class GitService {
             // Through confineToRepo like every other read: an admitted untracked path may be a
             // symlink out of the repository, and the change list must not be the one place that
             // follows it.
-            Path absolute = confineToRepo(path);
+            Path absolute = paths.confine(path);
             content = Files.size(absolute) > MAX_FILE_SIZE ? null : Files.readAllBytes(absolute);
         } catch (IOException | IllegalArgumentException e) {
             log.warn("Cannot read untracked file {} for the change list", path, e);
@@ -2004,7 +1720,7 @@ public class GitService {
         try {
             cache = repository.readDirCache();
         } catch (IOException e) {
-            throw new IllegalStateException("Failed to read Git index: " + repoPath, e);
+            throw new IllegalStateException("Failed to read Git index: " + paths.root(), e);
         }
         Set<String> paths = LinkedHashSet.newLinkedHashSet(cache.getEntryCount());
         for (int i = 0; i < cache.getEntryCount(); i++) {
@@ -2022,7 +1738,7 @@ public class GitService {
      * refuses on, including untracked and gitignored files.
      */
     public boolean exists(@NonNull String filePath) {
-        return Files.exists(confineToRepo(normalizePath(filePath)));
+        return Files.exists(paths.confine(normalizePath(filePath)));
     }
 
     /**
@@ -2096,7 +1812,7 @@ public class GitService {
             // while a merge conflict is unresolved. Either way the file is tracked.
             return repository.readDirCache().getEntry(path) != null;
         } catch (IOException e) {
-            throw new IllegalStateException("Failed to read Git index: " + repoPath, e);
+            throw new IllegalStateException("Failed to read Git index: " + paths.root(), e);
         }
     }
 
@@ -2160,12 +1876,7 @@ public class GitService {
         if (includePatch) {
             patchOut.reset();
             formatter.format(entry);
-            patch = patchOut.toString(StandardCharsets.UTF_8);
-            if (patch.lines().count() > MAX_DIFF_LINES) {
-                patch =
-                        patch.lines().limit(MAX_DIFF_LINES).collect(Collectors.joining("\n"))
-                                + "\n... (truncated)";
-            }
+            patch = truncateDiff(patchOut.toString(StandardCharsets.UTF_8));
         }
         return new GitDiffEntry(status, path, reportedOldPath, add, del, patch);
     }
@@ -2174,111 +1885,15 @@ public class GitService {
         return DiffEntry.DEV_NULL.equals(path) ? null : path;
     }
 
-    private static void requireSafeGitRelativePath(String path) {
-        if (path.isBlank()) {
-            throw new IllegalArgumentException("Path must not be blank");
-        }
-        if (path.startsWith("/")
-                || path.startsWith("-")
-                || path.contains("..")
-                || path.indexOf('\0') >= 0) {
-            throw new IllegalArgumentException("Invalid path: " + path);
-        }
-        if (!SAFE_GIT_RELATIVE_PATH.matcher(path).matches()) {
-            throw new IllegalArgumentException("Path contains unsupported characters: " + path);
-        }
-    }
-
     /**
-     * The one spelling of a repo-relative path: backslashes turned round, and {@code ./} and
-     * doubled slashes collapsed, so {@code "./docs//a.md"} and {@code "docs/a.md"} are the same
-     * string everywhere.
+     * The one spelling of a repo-relative path, as {@link RepoPaths#normalize} defines it.
      *
-     * <p>Git's index is keyed on the canonical form, so before this every entry point disagreed
-     * with itself: {@code getFileContent("./docs/a.md")} answered "File not found" for a file that
-     * is plainly there, and {@code createFile} wrote the file to disk and only then failed to stage
-     * it — reporting a .gitignore rule that does not exist. Callers that match a path against a
-     * pattern need it too: a glob written the obvious way ({@code "secrets/**"}) does not match
-     * {@code "./secrets/key.pem"}, so any policy checked on an uncanonical path checks nothing.
-     *
-     * <p>Validation runs on the raw form first, on purpose. Canonicalising {@code "/etc/passwd"}
-     * would strip nothing but canonicalising {@code "a/../../etc"} would resolve a traversal this
-     * method must instead refuse, so the refusals happen while the path still says what the caller
-     * wrote. What is dropped afterwards — {@code "."} and empty segments — cannot change where a
-     * path points.
+     * <p>Kept here as the entry point every caller outside this package already knows.
      *
      * @throws IllegalArgumentException if the path is unsafe, or names nothing once collapsed
      */
     public static String normalizePath(@NonNull String filePath) {
-        String forward = toForwardSlashes(filePath.strip());
-        requireSafeGitRelativePath(forward);
-        if (!forward.contains("./")
-                && !forward.contains("//")
-                && !forward.endsWith("/.")
-                && !forward.endsWith("/")
-                && !forward.equals(".")) {
-            return forward;
-        }
-        StringBuilder canonical = new StringBuilder(forward.length());
-        for (String segment : forward.split("/")) {
-            if (segment.isEmpty() || segment.equals(".")) {
-                continue;
-            }
-            if (!canonical.isEmpty()) {
-                canonical.append('/');
-            }
-            canonical.append(segment);
-        }
-        if (canonical.isEmpty()) {
-            throw new IllegalArgumentException("Path must name a file: " + filePath);
-        }
-        return canonical.toString();
-    }
-
-    /**
-     * Resolves a repo-relative path to its absolute location and confirms it really is inside the
-     * working tree — textually first, then through the filesystem.
-     *
-     * <p>The textual check ({@link Path#normalize()} plus a prefix comparison) is not enough on its
-     * own: it rewrites the path as a string and knows nothing about symlinks. A <em>tracked</em>
-     * symlink pointing outside the repository — or a symlinked directory anywhere along the path —
-     * passes it, while the read or write itself lands wherever the link points. Resolving the
-     * deepest component that actually exists closes that: for an existing file it is the file
-     * itself (final link included), for a path being created it is the nearest existing ancestor,
-     * which is exactly what {@link #createFile} needs.
-     *
-     * @return the absolute, normalized path — link-resolution is only the check, callers keep
-     *     reading and writing through the path the repository names
-     */
-    private Path confineToRepo(String normalized) {
-        Path absolute = repoPath.resolve(normalized).normalize();
-        if (!absolute.startsWith(repoPath)) {
-            throw new IllegalArgumentException("Path traversal not allowed: " + normalized);
-        }
-        for (Path probe = absolute; probe != null; probe = probe.getParent()) {
-            Path real;
-            try {
-                real = probe.toRealPath();
-            } catch (IOException ignored) {
-                // Not on disk yet (createFile) or a dangling symlink — ask its parent instead.
-                continue;
-            }
-            if (!real.startsWith(repoRealPath)) {
-                throw new IllegalArgumentException(
-                        "Path escapes the repository via a symlink: " + normalized);
-            }
-            return absolute;
-        }
-        // Unreachable in practice: the repository root itself always resolves.
-        return absolute;
-    }
-
-    /** Returns {@code true} for OS/IDE artefacts that should never appear in results. */
-    private static boolean isJunkFile(String path) {
-        String name = path.contains("/") ? path.substring(path.lastIndexOf('/') + 1) : path;
-        if (IGNORED_FILES.contains(name)) return true;
-        int dot = name.lastIndexOf('.');
-        return dot >= 0 && IGNORED_EXTENSIONS.contains(name.substring(dot).toLowerCase());
+        return RepoPaths.normalize(filePath);
     }
 
     /** Runs {@code git grep} as a subprocess — the one operation JGit cannot do in-process. */
@@ -2295,7 +1910,7 @@ public class GitService {
 
             ProcessBuilder pb =
                     new ProcessBuilder(withConfig)
-                            .directory(repoPath.toFile())
+                            .directory(paths.root().toFile())
                             .redirectErrorStream(true);
             Process process = pb.start();
             List<String> lines;
@@ -2313,26 +1928,17 @@ public class GitService {
                 // return whatever output we got (empty in that case).
             }
             return lines;
-        } catch (IOException | InterruptedException e) {
+        } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            throw new IllegalStateException("Git command interrupted: " + command, e);
+        } catch (IOException e) {
             throw new IllegalStateException("Git command failed: " + command, e);
         }
     }
 
-    private String normalizeSub(@Nullable String sub) {
-        if (sub == null || sub.isBlank()) return "";
-        String s = toForwardSlashes(sub.strip()).replaceAll("^/+|/+$", "");
-        if (s.contains("..")) throw new IllegalArgumentException("Path traversal not allowed");
-        return s;
-    }
-
-    private static String toForwardSlashes(String path) {
-        return path.replace('\\', '/');
-    }
-
     private long fileSize(String relativePath) {
         try {
-            return Files.size(repoPath.resolve(relativePath));
+            return Files.size(paths.resolve(relativePath));
         } catch (IOException e) {
             return -1;
         }
