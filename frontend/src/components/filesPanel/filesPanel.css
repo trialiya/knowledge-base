@@ -54,16 +54,22 @@
   flex-direction: column;
 }
 
-/* Файл вне git (виден через allow-globs проекта). Приглушён только маркер —
-   имя остаётся полноконтрастным, потому что такой файл читается и правится. */
-.file-tree-untracked {
-  flex: none;
-  margin-left: 0.4em;
-  color: var(--kb-muted);
-  font-size: 0.75em;
-  font-weight: 600;
-  line-height: 1;
-  cursor: default;
+/* Файл вне git (виден через allow-globs проекта). Метит фон строки, а не значок
+   рядом с именем: значок ищут глазами по одной строке за раз, а заливка сразу
+   показывает, какая часть каталога вне истории. Имя при этом остаётся
+   полноконтрастным — такой файл читается и правится, приглушать его нельзя.
+
+   Селекторы двухклассовые нарочно: заливка должна перебивать и .ws-item:hover,
+   и .ws-item--active (см. common/sidePanel.css) — иначе строка теряет признак
+   ровно тогда, когда на неё смотрят. Выделение при этом остаётся видно по
+   акцентной полосе слева и жирному акцентному тексту. */
+.file-tree-row--untracked.ws-item,
+.file-tree-row--untracked.ws-item:hover {
+  background: var(--kb-untracked-bg);
+}
+.file-tree-row--untracked.ws-item--active,
+.file-tree-row--untracked.ws-item--active:hover {
+  background: var(--kb-untracked-bg-strong);
 }
 
 /* ── Content ── */

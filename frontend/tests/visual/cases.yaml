@@ -1543,3 +1543,31 @@
     и пузырь с ошибкой как раз даёт кнопку «Повторить», которая для этого кейса и нужна.
     Считались .project-switch-divider: 0 → 1 («Knowledge Base → Billing») → 1
     («Knowledge Base → Docs» после повтора в третий проект) → 0 (после повтора обратно).
+
+- id: files-untracked-warm-row
+  component: FileTreeNode
+  path: frontend/src/components/filesPanel/FileTreeNode.jsx
+  title: Панель «Файлы» — файл вне git помечен заливкой строки, а не буквой
+  status: verified
+  origin:
+    - Сессия 2026-08-20, замена маркера «U» на тёплый фон в дереве и в выдаче поиска
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /files
+    backend: |
+      kb.projects[0].allow-globs: ['build-reports/**'] и несколько неотслеживаемых
+      файлов в build-reports/ (в том числе с длинным именем в build-reports/nested/)
+    steps: раскрыть build-reports → build-reports/nested → открыть поиск и ввести «Report», затем «GitService»
+  expected:
+    - Строки внутри build-reports залиты тёплым оранжевым, буквы «U» рядом с именем больше нет
+    - Имя файла остаётся полноконтрастным — такой файл читается и правится
+    - Выбранная строка вне git остаётся оранжевой (оттенком гуще) и не теряет акцентную полосу и жирный акцентный текст
+    - В выдаче поиска те же файлы залиты тем же оттенком, tracked-строки — обычные
+    - Открытие поиска не сдвигает дерево вниз — высота триггера и раскрытого поля совпадает
+    - Длинные имена и полные пути в выдаче видны целиком, список не уезжает за правый край окна
+  notes: |
+    Прогнано ad hoc скриптом по образцу scripts/playwright-smoke.js (allow-globs подан
+    через SPRING_APPLICATION_JSON). Замеры: .file-tree-row--untracked — 6 строк,
+    высота триггера и поля 32px обе, верх .files-panel-tree до и после открытия поиска
+    182.98 (сдвига нет), ширина выпадающего списка 522px при правом крае на 582 из 1440.

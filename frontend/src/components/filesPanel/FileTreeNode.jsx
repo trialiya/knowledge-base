@@ -7,6 +7,7 @@ const FileTreeNode = ({ node, level, selectedPath, expanded, treeCache, loadingD
   const isDir = node.type === 'directory';
   const isOpen = expanded.has(node.path);
   const isSelected = node.path === selectedPath;
+  const isUntracked = node.tracked === false;
   const children = treeCache[node.path];
   const isLoading = loadingDirs.has(node.path);
 
@@ -61,7 +62,13 @@ const FileTreeNode = ({ node, level, selectedPath, expanded, treeCache, loadingD
         aria-expanded={isDir ? isOpen : undefined}
         aria-level={level + 1}
         tabIndex={-1}
-        className={`ws-item ws-item--nowrap${isSelected ? ' ws-item--active' : ''}`}
+        className={`ws-item ws-item--nowrap${isSelected ? ' ws-item--active' : ''}${
+          isUntracked ? ' file-tree-row--untracked' : ''
+        }`}
+        // Заливка строки — единственный видимый признак, поэтому подпись нужна и
+        // помимо цвета: как всплывающая подсказка и как описание строки для
+        // скринридера (имя строке даёт её содержимое, title его не перебивает).
+        title={isUntracked ? t('tree.untracked') : undefined}
         style={{ '--depth': level }}
         onClick={() => {
           onSelect(node);
@@ -85,14 +92,6 @@ const FileTreeNode = ({ node, level, selectedPath, expanded, treeCache, loadingD
         <span ref={labelRef} className="ws-item__label">
           {node.name}
         </span>
-        {/* Метка сохраняет полный контраст, приглушён только маркер: приглушённый текст в
-            дереве уже занят подсказками («Загрузка…», «Пусто») и читался бы как «недоступно»,
-            хотя такой файл как раз читается и правится. */}
-        {node.tracked === false && (
-          <span className="file-tree-untracked" title={t('tree.untracked')} aria-label={t('tree.untracked')}>
-            U
-          </span>
-        )}
       </div>
 
       {isDir && isOpen && (
