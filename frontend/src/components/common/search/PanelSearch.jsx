@@ -5,6 +5,9 @@ import useSearchDropdown from './useSearchDropdown';
 import { IconSearch, IconX } from '@/icons/index';
 import './panelSearch.css';
 
+/** Зазор до правого края окна, если список упирается в него. */
+const VIEWPORT_GAP = 12;
+
 /**
  * Поиск над списком/деревом левой панели: кнопка-триггер → поле ввода →
  * плавающий список результатов (портал, позиционируется под полем).
@@ -20,10 +23,17 @@ import './panelSearch.css';
  *   placeholder  — плейсхолдер поля ввода
  *   hint         — подсказка в пустом списке (до ввода запроса)
  *   search       — (query, signal) => Promise<item[]>
- *   describeItem — (item, query) => { icon, title, subtitle, badge, multiline }
+ *   describeItem — (item, query) => { icon, title, subtitle, badge, multiline,
+ *                                    tone, toneLabel }
  *                  title/subtitle могут быть готовыми нодами (с подсветкой).
  *                  multiline=true разрешает подзаголовку две строки (сниппет
  *                  сообщения), по умолчанию — одна с многоточием.
+ *                  tone — заливка строки ('warn' — единственная; см.
+ *                  panelSearch.css). Раздел называет ею свою особенность
+ *                  («файл вне git»), а виджет про эту особенность не знает.
+ *                  toneLabel — что означает заливка: подсказка на наведении и
+ *                  описание строки для скринридера, потому что цветом одним
+ *                  признак не передашь.
  *   getKey       — (item) => React key
  *   onSelect     — (item, query) => void; закрытие поиска берёт на себя компонент
  *   debounceMs   — задержка перед запросом (по умолчанию из useSearchDropdown)
@@ -91,6 +101,17 @@ const PanelSearch = ({
   const optionId = (i) => `${baseId}opt${i}`;
   const hasResults = results.length > 0;
 
+  // Список шире панели, но не шире окна: minWidth задаёт раздел исходя из своих
+  // строк (у путей репозитория они длинные), а узкое окно об этом не знает —
+  // без обрезки список уезжал бы за правый край. Якорь ставится один раз при
+  // открытии, и ресайз поиск закрывает, так что считать это на каждый кадр не
+  // нужно (см. useSearchDropdown).
+  const dropdownStyle = anchorRect && {
+    top: anchorRect.bottom + 6,
+    left: anchorRect.left,
+    width: Math.max(anchorRect.width, Math.min(minWidth, window.innerWidth - anchorRect.left - VIEWPORT_GAP)),
+  };
+
   return (
     <div className="panel-search" ref={wrapRef}>
       {open ? (
@@ -139,11 +160,7 @@ const PanelSearch = ({
       {open &&
         anchorRect &&
         createPortal(
-          <div
-            ref={portalRef}
-            className="panel-search__dropdown"
-            style={{ top: anchorRect.bottom + 6, left: anchorRect.left, width: Math.max(anchorRect.width, minWidth) }}
-          >
+          <div ref={portalRef} className="panel-search__dropdown" style={dropdownStyle}>
             {loading && <div className="panel-search__msg">{t('panelSearch.searching')}</div>}
             {!loading && trimmed.length >= 1 && results.length === 0 && (
               <div className="panel-search__msg">{t('panelSearch.empty')}</div>
@@ -152,7 +169,7 @@ const PanelSearch = ({
             {hasResults && (
               <div className="panel-search__list" role="listbox" id={listId} aria-label={label} ref={listRef}>
                 {results.map((item, i) => {
-                  const { icon, title, subtitle, badge, multiline } = describeItem(item, query);
+                  const { icon, title, subtitle, badge, multiline, tone, toneLabel } = describeItem(item, query);
                   return (
                     <button
                       key={getKey(item)}
@@ -160,10 +177,13 @@ const PanelSearch = ({
                       role="option"
                       id={optionId(i)}
                       aria-selected={i === idx}
+                      title={toneLabel}
                       // Фокус остаётся в поле ввода — по списку ходят стрелками,
                       // а не табом (иначе Tab уводил бы в конец body, где портал).
                       tabIndex={-1}
-                      className={`panel-search__item${i === idx ? ' panel-search__item--selected' : ''}`}
+                      className={`panel-search__item${i === idx ? ' panel-search__item--selected' : ''}${
+                        tone ? ` panel-search__item--${tone}` : ''
+                      }`}
                       onMouseEnter={() => setIdx(i)}
                       onMouseDown={(e) => {
                         e.preventDefault();
