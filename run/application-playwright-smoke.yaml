@@ -1,0 +1,37 @@
+# Profile for scripts/playwright-smoke.js — always activated together with h2
+# (./run.sh h2,playwright-smoke), which brings the H2 driver, the H2 Flyway
+# migrations and semantic-search off; this file only points the datasource at a
+# disposable file and stubs out everything a screenshot run must not depend on.
+#
+# Not meant for hand editing: the smoke script deletes local-db/h2-smoke* on
+# every run and re-seeds it, so nothing here survives between runs. Your real
+# local-db/h2 (the plain './run.sh h2' database) is never touched.
+
+spring:
+  datasource:
+    # Relative to run/ (the JVM starts there — see run.sh). AUTO_SERVER lets the
+    # short-lived seeding JVM (org.h2.tools.RunScript) open the same file while
+    # the app is running.
+    url: jdbc:h2:../local-db/h2-smoke;MODE=PostgreSQL;DEFAULT_NULL_ORDERING=HIGH;DATABASE_TO_LOWER=TRUE;AUTO_SERVER=TRUE
+  ai:
+    openai:
+      # No AI backend is needed to render the UI — dummies keep the run
+      # independent of whatever real keys application.yaml carries locally.
+      base-url: http://localhost:9999/v1
+      api-key: dummy
+      embedding:
+        base-url: http://localhost:9999/v1
+        api-key: dummy
+
+kb:
+  chat:
+    default-model:
+      id: dummy-model
+      label: Dummy
+  # Always index this repository itself, whatever application.yaml points at.
+  projects:
+    - id: default
+      label: Project
+      path: ..
+      edit-enabled: false
+      allow-globs: []

@@ -5,14 +5,18 @@
  * the canonical example for the frontend-visual-check skill (.claude/skills/) — see
  * there for the full explanation (the two locale gotchas, auth, why the jar route).
  *
+ * The backend is started through run/run.sh with the checked-in profile pair
+ * 'h2,playwright-smoke' (run/application-playwright-smoke.yaml), so how the JAR is
+ * launched lives in one place. That profile points spring.datasource.url at a
+ * disposable local-db/h2-smoke file (deleted and recreated on every run) with
+ * AUTO_SERVER=TRUE, so a second, short-lived JVM (org.h2.tools.RunScript) can load
+ * SQL into the same file while the app is running — your real local-db/h2 (used by
+ * 'Быстрый старт с H2') is never touched.
+ *
  * By default the app is seeded with db/sample-data.sql (see .claude/rules/
  * backend-data.md) so the screenshot shows real chat/document content instead of an
  * empty knowledge base — pass --no-seed to skip that and check bare-schema startup
- * instead. Seeding always targets a disposable local-db/h2-smoke file (deleted and
- * recreated on every run) via an env var override of spring.datasource.url with
- * AUTO_SERVER=TRUE, so a second, short-lived JVM (org.h2.tools.RunScript) can load
- * the SQL into the same file while the app is running — your real local-db/h2 (used
- * by 'Быстрый старт с H2') is never touched.
+ * instead (same disposable database, just left empty).
  *
  * The jar is built by the script itself, through `run/test.sh jar` — the same
  * wrapper every other check goes through, so the Gradle to use, the Java 21
@@ -21,9 +25,9 @@
  *
  * Two unrelated things are both called "locale" here, and only one of them is
  * fixed by this script on its own:
- *   - The JVM's system locale (LANG/LC_ALL below) — always forced to C.utf8,
- *     because a bare JVM otherwise defaults to ASCII and GitService throws on
- *     the non-ASCII repo paths under docs/. Not configurable, not optional.
+ *   - The JVM's system locale — run.sh forces LANG/LC_ALL to C.utf8, because a
+ *     bare JVM otherwise defaults to ASCII and GitService throws on the
+ *     non-ASCII repo paths under docs/. Not configurable, not optional.
  *   - The browser's UI language — i18next-browser-languagedetector reads
  *     navigator.language when nothing is cached in localStorage ('kb-lang'),
  *     and this sandbox's Chromium reports 'en-US' with no locale set on the
@@ -48,6 +52,7 @@ const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..');
 const TEST_SH = path.join(ROOT, 'run/test.sh');
+const RUN_SH = path.join(ROOT, 'run/run.sh');
 const JAR = path.join(ROOT, 'backend/build/libs/backend-1.0-SNAPSHOT.jar');
 const SAMPLE_DATA = path.join(ROOT, 'backend/src/test/resources/db/sample-data.sql');
 const SMOKE_DB = path.join(ROOT, 'local-db/h2-smoke'); // disposable — never local-db/h2
@@ -127,25 +132,14 @@ async function main() {
     fs.rmSync(path.join(path.dirname(SMOKE_DB), f));
   }
 
-  const datasourceUrl = seed
-    ? `jdbc:h2:${SMOKE_DB};MODE=PostgreSQL;DEFAULT_NULL_ORDERING=HIGH;DATABASE_TO_LOWER=TRUE;AUTO_SERVER=TRUE`
-    : undefined; // undefined -> app falls back to application-h2.yaml's local-db/h2
+  // The same file the playwright-smoke profile opens as ../local-db/h2-smoke
+  // from run/ — H2 canonicalizes the path, and AUTO_SERVER lets the seeding
+  // JVM below join the running app on it. Everything else about the backend
+  // (dummy AI, project path, LANG) is the profile's and run.sh's business.
+  const datasourceUrl = `jdbc:h2:${SMOKE_DB};MODE=PostgreSQL;DEFAULT_NULL_ORDERING=HIGH;DATABASE_TO_LOWER=TRUE;AUTO_SERVER=TRUE`;
 
-  const backend = spawn('java', ['--enable-preview', '-jar', JAR], {
+  const backend = spawn(RUN_SH, ['h2,playwright-smoke'], {
     cwd: ROOT,
-    env: {
-      ...process.env,
-      // glibc's built-in UTF-8 locale — without it the JVM defaults to ASCII and
-      // GitService throws on non-ASCII repo paths (docs/проект/*.md).
-      LANG: 'C.utf8',
-      LC_ALL: 'C.utf8',
-      SPRING_PROFILES_ACTIVE: 'h2',
-      ...(datasourceUrl ? { SPRING_DATASOURCE_URL: datasourceUrl } : {}),
-      AI_BASE_URL: process.env.AI_BASE_URL || 'http://localhost:9999/v1',
-      AI_API_KEY: process.env.AI_API_KEY || 'dummy',
-      AI_MODEL: process.env.AI_MODEL || 'dummy-model',
-      PROJECT_PATH: '.',
-    },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   backend.stdout.on('data', (d) => process.stdout.write(`[backend] ${d}`));

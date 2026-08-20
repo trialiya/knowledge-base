@@ -32,20 +32,23 @@ behind it, so every panel renders empty. Boot the backend JAR (H2 profile, dummy
 AI env vars) and drive it with Chromium instead.
 
 `scripts/playwright-smoke.js` is the working, runnable example: it boots the
-JAR, polls `/actuator/health`, logs in over HTTP Basic (`admin`/`admin`), waits
-for the SPA to mount and screenshots it. By default it first seeds
-`db/sample-data.sql` into a disposable `local-db/h2-smoke` file — never your
-real `local-db/h2` — so the screenshot shows real chat and document content
-instead of an empty app; pass `--no-seed` to skip that.
+JAR through `run/run.sh h2,playwright-smoke` (the checked-in
+`run/application-playwright-smoke.yaml` profile: disposable database, dummy AI,
+this repo as the project), polls `/actuator/health`, logs in over HTTP Basic
+(`admin`/`admin`), waits for the SPA to mount and screenshots it. By default it
+first seeds `db/sample-data.sql` into the profile's disposable
+`local-db/h2-smoke` file — never your real `local-db/h2` — so the screenshot
+shows real chat and document content instead of an empty app; pass `--no-seed`
+to skip that.
 
-Copy its `chromium.launch()` and env-var setup for ad hoc checks beyond a
-screenshot. Its header covers the details, including two unrelated "locale"
+Copy its `chromium.launch()` and backend-launch setup for ad hoc checks beyond
+a screenshot. Its header covers the details, including two unrelated "locale"
 gotchas:
 
 - **JVM system locale.** The sandbox has no locale configured, so a bare JVM
   defaults to ASCII and `GitService` throws on the non-ASCII repo paths under
-  `docs/`. Fixed by `LANG=C.utf8`/`LC_ALL=C.utf8` on the backend process —
-  always on, not a flag.
+  `docs/`. `run.sh` and `test.sh` force `LANG=C.utf8`/`LC_ALL=C.utf8`; a JVM
+  started any other way needs the same — always on, not a flag.
 - **Browser UI language.** `i18next-browser-languagedetector` reads
   `navigator.language` when nothing is cached in `localStorage` (`kb-lang`),
   and this sandbox's Chromium reports `en-US` with no locale set on the

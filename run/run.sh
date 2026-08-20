@@ -10,6 +10,9 @@
 #   ./run.sh internal    # copy application.yaml to application-internal.yaml,
 #                         # edit it with your own values, then run with this profile
 #
+# scripts/playwright-smoke.js starts the app through this script too, as
+# './run.sh h2,playwright-smoke' (see application-playwright-smoke.yaml).
+#
 # Edit application.yaml (and, for a custom profile, the matching
 # application-<profile>.yaml) before running.  The JVM is started from this
 # directory so relative paths in application.yaml (e.g. kb.projects[0].path: ..)
