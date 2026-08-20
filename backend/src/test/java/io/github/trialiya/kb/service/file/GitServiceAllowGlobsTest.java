@@ -204,7 +204,9 @@ class GitServiceAllowGlobsTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("untracked");
 
-        assertThat(untrackedEditable().requireEditable("notes/todo.md")).isEqualTo("notes/todo.md");
+        // Прошедший проверку файл несёт и ответ индекса — второй раз его не перечитывают.
+        assertThat(untrackedEditable().requireEditable("notes/todo.md"))
+                .isEqualTo(new GitService.EditableFile("notes/todo.md", false));
     }
 
     /**

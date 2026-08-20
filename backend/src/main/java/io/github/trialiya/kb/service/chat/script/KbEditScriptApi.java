@@ -7,6 +7,7 @@ import io.github.trialiya.kb.service.file.GitService;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyObject;
@@ -64,7 +65,7 @@ public final class KbEditScriptApi extends KbScriptApi {
         // file on disk — silently discarding the first.
         String canonical = canonical(path);
         session.requireRead(canonical);
-        requireEditableTarget(canonical);
+        GitService.@Nullable EditableFile target = editableTarget(canonical);
         if (oldString.isEmpty()) {
             throw new IllegalArgumentException("oldString must not be empty: " + canonical);
         }
@@ -73,7 +74,7 @@ public final class KbEditScriptApi extends KbScriptApi {
                     "oldString and newString are identical: " + canonical);
         }
 
-        String text = currentText(canonical);
+        String text = currentText(canonical, target);
         String oldLf = oldString.replace("\r\n", "\n");
         String newLf = newString.replace("\r\n", "\n");
         int occurrences = countOccurrences(text, oldLf);
@@ -156,11 +157,13 @@ public final class KbEditScriptApi extends KbScriptApi {
         // refuse the very file the script has just created, and there is no existing content for
         // the binary rule to protect. Staged as an *edit* is not the same thing — that file is on
         // disk, and rewriting it whole is exactly what the rule below is for.
-        if (session.pending(canonical).filter(ScriptSession.PendingWrite::created).isPresent()) {
+        if (createdByThisRun(canonical)) {
             gitService.requireWritable(canonical, bytes);
         } else {
-            requireBinaryTarget(canonical);
+            // Permission before shape: on a file this project may not write at all, "it is a text
+            // file, use kb.edit" would name a way out that is just as closed.
             gitService.requireReplaceable(canonical, bytes);
+            requireBinaryTarget(canonical);
         }
         session.stageBinaryEdit(canonical, bytes);
         return bytesResult(canonical, "write", bytes.length);
@@ -172,20 +175,26 @@ public final class KbEditScriptApi extends KbScriptApi {
      * validating its path — the permission does not change while the script runs, and finding out
      * at apply time would leave the run's earlier files on disk.
      *
-     * <p>A file this run created itself is skipped: it is on no disk and in no index yet, so the
-     * check would refuse the very file the script has just written.
+     * @return the cleared file, which the read that follows uses instead of asking the index again;
+     *     {@code null} for a file this run created itself — that one is on no disk and in no index
+     *     yet, so the check would refuse the very file the script has just written, and there is
+     *     nothing to read back either
      */
-    private void requireEditableTarget(String canonical) {
-        if (session.pending(canonical).filter(ScriptSession.PendingWrite::created).isPresent()) {
-            return;
-        }
-        gitService.requireEditable(canonical);
+    private GitService.@Nullable EditableFile editableTarget(String canonical) {
+        return createdByThisRun(canonical) ? null : gitService.requireEditable(canonical);
+    }
+
+    /**
+     * Whether this run staged {@code canonical} as a file of its own making — as opposed to an edit
+     * of one that was already there. Such a file exists in the pending writes and nowhere else, so
+     * every rule defined on what is on disk (tracked, binary) has nothing to say about it.
+     */
+    private boolean createdByThisRun(String canonical) {
+        return session.pending(canonical).filter(ScriptSession.PendingWrite::created).isPresent();
     }
 
     /** Refuses a text file, naming the method that edits one — see {@link #writeBytes}. */
     private void requireBinaryTarget(String canonical) {
-        // Also the tracked check: an untracked path is "File not found" here, before any of the
-        // run's writes have touched disk.
         GitFileInfo info = gitService.getFileInfo(canonical);
         // An empty file sniffs as text and is neither: there is no content to replace unseen and
         // no diff to lose, so a placeholder committed empty can still be filled with bytes.
@@ -295,10 +304,13 @@ public final class KbEditScriptApi extends KbScriptApi {
      * with a head+tail excerpt, and writing an edited excerpt back would silently delete everything
      * between — so an oversized file is refused outright, exactly as the {@code editFile} tool
      * refuses it.
+     *
+     * @param target non-null exactly when there is nothing pending — the file is read from disk
+     *     then, and this is the gate that cleared it
      */
-    private String currentText(String path) {
+    private String currentText(String path, GitService.@Nullable EditableFile target) {
         return switch (session.pending(path).orElse(null)) {
-            case null -> readFullText(path);
+            case null -> readFullText(Objects.requireNonNull(target));
             case ScriptSession.TextWrite text -> text.text();
             // The staged bytes are this run's own doing, so there is nothing to re-read: the file
             // the script would be editing as text no longer exists in this run, not even on disk.
@@ -311,8 +323,9 @@ public final class KbEditScriptApi extends KbScriptApi {
         };
     }
 
-    private String readFullText(String path) {
-        GitFileContent content = gitService.getFileContent(path);
+    private String readFullText(GitService.EditableFile target) {
+        String path = target.path();
+        GitFileContent content = gitService.getFileContent(target);
         if (content.binary()) {
             throw new IllegalArgumentException(
                     "Cannot edit "

@@ -58,16 +58,24 @@ public final class TestProjects {
     /** As above, with {@code untracked-edit-enabled} spelled out. */
     public static GitService gitService(
             Path repoDir, boolean editEnabled, List<String> allowGlobs, boolean untrackedEdits) {
+        return registry(repoDir, editEnabled, allowGlobs, untrackedEdits).defaultProject();
+    }
+
+    /**
+     * A registry over the single repository at {@code repoDir}, with its untracked {@code
+     * allow-globs} area and the project's permission to edit what that area admits.
+     */
+    public static GitRegistry registry(
+            Path repoDir, boolean editEnabled, List<String> allowGlobs, boolean untrackedEdits) {
         return registry(
-                        List.of(
-                                new ProjectOption(
-                                        ID,
-                                        null,
-                                        repoDir.toString(),
-                                        editEnabled,
-                                        untrackedEdits,
-                                        allowGlobs,
-                                        true)))
-                .defaultProject();
+                List.of(
+                        new ProjectOption(
+                                ID,
+                                null,
+                                repoDir.toString(),
+                                editEnabled,
+                                untrackedEdits,
+                                allowGlobs,
+                                true)));
     }
 }

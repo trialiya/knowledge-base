@@ -119,7 +119,7 @@ final class GitWriter {
      * Replaces an exact occurrence of {@code oldString} with {@code newString} in a text file the
      * read tools serve and stages the result (nothing is committed). An untracked file admitted by
      * the project's {@code allow-globs} is edited in place and left untracked, and only where the
-     * project allows that at all (see {@link #requireEditableTarget}).
+     * project allows that at all (see {@link #resolveEditable}).
      *
      * <p>The match is exact and unique by default: zero occurrences or more than one (without
      * {@code replaceAll}) fail with a model-readable error, so the model must quote real, current
@@ -198,8 +198,7 @@ final class GitWriter {
      */
     GitEditResult replaceTrackedBytes(@NonNull String filePath, byte @NonNull [] content) {
         String normalized = requireWritable(filePath, content);
-        Resolved resolved = visible.require(normalized);
-        requireEditableTarget(normalized, resolved.tracked());
+        Resolved resolved = resolveEditable(normalized);
         long before = RepoFiles.sizeOf(normalized, resolved.absolute());
 
         writeAtomically(normalized, content);
@@ -236,8 +235,7 @@ final class GitWriter {
      */
     private Editable readEditable(String filePath) {
         String normalized = RepoPaths.normalize(filePath);
-        Resolved resolved = visible.require(normalized);
-        requireEditableTarget(normalized, resolved.tracked());
+        Resolved resolved = resolveEditable(normalized);
         byte[] bytes = RepoFiles.readAll(normalized, resolved.absolute());
         if (RepoFiles.isBinary(bytes)) {
             throw new IllegalArgumentException("Cannot edit a binary file: " + normalized);
@@ -315,7 +313,7 @@ final class GitWriter {
      */
     String requireReplaceable(@NonNull String filePath, byte @NonNull [] content) {
         String normalized = requireWritable(filePath, content);
-        requireEditableTarget(normalized, visible.require(normalized).tracked());
+        resolveEditable(normalized);
         return normalized;
     }
 
@@ -328,25 +326,29 @@ final class GitWriter {
      * happily and fail at apply time, with the run's earlier files already written. Same argument
      * as {@link #requireCreatable}.
      *
-     * @return the normalized path, as the edit will spell it
+     * @return what the gate established, so the read that follows the check does not have to ask
+     *     the index the same question a second time
      */
-    String requireEditable(@NonNull String filePath) {
-        String normalized = RepoPaths.normalize(filePath);
-        requireEditableTarget(normalized, visible.require(normalized).tracked());
-        return normalized;
+    Resolved requireEditable(@NonNull String filePath) {
+        return resolveEditable(RepoPaths.normalize(filePath));
     }
 
     /**
-     * Refuses a write to an untracked file when the project does not allow one.
+     * The gate every write to an <em>existing</em> file passes: the read gate ({@link
+     * VisibleFiles#require}), then — when git does not track the path — this project's permission
+     * to edit an untracked file at all.
      *
-     * <p>The path is visible by then — the {@code allow-globs} admitted it — so the refusal says
-     * what it really is: readable, not writable. That is the whole difference between this and the
-     * read gate's deliberately uninformative "File not found", which must not reveal whether an
-     * unadmitted path exists.
+     * <p>The path is visible by the time the second half runs — the {@code allow-globs} admitted it
+     * — so its refusal says what it really is: readable, not writable. That is the whole difference
+     * between it and the read gate's deliberately uninformative "File not found", which must not
+     * reveal whether an unadmitted path exists.
+     *
+     * @param normalized already through {@link RepoPaths#normalize}
      */
-    private void requireEditableTarget(String normalized, boolean tracked) {
-        if (tracked || project.untrackedEditEnabled()) {
-            return;
+    private Resolved resolveEditable(String normalized) {
+        Resolved resolved = visible.require(normalized);
+        if (resolved.tracked() || project.untrackedEditEnabled()) {
+            return resolved;
         }
         throw new IllegalArgumentException(
                 "File is untracked and this project only serves untracked files for reading: "

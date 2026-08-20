@@ -1114,10 +1114,29 @@ public class GitService {
     }
 
     /**
+     * A file this project's configuration allows an edit to land on, and git's answer about it —
+     * handed out only by {@link #requireEditable}, which is what makes it a vouch: holding one is
+     * proof the read gate has already cleared the path against the index.
+     *
+     * @param tracked from that same index read, which is why {@link #getFileContent(EditableFile)}
+     *     can serve the file without a second one
+     */
+    public record EditableFile(String path, boolean tracked) {}
+
+    /**
      * @see GitWriter#requireEditable
      */
-    public String requireEditable(@NonNull String filePath) {
-        return writer.requireEditable(filePath);
+    public EditableFile requireEditable(@NonNull String filePath) {
+        String normalized = normalizePath(filePath);
+        return new EditableFile(normalized, writer.requireEditable(normalized).tracked());
+    }
+
+    /**
+     * Full content of a file already cleared by {@link #requireEditable} — the read {@code kb.edit}
+     * does right after its permission check, at no second index read.
+     */
+    public GitFileContent getFileContent(@NonNull EditableFile file) {
+        return getFileContent(file.path(), null, null, file.tracked());
     }
 
     /**

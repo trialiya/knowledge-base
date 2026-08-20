@@ -35,6 +35,10 @@ import org.springframework.util.unit.DataSize;
 class ScriptEditTest {
 
     private static final String APP_JAVA = "src/App.java";
+
+    /** An untracked file, admitted by {@code allow-globs} — see {@link #untrackedRunner}. */
+    private static final String NOTES = "notes/todo.md";
+
     private static final String ORIGINAL = "class App {\n  void run() {}\n}\n";
 
     /** A PNG header followed by NUL bytes — sniffs binary exactly as git's own heuristic does. */
@@ -770,6 +774,60 @@ class ScriptEditTest {
         assertThat(repoDir.resolve("static/second.bin")).doesNotExist();
     }
 
+    // ── Untracked files the allow-globs admit ───────────────────────────────
+
+    @Test
+    void editsAnAdmittedUntrackedFileWhereTheProjectAllowsIt() {
+        runner = untrackedRunner(true);
+
+        ScriptResult result =
+                run(
+                        """
+                        kb.read('notes/todo.md');
+                        kb.edit('notes/todo.md', 'milk', 'bread');
+                        return 'ok';
+                        """);
+
+        assertThat(result.error()).isNull();
+        assertThat(fileText(NOTES)).isEqualTo("remember the bread\n");
+    }
+
+    /**
+     * Отказ наступает на самом kb.edit, а не на применении: иначе созданный до него файл уже лежал
+     * бы на диске, ради чего запись и буферизуется.
+     */
+    @Test
+    void refusesToEditAnAdmittedUntrackedFileBeforeAnyOfTheRunsWritesReachDisk() {
+        runner = untrackedRunner(false);
+
+        ScriptResult result =
+                run(
+                        """
+                        kb.create('src/New.java', 'class New {}\\n');
+                        kb.read('notes/todo.md');
+                        kb.edit('notes/todo.md', 'milk', 'bread');
+                        return 'ok';
+                        """);
+
+        assertThat(result.error()).isNotNull();
+        assertThat(result.error().message()).contains("untracked", "untracked-edit-enabled");
+        assertThat(fileText(NOTES)).isEqualTo("remember the milk\n");
+        assertThat(repoDir.resolve("src/New.java")).doesNotExist();
+    }
+
+    /** И причину называет ту самую: «это текстовый файл, правьте kb.edit» здесь было бы враньём. */
+    @Test
+    void refusesRawBytesOnAnAdmittedUntrackedFileAsAPermissionRatherThanAShape() {
+        runner = untrackedRunner(false);
+
+        ScriptResult result =
+                run("kb.read('notes/todo.md'); kb.writeBytes('notes/todo.md', [1, 2, 3]);");
+
+        assertThat(result.error()).isNotNull();
+        assertThat(result.error().message()).contains("untracked-edit-enabled");
+        assertThat(fileText(NOTES)).isEqualTo("remember the milk\n");
+    }
+
     // ── Where writes are not available at all ───────────────────────────────
 
     @Test
@@ -807,7 +865,21 @@ class ScriptEditTest {
     }
 
     private ScriptRunner newRunner(boolean editEnabled, ScriptProperties properties) {
-        GitRegistry gitRegistry = TestProjects.registry(repoDir, editEnabled);
+        return newRunner(TestProjects.registry(repoDir, editEnabled), properties);
+    }
+
+    /**
+     * A runner over a project whose {@code allow-globs} serve {@code notes/} — an area of untracked
+     * files, which {@code untrackedEdits} decides the scripts may edit or only read.
+     */
+    private ScriptRunner untrackedRunner(boolean untrackedEdits) {
+        write(repoDir.resolve(NOTES), "remember the milk\n");
+        return newRunner(
+                TestProjects.registry(repoDir, true, List.of("notes/**"), untrackedEdits),
+                ScriptProperties.enabledWithDefaults());
+    }
+
+    private static ScriptRunner newRunner(GitRegistry gitRegistry, ScriptProperties properties) {
         return new ScriptRunner(
                 gitRegistry, null, properties, new ScriptEditPolicy(gitRegistry, properties));
     }
