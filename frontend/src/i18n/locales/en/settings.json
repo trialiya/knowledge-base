@@ -146,7 +146,7 @@
       "editEnabled": "Script edits allowed in configuration",
       "editActive": "Write methods bound into the sandbox",
       "disabledNote": "The tool is off (kb.script.enabled=false) — the model is never told about scripts, and the test run below is refused.",
-      "readOnlyNote": "Script edits are enabled in the configuration but have no effect: kb.git.edit-enabled and a writable working tree are also required."
+      "readOnlyNote": "Script edits are enabled in the configuration but have no effect: the project's kb.projects[].edit-enabled and a writable working tree are also required."
     },
     "time": {
       "label": "Execution time",
@@ -165,13 +165,6 @@
       "maxEditedFiles": "Files written",
       "maxEditedBytes": "Bytes written",
       "note": "The budgets bound the backend, not the model's context: only the returned value and the log ever reach it. A repeat kb.* call with the same arguments is answered from the run's cache and spends nothing."
-    },
-    "globs": {
-      "label": "File visibility",
-      "deny": "Hidden paths (deny globs)",
-      "denyEmpty": "Not set — nothing is hidden on top of .gitignore",
-      "allow": "Only these paths (allow globs)",
-      "allowEmpty": "Not set — every tracked file is visible"
     },
     "bench": {
       "label": "Test run",

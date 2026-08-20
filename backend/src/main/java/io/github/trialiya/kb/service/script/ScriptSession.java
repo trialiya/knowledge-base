@@ -14,7 +14,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 import org.jspecify.annotations.Nullable;
-import org.springframework.util.AntPathMatcher;
 
 /**
  * State of a single {@code runScript} call: what the script is allowed to see, what it has already
@@ -29,16 +28,7 @@ import org.springframework.util.AntPathMatcher;
  */
 public final class ScriptSession {
 
-    /**
-     * Ant semantics, not {@code java.nio} glob: {@code **}{@code /*.pem} has to match a root-level
-     * {@code x.pem} too, which the NIO matcher does not do (it requires at least one directory).
-     * Ant is also what {@code pathGlob} looks like elsewhere in the tool surface.
-     */
-    private static final AntPathMatcher MATCHER = new AntPathMatcher();
-
     private final ScriptProperties.Limits limits;
-    private final List<String> denyGlobs;
-    private final List<String> allowGlobs;
 
     /**
      * The chat-response session's tool history, if this run has one — every tool call the model
@@ -126,8 +116,6 @@ public final class ScriptSession {
             @Nullable ToolInvocationCollector priorInvocations,
             String project) {
         this.limits = properties.limits();
-        this.denyGlobs = properties.denyGlobs();
-        this.allowGlobs = properties.allowGlobs();
         this.priorInvocations = priorInvocations;
         this.project = project;
     }
@@ -178,43 +166,6 @@ public final class ScriptSession {
                     limits.maxCalls(),
                     "kb.* calls per run. Do less work per script, or split the task across two"
                             + " runScript calls.");
-        }
-    }
-
-    // ── Visibility ──────────────────────────────────────────────────────────
-
-    /**
-     * Whether a path is visible to scripts at all. Applied to every path a script names
-     * <em>and</em> to every path returned by a listing or a search, so a denied file cannot be
-     * discovered by either route.
-     */
-    public boolean isVisible(String path) {
-        for (String deny : denyGlobs) {
-            if (MATCHER.match(deny, path)) {
-                return false;
-            }
-        }
-        if (allowGlobs.isEmpty()) {
-            return true;
-        }
-        for (String allow : allowGlobs) {
-            if (MATCHER.match(allow, path)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * A hidden path is indistinguishable from a missing one — same message <em>and</em> same
-     * exception type as {@code GitService} raises for an untracked file, so it also reaches the
-     * model as {@code RUNTIME} rather than {@code BUDGET}. A script must not be able to probe
-     * {@code kb.script.deny-globs} by comparing errors, and the model must not be told to narrow a
-     * glob when the real answer is "that file does not exist".
-     */
-    public void requireVisible(String path) {
-        if (!isVisible(path)) {
-            throw new IllegalArgumentException("File not found: " + path);
         }
     }
 

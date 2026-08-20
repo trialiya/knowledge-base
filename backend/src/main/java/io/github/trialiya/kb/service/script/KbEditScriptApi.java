@@ -63,7 +63,6 @@ public final class KbEditScriptApi extends KbScriptApi {
         // spellings of one file would otherwise stage two writes, the second computed from the
         // file on disk — silently discarding the first.
         String canonical = canonical(path);
-        session.requireVisible(canonical);
         session.requireRead(canonical);
         if (oldString.isEmpty()) {
             throw new IllegalArgumentException("oldString must not be empty: " + canonical);
@@ -108,7 +107,6 @@ public final class KbEditScriptApi extends KbScriptApi {
     public Object create(String path, String content) {
         session.chargeCall();
         String canonical = canonical(path);
-        session.requireVisible(canonical);
         if (session.pending(canonical).isPresent()) {
             throw new IllegalArgumentException(
                     "File already staged for writing in this run: " + canonical + ". Use kb.edit.");
@@ -148,7 +146,6 @@ public final class KbEditScriptApi extends KbScriptApi {
     public Object writeBytes(String path, @Nullable Value data) {
         session.chargeCall();
         String canonical = canonical(path);
-        session.requireVisible(canonical);
         session.requireRead(canonical);
         byte[] bytes = toBytes(data, "kb.writeBytes");
         // Refused now rather than at apply time, exactly as kb.create validates its path: a path
@@ -196,7 +193,6 @@ public final class KbEditScriptApi extends KbScriptApi {
     public Object createBytes(String path, @Nullable Value data) {
         session.chargeCall();
         String canonical = canonical(path);
-        session.requireVisible(canonical);
         if (session.pending(canonical).isPresent()) {
             throw new IllegalArgumentException(
                     "File already staged for writing in this run: "

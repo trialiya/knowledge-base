@@ -25,7 +25,7 @@ class ChatConfigSubAgentScriptsAvailableTest {
                         ChatConfig.subAgentScriptsAvailable(
                                 new ScriptProperties(
                                         false, false, null, null, null, null, null, null, null,
-                                        null, null, null),
+                                        null),
                                 config))
                 .isFalse();
         assertThat(

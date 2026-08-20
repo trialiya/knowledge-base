@@ -139,58 +139,11 @@ class ScriptSandboxTest {
                 .isEqualTo(ScriptError.Kind.RUNTIME);
     }
 
-    // ── The configured policy ───────────────────────────────────────────────
+    // ── Visibility ──────────────────────────────────────────────────────────
 
     @Test
-    void denyGlobsHideFilesFromListingReadingAndGrep() {
-        runner = newRunner(withGlobs(List.of("**/*.pem"), List.of()));
-
-        assertThat(files()).contains("src/App.java").doesNotContain("secret.pem");
-
-        ScriptError denied = run("return kb.read('secret.pem');").error();
-        // Indistinguishable from a genuinely missing file — same wording AND same kind, so the
-        // policy cannot be probed and the model is not told to narrow a glob it never hit.
-        assertThat(denied).isNotNull();
-        assertThat(denied.message()).contains("File not found");
-        assertThat(denied.kind()).isEqualTo(ScriptError.Kind.RUNTIME);
-
-        assertThat(run("return kb.grep('PRIVATE').length;").value()).isEqualTo(0);
-    }
-
-    @Test
-    void allowGlobsNarrowTheVisibleTreeToTheWhitelist() {
-        runner = newRunner(withGlobs(List.of(), List.of("docs/**")));
-
-        assertThat(files()).containsExactly("docs/readme.md");
-        assertThat(run("return kb.read('src/App.java');").error())
-                .isNotNull()
-                .extracting(ScriptError::kind)
-                .isEqualTo(ScriptError.Kind.RUNTIME);
-        assertThat(run("return kb.read('docs/readme.md');").value()).isEqualTo("hello\nworld\n");
-    }
-
-    @Test
-    void anEmptyPolicyHidesNothingBeyondGitsOwnRules() {
+    void listsEveryTrackedFile() {
         assertThat(files()).contains("src/App.java", "docs/readme.md", "secret.pem");
-    }
-
-    /**
-     * The policy is a string match, so it is only as good as the spelling it is matched against:
-     * {@code ./secret.pem} names the same file and misses a glob written the obvious way. On the
-     * read path a denied respelling was already stopped one layer down, by the tracked-files rule —
-     * this pins that the policy itself stops it, which is what the write path relies on (see {@code
-     * ScriptEditTest}).
-     */
-    @Test
-    void aDeniedFileStaysDeniedHoweverThePathIsSpelled() {
-        runner = newRunner(withGlobs(List.of("secret.pem"), List.of()));
-
-        for (String spelling : List.of("secret.pem", "./secret.pem", ".//./secret.pem")) {
-            ScriptError denied = run("return kb.read(" + quote(spelling) + ");").error();
-            assertThat(denied).as(spelling).isNotNull();
-            assertThat(denied.message()).as(spelling).contains("File not found");
-            assertThat(denied.kind()).as(spelling).isEqualTo(ScriptError.Kind.RUNTIME);
-        }
     }
 
     /**
@@ -450,8 +403,6 @@ class ScriptSandboxTest {
                                 Duration.ofSeconds(1),
                                 Duration.ofSeconds(2),
                                 Duration.ofMillis(20),
-                                null,
-                                null,
                                 null));
 
         long start = System.nanoTime();
@@ -683,15 +634,15 @@ class ScriptSandboxTest {
     }
 
     @Test
-    void binaryFilesObeyTheSameVisibilityPolicyAsTextOnes() {
-        runner = newRunner(withGlobs(List.of("static/**"), List.of()));
+    void binaryFilesObeyTheSameTrackedFilesRuleAsTextOnes() {
+        writeBytes(repoDir.resolve("hidden.png"), PNG);
 
         for (String call :
                 List.of(
-                        "kb.readBytes('static/logo.png')",
-                        "kb.readBase64('static/logo.png')",
-                        "kb.stat('static/logo.png')",
-                        "kb.hash('static/logo.png')")) {
+                        "kb.readBytes('hidden.png')",
+                        "kb.readBase64('hidden.png')",
+                        "kb.stat('hidden.png')",
+                        "kb.hash('hidden.png')")) {
             ScriptError denied = run("return " + call + ";").error();
             assertThat(denied).as(call).isNotNull();
             assertThat(denied.message()).as(call).contains("File not found");
@@ -735,11 +686,6 @@ class ScriptSandboxTest {
         return "'" + value.replace("\\", "\\\\").replace("'", "\\'") + "'";
     }
 
-    private static ScriptProperties withGlobs(List<String> deny, List<String> allow) {
-        return new ScriptProperties(
-                true, false, null, null, null, null, null, null, null, null, deny, allow);
-    }
-
     private static ScriptProperties withLimits(
             java.util.function.UnaryOperator<LimitsBuilder> tune) {
         return new ScriptProperties(
@@ -752,9 +698,7 @@ class ScriptSandboxTest {
                 null,
                 null,
                 null,
-                tune.apply(new LimitsBuilder()).build(),
-                null,
-                null);
+                tune.apply(new LimitsBuilder()).build());
     }
 
     /** Mutable stand-in for {@link ScriptProperties.Limits}, so a test can vary one budget. */

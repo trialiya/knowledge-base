@@ -39,8 +39,7 @@ class ScriptTestControllerTest {
                     List.of());
 
     private static ScriptProperties properties(boolean enabled) {
-        return new ScriptProperties(
-                enabled, true, null, null, null, null, null, null, null, null, null, null);
+        return new ScriptProperties(enabled, true, null, null, null, null, null, null, null, null);
     }
 
     @Test

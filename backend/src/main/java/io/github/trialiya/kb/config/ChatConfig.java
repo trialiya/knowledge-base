@@ -115,9 +115,9 @@ public class ChatConfig {
     /**
      * Working-tree edit tools ({@code createFile}/{@code editFile}). Exposed when <em>some</em>
      * project accepts writes — configured for it ({@code kb.projects[].edit-enabled}, defaulting to
-     * {@code kb.git.edit-enabled}) and its working tree actually writable. With none, the bean
-     * method returns {@code null} (Spring then registers no bean), so the model never sees tools
-     * that could only fail with an I/O error.
+     * {@code kb.projects[].edit-enabled}) and its working tree actually writable. With none, the
+     * bean method returns {@code null} (Spring then registers no bean), so the model never sees
+     * tools that could only fail with an I/O error.
      *
      * <p>Presence is therefore a weaker statement than it used to be: it says the tools are worth
      * offering, not that any given project accepts them. A call naming a read-only project is

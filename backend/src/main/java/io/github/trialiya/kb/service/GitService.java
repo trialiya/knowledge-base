@@ -45,6 +45,7 @@ import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.Status;
+import org.eclipse.jgit.api.StatusCommand;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.NoHeadException;
 import org.eclipse.jgit.diff.DiffAlgorithm;
@@ -75,6 +76,7 @@ import org.eclipse.jgit.treewalk.FileTreeIterator;
 import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
+import org.springframework.util.AntPathMatcher;
 
 /**
  * Service for Git repository operations on <b>one</b> project: read-only browsing/search plus
@@ -96,6 +98,14 @@ public class GitService {
 
     private static final Pattern SAFE_GIT_RELATIVE_PATH =
             Pattern.compile("^[\\p{L}\\p{N}._/\\- ]+$");
+
+    /**
+     * Ant semantics for {@code Project#allowGlobs}, not {@code java.nio} glob: {@code **}{@code
+     * /*.md} has to match a root-level {@code notes.md} too, which the NIO matcher does not do (it
+     * requires at least one directory). Ant is also what {@code pathGlob} looks like elsewhere in
+     * the tool surface.
+     */
+    private static final AntPathMatcher GLOB_MATCHER = new AntPathMatcher();
 
     private static final long MAX_FILE_SIZE = 512 * 1024; // 512 KB — skip huge files
     private static final int MAX_DIFF_LINES = 500; // truncate very large diffs
@@ -161,8 +171,17 @@ public class GitService {
     private final Git git;
     private final OutlineService outlineService;
 
+    /**
+     * The directories {@code allow-globs} can possibly match under, so the working-tree walk behind
+     * {@link #visiblePaths} covers those instead of the whole repository. Empty means "cannot be
+     * narrowed" — either no globs at all, or a glob like {@code **}{@code /*.md} that starts with a
+     * wildcard and may match anywhere.
+     */
+    private final List<String> allowGlobRoots;
+
     public GitService(Project project, OutlineService outlineService) {
         this.project = project;
+        this.allowGlobRoots = globRoots(project.allowGlobs());
         this.repoPath = project.path();
         try {
             this.repoRealPath = repoPath.toRealPath();
@@ -206,13 +225,14 @@ public class GitService {
     // ── File tree ────────────────────────────────────────────────────────────
 
     /**
-     * Returns tracked files/directories under {@code subPath} (or repo root if null), directories
-     * first then alphabetically (case-insensitive). Reads the Git index directly, so untracked and
-     * ignored files are automatically excluded.
+     * Returns visible files/directories under {@code subPath} (or repo root if null), directories
+     * first then alphabetically (case-insensitive): the tracked files from the Git index, plus —
+     * when the project configures {@code allow-globs} — the untracked files those globs admit (see
+     * {@link #visiblePaths()}).
      */
     public List<GitFileNode> getFileTree(@Nullable String subPath) {
         String base = normalizeSub(subPath);
-        return listDirectories(trackedPaths(), Set.of(base)).getOrDefault(base, List.of());
+        return listDirectories(visiblePaths(), Set.of(base)).getOrDefault(base, List.of());
     }
 
     /**
@@ -283,7 +303,7 @@ public class GitService {
      */
     public GitPathView browsePath(@Nullable String path, boolean includeAncestors) {
         String target = normalizeSub(path);
-        List<String> tracked = trackedPaths();
+        List<String> tracked = visiblePaths();
         @Nullable FileEntryType type = resolvePathType(target, tracked);
 
         List<String> ancestors = includeAncestors ? ancestorDirs(target) : List.of();
@@ -521,7 +541,7 @@ public class GitService {
         String q = pattern.strip().toLowerCase();
         int limit = Math.min(Math.max(maxResults, 1), 50);
 
-        List<String> allFiles = trackedPaths();
+        List<String> allFiles = visiblePaths();
 
         record Scored(String path, int score) {}
         return allFiles.stream()
@@ -657,6 +677,13 @@ public class GitService {
         args.add("grep");
         args.add("-n"); // line numbers
         args.add("-i"); // case-insensitive
+        // With allow-globs configured the admitted untracked files must be searchable too. git grep
+        // --untracked also surfaces every OTHER untracked file, so the extra matches are filtered
+        // back out below against the same rule every read applies.
+        boolean untracked = !project.allowGlobs().isEmpty();
+        if (untracked) {
+            args.add("--untracked");
+        }
         if (!regex) {
             args.add("--fixed-strings");
         } else {
@@ -674,7 +701,17 @@ public class GitService {
         }
 
         List<String> lines = exec(args);
-        return parseGrepOutput(lines, ctx, limit, project.id());
+        if (!untracked) {
+            return parseGrepOutput(lines, ctx, limit, project.id());
+        }
+        // Parse everything before cutting to `limit`: the hits `--untracked` added for files the
+        // globs do not admit are dropped here, and a truncation applied first would spend the whole
+        // cap on them and return nothing while tracked files matched.
+        Set<String> tracked = new LinkedHashSet<>(trackedPaths());
+        return parseGrepOutput(lines, ctx, Integer.MAX_VALUE, project.id()).stream()
+                .filter(m -> tracked.contains(m.path()) || matchesAllowGlobs(m.path()))
+                .limit(limit)
+                .toList();
     }
 
     /**
@@ -840,13 +877,14 @@ public class GitService {
     /**
      * Returns the content of a <b>tracked</b> file, optimised for AI/LLM consumption.
      *
-     * <p>Only files tracked by Git are served (checked against the index). Untracked files are
-     * explicitly rejected even though they exist on disk: their content is unreviewed working-tree
-     * state and serving it would both leak arbitrary local files and feed unverified data to the
-     * model. Ignored files (via {@code .gitignore}) are untracked by definition and therefore
-     * rejected too. The rejection message is identical whether the path is untracked-but-present or
-     * genuinely absent — see {@link #readTrackedFile} — so this check cannot be used to probe for
-     * the existence of arbitrary files (e.g. {@code .env}) via disk presence alone.
+     * <p>Only files tracked by Git are served (checked against the index), plus the untracked files
+     * the project's {@code allow-globs} explicitly admit ({@link #isUntrackedAllowed}). Any other
+     * untracked file is rejected even though it exists on disk: its content is unreviewed
+     * working-tree state and serving it would both leak arbitrary local files and feed unverified
+     * data to the model. Ignored files (via {@code .gitignore}) are rejected always, globs or not.
+     * The rejection message is identical whether the path is untracked-but-present or genuinely
+     * absent — see {@link #readTrackedFile} — so this check cannot be used to probe for the
+     * existence of arbitrary files (e.g. {@code .env}) via disk presence alone.
      *
      * <p>The returned {@link GitFileContent} carries metadata the model can act on without extra
      * calls: detected {@code language}, total {@code lineCount}, a {@code truncated} flag, and the
@@ -1127,21 +1165,128 @@ public class GitService {
 
     /**
      * The gate in front of every read: the path is confined to the working tree and must be
-     * tracked.
+     * tracked, or an untracked file the project's {@code allow-globs} admit.
      *
-     * <p>Only tracked files may be served. The message is the same whether the path is
-     * untracked-but-present or genuinely missing, so a caller can't use it to fingerprint which
-     * unrelated files (e.g. a gitignored {@code .env}) happen to exist on disk.
+     * <p>The refusal message is the same whether the path is untracked-but-present or genuinely
+     * missing, so a caller can't use it to fingerprint which unrelated files (e.g. a gitignored
+     * {@code .env}) happen to exist on disk.
      *
      * @return the absolute path of the file, confined to the repository
      */
     private Path requireTracked(String normalized, boolean knownTracked) {
         // Security: confine to the repo before touching the filesystem.
         Path absolute = confineToRepo(normalized);
-        if (!knownTracked && !isTracked(normalized)) {
+        if (!knownTracked && !isTracked(normalized) && !isUntrackedAllowed(normalized)) {
             throw new IllegalArgumentException("File not found: " + normalized);
         }
         return absolute;
+    }
+
+    // ── Untracked files admitted by the project's allow-globs ───────────────
+
+    /** Whether one of the project's {@code allow-globs} covers {@code normalized}. */
+    private boolean matchesAllowGlobs(String normalized) {
+        for (String glob : project.allowGlobs()) {
+            if (GLOB_MATCHER.match(glob, normalized)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether {@code normalized} is an untracked file this project's {@code allow-globs} admit.
+     *
+     * <p>Untracked is what {@code git status} calls untracked: present in the working tree, absent
+     * from the index and <em>not</em> matched by {@code .gitignore}. Ignored files stay hidden
+     * whatever the globs say — the globs widen the tracked-files rule to a named untracked area,
+     * they do not override the deployment's own exclusions. The status walk is confined to the one
+     * path, so the check costs a targeted lookup, not a worktree scan.
+     */
+    private boolean isUntrackedAllowed(String normalized) {
+        if (!matchesAllowGlobs(normalized)) {
+            return false;
+        }
+        try {
+            return git.status().addPath(normalized).call().getUntracked().contains(normalized);
+        } catch (GitAPIException e) {
+            throw new IllegalStateException("Failed to compute working tree status", e);
+        }
+    }
+
+    /**
+     * Every path the read tools serve: the tracked ones from the index, plus — when the project
+     * configures {@code allow-globs} — the untracked files those globs admit, in one deterministic
+     * order (tracked first, then the admitted untracked ones sorted by path).
+     */
+    private List<String> visiblePaths() {
+        List<String> tracked = trackedPaths();
+        if (project.allowGlobs().isEmpty()) {
+            return tracked;
+        }
+        List<String> admitted = admittedUntracked();
+        if (admitted.isEmpty()) {
+            return tracked;
+        }
+        List<String> all = new ArrayList<>(tracked.size() + admitted.size());
+        all.addAll(tracked);
+        all.addAll(admitted);
+        return List.copyOf(all);
+    }
+
+    /**
+     * The untracked working-tree files this project's {@code allow-globs} admit, sorted by path.
+     *
+     * <p>The status walk is restricted to {@link #allowGlobRoots} where the globs allow it: without
+     * that, every tree expand and every fuzzy search would scan the whole working tree instead of
+     * reading the index.
+     */
+    private List<String> admittedUntracked() {
+        if (project.allowGlobs().isEmpty()) {
+            return List.of();
+        }
+        StatusCommand status = git.status();
+        allowGlobRoots.forEach(status::addPath);
+        try {
+            return status.call().getUntracked().stream()
+                    .filter(this::matchesAllowGlobs)
+                    .sorted()
+                    .toList();
+        } catch (GitAPIException e) {
+            throw new IllegalStateException("Failed to compute working tree status", e);
+        }
+    }
+
+    /**
+     * The directory prefixes {@code globs} are confined to — {@code "notes/**"} yields {@code
+     * "notes"}. A glob whose first segment already contains a wildcard can match at the repository
+     * root, and one such glob makes the whole set unnarrowable, so the answer is then empty.
+     */
+    private static List<String> globRoots(List<String> globs) {
+        Set<String> roots = new LinkedHashSet<>();
+        for (String glob : globs) {
+            int wildcard = indexOfWildcard(glob);
+            if (wildcard < 0) {
+                roots.add(glob);
+                continue;
+            }
+            int slash = glob.lastIndexOf('/', wildcard);
+            if (slash <= 0) {
+                return List.of();
+            }
+            roots.add(glob.substring(0, slash));
+        }
+        return List.copyOf(roots);
+    }
+
+    private static int indexOfWildcard(String glob) {
+        for (int i = 0; i < glob.length(); i++) {
+            char c = glob.charAt(i);
+            if (c == '*' || c == '?') {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private static long sizeOf(String normalized, Path absolute) {
@@ -1210,9 +1355,13 @@ public class GitService {
     }
 
     /**
-     * Creates a new file in the working tree and stages it ({@code git add}), so it immediately
-     * becomes <em>tracked</em> and visible to every read tool of this service (which serve tracked
-     * files only).
+     * Creates a new file in the working tree, visible to every read tool of this service from the
+     * moment it returns.
+     *
+     * <p>Normally that means staging it ({@code git add}), since the read tools serve tracked
+     * files. A path this project's {@code allow-globs} admit is left untracked instead — the globs
+     * name a working area that stays out of commits, and staging it would take it out of that area
+     * — unless the path is already in the index, which is the tracked-but-deleted case below.
      *
      * <p>Refused when: the path already exists on disk, the path is matched by {@code .gitignore}
      * (staging would silently skip it, leaving an unreadable orphan — the file is removed again and
@@ -1256,6 +1405,21 @@ public class GitService {
             Files.write(absolute, content);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot create file: " + normalized, e);
+        }
+
+        // A path the project's allow-globs cover is created *untracked* on purpose — the globs name
+        // the working area that deliberately stays out of commits — provided .gitignore does not
+        // hide it (an invisible file would be an orphan no read tool can serve back). A path
+        // already in the index is not one of those: this is the restore-a-deleted-file case above,
+        // and it goes through staging so the index entry is refreshed.
+        if (!isTracked(normalized) && matchesAllowGlobs(normalized)) {
+            if (!isUntrackedAllowed(normalized)) {
+                deleteQuietly(absolute);
+                throw new IllegalArgumentException(
+                        "Path is ignored by .gitignore and cannot be created: " + normalized);
+            }
+            log.info("createFile: '{}' created untracked ({} bytes)", normalized, content.length);
+            return new GitEditResult("create", normalized, lines, 0, lines, null);
         }
 
         // Stage the new file so it becomes tracked. JGit's AddCommand honours .gitignore: an
@@ -1383,7 +1547,7 @@ public class GitService {
         long before = sizeOf(normalized, absolute);
 
         writeAtomically(normalized, content);
-        stage(normalized, "edited");
+        stageIfTracked(normalized);
 
         log.info("wrote '{}' ({} → {} bytes)", normalized, before, content.length);
         String diff =
@@ -1422,7 +1586,7 @@ public class GitService {
             FileBytes fb, String text, String updated, boolean crlf) {
         DiffStats stats = diffStrings(text, updated);
         writeAtomically(fb.path(), crlf ? updated.replace("\n", "\r\n") : updated);
-        stage(fb.path(), "edited");
+        stageIfTracked(fb.path());
 
         int lines = updated.isEmpty() ? 0 : updated.split("\n", -1).length;
         log.info("wrote '{}' (+{}/-{})", fb.path(), stats.additions(), stats.deletions());
@@ -1475,6 +1639,17 @@ public class GitService {
             git.add().addFilepattern(normalized).call();
         } catch (GitAPIException e) {
             throw new IllegalStateException("Failed to stage " + what + " file: " + normalized, e);
+        }
+    }
+
+    /**
+     * Stages an edited file only when it is tracked. An untracked file admitted by the project's
+     * {@code allow-globs} must stay untracked through an edit — staging it would silently promote a
+     * deliberately-uncommitted file into the next commit.
+     */
+    private void stageIfTracked(String normalized) {
+        if (isTracked(normalized)) {
+            stage(normalized, "edited");
         }
     }
 
@@ -1554,12 +1729,16 @@ public class GitService {
      * Returns uncommitted changes in the working tree, excluding files matched by {@code
      * .gitignore}.
      *
-     * <p>Only files known to Git are reported: added/modified/deleted tracked files (both staged
-     * and unstaged), diffed directly against HEAD, mirroring {@code git diff HEAD}. Untracked files
-     * are never returned — they carry no Git history, so the rest of the tool surface can't read
-     * them either ({@link #getFileContent} refuses them), and reporting them would advertise files
-     * no follow-up call can open. Files staged by {@link #createFile}/{@link #editFile} are in the
-     * index and therefore still show up as {@code A}.
+     * <p>Tracked files — added/modified/deleted, staged or not — are diffed directly against HEAD,
+     * mirroring {@code git diff HEAD}. Files staged by {@link #createFile}/{@link #editFile} are in
+     * the index and therefore show up as {@code A}.
+     *
+     * <p>The untracked files this project's {@code allow-globs} admit are listed alongside them as
+     * {@code A}. Those never reach the index — {@link #createFile} and {@link #editFile} leave them
+     * untracked on purpose — so a diff against HEAD cannot see them, and leaving them out would
+     * mean the review surface shows nothing of what the assistant wrote there. Every other
+     * untracked file stays out: no tool can read it back, so naming it would only advertise a file
+     * no follow-up call can open.
      *
      * @param includePatch whether to include unified diff text for modified files
      */
@@ -1606,7 +1785,45 @@ public class GitService {
             }
         }
 
+        for (String path : admittedUntracked()) {
+            if (isJunkFile(path)) continue;
+            entries.add(untrackedDiffEntry(path, includePatch));
+        }
+
         return entries;
+    }
+
+    /**
+     * An admitted untracked file as a whole-file addition. There is no blob to diff against, so the
+     * counters come from the working-tree content itself, and a binary or oversized file reports
+     * zero lines and no patch rather than a number read off its bytes.
+     */
+    private GitDiffEntry untrackedDiffEntry(String path, boolean includePatch) {
+        byte @Nullable [] content;
+        try {
+            Path absolute = repoPath.resolve(path).normalize();
+            content = Files.size(absolute) > MAX_FILE_SIZE ? null : Files.readAllBytes(absolute);
+        } catch (IOException e) {
+            log.warn("Cannot read untracked file {} for the change list", path, e);
+            content = null;
+        }
+        if (content == null || isBinary(content)) {
+            return new GitDiffEntry("A", path, null, 0, 0, null);
+        }
+        String text = new String(content, StandardCharsets.UTF_8);
+        List<String> lines = text.isEmpty() ? List.of() : List.of(text.split("\n", -1));
+        String patch = null;
+        if (includePatch) {
+            StringBuilder sb = new StringBuilder("+++ b/").append(path).append('\n');
+            lines.stream()
+                    .limit(MAX_DIFF_LINES)
+                    .forEach(l -> sb.append('+').append(l).append('\n'));
+            if (lines.size() > MAX_DIFF_LINES) {
+                sb.append("... (truncated)\n");
+            }
+            patch = sb.toString();
+        }
+        return new GitDiffEntry("A", path, null, lines.size(), 0, patch);
     }
 
     /** HEAD's tree, or an empty tree when the branch is unborn (no commits yet). */
@@ -1699,12 +1916,13 @@ public class GitService {
     }
 
     /**
-     * Every tracked path in the repository, in {@code git ls-files} order. Exposed for {@code
+     * Every path the read tools serve — tracked files in {@code git ls-files} order, followed by
+     * the untracked files the project's {@code allow-globs} admit. Exposed for {@code
      * KbScriptApi.files()}: a script filters the list itself in one pass, where the tree tools
      * would need one call per directory level.
      */
     public List<String> listTrackedFiles() {
-        return trackedPaths();
+        return visiblePaths();
     }
 
     private boolean isTracked(String path) {

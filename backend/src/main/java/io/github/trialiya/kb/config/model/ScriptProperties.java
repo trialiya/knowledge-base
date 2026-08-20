@@ -1,7 +1,6 @@
 package io.github.trialiya.kb.config.model;
 
 import java.time.Duration;
-import java.util.List;
 import org.jspecify.annotations.Nullable;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.core.io.ClassPathResource;
@@ -19,9 +18,9 @@ import org.springframework.util.unit.DataSize;
  *     still code execution, so this is an explicit opt-in like {@code kb.mcp.enabled}
  * @param editEnabled let scripts write — {@code kb.edit} / {@code kb.create} for text, {@code
  *     kb.writeBytes} / {@code kb.createBytes} for raw bytes. Necessary but not sufficient: {@code
- *     kb.git.edit-enabled} must be on and the working tree writable, exactly as for the {@code
- *     editFile} tool (see {@code ScriptEditPolicy}). Separate from that flag so a deployment can
- *     keep the edit tools and still hand the model read-only scripts
+ *     kb.projects[].edit-enabled} must be on and the working tree writable, exactly as for the
+ *     {@code editFile} tool (see {@code ScriptEditPolicy}). Separate from that flag so a deployment
+ *     can keep the edit tools and still hand the model read-only scripts
  * @param guide the reference half of the markdown handbook, injected into the system prompt for as
  *     long as the tool is enabled (see {@code ScriptGuideService})
  * @param extendedGuide the tutorial half — when to prefer a script, how to structure one, worked
@@ -36,10 +35,6 @@ import org.springframework.util.unit.DataSize;
  * @param maxTimeout ceiling for the tool's own {@code timeoutSeconds} argument
  * @param cancelPoll how often the watchdog re-checks the deadline and the run's cancellation flag
  * @param limits per-run budgets; see {@link Limits}
- * @param denyGlobs paths hidden from scripts <em>on top of</em> {@code .gitignore} (which already
- *     excludes untracked secrets). Empty by default — nothing extra is hidden
- * @param allowGlobs when non-empty, scripts see <em>only</em> matching paths — a whitelist on top
- *     of the tracked-files rule. Empty by default — no additional narrowing
  */
 @ConfigurationProperties(prefix = "kb.script")
 public record ScriptProperties(
@@ -52,9 +47,7 @@ public record ScriptProperties(
         Duration timeout,
         Duration maxTimeout,
         Duration cancelPoll,
-        Limits limits,
-        List<String> denyGlobs,
-        List<String> allowGlobs) {
+        Limits limits) {
 
     private static final Resource DEFAULT_GUIDE = new ClassPathResource("prompt/script-run.md");
 
@@ -77,9 +70,7 @@ public record ScriptProperties(
             @Nullable Duration timeout,
             @Nullable Duration maxTimeout,
             @Nullable Duration cancelPoll,
-            @Nullable Limits limits,
-            @Nullable List<String> denyGlobs,
-            @Nullable List<String> allowGlobs) {
+            @Nullable Limits limits) {
         this.enabled = enabled;
         this.editEnabled = editEnabled;
         this.guide = guide != null ? guide : DEFAULT_GUIDE;
@@ -91,14 +82,11 @@ public record ScriptProperties(
         this.maxTimeout = maxTimeout != null ? maxTimeout : Duration.ofSeconds(30);
         this.cancelPoll = cancelPoll != null ? cancelPoll : Duration.ofMillis(50);
         this.limits = limits != null ? limits : new Limits(0, null, 0, 0, 0, 0, null);
-        this.denyGlobs = denyGlobs != null ? List.copyOf(denyGlobs) : List.of();
-        this.allowGlobs = allowGlobs != null ? List.copyOf(allowGlobs) : List.of();
     }
 
     /** All-defaults instance with the tool enabled — for tests and programmatic setups. */
     public static ScriptProperties enabledWithDefaults() {
-        return new ScriptProperties(
-                true, true, null, null, null, null, null, null, null, null, null, null);
+        return new ScriptProperties(true, true, null, null, null, null, null, null, null, null);
     }
 
     /**

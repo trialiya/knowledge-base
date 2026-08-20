@@ -51,8 +51,6 @@ class ScriptCancellationTest {
                         Duration.ofMinutes(1),
                         Duration.ofMinutes(1),
                         Duration.ofMillis(20),
-                        null,
-                        null,
                         null);
         runner =
                 new ScriptRunner(

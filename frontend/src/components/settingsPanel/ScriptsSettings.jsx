@@ -4,8 +4,6 @@ import ConfigGroup, {
   ConfigRow,
   ConfigStatusRow,
   ConfigBoolRow,
-  ConfigTags,
-  ConfigBlock,
   useDurationFormat,
 } from '@/components/common/config/ConfigGroup';
 import useConfigSnapshot from '@/components/common/config/useConfigSnapshot';
@@ -68,16 +66,6 @@ const ScriptsSections = ({ config }) => {
         <ConfigRow label={t('scripts.limits.maxEditedFiles')} value={limits.maxEditedFiles.toLocaleString()} />
         <ConfigRow label={t('scripts.limits.maxEditedBytes')} value={formatFileSize(limits.maxEditedBytes)} />
         <p className="config-note">{t('scripts.limits.note')}</p>
-      </SettingsSection>
-
-      {/* ── Видимость файлов ── */}
-      <SettingsSection label={t('scripts.globs.label')}>
-        <ConfigBlock label={t('scripts.globs.deny')}>
-          <ConfigTags items={script.denyGlobs} empty={t('scripts.globs.denyEmpty')} />
-        </ConfigBlock>
-        <ConfigBlock label={t('scripts.globs.allow')}>
-          <ConfigTags items={script.allowGlobs} empty={t('scripts.globs.allowEmpty')} />
-        </ConfigBlock>
       </SettingsSection>
 
       {/* ── Пробный запуск ── */}

@@ -86,9 +86,11 @@ kb:
       #   path: /home/user/my-repo
       #   path: C:/projects/my-repo
       path: ..
-  git:
-    # Set to true to expose createFile/editFile tools to the chat model.
-    edit-enabled: false
+      # Set to true to expose createFile/editFile tools to the chat model.
+      edit-enabled: false
+      # Untracked files inside these globs are readable and editable too, and stay
+      # untracked. Empty means tracked files only. e.g. ["notes/**", "scratch/**"]
+      allow-globs: []
   # ── Document export ───────────────────────────────────────────────────────────
   documents:
     export-path: ../doc-export

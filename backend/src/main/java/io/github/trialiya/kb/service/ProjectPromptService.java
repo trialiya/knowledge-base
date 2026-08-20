@@ -39,6 +39,27 @@ public class ProjectPromptService {
         this one. Reading only: edits always land in this project, and a `runScript` that names
         another one cannot write at all.\
         """
-                .formatted(project.label(), project.id(), project.id());
+                        .formatted(project.label(), project.id(), project.id())
+                + allowGlobs(project);
+    }
+
+    /**
+     * Приписка про {@code allow-globs} проекта — «tracked files only» из {@code sys.md} для него
+     * уже неправда.
+     *
+     * <p>Без неё модель считает untracked-файлы недоступными и не пойдёт их искать: правило в
+     * промпте статичное, а исключение из него — настройка конкретного проекта.
+     */
+    private static String allowGlobs(Project project) {
+        if (project.allowGlobs().isEmpty()) {
+            return "";
+        }
+        return """
+
+        Beyond the tracked files, this project also serves untracked files matching %s — readable,
+        editable and creatable like any other, and they stay untracked. `.gitignore` still hides
+        what it hides.\
+        """
+                .formatted(String.join(", ", project.allowGlobs()));
     }
 }

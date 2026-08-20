@@ -6,7 +6,6 @@ import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.config.model.ScriptProperties;
 import io.github.trialiya.kb.service.script.ScriptEditPolicy;
-import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
@@ -24,8 +23,7 @@ class ScriptGuideServiceTest {
     @Test
     void saysNothingAboutScriptsWhenTheToolIsDisabled() {
         ScriptProperties disabled =
-                new ScriptProperties(
-                        false, false, null, null, null, null, null, null, null, null, null, null);
+                new ScriptProperties(false, false, null, null, null, null, null, null, null, null);
 
         ScriptGuideService service = guide(disabled, false);
         assertThat(service.instructions(true)).isEmpty();
@@ -67,9 +65,7 @@ class ScriptGuideServiceTest {
                                 20_000,
                                 20_000,
                                 20,
-                                DataSize.ofKilobytes(256)),
-                        List.of(),
-                        List.of());
+                                DataSize.ofKilobytes(256)));
 
         // weak=false: the real script-run-extended.md must not get appended on top of the tiny
         // stand-in guide above, or the equality check below would see its text too.
@@ -155,9 +151,7 @@ class ScriptGuideServiceTest {
                 null,
                 null,
                 new ScriptProperties.Limits(
-                        2000, maxBytesRead, 2000, 20_000, 20_000, 20, DataSize.ofKilobytes(256)),
-                List.of(),
-                List.of());
+                        2000, maxBytesRead, 2000, 20_000, 20_000, 20, DataSize.ofKilobytes(256)));
     }
 
     private static ScriptGuideService guide(ScriptProperties properties, boolean editEnabled) {
