@@ -267,6 +267,7 @@
   },
   "tools": {
     "searchDocuments": "Search documents",
+    "grepDocuments": "Search in documents",
     "findDocumentsByName": "Find by name",
     "getTreeSkeleton": "KB structure",
     "getDocument": "Read document",
@@ -274,6 +275,7 @@
     "getDocumentSection": "Read section",
     "createDocument": "Create document",
     "updateDocument": "Update document",
+    "editDocument": "Edit document",
     "updateDocumentSection": "Update section",
     "insertDocumentSection": "Insert section",
     "deleteDocumentSection": "Delete section",

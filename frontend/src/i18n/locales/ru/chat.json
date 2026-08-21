@@ -267,6 +267,7 @@
   },
   "tools": {
     "searchDocuments": "Поиск документов",
+    "grepDocuments": "Поиск по документам",
     "findDocumentsByName": "Поиск по названию",
     "getTreeSkeleton": "Структура базы",
     "getDocument": "Чтение документа",
@@ -274,6 +275,7 @@
     "getDocumentSection": "Чтение секции",
     "createDocument": "Создание документа",
     "updateDocument": "Правка документа",
+    "editDocument": "Точечная правка документа",
     "updateDocumentSection": "Правка секции",
     "insertDocumentSection": "Вставка секции",
     "deleteDocumentSection": "Удаление секции",

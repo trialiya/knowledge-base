@@ -9,7 +9,8 @@ This section provides detailed workflows, examples, and common patterns to maxim
 **I need to find a document:**
 1. Do you know exact name? → `findDocumentsByName`
 2. Know topic/keywords? → `searchDocuments`
-3. Just exploring structure? → `getTreeSkeleton`
+3. Know the exact wording that must occur in it? → `grepDocuments` (lines, line numbers, `sectionPath`)
+4. Just exploring structure? → `getTreeSkeleton`
 
 **Then fetch content:**
 - Entire doc? → `getDocument` by `id`
@@ -113,6 +114,23 @@ User: "In the 'Configuration' section of the 'Setup Guide', change X to Y"
 
 **Key: outline before deep edits.** Don't pass entire document to update.
 
+### Example 2b: "Fix one wording everywhere it occurs"
+
+```
+User: "We renamed 'Гайд по установке' to 'Установка' — fix the KB text"
+
+1. Find the occurrences:
+   grepDocuments("Гайд по установке", {"regex": false})
+   → Returns: documentId, title, sectionPath, line number, the line itself
+
+2. Replace, one document per call:
+   editDocument(documentId, "Гайд по установке", "Установка", {"replaceAll": true})
+   → No getDocument in between: the exact fragment is the check.
+     Not unique and you meant one of them? Extend oldString with its neighbouring lines.
+```
+
+**Key: quote, don't rewrite.** A fragment replacement never risks the rest of the document; a full `updateDocument` does.
+
 ### Example 3: "Is this config key used in code?"
 
 ```
@@ -169,6 +187,7 @@ User: "Insert new section after 'Overview' in document X"
 ### Mistake 3: updating entire document when you only need one section
 ❌ Wrong: `getDocument(id)` → modify in memory → `updateDocument(id, modified_full_doc)`
 ✅ Right: `getDocumentOutline(id)` → `getDocumentSection(id, section_path)` → `updateDocumentSection(id, section_path, new_content)`
+✅ Also right, for a phrase rather than a section: `grepDocuments(phrase)` → `editDocument(id, phrase, replacement)`
 
 ### Mistake 4: not re-reading after structural operations
 ❌ Wrong: `insertDocumentSection(...)` → use old section paths for next operation

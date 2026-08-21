@@ -450,5 +450,82 @@ class DocumentServiceUnitTest {
                     .isInstanceOf(ResponseStatusException.class)
                     .satisfies(t -> assertThat(statusOf(t)).isEqualTo(HttpStatus.NOT_FOUND));
         }
+
+        @Test
+        void versionFreeOverloadPatchesWhateverVersionTheDocumentIsAt() {
+            // What editDocument uses: the exact-match fragment is the concurrency check, so no
+            // version travels with the call — but everything else must behave as above.
+            DocumentEntity doc = docWithText("# A\nold\n");
+            service.patchDescription(doc.getId(), 1, current -> current.replace("old", "once"));
+
+            service.patchDescription(doc.getId(), current -> current.replace("once", "twice"));
+
+            DocumentEntity reloaded = repo.findById(doc.getId()).orElseThrow();
+            assertThat(reloaded.getDescription()).isEqualTo("# A\ntwice\n");
+            assertThat(reloaded.getDescriptionVersion()).isEqualTo(3);
+        }
+
+        @Test
+        void versionFreeOverloadStillYields404ForAMissingDocument() {
+            assertThatThrownBy(() -> service.patchDescription(999_999L, current -> current))
+                    .isInstanceOf(ResponseStatusException.class)
+                    .satisfies(t -> assertThat(statusOf(t)).isEqualTo(HttpStatus.NOT_FOUND));
+        }
+    }
+
+    // ── grepDocuments: the query behind the tool ──────────────────────────────
+
+    /**
+     * Only what needs the real schema: which documents are scanned at all, and that the subtree
+     * filter and the result cap hold. How a body is split into blocks is {@link DocumentGrepTest}'s
+     * business.
+     */
+    @Nested
+    class GrepDocuments {
+
+        private DocumentEntity withText(String title, Long parentId, String description) {
+            DocumentEntity entity = doc(title, parentId, 0);
+            entity.setDescription(description);
+            return repo.save(entity);
+        }
+
+        @Test
+        void findsLinesAcrossTheBaseAndNamesDocumentAndSection() {
+            DocumentEntity guide = withText("Гайд", null, "# Гайд\n## Установка\nставим Docker\n");
+            withText("Заметки", null, "# Заметки\nбез совпадений\n");
+
+            var matches = service.grepDocuments("docker", false, 0, 50, null);
+
+            assertThat(matches).hasSize(1);
+            assertThat(matches.getFirst().documentId()).isEqualTo(guide.getId());
+            assertThat(matches.getFirst().title()).isEqualTo("Гайд");
+            assertThat(matches.getFirst().sectionPath()).isEqualTo("Гайд > Установка");
+            assertThat(matches.getFirst().matchLine()).isEqualTo(3);
+        }
+
+        @Test
+        void documentIdRestrictsTheSearchToThatSubtree() {
+            DocumentEntity folder = folder("раздел", null, 0);
+            withText("внутри", folder.getId(), "# внутри\nDocker\n");
+            withText("снаружи", null, "# снаружи\nDocker\n");
+
+            assertThat(service.grepDocuments("docker", false, 0, 50, folder.getId()))
+                    .extracting(m -> m.title())
+                    .containsExactly("внутри");
+        }
+
+        @Test
+        void unknownDocumentIdYields404() {
+            assertThatThrownBy(() -> service.grepDocuments("x", false, 0, 50, 999_999L))
+                    .isInstanceOf(ResponseStatusException.class)
+                    .satisfies(t -> assertThat(statusOf(t)).isEqualTo(HttpStatus.NOT_FOUND));
+        }
+
+        @Test
+        void maxResultsCapsTheAnswer() {
+            withText("много", null, "Docker\nDocker\nDocker\n");
+
+            assertThat(service.grepDocuments("docker", false, 0, 2, null)).hasSize(2);
+        }
     }
 }

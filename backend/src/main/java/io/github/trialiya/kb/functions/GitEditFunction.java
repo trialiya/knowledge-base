@@ -9,7 +9,6 @@ import io.github.trialiya.kb.service.file.GitRegistry;
 import io.github.trialiya.kb.service.file.GitService;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
 import io.github.trialiya.kb.tools.ProjectContext;
-import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
@@ -29,16 +28,13 @@ import org.springframework.ai.tool.annotation.ToolParam;
  * one that does not accept writes is refused by name through {@code GitRegistry#requireEditable} —
  * the bean's presence only says <em>some</em> project is writable.
  *
- * <p><b>Read-before-edit guard.</b> {@code editFile} is rejected unless the target file was "seen"
- * earlier in the same chat-response session (tracked by the request-scoped {@link
- * ToolInvocationCollector}). Deliberately permissive about <em>how</em> it was seen — a partial
- * read (line range / outline) or a search hit is enough, because the exact-match {@code oldString}
- * contract already forces the model to quote real current content:
- *
- * <ul>
- *   <li>a read tool was called with this {@code filePath} argument, or
- *   <li>any successful tool result (grep/search/diff/...) mentions this path.
- * </ul>
+ * <p><b>What makes an edit safe is the exact-match contract, not a prior read.</b> {@code
+ * oldString} must occur in the file exactly once (unless {@code replaceAll}), character for
+ * character: a model able to quote such a fragment is quoting the current content, and one that
+ * cannot is refused with the name of the tool to read with. So {@code editFile} asks nothing of the
+ * response's tool history — do not add a read-before-edit check back on top of it. The sandboxed
+ * {@code kb.edit} does keep its own rule ({@code ScriptSession#requireRead}) because a script also
+ * writes whole files, where no such contract exists.
  */
 @Slf4j
 @AllArgsConstructor
@@ -81,7 +77,8 @@ public class GitEditFunction {
                     """
                     Surgical edit of an existing tracked file: replace oldString with newString. \
                     oldString must appear EXACTLY once (unless replaceAll=true) and match character-for-character, \
-                    including whitespace and line breaks — read current content first (getFileContent, getFileOutline, or grep result). \
+                    including whitespace and line breaks — quote it from real current content (getFileContent, getFileOutline, or a grep result). \
+                    No prior read required — the exact match is the safety check. \
                     Changes are NOT committed. Returns: operation, path, additions, deletions, lineCount, diff.
                     """,
             resultConverter = CompactToolResultConverter.class)
@@ -120,33 +117,6 @@ public class GitEditFunction {
                 oldString.length(),
                 newString.length(),
                 all);
-        final GitService service = editable(context);
-        requireFileSeenInThisResponse(context, filePath, service.project().id());
-        return service.editFile(filePath, oldString, newString, all);
-    }
-
-    /**
-     * Rejects an edit when nothing in this chat-response session shows the model has actually seen
-     * the target file in this same project — see {@link ToolInvocationCollector#hasSeenFile} for
-     * what counts as seen. Skipped when no {@link ToolInvocationCollector} is present (background
-     * jobs, tests).
-     */
-    private static void requireFileSeenInThisResponse(
-            ToolContext context, String filePath, String project) {
-        final ToolInvocationCollector collector = ToolInvocationCollector.from(context);
-        if (collector == null) {
-            return;
-        }
-        final String path = filePath.strip().replace('\\', '/');
-        if (!collector.hasSeenFile(path, project)) {
-            throw new IllegalStateException(
-                    "File "
-                            + path
-                            + " was NOT modified: its content was not read in this response. "
-                            + "Read the file first — getFileContent(filePath=\""
-                            + path
-                            + "\") (can be a line range), getFileOutline, or find the needed "
-                            + "fragment via grepContent — then retry editFile.");
-        }
+        return editable(context).editFile(filePath, oldString, newString, all);
     }
 }

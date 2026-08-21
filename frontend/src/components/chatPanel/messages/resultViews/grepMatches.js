@@ -1,8 +1,10 @@
 // Что режим «Обзор» показывает для формы «совпадения поиска по содержимому»
-// (`grepContent`): блоки строк с настоящими номерами, сгруппированные по файлу.
+// (`grepContent` по репозиторию, `grepDocuments` по базе знаний): блоки строк с
+// настоящими номерами, сгруппированные по источнику.
 //
 // Разбор — по форме, а не по имени инструмента (см. registry.js). Признак
-// формы: у каждого элемента путь, номер строки совпадения и текст блока.
+// формы: у каждого элемента номер строки совпадения, текст блока и то, откуда
+// он взят, — путь файла либо id и заголовок документа.
 //
 // Текст блока уже размечен бэкендом в формате `git grep -C` (см. javadoc
 // GitGrepMatch): `:N:строка` — совпадение, `-N-строка` — контекст. Нумерация
@@ -16,12 +18,17 @@ const MARKED_LINE = /^([:-])(\d+)\1(.*)$/;
 
 const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
 
+/** Источник блока: файл репозитория (путь) или документ базы знаний (id + заголовок). */
+const sourceOf = (obj) => {
+  if (typeof obj.path === 'string' && obj.path) return { key: obj.path, label: obj.path };
+  if (typeof obj.documentId === 'number' && typeof obj.title === 'string' && obj.title) {
+    return { key: `doc:${obj.documentId}`, label: obj.title };
+  }
+  return null;
+};
+
 const isMatchRecord = (obj) =>
-  isPlainObject(obj) &&
-  typeof obj.path === 'string' &&
-  !!obj.path &&
-  Number.isInteger(obj.matchLine) &&
-  typeof obj.text === 'string';
+  isPlainObject(obj) && !!sourceOf(obj) && Number.isInteger(obj.matchLine) && typeof obj.text === 'string';
 
 /**
  * Текст блока → строки с номерами.
@@ -44,22 +51,25 @@ const toLines = (text, matchLine) =>
     });
 
 /**
- * Разобранный ответ вызова → файлы с блоками для `<GrepMatchesView>`, либо null.
+ * Разобранный ответ вызова → источники с блоками для `<GrepMatchesView>`, либо null.
  *
- * Группировка по файлу — порядком появления: git grep отдаёт блоки одного файла
- * подряд, но полагаться на это не нужно, а порядок выдачи сохранить стоит.
+ * Группировка — порядком появления: и git grep, и `grepDocuments` отдают блоки
+ * одного источника подряд, но полагаться на это не нужно, а порядок выдачи
+ * сохранить стоит. Поле `path` у источника — то, чем он подписан: путь файла или
+ * заголовок документа.
  */
 export const detectGrepMatches = ({ parsed, isJson }) => {
   if (!isJson || !Array.isArray(parsed)) return null;
   if (parsed.length === 0 || parsed.length > MAX_MATCHES) return null;
   if (!parsed.every(isMatchRecord)) return null;
 
-  const byPath = new Map();
+  const bySource = new Map();
   parsed.forEach((match, i) => {
+    const source = sourceOf(match);
     const block = { key: `block-${i}`, lines: toLines(match.text, match.matchLine) };
-    const file = byPath.get(match.path);
-    if (file) file.blocks.push(block);
-    else byPath.set(match.path, { key: `file-${i}`, path: match.path, blocks: [block] });
+    const found = bySource.get(source.key);
+    if (found) found.blocks.push(block);
+    else bySource.set(source.key, { key: `file-${i}`, path: source.label, blocks: [block] });
   });
 
   // Проект у всех совпадений один — вызов ищет в одном репозитории, — но брать
@@ -67,5 +77,5 @@ export const detectGrepMatches = ({ parsed, isJson }) => {
   // project, и вызов мог искать в соседнем.
   const project = parsed.find((match) => match.project)?.project ?? null;
 
-  return { files: [...byPath.values()], matches: parsed.length, project };
+  return { files: [...bySource.values()], matches: parsed.length, project };
 };

@@ -61,6 +61,24 @@ public interface DocumentRepository
     Optional<DocumentTreeRow> findTreeRowById(@Param("id") long id);
 
     /**
+     * Structural rows of every node that has a body at all — the candidate list of {@code
+     * DocumentService.grepDocuments}, which then reads those bodies one at a time via {@link
+     * #findDescriptionById(long)}.
+     *
+     * <p>Nodes without a description are dropped here rather than in Java so an empty base costs
+     * one query and nothing else. Ordering is by id, which is stable and cheap; a grep reports
+     * where matches are, not which of them matters most.
+     */
+    @Query(
+            """
+        SELECT id, parent_id, title, type, position, is_system, updated_at
+        FROM documents
+        WHERE description IS NOT NULL AND description <> ''
+        ORDER BY id
+        """)
+    List<DocumentTreeRow> findRowsWithDescription();
+
+    /**
      * The body of one document, fetched on its own. Paired with {@link
      * #findTreeRowsByParent(Long)}: the walk stays structural and each body is read, used and
      * dropped before the next node is touched.

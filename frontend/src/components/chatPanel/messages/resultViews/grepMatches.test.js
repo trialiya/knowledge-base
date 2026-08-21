@@ -43,6 +43,36 @@ describe('detectGrepMatches — что попадает в «Обзор»', () =
   });
 });
 
+describe('detectGrepMatches — совпадения по документам', () => {
+  it('документ подписан заголовком, блоки группируются по его id', () => {
+    const data = detect(
+      JSON.stringify([
+        { documentId: 7, title: 'Гайд', sectionPath: 'Гайд > Установка', matchLine: 4, text: 'ставим Docker' },
+        { documentId: 7, title: 'Гайд', sectionPath: 'Гайд > FAQ', matchLine: 9, text: 'и ещё docker' },
+        { documentId: 8, title: 'Заметки', sectionPath: null, matchLine: 1, text: 'docker' },
+      ]),
+    );
+    expect(data.files.map((f) => f.path)).toEqual(['Гайд', 'Заметки']);
+    expect(data.files[0].blocks).toHaveLength(2);
+    expect(data.files[0].blocks[0].lines).toEqual([{ no: 4, match: true, text: 'ставим Docker' }]);
+    expect(data.matches).toBe(3);
+  });
+
+  it('документы с одинаковыми заголовками не сливаются — ключ по id', () => {
+    const data = detect(
+      JSON.stringify([
+        { documentId: 7, title: 'Гайд', matchLine: 1, text: 'x' },
+        { documentId: 8, title: 'Гайд', matchLine: 1, text: 'y' },
+      ]),
+    );
+    expect(data.files).toHaveLength(2);
+  });
+
+  it('запись без источника вовсе остаётся другим видам', () => {
+    expect(detect(JSON.stringify([{ documentId: 7, matchLine: 1, text: 'x' }]))).toBeNull();
+  });
+});
+
 describe('detectGrepMatches — проект вызова', () => {
   it('берётся из ответа: grepContent мог искать в соседнем репозитории', () => {
     const data = detect(JSON.stringify([{ project: 'billing', path: 'a/A.java', matchLine: 1, text: 'x' }]));
