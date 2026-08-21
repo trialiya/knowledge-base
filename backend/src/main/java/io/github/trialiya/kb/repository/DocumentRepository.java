@@ -80,21 +80,33 @@ public interface DocumentRepository
 
     /**
      * As {@link #findRowsWithDescription()}, narrowed to the bodies that contain {@code q} —
-     * literally, case-insensitively, no wildcards of its own ({@code %} and {@code _} in {@code q}
-     * are the caller's problem, and a grep pattern that contains them simply matches more rows than
-     * it needs to, never fewer).
+     * literally and case-insensitively: {@code %}, {@code _} and {@code \} stand for themselves, so
+     * the result can only ever be wider than the true match set, never narrower.
      *
      * <p>Exists so a grep over a large base does not fetch every body only to discard it: the rows
      * this returns are the only ones whose text can possibly match.
      */
+    default List<DocumentTreeRow> findRowsWithDescriptionContaining(String q) {
+        return findRowsWithDescriptionLike(escapeLike(q));
+    }
+
+    /**
+     * Escapes a literal fragment for use inside a {@code LIKE}/{@code ILIKE} pattern that declares
+     * {@code ESCAPE '\'}. The backslash goes first, or it would escape the escapes added after it.
+     */
+    private static String escapeLike(String literal) {
+        return literal.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    }
+
+    /** Backing query for {@link #findRowsWithDescriptionContaining(String)}. */
     @Query(
             """
         SELECT id, parent_id, title, type, position, is_system, updated_at
         FROM documents
-        WHERE description ILIKE '%' || :q || '%'
+        WHERE description ILIKE '%' || :q || '%' ESCAPE '\\'
         ORDER BY id
         """)
-    List<DocumentTreeRow> findRowsWithDescriptionContaining(@Param("q") String q);
+    List<DocumentTreeRow> findRowsWithDescriptionLike(@Param("q") String q);
 
     /**
      * The body of one document, fetched on its own. Paired with {@link

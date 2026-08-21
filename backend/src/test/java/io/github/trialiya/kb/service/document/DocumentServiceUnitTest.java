@@ -525,6 +525,21 @@ class DocumentServiceUnitTest {
         }
 
         @Test
+        void literalWildcardsAndBackslashesAreMatchedAsThemselves() {
+            // The SQL prefilter must not read LIKE syntax out of a literal fragment: a backslash
+            // would escape the character after it and drop the document from the candidate list.
+            withText("пути", null, "# пути\nлог в C:\\Users\\kb\n");
+            withText("шаблон", null, "# шаблон\n100% готово_now\n");
+
+            assertThat(service.grepDocuments("C:\\Users", false, 0, 50, null))
+                    .extracting(m -> m.title())
+                    .containsExactly("пути");
+            assertThat(service.grepDocuments("100% готово_now", false, 0, 50, null))
+                    .extracting(m -> m.title())
+                    .containsExactly("шаблон");
+        }
+
+        @Test
         void unknownDocumentIdYields404() {
             assertThatThrownBy(() -> service.grepDocuments("x", false, 0, 50, 999_999L))
                     .isInstanceOf(ResponseStatusException.class)
