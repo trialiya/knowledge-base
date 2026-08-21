@@ -61,6 +61,54 @@ public interface DocumentRepository
     Optional<DocumentTreeRow> findTreeRowById(@Param("id") long id);
 
     /**
+     * Structural rows of every node that has a body at all — the candidate list of {@code
+     * DocumentService.grepDocuments}, which then reads those bodies one at a time via {@link
+     * #findDescriptionById(long)}.
+     *
+     * <p>Nodes without a description are dropped here rather than in Java so an empty base costs
+     * one query and nothing else. Ordering is by id, which is stable and cheap; a grep reports
+     * where matches are, not which of them matters most.
+     */
+    @Query(
+            """
+        SELECT id, parent_id, title, type, position, is_system, updated_at
+        FROM documents
+        WHERE description IS NOT NULL AND description <> ''
+        ORDER BY id
+        """)
+    List<DocumentTreeRow> findRowsWithDescription();
+
+    /**
+     * As {@link #findRowsWithDescription()}, narrowed to the bodies that contain {@code q} —
+     * literally and case-insensitively: {@code %}, {@code _} and {@code \} stand for themselves, so
+     * the result can only ever be wider than the true match set, never narrower.
+     *
+     * <p>Exists so a grep over a large base does not fetch every body only to discard it: the rows
+     * this returns are the only ones whose text can possibly match.
+     */
+    default List<DocumentTreeRow> findRowsWithDescriptionContaining(String q) {
+        return findRowsWithDescriptionLike(escapeLike(q));
+    }
+
+    /**
+     * Escapes a literal fragment for use inside a {@code LIKE}/{@code ILIKE} pattern that declares
+     * {@code ESCAPE '\'}. The backslash goes first, or it would escape the escapes added after it.
+     */
+    private static String escapeLike(String literal) {
+        return literal.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    }
+
+    /** Backing query for {@link #findRowsWithDescriptionContaining(String)}. */
+    @Query(
+            """
+        SELECT id, parent_id, title, type, position, is_system, updated_at
+        FROM documents
+        WHERE description ILIKE '%' || :q || '%' ESCAPE '\\'
+        ORDER BY id
+        """)
+    List<DocumentTreeRow> findRowsWithDescriptionLike(@Param("q") String q);
+
+    /**
      * The body of one document, fetched on its own. Paired with {@link
      * #findTreeRowsByParent(Long)}: the walk stays structural and each body is read, used and
      * dropped before the next node is touched.

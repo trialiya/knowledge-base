@@ -67,6 +67,14 @@
 - **Параметры:** `query` (String), `mode` (hybrid|semantic|keyword), `threshold` (double), `limit` (int), `kwWeight` (double), `semWeight` (double)
 - **Возвращает:** список документов с релевантностью и `parentList`
 
+### `grepDocuments`
+Поиск по **содержимому** документов — построчный, как `grepContent` по репозиторию. Отвечает на другой вопрос, чем `searchDocuments`: тот ранжирует документы по релевантности теме, этот говорит, где именно встречается формулировка, — с этого начинается правка.
+- **Параметры:** `pattern` (String), `regex` (Boolean|null, default true), `contextLines` (Integer|null, default 1, 0–10), `maxResults` (Integer|null, default 50, 1–200), `documentId` (Long|null — искать только внутри этого документа и его потомков)
+- **Возвращает:** список `DocumentGrepMatch` с полями: `documentId`, `title`, `sectionPath` (путь секции в адресации `getDocumentOutline` — прямой вход в `getDocumentSection` / `updateDocumentSection`), `matchLine` (номер строки), `text` (блок строк)
+- **Формат `text`:** тот же, что у `git grep -C`: строки совпадений обрамлены `:N:`, контекст — `-N-`. Без контекста (`contextLines=0`) разметки нет, возвращается сама строка
+- **Регистр:** поиск всегда регистронезависимый, включая кириллицу (`CASE_INSENSITIVE | UNICODE_CASE`)
+- **Реализация:** поиск идёт в Java (`DocumentGrep`), а не в SQL: `REGEXP` в PostgreSQL и H2 пишется по-разному, а путь секции всё равно требует разбора markdown. Тела документов читаются по одному (`findDescriptionById` поверх структурного списка строк) — как в экспорте и синхронизации, чтобы grep не был операцией, которая утаскивает всю базу в heap. Чтобы это не стоило запроса на каждый документ базы, кандидаты сначала отсекаются в SQL по `ILIKE`, когда шаблон — обычная строка (без regex-метасимволов; при `regex=true` тоже — большинство шаблонов метасимволов не содержит). Настоящий regex префильтра не имеет и проходит по всем телам
+
 ### `findDocumentsByName`
 Поиск документов по названию (точное или частичное совпадение).
 - **Параметры:** `name` (String)
@@ -95,6 +103,14 @@
 Обновление существующего документа (название и/или содержимое).
 - **Параметры:** `documentId` (Long), `title` (String|null), `description` (String|null) — хотя бы одно из `title`/`description` должно быть заполнено, иначе ошибка
 - **Возвращает:** обновлённый документ
+
+### `editDocument`
+Точечная правка документа: замена точного фрагмента `oldString` на `newString` в его содержимом — документный аналог `editFile`.
+- **Параметры:** `documentId` (Long), `oldString` (String), `newString` (String — пропуск это ошибка, явная `""` удаляет фрагмент), `replaceAll` (Boolean|null, default false)
+- **Возвращает:** обновлённый документ (`DocumentShort`)
+- **Алгоритм:** точное посимвольное совпадение. Ни одного совпадения или больше одного (без `replaceAll`) — ошибка с указанием, что делать дальше
+- **Ни чтения заранее, ни `expectedDescriptionVersion`:** контракт точного совпадения несёт и то, и другое. Фрагмент, который встречается в сохранённом тексте ровно один раз, взят из текущего текста; фрагмент, которого там уже нет, даёт ошибку с требованием перечитать — то же самое, что сказал бы конфликт версий, только на вызов раньше. Замена уходит в `DocumentService.patchDescription(id, patch)` — версию не проверяет, всё остальное (снимок истории, оптимистичная блокировка, инкремент `descriptionVersion`, переиндексация) как у обычного обновления
+- **Когда что:** `editDocument` — заменить формулировку; `updateDocumentSection` — переписать секцию целиком; `updateDocument` — переписать документ целиком
 
 ---
 
@@ -207,7 +223,7 @@ untracked. В выдаче инструментов они помечены `[un
 - **Ограничения:**
   - Доступен, только когда проект принимает запись (`kb.projects[].edit-enabled`) И его рабочее дерево доступно на запись
   - untracked-файл, разрешённый `allow-globs`, правится только при `kb.projects[].untracked-edit-enabled`; иначе — отказ с указанием, что зона отдана на чтение
-  - **Защита "read-before-edit"** — инструмент отклоняется, если целевой файл не был "увиден" в текущей сессии чата. "Видеть" значит: либо был прочитан через `getFileContent` / `getFileOutline`, либо попал в результаты grep/search. Это гарантирует, что модель может привести точное совпадение
+  - **Чтения заранее не требуется** — безопасность даёт сам контракт точного совпадения: привести уникальный фрагмент может только тот, кто видел текущее содержимое, а несовпадение возвращает ошибку с именем инструмента для перечитывания. То же и в скриптовой песочнице: `kb.edit` чтения не требует. Правило «сначала прочитай» осталось только у записи файла целиком — `kb.writeBytes` (см. `ScriptSession.requireRead`), где дословного фрагмента нет вовсе
   - По умолчанию отключён (read-only)
 
 > **Примечание:** `createFile` и `editFile` НЕ коммитят файлы — изменения остаются в рабочем дереве для пользователя. Цель: дать AI возможность подготовить код, а пользователю полный контроль над коммитом и наличием автоматизма.
@@ -264,7 +280,7 @@ untracked. В выдаче инструментов они помечены `[un
 - `searchCodebase` — широкий или неоднозначный вопрос, требующий нескольких шагов (grep → структура → чтение фрагментов) и/или объединения кода и документов («как устроена авторизация и где она проверяется?»)
 
 **Ограничения сабагента:**
-- Только read-only инструменты (grepContent, searchFiles, getFileTree, getFileOutline, getFileContent, searchDocuments, findDocumentsByName, getDocument, getTreeSkeleton)
+- Только read-only инструменты (grepContent, searchFiles, getFileTree, getFileOutline, getFileContent, searchDocuments, grepDocuments, findDocumentsByName, getDocument, getDocumentOutline, getDocumentSection, getTreeSkeleton)
 - Не может вызывать сам себя (защита от рекурсии через `allowed-tools`)
 - Жёсткий лимит итераций (`maxIterations`, по умолчанию 30) — при исчерпании принудительная суммаризация
 - Отдельная модель (может отличаться от основной — например, более дешёвая/быстрая)
@@ -306,7 +322,7 @@ ID текущего чата.
 Все инструменты используют `CompactToolResultConverter`, который преобразует полные DTO в сжатое превью:
 
 - **`resultGist`** — краткая текстовая сводка результата (например, `"size=1\n4512b4a 2026-06-03 Trialiya: feature: show compact tool result previews..."`)
-- **`ToolCallResponseItem`** — интерфейс с методом `toGist()`, реализуемый всеми DTO: `GitFileContent`, `GitFileOutline`, `GitCommit`, `GitGrepMatch`, `GitFileNode`, `GitDiffEntry`, `DocumentDto`, `AttachmentDto`, `SearchAgentResult`
+- **`ToolCallResponseItem`** — интерфейс с методом `toGist()`, реализуемый всеми DTO: `GitFileContent`, `GitFileOutline`, `GitCommit`, `GitGrepMatch`, `GitFileNode`, `GitDiffEntry`, `DocumentDto`, `DocumentGrepMatch`, `AttachmentDto`, `SearchAgentResult`
 - **`OutlineResult`** — DTO-обёртка для `getFileOutline`, содержит `path`, `language`, `lineCount`, `parser`, `symbols` и реализует `ToolCallResponseItem`
 - **`SearchAgentResult`** — результат `searchCodebase`, реализует `ToolCallResponseItem` и `ToolCallResultMetaProvider`. Gist: `"⚠ неполно • 3 шаг(ов) • краткий фрагмент отчёта…"`. ResultMeta: `complete`, `iterations`, `durationMs`, `reportChars`.
 

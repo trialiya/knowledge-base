@@ -163,9 +163,9 @@ public class ScriptRunner {
 
     /**
      * As {@link #run(String, Integer, RunCancellation, boolean)}, but also hands the run's {@link
-     * ScriptSession} the chat-response session's tool history, so {@code kb.edit}'s
-     * read-before-edit check (see {@code ScriptSession#requireRead}) also honours a file the model
-     * already looked at through another tool — or an earlier {@code runScript} call — in this same
+     * ScriptSession} the chat-response session's tool history, so the read check a whole-content
+     * write makes (see {@code ScriptSession#requireRead}) also honours a file the model already
+     * looked at through another tool — or an earlier {@code runScript} call — in this same
      * response, not only what this one script itself read. Null when there is no such session
      * (background jobs, tests).
      *

@@ -3,6 +3,7 @@ package io.github.trialiya.kb.service.document;
 import io.github.trialiya.kb.config.model.SearchConfiguration;
 import io.github.trialiya.kb.model.doc.dto.CreateDocumentRequest;
 import io.github.trialiya.kb.model.doc.dto.Document;
+import io.github.trialiya.kb.model.doc.dto.DocumentGrepMatch;
 import io.github.trialiya.kb.model.doc.dto.DocumentHistory;
 import io.github.trialiya.kb.model.doc.dto.DocumentHistoryShort;
 import io.github.trialiya.kb.model.doc.dto.DocumentNode;
@@ -12,6 +13,7 @@ import io.github.trialiya.kb.model.doc.dto.UpdateDocumentRequest;
 import io.github.trialiya.kb.model.doc.entity.DocumentEntity;
 import io.github.trialiya.kb.model.doc.entity.DocumentHistoryEntity;
 import io.github.trialiya.kb.model.doc.entity.DocumentHistoryShortResult;
+import io.github.trialiya.kb.model.doc.entity.DocumentTreeRow;
 import io.github.trialiya.kb.model.doc.entity.DocumentType;
 import io.github.trialiya.kb.model.search.SemanticSearchResult;
 import io.github.trialiya.kb.repository.DocumentHistoryRepository;
@@ -28,6 +30,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.UnaryOperator;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import lombok.extern.slf4j.Slf4j;
@@ -50,6 +53,16 @@ public class DocumentService {
      * {@link #getById(Long)} for the complete document.
      */
     private static final int SNIPPET_LENGTH = 150;
+
+    /** Hard cap on {@link #grepDocuments} blocks, mirroring {@code grepContent}. */
+    private static final int MAX_GREP_RESULTS = 200;
+
+    /**
+     * Anything that makes a regex mean more than the characters it spells. A pattern without one of
+     * these matches exactly the same text as the literal string, which is what lets {@link
+     * #grepDocuments} hand it to the database as an {@code ILIKE} prefilter.
+     */
+    private static final Pattern REGEX_METACHARACTER = Pattern.compile("[\\\\.\\[\\]{}()*+?^$|]");
 
     private final DocumentRepository repo;
     private final DocumentHistoryRepository historyRepo;
@@ -399,8 +412,34 @@ public class DocumentService {
     @Transactional
     public Document patchDescription(
             long id, int expectedDescriptionVersion, UnaryOperator<String> patch) {
+        return applyPatch(id, expectedDescriptionVersion, patch);
+    }
+
+    /**
+     * Applies a transformation to the document's description without a version check — for a patch
+     * that carries its own evidence of being computed against the current text.
+     *
+     * <p>The one caller is the exact-match edit ({@code editDocument}): a fragment that still
+     * occurs exactly once in the stored text <em>is</em> the concurrency check, and a fragment that
+     * no longer occurs fails inside the patch with a message the model can act on. Asking such a
+     * caller for a {@code descriptionVersion} too would only add a second way to say the same
+     * thing, and a stale one at that. Everything else — history snapshot, optimistic locking,
+     * version increment, re-embedding — is exactly as in {@link #patchDescription(long, int,
+     * UnaryOperator)}.
+     *
+     * @throws ResponseStatusException 404 if the document does not exist, 409 on optimistic lock
+     *     conflict
+     */
+    @Transactional
+    public Document patchDescription(long id, UnaryOperator<String> patch) {
+        return applyPatch(id, null, patch);
+    }
+
+    private Document applyPatch(
+            long id, @Nullable Integer expectedDescriptionVersion, UnaryOperator<String> patch) {
         DocumentEntity existing = findOrThrow(id);
-        if (existing.getDescriptionVersion() != expectedDescriptionVersion) {
+        if (expectedDescriptionVersion != null
+                && existing.getDescriptionVersion() != expectedDescriptionVersion) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "Document content has changed (current descriptionVersion="
@@ -645,6 +684,100 @@ public class DocumentService {
                 .findByDocumentIdAndVersion(docId, version)
                 .map(this::toHistoryDto)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+    }
+
+    // ── Content grep ──────────────────────────────────────────────────────────
+
+    /**
+     * Grep over the markdown bodies of the knowledge base: every line matching {@code pattern},
+     * with its context, addressed by document and section.
+     *
+     * <p>The complement of {@link #search}/{@link #hybridSearch}, which rank whole documents by
+     * relevance: this one answers "where exactly does this string occur", the question an edit
+     * starts from. Matching runs in Java rather than in SQL because {@code REGEXP} is spelled
+     * differently in PostgreSQL and H2, and because the section path of a hit needs the markdown
+     * parsed anyway.
+     *
+     * <p>Bodies are read one at a time ({@code findDescriptionById}) over a structural row list,
+     * the same shape export and sync use — a knowledge base can be far larger than the heap, and a
+     * grep must not be the operation that finds out. That costs a query per candidate, so the
+     * candidate list is narrowed in SQL first whenever the pattern is a plain string ({@code
+     * ILIKE}) — which covers the common call, {@code regex=true} included, since most patterns
+     * carry no metacharacter at all. A pattern that really is a regex has no such prefilter and
+     * scans every body.
+     *
+     * @param pattern literal fragment, or a regex when {@code regex} is true; always
+     *     case-insensitive
+     * @param regex treat {@code pattern} as a regular expression
+     * @param contextLines lines kept around each match (clamped to 0..{@value
+     *     DocumentGrep#MAX_CONTEXT_LINES})
+     * @param maxResults cap on returned blocks (clamped to 1..{@value #MAX_GREP_RESULTS})
+     * @param documentId restrict the search to this document and its descendants; {@code null}
+     *     searches the whole base
+     * @return match blocks ordered by document, then by position in it; empty when nothing matched
+     */
+    public List<DocumentGrepMatch> grepDocuments(
+            String pattern,
+            boolean regex,
+            int contextLines,
+            int maxResults,
+            @Nullable Long documentId) {
+        int ctx = Math.clamp(contextLines, 0, DocumentGrep.MAX_CONTEXT_LINES);
+        int limit = Math.clamp(maxResults, 1, MAX_GREP_RESULTS);
+        Pattern compiled = DocumentGrep.compile(pattern, regex);
+
+        String literal = literalOf(pattern, regex);
+        List<DocumentTreeRow> rows =
+                literal == null
+                        ? repo.findRowsWithDescription()
+                        : repo.findRowsWithDescriptionContaining(literal);
+        if (documentId != null) {
+            Set<Long> subtree = Set.copyOf(repo.findDescendantIds(documentId));
+            if (subtree.isEmpty()) {
+                throw new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Document id=" + documentId + " not found");
+            }
+            rows = rows.stream().filter(row -> subtree.contains(row.id())).toList();
+        }
+
+        List<DocumentGrepMatch> matches = new ArrayList<>();
+        for (DocumentTreeRow row : rows) {
+            if (matches.size() >= limit) {
+                break;
+            }
+            String description = repo.findDescriptionById(row.id()).orElse("");
+            matches.addAll(
+                    DocumentGrep.matches(
+                            row.id(),
+                            row.title(),
+                            description,
+                            compiled,
+                            ctx,
+                            limit - matches.size()));
+        }
+        log.info(
+                "grepDocuments: pattern='{}' regex={} ctx={} documentId={} — {} block(s) over {}"
+                        + " candidate document(s)",
+                pattern,
+                regex,
+                ctx,
+                documentId,
+                matches.size(),
+                rows.size());
+        return List.copyOf(matches);
+    }
+
+    /**
+     * The pattern as a plain substring the database can filter on, or {@code null} when it has to
+     * be matched in Java. A {@code regex=false} pattern always qualifies; a regex qualifies when it
+     * contains no metacharacter, which most of them do not — the argument defaults to true and
+     * models pass ordinary words through it.
+     */
+    private static @Nullable String literalOf(String pattern, boolean regex) {
+        if (!regex) {
+            return pattern;
+        }
+        return REGEX_METACHARACTER.matcher(pattern).find() ? null : pattern;
     }
 
     // ── Keyword search ────────────────────────────────────────────────────────

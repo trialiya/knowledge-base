@@ -27,6 +27,7 @@ class SearchAgentToolGuardTest {
                     "getFileOutline",
                     "getFileContent",
                     "searchDocuments",
+                    "grepDocuments",
                     "findDocumentsByName",
                     "getDocument",
                     "getDocumentOutline",
@@ -38,6 +39,7 @@ class SearchAgentToolGuardTest {
             Set.of(
                     "createDocument",
                     "updateDocument",
+                    "editDocument",
                     "updateDocumentSection",
                     "insertDocumentSection",
                     "deleteDocumentSection",

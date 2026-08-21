@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.functions;
 
 import static io.github.trialiya.kb.tools.ToolArgs.orDefault;
+import static io.github.trialiya.kb.tools.ToolArgs.positiveOrDefault;
 import static io.github.trialiya.kb.tools.ToolArgs.requireContent;
 import static io.github.trialiya.kb.tools.ToolArgs.requireId;
 import static io.github.trialiya.kb.tools.ToolArgs.requireInt;
@@ -11,6 +12,7 @@ import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import io.github.trialiya.kb.model.doc.dto.CreateDocumentRequest;
+import io.github.trialiya.kb.model.doc.dto.DocumentGrepMatch;
 import io.github.trialiya.kb.model.doc.dto.DocumentNode;
 import io.github.trialiya.kb.model.doc.dto.DocumentOutline;
 import io.github.trialiya.kb.model.doc.dto.DocumentSection;
@@ -24,6 +26,7 @@ import io.github.trialiya.kb.service.chat.AttachmentService;
 import io.github.trialiya.kb.service.document.DocumentService;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
+import io.github.trialiya.kb.utils.ExactEdit;
 import io.github.trialiya.kb.utils.MarkdownSections;
 import java.util.Comparator;
 import java.util.List;
@@ -43,6 +46,7 @@ import org.springframework.ai.tool.annotation.ToolParam;
  *
  * <ul>
  *   <li>{@link #searchDocuments} — hybrid search (keyword + semantic).
+ *   <li>{@link #grepDocuments} — line-level search over document bodies (grep over the base).
  *   <li>{@link #findDocumentsByName} — lookup by title (exact or partial match).
  *   <li>{@link #getTreeSkeleton} — lightweight flat list of all nodes (id/title/type only).
  *   <li>{@link #getDocument} — full content of a single node by id.
@@ -54,6 +58,7 @@ import org.springframework.ai.tool.annotation.ToolParam;
  *   <li>{@link #renameDocumentSections} — bulk-rename section headings.
  *   <li>{@link #createDocument} — create a new document or folder.
  *   <li>{@link #updateDocument} — edit title and/or content of an existing document.
+ *   <li>{@link #editDocument} — exact-match fragment replacement inside a document.
  *   <li>{@link #deleteDocument} — delete a document (and its descendants).
  *   <li>{@link #copyAttachmentToDocument} — copy an attachment from the current chat to a document.
  * </ul>
@@ -147,6 +152,65 @@ public class DocumentFunction {
             case "keyword" -> documentService.search(query);
             default -> documentService.hybridSearch(query, threshold, limit, kwWeight, semWeight);
         };
+    }
+
+    /**
+     * Grep over the markdown bodies of the knowledge base: the lines that match, with their context
+     * and the section they sit in — the documentary twin of {@code grepContent}.
+     *
+     * <p>Answers a different question from {@link #searchDocuments}: that one ranks whole documents
+     * by relevance, this one says exactly where a string occurs, which is where an edit starts.
+     *
+     * @param pattern literal fragment, or a regex when {@code regex=true}; always case-insensitive
+     * @param regex treat the pattern as a regular expression (default true, as in {@code
+     *     grepContent})
+     * @param contextLines lines of context around each match (0–10, default 1)
+     * @param maxResults maximum number of match blocks (1–200, default 50)
+     * @param documentId restrict the search to this document and its descendants
+     * @return match blocks with documentId, title, sectionPath, line number and text
+     */
+    @Tool(
+            description =
+                    "Search document CONTENT for matching lines (case-insensitive), like grep over the knowledge base. "
+                            + "Returns documentId, title, sectionPath, line number and text. "
+                            + "Use it to find where a wording occurs before editing; use searchDocuments to find which document is about a topic.",
+            resultConverter = CompactToolResultConverter.class)
+    public List<DocumentGrepMatch> grepDocuments(
+            @ToolParam(description = "Search pattern: literal string or regex (if regex=true).")
+                    String pattern,
+            @ToolParam(
+                            description =
+                                    "Treat pattern as regex (true, default) or literal substring (false).",
+                            required = false)
+                    @Nullable Boolean regex,
+            @ToolParam(
+                            description = "Context lines before/after match (0–10, default 1).",
+                            required = false)
+                    @Nullable Integer contextLines,
+            @ToolParam(
+                            description = "Maximum match blocks to return (1–200, default 50).",
+                            required = false)
+                    @Nullable Integer maxResults,
+            @ToolParam(
+                            description =
+                                    "Optional: search only inside this document and its descendants. "
+                                            + "Omit to search the whole knowledge base.",
+                            required = false)
+                    @Nullable Long documentId) {
+        requireText(pattern, "pattern");
+        final boolean useRegex = orDefault(regex, true);
+        // As in grepContent: 0 context lines is a real answer ("the matching line only"), so this
+        // defaults through orDefault rather than positiveOrDefault. The service clamps the range.
+        final int ctx = orDefault(contextLines, 1);
+        final int limit = positiveOrDefault(maxResults, 50);
+        log.info(
+                "grepDocuments called: pattern='{}' regex={} contextLines={} maxResults={} documentId={}",
+                pattern,
+                useRegex,
+                ctx,
+                limit,
+                documentId);
+        return documentService.grepDocuments(pattern, useRegex, ctx, limit, documentId);
     }
 
     // ── Tree ──────────────────────────────────────────────────────────────────
@@ -677,6 +741,83 @@ public class DocumentFunction {
         req.setDescription(description);
 
         return documentService.update(id, req).toDocumentShort();
+    }
+
+    /**
+     * Replaces an exact fragment of a document's markdown — the document counterpart of {@code
+     * editFile}, and the cheapest way to change a wording without transferring the document.
+     *
+     * <p>No read-before-write guard and no {@code expectedDescriptionVersion}: the exact-match
+     * contract carries both. A fragment that occurs exactly once in the stored text can only have
+     * come from the current text, and one that no longer occurs fails with a message telling the
+     * model to re-read — which is what a version conflict would have said, one call later.
+     *
+     * @param documentId document id
+     * @param oldString exact existing fragment, character-for-character
+     * @param newString replacement; empty string deletes the fragment
+     * @param replaceAll replace every occurrence instead of requiring a unique one
+     * @return updated document
+     */
+    @Tool(
+            description =
+                    """
+                    Surgical edit of a document: replace oldString with newString in its content. \
+                    oldString must appear EXACTLY once (unless replaceAll=true) and match \
+                    character-for-character, including whitespace and line breaks. \
+                    No prior read required — the exact match is the safety check. \
+                    For a whole rewrite use updateDocument, for a whole section updateDocumentSection.
+                    """,
+            resultConverter = CompactToolResultConverter.class)
+    public DocumentShort editDocument(
+            @ToolParam(description = "Document id.") Long documentId,
+            @ToolParam(
+                            description =
+                                    "Exact existing text fragment to replace (character-for-character, including whitespace). "
+                                            + "Must be unique in the document — add surrounding lines if ambiguous.")
+                    String oldString,
+            @ToolParam(
+                            description =
+                                    "New text to replace oldString. Empty string to delete the fragment. "
+                                            + "Link other knowledge base documents as [Title](/?doc=ID).")
+                    String newString,
+            @ToolParam(
+                            description =
+                                    "Replace ALL occurrences of oldString (true) or exactly one (false, default).",
+                            required = false)
+                    @Nullable Boolean replaceAll) {
+        final long id = requireId(documentId, "documentId");
+        // Not requireText: a fragment made only of whitespace is a legitimate (if unlikely) edit,
+        // and the exactly-once rule rejects a useless one far more precisely than a blank check.
+        requireContent(oldString, "oldString");
+        // Empty newString deletes the fragment — documented, and the reason absent cannot mean the
+        // same thing: defaulting it to "" would turn a forgotten argument into a silent deletion.
+        requireContent(newString, "newString");
+        final boolean all = orDefault(replaceAll, false);
+
+        log.info(
+                "editDocument called: id={} old {} chars, new {} chars, replaceAll={}",
+                id,
+                oldString.length(),
+                newString.length(),
+                all);
+
+        return documentService
+                .patchDescription(
+                        id,
+                        current ->
+                                ExactEdit.replace(
+                                                current,
+                                                // The stored text keeps whatever line endings it
+                                                // has (a document imported from Windows has CRLF),
+                                                // so the fragments are brought to those rather than
+                                                // the body rewritten to the fragments'.
+                                                ExactEdit.alignLineEndings(current, oldString),
+                                                ExactEdit.alignLineEndings(current, newString),
+                                                all,
+                                                "document id=" + id,
+                                                "getDocument")
+                                        .text())
+                .toDocumentShort();
     }
 
     /**

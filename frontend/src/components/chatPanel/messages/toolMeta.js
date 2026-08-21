@@ -10,6 +10,7 @@ import { TOOL_STATUS } from '@/constants/toolStatus';
 export const DOC_MUTATION_TOOLS = new Set([
   'createDocument',
   'updateDocument',
+  'editDocument',
   'updateDocumentSection',
   'insertDocumentSection',
   'deleteDocumentSection',

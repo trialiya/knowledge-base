@@ -29,8 +29,9 @@ import org.springframework.util.unit.DataSize;
 /**
  * Writing from a script. The property that matters most is all-or-nothing: {@code kb.edit} never
  * touches disk, so a script that fails, times out, blows a budget or is stopped by the user leaves
- * the working tree exactly as it found it. Everything else here — read-before-edit, the exact-match
- * contract, the write budgets — exists so that a model cannot rewrite files it has not looked at.
+ * the working tree exactly as it found it. Everything else here — the exact-match contract of
+ * {@code kb.edit}, the read rule of the whole-content {@code kb.writeBytes}, the write budgets —
+ * exists so that a model cannot rewrite content it has not looked at.
  */
 class ScriptEditTest {
 
@@ -40,6 +41,9 @@ class ScriptEditTest {
     private static final String NOTES = "notes/todo.md";
 
     private static final String ORIGINAL = "class App {\n  void run() {}\n}\n";
+
+    /** The binary fixture whole-content writes work on — see {@link #PNG}. */
+    private static final String LOGO_PNG = "static/logo.png";
 
     /** A PNG header followed by NUL bytes — sniffs binary exactly as git's own heuristic does. */
     private static final byte[] PNG = {
@@ -210,21 +214,34 @@ class ScriptEditTest {
 
     // ── Guards ──────────────────────────────────────────────────────────────
 
+    /**
+     * A fragment edit asks for no prior read, in the sandbox as in the {@code editFile} tool: an
+     * {@code oldString} that matches exactly once is itself the evidence, and one that does not
+     * match fails below without touching the file.
+     */
     @Test
-    void refusesToEditAFileTheScriptHasNotRead() {
+    void editsAFileTheScriptNeverRead() {
         ScriptResult result =
-                run("kb.edit('src/App.java', 'class App', 'class Blind'); return 'ok';");
+                run("kb.edit('src/App.java', 'class App', 'class Quoted'); return 'ok';");
+
+        assertThat(result.error()).isNull();
+        assertThat(fileText(APP_JAVA)).startsWith("class Quoted");
+    }
+
+    @Test
+    void refusesAnOldStringThatIsNotInTheFile() {
+        ScriptResult result =
+                run("kb.edit('src/App.java', 'class Imagined', 'class Blind'); return 'ok';");
 
         assertThat(result.error()).isNotNull();
-        assertThat(result.error().message()).contains("has not looked at it");
+        assertThat(result.error().message()).contains("oldString not found");
         assertThat(fileText(APP_JAVA)).isEqualTo(ORIGINAL);
     }
 
     /**
-     * The read-before-edit rule is about the model, not about this one script: if {@code
-     * getFileContent} already showed it the file earlier in the same chat-response, a script that
-     * edits the same file without reading it again is not blind — it is reusing what the model
-     * already saw through another tool.
+     * The read rule of the whole-content write is about the model, not about this one script: a
+     * read tool called on this path earlier in the same chat-response counts, so a script does not
+     * have to read the file again just to satisfy its own bookkeeping.
      */
     @Test
     void acceptsAFileReadByAnotherToolEarlierInTheSameResponse() {
@@ -232,28 +249,26 @@ class ScriptEditTest {
         collector.record(
                 new ToolInvocation(
                         "getFileContent",
-                        Map.of("filePath", APP_JAVA),
+                        Map.of("filePath", LOGO_PNG),
                         ToolInvocationCollector.ToolInvocationStatus.OK,
                         null,
                         null,
                         null,
                         null,
-                        "{\"project\":\"" + TestProjects.ID + "\",\"path\":\"" + APP_JAVA + "\"}",
+                        "{\"project\":\"" + TestProjects.ID + "\",\"path\":\"" + LOGO_PNG + "\"}",
                         collector.nextCallIndex()));
 
         ScriptResult result =
-                run(
-                        "kb.edit('src/App.java', 'class App', 'class SeenElsewhere'); return 'ok';",
-                        collector);
+                run("kb.writeBytes('static/logo.png', [1, 2, 3]); return 'ok';", collector);
 
         assertThat(result.error()).isNull();
-        assertThat(fileText(APP_JAVA)).startsWith("class SeenElsewhere");
+        assertThat(fileBytes("static/logo.png")).containsExactly(1, 2, 3);
     }
 
     /**
      * The same session guard also covers a second {@code runScript} call: a file an earlier script
-     * only read (never edited) still shows up in that call's own result as {@code filesRead}, and a
-     * later script in the same response can build on it without reading the file all over again.
+     * only read (never written) still shows up in that call's own result as {@code filesRead}, and
+     * a later script in the same response can build on it without reading the file all over again.
      */
     @Test
     void acceptsAFileReadByAnEarlierRunScriptCallInTheSameResponse() {
@@ -261,7 +276,7 @@ class ScriptEditTest {
         collector.record(
                 new ToolInvocation(
                         "runScript",
-                        Map.of("script", "kb.read('src/App.java'); return 'ok';"),
+                        Map.of("script", "kb.readBytes('static/logo.png'); return 'ok';"),
                         ToolInvocationCollector.ToolInvocationStatus.OK,
                         null,
                         null,
@@ -269,17 +284,14 @@ class ScriptEditTest {
                         null,
                         "{\"project\":\""
                                 + TestProjects.ID
-                                + "\",\"value\":\"ok\",\"filesRead\":[\"src/App.java\"]}",
+                                + "\",\"value\":\"ok\",\"filesRead\":[\"static/logo.png\"]}",
                         collector.nextCallIndex()));
 
         ScriptResult result =
-                run(
-                        "kb.edit('src/App.java', 'class App', 'class FromEarlierScript'); return"
-                                + " 'ok';",
-                        collector);
+                run("kb.writeBytes('static/logo.png', [4, 5]); return 'ok';", collector);
 
         assertThat(result.error()).isNull();
-        assertThat(fileText(APP_JAVA)).startsWith("class FromEarlierScript");
+        assertThat(fileBytes("static/logo.png")).containsExactly(4, 5);
     }
 
     /**
@@ -293,21 +305,21 @@ class ScriptEditTest {
         collector.record(
                 new ToolInvocation(
                         "getFileContent",
-                        Map.of("filePath", APP_JAVA, "project", "billing"),
+                        Map.of("filePath", LOGO_PNG, "project", "billing"),
                         ToolInvocationCollector.ToolInvocationStatus.OK,
                         null,
                         null,
                         null,
                         null,
-                        "{\"project\":\"billing\",\"path\":\"" + APP_JAVA + "\"}",
+                        "{\"project\":\"billing\",\"path\":\"" + LOGO_PNG + "\"}",
                         collector.nextCallIndex()));
 
         ScriptResult result =
-                run("kb.edit('src/App.java', 'class App', 'class Blind'); return 'ok';", collector);
+                run("kb.writeBytes('static/logo.png', [1, 2, 3]); return 'ok';", collector);
 
         assertThat(result.error()).isNotNull();
         assertThat(result.error().message()).contains("has not looked at it");
-        assertThat(fileText(APP_JAVA)).isEqualTo(ORIGINAL);
+        assertThat(fileBytes("static/logo.png")).isEqualTo(PNG);
     }
 
     /** Only a completed read counts — a call still in flight has not shown the model anything. */
@@ -317,7 +329,7 @@ class ScriptEditTest {
         collector.record(
                 new ToolInvocation(
                         "getFileContent",
-                        Map.of("filePath", APP_JAVA),
+                        Map.of("filePath", LOGO_PNG),
                         ToolInvocationCollector.ToolInvocationStatus.STARTED,
                         null,
                         null,
@@ -327,20 +339,36 @@ class ScriptEditTest {
                         collector.nextCallIndex()));
 
         ScriptResult result =
-                run("kb.edit('src/App.java', 'class App', 'class Blind'); return 'ok';", collector);
+                run("kb.writeBytes('static/logo.png', [1, 2, 3]); return 'ok';", collector);
 
         assertThat(result.error()).isNotNull();
         assertThat(result.error().message()).contains("has not looked at it");
-        assertThat(fileText(APP_JAVA)).isEqualTo(ORIGINAL);
+        assertThat(fileBytes("static/logo.png")).isEqualTo(PNG);
+    }
+
+    /** A read of one file says nothing about another: the rule is keyed on the path. */
+    @Test
+    void aReadOfOneFileDoesNotUnlockOverwritingAnother() {
+        ScriptResult result =
+                run(
+                        """
+                        kb.read('src/App.java');
+                        kb.writeBytes('static/logo.png', [1, 2, 3]);
+                        return 'ok';
+                        """);
+
+        assertThat(result.error()).isNotNull();
+        assertThat(result.error().message()).contains("has not looked at it");
+        assertThat(fileBytes("static/logo.png")).isEqualTo(PNG);
     }
 
     /**
-     * A grep match is current text of the file, which is all the rule ever asked for. Demanding a
-     * whole read on top made the commonest edit — find a symbol, replace it everywhere — pay for
-     * every file twice, while granting the script strictly more than the matched line it used.
+     * The commonest edit: grep for a symbol, then replace it where it was found. The grep hands
+     * over the matched lines and nothing else, so the file is never reported as read — an edit
+     * costs the file budget (it does read the file to match against it) but no bytes.
      */
     @Test
-    void acceptsAGrepMatchAsHavingSeenTheFile() {
+    void editsWhatAGrepFound() {
         ScriptResult result =
                 run(
                         """
@@ -351,45 +379,16 @@ class ScriptEditTest {
 
         assertThat(result.error()).isNull();
         assertThat(fileText(APP_JAVA)).startsWith("class Grepped");
-        // The file was never read, so it is not reported as read — evidence is not consumption.
+        // The edit's own pass over the file is charged against the file budget but is not a read:
+        // nothing was handed to the script, so nothing is reported back as read either.
         assertThat(result.filesRead()).isEmpty();
         assertThat(result.stats().filesRead()).isZero();
     }
 
-    /** A grep that matched elsewhere says nothing about this file. */
-    @Test
-    void aGrepMatchInOneFileDoesNotUnlockAnother() {
-        ScriptResult result =
-                run(
-                        """
-                        kb.grep('hello', { glob: '**/*.md' });
-                        kb.edit('src/App.java', 'class App', 'class Sneaky');
-                        return 'ok';
-                        """);
-
-        assertThat(result.error()).isNotNull();
-        assertThat(result.error().message()).contains("has not looked at it");
-        assertThat(fileText(APP_JAVA)).isEqualTo(ORIGINAL);
-    }
-
-    @Test
-    void acceptsARangeReadAsHavingSeenTheFile() {
-        ScriptResult result =
-                run(
-                        """
-                        kb.read('src/App.java', 1, 1);
-                        kb.edit('src/App.java', 'class App', 'class Ranged');
-                        return 'ok';
-                        """);
-
-        assertThat(result.error()).isNull();
-        assertThat(fileText(APP_JAVA)).startsWith("class Ranged");
-    }
-
     @Test
     void allowsEditingAFileTheSameScriptJustCreated() {
-        // The read-before-edit rule exists so a model edits real content; content the script wrote
-        // itself moments ago already satisfies that.
+        // A file that exists only as this run's pending text: the edit matches against what the
+        // script wrote a moment ago, and the whole pair still lands as one creation.
         ScriptResult result =
                 run(
                         """

@@ -3,6 +3,7 @@ package io.github.trialiya.kb.service.file;
 import io.github.trialiya.kb.model.git.dto.GitEditResult;
 import io.github.trialiya.kb.model.project.Project;
 import io.github.trialiya.kb.service.file.VisibleFiles.Resolved;
+import io.github.trialiya.kb.utils.ExactEdit;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
@@ -136,39 +137,22 @@ final class GitWriter {
             @NonNull String oldString,
             @NonNull String newString,
             boolean replaceAll) {
-        if (oldString.isEmpty()) {
-            throw new IllegalArgumentException("oldString must not be empty");
-        }
-        if (oldString.equals(newString)) {
-            throw new IllegalArgumentException("oldString and newString are identical");
-        }
+        // Before the read: a fragment that could not edit anything is an argument error, and
+        // saying so must not depend on whether the file opens.
+        ExactEdit.requireUsableFragment(oldString, newString);
 
         Editable file = readEditable(filePath);
-        String text = file.text();
-        String oldLf = oldString.replace("\r\n", "\n");
-        String newLf = newString.replace("\r\n", "\n");
+        ExactEdit.Result edit =
+                ExactEdit.replace(
+                        file.text(),
+                        oldString.replace("\r\n", "\n"),
+                        newString.replace("\r\n", "\n"),
+                        replaceAll,
+                        file.path(),
+                        "getFileContent");
 
-        int occurrences = countOccurrences(text, oldLf);
-        if (occurrences == 0) {
-            throw new IllegalArgumentException(
-                    "oldString not found in "
-                            + file.path()
-                            + ". Re-read the current content (getFileContent) and pass an exact,"
-                            + " character-for-character fragment including whitespace.");
-        }
-        if (occurrences > 1 && !replaceAll) {
-            throw new IllegalArgumentException(
-                    "oldString occurs "
-                            + occurrences
-                            + " times in "
-                            + file.path()
-                            + ". Extend it with surrounding lines to make it unique, or pass"
-                            + " replaceAll=true to replace every occurrence.");
-        }
-
-        String updated = text.replace(oldLf, newLf);
-        log.info("editFile: '{}' — {} occurrence(s) replaced", file.path(), occurrences);
-        return writeUpdatedText(file, updated);
+        log.info("editFile: '{}' — {} occurrence(s) replaced", file.path(), edit.occurrences());
+        return writeUpdatedText(file, edit.text());
     }
 
     /**
@@ -458,16 +442,6 @@ final class GitWriter {
             }
             throw new IllegalStateException("Cannot write file: " + relativePath, e);
         }
-    }
-
-    private static int countOccurrences(String text, String needle) {
-        int count = 0;
-        int idx = 0;
-        while ((idx = text.indexOf(needle, idx)) >= 0) {
-            count++;
-            idx += needle.length();
-        }
-        return count;
     }
 
     private static void deleteQuietly(Path path) {

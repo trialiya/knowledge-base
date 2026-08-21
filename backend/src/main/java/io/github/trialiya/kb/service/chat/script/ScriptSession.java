@@ -44,7 +44,7 @@ public final class ScriptSession {
      * The id this run actually reads and writes (resolved by {@code ScriptRunner} before the
      * session is built). What {@link #requireRead} passes to {@link
      * ToolInvocationCollector#hasSeenFile} — a read of the same path in a different project must
-     * not satisfy this run's own read-before-edit rule.
+     * not satisfy this run's own read-before-overwrite rule.
      */
     private final String project;
 
@@ -63,19 +63,6 @@ public final class ScriptSession {
      * bounded by something; it just must not be reported as a read.
      */
     private final Set<String> filesTouched = new LinkedHashSet<>();
-
-    /**
-     * Files whose real current text this run has been shown — everything in {@link #filesRead},
-     * plus every file a {@code kb.grep} returned a match from. What {@link #requireRead} checks.
-     *
-     * <p>Separate from {@link #filesRead} because the two answer different questions. {@code
-     * filesRead} is consumption: which files were read, reported back and charged. This is
-     * evidence: a grep match is a line of the file exactly as it stands on disk, which is all the
-     * edit rule ever wanted. Insisting on a whole read as well made the common case — grep for a
-     * symbol, then replace it everywhere — pay for the file twice while granting the script
-     * strictly more freedom than the grep line it actually used.
-     */
-    private final Set<String> filesSeen = new LinkedHashSet<>();
 
     private final List<String> log = new ArrayList<>();
     private final long startNanos = System.nanoTime();
@@ -171,14 +158,8 @@ public final class ScriptSession {
 
     // ── Reads ───────────────────────────────────────────────────────────────
 
-    /** Records that a {@code kb.grep} match came from this file — evidence, not consumption. */
-    public void noteSeen(String path) {
-        filesSeen.add(path);
-    }
-
     /** Books a completed read against the per-run file-count and byte budgets. */
     public void chargeRead(String path, long bytes) {
-        filesSeen.add(path);
         filesRead.add(path);
         countFile(path);
         chargeBytes(bytes, "Read line ranges (kb.read(path, from, to)) instead of whole files.");
@@ -186,15 +167,16 @@ public final class ScriptSession {
 
     /**
      * Books a pass over a file that handed the script none of its content — {@code kb.hash}, which
-     * turns a file of any size into 64 characters, and a byte window that landed past the end of
-     * the file.
+     * turns a file of any size into 64 characters, a byte window that landed past the end of the
+     * file, and the read {@code kb.edit} makes to match {@code oldString} against.
      *
      * <p>Counted against the file budget because the backend really did read the file; charged no
-     * bytes because none were handed over; and kept out of both {@link #filesSeen} and {@link
-     * #filesRead}, because neither a digest nor an empty window is the content. The first would let
-     * this run overwrite a file it never looked at (see {@link #requireRead}); the second would say
-     * so to the rest of the response, since {@code filesRead} is reported back and {@code
-     * ToolInvocationCollector} reads it as evidence for a later tool call.
+     * bytes because none were handed over; and kept out of {@link #filesRead}, because neither a
+     * digest nor an empty window nor the pass an edit makes over a file is the content being handed
+     * over. Keeping them out is what stops this run from overwriting a file whole that it never
+     * looked at (see {@link #requireRead}) — and stops it saying otherwise to the rest of the
+     * response, since {@code filesRead} is reported back and {@code ToolInvocationCollector} reads
+     * it as evidence for a later tool call.
      */
     public void chargeScan(String path) {
         countFile(path);
@@ -360,12 +342,14 @@ public final class ScriptSession {
     }
 
     /**
-     * Refuses an edit to a file whose current text the script has not been shown. The same rule the
-     * {@code editFile} tool enforces through {@code ToolInvocationCollector} — extended here to
-     * actually consult it, not just imitate it, since a read inside <em>this</em> script is not the
-     * only way the model could have looked at the file: a read <em>or</em> a grep match this run
-     * made (see {@link #filesSeen}), or a read/edit call made anywhere else in the same
-     * chat-response session (see {@link #priorInvocations}), both count.
+     * Refuses a whole-content write ({@code kb.writeBytes}) to a file this response has not looked
+     * at. Fragment edits ({@code kb.edit}) do not come here: their exact-match contract is evidence
+     * of its own, while a byte write carries none — which is why this is the only guard such a
+     * write has.
+     *
+     * <p>What counts as having looked is not limited to <em>this</em> script: a read this run made
+     * (see {@link #filesRead}), or a read/edit call made anywhere else in the same chat-response
+     * session (see {@link #priorInvocations}), both count.
      */
     public void requireRead(String path) {
         // A file this run already wrote needs no read: the script authored its content, which is
@@ -374,19 +358,19 @@ public final class ScriptSession {
             return;
         }
         // Both sides are canonical — the caller normalises before it asks (see KbScriptApi), and
-        // filesSeen holds the paths GitService reported back.
-        if (filesSeen.contains(path)) {
+        // filesRead holds the paths GitService reported back.
+        if (filesRead.contains(path)) {
             return;
         }
         if (priorInvocations != null && priorInvocations.hasSeenFile(path, project)) {
             return;
         }
         throw new IllegalArgumentException(
-                "Refusing to edit "
+                "Refusing to overwrite "
                         + path
-                        + ": the script has not looked at it. Call kb.read(path) first (a line"
-                        + " range is enough), or take oldString from a kb.grep match in this"
-                        + " file, so the edit is made against real current content.");
+                        + ": the script has not looked at it. Read it first (kb.readBytes, or"
+                        + " kb.read for a text file — a range is enough), so the write is made"
+                        + " against a file whose current content is known.");
     }
 
     /** Files written in this run, in the order they must be applied — first-write order. */

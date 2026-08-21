@@ -322,6 +322,7 @@ kb:
         - getFileOutline
         - getFileContent
         - searchDocuments
+        - grepDocuments
         - findDocumentsByName
         - getDocument
         - getDocumentOutline

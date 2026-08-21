@@ -66,6 +66,7 @@ A=added, M=modified, D=deleted, R=renamed, U=untracked (in the working tree only
 | Goal | Tool |
 |---|---|
 | Find doc by topic | `searchDocuments` |
+| Find exact wording in docs | `grepDocuments` |
 | Find doc by name | `findDocumentsByName` |
 | Read doc | `getDocument` |
 | Outline (large doc) | `getDocumentOutline` |
@@ -73,6 +74,7 @@ A=added, M=modified, D=deleted, R=renamed, U=untracked (in the working tree only
 | Insert/delete section | `insertDocumentSection` / `deleteDocumentSection` |
 | Rename sections | `renameDocumentSections` |
 | Create/update doc | `createDocument` / `updateDocument` |
+| Replace a fragment in a doc | `editDocument` |
 | Copy chat attachment into a doc | `copyAttachmentToDocument` |
 | Find attachment | `searchAttachments` |
 | Read attachment content | `getAttachmentContent` / `getAttachmentContentByFileName` |
@@ -83,6 +85,10 @@ A=added, M=modified, D=deleted, R=renamed, U=untracked (in the working tree only
 | File content | `getFileContent` |
 | Commits | `getCommitLog` / `getCommitDiff` |
 | Uncommitted changes | `getUncommittedChanges` |
+
+### `searchDocuments` vs `grepDocuments`
+- `searchDocuments`: which document is about this topic → ranked documents.
+- `grepDocuments`: where exactly this wording occurs → lines + line numbers + `sectionPath`. Same pattern rules as `grepContent`.
 
 ### `searchFiles` vs `grepContent`
 - `searchFiles`: filename/path search → file list.
@@ -96,6 +102,7 @@ A=added, M=modified, D=deleted, R=renamed, U=untracked (in the working tree only
 Search gives ID/path only; fetch content next.
 - **Doc**: search → `getDocument` by `id`.
 - **Edit in large doc**: `getDocumentOutline` → `getDocumentSection` → `updateDocumentSection`.
+- **Change a wording**: `grepDocuments` → `editDocument` with the quoted fragment. No read call in between: the exact match is the check. Same for `editFile` in the repo.
 - **Section ops**: one per doc, strictly sequential. Re-read outline before next operation.
 - **Code**: `searchFiles` / `getFileTree` → (if large: `getFileOutline`) → `getFileContent` with range.
 - **Commits**: `getCommitLog` → `getCommitDiff` by `shortHash`.

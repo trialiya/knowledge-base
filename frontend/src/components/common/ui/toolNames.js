@@ -13,6 +13,7 @@
 export const TOOL_META = {
   // ── Документы ──
   searchDocuments: { icon: '🔎', category: 'doc' },
+  grepDocuments: { icon: '🔎', category: 'doc' },
   findDocumentsByName: { icon: '🔎', category: 'doc' },
   getTreeSkeleton: { icon: '🌳', category: 'doc' },
   getDocument: { icon: '📄', category: 'doc' },
@@ -20,6 +21,7 @@ export const TOOL_META = {
   getDocumentSection: { icon: '📄', category: 'doc' },
   createDocument: { icon: '➕', category: 'doc' },
   updateDocument: { icon: '✏️', category: 'doc' },
+  editDocument: { icon: '✏️', category: 'doc' },
   updateDocumentSection: { icon: '✏️', category: 'doc' },
   insertDocumentSection: { icon: '➕', category: 'doc' },
   deleteDocumentSection: { icon: '🗑️', category: 'doc' },
