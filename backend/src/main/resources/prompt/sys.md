@@ -97,6 +97,7 @@ A=added, M=modified, D=deleted, R=renamed, U=untracked (in the working tree only
 ### `grepContent` vs `searchCodebase`
 - `grepContent`: simple match ("where is `save()`?").
 - `searchCodebase`: broad/ambiguous, multi-step, or cross-domain.
+- `searchCodebase.task`: state what to find **and why**, then the suspected names. A bare keyword list still works, but the sub-agent cannot ask you anything back — the "why" is what lets it pick between readings.
 
 ## Call chains (orchestration)
 Search gives ID/path only; fetch content next.
