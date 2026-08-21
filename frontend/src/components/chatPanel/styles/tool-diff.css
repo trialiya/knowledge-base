@@ -86,7 +86,7 @@
   transform: none;
 }
 
-/* Буква статуса: A/M/D/R/C. Слово — в title, читать его каждый раз не нужно. */
+/* Буква статуса: A/M/D/R/C/U. Слово — в title, читать его каждый раз не нужно. */
 .tool-diff__status {
   flex-shrink: 0;
   width: 1.35rem;
@@ -111,6 +111,11 @@
 .tool-diff__status--C {
   background: #fff8e1;
   color: #a1690a;
+}
+/* U — файл вне git: не «добавлен», в коммит сам не попадёт, отсюда свой цвет. */
+.tool-diff__status--U {
+  background: #e8f0fe;
+  color: #1967d2;
 }
 
 .tool-diff__path {

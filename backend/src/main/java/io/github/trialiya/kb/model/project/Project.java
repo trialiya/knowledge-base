@@ -15,13 +15,24 @@ import java.util.List;
  * @param editEnabled whether working-tree writes are permitted for this repository at all. The
  *     configured intent, not the answer: a read-only mount withholds writes regardless, which is
  *     why "may the model edit this project" is asked of {@code GitRegistry} instead
+ * @param untrackedEditEnabled whether a write may land on an untracked file admitted by {@link
+ *     #allowGlobs()}. Already combined with {@link #editEnabled()} here — the configuration only
+ *     narrows edits with it, so a project whose edits are off never has this on — and false for
+ *     every project that admits no untracked file in the first place. Enforced by {@code
+ *     GitWriter}: off, the admitted area is read-only
  * @param allowGlobs Ant-style globs naming the untracked files of this repository that may be read
- *     and edited alongside the tracked ones — never created, never staged. Inside the globs the
- *     working tree is the truth, {@code .gitignore} included; empty — tracked files only. Enforced
- *     by {@code GitService}, rooted-ness checked by {@code ProjectCatalog}
+ *     alongside the tracked ones — edited only with {@link #untrackedEditEnabled()}, never created,
+ *     never staged. Inside the globs the working tree is the truth, {@code .gitignore} included;
+ *     empty — tracked files only. Enforced by {@code GitService}, rooted-ness checked by {@code
+ *     ProjectCatalog}
  */
 public record Project(
-        String id, String label, Path path, boolean editEnabled, List<String> allowGlobs) {
+        String id,
+        String label,
+        Path path,
+        boolean editEnabled,
+        boolean untrackedEditEnabled,
+        List<String> allowGlobs) {
 
     public Project {
         allowGlobs = allowGlobs == null ? List.of() : List.copyOf(allowGlobs);

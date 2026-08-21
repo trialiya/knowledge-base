@@ -56,7 +56,9 @@ history, documentation that doesn't drift from the code.
 
 - 🔒 **Disabled by default** — enabled per project with the `kb.projects[].edit-enabled` flag
 - ✍️ **Creating and editing files** in the working tree — only within the
-  repository
+  repository, and only files git tracks; editing the untracked ones a project
+  opens for reading (`kb.projects[].allow-globs`) takes a second flag,
+  `kb.projects[].untracked-edit-enabled`
 - 🚫 **No command execution** — the model doesn't get a shell; you run
   builds and tests yourself (for now)
 

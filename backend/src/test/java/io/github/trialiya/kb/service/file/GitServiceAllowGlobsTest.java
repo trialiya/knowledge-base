@@ -20,8 +20,9 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * The per-project {@code allow-globs}: the one hole in the tracked-files rule, cut exactly where
  * the configuration says. Inside the globs the working tree is the truth — {@code .gitignore}
- * included — everything else untracked stays invisible, and what the hole admits is readable and
- * editable but never creatable.
+ * included — everything else untracked stays invisible, and what the hole admits is readable
+ * always, editable only where the project asks for it ({@code untracked-edit-enabled}), and never
+ * creatable.
  */
 class GitServiceAllowGlobsTest {
 
@@ -178,10 +179,45 @@ class GitServiceAllowGlobsTest {
 
     @Test
     void editingAnAdmittedFileWorksAndLeavesItUntracked() {
-        service.editFile("notes/todo.md", "milk", "bread", false);
+        untrackedEditable().editFile("notes/todo.md", "milk", "bread", false);
 
         assertThat(readFile("notes/todo.md")).isEqualTo("remember the bread\n");
         assertThat(runGitOutput("status", "--porcelain", "-uall")).contains("?? notes/todo.md");
+    }
+
+    /**
+     * Маска открывает зону на чтение; писать в неё — отдельное разрешение, и по умолчанию его нет.
+     */
+    @Test
+    void editingAnAdmittedFileIsRefusedWithoutTheUntrackedOptIn() {
+        assertThatThrownBy(() -> service.editFile("notes/todo.md", "milk", "bread", false))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("untracked");
+
+        assertThat(readFile("notes/todo.md")).isEqualTo("remember the milk\n");
+    }
+
+    /** Отказ наступает до записи — иначе прогон скрипта уронит уже разложенные файлы. */
+    @Test
+    void theRefusalToEditAnUntrackedFileHappensBeforeAnythingIsWritten() {
+        assertThatThrownBy(() -> service.requireEditable("notes/todo.md"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("untracked");
+
+        // Прошедший проверку файл несёт и ответ индекса — второй раз его не перечитывают.
+        assertThat(untrackedEditable().requireEditable("notes/todo.md"))
+                .isEqualTo(new GitService.EditableFile("notes/todo.md", false));
+    }
+
+    /**
+     * Запрет на untracked — не запрет на правки: отслеживаемые файлы проекта редактируются как
+     * всегда.
+     */
+    @Test
+    void trackedFilesAreStillEditableWithoutTheUntrackedOptIn() {
+        service.editFile("src/App.java", "class App", "class Application", false);
+
+        assertThat(readFile("src/App.java")).isEqualTo("class Application {}\n");
     }
 
     /**
@@ -238,12 +274,19 @@ class GitServiceAllowGlobsTest {
                 .containsExactly("notes/todo.md", "src/App.java");
     }
 
-    /** Правки ассистента в разрешённой зоне обязаны быть видны в списке изменений. */
+    /**
+     * Правки ассистента в разрешённой зоне обязаны быть видны в списке изменений — и отдельным
+     * статусом: {@code A} сказал бы модели, что файл уже собран в следующий коммит.
+     */
     @Test
-    void admittedUntrackedFilesShowUpAmongTheUncommittedChanges() {
+    void admittedUntrackedFilesShowUpAmongTheUncommittedChangesAsU() {
         assertThat(service.getUncommittedChanges(false))
-                .extracting(GitDiffEntry::path)
-                .containsExactly("notes/todo.md");
+                .singleElement()
+                .satisfies(
+                        entry -> {
+                            assertThat(entry.path()).isEqualTo("notes/todo.md");
+                            assertThat(entry.status()).isEqualTo("U");
+                        });
     }
 
     /**
@@ -300,6 +343,11 @@ class GitServiceAllowGlobsTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("File not found");
         assertThat(plain.listTrackedFiles()).doesNotContain("notes/todo.md");
+    }
+
+    /** Тот же проект, но правки в разрешённой зоне ему разрешены. */
+    private GitService untrackedEditable() {
+        return TestProjects.gitService(repoDir, true, List.of("notes/**"), true);
     }
 
     /** Репозиторий без единого коммита, в котором есть только admitted-файл. */

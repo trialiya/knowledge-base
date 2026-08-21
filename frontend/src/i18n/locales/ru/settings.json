@@ -321,6 +321,7 @@
         "label": "Индексируемый репозиторий",
         "projectPath": "Путь к репозиторию (kb.git.project-path)",
         "editEnabled": "Правка разрешена в конфиге",
+        "untrackedEditEnabled": "Правка untracked-файлов разрешена (untracked-edit-enabled)",
         "writable": "Рабочее дерево доступно на запись"
       },
       "documents": {

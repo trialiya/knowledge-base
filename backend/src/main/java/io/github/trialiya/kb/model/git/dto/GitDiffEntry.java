@@ -6,7 +6,9 @@ import org.jspecify.annotations.Nullable;
 /**
  * Одна запись из diff коммита.
  *
- * @param status статус: A (added), M (modified), D (deleted), R (renamed), C (copied)
+ * @param status статус: A (added), M (modified), D (deleted), R (renamed), C (copied), а для
+ *     рабочего дерева ещё и U (untracked) — файл, который git не отслеживает и который проект
+ *     показывает только через {@code allow-globs}; в индексе его нет, в коммит он сам не попадёт
  * @param path путь к файлу (для rename/copy — новый путь)
  * @param oldPath старый путь (только при rename/copy, иначе null)
  * @param additions количество добавленных строк

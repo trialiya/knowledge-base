@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.service.file;
 
 import io.github.trialiya.kb.model.git.dto.GitEditResult;
+import io.github.trialiya.kb.model.project.Project;
 import io.github.trialiya.kb.service.file.VisibleFiles.Resolved;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -28,11 +29,13 @@ import org.jspecify.annotations.NonNull;
 @Slf4j
 final class GitWriter {
 
+    private final Project project;
     private final RepoPaths paths;
     private final VisibleFiles visible;
     private final Git git;
 
-    GitWriter(RepoPaths paths, VisibleFiles visible, Git git) {
+    GitWriter(Project project, RepoPaths paths, VisibleFiles visible, Git git) {
+        this.project = project;
         this.paths = paths;
         this.visible = visible;
         this.git = git;
@@ -113,8 +116,10 @@ final class GitWriter {
     // ── Editing ─────────────────────────────────────────────────────────────
 
     /**
-     * Replaces an exact occurrence of {@code oldString} with {@code newString} in a tracked text
-     * file and stages the result (nothing is committed).
+     * Replaces an exact occurrence of {@code oldString} with {@code newString} in a text file the
+     * read tools serve and stages the result (nothing is committed). An untracked file admitted by
+     * the project's {@code allow-globs} is edited in place and left untracked, and only where the
+     * project allows that at all (see {@link #resolveEditable}).
      *
      * <p>The match is exact and unique by default: zero occurrences or more than one (without
      * {@code replaceAll}) fail with a model-readable error, so the model must quote real, current
@@ -193,7 +198,7 @@ final class GitWriter {
      */
     GitEditResult replaceTrackedBytes(@NonNull String filePath, byte @NonNull [] content) {
         String normalized = requireWritable(filePath, content);
-        Resolved resolved = visible.require(normalized);
+        Resolved resolved = resolveEditable(normalized);
         long before = RepoFiles.sizeOf(normalized, resolved.absolute());
 
         writeAtomically(normalized, content);
@@ -230,7 +235,7 @@ final class GitWriter {
      */
     private Editable readEditable(String filePath) {
         String normalized = RepoPaths.normalize(filePath);
-        Resolved resolved = visible.require(normalized);
+        Resolved resolved = resolveEditable(normalized);
         byte[] bytes = RepoFiles.readAll(normalized, resolved.absolute());
         if (RepoFiles.isBinary(bytes)) {
             throw new IllegalArgumentException("Cannot edit a binary file: " + normalized);
@@ -299,7 +304,8 @@ final class GitWriter {
     /**
      * Everything {@link #replaceTrackedBytes} refuses before it touches the disk: a path that is
      * not writable ({@code .git/}, a junk name, an escape from the tree), a path no read tool would
-     * serve back afterwards (untracked), and content too large.
+     * serve back afterwards (untracked and not admitted), an admitted untracked one on a project
+     * that does not allow those edits, and content too large.
      *
      * <p>Split out for the same reason as {@link #requireCreatable}.
      *
@@ -307,8 +313,47 @@ final class GitWriter {
      */
     String requireReplaceable(@NonNull String filePath, byte @NonNull [] content) {
         String normalized = requireWritable(filePath, content);
-        visible.require(normalized);
+        resolveEditable(normalized);
         return normalized;
+    }
+
+    /**
+     * That an existing file may be edited at all: it is visible (the read gate), and — when git
+     * does not track it — this project allows untracked edits.
+     *
+     * <p>Split out for {@code kb.edit}, whose writes only reach disk once the whole script has
+     * finished: without this the run would edit its pending copy of a read-only untracked file
+     * happily and fail at apply time, with the run's earlier files already written. Same argument
+     * as {@link #requireCreatable}.
+     *
+     * @return what the gate established, so the read that follows the check does not have to ask
+     *     the index the same question a second time
+     */
+    Resolved requireEditable(@NonNull String filePath) {
+        return resolveEditable(RepoPaths.normalize(filePath));
+    }
+
+    /**
+     * The gate every write to an <em>existing</em> file passes: the read gate ({@link
+     * VisibleFiles#require}), then — when git does not track the path — this project's permission
+     * to edit an untracked file at all.
+     *
+     * <p>The path is visible by the time the second half runs — the {@code allow-globs} admitted it
+     * — so its refusal says what it really is: readable, not writable. That is the whole difference
+     * between it and the read gate's deliberately uninformative "File not found", which must not
+     * reveal whether an unadmitted path exists.
+     *
+     * @param normalized already through {@link RepoPaths#normalize}
+     */
+    private Resolved resolveEditable(String normalized) {
+        Resolved resolved = visible.require(normalized);
+        if (resolved.tracked() || project.untrackedEditEnabled()) {
+            return resolved;
+        }
+        throw new IllegalArgumentException(
+                "File is untracked and this project only serves untracked files for reading: "
+                        + normalized
+                        + ". Editing them is off (kb.projects[].untracked-edit-enabled).");
     }
 
     /**

@@ -321,6 +321,7 @@
         "label": "Indexed repository",
         "projectPath": "Repository path (kb.git.project-path)",
         "editEnabled": "Editing allowed in configuration",
+        "untrackedEditEnabled": "Untracked-file editing allowed (untracked-edit-enabled)",
         "writable": "Working tree is writable"
       },
       "documents": {

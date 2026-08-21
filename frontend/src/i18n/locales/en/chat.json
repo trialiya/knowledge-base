@@ -128,7 +128,8 @@
           "M": "modified",
           "D": "deleted",
           "R": "renamed",
-          "C": "copied"
+          "C": "copied",
+          "U": "untracked"
         }
       },
       "records": {

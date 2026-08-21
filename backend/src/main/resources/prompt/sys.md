@@ -60,7 +60,7 @@ QUESTION → Need data from KB/repo?
 - Files >512 KB returned as fragment with `truncated=true`.
 
 ### Git file statuses
-A=added, M=modified, D=deleted, R=renamed.
+A=added, M=modified, D=deleted, R=renamed, U=untracked (in the working tree only—git does not track it, it will not be committed with the rest, and whether it may be edited is stated under "Active project").
 
 ## Tool selection
 | Goal | Tool |

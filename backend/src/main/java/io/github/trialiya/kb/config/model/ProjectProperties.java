@@ -15,6 +15,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *       label: Knowledge Base
  *       path: /project
  *       edit-enabled: false
+ *       untracked-edit-enabled: false
  *       allow-globs: []
  * </pre>
  *
@@ -50,13 +51,20 @@ public record ProjectProperties(List<ProjectOption> projects) {
      *     set per project, there is no deployment-wide default. Still not sufficient on its own — a
      *     read-only mount withholds writes regardless (see {@code GitRegistry}). Defaults to {@code
      *     false}
+     * @param untrackedEditEnabled whether those of the edits may land on an <em>untracked</em> file
+     *     — one admitted for reading by {@link #allowGlobs()}. Off, that area is served read-only:
+     *     the files are listed, read and grepped as before, and every write to one is refused. Only
+     *     narrows {@link #editEnabled()} and never widens it, so it means nothing on a project
+     *     whose edits are off at all; {@code ProjectCatalog} says so rather than leaving the
+     *     configuration to look effective. Defaults to {@code false}
      * @param allowGlobs Ant-style globs naming the <em>untracked</em> files of this repository the
-     *     assistant may also work with — read and edit, never create, and never staged. Inside the
-     *     globs the working tree is the truth and git is not consulted, so {@code .gitignore} hides
-     *     nothing there: that is the point (build reports and logs live in an ignored directory),
-     *     and it is why every glob has to start with a real directory rather than a wildcard —
-     *     {@code ProjectCatalog} refuses to start otherwise. Empty by default — tracked files only,
-     *     as everywhere else
+     *     assistant may also work with — read always, edit only with {@link
+     *     #untrackedEditEnabled()}, never create, and never staged. Inside the globs the working
+     *     tree is the truth and git is not consulted, so {@code .gitignore} hides nothing there:
+     *     that is the point (build reports and logs live in an ignored directory), and it is why
+     *     every glob has to start with a real directory rather than a wildcard — {@code
+     *     ProjectCatalog} refuses to start otherwise. Empty by default — tracked files only, as
+     *     everywhere else
      * @param enabled {@code false} — the project is not served: no repository is opened for it, it
      *     is absent from {@code GET /api/chats/projects}, and a call naming it is refused. Chats
      *     that had chosen it keep the id in {@code chat_topic.project} and run on the default one,
@@ -68,6 +76,7 @@ public record ProjectProperties(List<ProjectOption> projects) {
             @Nullable String label,
             String path,
             @DefaultValue("false") boolean editEnabled,
+            @DefaultValue("false") boolean untrackedEditEnabled,
             List<String> allowGlobs,
             @DefaultValue("true") boolean enabled) {
 

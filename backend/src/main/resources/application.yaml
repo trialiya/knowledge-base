@@ -163,8 +163,12 @@ kb:
       # there is no deployment-wide default. Even when true, writes are withheld if the working
       # tree is not writable (ro mount); see GitRegistry.
       edit-enabled: ${KB_GIT_EDIT_ENABLED:false}
-      # Ant-style globs naming untracked files of this repository the assistant may also read and
-      # edit (never create; an edit leaves them untracked). Inside these globs the working tree is
+      # Whether those edits may land on an UNTRACKED file — one served only through allow-globs
+      # below. Off, that area is read-only: listed, readable, greppable, and every write to it is
+      # refused. Only narrows edit-enabled, so it does nothing while that one is false.
+      untracked-edit-enabled: ${KB_GIT_UNTRACKED_EDIT_ENABLED:false}
+      # Ant-style globs naming untracked files of this repository the assistant may also read (and
+      # edit, with untracked-edit-enabled; never create). Inside these globs the working tree is
       # the truth — .gitignore does not hide anything from them — so each glob must start with a
       # real directory, and the app refuses to start otherwise. grepContent skips these files
       # unless asked. Empty — tracked files only. e.g. ["notes/**", "build/reports/**"]
@@ -179,6 +183,7 @@ kb:
       label: ${PROJECT2_LABEL:}
       path: ${PROJECT2_PATH:/projects/billing}
       edit-enabled: ${PROJECT2_EDIT_ENABLED:false}
+      untracked-edit-enabled: ${PROJECT2_UNTRACKED_EDIT_ENABLED:false}
       allow-globs: []
       enabled: ${PROJECT2_ENABLED:false}
   script:

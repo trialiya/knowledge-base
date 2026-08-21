@@ -53,7 +53,8 @@ class GitEditFunctionGuardTest {
         when(gitService.editFile(anyString(), anyString(), anyString(), anyBoolean()))
                 .thenReturn(new GitEditResult("edit", PATH, 1, 1, 10, "diff"));
         when(gitService.project())
-                .thenReturn(new Project("kb", "KB", Path.of("."), true, java.util.List.of()));
+                .thenReturn(
+                        new Project("kb", "KB", Path.of("."), true, false, java.util.List.of()));
     }
 
     @Test

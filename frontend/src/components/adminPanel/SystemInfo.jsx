@@ -61,6 +61,7 @@ const SystemSections = ({ info }) => {
       <SettingsSection label={t('admin.system.git.label')}>
         <ConfigRow label={t('admin.system.git.projectPath')} value={git.projectPath} empty={t('config.notSet')} />
         <ConfigBoolRow label={t('admin.system.git.editEnabled')} value={git.editEnabled} />
+        <ConfigBoolRow label={t('admin.system.git.untrackedEditEnabled')} value={git.untrackedEditEnabled} />
         <ConfigBoolRow label={t('admin.system.git.writable')} value={git.writable} />
       </SettingsSection>
 

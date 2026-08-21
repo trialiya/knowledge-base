@@ -41,6 +41,7 @@ class GitFunctionTest {
                         new GitFileContent(
                                 "billing",
                                 "pom.xml",
+                                true,
                                 "<project/>",
                                 false,
                                 10,

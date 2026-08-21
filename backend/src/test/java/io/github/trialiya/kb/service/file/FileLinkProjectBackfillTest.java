@@ -53,7 +53,7 @@ class FileLinkProjectBackfillTest {
                         new ProjectProperties(
                                 List.of(
                                         new ProjectOption(
-                                                "kb", "KB", "/srv/kb", false, null, true))),
+                                                "kb", "KB", "/srv/kb", false, false, null, true))),
                         new GitProperties(null));
         service = new FileLinkProjectBackfillService(jdbc, backfillStateRepository, catalog);
     }

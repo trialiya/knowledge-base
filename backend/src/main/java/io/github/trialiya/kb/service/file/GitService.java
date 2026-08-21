@@ -110,6 +110,12 @@ public class GitService {
     /** How far back {@link #searchCommits} walks before giving up on finding more matches. */
     private static final int COMMIT_SEARCH_SCAN = 2000;
 
+    /**
+     * Status letter for an admitted untracked file in {@link #getUncommittedChanges} — git's own
+     * {@code A/M/D/R/C} say what the index holds, and this one says the index holds nothing.
+     */
+    private static final String UNTRACKED_STATUS = "U";
+
     /** Tree listing order: directories first, then by name, case-insensitively. */
     private static final Comparator<GitFileNode> NODE_ORDER =
             Comparator.<GitFileNode, Boolean>comparing(n -> FileEntryType.DIRECTORY != n.type())
@@ -153,7 +159,7 @@ public class GitService {
         }
         this.git = new Git(repository);
         this.visible = new VisibleFiles(project, paths, repository);
-        this.writer = new GitWriter(paths, visible, git);
+        this.writer = new GitWriter(project, paths, visible, git);
         log.info("GitService initialised for project {}: {}", project.id(), paths.root());
     }
 
@@ -276,19 +282,22 @@ public class GitService {
                         .map(dir -> new GitTreeLevel(dir, listings.getOrDefault(dir, List.of())))
                         .toList();
 
+        boolean targetTracked = files.tracked().contains(target);
+
         return new GitPathView(
                 target,
                 type,
-                // knownTracked=true: resolvePathType() just confirmed this against the same
-                // `tracked` list, so re-checking via isTracked() would re-read the index for
-                // nothing.
-                type == FileEntryType.FILE ? getFileContent(target, null, null, true) : null,
+                // The path is vouched for by the `tracked` list resolvePathType() just read, so
+                // re-checking it via isTracked() would re-read the index for nothing.
+                type == FileEntryType.FILE
+                        ? getFileContent(target, null, null, targetTracked)
+                        : null,
                 isDirectory ? listings.getOrDefault(target, List.of()) : null,
                 tree,
                 // The root and any missing path count as tracked: there is nothing to warn about.
                 target.isEmpty()
                         || type == null
-                        || files.tracked().contains(target)
+                        || targetTracked
                         || isTrackedPrefix(files.tracked(), target));
     }
 
@@ -717,25 +726,36 @@ public class GitService {
      */
     public GitFileContent getFileContent(
             @NonNull String filePath, @Nullable Integer fromLine, @Nullable Integer toLine) {
-        return getFileContent(filePath, fromLine, toLine, false);
+        return getFileContent(filePath, fromLine, toLine, null);
     }
 
     /**
-     * @param knownTracked true when the caller already verified {@code filePath} against a
+     * @param vouchedTracked non-null when the caller already resolved {@code filePath} against a
      *     previously-read index (e.g. {@link #browsePath}'s {@code tracked} list) — skips the
-     *     redundant {@link VisibleFiles#require} re-check that would otherwise re-read the index.
+     *     redundant {@link VisibleFiles#require} re-check that would otherwise re-read the index,
+     *     and answers the returned {@code tracked} with what that index said.
      */
     private GitFileContent getFileContent(
             @NonNull String filePath,
             @Nullable Integer fromLine,
             @Nullable Integer toLine,
-            boolean knownTracked) {
-        FileBytes fb = readTrackedFile(filePath, knownTracked);
+            @Nullable Boolean vouchedTracked) {
+        FileBytes fb = readTrackedFile(filePath, vouchedTracked);
         String language = LanguageDetector.detect(fb.path());
 
         if (fb.binary()) {
             return new GitFileContent(
-                    project.id(), fb.path(), null, true, fb.size(), language, 0, false, null, null);
+                    project.id(),
+                    fb.path(),
+                    fb.tracked(),
+                    null,
+                    true,
+                    fb.size(),
+                    language,
+                    0,
+                    false,
+                    null,
+                    null);
         }
 
         String full = RepoFiles.decodeToLf(fb.bytes());
@@ -751,6 +771,7 @@ public class GitService {
             return new GitFileContent(
                     project.id(),
                     fb.path(),
+                    fb.tracked(),
                     excerpt,
                     false,
                     fb.size(),
@@ -765,6 +786,7 @@ public class GitService {
             return new GitFileContent(
                     project.id(),
                     fb.path(),
+                    fb.tracked(),
                     full,
                     false,
                     fb.size(),
@@ -783,6 +805,7 @@ public class GitService {
             return new GitFileContent(
                     project.id(),
                     fb.path(),
+                    fb.tracked(),
                     "",
                     false,
                     fb.size(),
@@ -797,6 +820,7 @@ public class GitService {
         return new GitFileContent(
                 project.id(),
                 fb.path(),
+                fb.tracked(),
                 slice,
                 false,
                 fb.size(),
@@ -951,36 +975,42 @@ public class GitService {
         return HexFormat.of().formatHex(digest.digest());
     }
 
-    /** Bytes of a validated, tracked file plus whether it sniffed as binary. */
-    private record FileBytes(String path, byte[] bytes, long size, boolean binary) {}
+    /**
+     * Bytes of a validated, visible file, whether it sniffed as binary, and whether git tracks it —
+     * the last one straight off the gate that cleared the read, so the answer costs no second index
+     * lookup.
+     */
+    private record FileBytes(
+            String path, byte[] bytes, long size, boolean binary, boolean tracked) {}
 
     /**
-     * Validates that {@code filePath} is a tracked, in-repo file and reads it once. Centralises the
-     * security checks shared by {@link #getFileContent} and {@link #getFileOutline}.
+     * Validates that {@code filePath} is a file this project serves and reads it once. Centralises
+     * the security checks shared by {@link #getFileContent} and {@link #getFileOutline}.
      */
     private FileBytes readTrackedFile(String filePath) {
-        return readTrackedFile(filePath, false);
+        return readTrackedFile(filePath, null);
     }
 
     /**
-     * @param knownTracked true when the caller already confirmed {@code filePath} is tracked
-     *     against a previously-read index — skips the {@link VisibleFiles#require} re-check (and
-     *     the index re-read it entails). Never set this from a caller that hasn't done that check:
-     *     it is the gate that stops untracked/gitignored files from being served.
+     * @param vouchedTracked non-null when the caller already resolved {@code filePath} against a
+     *     previously-read index (e.g. {@link #browsePath}) — skips the {@link VisibleFiles#require}
+     *     re-check and the index re-read it entails, and its value is that index's answer to
+     *     "tracked". Never pass a value from a caller that hasn't done that check: {@code require}
+     *     is the gate that stops untracked/gitignored files from being served.
      */
-    private FileBytes readTrackedFile(String filePath, boolean knownTracked) {
+    private FileBytes readTrackedFile(String filePath, @Nullable Boolean vouchedTracked) {
         String normalized = normalizePath(filePath);
-        Path absolute =
-                knownTracked
-                        // Security: confine to the repo before touching the filesystem — the only
-                        // half of the gate a vouched-for path still has to pass.
-                        ? paths.confine(normalized)
-                        : visible.require(normalized).absolute();
-        return readBytes(normalized, absolute);
+        if (vouchedTracked != null) {
+            // Security: confine to the repo before touching the filesystem — the only half of the
+            // gate a vouched-for path still has to pass.
+            return readBytes(normalized, paths.confine(normalized), vouchedTracked);
+        }
+        VisibleFiles.Resolved resolved = visible.require(normalized);
+        return readBytes(normalized, resolved.absolute(), resolved.tracked());
     }
 
     /** Reads a file the gate has already cleared. */
-    private static FileBytes readBytes(String normalized, Path absolute) {
+    private static FileBytes readBytes(String normalized, Path absolute, boolean tracked) {
         long size = RepoFiles.sizeOf(normalized, absolute);
         byte[] bytes;
         try {
@@ -988,7 +1018,7 @@ public class GitService {
         } catch (IOException e) {
             throw new IllegalStateException("Cannot read file: " + normalized, e);
         }
-        return new FileBytes(normalized, bytes, size, RepoFiles.isBinary(bytes));
+        return new FileBytes(normalized, bytes, size, RepoFiles.isBinary(bytes), tracked);
     }
 
     // ── The repository itself ───────────────────────────────────────────────
@@ -1084,6 +1114,32 @@ public class GitService {
     }
 
     /**
+     * A file this project's configuration allows an edit to land on, and git's answer about it —
+     * handed out only by {@link #requireEditable}, which is what makes it a vouch: holding one is
+     * proof the read gate has already cleared the path against the index.
+     *
+     * @param tracked from that same index read, which is why {@link #getFileContent(EditableFile)}
+     *     can serve the file without a second one
+     */
+    public record EditableFile(String path, boolean tracked) {}
+
+    /**
+     * @see GitWriter#requireEditable
+     */
+    public EditableFile requireEditable(@NonNull String filePath) {
+        String normalized = normalizePath(filePath);
+        return new EditableFile(normalized, writer.requireEditable(normalized).tracked());
+    }
+
+    /**
+     * Full content of a file already cleared by {@link #requireEditable} — the read {@code kb.edit}
+     * does right after its permission check, at no second index read.
+     */
+    public GitFileContent getFileContent(@NonNull EditableFile file) {
+        return getFileContent(file.path(), null, null, file.tracked());
+    }
+
+    /**
      * Whether something already occupies {@code filePath} in the working tree, tracked or not.
      *
      * <p>For {@code kb.create}, which needs the answer <em>before</em> the run's writes are applied
@@ -1105,13 +1161,16 @@ public class GitService {
      * mirroring {@code git diff HEAD}. Files staged by {@link #createFile}/{@link #editFile} are in
      * the index and therefore show up as {@code A}.
      *
-     * <p>The untracked files this project's {@code allow-globs} admit are listed alongside them as
-     * {@code A}. Those never reach the index — {@link #editFile} leaves them untracked on purpose —
-     * so a diff against HEAD cannot see them, and leaving them out would mean the review surface
-     * shows nothing of what the assistant wrote there. Files the globs admit but {@code .gitignore}
-     * hides are not listed: the globs make them readable, they do not make a build artefact into a
-     * change worth reviewing. Every other untracked file stays out too — no tool can read it back,
-     * so naming it would only advertise a file no follow-up call can open.
+     * <p>The untracked files this project's {@code allow-globs} admit are listed alongside them
+     * under a status of their own, {@code U}. Those never reach the index — {@link #editFile}
+     * leaves them untracked on purpose — so a diff against HEAD cannot see them, and leaving them
+     * out would mean the review surface shows nothing of what the assistant wrote there. {@code U}
+     * rather than {@code A} because they are not staged for anything: an {@code A} would tell the
+     * model the file is on its way into the next commit, and the difference decides whether a
+     * change has to be mentioned to the user or is simply there. Files the globs admit but {@code
+     * .gitignore} hides are not listed: the globs make them readable, they do not make a build
+     * artefact into a change worth reviewing. Every other untracked file stays out too — no tool
+     * can read it back, so naming it would only advertise a file no follow-up call can open.
      *
      * @param includePatch whether to include unified diff text for modified files
      */
@@ -1171,9 +1230,9 @@ public class GitService {
     }
 
     /**
-     * An admitted untracked file as a whole-file addition. There is no blob to diff against, so the
-     * counters come from the working-tree content itself, and a binary or oversized file reports
-     * zero lines and no patch rather than a number read off its bytes.
+     * An admitted untracked file as a whole-file {@code U}. There is no blob to diff against, so
+     * the counters come from the working-tree content itself, and a binary or oversized file
+     * reports zero lines and no patch rather than a number read off its bytes.
      */
     private GitDiffEntry untrackedDiffEntry(String path, boolean includePatch) {
         byte @Nullable [] content;
@@ -1191,7 +1250,7 @@ public class GitService {
             content = null;
         }
         if (content == null || RepoFiles.isBinary(content)) {
-            return new GitDiffEntry("A", path, null, 0, 0, null);
+            return new GitDiffEntry(UNTRACKED_STATUS, path, null, 0, 0, null);
         }
         String text = new String(content, StandardCharsets.UTF_8);
         List<String> lines = text.isEmpty() ? List.of() : List.of(text.split("\n", -1));
@@ -1206,7 +1265,7 @@ public class GitService {
             }
             patch = sb.toString();
         }
-        return new GitDiffEntry("A", path, null, lines.size(), 0, patch);
+        return new GitDiffEntry(UNTRACKED_STATUS, path, null, lines.size(), 0, patch);
     }
 
     /** HEAD's tree, or an empty tree when the branch is unborn (no commits yet). */
