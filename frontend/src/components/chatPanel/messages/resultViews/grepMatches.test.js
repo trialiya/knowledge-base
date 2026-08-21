@@ -58,6 +58,13 @@ describe('detectGrepMatches — совпадения по документам',
     expect(data.matches).toBe(3);
   });
 
+  it('вид узнаёт, что считает документы, а не файлы', () => {
+    const docs = detect(JSON.stringify([{ documentId: 7, title: 'Гайд', matchLine: 1, text: 'x' }]));
+    const files = detect(JSON.stringify([{ path: 'a/A.java', matchLine: 1, text: 'x' }]));
+    expect(docs.kind).toBe('document');
+    expect(files.kind).toBe('file');
+  });
+
   it('документы с одинаковыми заголовками не сливаются — ключ по id', () => {
     const data = detect(
       JSON.stringify([

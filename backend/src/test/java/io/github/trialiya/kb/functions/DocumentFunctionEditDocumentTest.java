@@ -44,7 +44,11 @@ class DocumentFunctionEditDocumentTest {
         documentService = mock(DocumentService.class);
         function = new DocumentFunction(documentService, mock(AttachmentService.class));
         patched = new AtomicReference<>();
+        storedAs(MD);
+    }
 
+    /** Runs the captured patch against {@code description} — the document as the service has it. */
+    private void storedAs(String description) {
         Document document = mock(Document.class);
         when(document.toDocumentShort())
                 .thenReturn(
@@ -62,7 +66,7 @@ class DocumentFunctionEditDocumentTest {
                 .thenAnswer(
                         inv -> {
                             UnaryOperator<String> patch = inv.getArgument(1);
-                            patched.set(patch.apply(MD));
+                            patched.set(patch.apply(description));
                             return document;
                         });
     }
@@ -94,6 +98,34 @@ class DocumentFunctionEditDocumentTest {
         assertThatCode(() -> function.editDocument(DOC_ID, "старый текст", "новый текст", true))
                 .doesNotThrowAnyException();
         assertThat(patched.get()).isEqualTo("# Гайд\nновый текст\n## FAQ\nновый текст в FAQ\n");
+    }
+
+    @Test
+    void matchesAFragmentQuotedWithPlainNewlinesAgainstACrlfDocument() {
+        // A document imported from Windows keeps its CRLF endings; a model quoting two of its lines
+        // back writes "\n" between them. Refusing that would send the model to re-read a text that
+        // comes back looking exactly like what it just quoted.
+        String crlf = MD.replace("\n", "\r\n");
+        AtomicReference<String> patchedCrlf = new AtomicReference<>();
+        when(documentService.patchDescription(anyLong(), any(UnaryOperator.class)))
+                .thenAnswer(
+                        inv -> {
+                            UnaryOperator<String> patch = inv.getArgument(1);
+                            patchedCrlf.set(patch.apply(crlf));
+                            return null;
+                        });
+
+        assertThatThrownBy(
+                        () ->
+                                function.editDocument(
+                                        DOC_ID,
+                                        "# Гайд\nстарый текст",
+                                        "# Гайд\nновый текст",
+                                        false))
+                // The stub returns null once the patch has run — the splice is what this pins.
+                .isInstanceOf(NullPointerException.class);
+        assertThat(patchedCrlf.get())
+                .isEqualTo("# Гайд\r\nновый текст\r\n## FAQ\r\nстарый текст в FAQ\r\n");
     }
 
     @Test

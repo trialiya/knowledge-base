@@ -57,6 +57,13 @@ public class DocumentService {
     /** Hard cap on {@link #grepDocuments} blocks, mirroring {@code grepContent}. */
     private static final int MAX_GREP_RESULTS = 200;
 
+    /**
+     * Anything that makes a regex mean more than the characters it spells. A pattern without one of
+     * these matches exactly the same text as the literal string, which is what lets {@link
+     * #grepDocuments} hand it to the database as an {@code ILIKE} prefilter.
+     */
+    private static final Pattern REGEX_METACHARACTER = Pattern.compile("[\\\\.\\[\\]{}()*+?^$|]");
+
     private final DocumentRepository repo;
     private final DocumentHistoryRepository historyRepo;
     private final DocumentSummaryService documentSummaryService;
@@ -693,7 +700,11 @@ public class DocumentService {
      *
      * <p>Bodies are read one at a time ({@code findDescriptionById}) over a structural row list,
      * the same shape export and sync use — a knowledge base can be far larger than the heap, and a
-     * grep must not be the operation that finds out.
+     * grep must not be the operation that finds out. That costs a query per candidate, so the
+     * candidate list is narrowed in SQL first whenever the pattern is a plain string ({@code
+     * ILIKE}) — which covers the common call, {@code regex=true} included, since most patterns
+     * carry no metacharacter at all. A pattern that really is a regex has no such prefilter and
+     * scans every body.
      *
      * @param pattern literal fragment, or a regex when {@code regex} is true; always
      *     case-insensitive
@@ -715,7 +726,11 @@ public class DocumentService {
         int limit = Math.clamp(maxResults, 1, MAX_GREP_RESULTS);
         Pattern compiled = DocumentGrep.compile(pattern, regex);
 
-        List<DocumentTreeRow> rows = repo.findRowsWithDescription();
+        String literal = literalOf(pattern, regex);
+        List<DocumentTreeRow> rows =
+                literal == null
+                        ? repo.findRowsWithDescription()
+                        : repo.findRowsWithDescriptionContaining(literal);
         if (documentId != null) {
             Set<Long> subtree = Set.copyOf(repo.findDescendantIds(documentId));
             if (subtree.isEmpty()) {
@@ -741,8 +756,8 @@ public class DocumentService {
                             limit - matches.size()));
         }
         log.info(
-                "grepDocuments: pattern='{}' regex={} ctx={} documentId={} — {} block(s) in {}"
-                        + " document(s)",
+                "grepDocuments: pattern='{}' regex={} ctx={} documentId={} — {} block(s) over {}"
+                        + " candidate document(s)",
                 pattern,
                 regex,
                 ctx,
@@ -750,6 +765,19 @@ public class DocumentService {
                 matches.size(),
                 rows.size());
         return List.copyOf(matches);
+    }
+
+    /**
+     * The pattern as a plain substring the database can filter on, or {@code null} when it has to
+     * be matched in Java. A {@code regex=false} pattern always qualifies; a regex qualifies when it
+     * contains no metacharacter, which most of them do not — the argument defaults to true and
+     * models pass ordinary words through it.
+     */
+    private static @Nullable String literalOf(String pattern, boolean regex) {
+        if (!regex) {
+            return pattern;
+        }
+        return REGEX_METACHARACTER.matcher(pattern).find() ? null : pattern;
     }
 
     // ── Keyword search ────────────────────────────────────────────────────────

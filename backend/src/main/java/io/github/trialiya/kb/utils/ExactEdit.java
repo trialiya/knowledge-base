@@ -40,6 +40,22 @@ public final class ExactEdit {
     }
 
     /**
+     * A fragment with the line endings of the text it has to match: {@code \r\n} when that text
+     * uses them, {@code \n} when it does not.
+     *
+     * <p>A model quoting a fragment reproduces the characters it was shown, but not reliably the
+     * invisible ones — and a mismatch there fails the exact match with an error that says "re-read
+     * the content", which a re-read cannot fix, because what comes back is the same text again.
+     * Callers that store text as they received it (a document body) put both fragments through
+     * this; callers that normalise the text itself (a file read as LF) normalise the fragments the
+     * same way instead.
+     */
+    public static String alignLineEndings(String text, String fragment) {
+        String normalized = fragment.replace("\r\n", "\n");
+        return text.contains("\r\n") ? normalized.replace("\n", "\r\n") : normalized;
+    }
+
+    /**
      * Replaces {@code oldString} with {@code newString} in {@code text}.
      *
      * @param target what is being edited, as the model should see it in an error ({@code

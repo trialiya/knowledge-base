@@ -44,6 +44,15 @@ class DocumentGrepTest {
     }
 
     @Test
+    void caseFoldingCoversNonAsciiText() {
+        // The base this searches is Russian: ASCII-only folding would make the tool
+        // case-sensitive for exactly the text it is meant to search.
+        assertThat(grep("установка", false, 0, 50))
+                .extracting(DocumentGrepMatch::matchLine)
+                .containsExactly(3);
+    }
+
+    @Test
     void sectionPathPointsAtTheSectionToEdit() {
         List<DocumentGrepMatch> matches = grep("docker", false, 0, 50);
 

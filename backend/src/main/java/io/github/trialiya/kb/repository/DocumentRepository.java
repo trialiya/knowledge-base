@@ -79,6 +79,24 @@ public interface DocumentRepository
     List<DocumentTreeRow> findRowsWithDescription();
 
     /**
+     * As {@link #findRowsWithDescription()}, narrowed to the bodies that contain {@code q} —
+     * literally, case-insensitively, no wildcards of its own ({@code %} and {@code _} in {@code q}
+     * are the caller's problem, and a grep pattern that contains them simply matches more rows than
+     * it needs to, never fewer).
+     *
+     * <p>Exists so a grep over a large base does not fetch every body only to discard it: the rows
+     * this returns are the only ones whose text can possibly match.
+     */
+    @Query(
+            """
+        SELECT id, parent_id, title, type, position, is_system, updated_at
+        FROM documents
+        WHERE description ILIKE '%' || :q || '%'
+        ORDER BY id
+        """)
+    List<DocumentTreeRow> findRowsWithDescriptionContaining(@Param("q") String q);
+
+    /**
      * The body of one document, fetched on its own. Paired with {@link
      * #findTreeRowsByParent(Long)}: the walk stays structural and each body is read, used and
      * dropped before the next node is touched.

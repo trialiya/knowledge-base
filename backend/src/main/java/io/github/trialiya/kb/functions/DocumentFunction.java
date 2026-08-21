@@ -807,8 +807,12 @@ public class DocumentFunction {
                         current ->
                                 ExactEdit.replace(
                                                 current,
-                                                oldString,
-                                                newString,
+                                                // The stored text keeps whatever line endings it
+                                                // has (a document imported from Windows has CRLF),
+                                                // so the fragments are brought to those rather than
+                                                // the body rewritten to the fragments'.
+                                                ExactEdit.alignLineEndings(current, oldString),
+                                                ExactEdit.alignLineEndings(current, newString),
                                                 all,
                                                 "document id=" + id,
                                                 "getDocument")

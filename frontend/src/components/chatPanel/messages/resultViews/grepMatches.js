@@ -20,9 +20,9 @@ const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.
 
 /** Источник блока: файл репозитория (путь) или документ базы знаний (id + заголовок). */
 const sourceOf = (obj) => {
-  if (typeof obj.path === 'string' && obj.path) return { key: obj.path, label: obj.path };
+  if (typeof obj.path === 'string' && obj.path) return { key: obj.path, label: obj.path, kind: 'file' };
   if (typeof obj.documentId === 'number' && typeof obj.title === 'string' && obj.title) {
-    return { key: `doc:${obj.documentId}`, label: obj.title };
+    return { key: `doc:${obj.documentId}`, label: obj.title, kind: 'document' };
   }
   return null;
 };
@@ -56,7 +56,7 @@ const toLines = (text, matchLine) =>
  * Группировка — порядком появления: и git grep, и `grepDocuments` отдают блоки
  * одного источника подряд, но полагаться на это не нужно, а порядок выдачи
  * сохранить стоит. Поле `path` у источника — то, чем он подписан: путь файла или
- * заголовок документа.
+ * заголовок документа, а `kind` — чем подписывать их количество.
  */
 export const detectGrepMatches = ({ parsed, isJson }) => {
   if (!isJson || !Array.isArray(parsed)) return null;
@@ -77,5 +77,9 @@ export const detectGrepMatches = ({ parsed, isJson }) => {
   // project, и вызов мог искать в соседнем.
   const project = parsed.find((match) => match.project)?.project ?? null;
 
-  return { files: [...bySource.values()], matches: parsed.length, project };
+  // Чем подписывать группы в шапке. Вид один на оба инструмента, а считает он либо файлы,
+  // либо документы — смешанной выдачи не бывает: вызов ищет либо в репозитории, либо в базе.
+  const kind = sourceOf(parsed[0]).kind;
+
+  return { files: [...bySource.values()], matches: parsed.length, project, kind };
 };

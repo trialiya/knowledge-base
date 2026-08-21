@@ -2,8 +2,9 @@ import { useTranslation } from 'react-i18next';
 import { IconChevronDown } from '@/icons/index';
 import ResultSummary, { useExpandAll } from './resultSummary';
 
-// Режим «Обзор» для совпадений `grepContent`: файл → блоки строк с настоящими
-// номерами, совпадения подсвечены, контекст приглушён.
+// Режим «Обзор» для совпадений `grepContent` и `grepDocuments`: источник (файл
+// репозитория или документ базы) → блоки строк с настоящими номерами,
+// совпадения подсвечены, контекст приглушён.
 //
 // Разбор ответа — в grepMatches.js; сюда приходят уже разобранные строки.
 
@@ -51,7 +52,9 @@ const GrepMatchesView = ({ data }) => {
       <ResultSummary expand={keys.length > 1 ? expand : null}>
         {t('toolCall.detail.grep.matches', { count: data.matches })}
         {' · '}
-        {t('toolCall.detail.grep.files', { count: data.files.length })}
+        {t(`toolCall.detail.grep.${data.kind === 'document' ? 'documents' : 'files'}`, {
+          count: data.files.length,
+        })}
         {data.project && ` · ${t('toolCall.detail.fact.project')} ${data.project}`}
       </ResultSummary>
 

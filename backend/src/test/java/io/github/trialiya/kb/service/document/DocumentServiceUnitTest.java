@@ -515,6 +515,16 @@ class DocumentServiceUnitTest {
         }
 
         @Test
+        void aPlainRegexIsPrefilteredInSqlAndFindsTheSameLines() {
+            // A regex without metacharacters goes to the database as an ILIKE prefilter; a real one
+            // scans every body. Both must answer the same for the same text.
+            withText("Гайд", null, "# Гайд\nставим Docker\n");
+
+            assertThat(service.grepDocuments("Docker", true, 0, 50, null)).hasSize(1);
+            assertThat(service.grepDocuments("Docker|Podman", true, 0, 50, null)).hasSize(1);
+        }
+
+        @Test
         void unknownDocumentIdYields404() {
             assertThatThrownBy(() -> service.grepDocuments("x", false, 0, 50, 999_999L))
                     .isInstanceOf(ResponseStatusException.class)

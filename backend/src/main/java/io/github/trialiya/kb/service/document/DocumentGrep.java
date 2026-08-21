@@ -33,8 +33,11 @@ final class DocumentGrep {
      */
     static Pattern compile(String pattern, boolean regex) {
         try {
+            // UNICODE_CASE, or CASE_INSENSITIVE would only fold ASCII and a Russian knowledge base
+            // — which is what this searches — would be case-sensitive in practice.
             return Pattern.compile(
-                    regex ? pattern : Pattern.quote(pattern), Pattern.CASE_INSENSITIVE);
+                    regex ? pattern : Pattern.quote(pattern),
+                    Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
         } catch (PatternSyntaxException e) {
             throw new IllegalArgumentException(
                     "pattern '"
