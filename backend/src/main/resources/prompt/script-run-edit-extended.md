@@ -34,7 +34,7 @@ return { done: true, bytes: bytes.length };
 ```
 
 ### What not to do
-- **Don't edit unverified files.** `kb.grep`/`kb.read`/`kb.readBytes` first, then write.
+- **Don't invent `oldString`.** Quote it from `kb.grep`/`kb.read` output; a fragment from memory either misses or hits the wrong place. `kb.writeBytes` needs the read itself—it replaces everything.
 - **Don't replace entire file in one `kb.edit`.** `oldString` is exact fragment, not everything—whole-content replace exists only for bytes.
 - **Don't `kb.edit` a binary file.** No exact-match anchor there: `kb.writeBytes` or nothing.
 - **Don't create files speculatively.** `kb.create`/`kb.createBytes` fail if file exists.

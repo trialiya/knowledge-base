@@ -48,7 +48,8 @@ public final class KbEditScriptApi extends KbScriptApi {
      *
      * <p>Same contract as the {@code editFile} tool, and for the same reason: the match is exact
      * and must be unique, so the script has to quote real current content rather than what it
-     * assumes is there. Matching happens against the file as this run has it — a second edit of the
+     * assumes is there. That contract is the whole guard — an edit needs no prior {@code kb.read}
+     * of the file. Matching happens against the file as this run has it, so a second edit of the
      * same file sees the first one.
      */
     @HostAccess.Export
@@ -64,7 +65,6 @@ public final class KbEditScriptApi extends KbScriptApi {
         // spellings of one file would otherwise stage two writes, the second computed from the
         // file on disk — silently discarding the first.
         String canonical = canonical(path);
-        session.requireRead(canonical);
         GitService.@Nullable EditableFile target = editableTarget(canonical);
         if (oldString.isEmpty()) {
             throw new IllegalArgumentException("oldString must not be empty: " + canonical);
@@ -325,6 +325,11 @@ public final class KbEditScriptApi extends KbScriptApi {
 
     private String readFullText(GitService.EditableFile target) {
         String path = target.path();
+        // An edit reads the whole file to match against it, so it is charged like any other pass
+        // over a file (once per path — the budget counts files, not calls). Nothing is handed to
+        // the script, so it is a scan rather than a read: no bytes, and it never counts as the
+        // script having been shown the content.
+        session.chargeScan(path);
         GitFileContent content = gitService.getFileContent(target);
         if (content.binary()) {
             throw new IllegalArgumentException(

@@ -399,9 +399,6 @@ public class KbScriptApi {
                                 row.put("text", match.text());
                                 result.add(row);
                                 bytes += match.text().getBytes(StandardCharsets.UTF_8).length;
-                                // The script has now been shown current text of this file, which
-                                // is what the edit rule asks for — see ScriptSession.requireRead.
-                                session.noteSeen(match.path());
                             }
                             session.chargeSearch(bytes);
                             return result;

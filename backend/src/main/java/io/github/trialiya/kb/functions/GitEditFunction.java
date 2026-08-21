@@ -32,9 +32,10 @@ import org.springframework.ai.tool.annotation.ToolParam;
  * oldString} must occur in the file exactly once (unless {@code replaceAll}), character for
  * character: a model able to quote such a fragment is quoting the current content, and one that
  * cannot is refused with the name of the tool to read with. So {@code editFile} asks nothing of the
- * response's tool history — do not add a read-before-edit check back on top of it. The sandboxed
- * {@code kb.edit} does keep its own rule ({@code ScriptSession#requireRead}) because a script also
- * writes whole files, where no such contract exists.
+ * response's tool history — do not add a read-before-edit check back on top of it, here or in the
+ * sandbox's {@code kb.edit}, which follows the same contract. A prior read is required only where
+ * no such contract exists: the whole-content {@code kb.writeBytes} ({@code
+ * ScriptSession#requireRead}).
  */
 @Slf4j
 @AllArgsConstructor
