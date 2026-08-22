@@ -98,6 +98,26 @@ class ToolCallServiceTest {
     }
 
     @Test
+    void invocationsForSynthesizesWhenMetaCarriesOnlyTheModel() {
+        // Прогон оборвался до attachRunMeta, но markRunModel всё же пометила ответ моделью:
+        // мета у сегмента есть, плашек в ней нет — синтез из tool_data обязан сработать,
+        // иначе после перезагрузки пропали бы отметки о том, что модель вообще звала.
+        final ChatMessageEntity segment =
+                entity(
+                        MessageType.ASSISTANT,
+                        new ChatMessageMeta(null, false, List.of()).withRun(RUN, "gpt-5"),
+                        new ToolData(
+                                List.of(
+                                        new ToolData.Call(
+                                                "id-0", "function", "searchDocuments", "{}")),
+                                null));
+
+        assertThat(service.invocationsFor(segment, List.of(segment)))
+                .extracting(ToolInvocationMeta::name)
+                .containsExactly("searchDocuments");
+    }
+
+    @Test
     void invocationsForNullForPlainMessages() {
         assertThat(service.invocationsFor(entity(MessageType.ASSISTANT, null, null), List.of()))
                 .isNull();

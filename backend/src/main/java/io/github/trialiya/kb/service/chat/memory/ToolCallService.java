@@ -187,14 +187,17 @@ public class ToolCallService {
      */
     public @Nullable List<ToolInvocationMeta> invocationsFor(
             ChatMessageEntity entity, List<ChatMessageEntity> context) {
-        if (entity.getInvocations() != null) {
-            return entity.getInvocations();
+        final List<ToolInvocationMeta> stored = entity.getInvocations();
+        if (stored != null && !stored.isEmpty()) {
+            return stored;
         }
-        if (entity.getMeta() != null
-                || entity.getType() != MessageType.ASSISTANT
+        // Условие — «плашек нет», а не «меты нет»: мета есть у каждого ответа прогона (в ней
+        // модель, см. ChatHistoryService#markRunModel), и сегмент с сохранёнными tool_calls, но
+        // без плашек — это как раз оборванный прогон, ради которого синтез и нужен.
+        if (entity.getType() != MessageType.ASSISTANT
                 || entity.getToolData() == null
                 || entity.getToolData().toolCalls() == null) {
-            return null;
+            return stored;
         }
         final Map<String, String> responseById = new HashMap<>();
         for (ChatMessageEntity row : context) {
@@ -234,9 +237,10 @@ public class ToolCallService {
      * видит). messageId/responseMessageId сюда не тянем — {@link #index} наполняет ими {@code
      * tool_call_index} напрямую по callId, без позиционной арифметики.
      *
-     * <p>Рассматриваются только сегменты после последнего USER-сообщения: прогоны на чат строго
-     * последовательны, значит всё, что после последнего вопроса, относится к текущему прогону, а
-     * необогащённые сегменты старых аварийных прогонов не перехватят чужие вызовы.
+     * <p>Рассматриваются только сегменты текущего хода (см. {@link
+     * ChatHistoryService#tailAfterLastUser}), а среди них — только необогащённые ({@code meta ==
+     * null}). Отсюда порядок: {@code ChatHistoryService.markRunModel} проставляет мету тем же рядам
+     * и обязана идти ПОСЛЕ, иначе вызовы инструментов этого прогона плашек не получат.
      *
      * <p>{@code SKIP_TOOLS} вырезаются только из UI-метаданных — протокольные tool_calls сегмента
      * остаются полными, иначе модель получила бы рассинхронизированную пару tool-сообщений.
@@ -251,17 +255,11 @@ public class ToolCallService {
         if (toolCalls == null || toolCalls.isEmpty()) {
             return List.of();
         }
-        final List<ChatMessageEntity> all =
-                chatMessageRepository
-                        .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
-                                conversationId);
-        int lastUser = -1;
-        for (int i = 0; i < all.size(); i++) {
-            if (all.get(i).getType() == MessageType.USER) {
-                lastUser = i;
-            }
-        }
-        final List<ChatMessageEntity> tail = all.subList(lastUser + 1, all.size());
+        final List<ChatMessageEntity> tail =
+                ChatHistoryService.tailAfterLastUser(
+                        chatMessageRepository
+                                .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
+                                        conversationId));
         final List<ChatMessageEntity> segments =
                 tail.stream()
                         .filter(e -> e.getType() == MessageType.ASSISTANT)
@@ -293,6 +291,8 @@ public class ToolCallService {
                 metas.add(tc.toMeta(true, call.id()));
             }
             cursor = end;
+            // Короткий конструктор здесь допустим только потому, что сегменты отфильтрованы по
+            // meta == null: терять нечему. Ослабишь фильтр — собирай мету поверх существующей.
             chatMessageRepository.save(segment.withMeta(new ChatMessageMeta(runId, false, metas)));
             allMetas.addAll(metas);
         }

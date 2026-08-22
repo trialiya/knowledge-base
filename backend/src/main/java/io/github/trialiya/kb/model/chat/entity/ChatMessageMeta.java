@@ -6,8 +6,8 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Метаданные сообщения. {@code toolCalls} — явный признак сообщения-«крошки» вызовов инструментов:
- * на него опираются и бэк (вырезать JSON, не показывать пользователю), и фронт. Раньше такие
- * сообщения отличали лишь по типу SYSTEM или по наличию meta — теперь это надёжный флаг.
+ * на него опираются и бэк (вырезать JSON, не показывать пользователю), и фронт. Признак именно
+ * флаг, а не тип SYSTEM и не сам факт наличия меты: мета есть и у обычных сообщений.
  *
  * <p>{@code contextItems} — то, что пользователь приложил к вопросу (см. {@link ContextItem}).
  * Живёт здесь, а не в отдельной таблице: элементы всегда читаются вместе со своим сообщением и ни
@@ -20,6 +20,11 @@ import org.jspecify.annotations.Nullable;
  * репозиторию, и об этом предупреждают и модель (см. {@code ChatHistoryService.promptRow}), и
  * пользователь (плашка на фронте). На summary-строке {@code project} живёт без пары — это след «на
  * каком проекте закончилось сжатое», см. {@code SummarizeService}.
+ *
+ * <p>{@code model} — id модели, которая написала этот ответ (см. {@code
+ * ChatHistoryService.markRunModel}). Только на ASSISTANT-рядах и только начиная с прогонов, где
+ * поле уже существовало: у старых ответов его нет, и {@code null} здесь значит «неизвестно», а не
+ * «дефолтная модель» — чат мог идти на любой.
  */
 public record ChatMessageMeta(
         @Nullable String runId,
@@ -27,11 +32,22 @@ public record ChatMessageMeta(
         List<ToolInvocationMeta> invocations,
         List<ContextItem> contextItems,
         @Nullable String project,
-        @Nullable String projectSwitchFrom) {
+        @Nullable String projectSwitchFrom,
+        @Nullable String model) {
 
     public ChatMessageMeta {
         invocations = invocations == null ? List.of() : invocations;
         contextItems = contextItems == null ? List.of() : contextItems;
+    }
+
+    public ChatMessageMeta(
+            @Nullable String runId,
+            boolean toolCalls,
+            List<ToolInvocationMeta> invocations,
+            List<ContextItem> contextItems,
+            @Nullable String project,
+            @Nullable String projectSwitchFrom) {
+        this(runId, toolCalls, invocations, contextItems, project, projectSwitchFrom, null);
     }
 
     public ChatMessageMeta(
@@ -76,5 +92,15 @@ public record ChatMessageMeta(
     /** Метаданные summary-строки: проект, на котором закончилась сжатая часть истории. */
     public static ChatMessageMeta ofProject(String project) {
         return new ChatMessageMeta(null, false, List.of(), List.of(), project, null);
+    }
+
+    /**
+     * Копия с проставленными прогоном и его моделью. Дописывает, а не заменяет: {@code
+     * ChatHistoryService.markRunModel} проходит по рядам прогона последним, и уже сохранённые
+     * плашки вызовов ({@code invocations}) обязаны пережить этот проход.
+     */
+    public ChatMessageMeta withRun(String runId, String model) {
+        return new ChatMessageMeta(
+                runId, toolCalls, invocations, contextItems, project, projectSwitchFrom, model);
     }
 }

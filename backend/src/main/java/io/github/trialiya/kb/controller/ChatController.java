@@ -252,7 +252,8 @@ public class ChatController {
                                                 e.getMeta() != null ? e.getMeta().project() : null,
                                                 e.getMeta() != null
                                                         ? e.getMeta().projectSwitchFrom()
-                                                        : null))
+                                                        : null,
+                                                e.getMeta() != null ? e.getMeta().model() : null))
                         .toList();
         return new MessagePage(dtos, page.hasMore(), page.oldestCursor());
     }
@@ -574,7 +575,8 @@ public class ChatController {
                 isToolCalls(chatMessageEntity),
                 chatMessageEntity.getContextItems(),
                 meta != null ? meta.project() : null,
-                meta != null ? meta.projectSwitchFrom() : null);
+                meta != null ? meta.projectSwitchFrom() : null,
+                meta != null ? meta.model() : null);
     }
 
     /** «Крошка» вызовов инструментов — служебное сообщение, которое не показываем пользователю. */

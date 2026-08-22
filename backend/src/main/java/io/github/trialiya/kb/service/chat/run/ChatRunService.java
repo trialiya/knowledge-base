@@ -23,6 +23,7 @@ import io.github.trialiya.kb.service.chat.ProjectPromptService;
 import io.github.trialiya.kb.service.chat.SystemPromptService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.memory.SummarizeService;
+import io.github.trialiya.kb.service.chat.memory.ToolCallEventPublisher;
 import io.github.trialiya.kb.service.chat.memory.ToolCallService;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
 import io.github.trialiya.kb.tools.RunCancellation;
@@ -85,6 +86,7 @@ public class ChatRunService {
     private final ChatMemory chatMemory;
     private final ChatHistoryService chatHistory;
     private final ToolCallService toolCallService;
+    private final ToolCallEventPublisher toolCallEvents;
     private final SummarizeService summarizeService;
     private final ChatEventService events;
     private final ScriptGuideService scriptGuideService;
@@ -104,6 +106,7 @@ public class ChatRunService {
             ChatMemory chatMemory,
             ChatHistoryService chatHistory,
             ToolCallService toolCallService,
+            ToolCallEventPublisher toolCallEvents,
             SummarizeService summarizeService,
             ChatEventService events,
             ScriptGuideService scriptGuideService,
@@ -114,6 +117,7 @@ public class ChatRunService {
         this.chatMemory = chatMemory;
         this.chatHistory = chatHistory;
         this.toolCallService = toolCallService;
+        this.toolCallEvents = toolCallEvents;
         this.summarizeService = summarizeService;
         this.events = events;
         this.scriptGuideService = scriptGuideService;
@@ -122,10 +126,16 @@ public class ChatRunService {
         this.executor = executor;
     }
 
+    /**
+     * @param model id модели прогона, уже разрешённый (см. {@code
+     *     ChatClientRegistry#resolveModelId}): им помечаются написанные прогоном ответы, а «модель
+     *     по умолчанию» пометкой быть не может — дефолт в конфигурации меняют.
+     */
     private record RunHandle(
             String runId,
             String conversationId,
             String user,
+            String model,
             AtomicReference<Disposable> disposable,
             AtomicBoolean stopRequested,
             AtomicBoolean persisted) {}
@@ -198,6 +208,7 @@ public class ChatRunService {
                         runId,
                         conversationId,
                         user,
+                        chatClients.resolveModelId(options.model()),
                         new AtomicReference<>(),
                         new AtomicBoolean(),
                         new AtomicBoolean());
@@ -366,7 +377,10 @@ public class ChatRunService {
                         userRow.getContextItems(),
                         userRow.getMeta() != null ? userRow.getMeta().project() : null,
                         userRow.getMeta() != null ? userRow.getMeta().projectSwitchFrom() : null));
-        events.publish(conversationId, RUN_STARTED, runId, clientMsgId, null);
+        // Модель едет в RUN_STARTED, а не доезжает только после перезагрузки: пузырь помечают все
+        // вкладки, включая те, где эту модель не выбирали.
+        events.publish(
+                conversationId, RUN_STARTED, runId, clientMsgId, Map.of("model", handle.model()));
 
         try {
             // The client, not just the model option, follows the resolved model: an entry of
@@ -480,6 +494,8 @@ public class ChatRunService {
         final List<ToolInvocationMeta> metas =
                 toolCallService.attachRunMeta(
                         handle.conversationId(), handle.runId(), toolCollector.completedSnapshot());
+        // Строго после attachRunMeta — та ищет сегменты без меты (см. её javadoc).
+        chatHistory.markRunModel(handle.conversationId(), handle.runId(), handle.model());
         liveSink.accept(new ToolCallsMessage(metas));
         events.publish(handle.conversationId(), RUN_DONE, handle.runId(), null, null);
         summarizeService.trySummarize(handle.conversationId());
@@ -514,6 +530,8 @@ public class ChatRunService {
         // мог бы стартовать (заявка свободна) и записаться в хаб, который этот cleanup как раз
         // закрывает, — событие новой генерации потерялось бы.
         events.endRun(handle.conversationId(), handle.runId());
+        // Нумерация вызовов прогона живёт ровно столько же, сколько сам прогон.
+        toolCallEvents.forget(handle.conversationId());
         runs.remove(handle.runId());
         activeByConversation.remove(handle.conversationId(), handle.runId());
     }
@@ -546,6 +564,9 @@ public class ChatRunService {
             }
             toolCallService.attachRunMeta(
                     conversationId, handle.runId(), toolCollector.completedSnapshot());
+            // Оборванный ответ тоже кем-то написан — и именно на нём вопрос «какая модель это
+            // выдала» задают чаще всего. Порядок тот же, что в onComplete.
+            chatHistory.markRunModel(conversationId, handle.runId(), handle.model());
         } catch (Exception e) {
             log.warn("Failed to persist partial reply for {}", conversationId, e);
         }

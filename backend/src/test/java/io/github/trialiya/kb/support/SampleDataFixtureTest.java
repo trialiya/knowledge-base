@@ -94,6 +94,18 @@ class SampleDataFixtureTest {
         assertThat(toolBreadcrumb.getToolData()).isNotNull();
         assertThat(toolBreadcrumb.getToolData().toolCalls()).hasSize(2);
 
+        // Модель ответа: у прогонов, записанных после появления поля, она есть, у более
+        // раннего — нет. Обе половины фикстуры нужны: null здесь значит «неизвестно», и
+        // подпись под таким ответом не рисуется вовсе.
+        assertThat(
+                        messages.stream()
+                                .filter(m -> m.getMeta() != null && m.getMeta().model() != null)
+                                .map(m -> m.getMeta().model()))
+                .containsOnly("deepseek-chat");
+        assertThat(messages.stream().filter(m -> m.getId() == 1657).findFirst().orElseThrow())
+                .satisfies(m -> assertThat(m.getMeta().model()).isEqualTo("deepseek-chat"));
+        assertThat(toolBreadcrumb.getMeta().model()).isNull();
+
         // Вопрос с приложенным вложением: в сообщении лежит ссылка, а не содержимое файла.
         ChatMessageEntity question =
                 messages.stream().filter(m -> m.getId() == 1638).findFirst().orElseThrow();

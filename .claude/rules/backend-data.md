@@ -39,6 +39,16 @@ both — read its javadoc for the why before writing a new `@Tool`.
 
 Migrations for this live in both `db/migration` (Postgres) and `db/migration-h2`.
 
+## Message `meta`
+
+- **A new `ChatMessageMeta` field needs a second edit**, in the `MetaJson`
+  projection inside `ChatMessageMetaToJsonConverter` — both the read and the
+  write side. The projection lists its fields explicitly (so a column written by
+  another version stays readable), and nothing in the compiler notices a field
+  missing from it: the value simply persists as `null`. Mocked-repository tests
+  don't notice either — `ChatMessageMetaRoundTripTest` is what fails, and it
+  stops compiling when a field is added, which is the point.
+
 ## Chat memory
 
 - **`ChatMemory` is ours** — `ChatHistoryMemory` over `ChatHistoryService`. Do
@@ -47,6 +57,12 @@ Migrations for this live in both `db/migration` (Postgres) and `db/migration-h2`
   `SummarizeService`), and its `add` re-reads the whole conversation on every
   advisor call. Writes are append-only; `append` gets the new row's position from
   a single max query, so callers never hand it the history.
+- **Meta written after a run goes on in one order:** `ToolCallService.attachRunMeta`
+  first, `ChatHistoryService.markRunModel` second. The first finds un-enriched
+  segments by `meta == null`, so anything that writes meta earlier hides the
+  run's tool calls from it and the plaques never appear. Both mark the same
+  rows — the ones after the last USER message — through the one shared rule,
+  `ChatHistoryService.tailAfterLastUser`; do not re-derive that cut.
 - **Live `TOOL_CALL` events number calls per run** (`ToolCallEventPublisher`),
   matching `ToolInvocationCollector`'s counter. Do not recompute `callIndex` by
   scanning the tail of the history: after a retry the tail also holds the failed

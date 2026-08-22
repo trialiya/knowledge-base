@@ -58,8 +58,8 @@ dependencies {
     implementation 'org.springframework.ai:spring-ai-starter-mcp-client'
 
     // Spring Boot 4 makes Jackson 3 (tools.jackson) the auto-configured JSON mapper and demotes
-    // the retained Jackson 2 modules to runtime-only. Our internal serialization (ChatMemoryService,
-    // Spring Data JDBC converters, tool-call persistence) still targets Jackson 2, so pull its
+    // the retained Jackson 2 modules to runtime-only. Our internal serialization (chat message
+    // meta, Spring Data JDBC converters, tool-call persistence) still targets Jackson 2, so pull its
     // Java-time module back onto the compile classpath. Version is managed by the Jackson 2 BOM.
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
 

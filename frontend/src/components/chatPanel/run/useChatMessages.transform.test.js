@@ -30,6 +30,19 @@ describe('transformPage', () => {
     expect(bubbles[1]).not.toHaveProperty('contextItems');
   });
 
+  test('carries the answering model onto AI bubbles only', () => {
+    const { bubbles } = transformPage([
+      { id: 1, content: 'вопрос', type: 'USER', model: 'gpt-5' },
+      { id: 2, content: 'ответ', type: 'ASSISTANT', model: 'gpt-5' },
+      { id: 3, content: 'ответ постарше поля', type: 'ASSISTANT' },
+    ]);
+    // У вопроса модели быть не может: поле приезжает с ответа, а не с хода.
+    expect(bubbles[0]).not.toHaveProperty('model');
+    expect(bubbles[1].model).toBe('gpt-5');
+    // Ответы старее поля подписи не получают — пустого места под ними тоже быть не должно.
+    expect(bubbles[2]).not.toHaveProperty('model');
+  });
+
   test('renders a tool-calls-only segment (empty text, has metas) as a plates-only bubble', () => {
     const { bubbles } = transformPage([
       { id: 1, content: '', type: 'ASSISTANT', runId: 'r1', toolInvocationMetas: [meta('searchDocs')] },

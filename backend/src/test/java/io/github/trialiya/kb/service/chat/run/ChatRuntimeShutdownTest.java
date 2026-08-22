@@ -17,6 +17,7 @@ import io.github.trialiya.kb.service.chat.ProjectPromptService;
 import io.github.trialiya.kb.service.chat.SystemPromptService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.memory.SummarizeService;
+import io.github.trialiya.kb.service.chat.memory.ToolCallEventPublisher;
 import io.github.trialiya.kb.service.chat.memory.ToolCallService;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
 import java.time.Duration;
@@ -165,6 +166,7 @@ class ChatRuntimeShutdownTest {
                 chatMemory,
                 chatHistory,
                 mock(ToolCallService.class),
+                mock(ToolCallEventPublisher.class),
                 mock(SummarizeService.class),
                 events,
                 mock(ScriptGuideService.class),

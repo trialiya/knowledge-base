@@ -23,9 +23,30 @@
   gap: 6px;
 }
 
+/* Левая половина футера ответа: время и модель одной группой, чтобы space-between
+   разводил её и кнопки по краям, а не растаскивал время и модель друг от друга. */
+.message-footer-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 .message-footer-time {
   font-size: 0.68rem;
   color: #aaa;
+  white-space: nowrap;
+  user-select: none;
+  cursor: default;
+}
+
+/* Модель, написавшая ответ. Приглушена сильнее времени: справка, а не содержание —
+   но длинный id всё же обрезаем, а не переносим на вторую строку футера. */
+.message-footer-model {
+  font-size: 0.68rem;
+  color: #999;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
   user-select: none;
   cursor: default;

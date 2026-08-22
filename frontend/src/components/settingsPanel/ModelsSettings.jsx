@@ -42,10 +42,9 @@ const ModelsSections = ({ config }) => {
         <ConfigRow label={t('models.general.maxTokens')} value={chat.options?.maxTokens?.toLocaleString()} />
         <ConfigRow label={t('models.general.temperature')} value={chat.options?.temperature} />
         <ConfigRow label={t('models.general.topP')} value={chat.options?.topP} />
-        {/* Строки «Окно памяти» здесь намеренно нет: MessageWindowChatMemory.maxMessages
-            подрезает историю только на записи, а saveAll в ChatMemoryService — append-only,
-            так что число ничего не ограничивает. Реальный предел контекста — пороги
-            суммаризации ниже, в секции «Сжатие контекста». Подробности в ChatConfig#chatMemory. */}
+        {/* Строки «Окно памяти» здесь намеренно нет: память чата (ChatHistoryMemory) пишет
+            строго дописывая и историю по числу сообщений не режет. Реальный предел контекста —
+            пороги суммаризации ниже, в секции «Сжатие контекста». */}
         <ConfigRow label={t('models.general.requestTimeout')} value={duration(chat.options?.requestTimeoutSeconds)} />
         <ConfigRow label={t('models.general.retryMaxAttempts')} value={chat.options?.retryMaxAttempts} />
         <ConfigRow label={t('models.general.sseTimeout')} value={duration(chat.options?.sseTimeoutSeconds)} />

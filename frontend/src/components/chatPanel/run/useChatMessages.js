@@ -21,7 +21,7 @@ const metaToCall = (x) => ({
 const extractRunId = (m) => m.runId || null;
 
 // Превращает «сырые» сообщения с бэка (хронологический порядок) в пузыри для рендера.
-// Системные сообщения-«крошки» (toolInvocationMetas из ChatMemoryService.saveToolCalls)
+// Системные сообщения-«крошки» (toolInvocationMetas из ToolCallService.attachRunMeta)
 // пузырём не показываем, а прикрепляем к предыдущему ответу ассистента — это даёт
 // resultMeta для блока «изменения документа».
 // Если крошка идёт в самом начале страницы (её ассистент остался в более старой,
@@ -82,6 +82,9 @@ export const transformPage = (rawMsgs) => {
       ...(m.contextItems?.length ? { contextItems: m.contextItems } : {}),
       // Этим вопросом чат сменил проект — плашка-разделитель перед пузырём.
       ...(m.projectSwitchFrom ? { projectSwitch: { from: m.projectSwitchFrom, to: m.project } } : {}),
+      // Модель, написавшая ответ. У вопросов и у ответов старше этого поля её нет —
+      // подпись тогда просто не рендерится (см. Message).
+      ...(m.model && type !== 'user' ? { model: m.model } : {}),
       // Вызовы инструментов этого сегмента (раздельное сохранение): плашки под пузырём.
       ...(metas.length && type !== 'user'
         ? { toolCalls: metas.map(metaToCall), ...(m.runId ? { toolCallsRunId: m.runId } : {}) }

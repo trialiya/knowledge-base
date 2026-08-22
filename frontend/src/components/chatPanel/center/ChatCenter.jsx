@@ -95,6 +95,8 @@ const ChatCenter = ({
           conversationId={chatId}
           project={project?.inLinks}
           projectOptions={project?.options}
+          // Подписи моделей под ответами — тот же список, что и в селекторе.
+          modelOptions={model?.options}
           messages={messages}
           onNavigateToDoc={onNavigateToDoc}
           onLoadMore={onLoadOlder}

@@ -16,4 +16,6 @@ public record ChatMessage(
         boolean toolCalls,
         List<ContextItem> contextItems,
         @Nullable String project,
-        @Nullable String projectSwitchFrom) {}
+        @Nullable String projectSwitchFrom,
+        /** Модель, написавшая ответ; {@code null} — ответы старее этого поля и вопросы. */
+        @Nullable String model) {}

@@ -131,10 +131,20 @@ public class ToolCallBackfillService {
                     touchedThisSegment = true;
                 }
                 if (touchedThisSegment) {
+                    // Мета пересобирается целиком, поэтому перечислена целиком: короткий
+                    // конструктор молча обнулил бы всё, чего в нём нет, — а бэкафилл правит
+                    // ровно одно поле внутри invocations.
+                    final ChatMessageMeta meta = segment.getMeta();
                     chatMessageRepository.save(
                             segment.withMeta(
                                     new ChatMessageMeta(
-                                            runId, segment.getMeta().toolCalls(), updated)));
+                                            runId,
+                                            meta.toolCalls(),
+                                            updated,
+                                            meta.contextItems(),
+                                            meta.project(),
+                                            meta.projectSwitchFrom(),
+                                            meta.model())));
                     touchedThisConversation = true;
                 }
             }

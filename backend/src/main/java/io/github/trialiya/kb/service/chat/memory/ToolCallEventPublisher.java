@@ -47,6 +47,10 @@ public class ToolCallEventPublisher {
      * Нумерация вызовов текущего прогона чата. Прогоны на чат строго последовательны, а состояние
      * живёт до конца прогона — записи ASSISTANT-сегмента (вызовы) и TOOL-ответа приходят разными
      * {@code append}, и второму нужны номера, розданные первым.
+     *
+     * <p>Снимается по {@link #forget} на завершении прогона: в записях лежат разобранные аргументы
+     * всех его вызовов, и держать их до следующего прогона этого чата (который может не случиться
+     * никогда) — течь размером в историю инструментов на каждый когда-либо открытый чат.
      */
     private final Map<String, RunCalls> byConversation = new ConcurrentHashMap<>();
 
@@ -138,6 +142,19 @@ public class ToolCallEventPublisher {
                                 response.id()));
             }
         }
+    }
+
+    /**
+     * Прогон чата закончился — нумерация его вызовов больше не нужна. Зовётся из {@code
+     * ChatRunService.cleanup}, то есть и на успехе, и на остановке, и на ошибке.
+     */
+    public void forget(String conversationId) {
+        byConversation.remove(conversationId);
+    }
+
+    /** Сколько чатов держат нумерацию вызовов — для мониторинга утечек (см. ChatRuntimeMonitor). */
+    public int trackedConversationCount() {
+        return byConversation.size();
     }
 
     private void publish(String conversationId, String runId, ToolInvocationMeta meta) {

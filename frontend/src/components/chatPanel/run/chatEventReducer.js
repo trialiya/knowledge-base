@@ -70,13 +70,17 @@ const lastAiIndexForRun = (msgs, runId) => {
   return -1;
 };
 
-const pushAi = (msgs, runId) => {
+// model — id модели прогона из RUN_STARTED. Помечаем пузырь сразу, а не по завершении:
+// подпись под ответом обязана быть той же и в живом потоке, и после перезагрузки, где
+// она приезжает из meta.model сохранённого ряда (см. ChatHistoryService.markRunModel).
+const pushAi = (msgs, runId, model = null) => {
   msgs.push({
     mid: nextMessageId(),
     text: '',
     sender: SENDER.AI,
     runId,
     toolCalls: [],
+    ...(model ? { model } : {}),
     timestamp: new Date().toISOString(),
   });
   return msgs.length - 1;
@@ -197,9 +201,17 @@ export function applyChatEvent(chat, ev, ctx) {
     }
 
     case CHAT_EVENT.RUN_STARTED: {
-      // Идемпотентно: если пузырь прогона уже есть (оптимистично/из replay) — не дублируем.
-      if (lastAiIndexForRun(msgs, runId) >= 0) return { ...chat, runId };
-      pushAi(msgs, runId);
+      // Идемпотентно: если пузырь прогона уже есть (оптимистично/из replay) — не дублируем,
+      // но модель дописываем: оптимистичный пузырь заводится до ответа сервера и её не знает.
+      const i = lastAiIndexForRun(msgs, runId);
+      if (i >= 0) {
+        if (payload?.model && !msgs[i].model) {
+          msgs[i] = { ...msgs[i], model: payload.model };
+          return { ...chat, messages: msgs, runId };
+        }
+        return { ...chat, runId };
+      }
+      pushAi(msgs, runId, payload?.model ?? null);
       return { ...chat, messages: msgs, runId };
     }
 
@@ -231,7 +243,8 @@ export function applyChatEvent(chat, ev, ctx) {
         // Но открываем его только под непустой текст: whitespace-чанк между вызовами
         // инструментов не должен порождать пустой пузырь, разрывающий ленту плашек.
         if (piece) {
-          if (msgs[idx].sealed) idx = pushAi(msgs, runId);
+          // Модель наследуется: новый сегмент — тот же прогон, значит та же модель.
+          if (msgs[idx].sealed) idx = pushAi(msgs, runId, msgs[idx].model ?? null);
           msgs[idx] = { ...msgs[idx], text: msgs[idx].text + piece };
         }
       }
@@ -313,7 +326,7 @@ export function applyChatEvent(chat, ev, ctx) {
       // без второго USER-сообщения. Если ответ уже начался, переиграть ход молча
       // нельзя: пришлось бы либо задвоить вопрос, либо стереть сделанное моделью
       // (включая побочные эффекты уже выполненных инструментов). Тот же инвариант
-      // проверяет бэк — ChatMemoryService.unansweredUserMessage.
+      // проверяет бэк — ChatHistoryService.unansweredUserMessage.
       const produced = msgs.some(
         (m) =>
           m.sender === SENDER.AI && m.runId === runId && ((m.text || '').trim() !== '' || (m.toolCalls || []).length),

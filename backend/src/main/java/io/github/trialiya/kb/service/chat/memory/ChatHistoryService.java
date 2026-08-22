@@ -238,6 +238,64 @@ public class ChatHistoryService {
                         });
     }
 
+    /**
+     * Проставляет прогон и его модель на ASSISTANT-рядах, которые advisor-цепочка записала по ходу
+     * прогона (см. {@link #append}) — модель на записи неизвестна: {@link ChatHistoryMemory#add}
+     * получает от advisor'а только сообщения, а id модели живёт в настройках прогона.
+     *
+     * <p>Идёт ПОСЛЕ {@code ToolCallService.attachRunMeta}: та ищет необогащённые сегменты по {@code
+     * meta == null}, и проставленная раньше времени модель спрятала бы от неё вызовы инструментов.
+     * Обратный порядок безопасен для самой модели — {@link ChatMessageMeta#withRun} дописывает поле
+     * к уже сохранённой мете, — но плашки вызовов после него не появятся.
+     *
+     * <p>Ряды прогона — это хвост после последнего вопроса (см. {@link #tailAfterLastUser}). Ряды
+     * оборванных прогонов, оставшиеся в том же хвосте, уже помечены своей моделью и второй раз не
+     * переписываются: у ответа стоит та модель, что его написала, а не та, на которой сдались.
+     */
+    @Transactional
+    public void markRunModel(String conversationId, String runId, String model) {
+        final List<ChatMessageEntity> updated =
+                tailAfterLastUser(
+                                chatMessageRepository
+                                        .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
+                                                conversationId))
+                        .stream()
+                        .filter(row -> row.getType() == MessageType.ASSISTANT)
+                        .filter(row -> row.getMeta() == null || row.getMeta().model() == null)
+                        .map(
+                                row ->
+                                        row.withMeta(
+                                                (row.getMeta() == null
+                                                                ? new ChatMessageMeta(
+                                                                        null, false, List.of())
+                                                                : row.getMeta())
+                                                        .withRun(runId, model)))
+                        .toList();
+        if (!updated.isEmpty()) {
+            chatMessageRepository.saveAll(updated);
+        }
+    }
+
+    /**
+     * Ряды текущего хода — всё, что записано после последнего вопроса пользователя. Прогоны на чат
+     * строго последовательны, поэтому «после последнего вопроса» и есть «этим ходом»; повтор
+     * упавшего прогона нового вопроса не заводит, так что в хвост попадают и его ряды тоже.
+     *
+     * <p>Статический и общий на два вызывающих ({@link #markRunModel} и {@code
+     * ToolCallService#attachRunMeta}): оба дописывают мету рядам одного и того же хода, и вторая
+     * копия этого правила разошлась бы с первой молча. Статический — потому что бином эти два
+     * сервиса связать нельзя: {@link ChatHistoryService} уже зависит от {@code ToolCallService}.
+     */
+    static List<ChatMessageEntity> tailAfterLastUser(List<ChatMessageEntity> rows) {
+        int lastUser = -1;
+        for (int i = 0; i < rows.size(); i++) {
+            if (rows.get(i).getType() == MessageType.USER) {
+                lastUser = i;
+            }
+        }
+        return rows.subList(lastUser + 1, rows.size());
+    }
+
     public void delete(String conversationId) {
         chatMessageRepository.deleteChatMessageByConversationId(conversationId);
     }
