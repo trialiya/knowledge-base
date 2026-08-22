@@ -9,7 +9,7 @@ import chatApi from '@/api/chatApi';
  * @param {[{id:string,label:string}]} options список моделей (может быть пустым/не доехавшим)
  * @param {?string} id id модели; null/пусто — подписи нет
  */
-export const modelLabelOf = (options, id) => (id ? options?.find((o) => o.id === id)?.label ?? id : null);
+export const modelLabelOf = (options, id) => (id ? options?.find((o) => o.id === id)?.label || id : null);
 
 /**
  * Загружает конфиг моделей (GET /api/chats/models) один раз и отдаёт его вместе с

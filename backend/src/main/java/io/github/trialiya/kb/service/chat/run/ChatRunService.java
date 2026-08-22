@@ -562,13 +562,20 @@ public class ChatRunService {
                 chatMemory.add(conversationId, new AssistantMessage(partial + "\n\n" + marker));
                 log.info("Saved partial reply for {} ({} chars)", conversationId, partial.length());
             }
+        } catch (Exception e) {
+            log.warn("Failed to persist partial reply for {}", conversationId, e);
+        }
+        // Свой try: мета относится и к сегментам, которые advisor-цепочка сохранила ПО ХОДУ
+        // прогона, — сорвавшаяся выше запись частичного текста не повод оставить их без плашек
+        // и модели.
+        try {
             toolCallService.attachRunMeta(
                     conversationId, handle.runId(), toolCollector.completedSnapshot());
             // Оборванный ответ тоже кем-то написан — и именно на нём вопрос «какая модель это
             // выдала» задают чаще всего. Порядок тот же, что в onComplete.
             chatHistory.markRunModel(conversationId, handle.runId(), handle.model());
         } catch (Exception e) {
-            log.warn("Failed to persist partial reply for {}", conversationId, e);
+            log.warn("Failed to attach run meta for {}", conversationId, e);
         }
     }
 

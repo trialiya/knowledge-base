@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
  * ToolInvocationMeta#callId} (см. {@link ToolCallBackfillService#backfillToolCallIds}). Вызывается
  * при каждом старте, но реальную работу делает один раз: маркер в {@code backfill_state} (ключ
  * {@link ToolCallBackfillService#TOOL_CALL_ID_BACKFILL_KEY}) ставится в той же транзакции, что и
- * сам бэкафилл, поэтому повторные старты — дешёвый no-op. Флага конфигурации больше нет.
+ * сам бэкафилл, поэтому повторные старты — дешёвый no-op.
  */
 @Slf4j
 @AllArgsConstructor

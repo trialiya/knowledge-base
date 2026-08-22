@@ -77,7 +77,6 @@ class ChatProjectSelectionTest {
                         new ChatModeProperties(List.of()),
                         modeService,
                         mock(io.github.trialiya.kb.config.ChatClientRegistry.class),
-                        mock(org.springframework.ai.chat.memory.ChatMemory.class),
                         topicRepository,
                         mock(ChatHistoryService.class),
                         mock(ToolCallService.class),

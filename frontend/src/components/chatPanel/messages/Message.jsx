@@ -182,21 +182,21 @@ const Message = ({
   const footer =
     sender === SENDER.AI ? (
       <div className="message-footer message-footer--ai">
-        <div className="message-footer-meta">
+        <div className="message-footer__meta">
           {timeLabel && (
-            <span className="message-footer-time" title={timeTitle ?? undefined}>
+            <span className="message-footer__time" title={timeTitle ?? undefined}>
               {timeLabel}
             </span>
           )}
           {/* Модель этого ответа — не та, что выбрана в чате сейчас (её показывает вкладка
               «Инфо»): модель переключают посреди чата, и старые ответы остаются за прежней. */}
           {modelLabel && (
-            <span className="message-footer-model" title={t('message.answeredBy', { model: modelLabel })}>
+            <span className="message-footer__model" title={t('message.answeredBy', { model: modelLabel })}>
               {modelLabel}
             </span>
           )}
         </div>
-        <div className="message-footer-actions">
+        <div className="message-footer__actions">
           {error && onRetry && (
             <button className="message-retry-btn" onClick={onRetry} title={t('message.retry')} type="button">
               ↻ {t('message.retry')}
@@ -216,7 +216,7 @@ const Message = ({
       <div className="message-footer message-footer--user">
         <MessageCopyButton text={text} />
         {timeLabel && (
-          <span className="message-footer-time" title={timeTitle ?? undefined}>
+          <span className="message-footer__time" title={timeTitle ?? undefined}>
             {timeLabel}
           </span>
         )}

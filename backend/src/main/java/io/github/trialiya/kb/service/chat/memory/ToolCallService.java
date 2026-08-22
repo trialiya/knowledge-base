@@ -199,6 +199,11 @@ public class ToolCallService {
                 || entity.getToolData().toolCalls() == null) {
             return stored;
         }
+        // Сегменту из одних SKIP_TOOLS синтезировать нечего (фильтр ниже всё равно всё вырежет) —
+        // не сканируем ради него строки страницы на каждый показ.
+        if (entity.getToolData().toolCalls().stream().noneMatch(call -> hasDetails(call.name()))) {
+            return stored;
+        }
         final Map<String, String> responseById = new HashMap<>();
         for (ChatMessageEntity row : context) {
             if (row.getType() == MessageType.TOOL

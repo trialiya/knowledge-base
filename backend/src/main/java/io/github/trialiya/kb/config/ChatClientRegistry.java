@@ -32,7 +32,7 @@ public class ChatClientRegistry {
      * ChatModelRegistry#forModel(String)}, whose routing this one must mirror.
      */
     public ChatClient forModel(@Nullable String modelId) {
-        return byModelId.getOrDefault(modelId == null ? defaultModelId : modelId, defaultClient);
+        return byModelId.getOrDefault(resolveModelId(modelId), defaultClient);
     }
 
     /**

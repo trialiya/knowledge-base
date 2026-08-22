@@ -112,8 +112,7 @@ class ChatHistoryAppendTest {
                         MessageType.USER,
                         null,
                         null); // ряд, прочитанный из истории — приходит обратно как IMessage
-        when(messageRepo.findFirstByConversationIdOrderByPositionDesc(CONV))
-                .thenReturn(java.util.Optional.of(stored));
+        when(messageRepo.maxPosition(CONV)).thenReturn(stored.getPosition());
 
         history.append(
                 CONV, List.<Message>of(stored.getMessage(), new AssistantMessage("свежий ответ")));

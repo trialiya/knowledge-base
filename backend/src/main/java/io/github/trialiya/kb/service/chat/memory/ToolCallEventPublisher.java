@@ -81,6 +81,16 @@ public class ToolCallEventPublisher {
                                         ? existing
                                         : new RunCalls(runId.get()));
         synchronized (calls) {
+            // Гонка с cleanup (endRun → forget): между чтением activeRunId и compute прогон мог
+            // завершиться — тогда compute воскресил состояние мёртвого прогона с нумерацией с
+            // нуля. Перепроверяем под замком: endRun идёт РАНЬШЕ forget, поэтому воскрешённая
+            // после forget запись всегда видит activeRunId пустым (или уже нового прогона) — и
+            // выбрасывается, не публикуя ничего и не оставаясь висеть в byConversation.
+            if (byConversation.get(conversationId) != calls
+                    || !events.activeRunId(conversationId).map(calls.runId::equals).orElse(false)) {
+                byConversation.remove(conversationId, calls);
+                return;
+            }
             for (ChatMessageEntity row : saved) {
                 publishRow(conversationId, runId.get(), row, calls);
             }
@@ -95,29 +105,31 @@ public class ToolCallEventPublisher {
         }
         if (toolData.toolCalls() != null) {
             for (ToolData.Call call : toolData.toolCalls()) {
-                final Started started =
-                        new Started(
-                                calls.next++,
-                                RecordingToolCallback.parseToolInput(call.arguments()));
-                calls.byCallId.put(call.id(), started);
                 // SKIP_TOOLS не показываем нигде: ни live, ни после перезагрузки
                 // (attachRunMeta их тоже вырезает); номер при этом занимают — он должен
-                // совпадать со счётчиком коллектора.
-                if (ToolCallService.hasDetails(call.name())) {
-                    publish(
-                            conversationId,
-                            runId,
-                            new ToolInvocationMeta(
-                                    call.name(),
-                                    started.arguments(),
-                                    ToolInvocationStatus.STARTED,
-                                    null,
-                                    null,
-                                    true,
-                                    started.callIndex(),
-                                    null,
-                                    call.id()));
+                // совпадать со счётчиком коллектора. Запись в byCallId им не нужна:
+                // её читает только ветка ответов ниже, а она SKIP_TOOLS отбрасывает.
+                final int callIndex = calls.next++;
+                if (!ToolCallService.hasDetails(call.name())) {
+                    continue;
                 }
+                final Started started =
+                        new Started(
+                                callIndex, RecordingToolCallback.parseToolInput(call.arguments()));
+                calls.byCallId.put(call.id(), started);
+                publish(
+                        conversationId,
+                        runId,
+                        new ToolInvocationMeta(
+                                call.name(),
+                                started.arguments(),
+                                ToolInvocationStatus.STARTED,
+                                null,
+                                null,
+                                true,
+                                started.callIndex(),
+                                null,
+                                call.id()));
             }
         }
         if (toolData.responses() != null) {
@@ -126,17 +138,24 @@ public class ToolCallEventPublisher {
                     continue;
                 }
                 final Started started = calls.byCallId.get(response.id());
+                if (started == null) {
+                    // Вызова нет в состоянии прогона (STARTED этой пары ушёл до сброса
+                    // состояния) — OK без номера и аргументов фронт склеить не сможет,
+                    // событие с пустыми данными хуже его отсутствия: правильную плашку
+                    // всё равно принесёт финальное TOOL_CALLS (attachRunMeta) или reload.
+                    continue;
+                }
                 publish(
                         conversationId,
                         runId,
                         new ToolInvocationMeta(
                                 response.name(),
-                                started != null ? started.arguments() : Map.of(),
+                                started.arguments(),
                                 ToolInvocationStatus.OK,
                                 null,
                                 null,
                                 true,
-                                started != null ? started.callIndex() : null,
+                                started.callIndex(),
                                 Compact.truncate(
                                         response.responseData(), ToolCallService.RESULT_GIST_MAX),
                                 response.id()));

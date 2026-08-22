@@ -78,7 +78,6 @@ public class ChatController {
     private final ChatModeProperties chatModeProperties;
     private final ChatModeService chatModeService;
     private final ChatClientRegistry chatClients;
-    private final ChatMemory chatMemory;
     private final ChatTopicRepository chatTopicRepository;
     private final ChatHistoryService chatHistory;
     private final ToolCallService toolCallService;
@@ -101,7 +100,6 @@ public class ChatController {
             ChatModeProperties chatModeProperties,
             ChatModeService chatModeService,
             ChatClientRegistry chatClients,
-            ChatMemory chatMemory,
             ChatTopicRepository chatTopicRepository,
             ChatHistoryService chatHistory,
             ToolCallService toolCallService,
@@ -120,7 +118,6 @@ public class ChatController {
         this.chatModeProperties = chatModeProperties;
         this.chatModeService = chatModeService;
         this.chatClients = chatClients;
-        this.chatMemory = chatMemory;
         this.chatTopicRepository = chatTopicRepository;
         this.chatHistory = chatHistory;
         this.toolCallService = toolCallService;
@@ -210,8 +207,7 @@ public class ChatController {
         final ChatTopicEntity chatTopicEntity = getChatTopic(conversationId);
         final @Nullable List<ChatMessage> messages =
                 includeMessages
-                        ? Optional.ofNullable(chatHistory.displayMessages(conversationId)).stream()
-                                .flatMap(Collection::stream)
+                        ? chatHistory.displayMessages(conversationId).stream()
                                 .filter(a -> a.getText() != null && !a.getText().isBlank())
                                 .map(this::toChatMessage)
                                 .toList()
@@ -275,7 +271,7 @@ public class ChatController {
                 .activeRun(conversationId)
                 .ifPresent(runId -> chatRunService.stop(conversationId, runId));
         chatTopicRepository.deleteById(chatTopicEntity.getConversationId());
-        chatMemory.clear(conversationId);
+        chatHistory.delete(conversationId);
         // Уведомляем открытые на этом чате вкладки (в т.ч. в других браузерах) — они закроют его.
         chatEventService.publishIfPresent(
                 conversationId, ChatEventType.CHAT_DELETED, null, null, null);

@@ -130,15 +130,12 @@ public class ChatHistoryService {
                         ? meta.projectSwitchFrom()
                         : projectSwitch.from();
         final boolean switched = !from.equals(projectSwitch.to());
+        final ChatMessageMeta base =
+                meta == null ? new ChatMessageMeta(null, false, List.of(), List.of()) : meta;
         return chatMessageRepository.save(
                 question.withMeta(
-                        new ChatMessageMeta(
-                                meta == null ? null : meta.runId(),
-                                meta != null && meta.toolCalls(),
-                                meta == null ? List.of() : meta.invocations(),
-                                meta == null ? List.of() : meta.contextItems(),
-                                switched ? projectSwitch.to() : null,
-                                switched ? from : null)));
+                        base.withProjectSwitch(
+                                switched ? projectSwitch.to() : null, switched ? from : null)));
     }
 
     /**
@@ -261,7 +258,14 @@ public class ChatHistoryService {
                                                 conversationId))
                         .stream()
                         .filter(row -> row.getType() == MessageType.ASSISTANT)
-                        .filter(row -> row.getMeta() == null || row.getMeta().model() == null)
+                        // meta == null в хвосте может быть только у рядов текущего прогона (хвост
+                        // на старте прогона пуст — см. unansweredUserMessage). Ряды с метой
+                        // трогаем только свои: withRun переписал бы чужому ряду и runId.
+                        .filter(
+                                row ->
+                                        row.getMeta() == null
+                                                || (row.getMeta().model() == null
+                                                        && runId.equals(row.getMeta().runId())))
                         .map(
                                 row ->
                                         row.withMeta(
@@ -301,10 +305,10 @@ public class ChatHistoryService {
     }
 
     private long lastPosition(String conversationId) {
-        return chatMessageRepository
-                .findFirstByConversationIdOrderByPositionDesc(conversationId)
-                .map(ChatMessageEntity::getPosition)
-                .orElse(0L);
+        // Именно max-проекция: выборка последнего ряда целиком тащила бы его content и
+        // tool_data (у TOOL-ответа это весь результат инструмента) дважды на каждую
+        // итерацию tool-цикла — ради одного long.
+        return chatMessageRepository.maxPosition(conversationId);
     }
 
     /** Протокольные tool-данные сообщения, если они есть (иначе {@code null}). */

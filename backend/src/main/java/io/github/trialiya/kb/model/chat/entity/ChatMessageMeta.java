@@ -103,4 +103,14 @@ public record ChatMessageMeta(
         return new ChatMessageMeta(
                 runId, toolCalls, invocations, contextItems, project, projectSwitchFrom, model);
     }
+
+    /**
+     * Копия с заменённым маркером смены проекта. Как и {@link #withRun} — точечная замена, а не
+     * пересборка через короткий конструктор: остальные поля обязаны пережить перезапись.
+     */
+    public ChatMessageMeta withProjectSwitch(
+            @Nullable String project, @Nullable String projectSwitchFrom) {
+        return new ChatMessageMeta(
+                runId, toolCalls, invocations, contextItems, project, projectSwitchFrom, model);
+    }
 }
