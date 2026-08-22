@@ -17,6 +17,25 @@ describe('applyChatEvent', () => {
     expect(last(chat)).toMatchObject({ sender: 'ai', runId: 'r1', text: '' });
   });
 
+  test('RUN_STARTED marks the bubble with the run model, and new segments inherit it', () => {
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1', payload: { model: 'gpt-5' } }, ctx);
+    expect(last(chat).model).toBe('gpt-5');
+    // Граница сегмента tool-цикла открывает новый пузырь — того же прогона, значит той же модели.
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'до вызова' } }, ctx);
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { finishReason: 'TOOL_CALLS' } }, ctx);
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'после вызова' } }, ctx);
+    expect(last(chat).text).toBe('после вызова');
+    expect(last(chat).model).toBe('gpt-5');
+  });
+
+  test('RUN_STARTED fills the model into a bubble that already exists (optimistic/replay)', () => {
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    expect(last(chat).model).toBeUndefined();
+    chat = applyChatEvent(chat, { type: 'RUN_STARTED', runId: 'r1', payload: { model: 'gpt-5' } }, ctx);
+    expect(chat.messages.filter((m) => m.sender === 'ai')).toHaveLength(1);
+    expect(last(chat).model).toBe('gpt-5');
+  });
+
   test('STREAM appends text to the run bubble and trims leading newlines', () => {
     let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
     chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: '\n\nответ' } }, ctx);

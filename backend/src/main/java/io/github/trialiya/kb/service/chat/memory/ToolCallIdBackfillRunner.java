@@ -7,21 +7,22 @@ import org.springframework.stereotype.Component;
 
 /**
  * Run-once бэкафилл для чатов, записанных до появления {@code tool_call_index}/{@code
- * ToolInvocationMeta#callId} (см. {@link ChatMemoryService#backfillToolCallIds}). Вызывается при
- * каждом старте, но реальную работу делает один раз: маркер в {@code backfill_state} (ключ {@link
- * ChatMemoryService#TOOL_CALL_ID_BACKFILL_KEY}) ставится в той же транзакции, что и сам бэкафилл,
- * поэтому повторные старты — дешёвый no-op. Флага конфигурации больше нет.
+ * ToolInvocationMeta#callId} (см. {@link ToolCallBackfillService#backfillToolCallIds}). Вызывается
+ * при каждом старте, но реальную работу делает один раз: маркер в {@code backfill_state} (ключ
+ * {@link ToolCallBackfillService#TOOL_CALL_ID_BACKFILL_KEY}) ставится в той же транзакции, что и
+ * сам бэкафилл, поэтому повторные старты — дешёвый no-op.
  */
 @Slf4j
 @AllArgsConstructor
 @Component
 public class ToolCallIdBackfillRunner implements CommandLineRunner {
 
-    private final ChatMemoryService chatMemoryService;
+    private final ToolCallBackfillService backfillService;
 
     @Override
     public void run(String... args) {
-        ChatMemoryService.BackfillResult result = chatMemoryService.backfillToolCallIdsIfNeeded();
+        ToolCallBackfillService.BackfillResult result =
+                backfillService.backfillToolCallIdsIfNeeded();
         log.info(
                 "Tool-call id backfill: {} conversation(s) touched, {} invocation(s) filled",
                 result.conversationsTouched(),

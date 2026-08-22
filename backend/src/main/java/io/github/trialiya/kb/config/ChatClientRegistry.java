@@ -32,6 +32,16 @@ public class ChatClientRegistry {
      * ChatModelRegistry#forModel(String)}, whose routing this one must mirror.
      */
     public ChatClient forModel(@Nullable String modelId) {
-        return byModelId.getOrDefault(modelId == null ? defaultModelId : modelId, defaultClient);
+        return byModelId.getOrDefault(resolveModelId(modelId), defaultClient);
+    }
+
+    /**
+     * The id the run actually goes out with — {@code null} spelled out as {@code
+     * kb.chat.default-model.id}. Needed wherever the model is recorded rather than routed by (the
+     * model stamped on an answer, see {@code ChatHistoryService#markRunModel}): "the default one"
+     * is not an answer once the default changes.
+     */
+    public String resolveModelId(@Nullable String modelId) {
+        return modelId == null ? defaultModelId : modelId;
     }
 }

@@ -10,7 +10,7 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.service.chat.ContextItemService;
-import io.github.trialiya.kb.service.chat.memory.ChatMemoryService.PromptRow;
+import io.github.trialiya.kb.service.chat.memory.ChatHistoryService.PromptRow;
 import io.github.trialiya.kb.service.chat.memory.SummarizeWindow.MessageMix;
 import jakarta.annotation.Nonnull;
 import java.util.List;
@@ -50,7 +50,7 @@ public class SummarizeService implements DisposableBean {
 
     private final ChatClient chatClient;
     private final ChatMessageRepository chatMessageRepository;
-    private final ChatMemoryService chatMemoryService;
+    private final ChatHistoryService chatHistory;
     private final ExecutorService executorService;
     private final TransactionTemplate transactionTemplate;
     private final SummarizeProperties summarizeProperties;
@@ -60,7 +60,7 @@ public class SummarizeService implements DisposableBean {
     public SummarizeService(
             OpenAiChatModel openAiChatModel,
             ChatMessageRepository chatMessageRepository,
-            ChatMemoryService chatMemoryService,
+            ChatHistoryService chatHistory,
             @Value("classpath:prompt/summarizer.md") Resource summarizerPrompt,
             PlatformTransactionManager transactionManager,
             SummarizeProperties summarizeProperties,
@@ -73,7 +73,7 @@ public class SummarizeService implements DisposableBean {
                                         chatMessageRepository, contextItemService))
                         .build();
         this.chatMessageRepository = chatMessageRepository;
-        this.chatMemoryService = chatMemoryService;
+        this.chatHistory = chatHistory;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.executorService = Executors.newVirtualThreadPerTaskExecutor();
         this.summarizeProperties = summarizeProperties;
@@ -105,8 +105,7 @@ public class SummarizeService implements DisposableBean {
         // text that will be sent, inventory included, not the text that happens to be stored. The
         // prompt below and the estimate inside SummarizeWindow both measure exactly that.
         final SummarizeWindow window =
-                new SummarizeWindow(
-                        chatMemoryService.promptRows(conversationId), summarizeProperties);
+                new SummarizeWindow(chatHistory.promptRows(conversationId), summarizeProperties);
 
         // The second mix is spelled out only when it differs — that is, when the window carries
         // empty TOOL protocol rows: context the model pays for but the summarizer never sees.

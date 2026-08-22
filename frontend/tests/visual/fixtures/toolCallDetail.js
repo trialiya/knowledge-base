@@ -1,6 +1,6 @@
 /**
  * Фикстуры ответа GET /api/chats/{id}/tool-calls?callId=… (ChatController →
- * ChatMemoryService.findToolCallDetail → ToolCallDetail).
+ * ToolCallService.findToolCallDetail → ToolCallDetail).
  *
  * На них строится модалка деталей вызова инструмента: `resultText` — дословно
  * то, что ушло модели, то есть JSON возвращённого DTO. Формы ниже повторяют

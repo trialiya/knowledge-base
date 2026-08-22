@@ -5,6 +5,7 @@ import Message from './Message';
 import DocChangeBlock from './DocChangeBlock';
 import FileChangeBlock from './FileChangeBlock';
 import { IconArrowDown } from '@/icons/index';
+import { modelLabelOf } from '../run/useModelConfig';
 import { SENDER } from '@/constants/messageSender';
 import {
   SCROLL_STICK_THRESHOLD as STICK_THRESHOLD,
@@ -59,6 +60,9 @@ const MessageList = ({
   // Конфигурация проектов — подписи для плашки смены проекта. Пустой список — не беда:
   // плашка покажет id, что честнее, чем прятать смену, пока конфигурация не доехала.
   projectOptions = [],
+  // Конфигурация моделей — подписи под ответами. Как и у проектов, пустой список не беда:
+  // подписью станет сам id, что честнее, чем спрятать, какая модель отвечала.
+  modelOptions = [],
   messages,
   onNavigateToDoc,
   onLoadMore,
@@ -270,6 +274,7 @@ const MessageList = ({
                 sender={msg.sender}
                 toolCalls={msg.toolCalls}
                 timestamp={msg.timestamp}
+                modelLabel={modelLabelOf(modelOptions, msg.model)}
                 toolCallsRunId={msg.toolCallsRunId ?? msg.runId}
                 preparing={msg.preparing}
                 error={msg.error}

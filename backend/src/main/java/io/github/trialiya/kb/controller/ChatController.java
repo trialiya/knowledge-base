@@ -25,11 +25,13 @@ import io.github.trialiya.kb.model.project.ProjectSwitch;
 import io.github.trialiya.kb.model.tool.ToolCallDetail;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.chat.ChatModeService;
+import io.github.trialiya.kb.service.chat.ChatSearchService;
 import io.github.trialiya.kb.service.chat.ChatTopicService;
 import io.github.trialiya.kb.service.chat.ContextItemService;
 import io.github.trialiya.kb.service.chat.ProjectPromptService;
 import io.github.trialiya.kb.service.chat.SystemPromptService;
-import io.github.trialiya.kb.service.chat.memory.ChatMemoryService;
+import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
+import io.github.trialiya.kb.service.chat.memory.ToolCallService;
 import io.github.trialiya.kb.service.chat.run.ChatEventService;
 import io.github.trialiya.kb.service.chat.run.ChatRunService;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
@@ -76,9 +78,10 @@ public class ChatController {
     private final ChatModeProperties chatModeProperties;
     private final ChatModeService chatModeService;
     private final ChatClientRegistry chatClients;
-    private final ChatMemory chatMemory;
     private final ChatTopicRepository chatTopicRepository;
-    private final ChatMemoryService chatMemoryService;
+    private final ChatHistoryService chatHistory;
+    private final ToolCallService toolCallService;
+    private final ChatSearchService chatSearchService;
     private final ChatRunService chatRunService;
     private final ChatEventService chatEventService;
     private final ScriptGuideService scriptGuideService;
@@ -97,9 +100,10 @@ public class ChatController {
             ChatModeProperties chatModeProperties,
             ChatModeService chatModeService,
             ChatClientRegistry chatClients,
-            ChatMemory chatMemory,
             ChatTopicRepository chatTopicRepository,
-            ChatMemoryService chatMemoryService,
+            ChatHistoryService chatHistory,
+            ToolCallService toolCallService,
+            ChatSearchService chatSearchService,
             ChatRunService chatRunService,
             ChatEventService chatEventService,
             ScriptGuideService scriptGuideService,
@@ -114,9 +118,10 @@ public class ChatController {
         this.chatModeProperties = chatModeProperties;
         this.chatModeService = chatModeService;
         this.chatClients = chatClients;
-        this.chatMemory = chatMemory;
         this.chatTopicRepository = chatTopicRepository;
-        this.chatMemoryService = chatMemoryService;
+        this.chatHistory = chatHistory;
+        this.toolCallService = toolCallService;
+        this.chatSearchService = chatSearchService;
         this.chatRunService = chatRunService;
         this.chatEventService = chatEventService;
         this.scriptGuideService = scriptGuideService;
@@ -183,7 +188,7 @@ public class ChatController {
     public List<ChatSearchResult> searchChats(
             @RequestParam String q, @RequestParam(defaultValue = "20") int limit) {
         int safe = Math.min(Math.max(limit, 1), 50);
-        return chatMemoryService.searchChats(getUser(), q, safe);
+        return chatSearchService.searchChats(getUser(), q, safe);
     }
 
     // ---------------------------------------------------------------------
@@ -202,11 +207,7 @@ public class ChatController {
         final ChatTopicEntity chatTopicEntity = getChatTopic(conversationId);
         final @Nullable List<ChatMessage> messages =
                 includeMessages
-                        ? Optional.ofNullable(
-                                        chatMemoryService.findChatMessageByConversationId(
-                                                conversationId))
-                                .stream()
-                                .flatMap(Collection::stream)
+                        ? chatHistory.displayMessages(conversationId).stream()
                                 .filter(a -> a.getText() != null && !a.getText().isBlank())
                                 .map(this::toChatMessage)
                                 .toList()
@@ -223,11 +224,11 @@ public class ChatController {
             @RequestParam(defaultValue = "20") int limit) {
 
         int safe = Math.min(Math.max(limit, 1), 100);
-        ChatMemoryService.Page page =
+        ChatHistoryService.Page page =
                 (beforeCreatedAt != null && beforeId != null)
-                        ? chatMemoryService.findPageBefore(
+                        ? chatHistory.findPageBefore(
                                 conversationId, beforeCreatedAt, beforeId, safe)
-                        : chatMemoryService.findLatestPage(conversationId, safe);
+                        : chatHistory.findLatestPage(conversationId, safe);
 
         List<ChatMessage> dtos =
                 page.messages().stream()
@@ -240,15 +241,15 @@ public class ChatController {
                                                 e.getCreatedAt(),
                                                 // синтезирует меты из tool_data для сегментов
                                                 // без meta.invocations (оборванные/старые прогоны)
-                                                chatMemoryService.invocationsFor(
-                                                        e, page.messages()),
+                                                toolCallService.invocationsFor(e, page.messages()),
                                                 e.getMeta() != null ? e.getMeta().runId() : null,
                                                 isToolCalls(e),
                                                 e.getContextItems(),
                                                 e.getMeta() != null ? e.getMeta().project() : null,
                                                 e.getMeta() != null
                                                         ? e.getMeta().projectSwitchFrom()
-                                                        : null))
+                                                        : null,
+                                                e.getMeta() != null ? e.getMeta().model() : null))
                         .toList();
         return new MessagePage(dtos, page.hasMore(), page.oldestCursor());
     }
@@ -258,7 +259,7 @@ public class ChatController {
     public List<MessageSearchHit> searchMessages(
             @PathVariable String conversationId, @RequestParam String q) {
         getChatTopic(conversationId); // 404/403 + проверка владельца
-        return chatMemoryService.searchMessages(conversationId, q);
+        return chatSearchService.searchMessages(conversationId, q);
     }
 
     @DeleteMapping("/{conversationId}")
@@ -270,7 +271,7 @@ public class ChatController {
                 .activeRun(conversationId)
                 .ifPresent(runId -> chatRunService.stop(conversationId, runId));
         chatTopicRepository.deleteById(chatTopicEntity.getConversationId());
-        chatMemory.clear(conversationId);
+        chatHistory.delete(conversationId);
         // Уведомляем открытые на этом чате вкладки (в т.ч. в других браузерах) — они закроют его.
         chatEventService.publishIfPresent(
                 conversationId, ChatEventType.CHAT_DELETED, null, null, null);
@@ -393,7 +394,7 @@ public class ChatController {
      * перезагрузку страницы и виден всем вкладкам.
      *
      * <p>Вопрос пользователя сохраняется синхронно, до старта генерации (см. {@link
-     * ChatMemoryService#saveUserMessage}), поэтому ошибка записи — это ошибка этого запроса, а не
+     * ChatHistoryService#saveUserMessage}), поэтому ошибка записи — это ошибка этого запроса, а не
      * тихо потерянное сообщение.
      *
      * <p>Тело — {@link StartRunRequest}: текст вопроса и приложенный к нему контекст (вложения).
@@ -403,7 +404,7 @@ public class ChatController {
      * @param retry повтор упавшего прогона: тело не нужно, новое сообщение не появляется — ходом
      *     остаётся последний неотвеченный вопрос. Если модель уже начала отвечать, повторять
      *     нечего: 422, дальше пользователь пишет сам (см. {@link
-     *     ChatMemoryService#unansweredUserMessage})
+     *     ChatHistoryService#unansweredUserMessage})
      * @param clientMsgId идентификатор клиента — чтобы вкладка-отправитель не задвоила свой
      *     оптимистично показанный пузырь, получив его же эхом
      */
@@ -457,14 +458,14 @@ public class ChatController {
 
     /**
      * Полные детали одного вызова инструмента — точечно по протокольному {@code callId} (см. {@link
-     * ChatMemoryService#findToolCallDetail}); messageId/responseMessageId бэк находит сам через
+     * ToolCallService#findToolCallDetail}); messageId/responseMessageId бэк находит сам через
      * {@code tool_call_index}.
      */
     @GetMapping("/{conversationId}/tool-calls")
     public ResponseEntity<ToolCallDetail> getToolCallDetails(
             @PathVariable String conversationId, @RequestParam String callId) {
         verifyOwnerIfPresent(conversationId);
-        return chatMemoryService
+        return toolCallService
                 .findToolCallDetail(conversationId, callId)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -570,7 +571,8 @@ public class ChatController {
                 isToolCalls(chatMessageEntity),
                 chatMessageEntity.getContextItems(),
                 meta != null ? meta.project() : null,
-                meta != null ? meta.projectSwitchFrom() : null);
+                meta != null ? meta.projectSwitchFrom() : null,
+                meta != null ? meta.model() : null);
     }
 
     /** «Крошка» вызовов инструментов — служебное сообщение, которое не показываем пользователю. */

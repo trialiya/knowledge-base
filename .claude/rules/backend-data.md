@@ -5,8 +5,8 @@ paths:
 
 # Backend: chat persistence and tool calls
 
-The least guessable part of the backend. Read this before touching
-`ChatMemoryService`, chat persistence, or the tool-call UI endpoints.
+The least guessable part of the backend. Read this before touching chat
+persistence (`service/chat/memory`) or the tool-call UI endpoints.
 
 ## `@Tool` signatures
 
@@ -27,16 +27,46 @@ both — read its javadoc for the why before writing a new `@Tool`.
   `callId`. `tool_call_index` (`ToolCallIndexEntity`) maps
   `conversationId + callId` → the `chat_message` ids holding the full details:
   the issuing ASSISTANT segment, and the TOOL response row once it arrives.
-  `ChatMemoryService.findToolCallDetail` is a plain lookup through it — do not
+  `ToolCallService.findToolCallDetail` is a plain lookup through it — do not
   reintroduce positional or offset arithmetic over message history.
-- **The index is filled at persist time** (`ChatMemoryService.saveAll`), not by a
-  background job. Keep it in sync when changing how messages are saved.
-- **Legacy backfill for old data:** `ChatMemoryService.backfillToolCallIds`
+- **The index is filled at persist time** (`ChatHistoryService.append` calls
+  `ToolCallService.index`), not by a background job. Keep it in sync when
+  changing how messages are saved.
+- **Legacy backfill for old data:** `ToolCallBackfillService.backfillToolCallIds`
   fills in `tool_call_index` for chats recorded before it existed. Do not extend
   it; plan to delete both it and `ToolCallIdBackfillRunner` once all
   environments have backfilled.
 
 Migrations for this live in both `db/migration` (Postgres) and `db/migration-h2`.
+
+## Message `meta`
+
+- **A new `ChatMessageMeta` field needs a second edit**, in the `MetaJson`
+  projection inside `ChatMessageMetaToJsonConverter` — both the read and the
+  write side. The projection lists its fields explicitly (so a column written by
+  another version stays readable), and nothing in the compiler notices a field
+  missing from it: the value simply persists as `null`. Mocked-repository tests
+  don't notice either — `ChatMessageMetaRoundTripTest` is what fails, and it
+  stops compiling when a field is added, which is the point.
+
+## Chat memory
+
+- **`ChatMemory` is ours** — `ChatHistoryMemory` over `ChatHistoryService`. Do
+  not swap in `MessageWindowChatMemory`: its window would trim on the write path
+  by a message count unrelated to what the model actually receives (that is
+  `SummarizeService`), and its `add` re-reads the whole conversation on every
+  advisor call. Writes are append-only; `append` gets the new row's position from
+  a single max query, so callers never hand it the history.
+- **Meta written after a run goes on in one order:** `ToolCallService.attachRunMeta`
+  first, `ChatHistoryService.markRunModel` second. The first finds un-enriched
+  segments by `meta == null`, so anything that writes meta earlier hides the
+  run's tool calls from it and the plaques never appear. Both mark the same
+  rows — the ones after the last USER message — through the one shared rule,
+  `ChatHistoryService.tailAfterLastUser`; do not re-derive that cut.
+- **Live `TOOL_CALL` events number calls per run** (`ToolCallEventPublisher`),
+  matching `ToolInvocationCollector`'s counter. Do not recompute `callIndex` by
+  scanning the tail of the history: after a retry the tail also holds the failed
+  run's segments, which that counter never saw.
 
 ## H2 sample data
 

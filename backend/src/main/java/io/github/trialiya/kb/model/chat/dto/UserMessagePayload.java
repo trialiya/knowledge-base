@@ -9,7 +9,7 @@ import org.jspecify.annotations.Nullable;
  * Нагрузка события {@link ChatEventType#USER_MESSAGE}.
  *
  * @param id id сохранённого сообщения — якорь для поиска по чату на фронте. Сообщение пишется до
- *     старта прогона ({@code ChatMemoryService.saveUserMessage}), поэтому id известен уже здесь;
+ *     старта прогона ({@code ChatHistoryService.saveUserMessage}), поэтому id известен уже здесь;
  *     {@code null} — только у событий, отреплеенных из прогонов, записанных до этого изменения.
  * @param contextItems что приложено к вопросу — чтобы чипы вложений появились и в других вкладках,
  *     не дожидаясь перезагрузки

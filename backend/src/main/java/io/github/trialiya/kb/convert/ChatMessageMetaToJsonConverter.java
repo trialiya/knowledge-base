@@ -18,7 +18,16 @@ import org.springframework.data.convert.WritingConverter;
 
 public final class ChatMessageMetaToJsonConverter {
 
-    /** Projection for reading the new object format {"runId":"...","invocations":[...]}. */
+    /**
+     * Схема колонки {@code chat_message.meta}. Проекция, а не сам {@link ChatMessageMeta}: чтение
+     * обязано переживать и записи прошлых версий, и записи будущих ({@code ignoreUnknown}), а поля
+     * с приведением (kind контекстного элемента, {@code null} в {@code toolCalls}) разбираются
+     * здесь, а не в доменной записи.
+     *
+     * <p><b>Новое поле {@link ChatMessageMeta} само сюда не попадёт.</b> Список полей тут явный, и
+     * в обе стороны: не дописав его здесь, получишь запись, которая пишется и читается как {@code
+     * null}, — молча, потому что компилятор об этом ничего не скажет.
+     */
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record MetaJson(
             @Nullable String runId,
@@ -26,7 +35,8 @@ public final class ChatMessageMetaToJsonConverter {
             List<ToolInvocationMeta> invocations,
             @Nullable List<ContextItemJson> contextItems,
             @Nullable String project,
-            @Nullable String projectSwitchFrom) {}
+            @Nullable String projectSwitchFrom,
+            @Nullable String model) {}
 
     /**
      * {@code kind} читается строкой, а не сразу {@link ContextItemKind}: вид, которого эта версия
@@ -94,7 +104,8 @@ public final class ChatMessageMetaToJsonConverter {
                         json.invocations(),
                         contextItemsOf(json.contextItems()),
                         json.project(),
-                        json.projectSwitchFrom());
+                        json.projectSwitchFrom(),
+                        json.model());
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to deserialize chat message meta", e);
             }
@@ -128,7 +139,8 @@ public final class ChatMessageMetaToJsonConverter {
                                                                 i.payload()))
                                         .toList(),
                                 source.project(),
-                                source.projectSwitchFrom()));
+                                source.projectSwitchFrom(),
+                                source.model()));
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to serialize chat message meta", e);
             }

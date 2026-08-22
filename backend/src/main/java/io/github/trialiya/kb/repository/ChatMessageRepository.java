@@ -40,6 +40,14 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
 
     Optional<ChatMessageEntity> findFirstByConversationIdOrderByPositionDesc(String conversationId);
 
+    /** Максимальная позиция в чате, 0 для пустого — источник номера для нового ряда. */
+    @Query(
+            """
+    SELECT COALESCE(MAX(position), 0) FROM chat_message
+    WHERE conversation_id = :conversationId
+    """)
+    long maxPosition(@Param("conversationId") String conversationId);
+
     @Query(
             """
     SELECT * FROM chat_message

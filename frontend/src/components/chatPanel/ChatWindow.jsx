@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n/index';
 import { STORAGE_KEY_ACTIVE_CHAT, DRAFT_CHAT_ID } from '@/constants/storage';
 import { getLastModel, getLastMode, getLastProject } from './run/lastChoiceStore';
-import useModelConfig from './run/useModelConfig';
+import useModelConfig, { modelLabelOf } from './run/useModelConfig';
 import useProjectConfig from '@/components/common/config/useProjectConfig';
 import { resolveProjectChoice } from '@/components/common/config/projectChoice';
 import useModeConfig from './run/useModeConfig';
@@ -413,7 +413,7 @@ const ChatWindow = ({
   // Подписи модели и режима для вкладки «Инфо»: в чате хранятся id, а показывать
   // осмысленно человекочитаемый label из конфига.
   const selectedModelLabel = useMemo(
-    () => modelOptions.find((o) => o.id === selectedModelId)?.label || selectedModelId || null,
+    () => modelLabelOf(modelOptions, selectedModelId),
     [modelOptions, selectedModelId],
   );
   const selectedModeLabel = useMemo(

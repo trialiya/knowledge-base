@@ -19,7 +19,6 @@ import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.SearchAgentService;
 import io.github.trialiya.kb.service.chat.AttachmentService;
 import io.github.trialiya.kb.service.chat.ContextItemService;
-import io.github.trialiya.kb.service.chat.memory.ChatMemoryService;
 import io.github.trialiya.kb.service.chat.run.ChatEventService;
 import io.github.trialiya.kb.service.chat.script.ScriptCancelledException;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
@@ -44,7 +43,6 @@ import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.ToolCallingAdvisor;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.model.openai.autoconfigure.OpenAiChatProperties;
 import org.springframework.ai.model.openai.autoconfigure.OpenAiCommonProperties;
@@ -80,31 +78,6 @@ public class ChatConfig {
     public ExecutorService chatRunExecutor() {
         return new DelegatingSecurityContextExecutorService(
                 Executors.newVirtualThreadPerTaskExecutor());
-    }
-
-    /**
-     * NOT the size of the context sent to the model — that is decided by {@code SummarizeService}
-     * (messages flagged {@code summarized} drop out of {@link
-     * ChatMemoryService#findByConversationId}), and the thresholds live in {@code
-     * kb.chat.summarize.*}.
-     *
-     * <p>{@code maxMessages} only acts on the write path: {@link MessageWindowChatMemory#add} trims
-     * history + new messages to the last N and hands that list to {@code saveAll}. Reads go through
-     * {@link MessageWindowChatMemory#get}, which is a bare {@code findByConversationId} with no
-     * window at all. Since {@link ChatMemoryService#saveAll} is append-only — already persisted
-     * messages are filtered out, nothing is ever deleted — the trim has no observable effect here.
-     * It is kept high so that it also cannot silently drop a message from an unusually large single
-     * {@code add()} batch.
-     *
-     * <p>Deliberately not surfaced in Settings → Модели: a number that changes nothing would only
-     * read as the context limit, which is exactly the confusion the panel used to create.
-     */
-    @Bean
-    public ChatMemory chatMemory(ChatMemoryService chatMemoryService) {
-        return MessageWindowChatMemory.builder()
-                .chatMemoryRepository(chatMemoryService)
-                .maxMessages(300)
-                .build();
     }
 
     @Bean
@@ -415,8 +388,8 @@ public class ChatConfig {
         //   MessageChatMemoryAdvisor  (MIN+400)                      — INSIDE the loop:
         //       before(): prepends the stored history and appends the new user/tool-response
         //       message to the store; after(): saves each iteration's assistant message —
-        //       including intermediate segments with tool_calls. Requires a ChatMemoryRepository
-        //       that round-trips tool messages (ChatMemoryService: chat_message.tool_data).
+        //       including intermediate segments with tool_calls. Requires a ChatMemory that
+        //       round-trips tool messages (ChatHistoryMemory: chat_message.tool_data).
         //
         //   ToolPreparingAdvisor      (LOWEST_PRECEDENCE = MAX)      — INSIDE the loop:
         //       called on every iteration; emits TOOL_PREPARING before each tool execution round.

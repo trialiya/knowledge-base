@@ -15,7 +15,7 @@ public class UserChatMessage extends UserMessage implements IMessage {
      * Вариант с текстом, отличным от сохранённого: к вопросу дописан блок приложенного контекста
      * (см. {@code ContextItemService.render}). Блок собирается при каждом чтении истории и в БД не
      * попадает — {@link #chatMessage()} по-прежнему отдаёт исходную строку, так что и дедупликация
-     * в {@code ChatMemoryService.saveAll}, и показ пользователю работают с тем, что он написал.
+     * в {@code ChatHistoryService.append}, и показ пользователю работают с тем, что он написал.
      */
     public UserChatMessage(ChatMessageEntity chatMessageEntity, String renderedText) {
         super(renderedText);

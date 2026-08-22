@@ -6,7 +6,8 @@
     "btnSource": "Source",
     "btnMarkdown": "Markdown",
     "interrupted": "[⚠ Response interrupted due to a server error]",
-    "retry": "Retry"
+    "retry": "Retry",
+    "answeredBy": "Answered by {{model}}"
   },
   "window": {
     "defaultTitle": "New chat",

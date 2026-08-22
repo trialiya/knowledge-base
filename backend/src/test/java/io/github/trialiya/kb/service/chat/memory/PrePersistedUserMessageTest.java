@@ -9,9 +9,7 @@ import static org.mockito.Mockito.when;
 import io.github.trialiya.kb.config.CommonConfig;
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
-import io.github.trialiya.kb.repository.BackfillStateRepository;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
-import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.service.chat.AttachmentService;
 import io.github.trialiya.kb.service.chat.ContextItemService;
@@ -27,7 +25,6 @@ import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.ToolCallingAdvisor;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.model.ChatModel;
@@ -53,12 +50,12 @@ import reactor.core.publisher.Flux;
  *
  * <p>Схема держится на одном свойстве Spring AI: {@code MessageChatMemoryAdvisor.before()} в конце
  * берёт {@code prompt.getLastUserOrToolResponseMessage()} и отдаёт его в {@code chatMemory.add}, а
- * {@link ChatMemoryService#saveAll} выбрасывает всё, что пришло уже сохранённым {@code IMessage}.
+ * {@link ChatHistoryService#append} выбрасывает всё, что пришло уже сохранённым {@code IMessage}.
  * Если своего user-сообщения в промпте нет, последним оказывается наш предсохранённый ряд — и
  * повторно он не пишется. Тесты пиннят именно это: сломается версия Spring AI — упадёт здесь, а не
  * дублями в проде.
  *
- * <p>Здесь же — окно повтора ({@link ChatMemoryService#unansweredUserMessage}): тот же ряд служит
+ * <p>Здесь же — окно повтора ({@link ChatHistoryService#unansweredUserMessage}): тот же ряд служит
  * ходом при повторе упавшего прогона, но только пока модель не ответила ничем.
  */
 @ActiveProfiles("h2")
@@ -83,19 +80,16 @@ class PrePersistedUserMessageTest {
     private static final String QUESTION = "Привет, модель";
     private static final String REPLY = "Ответ";
 
-    @Autowired private ChatTopicRepository topicRepo;
     @Autowired private ChatMessageRepository messageRepo;
     @Autowired private ToolCallIndexRepository toolCallIndexRepo;
-    @Autowired private BackfillStateRepository backfillStateRepo;
 
-    private ChatMemoryService memoryService() {
-        return new ChatMemoryService(
-                topicRepo,
+    private ChatHistoryService memoryService() {
+        return new ChatHistoryService(
                 messageRepo,
-                new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))),
-                toolCallIndexRepo,
-                backfillStateRepo,
-                new ContextItemService(mock(AttachmentService.class)));
+                new ContextItemService(mock(AttachmentService.class)),
+                new ToolCallService(messageRepo, toolCallIndexRepo),
+                new ToolCallEventPublisher(
+                        new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1)))));
     }
 
     private static ChatModel stubModel() {
@@ -113,12 +107,9 @@ class PrePersistedUserMessageTest {
      * внутри него. Проверять предсохранение на голом advisor памяти недостаточно — в проде {@code
      * before()} вызывается на каждой итерации tool-цикла.
      */
-    private ChatClient chatClient(ChatModel model, ChatMemoryService memory, boolean withToolLoop) {
-        ChatMemory chatMemory =
-                MessageWindowChatMemory.builder()
-                        .chatMemoryRepository(memory)
-                        .maxMessages(50)
-                        .build();
+    private ChatClient chatClient(
+            ChatModel model, ChatHistoryService memory, boolean withToolLoop) {
+        ChatMemory chatMemory = new ChatHistoryMemory(memory);
         List<Advisor> advisors = new java.util.ArrayList<>();
         if (withToolLoop) {
             advisors.add(
@@ -171,7 +162,7 @@ class PrePersistedUserMessageTest {
     @Test
     void prePersistedUserMessageReachesModelAndIsNotDuplicated() {
         String conversationId = UUID.randomUUID().toString();
-        ChatMemoryService memory = memoryService();
+        ChatHistoryService memory = memoryService();
         ChatModel model = stubModel();
 
         long userMessageId = prePersistUser(conversationId, QUESTION);
@@ -199,15 +190,14 @@ class PrePersistedUserMessageTest {
                 .singleElement()
                 .satisfies(m -> assertThat(m.getId()).isEqualTo(userMessageId));
 
-        assertThat(memory.findByConversationId(conversationId))
-                .anyMatch(m -> REPLY.equals(m.getText()));
+        assertThat(memory.promptMessages(conversationId)).anyMatch(m -> REPLY.equals(m.getText()));
     }
 
     /** Боевой путь: {@code stream()} и цепочка с tool-циклом, как в {@code ChatConfig}. */
     @Test
     void prePersistedUserMessageSurvivesStreamingWithToolLoop() {
         String conversationId = UUID.randomUUID().toString();
-        ChatMemoryService memory = memoryService();
+        ChatHistoryService memory = memoryService();
         ChatModel model = stubModel();
 
         long userMessageId = prePersistUser(conversationId, QUESTION);
@@ -238,7 +228,7 @@ class PrePersistedUserMessageTest {
     @Test
     void prePersistedUserMessageSurvivesStreamingWithoutToolLoop() {
         String conversationId = UUID.randomUUID().toString();
-        ChatMemoryService memory = memoryService();
+        ChatHistoryService memory = memoryService();
         ChatModel model = stubModel();
 
         prePersistUser(conversationId, QUESTION);
@@ -261,7 +251,8 @@ class PrePersistedUserMessageTest {
 
     /**
      * Тот же предсохранённый ряд служит ходом и на повторе упавшего прогона — {@link
-     * ChatMemoryService#unansweredUserMessage} возвращает именно его, второго вопроса не заводится.
+     * ChatHistoryService#unansweredUserMessage} возвращает именно его, второго вопроса не
+     * заводится.
      */
     @Test
     void unansweredQuestionIsTheRowRetryReuses() {
@@ -278,10 +269,10 @@ class PrePersistedUserMessageTest {
     @Test
     void startedAnswerClosesTheRetryWindow() {
         String conversationId = UUID.randomUUID().toString();
-        ChatMemoryService memory = memoryService();
+        ChatHistoryService memory = memoryService();
 
         prePersistUser(conversationId, QUESTION);
-        memory.saveAll(conversationId, List.of(new AssistantMessage("Начал отвеч")));
+        memory.append(conversationId, List.of(new AssistantMessage("Начал отвеч")));
 
         assertThat(memory.unansweredUserMessage(conversationId)).isEmpty();
     }
@@ -294,10 +285,10 @@ class PrePersistedUserMessageTest {
     @Test
     void repairedToolCallTailClosesTheRetryWindow() {
         String conversationId = UUID.randomUUID().toString();
-        ChatMemoryService memory = memoryService();
+        ChatHistoryService memory = memoryService();
 
         prePersistUser(conversationId, QUESTION);
-        memory.saveAll(
+        memory.append(
                 conversationId,
                 List.of(
                         AssistantMessage.builder()
@@ -326,7 +317,7 @@ class PrePersistedUserMessageTest {
     @Test
     void passingUserOnTopOfPrePersistedRowCreatesSecondRow() {
         String conversationId = UUID.randomUUID().toString();
-        ChatMemoryService memory = memoryService();
+        ChatHistoryService memory = memoryService();
         ChatModel model = stubModel();
 
         prePersistUser(conversationId, QUESTION);

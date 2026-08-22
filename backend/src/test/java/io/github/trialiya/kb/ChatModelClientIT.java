@@ -10,13 +10,14 @@ import io.github.trialiya.kb.config.CommonConfig;
 import io.github.trialiya.kb.config.JdbcConfig;
 import io.github.trialiya.kb.config.PgVectorJdbcConfig;
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
-import io.github.trialiya.kb.repository.BackfillStateRepository;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
-import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.service.chat.AttachmentService;
 import io.github.trialiya.kb.service.chat.ContextItemService;
-import io.github.trialiya.kb.service.chat.memory.ChatMemoryService;
+import io.github.trialiya.kb.service.chat.memory.ChatHistoryMemory;
+import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
+import io.github.trialiya.kb.service.chat.memory.ToolCallEventPublisher;
+import io.github.trialiya.kb.service.chat.memory.ToolCallService;
 import io.github.trialiya.kb.service.chat.run.ChatEventService;
 import io.github.trialiya.kb.support.AbstractPostgresIntegrationTest;
 import java.time.Duration;
@@ -27,7 +28,6 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.model.ChatModel;
@@ -45,7 +45,7 @@ import org.springframework.context.annotation.Import;
  *
  * <p>Идея: собрать настоящий {@link ChatClient} ровно так, как это делает {@code ChatConfig}
  * (advisor памяти поверх модели), но подменить сам {@link ChatModel} моком. Память при этом
- * НАСТОЯЩАЯ — {@link ChatMemoryService} поверх PostgreSQL из Testcontainers. Это позволяет
+ * НАСТОЯЩАЯ — {@link ChatHistoryMemory} поверх PostgreSQL из Testcontainers. Это позволяет
  * проверить именно то, что обычно ломается в интеграции с моделью, не тратя токены и не завися от
  * сети:
  *
@@ -64,29 +64,23 @@ import org.springframework.context.annotation.Import;
 @Import({CommonConfig.class, JdbcConfig.class, PgVectorJdbcConfig.class})
 class ChatModelClientIT extends AbstractPostgresIntegrationTest {
 
-    @Autowired private ChatTopicRepository topicRepo;
     @Autowired private ChatMessageRepository messageRepo;
     @Autowired private ToolCallIndexRepository toolCallIndexRepo;
-    @Autowired private BackfillStateRepository backfillStateRepo;
 
     @Test
     void selectedModelReachesModelLayerAndReplyIsPersisted() {
         String conversationId = UUID.randomUUID().toString();
 
         // ── настоящая память поверх Postgres ────────────────────────────────
-        ChatMemoryService memoryService =
-                new ChatMemoryService(
-                        topicRepo,
+        ChatHistoryService history =
+                new ChatHistoryService(
                         messageRepo,
-                        new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))),
-                        toolCallIndexRepo,
-                        backfillStateRepo,
-                        new ContextItemService(mock(AttachmentService.class)));
-        ChatMemory chatMemory =
-                MessageWindowChatMemory.builder()
-                        .chatMemoryRepository(memoryService)
-                        .maxMessages(50)
-                        .build();
+                        new ContextItemService(mock(AttachmentService.class)),
+                        new ToolCallService(messageRepo, toolCallIndexRepo),
+                        new ToolCallEventPublisher(
+                                new ChatEventService(
+                                        new ChatTimeoutProperties(Duration.ofMinutes(1)))));
+        ChatMemory chatMemory = new ChatHistoryMemory(history);
 
         // ── модель-заглушка ────────────────────────────────────────────────
         ChatModel chatModel = mock(ChatModel.class);
@@ -124,7 +118,7 @@ class ChatModelClientIT extends AbstractPostgresIntegrationTest {
                 .anyMatch(m -> m.getText() != null && m.getText().contains("Привет, модель"));
 
         // ответ ассистента сохранён в памяти чата и доступен при перезагрузке диалога
-        List<Message> history = memoryService.findByConversationId(conversationId);
-        assertThat(history).extracting(Message::getText).contains("Привет, человек!");
+        List<Message> reloaded = history.promptMessages(conversationId);
+        assertThat(reloaded).extracting(Message::getText).contains("Привет, человек!");
     }
 }

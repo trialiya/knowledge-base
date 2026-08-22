@@ -6,7 +6,8 @@
     "btnSource": "Исходник",
     "btnMarkdown": "Markdown",
     "interrupted": "[⚠ Ответ прерван из-за ошибки на сервере]",
-    "retry": "Повторить"
+    "retry": "Повторить",
+    "answeredBy": "Ответила модель {{model}}"
   },
   "window": {
     "defaultTitle": "Новый чат",

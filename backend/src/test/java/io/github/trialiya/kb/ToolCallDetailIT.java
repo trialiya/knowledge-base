@@ -13,13 +13,13 @@ import io.github.trialiya.kb.model.tool.ToolCallDetail;
 import io.github.trialiya.kb.model.tool.ToolCallIndexEntity;
 import io.github.trialiya.kb.model.tool.ToolData;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
-import io.github.trialiya.kb.repository.BackfillStateRepository;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
-import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.service.chat.AttachmentService;
 import io.github.trialiya.kb.service.chat.ContextItemService;
-import io.github.trialiya.kb.service.chat.memory.ChatMemoryService;
+import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
+import io.github.trialiya.kb.service.chat.memory.ToolCallEventPublisher;
+import io.github.trialiya.kb.service.chat.memory.ToolCallService;
 import io.github.trialiya.kb.service.chat.run.ChatEventService;
 import io.github.trialiya.kb.support.AbstractPostgresIntegrationTest;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
@@ -40,7 +40,7 @@ import org.springframework.context.annotation.Import;
 /**
  * Сборка {@link ToolCallDetail} из {@code chat_message} по {@code callId} (точечный lookup через
  * {@code tool_call_index} + {@code findAllById}, без скана истории чата — см. {@link
- * ChatMemoryService#findToolCallDetail}): полные аргументы — из {@code tool_data.toolCalls}
+ * ToolCallService#findToolCallDetail}): полные аргументы — из {@code tool_data.toolCalls}
  * ASSISTANT-сегмента, полный результат — из {@code tool_data.responses} TOOL-сообщения,
  * статус/ошибка/resultMeta — из {@code meta.invocations} по тому же {@code callId}. Отдельно
  * проверяются несколько вызовов в одном сегменте, SKIP_TOOLS-вызовы (есть в toolCalls, но не в
@@ -51,19 +51,20 @@ import org.springframework.context.annotation.Import;
 @Import({CommonConfig.class, JdbcConfig.class, PgVectorJdbcConfig.class})
 class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
 
-    @Autowired private ChatTopicRepository topicRepo;
     @Autowired private ChatMessageRepository messageRepo;
     @Autowired private ToolCallIndexRepository toolCallIndexRepo;
-    @Autowired private BackfillStateRepository backfillStateRepo;
 
-    private ChatMemoryService memory() {
-        return new ChatMemoryService(
-                topicRepo,
+    private ToolCallService toolCalls() {
+        return new ToolCallService(messageRepo, toolCallIndexRepo);
+    }
+
+    private ChatHistoryService history() {
+        return new ChatHistoryService(
                 messageRepo,
-                new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))),
-                toolCallIndexRepo,
-                backfillStateRepo,
-                new ContextItemService(mock(AttachmentService.class)));
+                new ContextItemService(mock(AttachmentService.class)),
+                toolCalls(),
+                new ToolCallEventPublisher(
+                        new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1)))));
     }
 
     private long position = 0;
@@ -87,7 +88,7 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
                         toolData));
     }
 
-    /** Строка {@code tool_call_index}, как её пишет {@link ChatMemoryService#saveAll}. */
+    /** Строка {@code tool_call_index}, как её пишет {@link ToolCallService#index}. */
     private void index(
             String conv, String callId, long messageId, @Nullable Long responseMessageId) {
         ToolCallIndexEntity row = new ToolCallIndexEntity();
@@ -154,7 +155,7 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
                                                 0,
                                                 "call_1")))));
 
-        Optional<ToolCallDetail> detail = memory().findToolCallDetail(conv, "call_1");
+        Optional<ToolCallDetail> detail = toolCalls().findToolCallDetail(conv, "call_1");
 
         assertThat(detail).isPresent();
         assertThat(detail.get().name()).isEqualTo("updateDocument");
@@ -216,7 +217,7 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
                                                 1,
                                                 "call_1")))));
 
-        Optional<ToolCallDetail> detail = memory().findToolCallDetail(conv, "call_1");
+        Optional<ToolCallDetail> detail = toolCalls().findToolCallDetail(conv, "call_1");
 
         assertThat(detail).isPresent();
         assertThat(detail.get().name()).isEqualTo("second");
@@ -278,7 +279,7 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
                                                 1,
                                                 "call_real")))));
 
-        Optional<ToolCallDetail> detail = memory().findToolCallDetail(conv, "call_real");
+        Optional<ToolCallDetail> detail = toolCalls().findToolCallDetail(conv, "call_real");
 
         assertThat(detail).isPresent();
         assertThat(detail.get().name()).isEqualTo("searchDocuments");
@@ -319,7 +320,7 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
                                                 0,
                                                 "call_err")))));
 
-        Optional<ToolCallDetail> detail = memory().findToolCallDetail(conv, "call_err");
+        Optional<ToolCallDetail> detail = toolCalls().findToolCallDetail(conv, "call_err");
 
         assertThat(detail).isPresent();
         assertThat(detail.get().status()).isEqualTo(ToolInvocationStatus.ERROR);
@@ -355,8 +356,9 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
                                                 0,
                                                 "call_0")))));
 
-        assertThat(memory().findToolCallDetail(conv, "call_missing")).isEmpty();
-        assertThat(memory().findToolCallDetail(UUID.randomUUID().toString(), "call_0")).isEmpty();
+        assertThat(toolCalls().findToolCallDetail(conv, "call_missing")).isEmpty();
+        assertThat(toolCalls().findToolCallDetail(UUID.randomUUID().toString(), "call_0"))
+                .isEmpty();
     }
 
     /**
@@ -386,7 +388,7 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
 
         assertThat(toolCallIndexRepo.findAllByConversationId(conv)).hasSize(1);
 
-        memory().deleteByConversationId(conv);
+        history().delete(conv);
 
         assertThat(toolCallIndexRepo.findAllByConversationId(conv)).isEmpty();
         assertThat(

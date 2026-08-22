@@ -14,7 +14,7 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.service.chat.ContextItemService;
-import io.github.trialiya.kb.service.chat.memory.ChatMemoryService.PromptRow;
+import io.github.trialiya.kb.service.chat.memory.ChatHistoryService.PromptRow;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -47,13 +47,13 @@ class SummarizeServiceTest {
             new SummarizeProperties(30_000, 50, 30, 5, 5, 4);
 
     private ChatMessageRepository repository;
-    private ChatMemoryService chatMemoryService;
+    private ChatHistoryService chatHistory;
     private OpenAiChatModel chatModel;
 
     @BeforeEach
     void setUp() {
         repository = mock(ChatMessageRepository.class);
-        chatMemoryService = mock(ChatMemoryService.class);
+        chatHistory = mock(ChatHistoryService.class);
         chatModel = mock(OpenAiChatModel.class);
         when(chatModel.getOptions()).thenReturn(OpenAiChatOptions.builder().build());
         answerWith("summary of the earlier conversation");
@@ -143,7 +143,7 @@ class SummarizeServiceTest {
     }
 
     private void givenLive(List<PromptRow> rows) {
-        when(chatMemoryService.promptRows(CONV)).thenReturn(rows);
+        when(chatHistory.promptRows(CONV)).thenReturn(rows);
     }
 
     /** Ходы по три позиции: вопрос, ответ модели и пустая протокольная TOOL-строка за ним. */
@@ -192,7 +192,7 @@ class SummarizeServiceTest {
         return new SummarizeService(
                 chatModel,
                 repository,
-                chatMemoryService,
+                chatHistory,
                 new ByteArrayResource("summarize".getBytes()),
                 transactionManager(),
                 PRODUCTION,

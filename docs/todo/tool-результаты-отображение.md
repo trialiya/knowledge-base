@@ -329,7 +329,7 @@ backend/…/functions/GitFunction.java   ·   java   ·   строки 59–120 
 
 ```
 │ Результат  · 7 совпадений в 3 файлах  [ Обзор │ JSON ]       │
-│ backend/…/ChatMemoryService.java                             │
+│ backend/…/ChatHistoryService.java                            │
 │   84 │   BROWSE_PATHS_V2_ASPECT_NAME,                        │  ← контекст, приглушённый
 │   85 │   SUB_TYPES_ASPECT_NAME,                              │  ← совпадение, подсвеченное
 │   86 │   STRUCTURED_PROPERTIES_ASPECT_NAME,                  │
