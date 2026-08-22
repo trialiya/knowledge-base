@@ -1,12 +1,10 @@
 package io.github.trialiya.kb;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
 
 import io.github.trialiya.kb.config.CommonConfig;
 import io.github.trialiya.kb.config.JdbcConfig;
 import io.github.trialiya.kb.config.PgVectorJdbcConfig;
-import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
@@ -17,13 +15,10 @@ import io.github.trialiya.kb.repository.BackfillStateRepository;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
-import io.github.trialiya.kb.service.chat.AttachmentService;
-import io.github.trialiya.kb.service.chat.ContextItemService;
-import io.github.trialiya.kb.service.chat.memory.ChatMemoryService;
-import io.github.trialiya.kb.service.chat.run.ChatEventService;
+import io.github.trialiya.kb.service.chat.memory.ToolCallBackfillService;
+import io.github.trialiya.kb.service.chat.memory.ToolCallService;
 import io.github.trialiya.kb.support.AbstractPostgresIntegrationTest;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -37,7 +32,7 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.context.annotation.Import;
 
 /**
- * {@link ChatMemoryService#backfillToolCallIds()} на данных в старом формате: {@code
+ * {@link ToolCallBackfillService#backfillToolCallIds()} на данных в старом формате: {@code
  * tool_call_index} ещё не наполнен, а {@code meta.invocations} — без {@code callId} (ровно как их
  * писала версия до появления этой таблицы). Проверяет, что бэкафилл наполняет индекс из {@code
  * tool_data} напрямую (без учёта прогонов/позиций — они там ни при чём), дозаполняет {@code callId}
@@ -55,14 +50,13 @@ class ToolCallIdBackfillIT extends AbstractPostgresIntegrationTest {
     @Autowired private ToolCallIndexRepository toolCallIndexRepo;
     @Autowired private BackfillStateRepository backfillStateRepo;
 
-    private ChatMemoryService memory() {
-        return new ChatMemoryService(
-                topicRepo,
-                messageRepo,
-                new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))),
-                toolCallIndexRepo,
-                backfillStateRepo,
-                new ContextItemService(mock(AttachmentService.class)));
+    private ToolCallService toolCalls() {
+        return new ToolCallService(messageRepo, toolCallIndexRepo);
+    }
+
+    private ToolCallBackfillService backfill() {
+        return new ToolCallBackfillService(
+                topicRepo, messageRepo, toolCallIndexRepo, backfillStateRepo);
     }
 
     private long position = 0;
@@ -144,7 +138,7 @@ class ToolCallIdBackfillIT extends AbstractPostgresIntegrationTest {
                                 false,
                                 List.of(oldMeta("updateDocument", ToolInvocationStatus.OK, 0)))));
 
-        ChatMemoryService.BackfillResult result = memory().backfillToolCallIds();
+        ToolCallBackfillService.BackfillResult result = backfill().backfillToolCallIds();
 
         assertThat(result.conversationsTouched()).isEqualTo(1);
         assertThat(result.invocationsFilled()).isEqualTo(1);
@@ -156,7 +150,7 @@ class ToolCallIdBackfillIT extends AbstractPostgresIntegrationTest {
                             assertThat(row.getResponseMessageId()).isEqualTo(toolRow.getId());
                         });
 
-        Optional<ToolCallDetail> detail = memory().findToolCallDetail(conv, "call_1");
+        Optional<ToolCallDetail> detail = toolCalls().findToolCallDetail(conv, "call_1");
         assertThat(detail).isPresent();
         assertThat(detail.get().name()).isEqualTo("updateDocument");
         assertThat(detail.get().argumentsRaw()).isEqualTo("{\"id\":7,\"body\":\"long\"}");
@@ -184,8 +178,8 @@ class ToolCallIdBackfillIT extends AbstractPostgresIntegrationTest {
                                 false,
                                 List.of(oldMeta("first", ToolInvocationStatus.OK, 0)))));
 
-        ChatMemoryService.BackfillResult first = memory().backfillToolCallIds();
-        ChatMemoryService.BackfillResult second = memory().backfillToolCallIds();
+        ToolCallBackfillService.BackfillResult first = backfill().backfillToolCallIds();
+        ToolCallBackfillService.BackfillResult second = backfill().backfillToolCallIds();
 
         assertThat(first.invocationsFilled()).isEqualTo(1);
         assertThat(second.invocationsFilled()).isEqualTo(0);
@@ -213,13 +207,13 @@ class ToolCallIdBackfillIT extends AbstractPostgresIntegrationTest {
                                 false,
                                 List.of(oldMeta("first", ToolInvocationStatus.OK, 0)))));
 
-        ChatMemoryService.BackfillResult first = memory().backfillToolCallIdsIfNeeded();
-        ChatMemoryService.BackfillResult second = memory().backfillToolCallIdsIfNeeded();
+        ToolCallBackfillService.BackfillResult first = backfill().backfillToolCallIdsIfNeeded();
+        ToolCallBackfillService.BackfillResult second = backfill().backfillToolCallIdsIfNeeded();
 
         assertThat(first.invocationsFilled()).isEqualTo(1);
         assertThat(second.invocationsFilled()).isZero();
         assertThat(second.conversationsTouched()).isZero();
-        assertThat(backfillStateRepo.existsById(ChatMemoryService.TOOL_CALL_ID_BACKFILL_KEY))
+        assertThat(backfillStateRepo.existsById(ToolCallBackfillService.TOOL_CALL_ID_BACKFILL_KEY))
                 .isTrue();
     }
 
@@ -237,7 +231,7 @@ class ToolCallIdBackfillIT extends AbstractPostgresIntegrationTest {
                         runId, false, List.of(oldMeta("legacyTool", ToolInvocationStatus.OK, 0))),
                 null);
 
-        ChatMemoryService.BackfillResult result = memory().backfillToolCallIds();
+        ToolCallBackfillService.BackfillResult result = backfill().backfillToolCallIds();
 
         assertThat(result.conversationsTouched()).isZero();
         assertThat(result.invocationsFilled()).isZero();

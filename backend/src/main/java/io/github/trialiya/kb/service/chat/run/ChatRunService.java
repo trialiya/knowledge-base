@@ -21,8 +21,9 @@ import io.github.trialiya.kb.model.project.ProjectSwitch;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.service.chat.ProjectPromptService;
 import io.github.trialiya.kb.service.chat.SystemPromptService;
-import io.github.trialiya.kb.service.chat.memory.ChatMemoryService;
+import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.memory.SummarizeService;
+import io.github.trialiya.kb.service.chat.memory.ToolCallService;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
 import io.github.trialiya.kb.tools.RunCancellation;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
@@ -82,7 +83,8 @@ public class ChatRunService {
 
     private final ChatClientRegistry chatClients;
     private final ChatMemory chatMemory;
-    private final ChatMemoryService chatMemoryService;
+    private final ChatHistoryService chatHistory;
+    private final ToolCallService toolCallService;
     private final SummarizeService summarizeService;
     private final ChatEventService events;
     private final ScriptGuideService scriptGuideService;
@@ -100,7 +102,8 @@ public class ChatRunService {
     public ChatRunService(
             ChatClientRegistry chatClients,
             ChatMemory chatMemory,
-            ChatMemoryService chatMemoryService,
+            ChatHistoryService chatHistory,
+            ToolCallService toolCallService,
             SummarizeService summarizeService,
             ChatEventService events,
             ScriptGuideService scriptGuideService,
@@ -109,7 +112,8 @@ public class ChatRunService {
             @Qualifier("chatRunExecutor") Executor executor) {
         this.chatClients = chatClients;
         this.chatMemory = chatMemory;
-        this.chatMemoryService = chatMemoryService;
+        this.chatHistory = chatHistory;
+        this.toolCallService = toolCallService;
         this.summarizeService = summarizeService;
         this.events = events;
         this.scriptGuideService = scriptGuideService;
@@ -131,7 +135,7 @@ public class ChatRunService {
      *
      * @param userMessage вопрос пользователя; {@code null} — это повтор упавшего прогона: нового
      *     сообщения не появляется, ходом становится последний неотвеченный вопрос из истории (см.
-     *     {@link ChatMemoryService#unansweredUserMessage}). Повтор поверх начатого ответа модели
+     *     {@link ChatHistoryService#unansweredUserMessage}). Повтор поверх начатого ответа модели
      *     запрещён — 422.
      * @param contextItems приложенное к вопросу (вложения) — уже проверенное {@code
      *     ContextItemService}. На повторе игнорируется: контекст записан вместе с сообщением
@@ -159,10 +163,10 @@ public class ChatRunService {
             // и модель отвергла бы такой диалог. Достраиваем пару СТРОГО ДО записи вопроса:
             // repairDanglingToolCalls смотрит только на последнюю строку, и записанное первым
             // сообщение пользователя навсегда спрятало бы от неё оборванную пару.
-            chatMemoryService.repairDanglingToolCalls(conversationId);
+            chatHistory.repairDanglingToolCalls(conversationId);
             userRow =
                     userMessage != null
-                            ? chatMemoryService.saveUserMessage(
+                            ? chatHistory.saveUserMessage(
                                     conversationId,
                                     userMessage,
                                     contextItems,
@@ -173,7 +177,7 @@ public class ChatRunService {
                             // Проект при повторе выбирают заново, поэтому маркер смены может
                             // появиться и здесь — на том же вопросе.
                             : retried(
-                                    chatMemoryService
+                                    chatHistory
                                             .unansweredUserMessage(conversationId)
                                             .orElseThrow(
                                                     () ->
@@ -223,7 +227,7 @@ public class ChatRunService {
     private ChatMessageEntity retried(ChatMessageEntity question, RunOptions options) {
         return options.projectSwitch() == null
                 ? question
-                : chatMemoryService.markProjectSwitch(question, options.projectSwitch());
+                : chatHistory.markProjectSwitch(question, options.projectSwitch());
     }
 
     /**
@@ -251,7 +255,7 @@ public class ChatRunService {
      *     проект списка (см. {@code ProjectCatalog})
      * @param projectSwitch смена проекта относительно предыдущих сообщений чата; {@code null} —
      *     проект тот же. Оседает маркером в meta вопроса (см. {@code
-     *     ChatMemoryService#saveUserMessage})
+     *     ChatHistoryService#saveUserMessage})
      */
     public record RunOptions(
             @Nullable String model,
@@ -343,7 +347,7 @@ public class ChatRunService {
         // advisor-цепочкой. Сбрасываем буфер здесь: это надёжная граница, в отличие от
         // finishReason=TOOL_CALLS (агрегированный tool-чанк с ним ToolCallingAdvisor
         // отфильтровывает из потока и до onNext он не доходит). Сами live-события TOOL_CALL
-        // публикует ChatMemoryService.saveAll при сохранении tool-данных сегмента.
+        // публикует ToolCallEventPublisher при сохранении tool-данных сегмента.
         final ToolInvocationCollector toolCollector =
                 new ToolInvocationCollector(() -> buffer.setLength(0));
 
@@ -389,7 +393,7 @@ public class ChatRunService {
                                                             projectPromptService.context(
                                                                     options.project())))
                             // Своего .user(...) здесь намеренно нет: вопрос уже сохранён в
-                            // истории (см. ChatMemoryService.saveUserMessage), и его подмешает
+                            // истории (см. ChatHistoryService.saveUserMessage), и его подмешает
                             // advisor памяти. Передать его ещё и сюда — значит сохранить вторым
                             // рядом; см. PrePersistedUserMessageTest.
                             .toolContext(
@@ -474,7 +478,7 @@ public class ChatRunService {
         // responseMessageId в них есть только после attachRunMeta — она же вырезает SKIP_TOOLS,
         // так что после перезагрузки они не покажутся, а тут — так же, одним и тем же списком).
         final List<ToolInvocationMeta> metas =
-                chatMemoryService.attachRunMeta(
+                toolCallService.attachRunMeta(
                         handle.conversationId(), handle.runId(), toolCollector.completedSnapshot());
         liveSink.accept(new ToolCallsMessage(metas));
         events.publish(handle.conversationId(), RUN_DONE, handle.runId(), null, null);
@@ -533,14 +537,14 @@ public class ChatRunService {
             // repairDanglingToolCalls смотрит только на последнюю строку, и записанный первым
             // partial навсегда спрятал бы от него оборванную пару (модель отвечала бы 400 на
             // каждый следующий запрос этого чата).
-            chatMemoryService.repairDanglingToolCalls(conversationId);
+            chatHistory.repairDanglingToolCalls(conversationId);
             if (!partial.isBlank()) {
                 // Помечаем сохранённый ответ как оборванный — чтобы после reload было видно,
                 // что генерацию остановили/она упала, а не получился полный ответ.
                 chatMemory.add(conversationId, new AssistantMessage(partial + "\n\n" + marker));
                 log.info("Saved partial reply for {} ({} chars)", conversationId, partial.length());
             }
-            chatMemoryService.attachRunMeta(
+            toolCallService.attachRunMeta(
                     conversationId, handle.runId(), toolCollector.completedSnapshot());
         } catch (Exception e) {
             log.warn("Failed to persist partial reply for {}", conversationId, e);

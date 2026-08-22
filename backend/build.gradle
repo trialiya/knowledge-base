@@ -51,7 +51,6 @@ dependencies {
     implementation 'org.flywaydb:flyway-database-postgresql'
 
     implementation 'org.springframework.ai:spring-ai-starter-model-openai'
-    implementation 'org.springframework.ai:spring-ai-starter-model-chat-memory-repository-jdbc'
     // MCP (Model Context Protocol) client — lets the chat model call tools exposed by external MCP
     // servers (stdio subprocess or SSE/streamable-HTTP), on top of the built-in git/document tools.
     // httpclient-based variant (not -webflux) to match the servlet stack. See ChatConfig.chatClientBuilder

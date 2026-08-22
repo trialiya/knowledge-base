@@ -22,11 +22,12 @@ import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.chat.entity.ContextItemKind;
 import io.github.trialiya.kb.model.project.ProjectSwitch;
 import io.github.trialiya.kb.repository.AttachmentRepository;
-import io.github.trialiya.kb.repository.BackfillStateRepository;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
-import io.github.trialiya.kb.service.chat.memory.ChatMemoryService;
+import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
+import io.github.trialiya.kb.service.chat.memory.ToolCallEventPublisher;
+import io.github.trialiya.kb.service.chat.memory.ToolCallService;
 import io.github.trialiya.kb.service.chat.run.ChatEventService;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -78,25 +79,24 @@ class ContextItemsTest {
     @Autowired private ChatTopicRepository topicRepo;
     @Autowired private ChatMessageRepository messageRepo;
     @Autowired private ToolCallIndexRepository toolCallIndexRepo;
-    @Autowired private BackfillStateRepository backfillStateRepo;
     @Autowired private AttachmentRepository attachmentRepo;
 
     private AttachmentService attachmentService;
     private ContextItemService contextItemService;
-    private ChatMemoryService memoryService;
+    private ChatHistoryService memoryService;
 
     @BeforeEach
     void setUp() {
         attachmentService = mock(AttachmentService.class);
         contextItemService = new ContextItemService(attachmentService);
         memoryService =
-                new ChatMemoryService(
-                        topicRepo,
+                new ChatHistoryService(
                         messageRepo,
-                        new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))),
-                        toolCallIndexRepo,
-                        backfillStateRepo,
-                        contextItemService);
+                        contextItemService,
+                        new ToolCallService(messageRepo, toolCallIndexRepo),
+                        new ToolCallEventPublisher(
+                                new ChatEventService(
+                                        new ChatTimeoutProperties(Duration.ofMinutes(1)))));
     }
 
     /** Вложение чата видно только своему чату — этим и занимается запрос за метаданными. */
@@ -193,7 +193,7 @@ class ContextItemsTest {
                         });
 
         // А модель видит опись приложенного, дописанную к вопросу при чтении истории.
-        assertThat(memoryService.findByConversationId(conversationId))
+        assertThat(memoryService.promptMessages(conversationId))
                 .singleElement()
                 .satisfies(
                         message -> {
@@ -210,8 +210,8 @@ class ContextItemsTest {
     /**
      * Самый молчаливый способ всё сломать: опись, дописанная к вопросу для модели, уезжает обратно
      * в БД. Держится это на том, что {@code UserChatMessage} — это {@code IMessage}, и {@link
-     * ChatMemoryService#saveAll} такие сообщения пропускает. Advisor памяти отдаёт в {@code
-     * saveAll} ровно то, что взял из истории, — это здесь и воспроизводится.
+     * ChatHistoryService#append} такие сообщения пропускает. Advisor памяти отдаёт в {@code append}
+     * ровно то, что взял из истории, — это здесь и воспроизводится.
      */
     @Test
     void renderedContextNeverTravelsBackIntoTheDatabase() {
@@ -223,7 +223,7 @@ class ContextItemsTest {
                 contextItemService.resolve(conversationId, List.of(attachmentRequest())),
                 null);
 
-        memoryService.saveAll(conversationId, memoryService.findByConversationId(conversationId));
+        memoryService.append(conversationId, memoryService.promptMessages(conversationId));
 
         assertThat(
                         messageRepo
@@ -246,15 +246,15 @@ class ContextItemsTest {
 
         when(attachmentService.findSummaries(anyString(), any())).thenReturn(List.of());
 
-        assertThat(memoryService.findByConversationId(conversationId))
+        assertThat(memoryService.promptMessages(conversationId))
                 .singleElement()
                 .satisfies(message -> assertThat(message.getText()).isEqualTo(QUESTION));
     }
 
     /**
      * Опись дописывается к вопросу при чтении истории, а в {@code content} её нет. Значит, каждый,
-     * кто читает сообщения мимо {@code findByConversationId}, обязан позвать {@code render} сам —
-     * иначе упоминание вложения молча исчезает. Так уже случилось: {@code summarizer.md} требует
+     * кто читает сообщения мимо {@code promptMessages}, обязан позвать {@code render} сам — иначе
+     * упоминание вложения молча исчезает. Так уже случилось: {@code summarizer.md} требует
      * сохранять имя и id вложения, а на вход суммаризатору опись не подавалась вовсе. {@code
      * getOriginalMessages} — второй такой читатель, и он здесь и проверяется.
      */
@@ -286,7 +286,7 @@ class ContextItemsTest {
         var saved = memoryService.saveUserMessage(conversationId, QUESTION, List.of(), null);
 
         assertThat(saved.getMeta()).isNull();
-        assertThat(memoryService.findByConversationId(conversationId))
+        assertThat(memoryService.promptMessages(conversationId))
                 .singleElement()
                 .satisfies(message -> assertThat(message.getText()).isEqualTo(QUESTION));
     }

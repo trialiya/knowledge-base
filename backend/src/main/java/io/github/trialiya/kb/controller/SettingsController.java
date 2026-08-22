@@ -248,9 +248,9 @@ public class SettingsController {
      * shape a conversation around them: the SDK request deadline ({@code spring.ai.openai.timeout}
      * — the thing that actually cancels a call), the retry count and the SSE subscription window.
      *
-     * <p>{@code MessageWindowChatMemory.maxMessages} is intentionally absent — see {@code
-     * ChatConfig#chatMemory}: it has no observable effect here, and the real context limit is the
-     * summarization thresholds already reported in {@code summarize}.
+     * <p>No message-count limit is reported here because none exists: chat memory is append-only
+     * (see {@code ChatHistoryMemory}), and the real context limit is the summarization thresholds
+     * already reported in {@code summarize}.
      */
     public record ChatOptions(
             @Nullable Integer maxTokens,

@@ -15,8 +15,9 @@ import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.service.chat.ProjectPromptService;
 import io.github.trialiya.kb.service.chat.SystemPromptService;
-import io.github.trialiya.kb.service.chat.memory.ChatMemoryService;
+import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.memory.SummarizeService;
+import io.github.trialiya.kb.service.chat.memory.ToolCallService;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -52,7 +53,7 @@ class ChatRuntimeShutdownTest {
     private static final String USER = "admin";
 
     private ChatMemory chatMemory;
-    private ChatMemoryService chatMemoryService;
+    private ChatHistoryService chatHistory;
     private ChatEventService events;
     private ChatRunService runService;
     private final Deque<Runnable> pending = new ArrayDeque<>();
@@ -63,9 +64,9 @@ class ChatRuntimeShutdownTest {
     @BeforeEach
     void setUp() {
         chatMemory = mock(ChatMemory.class);
-        chatMemoryService = mock(ChatMemoryService.class);
+        chatHistory = mock(ChatHistoryService.class);
         // Вопрос пользователя сохраняется до старта прогона — прогон берёт из ряда id и текст.
-        when(chatMemoryService.saveUserMessage(anyString(), anyString(), anyList(), any()))
+        when(chatHistory.saveUserMessage(anyString(), anyString(), anyList(), any()))
                 .thenAnswer(
                         inv ->
                                 new ChatMessageEntity(
@@ -162,7 +163,8 @@ class ChatRuntimeShutdownTest {
         return new ChatRunService(
                 new ChatClientRegistry("default-model", chatClient, Map.of()),
                 chatMemory,
-                chatMemoryService,
+                chatHistory,
+                mock(ToolCallService.class),
                 mock(SummarizeService.class),
                 events,
                 mock(ScriptGuideService.class),

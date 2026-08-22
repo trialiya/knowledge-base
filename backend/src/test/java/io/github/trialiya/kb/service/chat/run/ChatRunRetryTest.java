@@ -16,8 +16,9 @@ import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.service.chat.ProjectPromptService;
 import io.github.trialiya.kb.service.chat.SystemPromptService;
-import io.github.trialiya.kb.service.chat.memory.ChatMemoryService;
+import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.memory.SummarizeService;
+import io.github.trialiya.kb.service.chat.memory.ToolCallService;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -48,7 +49,7 @@ class ChatRunRetryTest {
     private static final String USER = "admin";
     private static final String QUESTION = "Привет, модель";
 
-    private ChatMemoryService chatMemoryService;
+    private ChatHistoryService chatHistory;
     private ChatRunService runService;
 
     /** Пул, который задачу не исполняет: тест — только про решения, принятые в start(). */
@@ -56,12 +57,13 @@ class ChatRunRetryTest {
 
     @BeforeEach
     void setUp() {
-        chatMemoryService = mock(ChatMemoryService.class);
+        chatHistory = mock(ChatHistoryService.class);
         runService =
                 new ChatRunService(
                         new ChatClientRegistry("default-model", mock(ChatClient.class), Map.of()),
                         mock(ChatMemory.class),
-                        chatMemoryService,
+                        chatHistory,
+                        mock(ToolCallService.class),
                         mock(SummarizeService.class),
                         new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))),
                         mock(ScriptGuideService.class),
@@ -77,20 +79,19 @@ class ChatRunRetryTest {
 
     @Test
     void retryReusesTheUnansweredQuestionInsteadOfSavingItAgain() {
-        when(chatMemoryService.unansweredUserMessage(CONV)).thenReturn(Optional.of(userRow(42L)));
+        when(chatHistory.unansweredUserMessage(CONV)).thenReturn(Optional.of(userRow(42L)));
 
         final ChatRunService.StartedRun started =
                 runService.start(CONV, USER, null, List.of(), options(), null);
 
         assertThat(started.userMessageId()).isEqualTo(42L);
-        verify(chatMemoryService, never())
-                .saveUserMessage(anyString(), anyString(), anyList(), any());
+        verify(chatHistory, never()).saveUserMessage(anyString(), anyString(), anyList(), any());
     }
 
     /** Модель успела начать ответ — повторять нечего: 422, и заявка на чат не удерживается. */
     @Test
     void retryIsRejectedOnceTheAnswerHasStarted() {
-        when(chatMemoryService.unansweredUserMessage(CONV)).thenReturn(Optional.empty());
+        when(chatHistory.unansweredUserMessage(CONV)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> runService.start(CONV, USER, null, List.of(), options(), null))
                 .isInstanceOf(ResponseStatusException.class)
@@ -108,26 +109,25 @@ class ChatRunRetryTest {
      */
     @Test
     void repairsDanglingToolCallsBeforeDecidingWhetherRetryIsPossible() {
-        when(chatMemoryService.unansweredUserMessage(CONV)).thenReturn(Optional.of(userRow(42L)));
+        when(chatHistory.unansweredUserMessage(CONV)).thenReturn(Optional.of(userRow(42L)));
 
         runService.start(CONV, USER, null, List.of(), options(), null);
 
-        final InOrder order = inOrder(chatMemoryService);
-        order.verify(chatMemoryService).repairDanglingToolCalls(CONV);
-        order.verify(chatMemoryService).unansweredUserMessage(CONV);
+        final InOrder order = inOrder(chatHistory);
+        order.verify(chatHistory).repairDanglingToolCalls(CONV);
+        order.verify(chatHistory).unansweredUserMessage(CONV);
     }
 
     /** Обычная отправка режим повтора не задевает: вопрос по-прежнему пишется до прогона. */
     @Test
     void ordinarySendStillPersistsTheQuestion() {
-        when(chatMemoryService.saveUserMessage(CONV, QUESTION, List.of(), null))
-                .thenReturn(userRow(7L));
+        when(chatHistory.saveUserMessage(CONV, QUESTION, List.of(), null)).thenReturn(userRow(7L));
 
         final ChatRunService.StartedRun started =
                 runService.start(CONV, USER, QUESTION, List.of(), options(), "msg-1");
 
         assertThat(started.userMessageId()).isEqualTo(7L);
-        verify(chatMemoryService, never()).unansweredUserMessage(anyString());
+        verify(chatHistory, never()).unansweredUserMessage(anyString());
     }
 
     /** Дефолтные настройки прогона: модель/режим/проект не выбраны. */

@@ -1,0 +1,444 @@
+package io.github.trialiya.kb.service.chat.memory;
+
+import io.github.trialiya.kb.model.chat.dto.MessageCursor;
+import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
+import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
+import io.github.trialiya.kb.model.chat.entity.ContextItem;
+import io.github.trialiya.kb.model.chat.spring.IMessage;
+import io.github.trialiya.kb.model.chat.spring.UserChatMessage;
+import io.github.trialiya.kb.model.project.ProjectSwitch;
+import io.github.trialiya.kb.model.tool.ToolData;
+import io.github.trialiya.kb.repository.ChatMessageRepository;
+import io.github.trialiya.kb.service.chat.ContextItemService;
+import io.github.trialiya.kb.tools.RecordingToolCallback;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
+import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.logging.log4j.util.Strings;
+import org.jspecify.annotations.Nullable;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.MessageType;
+import org.springframework.ai.chat.messages.ToolResponseMessage;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * История одного чата в {@code chat_message}: окно, которое уходит модели, страницы для UI и
+ * дозапись новых сообщений. Единственный писатель этой таблицы на горячем пути прогона; {@link
+ * ChatHistoryMemory} — тонкая обёртка над ним для Spring AI.
+ *
+ * <p>Запись строго дописывающая: {@link #append} никогда не удаляет и не переписывает уже
+ * сохранённые ряды, поэтому позиция нового ряда — это максимум по чату плюс единица, и никакого
+ * «окна» на стороне записи не существует. Что реально уедет модели, решает {@code SummarizeService}
+ * (ряды с {@code summarized = true} выпадают из {@link #promptRows}).
+ *
+ * <p>UI-мета вызовов инструментов и {@code tool_call_index} — не здесь, а в {@link
+ * ToolCallService}; протокольные {@code tool_data} пишутся вместе с сообщением, потому что это
+ * часть самого сообщения.
+ */
+@AllArgsConstructor
+@Slf4j
+@Service
+public class ChatHistoryService {
+
+    private final ChatMessageRepository chatMessageRepository;
+    private final ContextItemService contextItemService;
+    private final ToolCallService toolCalls;
+    private final ToolCallEventPublisher toolCallEvents;
+
+    /** Сообщение + его протокольные tool-данные, извлечённые один раз (см. {@link #toolDataOf}). */
+    private record Pending(Message message, @Nullable ToolData toolData) {
+
+        boolean hasToolData() {
+            return toolData != null;
+        }
+    }
+
+    // ── Запись ────────────────────────────────────────────────────────────────
+
+    /**
+     * Сохраняет сообщение пользователя ДО обращения к модели — прогон его уже не записывает (см.
+     * {@code ChatRunService.start}). Что это даёт: id сообщения известен сразу (его возвращает
+     * эндпоинт и несёт событие {@code USER_MESSAGE}), а сам вопрос переживает падение прогона до
+     * подписки на стрим.
+     *
+     * <p>Записанный ряд подхватит advisor памяти как обычную историю, поэтому прогон НЕ передаёт
+     * своё {@code .user(...)}: иначе то же сообщение сохранилось бы вторым рядом. Инвариант
+     * закреплён в {@code PrePersistedUserMessageTest}.
+     *
+     * <p>Транзакция обязана закрыться до старта стрима: {@code BaseAdvisor.adviseStream} исполняет
+     * {@code before()} через {@code publishOn(scheduler)}, то есть на другом потоке и другом
+     * соединении, и незакоммиченную строку он не увидел бы — модель получила бы диалог без
+     * последнего вопроса.
+     *
+     * <p>{@code contextItems} — приложенное к вопросу (вложения); уходит в {@code meta} той же
+     * записью, поэтому привязка не требует ни второго запроса, ни знания id заранее.
+     *
+     * <p>{@code projectSwitch} — этим вопросом чат перешёл в другой проект; тоже оседает в {@code
+     * meta} и делает историю выше честной: и промпт (см. {@link #promptRow}), и фронт предупредят,
+     * что прочитанное раньше относится к прежнему репозиторию. Первому сообщению чата маркер не
+     * ставится: над пустой историей предупреждать не о чем, даже когда проект в нём назван явно.
+     */
+    @Transactional
+    public ChatMessageEntity saveUserMessage(
+            String conversationId,
+            String text,
+            List<ContextItem> contextItems,
+            @Nullable ProjectSwitch projectSwitch) {
+        final long position = lastPosition(conversationId) + 1;
+        final ProjectSwitch marked = position > 1 ? projectSwitch : null;
+        return chatMessageRepository.save(
+                new ChatMessageEntity(
+                        0,
+                        conversationId,
+                        text,
+                        MessageType.USER,
+                        position,
+                        false,
+                        false,
+                        LocalDateTime.now(),
+                        ChatMessageMeta.ofUserMessage(
+                                contextItems,
+                                marked == null ? null : marked.to(),
+                                marked == null ? null : marked.from())));
+    }
+
+    /**
+     * Тот же маркер, но на уже записанном вопросе — путь повтора прогона: нового сообщения не
+     * появляется, а проект прогона сменился, и предупредить о прежнем репозитории всё равно надо.
+     *
+     * <p>Если маркер на вопросе уже стоит, {@code from} сохраняется прежним: он говорит, к какому
+     * репозиторию относится история ВЫШЕ, и от повторов её содержимое не меняется. Возврат туда же
+     * маркер снимает — сменой относительно истории выше он больше не является.
+     */
+    @Transactional
+    public ChatMessageEntity markProjectSwitch(
+            ChatMessageEntity question, ProjectSwitch projectSwitch) {
+        final ChatMessageMeta meta = question.getMeta();
+        if (question.getPosition() <= 1) {
+            return question;
+        }
+        final String from =
+                meta != null && meta.projectSwitchFrom() != null
+                        ? meta.projectSwitchFrom()
+                        : projectSwitch.from();
+        final boolean switched = !from.equals(projectSwitch.to());
+        return chatMessageRepository.save(
+                question.withMeta(
+                        new ChatMessageMeta(
+                                meta == null ? null : meta.runId(),
+                                meta != null && meta.toolCalls(),
+                                meta == null ? List.of() : meta.invocations(),
+                                meta == null ? List.of() : meta.contextItems(),
+                                switched ? projectSwitch.to() : null,
+                                switched ? from : null)));
+    }
+
+    /**
+     * Дописывает в конец чата всё, чего в нём ещё нет, — путь записи всей памяти (см. {@link
+     * ChatHistoryMemory#add}). Ряды нумеруются от максимума позиции по чату, поэтому вызывающему не
+     * нужно ни передавать историю целиком, ни знать, чем чат кончается.
+     *
+     * <p>Уже сохранённые сообщения ({@link IMessage}) отсеиваются: их приносит обратно сам advisor
+     * памяти — он подставляет прочитанную историю в промпт и отдаёт на запись её последнее
+     * user/tool-сообщение. Без фильтра предзаписанный вопрос (см. {@link #saveUserMessage})
+     * задвоился бы вторым рядом.
+     *
+     * <p>Пустой текст — повод пропустить сообщение, но только если в нём нет и протокольных
+     * tool-данных: у ASSISTANT-сегмента с одними tool_calls и у TOOL-ответа текста нет вовсе, а без
+     * них пара {@code assistant.tool_calls} ↔ {@code tool.tool_call_id} не восстановится и
+     * следующий запрос к модели упрётся в 400.
+     */
+    @Transactional
+    public void append(String conversationId, List<Message> messages) {
+        final AtomicLong position = new AtomicLong(lastPosition(conversationId));
+        final List<ChatMessageEntity> newRows =
+                messages.stream()
+                        .filter(message -> !(message instanceof IMessage))
+                        .map(message -> new Pending(message, toolDataOf(message)))
+                        .filter(p -> Strings.isNotBlank(p.message().getText()) || p.hasToolData())
+                        .map(
+                                p ->
+                                        new ChatMessageEntity(
+                                                0,
+                                                conversationId,
+                                                p.message().getText() == null
+                                                        ? ""
+                                                        : p.message().getText(),
+                                                p.message().getMessageType(),
+                                                position.incrementAndGet(),
+                                                false,
+                                                false,
+                                                LocalDateTime.now(),
+                                                null,
+                                                p.toolData()))
+                        .toList();
+        final List<ChatMessageEntity> saved = new ArrayList<>();
+        chatMessageRepository.saveAll(newRows).forEach(saved::add);
+        toolCalls.index(conversationId, saved);
+        toolCallEvents.publish(conversationId, saved);
+    }
+
+    /**
+     * Чинит оборванную пару tool-сообщений в хвосте диалога. Если прогон прервали (stop, ошибка,
+     * падение процесса) во время выполнения инструментов, последняя строка — ASSISTANT с tool_calls
+     * без парной TOOL-строки; следующий запрос к модели с таким хвостом получил бы 400
+     * (assistant.tool_calls без tool-ответов). Достраиваем синтетический TOOL-ответ.
+     *
+     * <p>Оборванной может быть только последняя пара: цикл строго чередует assistant(tool_calls) →
+     * tool, и всё, что раньше хвоста, уже сохранено парами.
+     */
+    @Transactional
+    public void repairDanglingToolCalls(String conversationId) {
+        chatMessageRepository
+                .findFirstByConversationIdOrderByPositionDesc(conversationId)
+                .filter(last -> last.getType() == MessageType.ASSISTANT)
+                .filter(
+                        last ->
+                                last.getToolData() != null
+                                        && last.getToolData().toolCalls() != null
+                                        && !last.getToolData().toolCalls().isEmpty())
+                .ifPresent(
+                        last -> {
+                            final List<ToolData.Call> calls =
+                                    Objects.requireNonNull(
+                                            Objects.requireNonNull(last.getToolData()).toolCalls());
+                            final List<ToolData.Response> responses =
+                                    calls.stream()
+                                            .map(
+                                                    c ->
+                                                            new ToolData.Response(
+                                                                    c.id(),
+                                                                    c.name(),
+                                                                    "[interrupted — no result]"))
+                                            .toList();
+                            log.info(
+                                    "Repairing dangling tool_calls tail for {} ({} synthetic responses)",
+                                    conversationId,
+                                    responses.size());
+                            chatMessageRepository.save(
+                                    new ChatMessageEntity(
+                                            0L,
+                                            conversationId,
+                                            "",
+                                            MessageType.TOOL,
+                                            last.getPosition() + 1,
+                                            false,
+                                            false,
+                                            LocalDateTime.now(),
+                                            null,
+                                            new ToolData(null, responses)));
+                        });
+    }
+
+    public void delete(String conversationId) {
+        chatMessageRepository.deleteChatMessageByConversationId(conversationId);
+    }
+
+    private long lastPosition(String conversationId) {
+        return chatMessageRepository
+                .findFirstByConversationIdOrderByPositionDesc(conversationId)
+                .map(ChatMessageEntity::getPosition)
+                .orElse(0L);
+    }
+
+    /** Протокольные tool-данные сообщения, если они есть (иначе {@code null}). */
+    private static @Nullable ToolData toolDataOf(Message message) {
+        if (message instanceof AssistantMessage assistantMessage
+                && assistantMessage.hasToolCalls()) {
+            return sanitizeToolCallArguments(ToolData.from(assistantMessage));
+        }
+        if (message instanceof ToolResponseMessage toolResponseMessage
+                && !toolResponseMessage.getResponses().isEmpty()) {
+            return ToolData.from(toolResponseMessage);
+        }
+        return null;
+    }
+
+    /**
+     * Гарантирует, что {@code tool_data.toolCalls[].arguments} перед сохранением — валидный JSON
+     * (см. {@link RecordingToolCallback#sanitizeArguments}). Единственная точка входа протокольных
+     * tool_calls в БД ({@link #toolDataOf}), поэтому дальше по коду (в т.ч. при воспроизведении
+     * истории модели) малформенный JSON от модели уже не встретится.
+     */
+    private static ToolData sanitizeToolCallArguments(ToolData toolData) {
+        if (toolData.toolCalls() == null) {
+            return toolData;
+        }
+        return new ToolData(
+                toolData.toolCalls().stream()
+                        .map(
+                                call ->
+                                        new ToolData.Call(
+                                                call.id(),
+                                                call.type(),
+                                                call.name(),
+                                                RecordingToolCallback.sanitizeArguments(
+                                                        call.arguments())))
+                        .toList(),
+                null);
+    }
+
+    // ── Чтение ────────────────────────────────────────────────────────────────
+
+    /**
+     * Ряд истории в том виде, в каком его увидит модель: сама строка и её текст в промпте.
+     *
+     * <p>Текст — не то же самое, что {@code chat_message.content}: к вопросу с приложенным
+     * контекстом дописывается блок описи (см. {@link ContextItemService#renderAll}), который
+     * собирается при каждом чтении и в БД не попадает — иначе удалённое вложение осталось бы в
+     * истории вечным обещанием файла, которого больше нет.
+     *
+     * <p>Пара нужна затем, что вес истории считают не только по её тексту: {@code SummarizeService}
+     * решает по нему, что сжимать, а метить сжатое умеет только по позициям из {@code entity}.
+     */
+    public record PromptRow(ChatMessageEntity entity, String text) {
+
+        /**
+         * Промпт строится по тому же {@link #text}, по которому считается вес окна: второго способа
+         * узнать текст сообщения здесь нет. Обёртка нужна ровно тогда, когда текст разошёлся с
+         * сохранённой строкой, — а разойтись он может только у вопроса (см. {@code promptRow}).
+         */
+        public Message toMessage() {
+            return text.equals(entity.getContent())
+                    ? entity.getMessage()
+                    : new UserChatMessage(entity, text);
+        }
+    }
+
+    /** Окно истории для модели — то, что подставит в промпт advisor памяти. */
+    public List<Message> promptMessages(String conversationId) {
+        return promptRows(conversationId).stream().map(PromptRow::toMessage).toList();
+    }
+
+    /**
+     * Живая (несжатая) история вместе с текстом, который реально уедет модели. Единственный
+     * источник правды об этом тексте: и промпт, и оценка веса окна в {@code SummarizeService}
+     * строятся отсюда, поэтому разойтись в том, «что именно видит модель», они не могут. Ровно один
+     * запрос за описями на всё окно.
+     *
+     * <p>Строки-сводки ({@code summary = true}) остаются в выборке: они тоже уезжают модели в
+     * каждом запросе, значит тоже занимают бюджет.
+     */
+    public List<PromptRow> promptRows(String conversationId) {
+        final List<ChatMessageEntity> rows =
+                chatMessageRepository
+                        .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
+                                conversationId);
+        final Map<Long, String> context = contextItemService.renderAll(conversationId, rows);
+        return rows.stream().map(entity -> promptRow(entity, context.get(entity.getId()))).toList();
+    }
+
+    /**
+     * Единственное место, где решается, обрастает ли строка описью: от него зависят обе стороны
+     * сразу — и промпт, и оценка веса окна. Проверь тип во второй раз ниже по течению, и стороны
+     * разойдутся, а расхождение будет тихим.
+     *
+     * <p>Опись получает только вопрос: блок говорит о том, что приложил пользователь, и на ответе
+     * модели был бы просто неправдой. Остальные отдают {@code content} как есть — этот путь
+     * проходят все строки окна на каждой итерации tool-цикла, и склейка с пустой строкой заводила
+     * бы новую копию текста на каждую.
+     *
+     * <p>Вопрос, которым чат сменил проект, дополнительно получает предупреждение ПЕРЕД текстом
+     * (см. {@link #projectSwitchNotice}): всё выше в истории читано в прежнем репозитории, и без
+     * этой строки модель сочтёт те пути и содержимое актуальными. Как и опись, предупреждение
+     * собирается при чтении и в БД не попадает.
+     */
+    private static PromptRow promptRow(ChatMessageEntity entity, @Nullable String inventory) {
+        if (entity.getType() != MessageType.USER) {
+            return new PromptRow(entity, entity.getContent());
+        }
+        final String notice = projectSwitchNotice(entity.getMeta());
+        if (notice.isEmpty() && inventory == null) {
+            return new PromptRow(entity, entity.getContent());
+        }
+        return new PromptRow(
+                entity, notice + entity.getContent() + (inventory == null ? "" : inventory));
+    }
+
+    /**
+     * Текст маркера смены проекта для модели. Требование «сохраняй дословно» адресовано
+     * summarizer'у: его вход строится из этих же {@code PromptRow}, и потерянный при сжатии маркер
+     * снова сделал бы раннюю историю «актуальной» (правило продублировано в {@code summarizer.md}).
+     */
+    private static String projectSwitchNotice(@Nullable ChatMessageMeta meta) {
+        if (meta == null || meta.projectSwitchFrom() == null) {
+            return "";
+        }
+        return "<project-switched from=\""
+                + meta.projectSwitchFrom()
+                + "\" to=\""
+                + meta.project()
+                + "\">\n"
+                + "The user switched this chat to another project at this message. Everything"
+                + " earlier in the conversation — file paths, file contents, grep and script"
+                + " results — belongs to project \""
+                + meta.projectSwitchFrom()
+                + "\"; do not assume any of it exists or looks the same in \""
+                + meta.project()
+                + "\". Re-read whatever you need with the tools. When summarizing, preserve this"
+                + " notice verbatim.\n"
+                + "</project-switched>\n\n";
+    }
+
+    /**
+     * Последнее сообщение чата — но только если это вопрос пользователя, на который модель ещё
+     * ничего не ответила. Единственное состояние, из которого «Повторить» означает продолжить тот
+     * же ход: дописывать в историю нечего, прогон просто запускается заново поверх неё (см. {@code
+     * ChatRunService.start} в режиме повтора).
+     *
+     * <p>Как только в хвосте появился ASSISTANT или TOOL — пусть даже оборванный сегмент упавшего
+     * прогона, — повтор запрещён. Молча «переиграть» ход модели можно было бы только одним из двух
+     * способов: задвоив вопрос вторым USER-рядом или удалив то, что модель успела сделать (включая
+     * побочные эффекты уже выполненных инструментов). Оба варианта хуже прямого продолжения
+     * диалога, поэтому дальше пользователь пишет сам.
+     */
+    public Optional<ChatMessageEntity> unansweredUserMessage(String conversationId) {
+        return chatMessageRepository
+                .findFirstByConversationIdOrderByPositionDesc(conversationId)
+                .filter(last -> last.getType() == MessageType.USER);
+    }
+
+    /** Вся история чата для показа целиком, без строк-сводок. */
+    public List<ChatMessageEntity> displayMessages(String conversationId) {
+        return chatMessageRepository
+                .findChatMessageByConversationIdAndSummaryFalseOrderByCreatedAtAscPositionAsc(
+                        conversationId);
+    }
+
+    public Page findLatestPage(String conversationId, int limit) {
+        return toPage(chatMessageRepository.findLatest(conversationId, limit + 1), limit);
+    }
+
+    public Page findPageBefore(
+            String conversationId, LocalDateTime beforeCreatedAt, long beforeId, int limit) {
+        return toPage(
+                chatMessageRepository.findBefore(
+                        conversationId, beforeCreatedAt, beforeId, limit + 1),
+                limit);
+    }
+
+    private Page toPage(List<ChatMessageEntity> rowsDesc, int limit) {
+        boolean hasMore = rowsDesc.size() > limit;
+        List<ChatMessageEntity> chrono =
+                (hasMore ? rowsDesc.subList(0, limit) : rowsDesc).reversed();
+        MessageCursor cursor =
+                chrono.isEmpty()
+                        ? null
+                        : new MessageCursor(
+                                chrono.getFirst().getCreatedAt(), chrono.getFirst().getId());
+        return new Page(chrono, hasMore, cursor);
+    }
+
+    public record Page(
+            List<ChatMessageEntity> messages,
+            boolean hasMore,
+            @Nullable MessageCursor oldestCursor) {}
+}

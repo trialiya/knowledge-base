@@ -12,12 +12,10 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.chat.entity.ContextItemKind;
-import io.github.trialiya.kb.repository.BackfillStateRepository;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
-import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.service.chat.ContextItemService;
-import io.github.trialiya.kb.service.chat.memory.ChatMemoryService.PromptRow;
+import io.github.trialiya.kb.service.chat.memory.ChatHistoryService.PromptRow;
 import io.github.trialiya.kb.service.chat.run.ChatEventService;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -47,14 +45,12 @@ class PromptRowSourceOfTruthTest {
     private final ChatMessageRepository chatMessageRepository = mock(ChatMessageRepository.class);
     private final ContextItemService contextItemService = mock(ContextItemService.class);
 
-    private final ChatMemoryService service =
-            new ChatMemoryService(
-                    mock(ChatTopicRepository.class),
+    private final ChatHistoryService service =
+            new ChatHistoryService(
                     chatMessageRepository,
-                    mock(ChatEventService.class),
-                    mock(ToolCallIndexRepository.class),
-                    mock(BackfillStateRepository.class),
-                    contextItemService);
+                    contextItemService,
+                    new ToolCallService(chatMessageRepository, mock(ToolCallIndexRepository.class)),
+                    new ToolCallEventPublisher(mock(ChatEventService.class)));
 
     /** Текст строки — content плюс опись; у сообщений без вложений он равен content. */
     @Test
@@ -82,7 +78,7 @@ class PromptRowSourceOfTruthTest {
         givenStored(List.of(withAttachment));
 
         final List<PromptRow> rows = service.promptRows(CONV);
-        final List<Message> messages = service.findByConversationId(CONV);
+        final List<Message> messages = service.promptMessages(CONV);
 
         assertThat(messages).hasSize(1);
         assertThat(messages.getFirst().getText()).isEqualTo(rows.getFirst().text());
@@ -118,7 +114,7 @@ class PromptRowSourceOfTruthTest {
         givenStored(List.of(row(0, "по файлу вижу", MessageType.ASSISTANT, true)));
 
         final List<PromptRow> rows = service.promptRows(CONV);
-        final List<Message> messages = service.findByConversationId(CONV);
+        final List<Message> messages = service.promptMessages(CONV);
 
         assertThat(rows.getFirst().text()).isEqualTo("по файлу вижу");
         assertThat(messages.getFirst().getText()).isEqualTo(rows.getFirst().text());

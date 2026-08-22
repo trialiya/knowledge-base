@@ -20,11 +20,13 @@ import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.project.ProjectSwitch;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.chat.ChatModeService;
+import io.github.trialiya.kb.service.chat.ChatSearchService;
 import io.github.trialiya.kb.service.chat.ChatTopicService;
 import io.github.trialiya.kb.service.chat.ContextItemService;
 import io.github.trialiya.kb.service.chat.ProjectPromptService;
 import io.github.trialiya.kb.service.chat.SystemPromptService;
-import io.github.trialiya.kb.service.chat.memory.ChatMemoryService;
+import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
+import io.github.trialiya.kb.service.chat.memory.ToolCallService;
 import io.github.trialiya.kb.service.chat.run.ChatEventService;
 import io.github.trialiya.kb.service.chat.run.ChatRunService;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
@@ -77,7 +79,9 @@ class ChatProjectSelectionTest {
                         mock(io.github.trialiya.kb.config.ChatClientRegistry.class),
                         mock(org.springframework.ai.chat.memory.ChatMemory.class),
                         topicRepository,
-                        mock(ChatMemoryService.class),
+                        mock(ChatHistoryService.class),
+                        mock(ToolCallService.class),
+                        mock(ChatSearchService.class),
                         runService,
                         mock(ChatEventService.class),
                         mock(ScriptGuideService.class),

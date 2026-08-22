@@ -38,7 +38,7 @@ public final class ToolInvocationCollector {
     /**
      * Хук на каждую запись — надёжная граница «инструмент пошёл» для владельца прогона (сброс
      * буфера сегмента в ChatRunService). Live-события TOOL_CALL отсюда не шлются — их публикует
-     * ChatMemoryService.saveAll при сохранении сегмента.
+     * ToolCallEventPublisher при сохранении сегмента.
      */
     @Nullable private final Runnable onRecord;
 

@@ -17,7 +17,7 @@ import org.jspecify.annotations.Nullable;
  * <p>{@code project} и {@code projectSwitchFrom} — маркер смены проекта: этим сообщением чат
  * перешёл с {@code projectSwitchFrom} на {@code project} (оба — канонические id). Заполняются парой
  * и только на вопросе, который реально сменил проект, — история выше него относится к прежнему
- * репозиторию, и об этом предупреждают и модель (см. {@code ChatMemoryService.promptRow}), и
+ * репозиторию, и об этом предупреждают и модель (см. {@code ChatHistoryService.promptRow}), и
  * пользователь (плашка на фронте). На summary-строке {@code project} живёт без пары — это след «на
  * каком проекте закончилось сжатое», см. {@code SummarizeService}.
  */

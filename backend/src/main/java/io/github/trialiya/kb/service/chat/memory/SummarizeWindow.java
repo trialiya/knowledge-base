@@ -3,7 +3,7 @@ package io.github.trialiya.kb.service.chat.memory;
 import io.github.trialiya.kb.config.model.SummarizeProperties;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.tool.ToolData;
-import io.github.trialiya.kb.service.chat.memory.ChatMemoryService.PromptRow;
+import io.github.trialiya.kb.service.chat.memory.ChatHistoryService.PromptRow;
 import java.util.List;
 import java.util.OptionalInt;
 import java.util.stream.Stream;
@@ -12,7 +12,7 @@ import org.springframework.ai.chat.messages.MessageType;
 
 /**
  * The live window of a conversation cut in two — all of {@code SummarizeService}'s arithmetic, with
- * no side effects. In: history as the model receives it ({@link ChatMemoryService#promptRows}).
+ * no side effects. In: history as the model receives it ({@link ChatHistoryService#promptRows}).
  * Out: what to compress, what to keep, and whether it is worth a round.
  *
  * <p><b>The live tail</b> ({@link #kept()}) is untouchable, and three rules say how far back it
