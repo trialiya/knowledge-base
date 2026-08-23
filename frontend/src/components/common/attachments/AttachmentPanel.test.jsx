@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import AttachmentPanel from './AttachmentPanel';
 import attachmentApi from '@/api/attachmentApi';
 
@@ -46,7 +46,11 @@ describe('AttachmentPanel', () => {
   const deleteFirstRow = async (name) => {
     await screen.findByText(name);
     fireEvent.click(screen.getByTitle('attachments.deleteTitle'));
-    fireEvent.click(screen.getByText('delete'));
+    // Подтверждение уходит запросом, и ответ на него обновляет таблицу уже вне рендера —
+    // без act(...) React ругается на состояние, обновлённое мимо него.
+    await act(async () => {
+      fireEvent.click(screen.getByText('delete'));
+    });
   };
 
   // Регрессия: attachmentApi.delete — это requestRaw, он не бросает на !ok. Без

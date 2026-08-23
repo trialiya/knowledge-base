@@ -8,9 +8,12 @@ import MarkdownEditor from './MarkdownEditor';
  * развязку: преобразование обязано получить ЖИВОЕ поле с текущим выделением, а
  * не то, что было известно на момент сборки списка.
  */
+// i18n в тестах не инициализируем — берём ключ как подпись, по ним и ищем кнопки.
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key) => key }),
+}));
+
 describe('MarkdownEditor: тулбар', () => {
-  // Словарь в тестах не загружен, поэтому t() отдаёт сам ключ — кнопки и ищем
-  // по ключам их подписей.
   function setup(value = 'привет') {
     const onChange = vi.fn();
     render(<MarkdownEditor value={value} onChange={onChange} savedValue={value} />);

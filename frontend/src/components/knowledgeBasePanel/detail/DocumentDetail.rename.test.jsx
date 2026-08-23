@@ -9,9 +9,12 @@ import DocumentDetail from './DocumentDetail';
  * optimistic locking, из-за которой пользователь видит ошибку сохранения на
  * успешном переименовании.
  */
+// i18n в тестах не инициализируем — берём ключ как подпись.
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key) => key }),
+}));
+
 describe('DocumentDetail: переименование', () => {
-  // Словарь в тестах не загружен, поэтому t() отдаёт сам ключ — кнопки ищем по
-  // ключам их подписей.
   it('отдаёт новое имя одним onRename и не дублирует его через onUpdate', async () => {
     const user = userEvent.setup();
     const onRename = vi.fn();

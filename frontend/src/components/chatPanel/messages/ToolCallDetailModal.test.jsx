@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import ToolCallDetailModal from './ToolCallDetailModal';
 import chatApi from '@/api/chatApi';
 
@@ -32,6 +32,10 @@ const detail = (status, resultText) => ({
 
 const open = () => render(<ToolCallDetailModal conversationId="c1" callId="call_1" tc={tc} onClose={() => {}} />);
 
+// Тик опроса: таймер будит запрос, и его ответ приходит уже вне рендера — без act(...)
+// React ругается на состояние, обновлённое мимо него.
+const tick = (ms) => act(() => vi.advanceTimersByTimeAsync(ms));
+
 describe('ToolCallDetailModal', () => {
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -54,13 +58,13 @@ describe('ToolCallDetailModal', () => {
     expect(screen.getByText('toolCall.detail.running')).toBeInTheDocument();
 
     // Статус плашки не менялся — результат приносит именно опрос.
-    await vi.advanceTimersByTimeAsync(1000);
+    await tick(1000);
     expect(await screen.findByText(/нашлось 3 файла/)).toBeInTheDocument();
     expect(screen.queryByText('toolCall.detail.running')).not.toBeInTheDocument();
 
     // Ответ пришёл — опрос прекращается.
     const calls = chatApi.getToolCallDetails.mock.calls.length;
-    await vi.advanceTimersByTimeAsync(60000);
+    await tick(60000);
     expect(chatApi.getToolCallDetails).toHaveBeenCalledTimes(calls);
   });
 
@@ -73,13 +77,13 @@ describe('ToolCallDetailModal', () => {
     open();
     expect(await screen.findByText('кэш')).toBeInTheDocument();
 
-    await vi.advanceTimersByTimeAsync(1000);
+    await tick(1000);
     await waitFor(() => expect(chatApi.getToolCallDetails).toHaveBeenCalledTimes(2));
     expect(screen.getByText('кэш')).toBeInTheDocument();
     expect(screen.queryByText('toolCall.detail.loadError')).not.toBeInTheDocument();
 
     // Повтор после ошибки приносит результат.
-    await vi.advanceTimersByTimeAsync(2000);
+    await tick(2000);
     expect(await screen.findByText(/готово/)).toBeInTheDocument();
   });
 });

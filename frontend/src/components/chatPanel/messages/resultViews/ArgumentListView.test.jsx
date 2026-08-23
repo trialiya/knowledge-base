@@ -6,6 +6,11 @@ import ArgumentListView from './ArgumentListView';
 // Здесь проверяется не деление аргументов (оно в argumentList.test.js), а то,
 // что показ длинного значения переживает сворачивание блока над ним.
 
+// i18n в тестах не инициализируем — берём ключ как подпись.
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key) => key }),
+}));
+
 const LINE_CAP = 300;
 
 const call = () =>
