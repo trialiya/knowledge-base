@@ -329,6 +329,72 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
     }
 
     @Test
+    void runningCallExposesArgumentsWithStartedStatus() {
+        // Инструмент ещё работает: сегмент с вызовом сохранён и проиндексирован, TOOL-ответа
+        // нет, мета появится только в конце прогона (attachRunMeta). Модалка деталей открывается
+        // уже сейчас — ради аргументов, — и вызов не должен выглядеть завершённым.
+        String conv = UUID.randomUUID().toString();
+
+        ChatMessageEntity segment =
+                save(
+                        conv,
+                        MessageType.ASSISTANT,
+                        null,
+                        new ToolData(
+                                List.of(
+                                        new ToolData.Call(
+                                                "call_running",
+                                                "function",
+                                                "searchCodebase",
+                                                "{\"q\":\"кэш\"}")),
+                                null));
+        index(conv, "call_running", segment.getId(), null);
+
+        Optional<ToolCallDetail> detail = toolCalls().findToolCallDetail(conv, "call_running");
+
+        assertThat(detail).isPresent();
+        assertThat(detail.get().name()).isEqualTo("searchCodebase");
+        assertThat(detail.get().argumentsRaw()).isEqualTo("{\"q\":\"кэш\"}");
+        assertThat(detail.get().status()).isEqualTo(ToolInvocationStatus.STARTED);
+        assertThat(detail.get().resultText()).isNull();
+        assertThat(detail.get().error()).isNull();
+    }
+
+    /** Оборванный прогон: ответ есть, меты нет — вызов отработал, статус OK. */
+    @Test
+    void responseWithoutMetaStaysOk() {
+        String conv = UUID.randomUUID().toString();
+
+        ChatMessageEntity segment =
+                save(
+                        conv,
+                        MessageType.ASSISTANT,
+                        null,
+                        new ToolData(
+                                List.of(
+                                        new ToolData.Call(
+                                                "call_0", "function", "searchDocuments", "{}")),
+                                null));
+        ChatMessageEntity toolRow =
+                save(
+                        conv,
+                        MessageType.TOOL,
+                        null,
+                        new ToolData(
+                                null,
+                                List.of(
+                                        new ToolData.Response(
+                                                "call_0", "searchDocuments", "hits"))));
+        index(conv, "call_0", segment.getId(), toolRow.getId());
+
+        Optional<ToolCallDetail> detail = toolCalls().findToolCallDetail(conv, "call_0");
+
+        assertThat(detail).isPresent();
+        assertThat(detail.get().status()).isEqualTo(ToolInvocationStatus.OK);
+        assertThat(detail.get().resultText()).isEqualTo("hits");
+    }
+
+    @Test
     void unknownIdsYieldEmpty() {
         String conv = UUID.randomUUID().toString();
         String runId = UUID.randomUUID().toString();

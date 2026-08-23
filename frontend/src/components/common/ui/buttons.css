@@ -59,6 +59,14 @@
   background: var(--kb-error-bg);
 }
 
+/* Кнопка-тумблер: включённое состояние держится и без наведения, а разметке оно
+   и так нужно (`aria-pressed`) — отдельного модификатора для него не заводим. */
+.btn[aria-pressed='true'] {
+  border-color: var(--kb-accent);
+  background: var(--kb-accent-light);
+  color: var(--kb-accent);
+}
+
 /* Small icon-only button (close / edit / delete, etc.) */
 .icon-btn {
   background: none;

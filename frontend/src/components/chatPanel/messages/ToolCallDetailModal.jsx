@@ -9,6 +9,7 @@ import { detectResultView } from './resultViews/registry';
 import { detectArgumentList } from './resultViews/argumentList';
 import ArgumentListView from './resultViews/ArgumentListView';
 import { formatJson, tryFormatJson, highlightJson } from './resultViews/jsonText';
+import { TOOL_STATUS } from '@/constants/toolStatus';
 import '../styles/tool-call-detail.css';
 
 // Два режима на секцию результата, не три: «Обзор» — типизированный вид,
@@ -86,6 +87,10 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
     setArgsMode(MODE.OVERVIEW);
   }
 
+  // Статус плашки — в зависимостях: модалку открывают и на работающем вызове (ради
+  // аргументов), и когда инструмент отвечает, детали нужно перезапросить — иначе результат
+  // появился бы только после переоткрытия. Ответ при этом не сбрасывается: до прихода нового
+  // на экране остаются уже показанные аргументы, а не «Загрузка».
   useEffect(() => {
     if (!callId) return undefined;
     let cancelled = false;
@@ -100,7 +105,7 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
     return () => {
       cancelled = true;
     };
-  }, [conversationId, callId]);
+  }, [conversationId, callId, tc.status]);
 
   // Без callId запроса нет вовсе — сразу ошибка.
   const loading = !!callId && answer === null;
@@ -119,6 +124,9 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
   const args = useMemo(() => (details ? detectArgumentList(details.argumentsRaw) : null), [details]);
   const showOverview = view !== null && mode === MODE.OVERVIEW;
   const OverviewView = view?.View;
+  // Вызов ещё идёт: аргументы уже есть, результата нет — вместо пустого JSON-блока
+  // говорим об этом словами. Как только придёт ответ, эффект выше перезапросит детали.
+  const running = details?.status === TOOL_STATUS.STARTED && !details.resultText;
 
   return (
     <ModalShell onClose={onClose} className="tool-call-detail">
@@ -163,7 +171,11 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
               {view && <ModeSwitch mode={mode} onChange={setMode} label={t('toolCall.detail.result')} />}
               <CopyButton value={details.resultText} />
             </div>
-            {showOverview ? (
+            {running ? (
+              <div className="tool-call-detail__notice" role="status" aria-live="polite">
+                {t('toolCall.detail.running')}
+              </div>
+            ) : showOverview ? (
               // key по вызову: у видов есть своё состояние (какие файлы
               // раскрыты, markdown или исходник), а ключи блоков внутри —
               // порядковые и у разных вызовов совпадают. Без key состояние

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconChevronDown } from '@/icons/index';
-import CodeLines from './codeLines';
+import CodeLines, { useCodeLinesView } from './codeLines';
 
 // Режим «Обзор» для секции аргументов: короткие значения строками, длинные —
 // сворачиваемыми блоками с настоящими переносами.
@@ -15,9 +15,9 @@ import CodeLines from './codeLines';
 const Block = ({ block, defaultOpen }) => {
   const { t } = useTranslation('chat');
   const [open, setOpen] = useState(defaultOpen);
-  // Разворот текста переживает сворачивание блока: свернули, чтобы убрать с
-  // глаз, а не чтобы отменить уже сделанное «показать целиком».
-  const [expanded, setExpanded] = useState(false);
+  // Разворот текста и перенос строк переживают сворачивание блока: свернули,
+  // чтобы убрать с глаз, а не чтобы отменить уже сделанные переключения.
+  const codeView = useCodeLinesView();
 
   return (
     <div className="tool-args__block">
@@ -32,7 +32,7 @@ const Block = ({ block, defaultOpen }) => {
           {t('toolCall.detail.args.lines', { count: block.lines.length })}
         </span>
       </button>
-      {open && <CodeLines lines={block.lines} expanded={expanded} onExpand={() => setExpanded(true)} />}
+      {open && <CodeLines lines={block.lines} {...codeView} />}
     </div>
   );
 };

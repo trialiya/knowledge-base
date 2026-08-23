@@ -64,8 +64,10 @@ const ToolCallItem = ({ tc, conversationId }) => {
   const [copied, copy] = useCopyFeedback();
   const [showDetail, setShowDetail] = useState(false);
   // callId приходит вместе с плашкой (SSE TOOL_CALL/TOOL_CALLS или GET /messages) — без него
-  // (старые записи до этого поля) модалке деталей нечего запросить.
-  const canShowDetail = !!(conversationId && tc.callId && tc.status !== TOOL_STATUS.STARTED && tc.hasDetails !== false);
+  // (старые записи до этого поля) модалке деталей нечего запросить. Статус не ограничивает:
+  // аргументы вызова сохранены до его запуска, и посмотреть, с чем модель позвала инструмент,
+  // можно, не дожидаясь ответа, — результат модалка дотянет сама, когда он появится.
+  const canShowDetail = !!(conversationId && tc.callId && tc.hasDetails !== false);
 
   const handleCopy = (e) => {
     // Плашка сама по себе кликабельна (открывает детали) — копирование не должно

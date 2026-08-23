@@ -106,6 +106,10 @@ public class ToolCallService {
      * несколько). UI-мета (status/error/resultMeta) берётся из {@code meta.invocations} сегмента по
      * тому же {@code callId}. {@code conversationId} сверяется у обеих строк — защита от
      * подстановки чужого id.
+     *
+     * <p>Работает и на ещё не завершённом вызове: ASSISTANT-сегмент с аргументами сохранён и
+     * проиндексирован до того, как инструмент начал работу (см. {@link ToolCallEventPublisher}), —
+     * тогда деталь несёт аргументы, статус STARTED и пустой результат.
      */
     public Optional<ToolCallDetail> findToolCallDetail(String conversationId, String callId) {
         final Optional<ToolCallIndexEntity> indexed =
@@ -169,7 +173,16 @@ public class ToolCallService {
                                 ? invocation.name()
                                 : Objects.requireNonNull(call).name(),
                         call != null ? call.arguments() : null,
-                        invocation != null ? invocation.status() : ToolInvocationStatus.OK,
+                        // Мета вызова появляется только в конце прогона (attachRunMeta), а
+                        // аргументы лежат в сегменте с самого его персиста — модалка деталей
+                        // открывается и на ещё работающем вызове. Пока ответа нет, статус —
+                        // STARTED, иначе идущий вызов показался бы успешно завершённым; ответ
+                        // без меты — оборванный прогон, он и правда отработал.
+                        invocation != null
+                                ? invocation.status()
+                                : resultText != null
+                                        ? ToolInvocationStatus.OK
+                                        : ToolInvocationStatus.STARTED,
                         invocation != null ? invocation.error() : null,
                         resultText,
                         invocation != null ? invocation.resultMeta() : null,
