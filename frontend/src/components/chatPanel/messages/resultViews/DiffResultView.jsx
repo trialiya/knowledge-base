@@ -86,8 +86,9 @@ const FileEntry = ({ file, open, onToggle }) => {
             <div className="tool-diff__meta">
               {file.header.map((line, i) => (
                 // Индекс как key безопасен: текст патча в открытой модалке неизменен.
-
-                <span key={i} className="tool-diff__meta-line">
+                // title обязателен: строка режется многоточием, прокрутки у неё
+                // нет, и длинный путь иначе не прочитать.
+                <span key={i} className="tool-diff__meta-line" title={line}>
                   {line}
                 </span>
               ))}
