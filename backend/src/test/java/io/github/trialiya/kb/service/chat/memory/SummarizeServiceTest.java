@@ -13,7 +13,7 @@ import io.github.trialiya.kb.config.model.SummarizeProperties;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
-import io.github.trialiya.kb.service.chat.ContextItemService;
+import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService.PromptRow;
 import java.time.LocalDateTime;
 import java.util.ArrayList;

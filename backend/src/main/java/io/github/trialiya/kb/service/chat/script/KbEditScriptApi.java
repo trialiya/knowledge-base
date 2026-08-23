@@ -3,7 +3,7 @@ package io.github.trialiya.kb.service.chat.script;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileInfo;
 import io.github.trialiya.kb.service.document.DocumentService;
-import io.github.trialiya.kb.service.file.GitService;
+import io.github.trialiya.kb.service.file.git.GitService;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;

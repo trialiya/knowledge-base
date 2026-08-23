@@ -11,7 +11,7 @@ import io.github.trialiya.kb.model.doc.dto.SearchResult;
 import io.github.trialiya.kb.model.script.ScriptError;
 import io.github.trialiya.kb.model.script.ScriptResult;
 import io.github.trialiya.kb.service.document.DocumentService;
-import io.github.trialiya.kb.service.file.GitRegistry;
+import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.support.TestProjects;
 import io.github.trialiya.kb.tools.RunCancellation;
 import java.io.IOException;

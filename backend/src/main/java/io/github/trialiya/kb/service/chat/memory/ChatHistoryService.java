@@ -9,7 +9,7 @@ import io.github.trialiya.kb.model.chat.spring.UserChatMessage;
 import io.github.trialiya.kb.model.project.ProjectSwitch;
 import io.github.trialiya.kb.model.tool.ToolData;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
-import io.github.trialiya.kb.service.chat.ContextItemService;
+import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.tools.RecordingToolCallback;
 import java.time.LocalDateTime;
 import java.util.ArrayList;

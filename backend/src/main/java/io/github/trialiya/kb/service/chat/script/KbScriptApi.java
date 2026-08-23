@@ -6,7 +6,7 @@ import io.github.trialiya.kb.model.git.dto.GitFileInfo;
 import io.github.trialiya.kb.model.git.dto.GitFileOutline;
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.service.document.DocumentService;
-import io.github.trialiya.kb.service.file.GitService;
+import io.github.trialiya.kb.service.file.git.GitService;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;

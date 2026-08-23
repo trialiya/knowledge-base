@@ -15,7 +15,7 @@ import io.github.trialiya.kb.functions.GitEditFunction;
 import io.github.trialiya.kb.service.chat.ToolCatalogService;
 import io.github.trialiya.kb.service.chat.ToolCatalogService.ToolInfo;
 import io.github.trialiya.kb.service.chat.script.ScriptEditPolicy;
-import io.github.trialiya.kb.service.file.ProjectCatalog;
+import io.github.trialiya.kb.service.file.project.ProjectCatalog;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;

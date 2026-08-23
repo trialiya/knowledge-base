@@ -9,8 +9,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.model.git.dto.GitEditResult;
-import io.github.trialiya.kb.service.file.GitRegistry;
-import io.github.trialiya.kb.service.file.GitService;
+import io.github.trialiya.kb.service.file.git.GitRegistry;
+import io.github.trialiya.kb.service.file.git.GitService;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;

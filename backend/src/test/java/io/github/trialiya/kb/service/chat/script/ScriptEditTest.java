@@ -7,7 +7,7 @@ import io.github.trialiya.kb.model.git.dto.GitEditResult;
 import io.github.trialiya.kb.model.script.ScriptError;
 import io.github.trialiya.kb.model.script.ScriptResult;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
-import io.github.trialiya.kb.service.file.GitRegistry;
+import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.support.TestProjects;
 import io.github.trialiya.kb.tools.RunCancellation;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;

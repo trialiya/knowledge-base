@@ -3,7 +3,7 @@ package io.github.trialiya.kb.controller;
 import io.github.trialiya.kb.model.phrase.dto.MovePhraseRequest;
 import io.github.trialiya.kb.model.phrase.dto.Phrase;
 import io.github.trialiya.kb.model.phrase.dto.PhraseRequest;
-import io.github.trialiya.kb.service.chat.PhraseService;
+import io.github.trialiya.kb.service.chat.prompt.PhraseService;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;

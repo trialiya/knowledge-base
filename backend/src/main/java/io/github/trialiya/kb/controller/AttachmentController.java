@@ -1,7 +1,7 @@
 package io.github.trialiya.kb.controller;
 
 import io.github.trialiya.kb.model.attachment.dto.Attachment;
-import io.github.trialiya.kb.service.chat.AttachmentService;
+import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;

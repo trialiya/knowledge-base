@@ -14,7 +14,7 @@ import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.chat.entity.ContextItemKind;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
-import io.github.trialiya.kb.service.chat.ContextItemService;
+import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService.PromptRow;
 import io.github.trialiya.kb.service.chat.run.ChatEventService;
 import java.time.LocalDateTime;

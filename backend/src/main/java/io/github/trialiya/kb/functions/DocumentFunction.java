@@ -22,7 +22,7 @@ import io.github.trialiya.kb.model.doc.dto.SectionRename;
 import io.github.trialiya.kb.model.doc.dto.UpdateDocumentRequest;
 import io.github.trialiya.kb.model.doc.entity.DocumentType;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
-import io.github.trialiya.kb.service.chat.AttachmentService;
+import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import io.github.trialiya.kb.service.document.DocumentService;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
