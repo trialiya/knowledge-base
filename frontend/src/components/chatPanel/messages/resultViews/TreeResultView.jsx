@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconChevronDown } from '@/icons/index';
 import { formatFieldValue } from './fieldValue';
@@ -46,7 +47,7 @@ const Chips = ({ items }) => {
   ));
 };
 
-const TreeNode = ({ node, level, expand }) => {
+const TreeNode = ({ node, level, expand, current, onSelect }) => {
   const branch = node.children.length > 0;
   const open = expand.isOpen(node.key);
 
@@ -56,11 +57,14 @@ const TreeNode = ({ node, level, expand }) => {
           ширину шеврона, и колонка названий перестаёт быть колонкой. */}
       <button
         type="button"
-        className="tool-tree__row"
+        className={`tool-tree__row${current === node.key ? ' tool-tree__row--current' : ''}`}
         style={{ paddingLeft: `${level * 16 + 6}px` }}
-        onClick={() => branch && expand.toggle(node.key)}
+        onClick={() => {
+          onSelect(node.key);
+          if (branch) expand.toggle(node.key);
+        }}
         aria-expanded={branch ? open : undefined}
-        disabled={!branch}
+        aria-current={current === node.key ? 'true' : undefined}
       >
         <span
           className={`tool-tree__chevron${open ? ' tool-tree__chevron--open' : ''}${
@@ -80,7 +84,14 @@ const TreeNode = ({ node, level, expand }) => {
       {branch && open && (
         <ul className="tool-tree__children">
           {node.children.map((child) => (
-            <TreeNode key={child.key} node={child} level={level + 1} expand={expand} />
+            <TreeNode
+              key={child.key}
+              node={child}
+              level={level + 1}
+              expand={expand}
+              current={current}
+              onSelect={onSelect}
+            />
           ))}
         </ul>
       )}
@@ -92,6 +103,12 @@ const TreeResultView = ({ data }) => {
   const { t, i18n } = useTranslation('chat');
   const keys = collectKeys(data.nodes);
   const expand = useExpandAll(keys, () => initialOpen(data.nodes));
+  // Отметка «я сейчас здесь». Никуда не ведёт и ничего не открывает: в выдаче
+  // `searchFiles` полсотни путей подряд, и глазами в них теряются — клик по
+  // строке нужен, чтобы её не потерять, а не чтобы что-то с ней сделать.
+  // Повторный клик снимает отметку.
+  const [current, setCurrent] = useState(null);
+  const select = (key) => setCurrent((prev) => (prev === key ? null : key));
 
   return (
     <div className="tool-tree">
@@ -107,7 +124,7 @@ const TreeResultView = ({ data }) => {
 
       <ul className="tool-tree__children">
         {data.nodes.map((node) => (
-          <TreeNode key={node.key} node={node} level={0} expand={expand} />
+          <TreeNode key={node.key} node={node} level={0} expand={expand} current={current} onSelect={select} />
         ))}
       </ul>
     </div>

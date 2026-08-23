@@ -80,7 +80,7 @@ const FileEntry = ({ file, open, onToggle }) => {
       {open &&
         (file.patch ? (
           <pre className="tool-diff__patch">
-            <DiffLines patch={file.patch} />
+            <DiffLines patch={file.patch} lineNumbers />
           </pre>
         ) : (
           <div className="tool-diff__note">{t('toolCall.detail.diff.noPatch')}</div>

@@ -138,12 +138,14 @@
    overflow-y здесь нет; по горизонтали патч скроллится сам. */
 .tool-diff__patch {
   margin: 4px 0 0;
-  padding: 8px 10px;
-  background: #f8f9fa;
-  border: 1px solid #eee;
+  /* По бокам не отступает: горизонтальный padding у самой строки, иначе
+     заливка `+`/`−` и гуттер с номерами обрывались бы, не дойдя до края. */
+  padding: 8px 0;
+  background: var(--kb-bg);
+  border: 1px solid var(--kb-border);
   border-radius: 6px;
   font-size: 0.75rem;
-  font-family: 'Fira Mono', 'Cascadia Code', 'Consolas', monospace;
+  font-family: var(--kb-font-mono);
   line-height: 1.45;
   overflow-x: auto;
   white-space: pre;

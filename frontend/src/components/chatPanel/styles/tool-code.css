@@ -2,15 +2,22 @@
    Общий блок для всего, что в модалке вызова показывает содержимое настоящими
    переносами: результат инструмента и длинный аргумент (см. codeLines.jsx). */
 
-/* Общий скролл модалки — как у .tool-call-detail__pre, поэтому собственного
+/* Светлая подложка, одна на все блоки кода в модалке (.tool-diff__patch,
+   .tool-grep__block): режим «Обзор» — это чтение содержимого вперемешку с
+   заголовками, фактами и diff'ами, и тёмный прямоугольник посреди светлой
+   модалки читался бы как отдельное окно. Тёмная тема осталась у JSON-режима —
+   там подсветка и есть весь смысл вывода.
+
+   Общий скролл модалки — как у .tool-call-detail__pre, поэтому собственного
    overflow-y здесь нет; по горизонтали текст скроллится сам. */
 .tool-code {
-  background: var(--kb-code-dark-bg, #1e1e2e);
-  color: var(--kb-code-dark-color, #cdd6f4);
+  background: var(--kb-bg);
+  color: var(--kb-text);
+  border: 1px solid var(--kb-border);
   border-radius: 6px;
   padding: 8px 0;
   font-size: 0.75rem;
-  font-family: 'Fira Mono', 'Cascadia Code', 'Consolas', monospace;
+  font-family: var(--kb-font-mono);
   line-height: 1.55;
   box-sizing: border-box;
   width: 100%;
@@ -21,16 +28,20 @@
   display: flex;
   gap: 12px;
   padding: 0 10px;
+  box-sizing: border-box;
+  /* Подсветка строки тянется до конца прокрутки, а не обрывается по ширине окна. */
+  width: max-content;
+  min-width: 100%;
 }
 .tool-code__line:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--kb-border-light);
 }
 
 .tool-code__line-no {
   flex: 0 0 auto;
   min-width: 3.2em;
   text-align: right;
-  color: #6c7086;
+  color: var(--kb-muted);
   user-select: none;
 }
 
@@ -52,4 +63,9 @@
 .tool-code--wrap .tool-code__line-text {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+/* С переносом строка обязана ужаться до ширины окна: `max-content` тянул бы её
+   в одну линию, и переносить стало бы нечего. */
+.tool-code--wrap .tool-code__line {
+  width: auto;
 }
