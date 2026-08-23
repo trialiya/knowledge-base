@@ -9,6 +9,7 @@ import { detectResultView } from './resultViews/registry';
 import { detectArgumentList } from './resultViews/argumentList';
 import ArgumentListView from './resultViews/ArgumentListView';
 import { formatJson, tryFormatJson, highlightJson } from './resultViews/jsonText';
+import { TOOL_STATUS } from '@/constants/toolStatus';
 import '../styles/tool-call-detail.css';
 
 // Два режима на секцию результата, не три: «Обзор» — типизированный вид,
@@ -16,6 +17,13 @@ import '../styles/tool-call-detail.css';
 // Отдельный «сырой» режим не нужен: JSON-режим на неразбираемом ответе печатает
 // исходную строку как есть, так что вход модели виден всегда.
 const MODE = { OVERVIEW: 'overview', JSON: 'json' };
+
+// Опрос деталей работающего вызова: первая пауза короткая (инструмент часто отвечает через
+// секунду-другую), дальше вдвое до потолка — модалку могли открыть и забыть.
+const POLL_MIN_MS = 1000;
+const POLL_MAX_MS = 15000;
+/** Сколько раз повторяем сорвавшийся запрос, прежде чем оставить ошибку на экране. */
+const ERROR_RETRIES = 3;
 
 /** Маленькая кнопка копирования содержимого секции (аргументы/результат). */
 const CopyButton = ({ value }) => {
@@ -86,21 +94,54 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
     setArgsMode(MODE.OVERVIEW);
   }
 
+  // Модалку открывают и на работающем вызове — ради аргументов, — поэтому пока ответ говорит
+  // STARTED, детали перезапрашиваются сами. Одной перезагрузки по смене статуса плашки мало
+  // сразу по трём причинам: SSE-событие ответа публикуется ещё внутри транзакции записи, так
+  // что запрос может обогнать коммит и получить тот же STARTED; на остановке и на ошибке
+  // прогона финального TOOL_CALLS вовсе нет, и плашка остаётся STARTED навсегда; а неудачная
+  // единственная попытка не повторилась бы. Пауза растёт от POLL_MIN_MS к POLL_MAX_MS —
+  // забытая открытой модалка не должна долбить сервер, а живой вызов виден почти сразу.
+  //
+  // Статус плашки при этом остаётся в зависимостях: он приходит раньше нашего опроса, и по
+  // нему результат подхватывается без ожидания следующего тика.
   useEffect(() => {
     if (!callId) return undefined;
     let cancelled = false;
-    chatApi
-      .getToolCallDetails(conversationId, callId)
-      .then((data) => {
-        if (!cancelled) setAnswer({ details: data || null, failed: false });
-      })
-      .catch(() => {
-        if (!cancelled) setAnswer({ details: null, failed: true });
-      });
+    let timer = null;
+    let delay = POLL_MIN_MS;
+    let errors = 0;
+
+    const again = () => {
+      // Показанные аргументы не стираем: сорвавшийся перезапрос — повод повторить, а не
+      // заменить экран ошибкой уже над прочитанным.
+      timer = setTimeout(load, delay);
+      delay = Math.min(delay * 2, POLL_MAX_MS);
+    };
+
+    const load = () => {
+      chatApi
+        .getToolCallDetails(conversationId, callId)
+        .then((data) => {
+          if (cancelled) return;
+          setAnswer({ details: data || null, failed: false });
+          if (data?.status === TOOL_STATUS.STARTED) again();
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setAnswer((prev) => (prev?.details ? prev : { details: null, failed: true }));
+          // Ошибку повторяем считанное число раз: 404 бывает и осмысленным (детали не
+          // сохранены), а вечный опрос ради него — трафик впустую. Смена статуса плашки
+          // перезапускает эффект, и попытки начинаются заново.
+          if (++errors <= ERROR_RETRIES) again();
+        });
+    };
+
+    load();
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
-  }, [conversationId, callId]);
+  }, [conversationId, callId, tc.status]);
 
   // Без callId запроса нет вовсе — сразу ошибка.
   const loading = !!callId && answer === null;
@@ -119,6 +160,9 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
   const args = useMemo(() => (details ? detectArgumentList(details.argumentsRaw) : null), [details]);
   const showOverview = view !== null && mode === MODE.OVERVIEW;
   const OverviewView = view?.View;
+  // Вызов ещё идёт: аргументы уже есть, результата нет — вместо пустого JSON-блока
+  // говорим об этом словами. Как только придёт ответ, эффект выше перезапросит детали.
+  const running = details?.status === TOOL_STATUS.STARTED && !details.resultText;
 
   return (
     <ModalShell onClose={onClose} className="tool-call-detail">
@@ -163,7 +207,11 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
               {view && <ModeSwitch mode={mode} onChange={setMode} label={t('toolCall.detail.result')} />}
               <CopyButton value={details.resultText} />
             </div>
-            {showOverview ? (
+            {running ? (
+              <div className="tool-call-detail__notice" role="status" aria-live="polite">
+                {t('toolCall.detail.running')}
+              </div>
+            ) : showOverview ? (
               // key по вызову: у видов есть своё состояние (какие файлы
               // раскрыты, markdown или исходник), а ключи блоков внутри —
               // порядковые и у разных вызовов совпадают. Без key состояние

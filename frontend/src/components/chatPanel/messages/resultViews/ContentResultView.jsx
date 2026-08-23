@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { formatFieldValue } from './fieldValue';
-import CodeLines from './codeLines';
+import CodeLines, { useCodeLinesView } from './codeLines';
 
 // Режим «Обзор» для текстовых результатов: содержимое файла, вложения или
 // документа — настоящими переносами строк и с номерами, а не JSON-строкой,
@@ -46,9 +46,9 @@ const FactList = ({ item, lines }) => {
 const ContentItem = ({ item }) => {
   const { t } = useTranslation('chat');
   const [rendered, setRendered] = useState(item.markdown);
-  // «Показать целиком» живёт здесь, а не в CodeLines: тумблер markdown уносит
-  // блок с экрана, и вместе с ним унёс бы уже сделанный разворот.
-  const [expanded, setExpanded] = useState(false);
+  // Разворот и перенос строк живут здесь, а не в CodeLines: тумблер markdown
+  // уносит блок с экрана, и вместе с ним унёс бы уже сделанные переключения.
+  const codeView = useCodeLinesView();
 
   const lines = item.text === null ? [] : item.text.split('\n');
 
@@ -76,7 +76,7 @@ const ContentItem = ({ item }) => {
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.text}</ReactMarkdown>
           </div>
         ) : (
-          <CodeLines lines={lines} startLine={item.startLine} expanded={expanded} onExpand={() => setExpanded(true)} />
+          <CodeLines lines={lines} startLine={item.startLine} {...codeView} />
         ))}
     </section>
   );

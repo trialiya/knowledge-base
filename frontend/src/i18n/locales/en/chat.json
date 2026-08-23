@@ -73,6 +73,9 @@
       "result": "Result",
       "loadError": "Failed to load details",
       "notFound": "Call details not recorded",
+      "running": "The tool is still running — the result will appear here once it answers",
+      "wrap": "Wrap lines",
+      "wrapHint": "Wrap long lines instead of scrolling sideways",
       "mode": {
         "overview": "Overview",
         "json": "JSON"
