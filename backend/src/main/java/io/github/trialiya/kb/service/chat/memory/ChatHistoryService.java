@@ -220,18 +220,24 @@ public class ChatHistoryService {
                                     "Repairing dangling tool_calls tail for {} ({} synthetic responses)",
                                     conversationId,
                                     responses.size());
-                            chatMessageRepository.save(
-                                    new ChatMessageEntity(
-                                            0L,
-                                            conversationId,
-                                            "",
-                                            MessageType.TOOL,
-                                            last.getPosition() + 1,
-                                            false,
-                                            false,
-                                            LocalDateTime.now(),
-                                            null,
-                                            new ToolData(null, responses)));
+                            final ChatMessageEntity repaired =
+                                    chatMessageRepository.save(
+                                            new ChatMessageEntity(
+                                                    0L,
+                                                    conversationId,
+                                                    "",
+                                                    MessageType.TOOL,
+                                                    last.getPosition() + 1,
+                                                    false,
+                                                    false,
+                                                    LocalDateTime.now(),
+                                                    null,
+                                                    new ToolData(null, responses)));
+                            // Ремонтная строка идёт мимо append, но в индекс попасть обязана:
+                            // без её responseMessageId у оборванного вызова навсегда остаётся
+                            // «ответа ещё нет», то есть модалка деталей показывает работающим
+                            // инструмент, который уже никогда не ответит.
+                            toolCalls.index(conversationId, List.of(repaired));
                         });
     }
 

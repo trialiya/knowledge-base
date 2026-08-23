@@ -18,6 +18,13 @@ import '../styles/tool-call-detail.css';
 // исходную строку как есть, так что вход модели виден всегда.
 const MODE = { OVERVIEW: 'overview', JSON: 'json' };
 
+// Опрос деталей работающего вызова: первая пауза короткая (инструмент часто отвечает через
+// секунду-другую), дальше вдвое до потолка — модалку могли открыть и забыть.
+const POLL_MIN_MS = 1000;
+const POLL_MAX_MS = 15000;
+/** Сколько раз повторяем сорвавшийся запрос, прежде чем оставить ошибку на экране. */
+const ERROR_RETRIES = 3;
+
 /** Маленькая кнопка копирования содержимого секции (аргументы/результат). */
 const CopyButton = ({ value }) => {
   const { t } = useTranslation('chat');
@@ -87,23 +94,52 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
     setArgsMode(MODE.OVERVIEW);
   }
 
-  // Статус плашки — в зависимостях: модалку открывают и на работающем вызове (ради
-  // аргументов), и когда инструмент отвечает, детали нужно перезапросить — иначе результат
-  // появился бы только после переоткрытия. Ответ при этом не сбрасывается: до прихода нового
-  // на экране остаются уже показанные аргументы, а не «Загрузка».
+  // Модалку открывают и на работающем вызове — ради аргументов, — поэтому пока ответ говорит
+  // STARTED, детали перезапрашиваются сами. Одной перезагрузки по смене статуса плашки мало
+  // сразу по трём причинам: SSE-событие ответа публикуется ещё внутри транзакции записи, так
+  // что запрос может обогнать коммит и получить тот же STARTED; на остановке и на ошибке
+  // прогона финального TOOL_CALLS вовсе нет, и плашка остаётся STARTED навсегда; а неудачная
+  // единственная попытка не повторилась бы. Пауза растёт от POLL_MIN_MS к POLL_MAX_MS —
+  // забытая открытой модалка не должна долбить сервер, а живой вызов виден почти сразу.
+  //
+  // Статус плашки при этом остаётся в зависимостях: он приходит раньше нашего опроса, и по
+  // нему результат подхватывается без ожидания следующего тика.
   useEffect(() => {
     if (!callId) return undefined;
     let cancelled = false;
-    chatApi
-      .getToolCallDetails(conversationId, callId)
-      .then((data) => {
-        if (!cancelled) setAnswer({ details: data || null, failed: false });
-      })
-      .catch(() => {
-        if (!cancelled) setAnswer({ details: null, failed: true });
-      });
+    let timer = null;
+    let delay = POLL_MIN_MS;
+    let errors = 0;
+
+    const again = () => {
+      // Показанные аргументы не стираем: сорвавшийся перезапрос — повод повторить, а не
+      // заменить экран ошибкой уже над прочитанным.
+      timer = setTimeout(load, delay);
+      delay = Math.min(delay * 2, POLL_MAX_MS);
+    };
+
+    const load = () => {
+      chatApi
+        .getToolCallDetails(conversationId, callId)
+        .then((data) => {
+          if (cancelled) return;
+          setAnswer({ details: data || null, failed: false });
+          if (data?.status === TOOL_STATUS.STARTED) again();
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setAnswer((prev) => (prev?.details ? prev : { details: null, failed: true }));
+          // Ошибку повторяем считанное число раз: 404 бывает и осмысленным (детали не
+          // сохранены), а вечный опрос ради него — трафик впустую. Смена статуса плашки
+          // перезапускает эффект, и попытки начинаются заново.
+          if (++errors <= ERROR_RETRIES) again();
+        });
+    };
+
+    load();
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
   }, [conversationId, callId, tc.status]);
 

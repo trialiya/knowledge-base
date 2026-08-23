@@ -360,6 +360,45 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
         assertThat(detail.get().error()).isNull();
     }
 
+    /**
+     * Прогон остановили во время работы инструмента: {@code repairDanglingToolCalls} дописывает
+     * синтетический TOOL-ответ мимо {@code append} — и обязан попасть в {@code tool_call_index},
+     * иначе вызов навсегда остался бы «ещё работает» (модалка деталей ждала бы ответа, которого уже
+     * никогда не будет).
+     */
+    @Test
+    void repairedToolResponseIsIndexedAndEndsTheRunningState() {
+        String conv = UUID.randomUUID().toString();
+
+        ChatMessageEntity segment =
+                save(
+                        conv,
+                        MessageType.ASSISTANT,
+                        null,
+                        new ToolData(
+                                List.of(
+                                        new ToolData.Call(
+                                                "call_stopped",
+                                                "function",
+                                                "searchCodebase",
+                                                "{\"q\":\"кэш\"}")),
+                                null));
+        index(conv, "call_stopped", segment.getId(), null);
+
+        assertThat(toolCalls().findToolCallDetail(conv, "call_stopped"))
+                .get()
+                .extracting(ToolCallDetail::status)
+                .isEqualTo(ToolInvocationStatus.STARTED);
+
+        history().repairDanglingToolCalls(conv);
+
+        Optional<ToolCallDetail> detail = toolCalls().findToolCallDetail(conv, "call_stopped");
+
+        assertThat(detail).isPresent();
+        assertThat(detail.get().status()).isEqualTo(ToolInvocationStatus.OK);
+        assertThat(detail.get().resultText()).contains("interrupted");
+    }
+
     /** Оборванный прогон: ответ есть, меты нет — вызов отработал, статус OK. */
     @Test
     void responseWithoutMetaStaysOk() {

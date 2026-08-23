@@ -31,7 +31,9 @@ both — read its javadoc for the why before writing a new `@Tool`.
   reintroduce positional or offset arithmetic over message history.
 - **The index is filled at persist time** (`ChatHistoryService.append` calls
   `ToolCallService.index`), not by a background job. Keep it in sync when
-  changing how messages are saved.
+  changing how messages are saved — `repairDanglingToolCalls` writes its
+  synthetic TOOL row outside `append` and indexes it itself; a tool response
+  that misses the index leaves its call looking unfinished forever.
 - **Legacy backfill for old data:** `ToolCallBackfillService.backfillToolCallIds`
   fills in `tool_call_index` for chats recorded before it existed. Do not extend
   it; plan to delete both it and `ToolCallIdBackfillRunner` once all
