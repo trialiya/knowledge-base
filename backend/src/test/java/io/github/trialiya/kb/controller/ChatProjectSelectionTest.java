@@ -19,18 +19,18 @@ import io.github.trialiya.kb.config.model.ProjectProperties.ProjectOption;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.project.ProjectSwitch;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
-import io.github.trialiya.kb.service.chat.ChatModeService;
-import io.github.trialiya.kb.service.chat.ChatSearchService;
-import io.github.trialiya.kb.service.chat.ChatTopicService;
-import io.github.trialiya.kb.service.chat.ContextItemService;
-import io.github.trialiya.kb.service.chat.ProjectPromptService;
-import io.github.trialiya.kb.service.chat.SystemPromptService;
+import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.memory.ToolCallService;
+import io.github.trialiya.kb.service.chat.prompt.ChatModeService;
+import io.github.trialiya.kb.service.chat.prompt.ProjectPromptService;
+import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.run.ChatEventService;
 import io.github.trialiya.kb.service.chat.run.ChatRunService;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
-import io.github.trialiya.kb.service.file.ProjectCatalog;
+import io.github.trialiya.kb.service.chat.topic.ChatSearchService;
+import io.github.trialiya.kb.service.chat.topic.ChatTopicService;
+import io.github.trialiya.kb.service.file.project.ProjectCatalog;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -87,11 +87,11 @@ class ChatProjectSelectionTest {
                         contextItemService,
                         topicService,
                         catalog(),
-                        mock(io.github.trialiya.kb.service.file.GitRegistry.class),
+                        mock(io.github.trialiya.kb.service.file.git.GitRegistry.class),
                         mock(SystemPromptService.class),
                         new ProjectPromptService(
                                 catalog(),
-                                mock(io.github.trialiya.kb.service.file.GitRegistry.class)),
+                                mock(io.github.trialiya.kb.service.file.git.GitRegistry.class)),
                         Clock.systemUTC());
     }
 

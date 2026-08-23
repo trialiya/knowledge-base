@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.trialiya.kb.config.model.ScriptProperties;
-import io.github.trialiya.kb.service.file.GitRegistry;
+import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.support.TestProjects;
 import io.github.trialiya.kb.tools.RunCancellation;
 import java.io.IOException;

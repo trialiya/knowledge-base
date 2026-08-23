@@ -10,7 +10,7 @@ import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.model.doc.dto.Document;
 import io.github.trialiya.kb.model.doc.dto.DocumentShort;
-import io.github.trialiya.kb.service.chat.AttachmentService;
+import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import io.github.trialiya.kb.service.document.DocumentService;
 import java.time.LocalDateTime;
 import java.util.concurrent.atomic.AtomicReference;

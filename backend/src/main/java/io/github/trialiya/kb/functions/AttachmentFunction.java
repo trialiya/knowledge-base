@@ -7,7 +7,7 @@ import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
 
 import io.github.trialiya.kb.model.attachment.dto.Attachment;
 import io.github.trialiya.kb.model.attachment.dto.AttachmentContext;
-import io.github.trialiya.kb.service.chat.AttachmentService;
+import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
 import java.util.List;
 import lombok.AllArgsConstructor;

@@ -11,8 +11,8 @@ import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
-import io.github.trialiya.kb.service.file.GitRegistry;
-import io.github.trialiya.kb.service.file.GitService;
+import io.github.trialiya.kb.service.file.git.GitRegistry;
+import io.github.trialiya.kb.service.file.git.GitService;
 import io.github.trialiya.kb.tools.ProjectContext;
 import java.util.List;
 import java.util.Map;

@@ -5,7 +5,7 @@ import static io.github.trialiya.kb.tools.ToolArgs.requireText;
 
 import io.github.trialiya.kb.model.script.ScriptResult;
 import io.github.trialiya.kb.service.chat.script.ScriptRunner;
-import io.github.trialiya.kb.service.file.GitRegistry;
+import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
 import io.github.trialiya.kb.tools.ProjectContext;
 import io.github.trialiya.kb.tools.RunCancellation;
