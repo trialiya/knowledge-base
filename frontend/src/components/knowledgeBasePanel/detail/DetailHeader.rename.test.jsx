@@ -8,8 +8,12 @@ import DetailHeader from './DetailHeader';
  * Escape отменяет. Тест держит именно эту развязку — Escape уносит поле из DOM,
  * и приходящий следом blur не должен сохранить черновик.
  */
+// i18n в тестах не инициализируем — берём ключ как подпись.
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key) => key }),
+}));
+
 describe('DetailHeader: переименование', () => {
-  // Словарь в тестах не загружен, поэтому t() отдаёт сам ключ.
   const node = { id: 3, title: 'Старое имя', type: 'document' };
 
   function setup(props = {}) {
