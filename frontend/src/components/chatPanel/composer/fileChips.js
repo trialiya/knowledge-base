@@ -47,8 +47,7 @@ const UNQUALIFIED_RE = new RegExp(`${OPEN}(file|ref|commit):`, 'g');
 /**
  * Вписать проект в чипы, которые его не называют. Токен без проекта означает
  * «репозиторий чата», поэтому вписывать надо ровно в тот момент, когда чат ещё
- * работает в нём: при смене проекта — прежний. Бэкенд делает то же самое с уже
- * сохранёнными ссылками на файлы (FileLinkProjectBackfillService).
+ * работает в нём: при смене проекта — прежний.
  */
 export function stampChipProject(text, project) {
   if (!text || !project) return text;

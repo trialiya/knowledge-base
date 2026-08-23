@@ -34,10 +34,6 @@ both — read its javadoc for the why before writing a new `@Tool`.
   changing how messages are saved — `repairDanglingToolCalls` writes its
   synthetic TOOL row outside `append` and indexes it itself; a tool response
   that misses the index leaves its call looking unfinished forever.
-- **Legacy backfill for old data:** `ToolCallBackfillService.backfillToolCallIds`
-  fills in `tool_call_index` for chats recorded before it existed. Do not extend
-  it; plan to delete both it and `ToolCallIdBackfillRunner` once all
-  environments have backfilled.
 
 Migrations for this live in both `db/migration` (Postgres) and `db/migration-h2`.
 
