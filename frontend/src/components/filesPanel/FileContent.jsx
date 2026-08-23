@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm';
 import { IconFolder, IconDoc } from '@/icons/index';
 import { formatFileSize } from '@/utils/formatting';
 import Breadcrumb from './Breadcrumb';
+import ChangeDiffView from './changes/ChangeDiffView';
 
 const isMarkdownPath = (path) => /\.mdx?$/i.test(path || '');
 
@@ -50,7 +51,15 @@ const DirectoryListing = ({ nodes, onNavigate }) => {
   );
 };
 
-export const FileView = ({ file, path }) => {
+/**
+ * `diff` — незакоммиченные изменения этого файла, если панель их показывает
+ * (режим «Изменения»): `{ entry, loading, error }` либо null, когда переключать
+ * не на что (обычное дерево файлов, превью в модалках). Сам выбор «оригинал или
+ * diff» тоже приходит пропом: по умолчанию он зависит от открытого файла (у
+ * изменённого — diff, у неотслеживаемого — содержимое), а решение, зависящее от
+ * файла, живёт там, где известно, какой файл открыт.
+ */
+export const FileView = ({ file, path, diff = null, showDiff = false, onToggleDiff }) => {
   const { t } = useTranslation('files');
   const isMd = isMarkdownPath(path ?? file?.path);
   const [mdView, setMdView] = useState(false);
@@ -61,7 +70,17 @@ export const FileView = ({ file, path }) => {
         <span>{t('file.lines', { count: file.lineCount })}</span>
         <span>{formatFileSize(file.sizeBytes)}</span>
         {file.truncated && <span className="file-view__badge file-view__badge--warn">{t('file.truncated')}</span>}
-        {isMd && !file.binary && (
+        {diff && (
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm file-view__diff-toggle"
+            aria-pressed={showDiff}
+            onClick={() => onToggleDiff(!showDiff)}
+          >
+            {t('file.showDiff')}
+          </button>
+        )}
+        {isMd && !file.binary && !showDiff && (
           <button
             type="button"
             className={`file-view__md-toggle${mdView ? ' file-view__md-toggle--active' : ''}`}
@@ -72,7 +91,9 @@ export const FileView = ({ file, path }) => {
           </button>
         )}
       </div>
-      {file.binary ? (
+      {showDiff ? (
+        <ChangeDiffView diff={diff} />
+      ) : file.binary ? (
         <div className="file-content__empty">{t('file.binary')}</div>
       ) : mdView ? (
         <div className="file-view__md">
@@ -93,13 +114,20 @@ export const FileView = ({ file, path }) => {
   );
 };
 
-const FileContent = ({ content, path, loading, onNavigate }) => {
+const FileContent = ({ content, path, loading, onNavigate, diff = null, showDiff = false, onToggleDiff }) => {
   const { t } = useTranslation('files');
 
   // Крошки рисуем по запрошенному пути, а не по загруженному содержимому: путь
   // известен сразу из URL, и шапка центра появляется, не дожидаясь ответа
   // (иначе при переходе она ещё показывала бы предыдущий файл).
   const crumbPath = path ?? content?.path ?? '';
+
+  // Файла нет в рабочем дереве, и browse честно отвечает «не найдено» — но у
+  // изменения он есть (удалён, либо переименован и открыт под старым именем), и
+  // показать надо именно diff. Переключать тут не на что, поэтому тумблера в
+  // этой ветке нет. Отказ запроса за патчем тоже сюда: про него расскажет сам
+  // ChangeDiffView, а «файл не найден» было бы неправдой.
+  const gone = content?.type === 'not-found' && !!diff && (!!diff.entry || !!diff.error);
 
   return (
     <div className="file-content">
@@ -109,8 +137,30 @@ const FileContent = ({ content, path, loading, onNavigate }) => {
         {!loading && content?.type === 'directory' && (
           <DirectoryListing nodes={content.nodes} onNavigate={onNavigate} />
         )}
-        {!loading && content?.type === 'file' && <FileView file={content.file} path={content.path} />}
-        {!loading && content?.type === 'not-found' && <div className="file-content__empty">{t('file.notFound')}</div>}
+        {!loading && content?.type === 'file' && (
+          <FileView
+            file={content.file}
+            path={content.path}
+            diff={diff}
+            showDiff={showDiff}
+            onToggleDiff={onToggleDiff}
+          />
+        )}
+        {!loading && gone && (
+          <div className="file-view">
+            <div className="file-view__meta">
+              {diff.entry && (
+                <span className="file-view__badge file-view__badge--warn">
+                  {t(`changes.status.${diff.entry.status}`, { defaultValue: diff.entry.status })}
+                </span>
+              )}
+            </div>
+            <ChangeDiffView diff={diff} />
+          </div>
+        )}
+        {!loading && content?.type === 'not-found' && !gone && (
+          <div className="file-content__empty">{t('file.notFound')}</div>
+        )}
         {!loading && content?.type === 'error' && <div className="file-content__empty">{t('file.loadError')}</div>}
       </div>
     </div>

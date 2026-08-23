@@ -1176,6 +1176,19 @@ public class GitService {
      * @param includePatch whether to include unified diff text for modified files
      */
     public List<GitDiffEntry> getUncommittedChanges(boolean includePatch) {
+        return getUncommittedChanges(includePatch, null);
+    }
+
+    /**
+     * The same list narrowed to one path — what the files panel asks for when it opens a single
+     * change: the list it already drew needs no patches, and computing every file's patch to show
+     * one of them is the whole working tree's diff per click.
+     *
+     * @param onlyPath a file path, or {@code null} for the whole working tree
+     */
+    public List<GitDiffEntry> getUncommittedChanges(
+            boolean includePatch, @Nullable String onlyPath) {
+        @Nullable String wanted = onlyPath == null ? null : normalizePath(onlyPath);
         Status status;
         try {
             status = git.status().call();
@@ -1207,6 +1220,13 @@ public class GitService {
                     formatter.setPathFilter(PathFilterGroup.createFromStrings(changedPaths));
 
                     for (DiffEntry entry : formatter.scan(oldTree, newTree)) {
+                        // The scan still covers every changed path even when one was asked for:
+                        // rename detection needs both sides, and narrowing the path filter would
+                        // report a renamed file as an unrelated add. Both sides are matched so
+                        // that a rename opens under either of its names.
+                        if (wanted != null
+                                && !wanted.equals(entry.getNewPath())
+                                && !wanted.equals(entry.getOldPath())) continue;
                         GitDiffEntry mapped =
                                 toGitDiffEntry(entry, formatter, includePatch, patchOut);
                         if (RepoPaths.isJunkFile(mapped.path())) continue;
@@ -1222,6 +1242,7 @@ public class GitService {
         // untracked and not ignored, so the globs are the only question left to ask about it —
         // walking the allow-glob area again would answer nothing this does not.
         status.getUntracked().stream()
+                .filter(path -> wanted == null || wanted.equals(path))
                 .filter(path -> !RepoPaths.isJunkFile(path))
                 .filter(visible::matchesAllowGlobs)
                 .sorted()

@@ -34,6 +34,13 @@ export const STORAGE_KEY_CHAT_STAGED = 'chat_stagedContext';
 export const STORAGE_KEY_PANELS = 'ui_panels';
 
 /**
+ * localStorage: раскладка списка незакоммиченных изменений — 'flat' | 'tree'.
+ * Не в URL: там живёт то, что показывает панель (см. `?changes=1`), а плоско
+ * или деревом человек предпочитает читать это одинаково во всех проектах.
+ */
+export const STORAGE_KEY_CHANGES_LAYOUT = 'files_changesLayout';
+
+/**
  * localStorage: ширина левой панели в пикселях — одна на все разделы (см.
  * common/useLeftPanelWidth.js). Не в URL: ссылкой делятся раскладкой панелей,
  * а ширина — личная настройка рабочего места.

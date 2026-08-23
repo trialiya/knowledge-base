@@ -235,6 +235,49 @@ class GitServiceTest {
     }
 
     @Test
+    void uncommittedChangesNarrowedToOnePathReturnsOnlyThatFile() {
+        writeFile("a.txt", "one\n");
+        writeFile("b.txt", "one\n");
+        commitAll();
+        writeFile("a.txt", "one\ntwo\n");
+        writeFile("b.txt", "one\nthree\n");
+
+        List<GitDiffEntry> changes = service.getUncommittedChanges(true, "b.txt");
+
+        assertThat(changes).hasSize(1);
+        assertThat(changes.get(0).path()).isEqualTo("b.txt");
+        assertThat(changes.get(0).patch()).contains("+three").doesNotContain("+two");
+    }
+
+    @Test
+    void uncommittedChangesNarrowedToAnUnchangedPathIsEmpty() {
+        writeFile("a.txt", "one\n");
+        commitAll();
+        writeFile("a.txt", "one\ntwo\n");
+
+        // Открыт файл без изменений, а режим diff остался включённым — панель
+        // показывает «изменений нет», и пустой ответ здесь именно это и значит.
+        assertThat(service.getUncommittedChanges(true, "missing.txt")).isEmpty();
+    }
+
+    @Test
+    void uncommittedChangesNarrowedToARenameKeepsStatusRUnderEitherName() {
+        writeFile("old-name.txt", "one\ntwo\nthree\n");
+        commitAll();
+        runGit("mv", "old-name.txt", "new-name.txt");
+
+        // Обе стороны переименования ведут к одной записи: список показывает
+        // файл под новым именем, а ссылка на старое приходит из истории.
+        for (String name : List.of("new-name.txt", "old-name.txt")) {
+            List<GitDiffEntry> changes = service.getUncommittedChanges(false, name);
+            assertThat(changes).hasSize(1);
+            assertThat(changes.get(0).status()).isEqualTo("R");
+            assertThat(changes.get(0).path()).isEqualTo("new-name.txt");
+            assertThat(changes.get(0).oldPath()).isEqualTo("old-name.txt");
+        }
+    }
+
+    @Test
     void uncommittedChangesReportsStagedNewFileAsAdded() {
         writeFile("tracked.txt", "hello\n");
         commitAll();

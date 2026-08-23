@@ -34,6 +34,7 @@ import { decodeSegment, chatPath, docPath, filesPath, KNOWLEDGE_PATH, SEARCH_PAT
  * оставались короткими и читаемыми):
  *
  *   ?q=, ?mode=     запрос и режим поиска KB (дефолт режима — hybrid)
+ *   ?changes=1      файлы: слева список незакоммиченных изменений (дефолт — дерево)
  *   ?left=0         левая панель свёрнута (дефолт — раскрыта)
  *   ?right=<tab>    правая панель раскрыта на вкладке (дефолт — свёрнута)
  *
@@ -120,9 +121,13 @@ function readUrl() {
   // Файлы: /files/<path…> (legacy: ?path=), проект — в query (см. urlScheme.filesUrl).
   let filePath = '';
   let fileProject = '';
+  let fileChanges = false;
   if (view === 'files') {
     filePath = segs.length > 1 ? segs.slice(1).join('/') : p.get('path') || '';
     fileProject = p.get('project') || '';
+    // Режим левого блока — состояние экрана, а не ресурс: путь в адресе один и
+    // тот же независимо от того, из дерева его открыли или из списка изменений.
+    fileChanges = p.get('changes') === '1';
   }
 
   // Legacy `?tab=`: раньше это была вкладка ЦЕНТРА. Те из них, что переехали в
@@ -139,6 +144,7 @@ function readUrl() {
     mode: p.get('mode') || SEARCH_MODE.HYBRID,
     filePath,
     fileProject,
+    fileChanges,
     leftCollapsed: p.get('left') === '0',
     rightTab: p.get('right') || legacyRightTab,
     // Есть ли в адресе явная раскладка панелей. Если нет — берём запомненную
@@ -172,6 +178,7 @@ function buildUrl(nav) {
       // Дефолтный проект в адрес не пишем — как и любое значение по умолчанию
       // в этой схеме; адрес без проекта означает именно его.
       if (nav.fileProject) p.set('project', nav.fileProject);
+      if (nav.fileChanges) p.set('changes', '1');
       break;
     case 'chat':
       path = chatPath(nav.chatId);
@@ -211,6 +218,7 @@ function initialNav() {
     mode: u.mode,
     filePath: u.filePath,
     fileProject: u.fileProject,
+    fileChanges: u.fileChanges,
     leftCollapsed: panels.leftCollapsed,
     rightTab: panels.rightTab,
   };
@@ -321,6 +329,7 @@ export default function useAppNavigation() {
         mode: u.mode,
         filePath: u.filePath,
         fileProject: u.fileProject,
+        fileChanges: u.fileChanges,
         leftCollapsed: u.leftCollapsed,
         rightTab: u.rightTab,
       });
@@ -450,6 +459,19 @@ export default function useAppNavigation() {
     [replaceNav],
   );
 
+  /**
+   * Режим левого блока файлового браузера: дерево репозитория или список
+   * незакоммиченных изменений. Через replaceNav по той же причине, что и
+   * панели: это не переход к другому ресурсу — открытый путь остаётся тем же, —
+   * и переключение туда-обратно не должно требовать двух «Назад».
+   */
+  const setFileChanges = useCallback(
+    (changes) => {
+      replaceNav((prev) => (prev.fileChanges === !!changes ? prev : { ...prev, fileChanges: !!changes }));
+    },
+    [replaceNav],
+  );
+
   return {
     nav,
     switchView,
@@ -457,6 +479,7 @@ export default function useAppNavigation() {
     setSearch,
     openChat,
     openFilePath,
+    setFileChanges,
     toggleLeftPanel,
     setRightTab,
   };
