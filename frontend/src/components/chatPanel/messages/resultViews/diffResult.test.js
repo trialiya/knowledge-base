@@ -9,17 +9,22 @@ const detect = (resultText) => {
   return input ? detectDiffResult(input) : null;
 };
 
-const PATCH = [
+const HEADER = [
   'diff --git a/backend/build.gradle b/backend/build.gradle',
   'index 82e3860..0b749e9 100644',
   '--- a/backend/build.gradle',
   '+++ b/backend/build.gradle',
+];
+
+const BODY = [
   '@@ -1,6 +1,6 @@',
   ' plugins {',
   "-    id 'org.springframework.boot' version '3.5.14'",
   "+    id 'org.springframework.boot' version '3.5.15'",
   ' }',
 ].join('\n');
+
+const PATCH = [...HEADER, BODY].join('\n');
 
 const commit = (files) => ({
   hash: '38e5ba2c6941bf43815588d2dbbdb1d5be9590ce',
@@ -53,7 +58,30 @@ describe('detectDiffResult — что попадает в «Обзор»', () =>
       deletions: 1,
       oldPath: null,
     });
-    expect(groups[0].files[0].patch).toBe(PATCH);
+    expect(groups[0].files[0]).toMatchObject({ header: HEADER, patch: BODY });
+  });
+
+  it('шапка патча отделена от содержимого, `@@` остаётся в патче', () => {
+    const [{ files }] = detect(JSON.stringify([commit([entry()])]));
+    expect(files[0].header).toEqual(HEADER);
+    expect(files[0].patch.startsWith('@@ -1,6 +1,6 @@')).toBe(true);
+    expect(files[0].patch).not.toContain('diff --git');
+  });
+
+  it('патч без ханков не делится: у него нет границы, а содержимое есть', () => {
+    // Файл вне git (`U`): бэкенд отдаёт `+++ b/path` и одни `+`-строки, без `@@`.
+    const untracked = ['+++ b/new.txt', '+первая строка', '+вторая'].join('\n');
+    const [{ files }] = detect(JSON.stringify([entry({ status: 'U', path: 'new.txt', patch: untracked })]));
+    expect(files[0]).toMatchObject({ status: 'U', header: null, patch: untracked });
+
+    const binary = ['diff --git a/logo.png b/logo.png', 'Binary files a/logo.png and b/logo.png differ'].join('\n');
+    const [{ files: bin }] = detect(JSON.stringify([entry({ path: 'logo.png', patch: binary })]));
+    expect(bin[0]).toMatchObject({ header: null, patch: binary });
+  });
+
+  it('патч без шапки отдаётся как есть', () => {
+    const [{ files }] = detect(JSON.stringify([entry({ patch: BODY })]));
+    expect(files[0]).toMatchObject({ header: null, patch: BODY });
   });
 
   it('getUncommittedChanges: плоский список файлов → одна группа без коммита', () => {
@@ -74,7 +102,7 @@ describe('detectDiffResult — что попадает в «Обзор»', () =>
         diff: PATCH,
       }),
     );
-    expect(groups[0].files[0]).toMatchObject({ status: 'M', path: 'src/App.jsx', patch: PATCH });
+    expect(groups[0].files[0]).toMatchObject({ status: 'M', path: 'src/App.jsx', header: HEADER, patch: BODY });
   });
 
   it('createFile: патча нет, но форма та же — список путей со счётчиками', () => {
