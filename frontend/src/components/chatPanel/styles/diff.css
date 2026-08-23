@@ -24,6 +24,34 @@
   color: #8a8a99;
 }
 
+/* ── Вариант с номерами строк ──
+   Гуттер тот же, что у текстовых блоков модалки (.tool-code__line-no): номера
+   слева, серые, не выделяются мышью — так патч читается наравне с содержимым
+   файла рядом. Обёртка при этом обязана убрать боковой padding: его берёт на
+   себя строка, иначе заливка `+`/`−` не доходит до края. */
+.diff-line--numbered {
+  display: flex;
+  gap: 12px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  /* Заливка строки тянется до конца прокрутки, а не обрывается по ширине окна. */
+  width: max-content;
+  min-width: 100%;
+}
+
+.diff-line__no {
+  flex: 0 0 auto;
+  min-width: 3.2em;
+  text-align: right;
+  color: var(--kb-muted);
+  user-select: none;
+}
+
+.diff-line__text {
+  white-space: pre;
+  min-width: 0;
+}
+
 .diff-stats {
   white-space: nowrap;
 }

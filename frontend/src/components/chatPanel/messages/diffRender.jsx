@@ -10,28 +10,51 @@ import '../styles/diff.css';
 const META =
   /^(diff --git |index |--- |\+\+\+ |new file |deleted file |old mode |new mode |similarity |rename |copy |Binary files )/;
 
+/** Заголовок ханка: из него берутся номера первой строки старого и нового файла. */
+const HUNK = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
+
 /**
- * Классы строк патча.
+ * Строки патча → класс и номер строки в файле.
  *
  * Шапка распознаётся только ДО первого `@@`: внутри ханка каждая строка —
  * содержимое файла со своим знаком, и удаление строки, начинающейся с `-- `,
  * даёт `--- `, которое иначе покрасилось бы шапкой вместо красного.
+ *
+ * Номер один на строку, а не пара «было/стало»: у удалённой строки он из
+ * старого файла, у остальных — из нового. `null` — строке номера не положено:
+ * шапка, сам заголовок ханка, `\ No newline at end of file`.
  */
-const lineClasses = (lines) => {
+const parseLines = (lines) => {
   let inHunk = false;
+  let oldNo = 0;
+  let newNo = 0;
 
   return lines.map((line) => {
     if (line.startsWith('@@')) {
       inHunk = true;
-      return 'diff-line diff-line--hunk';
+      const hunk = HUNK.exec(line);
+      // Заголовок без разбираемых чисел не даёт точки отсчёта — дальше по
+      // ханку номеров не будет вовсе, лучше их отсутствие, чем выдуманные.
+      oldNo = hunk ? Number(hunk[1]) : 0;
+      newNo = hunk ? Number(hunk[2]) : 0;
+      return { cls: 'diff-line diff-line--hunk', no: null };
     }
-    // Патч на несколько файлов: со следующего `diff --git` снова идёт шапка.
-    if (line.startsWith('diff --git ')) inHunk = false;
+    // Патч на несколько файлов: со следующего `diff --git` снова идёт шапка,
+    // и отсчёт начинается заново с его первого ханка.
+    if (line.startsWith('diff --git ')) {
+      inHunk = false;
+      oldNo = 0;
+      newNo = 0;
+    }
 
-    if (!inHunk && META.test(line)) return 'diff-line diff-line--meta';
-    if (line.startsWith('+')) return 'diff-line diff-line--add';
-    if (line.startsWith('-')) return 'diff-line diff-line--del';
-    return 'diff-line';
+    if (!inHunk && META.test(line)) return { cls: 'diff-line diff-line--meta', no: null };
+    if (line.startsWith('+')) return { cls: 'diff-line diff-line--add', no: newNo ? newNo++ : null };
+    if (line.startsWith('-')) return { cls: 'diff-line diff-line--del', no: oldNo ? oldNo++ : null };
+    // `\ No newline…` — примечание git о самом файле, а не строка в нём.
+    if (!inHunk || line.startsWith('\\')) return { cls: 'diff-line', no: null };
+
+    if (oldNo) oldNo += 1;
+    return { cls: 'diff-line', no: newNo ? newNo++ : null };
   });
 };
 
@@ -39,19 +62,32 @@ const lineClasses = (lines) => {
  * Строки unified diff. Возвращает только сами строки — родительский `<pre>`
  * (моноширинный шрифт, фон, скролл по горизонтали) на вызывающем: в чате это
  * `.fcd-diff`, в модалке вызова — `.tool-diff__patch`.
+ *
+ * `lineNumbers` включает гуттер с номерами строк — тот же приём, что у
+ * текстовых блоков модалки (`codeLines.jsx`). Тогда строка становится flex-
+ * рядом и переносом `\n` больше не заканчивается: его пришлось бы прятать от
+ * `white-space: pre`, иначе каждая строка шла бы через пустую.
  */
-export const DiffLines = ({ patch }) => {
+export const DiffLines = ({ patch, lineNumbers = false }) => {
   const lines = patch.split('\n');
-  const classes = lineClasses(lines);
+  // Хвостовая пустая строка — артефакт `split`, а не строка файла.
+  if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
 
-  return lines.map((line, i) => (
+  return parseLines(lines).map(({ cls, no }, i) =>
     // Индекс как key безопасен: текст diff'а иммутабелен в рамках открытой модалки.
 
-    <span key={i} className={classes[i]}>
-      {line}
-      {'\n'}
-    </span>
-  ));
+    lineNumbers ? (
+      <span key={i} className={`${cls} diff-line--numbered`}>
+        <span className="diff-line__no">{no ?? ''}</span>
+        <span className="diff-line__text">{lines[i] || ' '}</span>
+      </span>
+    ) : (
+      <span key={i} className={cls}>
+        {lines[i]}
+        {'\n'}
+      </span>
+    ),
+  );
 };
 
 /** Счётчики строк `+N/−M`. */

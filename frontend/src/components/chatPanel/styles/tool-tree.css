@@ -47,14 +47,16 @@
   font-size: 0.78rem;
   min-width: 0;
 }
-.tool-tree__row:hover:not(:disabled) {
+.tool-tree__row:hover {
   background: #f4f4f6;
 }
-/* Лист не сворачивается, поэтому кнопка отключена — но выглядеть должна как
-   строка, а не как погашенный элемент управления. */
-.tool-tree__row:disabled {
-  cursor: default;
-  opacity: 1;
+
+/* Отмеченная кликом строка. Лист не сворачивается, но кнопкой остаётся и он:
+   в длинной выдаче `searchFiles` клик по строке — единственный способ её не
+   потерять, а отключённая кнопка не нажимается и не берёт фокус. */
+.tool-tree__row--current,
+.tool-tree__row--current:hover {
+  background: var(--kb-accent-light);
 }
 
 .tool-tree__chevron {
