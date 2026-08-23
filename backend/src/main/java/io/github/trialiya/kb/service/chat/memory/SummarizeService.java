@@ -46,7 +46,9 @@ public class SummarizeService implements DisposableBean {
     private static final String COLLAPSE_FOOTER =
             """
         Now produce a SINGLE merged summary that combines ALL the previous summaries (above) \
-        and the following new messages. The result must be a cohesive summary of the entire conversation so far.""";
+        and the following new messages. The result must be a cohesive summary of the entire \
+        conversation so far, in the section format, merged section by section — carrying over \
+        every `## User requests` and `## Artifacts` bullet of the previous summaries unchanged.""";
 
     private final ChatClient chatClient;
     private final ChatMessageRepository chatMessageRepository;
