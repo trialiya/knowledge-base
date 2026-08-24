@@ -1,0 +1,171 @@
+/* ═══════════════════════════════════════════════
+   FILES PANEL · UNCOMMITTED CHANGES — режим «Изменения»
+   (тулбар режима, список изменённых файлов, diff в центре)
+
+   Строка списка — общая .ws-item (common/sidePanel.css); здесь только то, чего
+   у неё нет: буква статуса, приглушённый каталог перед именем и счётчики.
+   Раскраска самого патча — общая с чатом (chatPanel/styles/diff.css).
+═══════════════════════════════════════════════ */
+
+/* ── Тулбар левой панели ── */
+
+/* Две строки, а не одна: панель узкая, и поиск рядом с переключателем режима
+   терял бы собственную ширину — его поле раскрывается на всю строку. Сверху
+   режим и раскладка, поиск — своей строкой под ними. */
+.files-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.files-toolbar__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* Два режима стоят вплотную, как один переключатель: между ними нет зазора,
+   скругления остаются только по внешним краям пары, и на двоих они занимают
+   всю ширину панели. */
+.files-toolbar__modes {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  /* Переключатель занимает строку целиком, кнопка раскладки — свою ширину. */
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.files-toolbar__modes .btn {
+  flex: 1 1 0;
+}
+.files-toolbar__modes .btn:first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.files-toolbar__modes .btn:last-child {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  /* Иначе на стыке стоят две рамки подряд и шов вдвое толще соседних. */
+  margin-left: -1.5px;
+}
+/* Нажатая половина перекрывает соседнюю рамкой акцента на общем шве. */
+.files-toolbar__modes .btn[aria-pressed='true'] {
+  position: relative;
+}
+
+/* ── Список изменений ── */
+
+/* В отличие от дерева файлов (.file-tree, ширина по самой длинной строке)
+   список изменений держится ширины панели: счётчики +N/−M прижаты к правому
+   краю строки, и на «ширине по содержимому» они уезжали бы за пределы
+   видимой области — ровно то, за чем в этот режим и приходят. Сжимается
+   вместо них каталог (см. .file-changes__dir). */
+.file-changes {
+  width: 100%;
+}
+
+.file-changes__section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px var(--ws-gutter) 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--kb-muted);
+}
+
+.file-changes__count {
+  font-weight: 600;
+  letter-spacing: 0;
+  opacity: 0.7;
+}
+
+.file-changes__row {
+  gap: 6px;
+}
+
+/* Имя занимает столько, сколько занимает, и сжимается последним: базовый
+   .ws-item__label тянется на весь остаток строки (flex: 1) и выдавил бы за край
+   и каталог, и счётчики. */
+.file-changes__name {
+  flex: 0 1 auto;
+}
+
+/* Буква статуса git (A/M/D/R/C/U) в колонке постоянной ширины: без неё имена
+   файлов в списке не выстраиваются по левому краю. */
+.file-changes__status {
+  flex: 0 0 auto;
+  width: 14px;
+  text-align: center;
+  font-family: var(--kb-font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--kb-muted);
+}
+.file-changes__status--A,
+.file-changes__status--U {
+  color: var(--kb-success);
+}
+.file-changes__status--M,
+.file-changes__status--R,
+.file-changes__status--C {
+  color: var(--kb-warning);
+}
+.file-changes__status--D {
+  color: var(--kb-error);
+}
+
+/* Единственное, что в строке уступает место: имя файла и счётчики нужны
+   целиком, а каталог узнаётся и по началу пути. Базис 0 при запрете сжатия —
+   каталог занимает ровно остаток строки после имени и счётчиков и обрезается
+   сам, вместо того чтобы делить нехватку места с именем. */
+.file-changes__dir {
+  flex: 1 0 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--kb-muted);
+  font-weight: 400;
+  font-size: 0.78rem;
+}
+
+.file-changes__from {
+  flex: 0 0 auto;
+  font-size: 0.74rem;
+  color: var(--kb-muted);
+}
+
+.file-changes__stats {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding-left: 8px;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+/* ── Diff в центре ── */
+
+.file-diff {
+  margin: 0;
+  padding: 10px 0;
+  overflow-x: auto;
+  font-family: var(--kb-font-mono);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  /* .file-view — flex-колонка, растянутая родителем по высоте: без этого патч
+     сжимается до остатка под мета-строкой и обрезается вместо прокрутки
+     (та же причина, что у .file-code — см. filesPanel.css). */
+  flex-shrink: 0;
+}
+
+/* Тумблер «оригинал ↔ diff» стоит в мета-строке файла, где кегль мельче
+   кнопочного: без этого строка становится выше на его высоту. */
+.file-view__diff-toggle {
+  padding: 2px 10px;
+  font-size: 0.72rem;
+}

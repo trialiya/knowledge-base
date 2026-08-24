@@ -27,7 +27,7 @@ const TABS = [
 
 function App() {
   const { t } = useTranslation();
-  const { nav, switchView, openDoc, setSearch, openChat, openFilePath, toggleLeftPanel, setRightTab } =
+  const { nav, switchView, openDoc, setSearch, openChat, openFilePath, setFileChanges, toggleLeftPanel, setRightTab } =
     useAppNavigation();
   const view = nav.view; // 'chat' | 'knowledge' | 'files' | 'admin' | 'settings'
 
@@ -207,6 +207,8 @@ function App() {
             <FilesPanel
               project={nav.fileProject}
               path={nav.filePath}
+              changes={nav.fileChanges}
+              onChangesToggle={setFileChanges}
               onPathChange={openFilePath}
               refreshToken={filesRefreshTick}
               panels={panels}

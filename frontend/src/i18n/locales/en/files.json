@@ -1,6 +1,10 @@
 {
   "panel": {
-    "tree": "Repository"
+    "tree": "Repository",
+    "changes": "Uncommitted changes",
+    "mode": "Panel mode",
+    "modeFiles": "Files",
+    "modeChanges": "Changes"
   },
   "tree": {
     "loading": "Loading…",
@@ -26,7 +30,8 @@
     "binary": "Binary file — preview unavailable",
     "notFound": "File or directory not found",
     "loadError": "Failed to load content",
-    "toggleMarkdown": "Markdown preview"
+    "toggleMarkdown": "Markdown preview",
+    "showDiff": "Diff"
   },
   "info": {
     "name": "Name",
@@ -46,5 +51,26 @@
   },
   "preview": {
     "close": "Close"
+  },
+  "tabs": {
+    "info": "Info"
+  },
+  "changes": {
+    "tracked": "Tracked",
+    "untracked": "Untracked",
+    "empty": "No uncommitted changes",
+    "loadError": "Failed to load changes",
+    "noChanges": "This file has no uncommitted changes",
+    "layoutFlat": "Flat list",
+    "layoutTree": "Folder hierarchy",
+    "status": {
+      "A": "Added",
+      "M": "Modified",
+      "D": "Deleted",
+      "R": "Renamed",
+      "C": "Copied",
+      "U": "Untracked"
+    },
+    "noPatch": "Change preview unavailable — binary or oversized file"
   }
 }

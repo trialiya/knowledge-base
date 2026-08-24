@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.controller;
 
 import io.github.trialiya.kb.model.git.dto.GitCommit;
+import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
 import io.github.trialiya.kb.model.git.dto.GitPathView;
@@ -28,7 +29,8 @@ import org.springframework.web.server.ResponseStatusException;
  * returns a file (optionally a line range) so an inserted chip can be previewed and expanded into
  * the outgoing message; {@code GET /browse} opens one path in the file browser (content or listing
  * plus the ancestor directories) in a single round trip, while {@code GET /tree} lists the direct
- * children of a single directory (a chevron click in that tree); {@code GET /commits} returns
+ * children of a single directory (a chevron click in that tree); {@code GET /status} lists the
+ * working tree's uncommitted changes for the panel's review mode; {@code GET /commits} returns
  * commit history for a path. All delegate to {@link GitService}, which enforces tracked-files-only
  * access, path-traversal guards and binary/size limits.
  */
@@ -114,6 +116,29 @@ public class GitController {
             requireSafePath(path);
         }
         return git(project).browsePath(path, ancestors);
+    }
+
+    /**
+     * Uncommitted changes in the working tree — what the file browser shows in its "changes" mode.
+     * Tracked files come first (diffed against HEAD, staged or not), then the untracked files this
+     * project's {@code allow-globs} admit, under status {@code U}.
+     *
+     * <p>Patches are off by default and arrive one file at a time: the list on the left needs only
+     * the counters, and formatting the whole working tree's diff to open a single file of it is the
+     * one request the panel makes on every click. With {@code path} the answer is that file's entry
+     * alone — empty when the file has no uncommitted change.
+     */
+    @GetMapping("/status")
+    public List<GitDiffEntry> getUncommittedChanges(
+            @RequestParam(name = "path", required = false) @Nullable String path,
+            @RequestParam(name = "patch", defaultValue = "false") boolean patch,
+            @RequestParam(name = "project", required = false) @Nullable String project) {
+        if (path != null && !path.isBlank()) {
+            requireSafePath(path);
+        } else {
+            path = null;
+        }
+        return git(project).getUncommittedChanges(patch, path);
     }
 
     /**

@@ -75,6 +75,24 @@ const gitApi = {
   },
 
   /**
+   * Незакоммиченные изменения рабочего дерева: отслеживаемые файлы (diff против
+   * HEAD, вне зависимости от индекса), затем неотслеживаемые, допущенные
+   * `allow-globs` проекта, под статусом 'U'.
+   *
+   * Возвращает GitDiffEntry[] { status, path, oldPath, additions, deletions, patch }.
+   * Патч приходит только с `patch: true` и только по одному файлу (`path`):
+   * список слева обходится счётчиками, а собирать diff всего дерева ради одного
+   * открытого файла — запрос на каждый клик.
+   */
+  getStatus: ({ path, patch = false, project, signal } = {}) => {
+    const params = new URLSearchParams();
+    if (path) params.set('path', path);
+    if (patch) params.set('patch', 'true');
+    const [qs, init] = opts(params, project, signal);
+    return request(`/api/git/status${qs}`, init);
+  },
+
+  /**
    * История коммитов (свежие первыми), опционально по одному пути.
    * path='' или omitted — история всего репозитория. Возвращает GitCommit[]
    * { hash, shortHash, author, email, date, message }.

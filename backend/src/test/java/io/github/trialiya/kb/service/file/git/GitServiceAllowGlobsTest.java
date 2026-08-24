@@ -303,6 +303,21 @@ class GitServiceAllowGlobsTest {
                 .containsExactly("notes/a/b/deep.md", "notes/todo.md");
     }
 
+    /**
+     * Файловая панель открывает неотслеживаемый файл тем же запросом, что и остальные: сузить
+     * список до одного пути обязано работать и для той его половины, что берётся не из diff'а.
+     */
+    @Test
+    void anAdmittedUntrackedFileIsAlsoFoundWhenTheListIsNarrowedToIt() {
+        assertThat(service.getUncommittedChanges(true, "notes/todo.md"))
+                .singleElement()
+                .satisfies(
+                        entry -> {
+                            assertThat(entry.status()).isEqualTo("U");
+                            assertThat(entry.patch()).isNotNull();
+                        });
+    }
+
     /** Сборочный артефакт читается, но изменением не является — в ревью ему делать нечего. */
     @Test
     void gitignoredFilesStayOutOfTheUncommittedChanges() {

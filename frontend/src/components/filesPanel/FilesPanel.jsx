@@ -1,9 +1,13 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FileTree from './FileTree';
 import FileContent from './FileContent';
-import FileSearch from './FileSearch';
+import FilesToolbar from './FilesToolbar';
 import FileInfo from './FileInfo';
+import ChangesList from './changes/ChangesList';
+import useUncommittedChanges, { UNTRACKED_STATUS } from './changes/useUncommittedChanges';
+import useChangeDiff from './changes/useChangeDiff';
+import { readChangesFlat, saveChangesFlat } from './changes/changesLayout';
 import ProjectPicker from './ProjectPicker';
 import useFileTree from './useFileTree';
 import useProjectConfig from '@/components/common/config/useProjectConfig';
@@ -26,6 +30,8 @@ const FilesPanelForProject = ({
   project,
   projectOptions,
   path,
+  changes,
+  onChangesToggle,
   onPathChange,
   onProjectChange,
   refreshToken,
@@ -38,6 +44,37 @@ const FilesPanelForProject = ({
     onPathChange,
     refreshToken,
   });
+
+  const changeList = useUncommittedChanges({ project, refreshToken, enabled: changes });
+  const diff = useChangeDiff({ project, path, refreshToken, enabled: changes });
+
+  // Раскладка списка изменений — предпочтение, переживающее и проект, и
+  // перезагрузку (см. changesLayout).
+  const [flat, setFlat] = useState(readChangesFlat);
+  const changeFlat = (next) => {
+    setFlat(next);
+    saveChangesFlat(next);
+  };
+
+  // Что показывать в центре — оригинал или diff. Дефолт зависит от открытого
+  // файла: у изменённого смотрят изменение, у неотслеживаемого его нет вовсе —
+  // весь файл и есть новое. Поэтому выбор следует пути и режиму и сбрасывается
+  // в рендере под своим prev-стражем (см. правила хуков), а не эффектом,
+  // который дорисовал бы кадр с выбором, сделанным для прошлого файла.
+  const [diffChoice, setDiffChoice] = useState(null);
+  const choiceKey = `${changes ? 1 : 0} ${path}`;
+  const [prevChoiceKey, setPrevChoiceKey] = useState(choiceKey);
+  if (prevChoiceKey !== choiceKey) {
+    setPrevChoiceKey(choiceKey);
+    setDiffChoice(null);
+  }
+  // Дефолт считаем по ответу про САМ файл, а не по списку слева: список — это
+  // отдельный запрос, он приходит позже и может не прийти вовсе, и тогда центр
+  // сначала показал бы исходник, а потом сам себя перерисовал в diff. По той же
+  // причине центр ждёт этот ответ наравне с содержимым — иначе кадр между ними
+  // показывает не то, на что кликнули (у удалённого файла — «не найдено»).
+  const diffPending = changes && !!path && diff.loading;
+  const showDiff = changes && (diffChoice ?? (!!diff.entry && diff.entry.status !== UNTRACKED_STATUS));
 
   const rightTabs = useMemo(
     () => [
@@ -65,25 +102,58 @@ const FilesPanelForProject = ({
           ) : (
             t('panel.tree')
           ),
-        ariaLabel: t('panel.tree'),
-        toolbar: <FileSearch project={project} onSelect={onPathChange} />,
+        ariaLabel: t(changes ? 'panel.changes' : 'panel.tree'),
+        toolbar: (
+          <FilesToolbar
+            project={project}
+            changes={changes}
+            onChangesToggle={onChangesToggle}
+            flat={flat}
+            onFlatToggle={changeFlat}
+            onSelect={onPathChange}
+          />
+        ),
         // Дерево прокручивает себя само (строки шире панели — нужен и
         // горизонтальный скролл), поэтому тело панели скролл не берёт.
         bodyScroll: false,
         children: (
           <div className="files-panel-tree">
-            <FileTree
-              treeCache={treeCache}
-              loadingDirs={loadingDirs}
-              expanded={expanded}
-              selectedPath={path}
-              onToggle={toggleExpand}
-              onSelect={selectNode}
-            />
+            {changes ? (
+              <ChangesList
+                tracked={changeList.tracked}
+                untracked={changeList.untracked}
+                flat={flat}
+                loading={changeList.loading}
+                error={changeList.error}
+                selectedPath={path}
+                onSelect={selectNode}
+              />
+            ) : (
+              <FileTree
+                treeCache={treeCache}
+                loadingDirs={loadingDirs}
+                expanded={expanded}
+                selectedPath={path}
+                onToggle={toggleExpand}
+                onSelect={selectNode}
+              />
+            )}
           </div>
         ),
       }}
-      center={<FileContent content={content} path={path} loading={contentLoading} onNavigate={onPathChange} />}
+      center={
+        <FileContent
+          content={content}
+          path={path}
+          loading={contentLoading || diffPending}
+          onNavigate={onPathChange}
+          // Тумблер «оригинал ↔ diff» показываем только там, где есть что
+          // переключать: панель в режиме изменений и открыт какой-то путь.
+          diff={changes && path ? diff : null}
+          showDiff={showDiff}
+          onToggleDiff={setDiffChoice}
+        />
+      }
       right={rightTabs}
     />
   );
@@ -95,7 +165,7 @@ const FilesPanelForProject = ({
  * при сбросе показало бы файлы прежнего репозитория. Кэши при этом не теряются:
  * они живут в модуле и разложены по проектам (fileTreeStore).
  */
-const FilesPanel = ({ project, path, onPathChange, refreshToken, panels }) => {
+const FilesPanel = ({ project, path, changes, onChangesToggle, onPathChange, refreshToken, panels }) => {
   const { projectOptions, defaultProjectId, ready } = useProjectConfig();
   // Адрес без проекта означает дефолтный. Ждём ответа со списком: смонтироваться
   // раньше — значит смонтироваться на пустом ключе и тут же перемонтироваться,
@@ -116,6 +186,8 @@ const FilesPanel = ({ project, path, onPathChange, refreshToken, panels }) => {
       project={current}
       projectOptions={projectOptions}
       path={path}
+      changes={changes}
+      onChangesToggle={onChangesToggle}
       onPathChange={onPathChange}
       // Путь из одного репозитория в другом ничего не значит — уходим в корень.
       // Дефолтный проект в адрес не пишем: пустое значение и означает его.
