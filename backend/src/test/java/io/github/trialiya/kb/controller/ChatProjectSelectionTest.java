@@ -21,6 +21,7 @@ import io.github.trialiya.kb.model.project.ProjectSwitch;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
+import io.github.trialiya.kb.service.chat.memory.CompactService;
 import io.github.trialiya.kb.service.chat.memory.ToolCallService;
 import io.github.trialiya.kb.service.chat.prompt.ChatModeService;
 import io.github.trialiya.kb.service.chat.prompt.ProjectPromptService;
@@ -82,6 +83,7 @@ class ChatProjectSelectionTest {
                         mock(ToolCallService.class),
                         mock(ChatSearchService.class),
                         runService,
+                        mock(CompactService.class),
                         mock(ChatEventService.class),
                         mock(ScriptGuideService.class),
                         contextItemService,

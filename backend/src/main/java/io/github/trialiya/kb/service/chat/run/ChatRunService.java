@@ -335,6 +335,36 @@ public class ChatRunService {
         return events.activeRunId(conversationId);
     }
 
+    /**
+     * Занимает чат под фоновую операцию, которая генерацией не является, — сейчас это сжатие
+     * контекста ({@code CompactService}). Заявка та же самая, что у прогона, и это здесь главное:
+     * пока идёт сжатие, вопрос в этот чат получает 409, а сжатие поверх идущей генерации не
+     * начнётся вовсе — обе операции читают и переписывают одну и ту же историю.
+     *
+     * <p>Своего {@link RunHandle} такая операция не заводит: останавливать в ней нечего (один
+     * блокирующий вызов модели без стриминга), поэтому {@link #stop} про неё не знает и вернёт
+     * {@code false}. Для вкладок она всё же прогон — {@link ChatEventService#startRun} держит
+     * {@code runId} активным, и вкладка, вошедшая в чат посреди сжатия, увидит его занятым.
+     *
+     * @return id занятой операции — его же нужно вернуть в {@link #release}
+     * @throws ResponseStatusException 409, если чат уже занят
+     */
+    public String claim(String conversationId) {
+        final String runId = UUID.randomUUID().toString();
+        if (activeByConversation.putIfAbsent(conversationId, runId) != null) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "A response is already being generated for this chat");
+        }
+        events.startRun(conversationId, runId);
+        return runId;
+    }
+
+    /** Освобождает чат, занятый {@link #claim}. Идемпотентно. */
+    public void release(String conversationId, String runId) {
+        activeByConversation.remove(conversationId, runId);
+        events.endRun(conversationId, runId);
+    }
+
     /** Число прогонов в реестре — для мониторинга утечек (см. ChatRuntimeMonitor). */
     public int activeRunCount() {
         return runs.size();

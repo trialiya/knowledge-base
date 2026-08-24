@@ -16,13 +16,25 @@ import { IconSend, IconStop, IconPaperclip } from '@/icons/index';
  *   model    — { config, options, selected, onChange } (может отсутствовать)
  *   mode     — { options, selected, onChange } (может отсутствовать)
  *   project  — { options, defaultId, selected, onChange } (может отсутствовать)
- *   disabled — идёт стриминг (кнопка «отправить» → «остановить», селекторы заблокированы)
+ *   disabled — чат занят (кнопка «отправить» → «остановить», селекторы заблокированы)
+ *   stoppable — занятость прерываема: сжатие контекста (/compact) прервать нельзя, и
+ *               кнопка «остановить» на нём неактивна
  *   sendDisabled — нечего отправлять / идёт разворачивание токенов
  *   onAttach — () => void | undefined
  *   onStop   — () => void
  *   onSend   — () => void
  */
-const ComposerToolbar = ({ model, mode, project, disabled, sendDisabled, onAttach, onStop, onSend }) => {
+const ComposerToolbar = ({
+  model,
+  mode,
+  project,
+  disabled,
+  stoppable = true,
+  sendDisabled,
+  onAttach,
+  onStop,
+  onSend,
+}) => {
   const { t } = useTranslation('chat');
 
   return (
@@ -88,7 +100,7 @@ const ComposerToolbar = ({ model, mode, project, disabled, sendDisabled, onAttac
             disabled ? 'message-action-btn message-action-btn--stop' : 'message-action-btn message-action-btn--send'
           }
           onClick={disabled ? onStop : onSend}
-          disabled={!disabled && sendDisabled}
+          disabled={disabled ? !stoppable : sendDisabled}
           title={disabled ? t('input.stop') : t('input.send')}
         >
           {disabled ? <IconStop /> : <IconSend />}

@@ -25,6 +25,7 @@ const ChatCenter = ({
   messages,
   loadingMessages,
   isStreaming,
+  isCompacting,
   isChatEmpty,
   isActive,
   search,
@@ -130,6 +131,7 @@ const ChatCenter = ({
           onSend={onSend}
           onStop={onStop}
           disabled={isStreaming}
+          stoppable={!isCompacting}
           onAttach={() => fileInputRef.current?.click()}
           staged={staged}
           onUnstage={onUnstage}

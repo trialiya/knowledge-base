@@ -122,7 +122,8 @@ const finalize = (msgs, runId) => {
 /**
  * @param chat объект чата ({ id, messages, runId, ... })
  * @param ev   событие { type, runId, clientMsgId, payload, seq }
- * @param ctx  { isLocal(clientMsgId), stoppedLabel, errorLabel, interruptedNote }
+ * @param ctx  { isLocal(clientMsgId), stoppedLabel, errorLabel, interruptedNote,
+ *               compactingLabel, compactDoneLabel(messages), compactErrorLabel }
  */
 export function applyChatEvent(chat, ev, ctx) {
   if (!chat) return chat;
@@ -339,6 +340,36 @@ export function applyChatEvent(chat, ev, ctx) {
       };
       finalize(msgs, runId);
       return { ...chat, messages: msgs, runId: null };
+    }
+
+    // ─── Сжатие контекста (/compact) ─────────────────────────────────────────
+    // Прогона здесь нет — ни стриминга, ни ответа ассистента, — но чат занят так же,
+    // и плашка занятости живёт на том же runId. Один пузырь на всю операцию: он
+    // заводится «сжимаю…», а терминальное событие переписывает его текст.
+    case CHAT_EVENT.COMPACT_STARTED: {
+      let idx = lastAiIndexForRun(msgs, runId);
+      if (idx < 0) idx = pushAi(msgs, runId);
+      msgs[idx] = { ...msgs[idx], text: ctx.compactingLabel };
+      return { ...chat, messages: msgs, runId, compacting: true };
+    }
+
+    case CHAT_EVENT.COMPACT_DONE: {
+      const idx = lastAiIndexForRun(msgs, runId);
+      if (idx >= 0) {
+        msgs[idx] = { ...msgs[idx], text: ctx.compactDoneLabel(payload?.messages ?? 0) };
+      }
+      finalize(msgs, runId);
+      return { ...chat, messages: msgs, runId: null, compacting: false };
+    }
+
+    case CHAT_EVENT.COMPACT_ERROR: {
+      let idx = lastAiIndexForRun(msgs, runId);
+      if (idx < 0) idx = pushAi(msgs, runId);
+      // Без retryMode: повтор здесь — это заново набранная команда, а не тот же ход
+      // поверх той же истории (история могла и успеть измениться).
+      msgs[idx] = { ...msgs[idx], text: ctx.compactErrorLabel, error: true };
+      finalize(msgs, runId);
+      return { ...chat, messages: msgs, runId: null, compacting: false };
     }
 
     default:

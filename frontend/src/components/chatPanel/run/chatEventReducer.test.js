@@ -5,6 +5,9 @@ const ctx = {
   stoppedLabel: '[stopped]',
   errorLabel: 'Ошибка',
   interruptedNote: '\n_прервано_',
+  compactingLabel: 'сжимаю…',
+  compactDoneLabel: (messages) => `сжато: ${messages}`,
+  compactErrorLabel: 'сжать не вышло',
 };
 
 const userChat = (id = 'c') => ({ id, messages: [{ text: 'вопрос', sender: 'user' }], runId: null });
@@ -572,6 +575,34 @@ describe('applyChatEvent', () => {
       ctx,
     );
     expect(last(chat).toolCalls[0].resultMeta).toEqual({ id: 5, descriptionVersion: 3 });
+  });
+
+  // Сжатие контекста: занятость чата та же, что у прогона, но пузырь один на всю
+  // операцию — плашка «сжимаю…» превращается в строку результата.
+  test('COMPACT_STARTED blocks the chat and shows one notice bubble', () => {
+    const chat = applyChatEvent(userChat(), { type: 'COMPACT_STARTED', runId: 'r1' }, ctx);
+    expect(chat.runId).toBe('r1');
+    expect(chat.compacting).toBe(true);
+    expect(last(chat)).toMatchObject({ sender: 'ai', runId: 'r1', text: 'сжимаю…' });
+  });
+
+  test('COMPACT_DONE rewrites that bubble and unblocks the chat', () => {
+    let chat = applyChatEvent(userChat(), { type: 'COMPACT_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(chat, { type: 'COMPACT_DONE', runId: 'r1', payload: { messages: 42 } }, ctx);
+    expect(chat.messages.filter((m) => m.sender === 'ai')).toHaveLength(1);
+    expect(last(chat).text).toBe('сжато: 42');
+    expect(last(chat).runId).toBeUndefined();
+    expect(chat.runId).toBeNull();
+    expect(chat.compacting).toBe(false);
+  });
+
+  test('COMPACT_ERROR flags the bubble and unblocks the chat without offering a retry', () => {
+    let chat = applyChatEvent(userChat(), { type: 'COMPACT_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(chat, { type: 'COMPACT_ERROR', runId: 'r1', payload: { message: 'boom' } }, ctx);
+    expect(last(chat)).toMatchObject({ error: true, text: 'сжать не вышло' });
+    expect(last(chat).retryMode).toBeUndefined();
+    expect(chat.runId).toBeNull();
+    expect(chat.compacting).toBe(false);
   });
 
   test('RUN_DONE drops a trailing empty bubble without tool calls', () => {

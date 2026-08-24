@@ -13,6 +13,7 @@ import io.github.trialiya.kb.model.chat.dto.Chat;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.ChatMessage;
 import io.github.trialiya.kb.model.chat.dto.ChatSearchResult;
+import io.github.trialiya.kb.model.chat.dto.CompactRequest;
 import io.github.trialiya.kb.model.chat.dto.MessagePage;
 import io.github.trialiya.kb.model.chat.dto.MessageSearchHit;
 import io.github.trialiya.kb.model.chat.dto.StartRunRequest;
@@ -26,6 +27,7 @@ import io.github.trialiya.kb.model.tool.ToolCallDetail;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
+import io.github.trialiya.kb.service.chat.memory.CompactService;
 import io.github.trialiya.kb.service.chat.memory.ToolCallService;
 import io.github.trialiya.kb.service.chat.prompt.ChatModeService;
 import io.github.trialiya.kb.service.chat.prompt.ProjectPromptService;
@@ -83,6 +85,7 @@ public class ChatController {
     private final ToolCallService toolCallService;
     private final ChatSearchService chatSearchService;
     private final ChatRunService chatRunService;
+    private final CompactService compactService;
     private final ChatEventService chatEventService;
     private final ScriptGuideService scriptGuideService;
     private final ContextItemService contextItemService;
@@ -105,6 +108,7 @@ public class ChatController {
             ToolCallService toolCallService,
             ChatSearchService chatSearchService,
             ChatRunService chatRunService,
+            CompactService compactService,
             ChatEventService chatEventService,
             ScriptGuideService scriptGuideService,
             ContextItemService contextItemService,
@@ -123,6 +127,7 @@ public class ChatController {
         this.toolCallService = toolCallService;
         this.chatSearchService = chatSearchService;
         this.chatRunService = chatRunService;
+        this.compactService = compactService;
         this.chatEventService = chatEventService;
         this.scriptGuideService = scriptGuideService;
         this.contextItemService = contextItemService;
@@ -438,6 +443,31 @@ public class ChatController {
                         resolveRun(conversationId, model, mode, project),
                         clientMsgId);
         return Map.of("runId", started.runId(), "messageId", started.userMessageId());
+    }
+
+    /**
+     * Сжимает контекст чата по команде {@code /compact} и сразу возвращает {@code runId}: раунд
+     * идёт по всему живому окну и живёт десятки секунд, поэтому ответ на этот запрос — только
+     * заявка, а исход приезжает событиями {@code COMPACT_DONE}/{@code COMPACT_ERROR} (см. {@link
+     * #events}). Пока он идёт, чат занят так же, как на генерации: вопрос в него получит 409.
+     *
+     * <p>Самой команды в истории не появляется — на её место в запросе к модели встаёт инструкция
+     * сжатия (см. {@link CompactService}). Модель — та же, на которой работает чат: окно, которое
+     * она несла до сих пор, ей же и предстоит прочитать целиком.
+     *
+     * @param body {@link CompactRequest} — хвост команды; пустое тело означает сжатие без фокуса
+     */
+    @PostMapping("/{conversationId}/compact")
+    public Map<String, Object> compact(
+            @PathVariable final String conversationId,
+            @RequestBody(required = false) final CompactRequest body) {
+        getChatTopic(conversationId); // 404/403 + проверка владельца
+        final String model =
+                resolveModel(conversationId, chatTopicRepository.findById(conversationId), "");
+        final String runId =
+                compactService.start(
+                        conversationId, body == null ? null : body.instructions(), model);
+        return Map.of("runId", runId);
     }
 
     /**

@@ -6,7 +6,6 @@ import com.google.common.util.concurrent.Striped;
 import io.github.trialiya.kb.config.model.SummarizeProperties;
 import io.github.trialiya.kb.functions.MessageLookupFunction;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
-import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
@@ -21,14 +20,11 @@ import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Background compression of long conversations. This class is the orchestration only — one round
@@ -51,10 +47,9 @@ public class SummarizeService implements DisposableBean {
         every `## User requests` and `## Artifacts` bullet of the previous summaries unchanged.""";
 
     private final ChatClient chatClient;
-    private final ChatMessageRepository chatMessageRepository;
     private final ChatHistoryService chatHistory;
     private final ExecutorService executorService;
-    private final TransactionTemplate transactionTemplate;
+    private final SummaryWriter summaryWriter;
     private final SummarizeProperties summarizeProperties;
 
     private final Striped<Lock> locks = Striped.lock(1024);
@@ -64,7 +59,7 @@ public class SummarizeService implements DisposableBean {
             ChatMessageRepository chatMessageRepository,
             ChatHistoryService chatHistory,
             @Value("classpath:prompt/summarizer.md") Resource summarizerPrompt,
-            PlatformTransactionManager transactionManager,
+            SummaryWriter summaryWriter,
             SummarizeProperties summarizeProperties,
             ContextItemService contextItemService) {
         this.chatClient =
@@ -74,9 +69,8 @@ public class SummarizeService implements DisposableBean {
                                 new MessageLookupFunction(
                                         chatMessageRepository, contextItemService))
                         .build();
-        this.chatMessageRepository = chatMessageRepository;
         this.chatHistory = chatHistory;
-        this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.summaryWriter = summaryWriter;
         this.executorService = Executors.newVirtualThreadPerTaskExecutor();
         this.summarizeProperties = summarizeProperties;
     }
@@ -308,39 +302,20 @@ public class SummarizeService implements DisposableBean {
         final ChatMessageEntity firstMsg =
                 collapseSummaries ? existingSummaries.getFirst() : oldMessages.getFirst().entity();
         final ChatMessageEntity lastMsg = oldMessages.getLast().entity();
-        final @Nullable String project = lastProject(oldMessages, existingSummaries);
 
-        transactionTemplate.executeWithoutResult(
-                s -> {
-                    chatMessageRepository.updateSummarized(
-                            conversationId, firstMsg.getPosition(), endPosition);
-                    chatMessageRepository.save(
-                            new ChatMessageEntity(
-                                    0L,
-                                    conversationId,
-                                    metaSummaryText,
-                                    MessageType.ASSISTANT,
-                                    lastMsg.getPosition(),
-                                    false,
-                                    true,
-                                    lastMsg.getCreatedAt(),
-                                    project == null ? null : ChatMessageMeta.ofProject(project)));
-                });
-    }
-
-    /**
-     * On which project the compressed slice ended — carried onto the summary row so the trace of a
-     * project switch survives its own marker being summarized away. {@code null} when the slice
-     * never switched (the chat's own project covers it).
-     */
-    private static @Nullable String lastProject(
-            List<PromptRow> oldMessages, List<ChatMessageEntity> existingSummaries) {
-        return Stream.concat(
-                        existingSummaries.stream(), oldMessages.stream().map(PromptRow::entity))
-                .map(ChatMessageEntity::getMeta)
-                .filter(meta -> meta != null && meta.project() != null)
-                .reduce((first, second) -> second)
-                .map(ChatMessageMeta::project)
-                .orElse(null);
+        summaryWriter.write(
+                new SummaryWriter.SummaryRow(
+                        conversationId,
+                        firstMsg.getPosition(),
+                        endPosition,
+                        lastMsg.getPosition(),
+                        lastMsg.getCreatedAt(),
+                        metaSummaryText,
+                        // The project the compressed slice ended on: its own marker is being
+                        // summarized away, and the summary row is what keeps the trace.
+                        SummaryWriter.lastProject(
+                                Stream.concat(
+                                        existingSummaries.stream(),
+                                        oldMessages.stream().map(PromptRow::entity)))));
     }
 }

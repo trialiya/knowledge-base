@@ -194,7 +194,7 @@ class SummarizeServiceTest {
                 repository,
                 chatHistory,
                 new ByteArrayResource("summarize".getBytes()),
-                transactionManager(),
+                new SummaryWriter(repository, transactionManager()),
                 PRODUCTION,
                 mock(ContextItemService.class));
     }

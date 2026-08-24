@@ -9,7 +9,15 @@ import { RETRY_MODE } from '@/constants/retryMode';
 import { generateUUID } from '@/utils/uuid';
 import { nextMessageId } from '../messages/messageId';
 import { getLastModel, setLastModel, getLastMode, setLastMode, setLastProject } from './lastChoiceStore';
-import { chatLoadErrorNotice, RUN_BUSY_NOTICE, RETRY_UNAVAILABLE_NOTICE } from './chatNotices';
+import {
+  chatLoadErrorNotice,
+  RUN_BUSY_NOTICE,
+  RETRY_UNAVAILABLE_NOTICE,
+  COMPACT_DRAFT_NOTICE,
+  COMPACT_EMPTY_NOTICE,
+  COMPACT_START_ERROR_NOTICE,
+} from './chatNotices';
+import { parseChatCommand, CHAT_COMMAND } from './chatCommands';
 
 /**
  * Отправка сообщения, повтор после ошибки и остановка генерации.
@@ -222,6 +230,35 @@ export default function useChatRun({
     [hasActiveRun, patchChat, patchMessages, notify],
   );
 
+  // Сжатие контекста по команде `/compact`. Своего пузыря здесь нет и сообщение не
+  // сохраняется — ход разговора команда не делает, а плашку «сжимаю…» заводит событие
+  // COMPACT_STARTED, одинаково во всех вкладках. Ввод блокируем сразу, как на отправке:
+  // раунд идёт по всему окну, и вопрос поверх него всё равно получил бы 409.
+  const compactChat = useCallback(
+    async (conversationId, instructions) => {
+      setPendingRunChatId(conversationId);
+      try {
+        const res = await chatApi.compact(conversationId, instructions);
+        if (res?.runId) patchChat(conversationId, () => ({ runId: res.runId, compacting: true }));
+      } catch (error) {
+        if (error?.status === 409) {
+          notify(RUN_BUSY_NOTICE);
+          return;
+        }
+        // 422 — сжимать нечего: живой контекст уже состоит из одной сводки.
+        if (error?.status === 422) {
+          notify(COMPACT_EMPTY_NOTICE);
+          return;
+        }
+        console.error('Failed to compact:', error);
+        notify(COMPACT_START_ERROR_NOTICE);
+      } finally {
+        setPendingRunChatId((cur) => (cur === conversationId ? null : cur));
+      }
+    },
+    [patchChat, notify],
+  );
+
   const sendMessage = useCallback(
     async (text) => {
       if (!activeChatId) return;
@@ -231,6 +268,20 @@ export default function useChatRun({
       const chatForSend = getChats().find((c) => c.id === activeChatId);
       if (chatForSend?.notFound || chatForSend?.loadError) {
         notify(chatLoadErrorNotice({ notFound: !!chatForSend.notFound, status: chatForSend.loadError }));
+        return;
+      }
+
+      // Команда чату, а не вопрос модели: сжатие контекста ничего не отправляет в
+      // историю и своего пузыря пользователя не заводит.
+      const command = parseChatCommand(text);
+      if (command?.name === CHAT_COMMAND.COMPACT) {
+        // В ещё не начатом чате сжимать нечего — и заводить его ради команды незачем.
+        if (activeChatId === DRAFT_CHAT_ID) {
+          notify(COMPACT_DRAFT_NOTICE);
+          return;
+        }
+        clearDraft(activeChatId);
+        await compactChat(activeChatId, command.args);
         return;
       }
 
@@ -306,6 +357,7 @@ export default function useChatRun({
       resolveModeForSend,
       resolveProjectForSend,
       runConversation,
+      compactChat,
       notify,
     ],
   );

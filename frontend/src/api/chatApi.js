@@ -130,6 +130,16 @@ const chatApi = {
     });
   },
 
+  /**
+   * Сжать контекст чата (команда `/compact`). Возвращает { runId }: сам раунд идёт в фоне,
+   * исход приезжает событиями COMPACT_DONE/COMPACT_ERROR. Пока он идёт, чат занят так же,
+   * как на генерации, — вопрос в него получит 409.
+   *
+   * instructions — хвост команды: на чём сосредоточиться при сжатии.
+   */
+  compact: (id, instructions) =>
+    request(`/api/chats/${enc(id)}/compact`, { method: 'POST', ...json({ instructions: instructions || null }) }),
+
   /** Остановить прогон. Ошибки — только в консоль. */
   stopRun: (id, runId) =>
     requestRaw(`/api/chats/${enc(id)}/runs/${enc(runId)}/stop`, { method: 'POST' }).catch((e) =>
