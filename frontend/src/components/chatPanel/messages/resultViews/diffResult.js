@@ -6,7 +6,7 @@
 // запись diff'а от любой другой записи с путём отличают счётчики строк: пары
 // `additions` + `deletions` нет больше ни у одного DTO с полем `path`.
 
-import { splitPatch } from '../diffRender';
+import { patchParts } from '../diffRender';
 import { nonEmptyString as str } from './fieldValue';
 
 // Больше двух сотен файлов за вызов — это уже не «изменения», а выгрузка;
@@ -46,7 +46,7 @@ const toFile = (obj, key) => {
     status: statusOf(obj),
     additions: obj.additions,
     deletions: obj.deletions,
-    ...splitPatch(patchOf(obj)),
+    ...patchParts({ patch: patchOf(obj), patchHeader: str(obj.patchHeader) }),
   };
 };
 

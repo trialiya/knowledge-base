@@ -79,7 +79,9 @@ const gitApi = {
    * HEAD, вне зависимости от индекса), затем неотслеживаемые, допущенные
    * `allow-globs` проекта, под статусом 'U'.
    *
-   * Возвращает GitDiffEntry[] { status, path, oldPath, additions, deletions, patch }.
+   * Возвращает GitDiffEntry[] { status, path, oldPath, additions, deletions,
+   * patchHeader, patch }: шапка патча приходит отдельно от него самого, а сам
+   * патч начинается с `@@`.
    * Патч приходит только с `patch: true` и только по одному файлу (`path`):
    * список слева обходится счётчиками, а собирать diff всего дерева ради одного
    * открытого файла — запрос на каждый клик.

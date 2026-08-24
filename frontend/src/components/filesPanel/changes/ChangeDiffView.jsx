@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { DiffLines, PatchHeader, splitPatch } from '@/components/chatPanel/messages/diffRender';
+import { DiffLines, PatchHeader, patchParts } from '@/components/chatPanel/messages/diffRender';
 
 /**
  * Незакоммиченные изменения одного файла в центре панели.
@@ -12,15 +12,15 @@ import { DiffLines, PatchHeader, splitPatch } from '@/components/chatPanel/messa
  */
 const ChangeDiffView = ({ diff }) => {
   const { t } = useTranslation('files');
-  const { header, patch } = splitPatch(diff.entry?.patch);
+  const { header, patch } = patchParts(diff.entry ?? {});
 
   if (diff.loading) return <div className="file-content__empty">{t('loading')}</div>;
   if (diff.error) return <div className="file-content__empty">{t('changes.loadError')}</div>;
   // Файл открыт из дерева, а diff-режим остался включённым: изменений нет —
   // это ответ, а не ошибка.
   if (!diff.entry) return <div className="file-content__empty">{t('changes.noChanges')}</div>;
-  // Изменение есть, а показать его нечем: бинарный или слишком большой файл —
-  // бэкенд для таких патч не собирает (см. GitService.untrackedDiffEntry).
+  // Изменение есть, а показать его нечем: бинарный, пустой или слишком большой
+  // файл — бэкенд для таких патч не собирает (см. GitService.untrackedDiffEntry).
   if (!diff.entry.patch) return <div className="file-content__empty">{t('changes.noPatch')}</div>;
 
   return (

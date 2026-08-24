@@ -315,6 +315,10 @@ class GitServiceAllowGlobsTest {
                         entry -> {
                             assertThat(entry.status()).isEqualTo("U");
                             assertThat(entry.patch()).isNotNull();
+                            // Ханков у файла вне git нет, но имя — такие же метаданные, как у
+                            // остальных, и приходит оно тем же полем.
+                            assertThat(entry.patchHeader()).isEqualTo("+++ b/notes/todo.md");
+                            assertThat(entry.patch()).doesNotContain("+++ b/");
                         });
     }
 

@@ -13,7 +13,10 @@ import org.jspecify.annotations.Nullable;
  * @param oldPath старый путь (только при rename/copy, иначе null)
  * @param additions количество добавленных строк
  * @param deletions количество удалённых строк
- * @param patch текстовый diff (unified), null если не запрашивался
+ * @param patchHeader служебная шапка патча ({@code diff --git}, {@code index}, {@code --- a/…},
+ *     {@code +++ b/…}) — отдельно от него самого: она описывает файл, а не его строки. null, если
+ *     патч не запрашивался или шапки у него нет (сообщение о бинарном файле)
+ * @param patch текстовый diff (unified), начиная с первого {@code @@}; null если не запрашивался
  */
 public record GitDiffEntry(
         String status,
@@ -21,6 +24,7 @@ public record GitDiffEntry(
         @Nullable String oldPath,
         int additions,
         int deletions,
+        @Nullable String patchHeader,
         @Nullable String patch)
         implements ToolCallResponseItem {
 
