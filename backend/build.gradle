@@ -116,7 +116,7 @@ dependencyManagement {
 
 spotless {
     java {
-        googleJavaFormat('1.28.0').aosp()
+        googleJavaFormat('1.30.0').aosp()
         importOrder()
         removeUnusedImports()
         endWithNewline()
