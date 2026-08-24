@@ -90,6 +90,51 @@ export const DiffLines = ({ patch, lineNumbers = false }) => {
   );
 };
 
+/**
+ * Патч → шапка файла (`diff --git`, `index`, `--- a/…`, `+++ b/…`) и его
+ * содержимое, начиная с первого `@@`.
+ *
+ * Шапка — метаданные о файле, а не его строки: в блоке кода она занимала первый
+ * экран путями, которые уже написаны в заголовке записи. Заголовок ханка
+ * остаётся в патче — он размечает сами строки.
+ *
+ * Граница — первый `@@`: дальше по патчу такие строки могут быть содержимым
+ * файла, а до него ничего кроме шапки быть не может. Патч без `@@` не делится
+ * вовсе: у него нет этой границы, а содержимое есть — так выглядит файл вне git
+ * (`+++ b/path` и одни `+`-строки) и сообщение о бинарном файле.
+ */
+export const splitPatch = (patch) => {
+  if (!patch) return { header: null, patch: null };
+
+  const lines = patch.split('\n');
+  const hunk = lines.findIndex((line) => line.startsWith('@@'));
+  if (hunk <= 0) return { header: null, patch };
+
+  const head = lines.slice(0, hunk).filter((line) => line !== '');
+  return { header: head.length > 0 ? head : null, patch: lines.slice(hunk).join('\n') };
+};
+
+/**
+ * Шапка патча над блоком кода — то, что отделил `splitPatch`. Ничего не рисует
+ * без строк, поэтому вызывающему не нужна собственная проверка.
+ */
+export const PatchHeader = ({ lines }) => {
+  if (!lines || lines.length === 0) return null;
+
+  return (
+    <div className="diff-meta">
+      {lines.map((line, i) => (
+        // Индекс как key безопасен: текст патча открытого файла неизменен.
+        // title обязателен: строка режется многоточием, прокрутки у неё нет,
+        // и длинный путь иначе не прочитать.
+        <span key={i} className="diff-meta__line" title={line}>
+          {line}
+        </span>
+      ))}
+    </div>
+  );
+};
+
 /** Счётчики строк `+N/−M`. */
 export const DiffStats = ({ additions, deletions }) => (
   <span className="diff-stats">

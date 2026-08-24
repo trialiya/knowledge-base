@@ -12,6 +12,23 @@
  */
 
 /**
+ * Плоская раскладка списка: те же записи, упорядоченные по имени файла.
+ *
+ * Порядок бэкенда (отслеживаемые — как их выдал diff, неотслеживаемые — по
+ * пути) читается только в иерархии, где каталог сам собирает соседей; в
+ * плоском перечне каталог у каждой строки свой, и без сортировки одноимённые
+ * файлы из разных мест разъезжаются по списку. Имя — то, что стоит в строке
+ * первым, каталог лишь разводит совпадения.
+ *
+ * @param {Array} entries GitDiffEntry[]
+ * @returns {Array} новый массив: исходный принадлежит вызывающему
+ */
+export function sortByName(entries) {
+  const nameOf = (entry) => entry.path.split('/').pop();
+  return [...entries].sort((a, b) => nameOf(a).localeCompare(nameOf(b)) || a.path.localeCompare(b.path));
+}
+
+/**
  * @param {Array} entries GitDiffEntry[]
  * @returns {Array} узлы верхнего уровня: { type: 'dir', path, name, children } | { type: 'file', path, name, entry }
  */

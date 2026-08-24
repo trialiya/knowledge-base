@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import useListNavigation from '@/components/common/search/useListNavigation';
 import ChangeRow from './ChangeRow';
 import ChangeTreeNode from './ChangeTreeNode';
-import { buildChangeTree } from './changeTree';
+import { buildChangeTree, sortByName } from './changeTree';
 
 /**
  * Секция списка изменений: отслеживаемые файлы, ниже — неотслеживаемые,
@@ -16,6 +16,7 @@ import { buildChangeTree } from './changeTree';
  */
 const ChangesSection = ({ title, entries, flat, selectedPath, collapsed, onToggle, onSelect }) => {
   const tree = useMemo(() => (flat ? null : buildChangeTree(entries)), [flat, entries]);
+  const rows = useMemo(() => (flat ? sortByName(entries) : null), [flat, entries]);
 
   return (
     <div className="file-changes__section" role="group" aria-label={title}>
@@ -24,7 +25,7 @@ const ChangesSection = ({ title, entries, flat, selectedPath, collapsed, onToggl
         <span className="file-changes__count">{entries.length}</span>
       </div>
       {flat
-        ? entries.map((entry) => (
+        ? rows.map((entry) => (
             <ChangeRow
               key={entry.path}
               entry={entry}

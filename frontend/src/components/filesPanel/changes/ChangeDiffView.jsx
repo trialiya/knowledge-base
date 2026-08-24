@@ -1,16 +1,18 @@
 import { useTranslation } from 'react-i18next';
-import { DiffLines } from '@/components/chatPanel/messages/diffRender';
+import { DiffLines, PatchHeader, splitPatch } from '@/components/chatPanel/messages/diffRender';
 
 /**
  * Незакоммиченные изменения одного файла в центре панели.
  *
- * Раскраска и нумерация строк — общие с блоком изменений под ответом ИИ
- * (diffRender): один и тот же патч одного и того же файла не должен выглядеть
- * в чате и в файловом браузере по-разному. `<pre>` здесь свой — моноширинный
- * фон и горизонтальный скролл у каждого места вызова собственные.
+ * Раскраска, нумерация строк и вынесенная над блоком кода шапка патча — общие
+ * с блоком изменений под ответом ИИ (diffRender): один и тот же патч одного и
+ * того же файла не должен выглядеть в чате и в файловом браузере по-разному.
+ * `<pre>` здесь свой — моноширинный фон и горизонтальный скролл у каждого
+ * места вызова собственные.
  */
 const ChangeDiffView = ({ diff }) => {
   const { t } = useTranslation('files');
+  const { header, patch } = splitPatch(diff.entry?.patch);
 
   if (diff.loading) return <div className="file-content__empty">{t('loading')}</div>;
   if (diff.error) return <div className="file-content__empty">{t('changes.loadError')}</div>;
@@ -22,9 +24,13 @@ const ChangeDiffView = ({ diff }) => {
   if (!diff.entry.patch) return <div className="file-content__empty">{t('changes.noPatch')}</div>;
 
   return (
-    <pre className="file-diff">
-      <DiffLines patch={diff.entry.patch} lineNumbers />
-    </pre>
+    <>
+      {/* Шапка патча — метаданные файла, поэтому она снаружи блока кода. */}
+      <PatchHeader lines={header} />
+      <pre className="file-diff">
+        <DiffLines patch={patch} lineNumbers />
+      </pre>
+    </>
   );
 };
 
