@@ -13,7 +13,9 @@ import ResultSummary, { useExpandAll } from './resultSummary';
 // сколько кликов ему не жалко, всё равно не выйдет.
 const OPEN_LINE_BUDGET = 400;
 
-const lineCount = (patch) => (patch ? patch.split('\n').length : 0);
+// Шапка патча идёт в счёт наравне с ним: она вынесена из блока кода, но место
+// на экране занимает тем же числом строк.
+const lineCount = (file) => (file.patch ? file.patch.split('\n').length : 0) + (file.header?.length ?? 0);
 
 /**
  * Какие файлы открыты при первом показе: подряд, пока не выбран бюджет строк.
@@ -25,7 +27,7 @@ const initialOpen = (groups) => {
   let first = true;
   for (const group of groups) {
     for (const file of group.files) {
-      const lines = lineCount(file.patch);
+      const lines = lineCount(file);
       if (first || used + lines <= OPEN_LINE_BUDGET) {
         open[file.key] = true;
         used += lines;
@@ -77,14 +79,30 @@ const FileEntry = ({ file, open, onToggle }) => {
         <DiffStats additions={file.additions} deletions={file.deletions} />
       </button>
 
-      {open &&
-        (file.patch ? (
-          <pre className="tool-diff__patch">
-            <DiffLines patch={file.patch} lineNumbers />
-          </pre>
-        ) : (
-          <div className="tool-diff__note">{t('toolCall.detail.diff.noPatch')}</div>
-        ))}
+      {open && (
+        <>
+          {/* Шапка патча — метаданные файла, поэтому она снаружи блока кода. */}
+          {file.header && (
+            <div className="tool-diff__meta">
+              {file.header.map((line, i) => (
+                // Индекс как key безопасен: текст патча в открытой модалке неизменен.
+                // title обязателен: строка режется многоточием, прокрутки у неё
+                // нет, и длинный путь иначе не прочитать.
+                <span key={i} className="tool-diff__meta-line" title={line}>
+                  {line}
+                </span>
+              ))}
+            </div>
+          )}
+          {file.patch ? (
+            <pre className="tool-diff__patch">
+              <DiffLines patch={file.patch} lineNumbers />
+            </pre>
+          ) : (
+            <div className="tool-diff__note">{t('toolCall.detail.diff.noPatch')}</div>
+          )}
+        </>
+      )}
     </div>
   );
 };

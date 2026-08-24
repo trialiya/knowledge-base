@@ -134,6 +134,30 @@
   color: #999;
 }
 
+/* Шапка патча (`diff --git`, `index`, `--- a/…`, `+++ b/…`): метаданные файла,
+   вынесенные из блока кода. Тише самого патча и без рамки — так первый экран
+   занимают строки файла, а не пути, уже написанные в заголовке записи. */
+.tool-diff__meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin-top: 4px;
+  padding: 0 2px;
+  font-family: var(--kb-font-mono);
+  font-size: 0.7rem;
+  line-height: 1.5;
+  color: #8a8a99;
+}
+
+/* Длинная строка режется многоточием, а не переносится: целиком она есть в
+   title (см. DiffResultView), и три строки шапки должны занимать три строки. */
+.tool-diff__meta-line {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Общий скролл модалки — как у .tool-call-detail__pre, поэтому собственного
    overflow-y здесь нет; по горизонтали патч скроллится сам. */
 .tool-diff__patch {
