@@ -6,6 +6,7 @@
 // запись diff'а от любой другой записи с путём отличают счётчики строк: пары
 // `additions` + `deletions` нет больше ни у одного DTO с полем `path`.
 
+import { patchParts } from '../diffRender';
 import { nonEmptyString as str } from './fieldValue';
 
 // Больше двух сотен файлов за вызов — это уже не «изменения», а выгрузка;
@@ -30,30 +31,6 @@ const statusOf = (obj) => {
 /** Сам патч: `patch` у записей коммита, `diff` у правки файла. */
 const patchOf = (obj) => str(obj.patch) ?? str(obj.diff);
 
-/**
- * Патч → шапка файла (`diff --git`, `index`, `--- a/…`, `+++ b/…`) и его
- * содержимое, начиная с первого `@@`.
- *
- * Шапка — метаданные о файле, а не его строки: в блоке кода она занимала первый
- * экран путями, которые уже написаны в заголовке записи. Заголовок ханка
- * остаётся в патче — он размечает сами строки.
- *
- * Граница — первый `@@`: дальше по патчу такие строки могут быть содержимым
- * файла, а до него ничего кроме шапки быть не может. Патч без `@@` не делится
- * вовсе: у него нет этой границы, а содержимое есть — так выглядит файл вне git
- * (`+++ b/path` и одни `+`-строки) и сообщение о бинарном файле.
- */
-const splitPatch = (patch) => {
-  if (!patch) return { header: null, patch: null };
-
-  const lines = patch.split('\n');
-  const hunk = lines.findIndex((line) => line.startsWith('@@'));
-  if (hunk <= 0) return { header: null, patch };
-
-  const head = lines.slice(0, hunk).filter((line) => line !== '');
-  return { header: head.length > 0 ? head : null, patch: lines.slice(hunk).join('\n') };
-};
-
 /** Одна файловая запись → блок, либо null если форма не та. */
 const toFile = (obj, key) => {
   if (!isPlainObject(obj)) return null;
@@ -69,7 +46,7 @@ const toFile = (obj, key) => {
     status: statusOf(obj),
     additions: obj.additions,
     deletions: obj.deletions,
-    ...splitPatch(patchOf(obj)),
+    ...patchParts({ patch: patchOf(obj), patchHeader: str(obj.patchHeader) }),
   };
 };
 

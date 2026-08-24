@@ -79,6 +79,21 @@ describe('detectDiffResult — что попадает в «Обзор»', () =>
     expect(bin[0]).toMatchObject({ header: null, patch: binary });
   });
 
+  it('новый формат: шапка приходит полем patchHeader, патч делить не надо', () => {
+    // Так отвечает бэкенд сегодня; старые вызовы, сохранённые в истории чатов,
+    // приходят предыдущей формой — оба разбираются одним patchParts.
+    const [{ files }] = detect(JSON.stringify([entry({ patchHeader: HEADER.join('\n'), patch: BODY })]));
+    expect(files[0]).toMatchObject({ header: HEADER, patch: BODY });
+  });
+
+  it('новый формат: шапка без ханков (файл вне git) тоже показывается над блоком', () => {
+    const body = ['+первая строка', '+вторая'].join('\n');
+    const [{ files }] = detect(
+      JSON.stringify([entry({ status: 'U', path: 'new.txt', patchHeader: '+++ b/new.txt', patch: body })]),
+    );
+    expect(files[0]).toMatchObject({ status: 'U', header: ['+++ b/new.txt'], patch: body });
+  });
+
   it('патч без шапки отдаётся как есть', () => {
     const [{ files }] = detect(JSON.stringify([entry({ patch: BODY })]));
     expect(files[0]).toMatchObject({ header: null, patch: BODY });

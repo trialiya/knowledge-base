@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { DiffLines, DiffStats } from '../diffRender';
+import { DiffLines, DiffStats, PatchHeader } from '../diffRender';
 import { IconChevronDown } from '@/icons/index';
 import ResultSummary, { useExpandAll } from './resultSummary';
 
@@ -82,18 +82,7 @@ const FileEntry = ({ file, open, onToggle }) => {
       {open && (
         <>
           {/* Шапка патча — метаданные файла, поэтому она снаружи блока кода. */}
-          {file.header && (
-            <div className="tool-diff__meta">
-              {file.header.map((line, i) => (
-                // Индекс как key безопасен: текст патча в открытой модалке неизменен.
-                // title обязателен: строка режется многоточием, прокрутки у неё
-                // нет, и длинный путь иначе не прочитать.
-                <span key={i} className="tool-diff__meta-line" title={line}>
-                  {line}
-                </span>
-              ))}
-            </div>
-          )}
+          <PatchHeader lines={file.header} />
           {file.patch ? (
             <pre className="tool-diff__patch">
               <DiffLines patch={file.patch} lineNumbers />

@@ -234,6 +234,26 @@ class GitServiceTest {
         assertThat(changes.get(0).patch()).contains("+world");
     }
 
+    /**
+     * Шапка патча описывает файл, а не его строки, и приходит отдельным полем: показывают её над
+     * блоком кода, а не в нём, и делить патч на стороне клиента для этого не нужно.
+     */
+    @Test
+    void patchArrivesWithItsHeaderSplitOffIntoItsOwnField() {
+        writeFile("tracked.txt", "hello\n");
+        commitAll();
+        writeFile("tracked.txt", "hello\nworld\n");
+
+        GitDiffEntry entry = service.getUncommittedChanges(true).get(0);
+
+        assertThat(entry.patchHeader())
+                .contains("diff --git")
+                .contains("--- a/tracked.txt")
+                .contains("+++ b/tracked.txt");
+        // Заголовок ханка размечает сами строки — он остаётся в патче, и патч с него начинается.
+        assertThat(entry.patch()).startsWith("@@").contains("+world").doesNotContain("diff --git");
+    }
+
     @Test
     void uncommittedChangesNarrowedToOnePathReturnsOnlyThatFile() {
         writeFile("a.txt", "one\n");

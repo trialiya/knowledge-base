@@ -150,6 +150,8 @@
 
 /* ── Diff в центре ── */
 
+/* Шапка патча над блоком кода — общая .diff-meta (chatPanel/styles/diff.css). */
+
 .file-diff {
   margin: 0;
   padding: 10px 0;

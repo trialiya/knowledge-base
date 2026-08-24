@@ -1272,22 +1272,28 @@ public class GitService {
             content = null;
         }
         if (content == null || RepoFiles.isBinary(content)) {
-            return new GitDiffEntry(UNTRACKED_STATUS, path, null, 0, 0, null);
+            return new GitDiffEntry(UNTRACKED_STATUS, path, null, 0, 0, null, null);
         }
         String text = new String(content, StandardCharsets.UTF_8);
         List<String> lines = text.isEmpty() ? List.of() : List.of(text.split("\n", -1));
+        String patchHeader = null;
         String patch = null;
         if (includePatch) {
-            StringBuilder sb = new StringBuilder("+++ b/").append(path).append('\n');
+            // Шапка тут не отделяется, а собирается: у файла вне git нет ханков, зато имя его
+            // такие же метаданные, как и у остальных, и приходит оно тем же полем.
+            patchHeader = "+++ b/" + path;
+            StringBuilder sb = new StringBuilder();
             lines.stream()
                     .limit(Diffs.MAX_DIFF_LINES)
                     .forEach(l -> sb.append('+').append(l).append('\n'));
             if (lines.size() > Diffs.MAX_DIFF_LINES) {
                 sb.append("... (truncated)\n");
             }
-            patch = sb.toString();
+            // Пустой файл: строк нет, и показывать в блоке кода нечего — одна шапка над пустым
+            // блоком читалась бы как сломанный патч.
+            patch = sb.isEmpty() ? null : sb.toString();
         }
-        return new GitDiffEntry(UNTRACKED_STATUS, path, null, lines.size(), 0, patch);
+        return new GitDiffEntry(UNTRACKED_STATUS, path, null, lines.size(), 0, patchHeader, patch);
     }
 
     /** HEAD's tree, or an empty tree when the branch is unborn (no commits yet). */
@@ -1370,13 +1376,23 @@ public class GitService {
             }
         }
 
-        String patch = null;
-        if (includePatch) {
-            patchOut.reset();
-            formatter.format(entry);
-            patch = Diffs.truncate(patchOut.toString(StandardCharsets.UTF_8));
-        }
-        return new GitDiffEntry(status, path, reportedOldPath, add, del, patch);
+        // Обрезается патч целиком, а уже потом делится: лимит считает строки того, что собрал
+        // formatter, и шапка занимает место наравне с ними, где бы её потом ни показали.
+        Diffs.Parts parts =
+                includePatch
+                        ? Diffs.split(Diffs.truncate(formatted(entry, formatter, patchOut)))
+                        : new Diffs.Parts(null, null);
+        return new GitDiffEntry(
+                status, path, reportedOldPath, add, del, parts.header(), parts.body());
+    }
+
+    /** One entry's unified diff as text; the buffer is the formatter's own, hence the reset. */
+    private static String formatted(
+            DiffEntry entry, DiffFormatter formatter, ByteArrayOutputStream patchOut)
+            throws IOException {
+        patchOut.reset();
+        formatter.format(entry);
+        return patchOut.toString(StandardCharsets.UTF_8);
     }
 
     private static @Nullable String normalizedDiffPath(String path) {
