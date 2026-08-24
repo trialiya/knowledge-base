@@ -63,7 +63,7 @@ dependencies {
     // Java-time module back onto the compile classpath. Version is managed by the Jackson 2 BOM.
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
 
-    implementation 'com.google.guava:guava:33.6.0-jre'
+    implementation 'com.google.guava:guava:33.7.1-jre'
 
     implementation 'io.github.bonede:tree-sitter:0.26.6'
     implementation 'io.github.bonede:tree-sitter-java:0.23.5'
@@ -116,7 +116,7 @@ dependencyManagement {
 
 spotless {
     java {
-        googleJavaFormat('1.28.0').aosp()
+        googleJavaFormat('1.30.0').aosp()
         importOrder()
         removeUnusedImports()
         endWithNewline()
