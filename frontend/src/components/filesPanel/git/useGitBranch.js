@@ -67,6 +67,8 @@ export default function useGitBranch({ project, refreshToken }) {
   const commands = useMemo(
     () => ({
       fetchRemote: () => run(gitApi.fetch),
+      pull: () => run(gitApi.pull),
+      push: () => run(gitApi.push),
       switchBranch: (branch, create) => run((o) => gitApi.switchBranch(branch, { ...o, create })),
       stashPush: () => run(gitApi.stashPush),
       stashPop: () => run(gitApi.stashPop),

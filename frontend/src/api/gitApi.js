@@ -149,6 +149,25 @@ const gitApi = {
   },
 
   /**
+   * `git pull --ff-only` — втянуть то, что появилось в upstream. Только
+   * fast-forward: разошедшиеся истории приходят отказом, а не merge-коммитом,
+   * которого никто не заказывал.
+   */
+  pull: ({ project, signal } = {}) => {
+    const [qs, init] = opts(new URLSearchParams(), project, signal);
+    return command(`/api/git/pull${qs}`, init);
+  },
+
+  /**
+   * `git push` — опубликовать текущую ветку. Никогда не форсируется; ветке без
+   * upstream он проставляется сам, если remote у репозитория ровно один.
+   */
+  push: ({ project, signal } = {}) => {
+    const [qs, init] = opts(new URLSearchParams(), project, signal);
+    return command(`/api/git/push${qs}`, init);
+  },
+
+  /**
    * `git switch` — перевести рабочее дерево на ветку; `create: true` — создать её
    * на текущем коммите (`switch -c`). Никогда не форсируется: переключение,
    * которое затёрло бы незакоммиченные правки, приходит отказом с их именами.

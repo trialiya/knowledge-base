@@ -58,6 +58,33 @@ public class GitCommandController {
     }
 
     /**
+     * Brings in what the upstream has ({@code git pull --ff-only}).
+     *
+     * <p>Fast-forward only: diverged histories come back as a {@code 422} instead of a merge commit
+     * nobody asked for. A pull that leaves conflicts behind is visible in the branch status ({@code
+     * merging}) and undone by {@code /merge/abort}.
+     */
+    @PostMapping("/pull")
+    public GitCommandResult pull(
+            @RequestParam(name = "project", required = false) @Nullable String project) {
+        return run(project, GitService::pull);
+    }
+
+    /**
+     * Publishes the current branch ({@code git push}), setting the upstream on a branch that tracks
+     * nothing yet when the repository has exactly one remote.
+     *
+     * <p>The one command behind a grant of its own ({@code git-commands.push-enabled}): it sends
+     * this repository's content outside the deployment. Never forced — a rejected push means the
+     * remote moved, and the answer to that is a pull, not an overwrite.
+     */
+    @PostMapping("/push")
+    public GitCommandResult push(
+            @RequestParam(name = "project", required = false) @Nullable String project) {
+        return run(project, GitService::push, true);
+    }
+
+    /**
      * Moves the checkout onto another branch, creating it at the current commit with {@code
      * create=true} ({@code git switch} / {@code git switch -c}).
      *
@@ -135,9 +162,23 @@ public class GitCommandController {
      */
     private GitCommandResult run(
             @Nullable String project, Function<GitService, GitCommandResult> command) {
+        return run(project, command, false);
+    }
+
+    /**
+     * @param push whether this command also needs the project's push grant — the one permission
+     *     that is not implied by "may run git commands here"
+     */
+    private GitCommandResult run(
+            @Nullable String project,
+            Function<GitService, GitCommandResult> command,
+            boolean push) {
         GitService git;
         try {
-            git = gitRegistry.requireGitCommands(project);
+            git =
+                    push
+                            ? gitRegistry.requireGitPush(project)
+                            : gitRegistry.requireGitCommands(project);
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         } catch (IllegalStateException e) {

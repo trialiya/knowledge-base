@@ -29,6 +29,8 @@ const FilesToolbar = ({ project, changes, onChangesToggle, flat, onFlatToggle, o
           onStashPush: actions.stashPush,
           onStashPop: actions.stashPop,
           onCommit: actions.askCommit,
+          onPull: actions.pull,
+          onPush: actions.push,
         }}
       />
       <div className="files-toolbar__row">

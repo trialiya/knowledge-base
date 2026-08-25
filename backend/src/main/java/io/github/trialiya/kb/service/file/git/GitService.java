@@ -1061,6 +1061,31 @@ public class GitService {
     }
 
     /**
+     * Brings in what the upstream has ({@code git pull --ff-only}) — a fast-forward and nothing
+     * else.
+     *
+     * <p>Diverged histories are refused rather than merged: the merge commit a plain pull would
+     * write is a decision, and nobody makes a decision by clicking "update". The user merges
+     * deliberately, and a merge that ends in conflict has {@link #abortMerge()} as its way out.
+     */
+    public GitCommandResult pull() {
+        return commands.pull();
+    }
+
+    /**
+     * Publishes this branch to its remote ({@code git push}), setting the upstream on a branch that
+     * tracks nothing yet when the repository leaves no doubt which remote that is.
+     *
+     * <p>Never forced, in any spelling: a rejected push means the remote moved, and overwriting
+     * someone else's history is not something a click may do. Guarded by its own grant ({@code
+     * git-commands.push-enabled}) — it is the one command that sends this repository's content
+     * outside the deployment.
+     */
+    public GitCommandResult push() {
+        return commands.push();
+    }
+
+    /**
      * Moves the checkout onto {@code branch}, creating it at the current commit when {@code create}
      * — {@code git switch} and {@code git switch -c}.
      *

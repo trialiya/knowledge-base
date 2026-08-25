@@ -55,6 +55,8 @@ export default function useGitActions({ git, onRepoChanged, notify, t }) {
     // fetch ничего в рабочем дереве не меняет, но счётчики двигает — а их
     // перечитывает сам useGitBranch, поэтому общий сигнал ему не нужен.
     fetch: () => git.fetchRemote().catch((error) => notify(failure(error, t))),
+    pull: () => run(() => git.pull()),
+    push: () => run(() => git.push()),
     switchBranch: (branch) => run(() => git.switchBranch(branch, false)),
     stashPush: () => run(() => git.stashPush()),
     stashPop: () => run(() => git.stashPop()),

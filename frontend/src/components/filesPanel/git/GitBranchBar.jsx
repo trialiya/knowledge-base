@@ -76,7 +76,7 @@ const GitBranchBar = ({ status, capabilities, running, onFetch, onAbortMerge, co
             >
               <IconRefreshCw size={13} spinning={running} />
             </button>
-            <GitMenu status={status} running={running} {...commands} />
+            <GitMenu status={status} capabilities={capabilities} running={running} {...commands} />
           </>
         )}
       </div>

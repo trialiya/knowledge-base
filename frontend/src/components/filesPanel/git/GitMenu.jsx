@@ -16,7 +16,18 @@ import './gitMenu.css';
  * выключенный вместе с подписью отвечает, чего не хватает (нечего коммитить,
  * stash пуст).
  */
-const GitMenu = ({ status, running, onSwitch, onCreateBranch, onStashPush, onStashPop, onCommit }) => {
+const GitMenu = ({
+  status,
+  capabilities,
+  running,
+  onSwitch,
+  onCreateBranch,
+  onStashPush,
+  onStashPop,
+  onCommit,
+  onPull,
+  onPush,
+}) => {
   const { t } = useTranslation('files');
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -44,6 +55,9 @@ const GitMenu = ({ status, running, onSwitch, onCreateBranch, onStashPush, onSta
 
   const branches = status?.branches ?? [];
   const dirty = !!status?.dirty;
+  // Втягивать имеет смысл всегда, когда ветка что-то отслеживает: счётчик
+  // «позади» показывает данные последнего fetch'а и может отставать от remote.
+  const tracking = !!status?.upstream;
 
   return (
     <div className="git-menu" ref={ref}>
@@ -89,6 +103,34 @@ const GitMenu = ({ status, running, onSwitch, onCreateBranch, onStashPush, onSta
             <span className="git-menu__mark" />
             <span className="git-menu__label">{t('git.newBranch')}</span>
           </button>
+          <div className="git-menu__sep" />
+
+          <button
+            type="button"
+            role="menuitem"
+            className="git-menu__item"
+            disabled={!tracking}
+            title={tracking ? t('git.pullHint') : t('git.noUpstream')}
+            onClick={act(onPull)}
+          >
+            <span className="git-menu__mark" />
+            <span className="git-menu__label">{t('git.pull')}</span>
+          </button>
+          {/* push — отдельное разрешение проекта: единственная команда, которая
+              отправляет содержимое репозитория за пределы деплоя. */}
+          {capabilities?.push && (
+            <button
+              type="button"
+              role="menuitem"
+              className="git-menu__item"
+              disabled={status?.ahead === 0 && tracking}
+              title={status?.ahead === 0 && tracking ? t('git.nothingToPush') : undefined}
+              onClick={act(onPush)}
+            >
+              <span className="git-menu__mark" />
+              <span className="git-menu__label">{t('git.push')}</span>
+            </button>
+          )}
           <div className="git-menu__sep" />
 
           <button

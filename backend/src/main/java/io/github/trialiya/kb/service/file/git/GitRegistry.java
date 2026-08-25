@@ -224,6 +224,22 @@ public class GitRegistry {
     }
 
     /**
+     * As {@link #requireGitCommands}, for the one command that needs the push grant on top of it —
+     * the only operation here that publishes this repository outside the deployment.
+     */
+    public GitService requireGitPush(@Nullable String projectId) {
+        Project project = catalog.require(projectId);
+        if (!gitPushAllowed(project.id())) {
+            throw new IllegalStateException(
+                    "Project \""
+                            + project.id()
+                            + "\" does not offer push: it is not enabled for"
+                            + " this project, or the project offers no git commands at all");
+        }
+        return forProject(project.id());
+    }
+
+    /**
      * What the UI may offer for this project — the capabilities behind the buttons, answered for
      * the state the repository is in right now rather than for the configuration alone.
      */

@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.service.file.git;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.trialiya.kb.model.git.dto.GitBranchStatus;
 import io.github.trialiya.kb.model.git.dto.GitCommandResult;
@@ -33,6 +34,10 @@ class GitBranchesTest {
     void setUp() {
         git(originDir, "init", "-q", "-b", "main");
         configure(originDir);
+        // Origin здесь не bare — в него удобно коммитить, изображая чужую работу, — а такой
+        // репозиторий по умолчанию отказывается принимать push в свою же выкупленную ветку.
+        // Настоящий remote деплоя bare, и этого ограничения у него нет.
+        git(originDir, "config", "receive.denyCurrentBranch", "ignore");
         write(originDir, "README.md", "origin\n");
         commit(originDir, "first");
 
@@ -79,6 +84,85 @@ class GitBranchesTest {
         assertThat(result.command()).isEqualTo("fetch");
         assertThat(result.status().behind()).isEqualTo(1);
         assertThat(service.branchStatus().behind()).isEqualTo(1);
+    }
+
+    // ── pull / push ──────────────────────────────────────────────────────────
+
+    /** Ради этого весь ярус и существует: чужой коммит доезжает до рабочего дерева. */
+    @Test
+    void pullBringsInWhatTheRemoteGained() {
+        write(originDir, "theirs.md", "theirs\n");
+        commit(originDir, "their work");
+
+        service.fetch();
+        assertThat(service.branchStatus().behind()).isEqualTo(1);
+
+        service.pull();
+
+        assertThat(repoDir.resolve("theirs.md")).exists();
+        assertThat(service.branchStatus().behind()).isZero();
+        assertThat(service.branchStatus().merging()).isFalse();
+    }
+
+    /**
+     * Разошедшиеся истории — не повод писать merge-коммит по клику: pull только fast-forward, а
+     * слияние пользователь делает осознанно.
+     */
+    @Test
+    void aDivergedHistoryIsRefusedRatherThanMerged() {
+        write(originDir, "theirs.md", "theirs\n");
+        commit(originDir, "their work");
+        write(repoDir, "mine.md", "mine\n");
+        commit(repoDir, "my work");
+        service.fetch();
+
+        assertThatThrownBy(() -> service.pull()).isInstanceOf(GitCommandFailedException.class);
+
+        // Ни merge, ни потерянной работы — дерево осталось тем же.
+        assertThat(service.branchStatus().merging()).isFalse();
+        assertThat(repoDir.resolve("mine.md")).exists();
+        assertThat(repoDir.resolve("theirs.md")).doesNotExist();
+    }
+
+    @Test
+    void pushSendsLocalCommitsToTheRemote() {
+        write(repoDir, "mine.md", "mine\n");
+        commit(repoDir, "my work");
+        assertThat(service.branchStatus().ahead()).isEqualTo(1);
+
+        service.push();
+
+        assertThat(service.branchStatus().ahead()).isZero();
+    }
+
+    /**
+     * Ветка, созданная в панели, ничего не отслеживает — и первый push обязан работать сам, а не
+     * советовать команду, набрать которую негде.
+     */
+    @Test
+    void pushingANewBranchSetsItsUpstreamWhenThereIsOnlyOneRemote() {
+        service.switchBranch("feature/x", true);
+        write(repoDir, "mine.md", "mine\n");
+        commit(repoDir, "my work");
+        assertThat(service.branchStatus().upstream()).isNull();
+
+        GitCommandResult result = service.push();
+
+        assertThat(result.command()).isEqualTo("push -u origin feature/x");
+        assertThat(result.status().upstream()).isEqualTo("origin/feature/x");
+    }
+
+    /** Detached HEAD нечего ни втягивать, ни публиковать — и это видно до похода в сеть. */
+    @Test
+    void neitherPullNorPushRunsOnADetachedHead() {
+        git(repoDir, "switch", "-q", "--detach", "HEAD");
+
+        assertThatThrownBy(() -> service.pull())
+                .isInstanceOf(GitCommandFailedException.class)
+                .hasMessageContaining("not on a branch");
+        assertThatThrownBy(() -> service.push())
+                .isInstanceOf(GitCommandFailedException.class)
+                .hasMessageContaining("not on a branch");
     }
 
     @Test

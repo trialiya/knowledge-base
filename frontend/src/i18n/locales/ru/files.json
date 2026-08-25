@@ -106,6 +106,10 @@
     "discardConfirm": "Откатить",
     "merging": "Незавершённый merge",
     "mergeConflicts": "Конфликт merge: файлов — {{count}}",
-    "abortMerge": "Прервать merge"
+    "abortMerge": "Прервать merge",
+    "pull": "Втянуть изменения (pull)",
+    "push": "Отправить в remote (push)",
+    "pullHint": "Только fast-forward: если истории разошлись, слияние придётся сделать осознанно",
+    "nothingToPush": "Отправлять нечего: своих коммитов нет"
   }
 }

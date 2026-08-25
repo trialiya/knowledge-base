@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.service.file.git;
 
+import io.github.trialiya.kb.model.git.dto.GitBranchStatus;
 import io.github.trialiya.kb.model.git.dto.GitCommandResult;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -7,6 +8,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -104,6 +106,77 @@ class GitCommands {
         // list is what the branch picker offers. --no-tags keeps a fetch from dragging in every
         // tag of a large repository, which is not what "refresh what I can pull" means.
         return shell("fetch", List.of("git", "fetch", "--prune", "--no-tags"));
+    }
+
+    /**
+     * @see GitService#pull()
+     */
+    GitCommandResult pull() {
+        requireOnABranch("pull");
+        // --ff-only: what the panel offers is "bring in what the remote has", and that is exactly
+        // a fast-forward. Anything else means the two histories diverged, and the merge commit
+        // git would otherwise write is a decision nobody made in a click — the refusal names the
+        // situation and the user resolves it deliberately.
+        return shell("pull", List.of("git", "pull", "--ff-only"));
+    }
+
+    /**
+     * @see GitService#push()
+     */
+    GitCommandResult push() {
+        GitBranchStatus status = requireOnABranch("push");
+        if (status.upstream() != null) {
+            // No --force, ever, in any spelling: a click must not be able to overwrite a history
+            // somebody else is working on. A rejected push is fetch-then-pull territory, and
+            // git's own message says exactly that.
+            return shell("push", List.of("git", "push"));
+        }
+        // A branch created in this panel tracks nothing yet, so a plain push would fail on every
+        // first push with an instruction to type a command the user has no terminal for. With one
+        // remote there is nothing to choose, so the choice is not worth a dialog; with several
+        // there is, and guessing which one publishes the work is not ours to do.
+        String remote = soleRemote();
+        return shell(
+                "push -u " + remote + " " + status.current(),
+                List.of("git", "push", "--set-upstream", remote, status.current()));
+    }
+
+    /** The one remote this repository has, or a refusal naming what to do about it. */
+    private String soleRemote() {
+        Set<String> remotes = repository.getRemoteNames();
+        if (remotes.isEmpty()) {
+            throw new GitCommandFailedException(
+                    "This repository has no remote to push to. Add one on the host:"
+                            + " git remote add origin <url>");
+        }
+        if (remotes.size() > 1) {
+            throw new GitCommandFailedException(
+                    "The branch tracks nothing and this repository has several remotes ("
+                            + String.join(", ", remotes)
+                            + ") — set the upstream on the host to say which one publishes it:"
+                            + " git push -u <remote> <branch>");
+        }
+        return remotes.iterator().next();
+    }
+
+    /**
+     * The branch state, provided HEAD is on a branch at all.
+     *
+     * <p>A detached HEAD has nothing to pull into and nothing to publish, and git's own wording for
+     * it ("You are not currently on a branch") reaches the user only after the network round trip.
+     * Asked here instead, before anything is spent.
+     */
+    private GitBranchStatus requireOnABranch(String command) {
+        GitBranchStatus status = branches.status();
+        if (status.detached()) {
+            throw new GitCommandFailedException(
+                    "HEAD is not on a branch — cannot " + command + ". Switch to one first.");
+        }
+        if (status.unborn()) {
+            throw new GitCommandFailedException(
+                    "This branch has no commits yet — nothing to " + command);
+        }
+        return status;
     }
 
     // ── Local commands (JGit) ───────────────────────────────────────────────

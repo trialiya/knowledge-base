@@ -106,6 +106,10 @@
     "discardConfirm": "Discard",
     "merging": "Unfinished merge",
     "mergeConflicts": "Merge conflict in {{count}} file(s)",
-    "abortMerge": "Abort the merge"
+    "abortMerge": "Abort the merge",
+    "pull": "Pull changes",
+    "push": "Push to the remote",
+    "pullHint": "Fast-forward only: diverged histories are merged deliberately, not by a click",
+    "nothingToPush": "Nothing to push: no commits of your own"
   }
 }
