@@ -44,12 +44,16 @@ class ProjectSwitchQueryTest {
     private static final String CHAT = "chat-switches";
     private static final String OTHER_CHAT = "chat-other";
 
-    /** Мета так, как её пишет конвертер: с полями-{@code null}, а не без них. */
     private static final String SWITCHED =
-            "{\"runId\":null,\"invocations\":[],\"project\":\"billing\","
-                    + "\"projectSwitchFrom\":\"kb\"}";
+            "{\"invocations\":[],\"project\":\"billing\",\"projectSwitchFrom\":\"kb\"}";
 
-    private static final String NOT_SWITCHED =
+    /** Вопрос без смены проекта: незаполненных полей в мете нет вовсе. */
+    private static final String NO_MARKER = "{\"invocations\":[],\"contextItems\":[]}";
+
+    /**
+     * Он же, записанный с выписанными {@code null}: такие ряды лежат в базе и подстроку содержат.
+     */
+    private static final String NULLS_SPELLED_OUT =
             "{\"runId\":null,\"invocations\":[],\"project\":null,\"projectSwitchFrom\":null}";
 
     @Autowired private JdbcTemplate jdbc;
@@ -70,26 +74,27 @@ class ProjectSwitchQueryTest {
 
     /**
      * Отбор по типу — точный: ответ ассистента маркера не носит никогда, даже когда его мета
-     * содержит ту же подстроку. Отбор по мете — приблизительный: поле сериализуется и пустым,
-     * поэтому вопрос без смены проекта тоже приходит, и отсеивает его уже разбор меты у вызывающего
-     * ({@code ChatHistoryService#earlierProjects}).
+     * содержит ту же подстроку. Отбор по мете — приблизительный: ряд, где поле выписано в {@code
+     * null}, подстроку содержит, и отсеивает его уже разбор меты у вызывающего ({@code
+     * ChatHistoryService#earlierProjects}).
      */
     @Test
     void theTypeFilterIsExactWhereTheMetaFilterOnlyNarrows() {
-        insert(CHAT, 1, "USER", NOT_SWITCHED);
+        insert(CHAT, 1, "USER", NULLS_SPELLED_OUT);
         insert(CHAT, 2, "USER", SWITCHED);
         insert(CHAT, 3, "ASSISTANT", null);
         insert(CHAT, 4, "ASSISTANT", SWITCHED);
         insert(CHAT, 5, "TOOL", SWITCHED);
         insert(CHAT, 6, "USER", null);
+        insert(CHAT, 7, "USER", NO_MARKER);
         insert(OTHER_CHAT, 1, "USER", SWITCHED);
 
         List<ChatMessageEntity> found = repository.findProjectSwitches(CHAT);
 
         assertThat(found)
+                .describedAs("ни чужой чат, ни ответ, ни ряд без меты, ни вопрос без маркера")
                 .extracting(ChatMessageEntity::getPosition)
-                .containsExactly(1L, 2L)
-                .describedAs("ни ряда чужого чата, ни ответа, ни ряда без меты");
+                .containsExactly(1L, 2L);
     }
 
     /**
@@ -109,7 +114,7 @@ class ProjectSwitchQueryTest {
 
     @Test
     void aChatWithNothingToReadComesBackEmpty() {
-        insert(CHAT, 1, "USER", null);
+        insert(CHAT, 1, "USER", NO_MARKER);
         insert(CHAT, 2, "ASSISTANT", SWITCHED);
 
         assertThat(repository.findProjectSwitches(CHAT)).isEmpty();
