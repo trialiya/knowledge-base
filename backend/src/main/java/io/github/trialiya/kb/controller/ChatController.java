@@ -468,12 +468,16 @@ public class ChatController {
         if (!StringUtils.hasText(body.text())) {
             throw new ResponseStatusException(BAD_REQUEST, "Empty message");
         }
-        getChatTopic(conversationId); // 404/403 + проверка владельца
-        final String model =
-                resolveModel(conversationId, chatTopicRepository.findById(conversationId), "");
+        // Не checkChat: у команды нет смысла в ещё не заведённом чате, поэтому здесь строгие
+        // 404/403, а не заведение чата на лету.
+        final ChatTopicEntity topic = getChatTopic(conversationId);
+        final String model = resolveModel(conversationId, Optional.of(topic), "");
         final CompactService.StartedCompact started =
                 compactService.start(
                         conversationId, body.text(), body.instructions(), model, clientMsgId);
+        // Строго после start: 409/422 не сохраняют сообщения, и поднимать за них чат в списке
+        // не за что. Успех же дописал в чат обычную реплику — как и любая, она его освежает.
+        chatTopicRepository.updateUpdatedAt(conversationId, LocalDateTime.now(clock));
         return Map.of("runId", started.runId(), "messageId", started.messageId());
     }
 

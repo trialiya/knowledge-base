@@ -34,6 +34,8 @@ import { parseChatCommand, CHAT_COMMAND } from './chatCommands';
  * @param {Function} p.patchMessages (id, fn) => void
  * @param {Function} p.selectChat    (id, opts) => void
  * @param {Function} p.clearDraft    (id) => void — черновик композера отправлен
+ * @param {Function} p.clearDraftText (id) => void — из черновика ушёл только текст, вложения
+ *                                    остались (команда чату, а не вопрос)
  * @param {Function} p.getStagedFor  (id) => отложенные к сообщению вложения
  * @param {object}   p.modelConfig
  * @param {Array}    p.modelOptions
@@ -50,6 +52,7 @@ export default function useChatRun({
   patchMessages,
   selectChat,
   clearDraft,
+  clearDraftText,
   getStagedFor,
   modelConfig,
   modelOptions,
@@ -304,8 +307,8 @@ export default function useChatRun({
         return;
       }
 
-      // Команда чату, а не вопрос модели: сжатие контекста ничего не отправляет в
-      // историю и своего пузыря пользователя не заводит.
+      // Команда чату, а не вопрос модели: у неё свой эндпоинт и свой жизненный цикл,
+      // хотя в историю она, как и вопрос, попадает (см. compactChat).
       const command = parseChatCommand(text);
       if (command?.name === CHAT_COMMAND.COMPACT) {
         // В ещё не начатом чате сжимать нечего — и заводить его ради команды незачем.
@@ -313,7 +316,9 @@ export default function useChatRun({
           notify(COMPACT_DRAFT_NOTICE);
           return;
         }
-        clearDraft(activeChatId);
+        // Только текст: команда не уносит с собой отложенные вложения — они приложены
+        // к вопросу, который пользователь ещё задаст, и переживают сжатие.
+        clearDraftText(activeChatId);
         await compactChat(activeChatId, text, command.args);
         return;
       }
@@ -385,6 +390,7 @@ export default function useChatRun({
       setChats,
       selectChat,
       clearDraft,
+      clearDraftText,
       getStagedFor,
       resolveModelForSend,
       resolveModeForSend,

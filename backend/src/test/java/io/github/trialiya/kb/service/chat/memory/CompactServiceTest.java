@@ -27,6 +27,8 @@ import io.github.trialiya.kb.service.chat.run.ChatRunService;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -205,8 +207,11 @@ class CompactServiceTest {
     void theCommandIsSavedAndEchoedButExcludedFromTheRound() {
         when(chatRunService.claim(CONV)).thenReturn("run-1");
         final List<PromptRow> oldWindow = turns(1); // позиции 0..2
-        when(chatHistory.promptRows(CONV)).thenReturn(oldWindow);
-        final ChatMessageEntity saved = row(3, MessageType.USER, "/compact фокус").entity();
+        final PromptRow command = row(3, MessageType.USER, "/compact фокус");
+        // Первый вызов — проверка «есть ли что сжимать», до сохранения команды; второй — уже
+        // сам раунд, и там команда в истории уже стоит: раунд обязан отрезать её сам.
+        when(chatHistory.promptRows(CONV)).thenReturn(oldWindow, append(oldWindow, command));
+        final ChatMessageEntity saved = command.entity();
         when(chatHistory.saveUserMessage(CONV, "/compact фокус", List.of(), null))
                 .thenReturn(saved);
 
@@ -240,9 +245,47 @@ class CompactServiceTest {
         // только окно: результат виден в updateSummarized, вызванном фоновым раундом (executor
         // здесь синхронный).
         verify(repository).updateSummarized(CONV, 0L, 3L);
+        // Команда сохранена, но в модель уехало только окно до неё.
+        assertThat(capturedPrompt().getInstructions())
+                .noneMatch(message -> message.getText().contains("/compact фокус"));
+    }
+
+    /**
+     * Исполнитель отказал (очередь переполнена, выключение): {@code COMPACT_STARTED} уже ушёл всем
+     * вкладкам, поэтому его обязан погасить {@code COMPACT_ERROR} — иначе чужие вкладки навсегда
+     * останутся на плашке «сжимаю…», ответ об ошибке видит только своя.
+     */
+    @Test
+    void aRejectedRoundUnblocksEveryTabWithAnErrorEvent() {
+        when(chatRunService.claim(CONV)).thenReturn("run-1");
+        when(chatHistory.promptRows(CONV)).thenReturn(turns(1));
+        when(chatHistory.saveUserMessage(eq(CONV), anyString(), any(), any()))
+                .thenReturn(row(3, MessageType.USER, "/compact").entity());
+
+        assertThatThrownBy(
+                        () ->
+                                service(rejectingExecutor())
+                                        .start(CONV, "/compact", null, null, null))
+                .isInstanceOf(RejectedExecutionException.class);
+
+        verify(events)
+                .publish(eq(CONV), eq(ChatEventType.COMPACT_ERROR), eq("run-1"), isNull(), any());
+        verify(chatRunService).release(CONV, "run-1");
     }
 
     // -------------------------------------------------------------------------
+
+    private static List<PromptRow> append(List<PromptRow> rows, PromptRow extra) {
+        final List<PromptRow> all = new ArrayList<>(rows);
+        all.add(extra);
+        return all;
+    }
+
+    private static Executor rejectingExecutor() {
+        return task -> {
+            throw new RejectedExecutionException("shutting down");
+        };
+    }
 
     private void answerWith(String content) {
         when(chatModel.call(any(Prompt.class)))
@@ -354,6 +397,10 @@ class CompactServiceTest {
     }
 
     private CompactService service() {
+        return service(Runnable::run);
+    }
+
+    private CompactService service(Executor executor) {
         final ChatModelRegistry models = mock(ChatModelRegistry.class);
         when(models.forModel(any())).thenReturn(chatModel);
         return new CompactService(
@@ -364,7 +411,7 @@ class CompactServiceTest {
                 chatRunService,
                 events,
                 new ByteArrayResource("compact".getBytes()),
-                Runnable::run);
+                executor);
     }
 
     /** Транзакции здесь ничего не защищают — тест смотрит только на вызовы репозитория. */

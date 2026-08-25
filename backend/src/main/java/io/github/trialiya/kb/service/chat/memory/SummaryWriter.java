@@ -1,9 +1,11 @@
 package io.github.trialiya.kb.service.chat.memory;
 
+import com.google.common.util.concurrent.Striped;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import java.time.LocalDateTime;
+import java.util.concurrent.locks.Lock;
 import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.messages.MessageType;
@@ -22,6 +24,18 @@ public class SummaryWriter {
 
     private final ChatMessageRepository chatMessageRepository;
     private final TransactionTemplate transactionTemplate;
+
+    /**
+     * Замок на чат, под которым идёт весь раунд сжатия — от чтения окна до записи сводки, а не одна
+     * только запись. Обе операции сначала читают живое окно, а потом объявляют его сжатым; два
+     * раунда, прочитавшие одно и то же окно, запишут поверх него две сводки, и вторая накроет
+     * материал, который первая уже заменила. Занятость чата ({@code ChatRunService}) от этого не
+     * спасает: фоновая суммаризация стартует по RUN_DONE и живёт уже вне занятого слота.
+     *
+     * <p>{@link Striped} — потому что чатов много, а замок нужен на один: полосы дают постоянную
+     * память вместо карты, которую пришлось бы чистить.
+     */
+    private final Striped<Lock> locks = Striped.lock(1024);
 
     public SummaryWriter(
             ChatMessageRepository chatMessageRepository,
@@ -56,6 +70,21 @@ public class SummaryWriter {
             LocalDateTime createdAt,
             String text,
             @Nullable String project) {}
+
+    /**
+     * Выполняет раунд сжатия чата под замком этого чата (см. {@link #locks}). Обёртывать нужно всё
+     * целиком — и чтение окна, и вызов модели, и {@link #write}: замок только вокруг записи развёл
+     * бы транзакции во времени, но не помешал бы обоим раундам прочитать одно окно.
+     */
+    public void inConversation(String conversationId, Runnable round) {
+        final Lock lock = locks.get(conversationId);
+        lock.lock();
+        try {
+            round.run();
+        } finally {
+            lock.unlock();
+        }
+    }
 
     /** Помечает старые сообщения сжатыми и вставляет строку-сводку — атомарно. */
     public void write(SummaryRow row) {

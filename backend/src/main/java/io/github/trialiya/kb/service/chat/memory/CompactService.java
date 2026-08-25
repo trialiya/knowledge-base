@@ -90,15 +90,17 @@ public class CompactService {
     public record StartedCompact(String runId, Long messageId) {}
 
     /**
-     * Занимает чат, сохраняет команду, снимает с чата окно ДО неё и запускает сжатие в фоне —
-     * HTTP-запрос не держим: раунд идёт по всему контексту сразу и живёт десятки секунд, а таймаут
-     * прокси посреди него оставил бы вкладку с висящей блокировкой при работающем сжатии.
+     * Занимает чат, сохраняет команду и запускает сжатие в фоне — HTTP-запрос не держим: раунд идёт
+     * по всему контексту сразу и живёт десятки секунд, а таймаут прокси посреди него оставил бы
+     * вкладку с висящей блокировкой при работающем сжатии.
      *
-     * <p>Команда сохраняется и окно снимается ЗДЕСЬ, синхронно, а не в фоновой задаче: только так
-     * «сжимать нечего» остаётся ответом этого запроса (422, без сохранённого сообщения — команда,
-     * которая ничего не сделала, не должна маячить в истории), а сама команда получает {@code id}
-     * сразу, не дожидаясь фонового раунда. Гонки с дописыванием истории при этом нет — чат уже
-     * занят.
+     * <p>Команда сохраняется ЗДЕСЬ, синхронно, а не в фоновой задаче: только так «сжимать нечего»
+     * остаётся ответом этого запроса (422, без сохранённого сообщения — команда, которая ничего не
+     * сделала, не должна маячить в истории), а сама команда получает {@code id} сразу, не дожидаясь
+     * фонового раунда. Гонки с дописыванием истории при этом нет — чат уже занят.
+     *
+     * <p>Окно здесь читается только ради этой проверки: сжимаемое окно снимает уже сам раунд, под
+     * общим с фоновой суммаризацией замком (см. {@link #run}).
      *
      * @param text сообщение {@code /compact <текст>} целиком — сохраняется как есть
      * @param model id модели, на которой пойдёт раунд, уже разрешённый вызывающим; {@code null} —
@@ -114,16 +116,12 @@ public class CompactService {
             @Nullable String model,
             @Nullable String clientMsgId) {
         final String runId = chatRunService.claim(conversationId);
-        final List<PromptRow> rows;
         final ChatMessageEntity commandRow;
         try {
             // Оборванный прошлый прогон мог оставить в хвосте assistant.tool_calls без TOOL-ответа
             // — такой диалог модель отвергает целиком, а здесь он уехал бы ей весь.
             chatHistory.repairDanglingToolCalls(conversationId);
-            // Окно СНИМАЕТСЯ до сохранения команды: сама команда — не материал для сжатия, а сигнал
-            // к нему, и попади она в rows, раунд принял бы собственный вызов за часть разговора.
-            rows = chatHistory.promptRows(conversationId);
-            if (nothingToCompact(rows)) {
+            if (nothingToCompact(chatHistory.promptRows(conversationId))) {
                 throw new ResponseStatusException(
                         HttpStatus.UNPROCESSABLE_CONTENT, "Nothing to compact");
             }
@@ -148,9 +146,13 @@ public class CompactService {
                         null));
         events.publish(conversationId, COMPACT_STARTED, runId, null, null);
         try {
-            executor.execute(
-                    () -> run(conversationId, runId, rows, commandRow, instructions, model));
+            executor.execute(() -> run(conversationId, runId, commandRow, instructions, model));
         } catch (RuntimeException e) {
+            // COMPACT_STARTED уже ушёл всем вкладкам, и своя — та, что получит здесь ошибку —
+            // уже под блокировкой. Снять её ответом на этот запрос нельзя: остальные вкладки
+            // остались бы на плашке «сжимаю…» навсегда. Значит, гасим тем же событием, каким
+            // гасит упавший раунд.
+            failed(conversationId, runId, e);
             chatRunService.release(conversationId, runId);
             throw e;
         }
@@ -165,28 +167,60 @@ public class CompactService {
         return rows.stream().filter(row -> !row.entity().isSummary()).findAny().isEmpty();
     }
 
+    /**
+     * Фоновая обёртка раунда: замок, окно, сжатие, событие исхода, освобождение чата.
+     *
+     * <p>Замок общий с фоновой суммаризацией ({@link SummaryWriter#inConversation}) и обязан
+     * охватывать чтение окна, а не только запись сводки. Занятость чата тут не помогает: фоновый
+     * раунд стартует по RUN_DONE, вне занятого слота, и без общего замка успел бы прочитать то же
+     * окно и записать вторую сводку поверх материала, который эта уже заменила.
+     *
+     * <p>Поэтому окно снимается ЗДЕСЬ, под замком, а не переносится из {@link #start}: та читала
+     * его только ради ответа «сжимать нечего». Из окна выбрасывается всё от позиции команды и
+     * дальше — сама команда не материал для сжатия, а сигнал к нему, и попади она в окно, раунд
+     * принял бы собственный вызов за часть разговора.
+     */
     private void run(
             String conversationId,
             String runId,
-            List<PromptRow> rows,
             ChatMessageEntity commandRow,
             @Nullable String instructions,
             @Nullable String model) {
         try {
-            final CompactPayload payload =
-                    compact(conversationId, rows, commandRow, instructions, model);
-            events.publish(conversationId, COMPACT_DONE, runId, null, payload);
-        } catch (Exception e) {
-            log.error("[{}] Compaction failed: {}", conversationId, e.getMessage(), e);
-            events.publish(
+            summaryWriter.inConversation(
                     conversationId,
-                    COMPACT_ERROR,
-                    runId,
-                    null,
-                    Map.of("message", String.valueOf(e.getMessage())));
+                    () -> {
+                        final List<PromptRow> rows =
+                                chatHistory.promptRows(conversationId).stream()
+                                        .filter(
+                                                row ->
+                                                        row.entity().getPosition()
+                                                                < commandRow.getPosition())
+                                        .toList();
+                        if (nothingToCompact(rows)) {
+                            // Пока команда ждала своей очереди, окно сжал кто-то другой.
+                            throw new IllegalStateException("Nothing left to compact");
+                        }
+                        final CompactPayload payload =
+                                compact(conversationId, rows, commandRow, instructions, model);
+                        events.publish(conversationId, COMPACT_DONE, runId, null, payload);
+                    });
+        } catch (Exception e) {
+            failed(conversationId, runId, e);
         } finally {
             chatRunService.release(conversationId, runId);
         }
+    }
+
+    /** Сжатие не состоялось: пишем в лог и снимаем блокировку со всех вкладок разом. */
+    private void failed(String conversationId, String runId, Exception e) {
+        log.error("[{}] Compaction failed: {}", conversationId, e.getMessage(), e);
+        events.publish(
+                conversationId,
+                COMPACT_ERROR,
+                runId,
+                null,
+                Map.of("message", String.valueOf(e.getMessage())));
     }
 
     /**

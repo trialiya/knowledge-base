@@ -2,7 +2,6 @@ package io.github.trialiya.kb.service.chat.memory;
 
 import static io.github.trialiya.kb.utils.ChatUtils.context;
 
-import com.google.common.util.concurrent.Striped;
 import io.github.trialiya.kb.config.model.SummarizeProperties;
 import io.github.trialiya.kb.functions.MessageLookupFunction;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
@@ -15,7 +14,6 @@ import jakarta.annotation.Nonnull;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.locks.Lock;
 import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
@@ -52,8 +50,6 @@ public class SummarizeService implements DisposableBean {
     private final SummaryWriter summaryWriter;
     private final SummarizeProperties summarizeProperties;
 
-    private final Striped<Lock> locks = Striped.lock(1024);
-
     public SummarizeService(
             OpenAiChatModel openAiChatModel,
             ChatMessageRepository chatMessageRepository,
@@ -82,18 +78,22 @@ public class SummarizeService implements DisposableBean {
 
     public void trySummarize(@Nonnull final String conversationId) {
         executorService.submit(
-                () -> {
-                    final Lock lock = locks.get(conversationId);
-                    lock.lock();
-                    try {
-                        doSummarize(conversationId);
-                    } catch (Exception e) {
-                        log.error(
-                                "[{}] Summarization failed: {}", conversationId, e.getMessage(), e);
-                    } finally {
-                        lock.unlock();
-                    }
-                });
+                () ->
+                        // Замок держит SummaryWriter — он общий с /compact, который сжимает тот же
+                        // чат тем же способом и без общего замка успел бы прочитать то же окно.
+                        summaryWriter.inConversation(
+                                conversationId,
+                                () -> {
+                                    try {
+                                        doSummarize(conversationId);
+                                    } catch (Exception e) {
+                                        log.error(
+                                                "[{}] Summarization failed: {}",
+                                                conversationId,
+                                                e.getMessage(),
+                                                e);
+                                    }
+                                }));
     }
 
     public void doSummarize(@Nonnull final String conversationId) {

@@ -23,6 +23,24 @@ describe('useChatDrafts', () => {
     expect(result.current.getStagedFor('c1')).toEqual([]);
   });
 
+  // Команда чату (`/compact`) ничего не отправляет: приложенное к ещё не заданному вопросу
+  // должно этого вопроса дождаться, а не уехать вместе с командой.
+  it('clearDraftText keeps the staged items, clearDraft drops them', () => {
+    const { result } = renderHook(() => useChatDrafts());
+
+    act(() => {
+      result.current.handleTextChange('c1', '/compact сожми');
+      result.current.stageContextItem('c1', ATTACHMENT);
+    });
+
+    act(() => result.current.clearDraftText('c1'));
+    expect(result.current.getDraftFor('c1')).toBe('');
+    expect(result.current.getStagedFor('c1')).toEqual([ATTACHMENT]);
+
+    act(() => result.current.clearDraft('c1'));
+    expect(result.current.getStagedFor('c1')).toEqual([]);
+  });
+
   // Чат «new» получает настоящий id, когда файл приложили до первого сообщения:
   // набранный текст и отложенное должны переехать, иначе поле ввода очистится.
   it('moves both the text and the staged items onto the new chat id', () => {
