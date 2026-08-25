@@ -35,7 +35,9 @@ spotless {
     }
 }
 
-// Фронтовые тесты можно отключить:
+// Фронтовые тесты — часть верификации (`check`), а не сборки артефакта: `yarnBuild`
+// и всё, что тянет его (`copyFrontend`, `:backend:bootJar`), собирают фронт без vitest.
+// Тесты можно отключить и в `check`:
 //   ./gradlew build -PskipFrontendTests
 // либо точечно исключить задачу:
 //   ./gradlew build -x yarnTest
@@ -76,10 +78,6 @@ tasks.register('yarnLint', YarnTask) {
 
 tasks.register('yarnBuild', YarnTask) {
     dependsOn('yarnInstall')
-    // Тесты гейтят сборкой артефакта (если не отключены флагом).
-    if (runFrontendTests) {
-        dependsOn('yarnTest')
-    }
     args = ['run', 'build']
 }
 

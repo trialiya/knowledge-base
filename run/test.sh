@@ -199,9 +199,9 @@ run_format() { gradle_run spotlessCheck; }
 run_format_apply() { gradle_run spotlessApply; }
 run_build()  { gradle_run build; }
 run_clean()  { gradle_run clean; }
-# Frontend tests are skipped on purpose: the JAR is wanted for looking at a
-# running UI, and './test.sh front' covers the tests.
-run_jar()    { gradle_run :backend:bootJar -x :frontend:yarnTest; }
+# bootJar bundles the frontend without running vitest — the tests live on
+# ':frontend:check', which './test.sh front' covers.
+run_jar()    { gradle_run :backend:bootJar; }
 
 run_smoke() {
   # No bootJar here — playwright-smoke.js invokes './test.sh jar' itself, so a
