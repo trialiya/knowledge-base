@@ -451,23 +451,30 @@ public class ChatController {
      * заявка, а исход приезжает событиями {@code COMPACT_DONE}/{@code COMPACT_ERROR} (см. {@link
      * #events}). Пока он идёт, чат занят так же, как на генерации: вопрос в него получит 409.
      *
-     * <p>Самой команды в истории не появляется — на её место в запросе к модели встаёт инструкция
-     * сжатия (см. {@link CompactService}). Модель — та же, на которой работает чат: окно, которое
-     * она несла до сих пор, ей же и предстоит прочитать целиком.
+     * <p>Команда сохраняется обычным сообщением — как и любая реплика, она остаётся в истории, — но
+     * в модель, которая сжимает контекст, не попадает: там вместо неё инструкция сжатия (см. {@link
+     * CompactService}). Модель — та же, на которой работает чат: окно, которое она несла до сих
+     * пор, ей же и предстоит прочитать целиком.
      *
-     * @param body {@link CompactRequest} — хвост команды; пустое тело означает сжатие без фокуса
+     * @param body {@link CompactRequest} — сообщение целиком; {@code text} обязателен, {@code
+     *     instructions} — необязательный хвост-фокус
+     * @param clientMsgId id вкладки-отправителя, тот же смысл, что у {@code POST /runs}
      */
     @PostMapping("/{conversationId}/compact")
     public Map<String, Object> compact(
             @PathVariable final String conversationId,
-            @RequestBody(required = false) final CompactRequest body) {
+            @RequestParam(name = "clientMsgId", required = false) final String clientMsgId,
+            @RequestBody final CompactRequest body) {
+        if (!StringUtils.hasText(body.text())) {
+            throw new ResponseStatusException(BAD_REQUEST, "Empty message");
+        }
         getChatTopic(conversationId); // 404/403 + проверка владельца
         final String model =
                 resolveModel(conversationId, chatTopicRepository.findById(conversationId), "");
-        final String runId =
+        final CompactService.StartedCompact started =
                 compactService.start(
-                        conversationId, body == null ? null : body.instructions(), model);
-        return Map.of("runId", runId);
+                        conversationId, body.text(), body.instructions(), model, clientMsgId);
+        return Map.of("runId", started.runId(), "messageId", started.messageId());
     }
 
     /**

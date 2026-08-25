@@ -3,9 +3,11 @@ package io.github.trialiya.kb.service.chat.memory;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.COMPACT_DONE;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.COMPACT_ERROR;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.COMPACT_STARTED;
+import static io.github.trialiya.kb.model.chat.dto.ChatEventType.USER_MESSAGE;
 
 import io.github.trialiya.kb.config.ChatModelRegistry;
 import io.github.trialiya.kb.model.chat.dto.CompactPayload;
+import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
@@ -44,9 +46,13 @@ import org.springframework.web.server.ResponseStatusException;
  * адвайзеров памяти: клиент из {@code ChatClientRegistry} подмешал бы то же окно вторым слоем, а
  * ответ записал бы в историю обычной репликой ассистента.
  *
- * <p>Команда в историю не попадает: сохранённой она стала бы первой строкой уже сжатого чата и
- * поехала бы модели в каждом следующем запросе. Вместо неё в конец запроса встаёт инструкция,
- * собранная здесь, — с хвостом команды в роли фокуса и справкой о самом чате.
+ * <p><b>Команда остаётся в истории, но не участвует в сжатии.</b> Сообщение {@code /compact
+ * <текст>} сохраняется обычной USER-строкой — так же видимой, как любая другая реплика, — но само
+ * сжатие получает окно ровно таким, каким оно было ДО этого сообщения: команда не материал для
+ * сжатия, а управляющий сигнал. Модели вместо неё в конец запроса уходит собранная здесь инструкция
+ * — с хвостом команды в роли фокуса и справкой о самом чате. По завершении раунда позиция самой
+ * команды попадает в тот же размеченный {@code summarized}-диапазон, что и сжатое окно: дальше она
+ * видна пользователю в истории, но перестаёт ехать модели — как и всё, что раунд заменил сводкой.
  */
 @Slf4j
 @Service
@@ -80,44 +86,75 @@ public class CompactService {
         this.executor = executor;
     }
 
+    /** {@code runId} занятой операции и id сохранённой команды — параллель {@code StartedRun}. */
+    public record StartedCompact(String runId, Long messageId) {}
+
     /**
-     * Занимает чат, снимает с него окно и запускает сжатие в фоне — HTTP-запрос не держим: раунд
-     * идёт по всему контексту сразу и живёт десятки секунд, а таймаут прокси посреди него оставил
-     * бы вкладку с висящей блокировкой при работающем сжатии.
+     * Занимает чат, сохраняет команду, снимает с чата окно ДО неё и запускает сжатие в фоне —
+     * HTTP-запрос не держим: раунд идёт по всему контексту сразу и живёт десятки секунд, а таймаут
+     * прокси посреди него оставил бы вкладку с висящей блокировкой при работающем сжатии.
      *
-     * <p>Окно снимается ЗДЕСЬ, синхронно, а не в фоновой задаче: только так «сжимать нечего»
-     * остаётся ответом этого запроса (422), а не событием, которое некому показать. Гонки с
-     * дописыванием истории при этом нет — чат уже занят.
+     * <p>Команда сохраняется и окно снимается ЗДЕСЬ, синхронно, а не в фоновой задаче: только так
+     * «сжимать нечего» остаётся ответом этого запроса (422, без сохранённого сообщения — команда,
+     * которая ничего не сделала, не должна маячить в истории), а сама команда получает {@code id}
+     * сразу, не дожидаясь фонового раунда. Гонки с дописыванием истории при этом нет — чат уже
+     * занят.
      *
+     * @param text сообщение {@code /compact <текст>} целиком — сохраняется как есть
      * @param model id модели, на которой пойдёт раунд, уже разрешённый вызывающим; {@code null} —
      *     модель из конфигурации
-     * @return runId занятой операции — им же вкладки помечают чат занятым
+     * @param clientMsgId id вкладки-отправителя — тот же смысл, что и у {@code POST /runs}: своё
+     *     эхо {@code USER_MESSAGE} вкладка гасит по нему, не дожидаясь второго пузыря
+     * @return runId занятой операции и id сохранённой команды
      */
-    public String start(
-            String conversationId, @Nullable String instructions, @Nullable String model) {
+    public StartedCompact start(
+            String conversationId,
+            String text,
+            @Nullable String instructions,
+            @Nullable String model,
+            @Nullable String clientMsgId) {
         final String runId = chatRunService.claim(conversationId);
         final List<PromptRow> rows;
+        final ChatMessageEntity commandRow;
         try {
             // Оборванный прошлый прогон мог оставить в хвосте assistant.tool_calls без TOOL-ответа
             // — такой диалог модель отвергает целиком, а здесь он уехал бы ей весь.
             chatHistory.repairDanglingToolCalls(conversationId);
+            // Окно СНИМАЕТСЯ до сохранения команды: сама команда — не материал для сжатия, а сигнал
+            // к нему, и попади она в rows, раунд принял бы собственный вызов за часть разговора.
             rows = chatHistory.promptRows(conversationId);
             if (nothingToCompact(rows)) {
                 throw new ResponseStatusException(
                         HttpStatus.UNPROCESSABLE_CONTENT, "Nothing to compact");
             }
+            commandRow = chatHistory.saveUserMessage(conversationId, text, List.of(), null);
         } catch (RuntimeException e) {
             chatRunService.release(conversationId, runId);
             throw e;
         }
+        // Эхо для остальных вкладок — тот же payload, что и у обычного вопроса, поэтому фронту не
+        // нужен отдельный обработчик: команда встаёт в ленту точно так же, как любое сообщение.
+        events.publish(
+                conversationId,
+                USER_MESSAGE,
+                runId,
+                clientMsgId,
+                new UserMessagePayload(
+                        commandRow.getId(),
+                        commandRow.getContent(),
+                        commandRow.getCreatedAt(),
+                        commandRow.getContextItems(),
+                        null,
+                        null));
         events.publish(conversationId, COMPACT_STARTED, runId, null, null);
         try {
-            executor.execute(() -> run(conversationId, runId, rows, instructions, model));
+            executor.execute(
+                    () -> run(conversationId, runId, rows, commandRow, instructions, model));
         } catch (RuntimeException e) {
             chatRunService.release(conversationId, runId);
             throw e;
         }
-        return runId;
+        return new StartedCompact(runId, commandRow.getId());
     }
 
     /**
@@ -132,10 +169,12 @@ public class CompactService {
             String conversationId,
             String runId,
             List<PromptRow> rows,
+            ChatMessageEntity commandRow,
             @Nullable String instructions,
             @Nullable String model) {
         try {
-            final CompactPayload payload = compact(conversationId, rows, instructions, model);
+            final CompactPayload payload =
+                    compact(conversationId, rows, commandRow, instructions, model);
             events.publish(conversationId, COMPACT_DONE, runId, null, payload);
         } catch (Exception e) {
             log.error("[{}] Compaction failed: {}", conversationId, e.getMessage(), e);
@@ -153,20 +192,28 @@ public class CompactService {
     /**
      * Сам раунд: окно → модель → строка-сводка вместо всего окна. Публичный, чтобы его можно было
      * позвать без фонового пуска и без событий.
+     *
+     * @param rows окно, которое уходит модели — БЕЗ {@code commandRow}: команда не часть сжимаемого
+     *     разговора
+     * @param commandRow уже сохранённая команда {@code /compact}; в модель не попадает, но её
+     *     позиция замыкает размеченный {@code summarized}-диапазон и становится позицией сводки —
+     *     после раунда команда так же не едет модели, как и всё, что она сжала
      */
     public CompactPayload compact(
             String conversationId,
             List<PromptRow> rows,
+            ChatMessageEntity commandRow,
             @Nullable String instructions,
             @Nullable String model) {
         final List<Message> history = rows.stream().map(PromptRow::toMessage).toList();
         final long startPosition = rows.getFirst().entity().getPosition();
-        final long endPosition = rows.getLast().entity().getPosition();
+        final long oldEndPosition = rows.getLast().entity().getPosition();
         log.info(
-                "[{}] Compacting positions {}-{}: {} messages, ~{} chars, model {}",
+                "[{}] Compacting positions {}-{} (command at {}): {} messages, ~{} chars, model {}",
                 conversationId,
                 startPosition,
-                endPosition,
+                oldEndPosition,
+                commandRow.getPosition(),
                 rows.size(),
                 rows.stream().mapToInt(row -> row.text().length()).sum(),
                 model == null ? "default" : model);
@@ -183,26 +230,29 @@ public class CompactService {
         }
         final @Nullable String content = spec.call().content();
         if (content == null || content.isBlank()) {
-            // Разметить окно сжатым, не сохранив сводку, значит стереть чат целиком.
+            // Разметить окно сжатым, не сохранив сводку, значит стереть чат целиком. Сама команда
+            // при этом уже сохранена и никуда не денется — останется в истории неотвеченной, как
+            // любой упавший вопрос.
             throw new IllegalStateException("The model returned an empty compaction");
         }
 
-        final ChatMessageEntity last = rows.getLast().entity();
         summaryWriter.write(
                 new SummaryWriter.SummaryRow(
                         conversationId,
                         startPosition,
-                        endPosition,
-                        last.getPosition(),
-                        last.getCreatedAt(),
+                        // Диапазон захватывает и саму команду — не только сжатое окно, — поэтому
+                        // дальше она видна в истории, но модели больше не едет.
+                        commandRow.getPosition(),
+                        commandRow.getPosition(),
+                        commandRow.getCreatedAt(),
                         summaryText(content),
                         SummaryWriter.lastProject(rows.stream().map(PromptRow::entity))));
         log.info(
                 "[{}] Compaction finished: {} messages -> {} chars",
                 conversationId,
-                rows.size(),
+                rows.size() + 1,
                 content.length());
-        return new CompactPayload(rows.size(), content.length());
+        return new CompactPayload(rows.size() + 1, content.length());
     }
 
     /**

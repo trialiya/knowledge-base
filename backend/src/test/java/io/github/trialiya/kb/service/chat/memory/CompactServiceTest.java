@@ -5,13 +5,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.config.ChatModelRegistry;
+import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.CompactPayload;
+import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.tool.ToolData;
@@ -42,8 +46,9 @@ import org.springframework.transaction.support.SimpleTransactionStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Команда {@code /compact}: что модель получает историю как есть, что сжатие накрывает всё окно
- * целиком и что пустой ответ не стирает чат.
+ * Команда {@code /compact}: что модель получает историю как есть, что сама команда остаётся видна в
+ * истории, но не участвует в сжатии, что сжатие накрывает всё окно целиком (плюс саму команду) и
+ * что пустой ответ не стирает чат.
  *
  * <p>Проверка «как есть» здесь главная: суммаризатор пересказывает окно текстом и режет результаты
  * инструментов до гистов, а сжатие обязано отдать те же строки, которыми чат живёт, — с
@@ -56,6 +61,7 @@ class CompactServiceTest {
     private ChatMessageRepository repository;
     private ChatHistoryService chatHistory;
     private ChatRunService chatRunService;
+    private ChatEventService events;
     private OpenAiChatModel chatModel;
 
     @BeforeEach
@@ -63,35 +69,38 @@ class CompactServiceTest {
         repository = mock(ChatMessageRepository.class);
         chatHistory = mock(ChatHistoryService.class);
         chatRunService = mock(ChatRunService.class);
+        events = mock(ChatEventService.class);
         chatModel = mock(OpenAiChatModel.class);
         when(chatModel.getOptions()).thenReturn(OpenAiChatOptions.builder().build());
         answerWith("## Overview\ncompacted");
     }
 
     /**
-     * Раунд идёт по всему живому окну: разметка накрывает его от первой позиции до последней, а
-     * сводка встаёт на позицию последнего сжатого сообщения — живого хвоста после сжатия не
-     * остаётся, в отличие от фоновой суммаризации.
+     * Раунд идёт по всему живому окну плюс саму команду: разметка накрывает диапазон от первой
+     * позиции окна до позиции команды, а сводка встаёт на её позицию — живого хвоста после сжатия
+     * не остаётся, в отличие от фоновой суммаризации.
      */
     @Test
-    void theWholeLiveWindowIsCompactedIntoOneSummaryRow() {
-        final CompactPayload payload = service().compact(CONV, turns(3), null, null);
+    void theWholeLiveWindowPlusTheCommandIsCompactedIntoOneSummaryRow() {
+        final CompactPayload payload =
+                service().compact(CONV, turns(3), commandRow(9).entity(), null, null);
 
-        verify(repository).updateSummarized(CONV, 0L, 8L);
+        verify(repository).updateSummarized(CONV, 0L, 9L);
         final ArgumentCaptor<ChatMessageEntity> saved =
                 ArgumentCaptor.forClass(ChatMessageEntity.class);
         verify(repository).save(saved.capture());
         assertThat(saved.getValue().isSummary()).isTrue();
         assertThat(saved.getValue().getType()).isEqualTo(MessageType.ASSISTANT);
-        assertThat(saved.getValue().getPosition()).isEqualTo(8L);
+        assertThat(saved.getValue().getPosition()).isEqualTo(9L);
         assertThat(saved.getValue().getContent()).contains("## Overview\ncompacted");
-        assertThat(payload.messages()).isEqualTo(9);
+        // 9 живых сообщений окна + сама команда — ровно то, что перестало ехать модели.
+        assertThat(payload.messages()).isEqualTo(10);
     }
 
     /**
      * История уезжает модели теми же сообщениями, что и в обычном запросе чата: протокольные
-     * tool-данные внутри, ничего не пересказано. Последним идёт инструкция сжатия — то, что стоит
-     * на месте не сохранённой команды пользователя.
+     * tool-данные внутри, ничего не пересказано. Последним идёт инструкция сжатия — команда сама в
+     * это окно не входит.
      */
     @Test
     void theHistoryReachesTheModelAsMessagesWithTheirToolData() {
@@ -99,10 +108,10 @@ class CompactServiceTest {
         rows.set(1, withToolCall(1, "grepContent", "{\"query\":\"summarize\"}"));
         rows.set(2, withToolResponse(2, "grepContent", "SummarizeService.java:42 — the whole hit"));
 
-        service().compact(CONV, rows, null, null);
+        service().compact(CONV, rows, commandRow(3).entity(), null, null);
 
         final List<Message> sent = capturedPrompt().getInstructions();
-        // system + 3 строки окна + инструкция.
+        // system + 3 строки окна + инструкция; команда сама не входит.
         assertThat(sent).hasSize(5);
         assertThat(((AssistantMessage) sent.get(2)).getToolCalls().getFirst())
                 .satisfies(
@@ -123,7 +132,13 @@ class CompactServiceTest {
      */
     @Test
     void theCommandTailBecomesTheFocusOfTheRound() {
-        service().compact(CONV, turns(1), "разбор миграций, остальное коротко", null);
+        service()
+                .compact(
+                        CONV,
+                        turns(1),
+                        commandRow(3).entity(),
+                        "разбор миграций, остальное коротко",
+                        null);
 
         assertThat(capturedPrompt().getInstructions().getLast().getText())
                 .contains("<focus>")
@@ -136,7 +151,7 @@ class CompactServiceTest {
         final List<PromptRow> rows = new ArrayList<>(turns(2));
         rows.set(3, switchRow(3, "kb", "billing"));
 
-        service().compact(CONV, rows, null, null);
+        service().compact(CONV, rows, commandRow(6).entity(), null, null);
 
         final ArgumentCaptor<ChatMessageEntity> saved =
                 ArgumentCaptor.forClass(ChatMessageEntity.class);
@@ -147,12 +162,15 @@ class CompactServiceTest {
 
     /**
      * Пустой ответ модели — история обязана остаться нетронутой: разметка без сводки стирает чат.
+     * Сама команда при этом уже сохранена отдельно (см. {@link #start} — здесь только сам раунд) и
+     * этот метод её не трогает.
      */
     @Test
     void anEmptyModelAnswerLeavesTheHistoryUntouched() {
         answerWith("   ");
 
-        assertThatThrownBy(() -> service().compact(CONV, turns(2), null, null))
+        assertThatThrownBy(
+                        () -> service().compact(CONV, turns(2), commandRow(6).entity(), null, null))
                 .isInstanceOf(IllegalStateException.class);
 
         verify(repository, never()).updateSummarized(anyString(), anyLong(), anyLong());
@@ -160,19 +178,68 @@ class CompactServiceTest {
     }
 
     /**
-     * Сжимать нечего, когда живого контекста нет или он уже сводка: 422 (а не событие), и заявка на
-     * чат снимается — иначе чат остался бы занятым навсегда.
+     * Сжимать нечего, когда живого контекста нет или он уже сводка: 422 (а не событие), заявка на
+     * чат снимается, а команда не сохраняется — иначе в истории осталась бы реплика, которая ничего
+     * не сделала.
      */
     @Test
     void aChatWithNothingButASummaryIsRefusedAndTheClaimIsReleased() {
         when(chatRunService.claim(CONV)).thenReturn("run-1");
         when(chatHistory.promptRows(CONV)).thenReturn(List.of(summaryRow(0)));
 
-        assertThatThrownBy(() -> service().start(CONV, null, null))
+        assertThatThrownBy(() -> service().start(CONV, "/compact", null, null, null))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("Nothing to compact");
 
         verify(chatRunService).release(CONV, "run-1");
+        verify(chatHistory, never()).saveUserMessage(anyString(), anyString(), any(), any());
+    }
+
+    /**
+     * {@code start}: команда сохраняется обычным USER-сообщением и уходит эхом {@code USER_MESSAGE}
+     * — так же, как любой вопрос, — но окно, снятое ДО её сохранения, в раунд не попадает: команда
+     * не материал для сжатия. По завершении раунда её позиция входит в размеченный диапазон, и она
+     * перестаёт ехать модели дальше, оставаясь видимой в истории.
+     */
+    @Test
+    void theCommandIsSavedAndEchoedButExcludedFromTheRound() {
+        when(chatRunService.claim(CONV)).thenReturn("run-1");
+        final List<PromptRow> oldWindow = turns(1); // позиции 0..2
+        when(chatHistory.promptRows(CONV)).thenReturn(oldWindow);
+        final ChatMessageEntity saved = row(3, MessageType.USER, "/compact фокус").entity();
+        when(chatHistory.saveUserMessage(CONV, "/compact фокус", List.of(), null))
+                .thenReturn(saved);
+
+        final CompactService.StartedCompact started =
+                service().start(CONV, "/compact фокус", "фокус", null, "client-1");
+
+        assertThat(started.runId()).isEqualTo("run-1");
+        assertThat(started.messageId()).isEqualTo(saved.getId());
+
+        final ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(events)
+                .publish(
+                        eq(CONV),
+                        eq(ChatEventType.USER_MESSAGE),
+                        eq("run-1"),
+                        eq("client-1"),
+                        payload.capture());
+        final UserMessagePayload echoed = (UserMessagePayload) payload.getValue();
+        assertThat(echoed.id()).isEqualTo(saved.getId());
+        assertThat(echoed.text()).isEqualTo("/compact фокус");
+
+        verify(events)
+                .publish(
+                        eq(CONV),
+                        eq(ChatEventType.COMPACT_STARTED),
+                        eq("run-1"),
+                        isNull(),
+                        isNull());
+
+        // Диапазон, который перестал ехать модели, — окно (0..2) ПЛЮС сама команда (3), а не
+        // только окно: результат виден в updateSummarized, вызванном фоновым раундом (executor
+        // здесь синхронный).
+        verify(repository).updateSummarized(CONV, 0L, 3L);
     }
 
     // -------------------------------------------------------------------------
@@ -266,6 +333,11 @@ class CompactServiceTest {
         return new PromptRow(entity, "earlier summary");
     }
 
+    /** Сама команда {@code /compact} — обычная USER-строка, никогда не входящая в {@code rows}. */
+    private static PromptRow commandRow(long position) {
+        return row(position, MessageType.USER, "/compact");
+    }
+
     private static PromptRow row(long position, MessageType type, String content) {
         final ChatMessageEntity entity =
                 new ChatMessageEntity(
@@ -290,7 +362,7 @@ class CompactServiceTest {
                 mock(ChatTopicRepository.class),
                 new SummaryWriter(repository, transactionManager()),
                 chatRunService,
-                mock(ChatEventService.class),
+                events,
                 new ByteArrayResource("compact".getBytes()),
                 Runnable::run);
     }

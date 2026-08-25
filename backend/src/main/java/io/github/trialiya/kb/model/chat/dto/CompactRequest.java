@@ -3,10 +3,12 @@ package io.github.trialiya.kb.model.chat.dto;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Тело {@code POST /compact}: хвост команды {@code /compact <текст>}.
+ * Тело {@code POST /compact}: команда {@code /compact <текст>} целиком.
  *
- * @param instructions на чём сосредоточиться при сжатии; {@code null} или пустая строка — обычное
- *     сжатие без фокуса. В историю чата не попадает: команда — это управление, а не реплика диалога
- *     (см. {@code CompactService})
+ * @param text сообщение, как оно набрано (с самим {@code /compact}) — сохраняется обычным
+ *     USER-сообщением, чтобы команда осталась видна в истории, как и любая другая реплика
+ * @param instructions хвост команды — на чём сосредоточиться при сжатии; {@code null} или пустая
+ *     строка — обычное сжатие без фокуса. В окно, которое уходит модели на сжатие, не входит: это
+ *     инструкция сжатию, а не материал для него (см. {@code CompactService})
  */
-public record CompactRequest(@Nullable String instructions) {}
+public record CompactRequest(String text, @Nullable String instructions) {}

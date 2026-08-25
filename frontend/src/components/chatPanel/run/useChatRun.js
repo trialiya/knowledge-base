@@ -230,33 +230,66 @@ export default function useChatRun({
     [hasActiveRun, patchChat, patchMessages, notify],
   );
 
-  // Сжатие контекста по команде `/compact`. Своего пузыря здесь нет и сообщение не
-  // сохраняется — ход разговора команда не делает, а плашку «сжимаю…» заводит событие
-  // COMPACT_STARTED, одинаково во всех вкладках. Ввод блокируем сразу, как на отправке:
-  // раунд идёт по всему окну, и вопрос поверх него всё равно получил бы 409.
+  // Сжатие контекста по команде `/compact`. Сообщение сохраняется на бэке как обычная
+  // реплика (остаётся видно в истории, как и любой вопрос — только не участвует в самом
+  // сжатии), поэтому здесь тот же оптимистичный пузырь, что и у sendMessage: клиент не
+  // ждёт эха, чтобы показать, что команда отправлена. Плашку «сжимаю…» заводит отдельное
+  // событие COMPACT_STARTED, одинаково во всех вкладках.
   const compactChat = useCallback(
-    async (conversationId, instructions) => {
+    async (conversationId, text, instructions) => {
+      const clientMsgId = generateUUID();
+      localClientIdsRef.current.add(clientMsgId);
+      patchChat(conversationId, (c) => ({
+        messages: [
+          ...(c.messages || []),
+          { mid: nextMessageId(), text, sender: SENDER.USER, clientMsgId, timestamp: new Date().toISOString() },
+        ],
+      }));
       setPendingRunChatId(conversationId);
       try {
-        const res = await chatApi.compact(conversationId, instructions);
-        if (res?.runId) patchChat(conversationId, () => ({ runId: res.runId, compacting: true }));
+        const res = await chatApi.compact(conversationId, text, instructions, clientMsgId);
+        const runId = res?.runId;
+        // id сохранённой команды — тот же приём, что и у обычного вопроса (см. runConversation).
+        const dbId = Number(res?.messageId);
+        const patchedId = Number.isFinite(dbId) ? dbId : null;
+        if (runId) {
+          patchChat(conversationId, (c) => ({
+            runId,
+            compacting: true,
+            messages: patchedId
+              ? (c.messages || []).map((m) => (m.clientMsgId === clientMsgId ? { ...m, dbId: patchedId } : m))
+              : c.messages,
+          }));
+        }
       } catch (error) {
+        // 409/422 проверяются на бэке ДО сохранения команды — она точно не записалась,
+        // откатываем оптимистичный пузырь.
+        const removeBubble = () => {
+          localClientIdsRef.current.delete(clientMsgId);
+          patchMessages(conversationId, (msgs) => msgs.filter((m) => m.clientMsgId !== clientMsgId));
+        };
         if (error?.status === 409) {
+          removeBubble();
           notify(RUN_BUSY_NOTICE);
           return;
         }
         // 422 — сжимать нечего: живой контекст уже состоит из одной сводки.
         if (error?.status === 422) {
+          removeBubble();
           notify(COMPACT_EMPTY_NOTICE);
           return;
         }
         console.error('Failed to compact:', error);
+        // Запрос мог не удаться уже ПОСЛЕ того, как бэк сохранил команду и начал раунд
+        // (обрыв ответа) — тогда откатывать пузырь нельзя, сжатие всё равно идёт.
+        if (await hasActiveRun(conversationId)) return;
+        removeBubble();
         notify(COMPACT_START_ERROR_NOTICE);
       } finally {
         setPendingRunChatId((cur) => (cur === conversationId ? null : cur));
       }
     },
-    [patchChat, notify],
+    [patchChat, patchMessages, hasActiveRun, notify],
   );
 
   const sendMessage = useCallback(
@@ -281,7 +314,7 @@ export default function useChatRun({
           return;
         }
         clearDraft(activeChatId);
-        await compactChat(activeChatId, command.args);
+        await compactChat(activeChatId, text, command.args);
         return;
       }
 
