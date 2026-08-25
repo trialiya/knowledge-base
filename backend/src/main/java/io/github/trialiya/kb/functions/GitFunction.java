@@ -91,11 +91,9 @@ public class GitFunction {
                     @Nullable String path,
             @ToolParam(
                             description =
-                                    "Optional: browse a different project (repository id) than the "
-                                            + "chat's active one, for a cross-project question. Omit "
-                                            + "to use the active project. The response's \"project\" "
-                                            + "field names the repository that actually answered — "
-                                            + "check it, don't assume.",
+                                    "Optional: another project (repository id) to read instead of"
+                                            + " the chat's active one; the response's"
+                                            + " \"project\" field says which one answered.",
                             required = false)
                     @Nullable String project) {
         log.info("getFileTree called: path='{}', project='{}'", path, project);
@@ -130,11 +128,9 @@ public class GitFunction {
                     @Nullable String filePath,
             @ToolParam(
                             description =
-                                    "Optional: read the history of a different project (repository id) than the "
-                                            + "chat's active one, for a cross-project question. Omit "
-                                            + "to use the active project. The response's \"project\" "
-                                            + "field names the repository that actually answered — "
-                                            + "check it, don't assume.",
+                                    "Optional: another project (repository id) to read instead of"
+                                            + " the chat's active one; the response's"
+                                            + " \"project\" field says which one answered.",
                             required = false)
                     @Nullable String project) {
         final int limit = positiveOrDefault(maxCount, 20);
@@ -180,11 +176,9 @@ public class GitFunction {
                     @Nullable String filePath,
             @ToolParam(
                             description =
-                                    "Optional: resolve the commits in a different project (repository id) than the "
-                                            + "chat's active one, for a cross-project question. Omit "
-                                            + "to use the active project. The response's \"project\" "
-                                            + "field names the repository that actually answered — "
-                                            + "check it, don't assume.",
+                                    "Optional: another project (repository id) to read instead of"
+                                            + " the chat's active one; the response's"
+                                            + " \"project\" field says which one answered.",
                             required = false)
                     @Nullable String project) {
         requireText(commitHashes, "commitHashes");
@@ -227,11 +221,9 @@ public class GitFunction {
                     @Nullable Integer maxResults,
             @ToolParam(
                             description =
-                                    "Optional: search a different project (repository id) than the "
-                                            + "chat's active one, for a cross-project question. Omit "
-                                            + "to use the active project. The response's \"project\" "
-                                            + "field names the repository that actually answered — "
-                                            + "check it, don't assume.",
+                                    "Optional: another project (repository id) to read instead of"
+                                            + " the chat's active one; the response's"
+                                            + " \"project\" field says which one answered.",
                             required = false)
                     @Nullable String project) {
         requireText(pattern, "pattern");
@@ -265,11 +257,9 @@ public class GitFunction {
             @ToolParam(description = "Source file path relative to repo root.") String filePath,
             @ToolParam(
                             description =
-                                    "Optional: outline a file of a different project (repository id) than the "
-                                            + "chat's active one, for a cross-project question. Omit "
-                                            + "to use the active project. The response's \"project\" "
-                                            + "field names the repository that actually answered — "
-                                            + "check it, don't assume.",
+                                    "Optional: another project (repository id) to read instead of"
+                                            + " the chat's active one; the response's"
+                                            + " \"project\" field says which one answered.",
                             required = false)
                     @Nullable String project) {
         requireText(filePath, "filePath");
@@ -316,11 +306,9 @@ public class GitFunction {
                     @Nullable Integer toLine,
             @ToolParam(
                             description =
-                                    "Optional: read from a different project (repository id) than the "
-                                            + "chat's active one, for a cross-project question. Omit to use "
-                                            + "the active project. The response's \"project\" field names "
-                                            + "which repository the content actually came from — check it, "
-                                            + "don't assume.",
+                                    "Optional: another project (repository id) to read instead of"
+                                            + " the chat's active one; the response's"
+                                            + " \"project\" field says which one answered.",
                             required = false)
                     @Nullable String project) {
         requireText(filePath, "filePath");
@@ -358,11 +346,9 @@ public class GitFunction {
                     @Nullable Boolean includePatch,
             @ToolParam(
                             description =
-                                    "Optional: look at the working tree of a different project (repository id) than the "
-                                            + "chat's active one, for a cross-project question. Omit "
-                                            + "to use the active project. The response's \"project\" "
-                                            + "field names the repository that actually answered — "
-                                            + "check it, don't assume.",
+                                    "Optional: another project (repository id) to read instead of"
+                                            + " the chat's active one; the response's"
+                                            + " \"project\" field says which one answered.",
                             required = false)
                     @Nullable String project) {
         final boolean patch = orDefault(includePatch, false);
@@ -421,11 +407,9 @@ public class GitFunction {
                     @Nullable Boolean includeUntracked,
             @ToolParam(
                             description =
-                                    "Optional: search a different project (repository id) than the "
-                                            + "chat's active one, for a cross-project question. Omit to "
-                                            + "use the active project. Each match's \"project\" field "
-                                            + "names which repository it came from — check it, don't "
-                                            + "assume.",
+                                    "Optional: another project (repository id) to read instead of"
+                                            + " the chat's active one; the response's"
+                                            + " \"project\" field says which one answered.",
                             required = false)
                     @Nullable String project) {
         requireText(pattern, "pattern");

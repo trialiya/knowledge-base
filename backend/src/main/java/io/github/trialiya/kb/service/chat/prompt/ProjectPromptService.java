@@ -16,6 +16,12 @@ import org.springframework.stereotype.Service;
  * репозитории откроют файл с тем же путём — ошибку, которую никто не заметит. Поэтому здесь же
  * выдаётся готовый кусок ссылки, а не предложение вывести его самостоятельно.
  *
+ * <p>Здесь только то, что меняется от прогона к прогону: какой проект активен и какие ещё можно
+ * назвать. Правила кросс-проектного чтения — что аргумент {@code project} есть у каждого читающего
+ * инструмента, что id берётся из эха ответа, что правки остаются в активном проекте — статичны и
+ * живут в {@code sys.md} («Reading another project»); дублировать их здесь значило бы платить за
+ * них дважды и однажды разойтись.
+ *
  * <p>Параллель {@code ScriptGuideService}/{@code SystemPromptService}: значение не бывает {@code
  * null} — незаполненный плейсхолдер роняет рендер шаблона.
  */
@@ -46,14 +52,7 @@ public class ProjectPromptService {
         return """
         ### Active project
         Files, commits and scripts in this chat read the **%s** repository — project id `%s`.
-        Every repo-file link must carry it: `[filename](/files?path=PATH&project=%s)`.
-        Every read tool (`getFileContent`, `grepContent`, `getFileTree`, `searchFiles`,
-        `getFileOutline`, `getCommitLog`, `getCommitDiff`, `getUncommittedChanges`,
-        `searchCodebase`) and `runScript` accept an optional `project` argument to read a
-        different repository instead, for a cross-project question — leave it out to use this
-        one, and take the id for a link from the response's own `project` field. Reading only:
-        edits always land in this project, and a `runScript` that names another one cannot write
-        at all.\
+        Every repo-file link must carry it: `[filename](/files?path=PATH&project=%s)`.\
         """
                         .formatted(project.label(), project.id(), project.id())
                 + allowGlobs(project, gitRegistry.editsAllowed(project.id()))
@@ -89,8 +88,9 @@ public class ProjectPromptService {
         if (visited.isEmpty() && rest.isEmpty()) {
             return "";
         }
-        StringBuilder sb = new StringBuilder("\n\nOther repositories you may read (pass the id as");
-        sb.append(" the `project` argument; the active one stays the default):");
+        StringBuilder sb =
+                new StringBuilder("\n\nOther repositories you may read — pass the id as the");
+        sb.append(" `project` argument of a read tool (see \"Reading another project\"):");
         visited.forEach(
                 id ->
                         sb.append("\n- `")

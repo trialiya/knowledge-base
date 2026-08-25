@@ -63,11 +63,9 @@ public class SearchAgentFunction {
                     @Nullable String pathGlob,
             @ToolParam(
                             description =
-                                    "Optional: search a different project (repository id) than the "
-                                            + "chat's active one, for a cross-project question. Omit "
-                                            + "to use the active project. The report's \"project\" "
-                                            + "field names the repository the citations are rooted "
-                                            + "in — check it, don't assume.",
+                                    "Optional: another project (repository id) to read instead of"
+                                            + " the chat's active one; the response's"
+                                            + " \"project\" field says which one answered.",
                             required = false)
                     @Nullable String project) {
         requireText(task, "task");
