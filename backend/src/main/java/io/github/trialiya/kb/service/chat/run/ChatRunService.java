@@ -435,7 +435,9 @@ public class ChatRunService {
                                                     .param(
                                                             "project_context",
                                                             projectPromptService.context(
-                                                                    options.project())))
+                                                                    options.project(),
+                                                                    chatHistory.earlierProjects(
+                                                                            conversationId))))
                             // Своего .user(...) здесь намеренно нет: вопрос уже сохранён в
                             // истории (см. ChatHistoryService.saveUserMessage), и его подмешает
                             // advisor памяти. Передать его ещё и сюда — значит сохранить вторым

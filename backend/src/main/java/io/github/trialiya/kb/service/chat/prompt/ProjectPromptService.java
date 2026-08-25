@@ -3,6 +3,7 @@ package io.github.trialiya.kb.service.chat.prompt;
 import io.github.trialiya.kb.model.project.Project;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.project.ProjectCatalog;
+import java.util.List;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 
@@ -36,20 +37,70 @@ public class ProjectPromptService {
 
     /**
      * @param projectId проект прогона; {@code null} — «не выбран», т.е. дефолтный из списка
+     * @param earlierProjects репозитории, на которых этот чат уже работал ({@code
+     *     ChatHistoryService#earlierProjects}), в порядке появления; активный среди них
+     *     отфильтровывается здесь, чтобы вызывающему не приходилось знать, чем он разрешился
      */
-    public String context(@Nullable String projectId) {
+    public String context(@Nullable String projectId, List<String> earlierProjects) {
         Project project = catalog.find(projectId).orElseGet(catalog::defaultProject);
         return """
         ### Active project
         Files, commits and scripts in this chat read the **%s** repository — project id `%s`.
         Every repo-file link must carry it: `[filename](/files?path=PATH&project=%s)`.
-        `getFileContent`, `grepContent` and `runScript` accept an optional `project` argument to
-        read a different repository instead, for a cross-project question — leave it out to use
-        this one. Reading only: edits always land in this project, and a `runScript` that names
-        another one cannot write at all.\
+        Every read tool (`getFileContent`, `grepContent`, `getFileTree`, `searchFiles`,
+        `getFileOutline`, `getCommitLog`, `getCommitDiff`, `getUncommittedChanges`,
+        `searchCodebase`) and `runScript` accept an optional `project` argument to read a
+        different repository instead, for a cross-project question — leave it out to use this
+        one, and take the id for a link from the response's own `project` field. Reading only:
+        edits always land in this project, and a `runScript` that names another one cannot write
+        at all.\
         """
                         .formatted(project.label(), project.id(), project.id())
-                + allowGlobs(project, gitRegistry.editsAllowed(project.id()));
+                + allowGlobs(project, gitRegistry.editsAllowed(project.id()))
+                + otherProjects(project, earlierProjects);
+    }
+
+    /**
+     * Список репозиториев, которые модель вправе назвать в аргументе {@code project}. Без него
+     * аргумент бесполезен: id проекта модели взять неоткуда — в промпте до этого был только
+     * активный, а выдуманный id падает на {@code ProjectCatalog#require}.
+     *
+     * <p>Проекты, на которых чат уже работал, помечены отдельно и идут первыми: чаще всего вопрос
+     * «а как это было в прошлом проекте» относится именно к ним, и половина истории чата прочитана
+     * там же. Порядок внутри пометки — порядок появления в чате.
+     *
+     * <p>Недоступные проекты (репозиторий не открылся) не перечисляются вовсе: назвать такой id
+     * модель может только чтобы получить отказ.
+     */
+    private String otherProjects(Project active, List<String> earlierProjects) {
+        List<String> visited =
+                earlierProjects.stream()
+                        .filter(id -> !id.equals(active.id()))
+                        .filter(catalog::isAllowed)
+                        .filter(gitRegistry::isAvailable)
+                        .distinct()
+                        .toList();
+        List<Project> rest =
+                catalog.projects().stream()
+                        .filter(p -> !p.id().equals(active.id()))
+                        .filter(p -> !visited.contains(p.id()))
+                        .filter(p -> gitRegistry.isAvailable(p.id()))
+                        .toList();
+        if (visited.isEmpty() && rest.isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder("\n\nOther repositories you may read (pass the id as");
+        sb.append(" the `project` argument; the active one stays the default):");
+        visited.forEach(
+                id ->
+                        sb.append("\n- `")
+                                .append(id)
+                                .append("` — ")
+                                .append(catalog.require(id).label())
+                                .append(" — selected earlier in this chat, so the paths and")
+                                .append(" contents read further up belong to it"));
+        rest.forEach(p -> sb.append("\n- `").append(p.id()).append("` — ").append(p.label()));
+        return sb.toString();
     }
 
     /**

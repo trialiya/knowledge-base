@@ -21,6 +21,10 @@ import org.springframework.ai.tool.annotation.ToolParam;
  *
  * <p>This tool is intentionally NOT part of the sub-agent's own tool set (see {@code
  * kb.search.subagent.allowed-tools}) — that is the recursion guard.
+ *
+ * <p>Like the git read tools, it takes an optional {@code project}: the whole sub-run then reads
+ * that repository, and the report echoes which one it was. The sub-agent's own prompt says nothing
+ * about projects, so it never wanders off on its own — the repository is decided here, once.
  */
 @Slf4j
 @AllArgsConstructor
@@ -56,15 +60,25 @@ public class SearchAgentFunction {
                                     "Glob pattern to restrict code search (e.g., \"backend/**/*.java\"). "
                                             + "Null for no restriction.",
                             required = false)
-                    @Nullable String pathGlob) {
+                    @Nullable String pathGlob,
+            @ToolParam(
+                            description =
+                                    "Optional: search a different project (repository id) than the "
+                                            + "chat's active one, for a cross-project question. Omit "
+                                            + "to use the active project. The report's \"project\" "
+                                            + "field names the repository the citations are rooted "
+                                            + "in — check it, don't assume.",
+                            required = false)
+                    @Nullable String project) {
         requireText(task, "task");
         final String effectiveScope = orDefault(scope, "all");
         final String conversationId = conversationId(context);
         log.info(
-                "[{}] searchCodebase called: scope={} pathGlob={}",
+                "[{}] searchCodebase called: scope={} pathGlob={} project={}",
                 conversationId,
                 effectiveScope,
-                pathGlob);
-        return searchAgent.run(task, effectiveScope, pathGlob, context);
+                pathGlob,
+                project);
+        return searchAgent.run(task, effectiveScope, pathGlob, context, project);
     }
 }

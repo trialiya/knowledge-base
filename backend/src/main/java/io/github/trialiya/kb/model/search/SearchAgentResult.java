@@ -16,6 +16,10 @@ import org.jspecify.annotations.Nullable;
  * with the others, in the request-scoped invocation log via {@link ToolCallResultMetaProvider} /
  * {@link ToolCallResponseItem} (see {@code RecordingToolCallback}).
  *
+ * @param project id of the repository the sub-run searched — mandatory in the response, because
+ *     {@code searchCodebase} can be pointed at a repository other than the chat's active one (see
+ *     {@code SearchAgentFunction}), and the report's {@code path:line} citations mean nothing
+ *     without knowing which repository they are rooted in
  * @param report the compact findings report (citations as {@code path:line})
  * @param complete {@code true} if the sub-agent produced the report on its own; {@code false} when
  *     the iteration budget was exhausted or a degraded path forced an early summary
@@ -23,19 +27,24 @@ import org.jspecify.annotations.Nullable;
  * @param durationMs wall-clock time of the whole run, in milliseconds
  */
 public record SearchAgentResult(
-        @Nullable String report, boolean complete, int iterations, @JsonIgnore long durationMs)
+        String project,
+        @Nullable String report,
+        boolean complete,
+        int iterations,
+        @JsonIgnore long durationMs)
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
     /** Short, human-readable gist for the invocation log. */
     @Override
     public String getFormattedResponse() {
-        String head = (complete ? "" : "⚠ неполно • ") + iterations + " шаг(ов)";
+        String head = (complete ? "" : "⚠ неполно • ") + project + " • " + iterations + " шаг(ов)";
         return head + " • " + Compact.truncate(report, 160);
     }
 
     @Override
     public Map<String, Object> getResultMeta() {
         return Map.of(
+                "project", project,
                 "complete", complete,
                 "iterations", iterations,
                 "durationMs", durationMs,

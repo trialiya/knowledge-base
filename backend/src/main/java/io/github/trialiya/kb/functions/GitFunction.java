@@ -30,12 +30,22 @@ import org.springframework.ai.tool.annotation.ToolParam;
  * that names no project reads the default one. The {@code ToolContext} parameter is not part of a
  * tool's schema, so the model neither sees nor fills it in.
  *
- * <p>{@link #getFileContent} and {@link #grepContent} additionally take an optional {@code project}
- * argument that overrides the context's project for that one call — the model's way to ask a
- * cross-project question ("how does A do this, versus B") without switching the chat's project.
- * Every response from these two carries a {@code project} field naming the repository it actually
- * came from, so a model that forgets which call used the override still knows what it is looking
- * at.
+ * <p>Every tool here additionally takes an optional {@code project} argument that overrides the
+ * context's project for that one call — the model's way to ask a cross-project question ("how does
+ * A do this, versus B") without switching the chat's project, and the way it reaches a repository
+ * the chat selected earlier and has since moved off. Which ids it may name it learns from the
+ * prompt ({@code ProjectPromptService}); an id nobody configured fails loudly in {@code
+ * ProjectCatalog#require} rather than quietly reading something else.
+ *
+ * <p>Every response carries a {@code project} field naming the repository it actually came from, so
+ * a model that forgets which call used the override still knows what it is looking at. That echo is
+ * not decoration: {@code ToolInvocationCollector#hasSeenFile} reads it to keep a file seen in
+ * another repository from counting as "seen" for a write into this one, so a tool that gains the
+ * argument has to gain the echo in the same change (see {@code
+ * ToolInvocationCollector#PROJECT_AWARE_TOOLS}).
+ *
+ * <p>The edit tools ({@code GitEditFunction}) deliberately have no such argument: writes always
+ * land in the project the user selected for the chat.
  *
  * <p><b>Security constraints:</b> all operations are strictly read-only. Only files tracked by Git
  * are accessible — an untracked file is refused even if it exists on disk, unless the project
@@ -49,14 +59,10 @@ public class GitFunction {
 
     private final GitRegistry gitRegistry;
 
-    /** The repository this call works on — the run's project, or the default one. */
-    private GitService git(@Nullable ToolContext context) {
-        return gitRegistry.forProject(ProjectContext.from(context));
-    }
-
     /**
-     * As {@link #git(ToolContext)}, but {@code project} — when the model named one, for a
-     * cross-project question — overrides the run's own project for this one call.
+     * The repository this call works on: the one the model named, else the run's own project, else
+     * the default one. Every read tool here resolves through this — naming a project is always the
+     * model's option, never its obligation.
      */
     private GitService git(@Nullable ToolContext context, @Nullable String project) {
         return gitRegistry.forProject(ProjectContext.resolve(context, project));
@@ -82,9 +88,18 @@ public class GitFunction {
                             description =
                                     "Subdirectory path relative to repo root (e.g., \"src/main/java\"). Empty or null for root.",
                             required = false)
-                    @Nullable String path) {
-        log.info("getFileTree called: path='{}'", path);
-        List<GitFileNode> fileTree = git(context).getFileTree(path);
+                    @Nullable String path,
+            @ToolParam(
+                            description =
+                                    "Optional: browse a different project (repository id) than the "
+                                            + "chat's active one, for a cross-project question. Omit "
+                                            + "to use the active project. The response's \"project\" "
+                                            + "field names the repository that actually answered — "
+                                            + "check it, don't assume.",
+                            required = false)
+                    @Nullable String project) {
+        log.info("getFileTree called: path='{}', project='{}'", path, project);
+        List<GitFileNode> fileTree = git(context, project).getFileTree(path);
         log.info("getFileTree called: fileTree={}", fileTree);
         return fileTree;
     }
@@ -112,10 +127,23 @@ public class GitFunction {
                             description =
                                     "Optional: file path (relative to repo root) to filter commits that touched it.",
                             required = false)
-                    @Nullable String filePath) {
+                    @Nullable String filePath,
+            @ToolParam(
+                            description =
+                                    "Optional: read the history of a different project (repository id) than the "
+                                            + "chat's active one, for a cross-project question. Omit "
+                                            + "to use the active project. The response's \"project\" "
+                                            + "field names the repository that actually answered — "
+                                            + "check it, don't assume.",
+                            required = false)
+                    @Nullable String project) {
         final int limit = positiveOrDefault(maxCount, 20);
-        log.info("getCommitLog called: maxCount={}, filePath='{}'", limit, filePath);
-        List<GitCommit> commitLog = git(context).getCommitLog(limit, filePath);
+        log.info(
+                "getCommitLog called: maxCount={}, filePath='{}', project='{}'",
+                limit,
+                filePath,
+                project);
+        List<GitCommit> commitLog = git(context, project).getCommitLog(limit, filePath);
         log.info("getCommitLog called: commitLog={}", commitLog);
         return commitLog;
     }
@@ -149,15 +177,26 @@ public class GitFunction {
                             description =
                                     "Optional: file path to filter diff output to only that file.",
                             required = false)
-                    @Nullable String filePath) {
+                    @Nullable String filePath,
+            @ToolParam(
+                            description =
+                                    "Optional: resolve the commits in a different project (repository id) than the "
+                                            + "chat's active one, for a cross-project question. Omit "
+                                            + "to use the active project. The response's \"project\" "
+                                            + "field names the repository that actually answered — "
+                                            + "check it, don't assume.",
+                            required = false)
+                    @Nullable String project) {
         requireText(commitHashes, "commitHashes");
         final boolean patch = orDefault(includePatch, false);
         log.info(
-                "getCommitDiff called: hashes='{}', includePatch={}, filePath='{}'",
+                "getCommitDiff called: hashes='{}', includePatch={}, filePath='{}', project='{}'",
                 commitHashes,
                 patch,
-                filePath);
-        List<GitCommit> commitDiff = git(context).getCommitDiff(commitHashes, patch, filePath);
+                filePath,
+                project);
+        List<GitCommit> commitDiff =
+                git(context, project).getCommitDiff(commitHashes, patch, filePath);
         log.info("getCommitDiff called: commitDiff={}", commitDiff);
         return commitDiff;
     }
@@ -185,11 +224,24 @@ public class GitFunction {
             @ToolParam(
                             description = "Maximum results to return (1–50, default 20).",
                             required = false)
-                    @Nullable Integer maxResults) {
+                    @Nullable Integer maxResults,
+            @ToolParam(
+                            description =
+                                    "Optional: search a different project (repository id) than the "
+                                            + "chat's active one, for a cross-project question. Omit "
+                                            + "to use the active project. The response's \"project\" "
+                                            + "field names the repository that actually answered — "
+                                            + "check it, don't assume.",
+                            required = false)
+                    @Nullable String project) {
         requireText(pattern, "pattern");
         final int limit = positiveOrDefault(maxResults, 20);
-        log.info("searchFiles called: pattern='{}', maxResults={}", pattern, limit);
-        List<GitFileNode> gitFileNodes = git(context).searchFiles(pattern, limit);
+        log.info(
+                "searchFiles called: pattern='{}', maxResults={}, project='{}'",
+                pattern,
+                limit,
+                project);
+        List<GitFileNode> gitFileNodes = git(context, project).searchFiles(pattern, limit);
         log.info("searchFiles called: gitFileNodes={}", gitFileNodes);
         return gitFileNodes;
     }
@@ -210,10 +262,19 @@ public class GitFunction {
             resultConverter = CompactToolResultConverter.class)
     public GitFileOutline getFileOutline(
             ToolContext context,
-            @ToolParam(description = "Source file path relative to repo root.") String filePath) {
+            @ToolParam(description = "Source file path relative to repo root.") String filePath,
+            @ToolParam(
+                            description =
+                                    "Optional: outline a file of a different project (repository id) than the "
+                                            + "chat's active one, for a cross-project question. Omit "
+                                            + "to use the active project. The response's \"project\" "
+                                            + "field names the repository that actually answered — "
+                                            + "check it, don't assume.",
+                            required = false)
+                    @Nullable String project) {
         requireText(filePath, "filePath");
-        log.info("getFileOutline called: filePath='{}'", filePath);
-        GitFileOutline outline = git(context).getFileOutline(filePath);
+        log.info("getFileOutline called: filePath='{}', project='{}'", filePath, project);
+        GitFileOutline outline = git(context, project).getFileOutline(filePath);
         log.info("getFileOutline called: outline={}", outline);
         return outline;
     }
@@ -294,10 +355,19 @@ public class GitFunction {
                             description =
                                     "Include unified diff for changed files (false=list only, true=includes patch, default false).",
                             required = false)
-                    @Nullable Boolean includePatch) {
+                    @Nullable Boolean includePatch,
+            @ToolParam(
+                            description =
+                                    "Optional: look at the working tree of a different project (repository id) than the "
+                                            + "chat's active one, for a cross-project question. Omit "
+                                            + "to use the active project. The response's \"project\" "
+                                            + "field names the repository that actually answered — "
+                                            + "check it, don't assume.",
+                            required = false)
+                    @Nullable String project) {
         final boolean patch = orDefault(includePatch, false);
-        log.info("getUncommittedChanges called: includePatch='{}'", patch);
-        List<GitDiffEntry> gitDiffEntries = git(context).getUncommittedChanges(patch);
+        log.info("getUncommittedChanges called: includePatch='{}', project='{}'", patch, project);
+        List<GitDiffEntry> gitDiffEntries = git(context, project).getUncommittedChanges(patch);
         log.info("getUncommittedChanges called: gitDiffEntries='{}'", gitDiffEntries);
         return gitDiffEntries;
     }

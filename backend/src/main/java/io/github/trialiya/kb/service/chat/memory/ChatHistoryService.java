@@ -13,6 +13,7 @@ import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.tools.RecordingToolCallback;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -472,6 +473,35 @@ public class ChatHistoryService {
         return chatMessageRepository
                 .findFirstByConversationIdOrderByPositionDesc(conversationId)
                 .filter(last -> last.getType() == MessageType.USER);
+    }
+
+    /**
+     * Репозитории, на которых этот чат уже работал, в порядке появления, — то, что промпт называет
+     * модели как «выбирались раньше» ({@code ProjectPromptService}). Читающие инструменты берут
+     * проект аргументом, и без этого списка модель не знает ни одного id, кроме активного: спросить
+     * про репозиторий, из которого половина истории и прочитана, ей было бы нечем.
+     *
+     * <p>Источник — маркеры смены проекта на вопросах ({@code ChatMessageMeta}): чат хранит только
+     * текущий проект ({@code chat_topic.project}), а куда он ходил до того, знают лишь они. Обе
+     * стороны маркера идут в список: {@code from} — репозиторий, в котором читана история выше,
+     * {@code to} — тот, на который перешли (он же обычно активный, и его вызывающий отсеивает сам).
+     *
+     * <p>Активный проект сюда не подмешивается: этот метод отвечает на «где чат уже был», а «где он
+     * сейчас» знает вызывающий, и знает точнее — из прогона, а не из истории.
+     */
+    public List<String> earlierProjects(String conversationId) {
+        final LinkedHashSet<String> ordered = new LinkedHashSet<>();
+        for (ChatMessageEntity row : chatMessageRepository.findProjectSwitches(conversationId)) {
+            final ChatMessageMeta meta = row.getMeta();
+            if (meta == null || meta.projectSwitchFrom() == null) {
+                continue;
+            }
+            ordered.add(meta.projectSwitchFrom());
+            if (meta.project() != null) {
+                ordered.add(meta.project());
+            }
+        }
+        return List.copyOf(ordered);
     }
 
     /** Вся история чата для показа целиком, без строк-сводок. */

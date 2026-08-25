@@ -73,6 +73,23 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
             @Param("beforeId") long beforeId,
             @Param("limit") int limit);
 
+    /**
+     * Сообщения чата, несущие маркер смены проекта, — источник списка репозиториев, на которых чат
+     * уже работал ({@code ChatHistoryService#earlierProjects}).
+     *
+     * <p>{@code LIKE} по JSON намеренно приблизительный: он только отсекает основную массу рядов, а
+     * решает разобранная {@code meta} у вызывающего. Точность фильтра здесь — вопрос цены запроса,
+     * а не правильности ответа, поэтому он переживёт и запись, где поле сериализовано как {@code
+     * null}, и любое изменение формы JSON.
+     */
+    @Query(
+            """
+    SELECT * FROM chat_message
+    WHERE conversation_id = :conversationId AND meta LIKE '%projectSwitchFrom%'
+    ORDER BY position ASC
+    """)
+    List<ChatMessageEntity> findProjectSwitches(@Param("conversationId") String conversationId);
+
     /** Совпадения по тексту сообщения внутри чата, хронологически (для find-бара, Ctrl+F). */
     @Query(
             """
