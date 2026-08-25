@@ -9,7 +9,15 @@ import { RETRY_MODE } from '@/constants/retryMode';
 import { generateUUID } from '@/utils/uuid';
 import { nextMessageId } from '../messages/messageId';
 import { getLastModel, setLastModel, getLastMode, setLastMode, setLastProject } from './lastChoiceStore';
-import { chatLoadErrorNotice, RUN_BUSY_NOTICE, RETRY_UNAVAILABLE_NOTICE } from './chatNotices';
+import {
+  chatLoadErrorNotice,
+  RUN_BUSY_NOTICE,
+  RETRY_UNAVAILABLE_NOTICE,
+  COMPACT_DRAFT_NOTICE,
+  COMPACT_EMPTY_NOTICE,
+  COMPACT_START_ERROR_NOTICE,
+} from './chatNotices';
+import { parseChatCommand, CHAT_COMMAND } from './chatCommands';
 
 /**
  * Отправка сообщения, повтор после ошибки и остановка генерации.
@@ -26,6 +34,8 @@ import { chatLoadErrorNotice, RUN_BUSY_NOTICE, RETRY_UNAVAILABLE_NOTICE } from '
  * @param {Function} p.patchMessages (id, fn) => void
  * @param {Function} p.selectChat    (id, opts) => void
  * @param {Function} p.clearDraft    (id) => void — черновик композера отправлен
+ * @param {Function} p.clearDraftText (id) => void — из черновика ушёл только текст, вложения
+ *                                    остались (команда чату, а не вопрос)
  * @param {Function} p.getStagedFor  (id) => отложенные к сообщению вложения
  * @param {object}   p.modelConfig
  * @param {Array}    p.modelOptions
@@ -42,6 +52,7 @@ export default function useChatRun({
   patchMessages,
   selectChat,
   clearDraft,
+  clearDraftText,
   getStagedFor,
   modelConfig,
   modelOptions,
@@ -222,6 +233,68 @@ export default function useChatRun({
     [hasActiveRun, patchChat, patchMessages, notify],
   );
 
+  // Сжатие контекста по команде `/compact`. Сообщение сохраняется на бэке как обычная
+  // реплика (остаётся видно в истории, как и любой вопрос — только не участвует в самом
+  // сжатии), поэтому здесь тот же оптимистичный пузырь, что и у sendMessage: клиент не
+  // ждёт эха, чтобы показать, что команда отправлена. Плашку «сжимаю…» заводит отдельное
+  // событие COMPACT_STARTED, одинаково во всех вкладках.
+  const compactChat = useCallback(
+    async (conversationId, text, instructions) => {
+      const clientMsgId = generateUUID();
+      localClientIdsRef.current.add(clientMsgId);
+      patchChat(conversationId, (c) => ({
+        messages: [
+          ...(c.messages || []),
+          { mid: nextMessageId(), text, sender: SENDER.USER, clientMsgId, timestamp: new Date().toISOString() },
+        ],
+      }));
+      setPendingRunChatId(conversationId);
+      try {
+        const res = await chatApi.compact(conversationId, text, instructions, clientMsgId);
+        const runId = res?.runId;
+        // id сохранённой команды — тот же приём, что и у обычного вопроса (см. runConversation).
+        const dbId = Number(res?.messageId);
+        const patchedId = Number.isFinite(dbId) ? dbId : null;
+        if (runId) {
+          patchChat(conversationId, (c) => ({
+            runId,
+            compacting: true,
+            messages: patchedId
+              ? (c.messages || []).map((m) => (m.clientMsgId === clientMsgId ? { ...m, dbId: patchedId } : m))
+              : c.messages,
+          }));
+        }
+      } catch (error) {
+        // 409/422 проверяются на бэке ДО сохранения команды — она точно не записалась,
+        // откатываем оптимистичный пузырь.
+        const removeBubble = () => {
+          localClientIdsRef.current.delete(clientMsgId);
+          patchMessages(conversationId, (msgs) => msgs.filter((m) => m.clientMsgId !== clientMsgId));
+        };
+        if (error?.status === 409) {
+          removeBubble();
+          notify(RUN_BUSY_NOTICE);
+          return;
+        }
+        // 422 — сжимать нечего: живой контекст уже состоит из одной сводки.
+        if (error?.status === 422) {
+          removeBubble();
+          notify(COMPACT_EMPTY_NOTICE);
+          return;
+        }
+        console.error('Failed to compact:', error);
+        // Запрос мог не удаться уже ПОСЛЕ того, как бэк сохранил команду и начал раунд
+        // (обрыв ответа) — тогда откатывать пузырь нельзя, сжатие всё равно идёт.
+        if (await hasActiveRun(conversationId)) return;
+        removeBubble();
+        notify(COMPACT_START_ERROR_NOTICE);
+      } finally {
+        setPendingRunChatId((cur) => (cur === conversationId ? null : cur));
+      }
+    },
+    [patchChat, patchMessages, hasActiveRun, notify],
+  );
+
   const sendMessage = useCallback(
     async (text) => {
       if (!activeChatId) return;
@@ -231,6 +304,22 @@ export default function useChatRun({
       const chatForSend = getChats().find((c) => c.id === activeChatId);
       if (chatForSend?.notFound || chatForSend?.loadError) {
         notify(chatLoadErrorNotice({ notFound: !!chatForSend.notFound, status: chatForSend.loadError }));
+        return;
+      }
+
+      // Команда чату, а не вопрос модели: у неё свой эндпоинт и свой жизненный цикл,
+      // хотя в историю она, как и вопрос, попадает (см. compactChat).
+      const command = parseChatCommand(text);
+      if (command?.name === CHAT_COMMAND.COMPACT) {
+        // В ещё не начатом чате сжимать нечего — и заводить его ради команды незачем.
+        if (activeChatId === DRAFT_CHAT_ID) {
+          notify(COMPACT_DRAFT_NOTICE);
+          return;
+        }
+        // Только текст: команда не уносит с собой отложенные вложения — они приложены
+        // к вопросу, который пользователь ещё задаст, и переживают сжатие.
+        clearDraftText(activeChatId);
+        await compactChat(activeChatId, text, command.args);
         return;
       }
 
@@ -301,11 +390,13 @@ export default function useChatRun({
       setChats,
       selectChat,
       clearDraft,
+      clearDraftText,
       getStagedFor,
       resolveModelForSend,
       resolveModeForSend,
       resolveProjectForSend,
       runConversation,
+      compactChat,
       notify,
     ],
   );

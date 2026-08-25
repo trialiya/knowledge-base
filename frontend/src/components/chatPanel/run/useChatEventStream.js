@@ -120,7 +120,10 @@ export default function useChatEventStream({
     const settleStaleRun = (staleRunId) => {
       closeStream();
       seqByChatRef.current.delete(chatId);
-      setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, runId: null } : c)));
+      // compacting снимаем вместе с runId: его гасят только COMPACT_DONE/ERROR, а сюда мы
+      // попадаем как раз потому, что этих событий не увидели. Оставленный флаг пережил бы
+      // прогон и держал бы Stop выключенным во всех следующих генерациях этого чата.
+      setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, runId: null, compacting: false } : c)));
       onRunSettled(chatId);
       reloadMessages(chatId).then((msgs) => {
         setResyncTick((n) => n + 1);
@@ -151,6 +154,11 @@ export default function useChatEventStream({
       stoppedLabel: i18n.t('chat:window.stopped'),
       errorLabel: i18n.t('chat:window.genericError'),
       interruptedNote: `\n\n_**${i18n.t('chat:message.interrupted')}**_`,
+      compactingLabel: `_${i18n.t('chat:compact.running')}_`,
+      // messages, а не count: count у i18next включает разрешение множественных форм,
+      // а множественных ключей в локалях этого проекта нет ни одного.
+      compactDoneLabel: (messages) => `_${i18n.t('chat:compact.done', { messages })}_`,
+      compactErrorLabel: i18n.t('chat:compact.error'),
     };
     closeStream = openChatEventStream(chatId, {
       fromSeq: seqByChatRef.current.get(chatId) || 0,
@@ -166,6 +174,11 @@ export default function useChatEventStream({
         // живом TOOL_CALL — поэтому детектируем doc/file-мутации на этом событии.
         if (ev.type === CHAT_EVENT.TOOL_CALLS) {
           fireChangeRefs(collectChangeRefs(ev.payload?.toolCalls));
+        }
+        // Сжатие контекста завершилось — хаб закрыл ту же заявку на чат, что и у прогона
+        // (см. ChatRunService.claim), поэтому и курсор сбрасываем так же.
+        if (ev.type === CHAT_EVENT.COMPACT_DONE || ev.type === CHAT_EVENT.COMPACT_ERROR) {
+          seqByChatRef.current.delete(chatId);
         }
         if (ev.type === 'RUN_DONE' || ev.type === 'RUN_STOPPED' || ev.type === 'RUN_ERROR') {
           // Прогон завершён: хаб очистит свой лог, а следующий прогон в этом чате начнёт

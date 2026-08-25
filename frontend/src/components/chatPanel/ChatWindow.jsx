@@ -94,6 +94,7 @@ const ChatWindow = ({
     getDraftFor,
     handleTextChange: handleComposerTextChange,
     clearDraft,
+    clearDraftText,
     flushDrafts,
     getStagedFor,
     stageContextItem,
@@ -162,6 +163,7 @@ const ChatWindow = ({
     patchMessages,
     selectChat,
     clearDraft,
+    clearDraftText,
     getStagedFor,
     modelConfig,
     modelOptions,
@@ -176,6 +178,11 @@ const ChatWindow = ({
   // окно до ответа сервера на POST /runs. Управляет блокировкой ввода и видом
   // кнопки (отправить ↔ остановить).
   const isStreaming = !!activeChat?.runId || pendingRunChatId === activeChatId;
+
+  // Чат занят сжатием контекста (/compact), а не генерацией. Занятость та же — ввод
+  // заблокирован, — но останавливать нечего: сжатие это один запрос к модели без
+  // стриминга, и кнопка «остановить» на нём только обещала бы несуществующее.
+  const isCompacting = !!activeChat?.compacting;
 
   // Поиск сообщений внутри активного чата (find-бар, Ctrl+F / кнопка-лупа в шапке).
   // messages передаём из рендера (getChats обновляется эффектом и на рендер отстаёт).
@@ -513,6 +520,7 @@ const ChatWindow = ({
             messages={activeMessages}
             loadingMessages={loadingMessages}
             isStreaming={isStreaming}
+            isCompacting={isCompacting}
             isChatEmpty={isChatEmpty}
             isActive={isActive}
             search={{ ...inChatSearch, inputRef: inChatSearchInputRef, canSearch: canSearchChat }}

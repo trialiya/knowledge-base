@@ -83,14 +83,23 @@ export default function useChatDrafts() {
     });
   }, []);
 
+  /**
+   * Убрать только набранный текст, оставив отложенные вложения. Для команд чату (`/compact`):
+   * они ничего не отправляют, и вложения, приложенные к ещё не заданному вопросу, должны
+   * дождаться этого вопроса, а не исчезнуть вместе с командой.
+   */
+  const clearDraftText = useCallback((id) => {
+    setDraft(draftsRef.current, id, '');
+    saveDrafts(draftsRef.current);
+  }, []);
+
   /** Полностью убрать черновик чата (после отправки / удаления) и сохранить сразу. */
   const clearDraft = useCallback(
     (id) => {
-      setDraft(draftsRef.current, id, '');
-      saveDrafts(draftsRef.current);
+      clearDraftText(id);
       updateStaged(id, () => []);
     },
-    [updateStaged],
+    [clearDraftText, updateStaged],
   );
 
   /** Немедленно сбросить отложенную запись на диск (например, перед сменой чата). */
@@ -117,6 +126,7 @@ export default function useChatDrafts() {
     getDraftFor,
     handleTextChange,
     clearDraft,
+    clearDraftText,
     flushDrafts,
     getStagedFor,
     stageContextItem,

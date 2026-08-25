@@ -241,7 +241,7 @@ describe('useChatEventStream stale run cache invalidation', () => {
   let chats;
 
   function setup({ activeRun = {}, reloaded = [] } = {}) {
-    chats = [{ id: 'c1', messages: [{ mid: 1 }], runId: 'r1', notFound: false, loadError: false }];
+    chats = [{ id: 'c1', messages: [{ mid: 1 }], runId: 'r1', compacting: true, notFound: false, loadError: false }];
     chatApi.getActiveRun.mockResolvedValue(activeRun);
     openChatEventStream.mockImplementation(() => () => {});
 
@@ -397,5 +397,17 @@ describe('useChatEventStream stale run resubscribe order', () => {
     expect(subscriptions[1].prevClosed).toBe(true);
     // Курсор выброшен и никем не восстановлен — новый прогон реплеится целиком.
     expect(subscriptions[1].fromSeq).toBe(0);
+  });
+
+  test('lets go of the compaction lock together with the run', async () => {
+    // compacting гасят только COMPACT_DONE/ERROR, а сюда мы попадаем ровно потому, что их
+    // не увидели: оставленный флаг пережил бы прогон и держал бы Stop выключенным во всех
+    // следующих генерациях этого чата.
+    setup({ reload: vi.fn(() => Promise.resolve([])) });
+
+    await act(async () => {});
+
+    expect(chats[0].runId).toBeNull();
+    expect(chats[0].compacting).toBe(false);
   });
 });

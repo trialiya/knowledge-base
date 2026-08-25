@@ -97,9 +97,18 @@
   color: white;
   box-shadow: 0 2px 6px rgba(232, 77, 106, 0.3);
 }
-.message-action-btn--stop:hover {
+.message-action-btn--stop:hover:not(:disabled) {
   background: #c73057;
   transform: scale(1.08);
+}
+/* Занятость бывает и непрерываемой — сжатие контекста по /compact: один вызов
+   модели, прерывать в нём нечего. Без этой пары правил кнопка в таком состоянии
+   выглядит и ведёт себя ровно как рабочая, но на клик не отвечает. */
+.message-action-btn--stop:disabled {
+  background: var(--kb-accent-bg);
+  color: var(--kb-muted);
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 /* ── Disabled input state (chat unavailable) ── */

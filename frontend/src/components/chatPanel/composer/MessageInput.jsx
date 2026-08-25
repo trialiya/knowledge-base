@@ -9,6 +9,8 @@ import { expandTokensForSend } from './fileChips';
 import { parsePlaceholders } from './phrasePlaceholders';
 
 // isEmpty — true когда в чате ещё нет сообщений; тогда показываем git-подсказки.
+// stoppable — можно ли прервать то, чем занят чат: у генерации да, у сжатия контекста
+// (/compact) нет, и кнопка «остановить» там показывается неактивной.
 // active — панель чата открыта (не перекрыта другим разделом): по ней ставится фокус.
 // Кнопки (отправить/остановить, прикрепить) и селекторы модели/режима вынесены
 // под поле ввода в ComposerToolbar; здесь остаётся только само поле + подсказки.
@@ -16,6 +18,7 @@ const MessageInput = ({
   onSend,
   onStop,
   disabled,
+  stoppable = true,
   onAttach,
   isEmpty = false,
   draftSignal = 0,
@@ -157,6 +160,7 @@ const MessageInput = ({
         mode={mode}
         project={project}
         disabled={disabled}
+        stoppable={stoppable}
         sendDisabled={sendDisabled}
         onAttach={onAttach}
         onStop={onStop}

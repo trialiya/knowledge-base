@@ -13,6 +13,7 @@ import io.github.trialiya.kb.model.chat.dto.Chat;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.ChatMessage;
 import io.github.trialiya.kb.model.chat.dto.ChatSearchResult;
+import io.github.trialiya.kb.model.chat.dto.CompactRequest;
 import io.github.trialiya.kb.model.chat.dto.MessagePage;
 import io.github.trialiya.kb.model.chat.dto.MessageSearchHit;
 import io.github.trialiya.kb.model.chat.dto.StartRunRequest;
@@ -26,6 +27,7 @@ import io.github.trialiya.kb.model.tool.ToolCallDetail;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
+import io.github.trialiya.kb.service.chat.memory.CompactService;
 import io.github.trialiya.kb.service.chat.memory.ToolCallService;
 import io.github.trialiya.kb.service.chat.prompt.ChatModeService;
 import io.github.trialiya.kb.service.chat.prompt.ProjectPromptService;
@@ -83,6 +85,7 @@ public class ChatController {
     private final ToolCallService toolCallService;
     private final ChatSearchService chatSearchService;
     private final ChatRunService chatRunService;
+    private final CompactService compactService;
     private final ChatEventService chatEventService;
     private final ScriptGuideService scriptGuideService;
     private final ContextItemService contextItemService;
@@ -105,6 +108,7 @@ public class ChatController {
             ToolCallService toolCallService,
             ChatSearchService chatSearchService,
             ChatRunService chatRunService,
+            CompactService compactService,
             ChatEventService chatEventService,
             ScriptGuideService scriptGuideService,
             ContextItemService contextItemService,
@@ -123,6 +127,7 @@ public class ChatController {
         this.toolCallService = toolCallService;
         this.chatSearchService = chatSearchService;
         this.chatRunService = chatRunService;
+        this.compactService = compactService;
         this.chatEventService = chatEventService;
         this.scriptGuideService = scriptGuideService;
         this.contextItemService = contextItemService;
@@ -438,6 +443,42 @@ public class ChatController {
                         resolveRun(conversationId, model, mode, project),
                         clientMsgId);
         return Map.of("runId", started.runId(), "messageId", started.userMessageId());
+    }
+
+    /**
+     * Сжимает контекст чата по команде {@code /compact} и сразу возвращает {@code runId}: раунд
+     * идёт по всему живому окну и живёт десятки секунд, поэтому ответ на этот запрос — только
+     * заявка, а исход приезжает событиями {@code COMPACT_DONE}/{@code COMPACT_ERROR} (см. {@link
+     * #events}). Пока он идёт, чат занят так же, как на генерации: вопрос в него получит 409.
+     *
+     * <p>Команда сохраняется обычным сообщением — как и любая реплика, она остаётся в истории, — но
+     * в модель, которая сжимает контекст, не попадает: там вместо неё инструкция сжатия (см. {@link
+     * CompactService}). Модель — та же, на которой работает чат: окно, которое она несла до сих
+     * пор, ей же и предстоит прочитать целиком.
+     *
+     * @param body {@link CompactRequest} — сообщение целиком; {@code text} обязателен, {@code
+     *     instructions} — необязательный хвост-фокус
+     * @param clientMsgId id вкладки-отправителя, тот же смысл, что у {@code POST /runs}
+     */
+    @PostMapping("/{conversationId}/compact")
+    public Map<String, Object> compact(
+            @PathVariable final String conversationId,
+            @RequestParam(name = "clientMsgId", required = false) final String clientMsgId,
+            @RequestBody final CompactRequest body) {
+        if (!StringUtils.hasText(body.text())) {
+            throw new ResponseStatusException(BAD_REQUEST, "Empty message");
+        }
+        // Не checkChat: у команды нет смысла в ещё не заведённом чате, поэтому здесь строгие
+        // 404/403, а не заведение чата на лету.
+        final ChatTopicEntity topic = getChatTopic(conversationId);
+        final String model = resolveModel(conversationId, Optional.of(topic), "");
+        final CompactService.StartedCompact started =
+                compactService.start(
+                        conversationId, body.text(), body.instructions(), model, clientMsgId);
+        // Строго после start: 409/422 не сохраняют сообщения, и поднимать за них чат в списке
+        // не за что. Успех же дописал в чат обычную реплику — как и любая, она его освежает.
+        chatTopicRepository.updateUpdatedAt(conversationId, LocalDateTime.now(clock));
+        return Map.of("runId", started.runId(), "messageId", started.messageId());
     }
 
     /**

@@ -35,6 +35,27 @@ export const RUN_BUSY_NOTICE = {
   messageKey: 'errorModal.busyMessage',
 };
 
+/** `/compact` в чате, который ещё не начат: сжимать нечего, и заводить чат ради этого незачем. */
+export const COMPACT_DRAFT_NOTICE = {
+  icon: '🗜️',
+  titleKey: 'compact.unavailableTitle',
+  messageKey: 'compact.draftMessage',
+};
+
+/** `/compact` по контексту, который уже состоит из одной сводки (ответ 422). */
+export const COMPACT_EMPTY_NOTICE = {
+  icon: '🗜️',
+  titleKey: 'compact.unavailableTitle',
+  messageKey: 'compact.emptyMessage',
+};
+
+/** Сжатие не удалось запустить (сбой самого запроса, не раунда). */
+export const COMPACT_START_ERROR_NOTICE = {
+  icon: '⚠️',
+  titleKey: 'compact.errorTitle',
+  messageKey: 'compact.startErrorMessage',
+};
+
 /** Повтор пришёл слишком поздно — бэк ответил 422. */
 export const RETRY_UNAVAILABLE_NOTICE = {
   icon: '↻',
