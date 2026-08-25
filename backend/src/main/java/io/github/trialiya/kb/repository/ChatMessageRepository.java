@@ -77,15 +77,23 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
      * Сообщения чата, несущие маркер смены проекта, — источник списка репозиториев, на которых чат
      * уже работал ({@code ChatHistoryService#earlierProjects}).
      *
-     * <p>{@code LIKE} по JSON намеренно приблизительный: он только отсекает основную массу рядов, а
-     * решает разобранная {@code meta} у вызывающего. Точность фильтра здесь — вопрос цены запроса,
-     * а не правильности ответа, поэтому он переживёт и запись, где поле сериализовано как {@code
-     * null}, и любое изменение формы JSON.
+     * <p>Отбор по {@code type} — точный: маркер ставится только на вопрос пользователя ({@code
+     * ChatHistoryService#saveUserMessage} и {@code #markProjectSwitch}, куда приходит именно
+     * вопрос), ответы и tool-ряды его не несут никогда. Он и делает основную работу.
+     *
+     * <p>{@code LIKE} по JSON намеренно приблизительный и отсекает только ряды вовсе без меты:
+     * {@code meta} сериализуется вместе с {@code null}-полями, так что у остальных подстрока есть
+     * всегда. Сузить его до {@code "projectSwitchFrom":"} значило бы привязаться к тому, как
+     * Jackson расставляет пробелы, и в обмен на несколько непрочитанных рядов получить риск
+     * потерять смену проекта молча. Решает же разобранная {@code meta} у вызывающего — точность
+     * фильтра здесь вопрос цены запроса, а не правильности ответа.
      */
     @Query(
             """
     SELECT * FROM chat_message
-    WHERE conversation_id = :conversationId AND meta LIKE '%projectSwitchFrom%'
+    WHERE conversation_id = :conversationId
+      AND type = 'USER'
+      AND meta LIKE '%projectSwitchFrom%'
     ORDER BY position ASC
     """)
     List<ChatMessageEntity> findProjectSwitches(@Param("conversationId") String conversationId);
