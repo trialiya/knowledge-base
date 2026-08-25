@@ -149,6 +149,48 @@ const gitApi = {
   },
 
   /**
+   * `git switch` — перевести рабочее дерево на ветку; `create: true` — создать её
+   * на текущем коммите (`switch -c`). Никогда не форсируется: переключение,
+   * которое затёрло бы незакоммиченные правки, приходит отказом с их именами.
+   */
+  switchBranch: (branch, { create = false, project, signal } = {}) => {
+    const params = new URLSearchParams({ branch });
+    if (create) params.set('create', 'true');
+    const [qs, init] = opts(params, project, signal);
+    return command(`/api/git/switch${qs}`, init);
+  },
+
+  /** `git stash push` — убрать отслеживаемые изменения в сторону. */
+  stashPush: ({ project, signal } = {}) => {
+    const [qs, init] = opts(new URLSearchParams(), project, signal);
+    return command(`/api/git/stash${qs}`, init);
+  },
+
+  /** `git stash pop` — вернуть последний stash; конфликт оставляет его на месте. */
+  stashPop: ({ project, signal } = {}) => {
+    const [qs, init] = opts(new URLSearchParams(), project, signal);
+    return command(`/api/git/stash/pop${qs}`, init);
+  },
+
+  /** `git commit` отслеживаемых изменений — тех самых, что показывает режим «Изменения». */
+  commit: (message, { project, signal } = {}) => {
+    const [qs, init] = opts(new URLSearchParams({ message }), project, signal);
+    return command(`/api/git/commit${qs}`, init);
+  },
+
+  /** `git restore <path>` — вернуть один файл к закоммиченному состоянию. Правки теряются. */
+  discard: (path, { project, signal } = {}) => {
+    const [qs, init] = opts(new URLSearchParams({ path }), project, signal);
+    return command(`/api/git/discard${qs}`, init);
+  },
+
+  /** `git merge --abort` — выйти из незавершённого merge. */
+  abortMerge: ({ project, signal } = {}) => {
+    const [qs, init] = opts(new URLSearchParams(), project, signal);
+    return command(`/api/git/merge/abort${qs}`, init);
+  },
+
+  /**
    * История коммитов (свежие первыми), опционально по одному пути.
    * path='' или omitted — история всего репозитория. Возвращает GitCommit[]
    * { hash, shortHash, author, email, date, message }.

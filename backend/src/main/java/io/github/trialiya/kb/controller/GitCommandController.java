@@ -58,6 +58,75 @@ public class GitCommandController {
     }
 
     /**
+     * Moves the checkout onto another branch, creating it at the current commit with {@code
+     * create=true} ({@code git switch} / {@code git switch -c}).
+     *
+     * <p>Never forced. A switch that would overwrite uncommitted changes comes back as a {@code
+     * 422} naming those files, and the user decides what to do with them — the server does not
+     * stash them on its own, because a pop can conflict in turn and nobody would know where the
+     * work went.
+     */
+    @PostMapping("/switch")
+    public GitCommandResult switchBranch(
+            @RequestParam("branch") String branch,
+            @RequestParam(name = "create", defaultValue = "false") boolean create,
+            @RequestParam(name = "project", required = false) @Nullable String project) {
+        return run(project, git -> git.switchBranch(branch, create));
+    }
+
+    /** Puts the tracked changes aside ({@code git stash push}). */
+    @PostMapping("/stash")
+    public GitCommandResult stashPush(
+            @RequestParam(name = "project", required = false) @Nullable String project) {
+        return run(project, GitService::stashPush);
+    }
+
+    /**
+     * Brings the newest stash back and drops it; a conflicting pop keeps it ({@code stash pop}).
+     */
+    @PostMapping("/stash/pop")
+    public GitCommandResult stashPop(
+            @RequestParam(name = "project", required = false) @Nullable String project) {
+        return run(project, GitService::stashPop);
+    }
+
+    /**
+     * Commits the tracked changes — the same files the panel lists under "changes", the assistant's
+     * staged edits included. Refused when the repository has no {@code user.name}/{@code
+     * user.email}: the identity is the deployment's to set, not this application's to invent.
+     */
+    @PostMapping("/commit")
+    public GitCommandResult commit(
+            @RequestParam("message") String message,
+            @RequestParam(name = "project", required = false) @Nullable String project) {
+        return run(project, git -> git.commit(message));
+    }
+
+    /**
+     * Restores one tracked file to its committed state ({@code git restore}).
+     *
+     * <p>The one command here that destroys work instead of moving it — hence one path per call and
+     * no "discard everything": what it throws away includes whatever the assistant wrote there, and
+     * the UI has to be able to name the file before asking.
+     */
+    @PostMapping("/discard")
+    public GitCommandResult discard(
+            @RequestParam("path") String path,
+            @RequestParam(name = "project", required = false) @Nullable String project) {
+        return run(project, git -> git.discard(path));
+    }
+
+    /**
+     * Leaves an unfinished merge ({@code git merge --abort}) — the way out of a conflicted working
+     * tree, and what keeps a conflicted pull from being a dead end.
+     */
+    @PostMapping("/merge/abort")
+    public GitCommandResult abortMerge(
+            @RequestParam(name = "project", required = false) @Nullable String project) {
+        return run(project, GitService::abortMerge);
+    }
+
+    /**
      * Resolves the project, checks the permission and maps the ways a command can fail onto status
      * codes: an unknown project is the caller's mistake, a project that offers no commands is a
      * deployment's decision, a busy repository is a retry, and git's own refusal is git's message
@@ -83,6 +152,10 @@ public class GitCommandController {
         }
         try {
             return command.apply(git);
+        } catch (IllegalArgumentException e) {
+            // An unusable path — the same refusal RepoPaths gives every other endpoint, and the
+            // caller's mistake rather than git's.
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         } catch (GitBusyException e) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
         } catch (GitCommandFailedException e) {

@@ -4,11 +4,13 @@ import io.github.trialiya.kb.model.git.dto.GitBranchStatus;
 import java.io.IOException;
 import java.util.List;
 import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.BranchTrackingStatus;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.lib.RepositoryState;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -49,14 +51,36 @@ class GitBranches {
             // HEAD was hand-edited. Nothing to report about it beyond that, and guessing a branch
             // name would be worse than saying the checkout is not on one.
             @Nullable String branch = repository.getBranch();
+            // What the working tree itself is in the middle of — read once, because both answers
+            // come from the same status walk and the panel needs them together with the branch.
+            Working working = working();
             if (branch == null) {
-                return new GitBranchStatus("HEAD", true, unborn, null, 0, 0, List.of());
+                return new GitBranchStatus(
+                        "HEAD",
+                        true,
+                        unborn,
+                        null,
+                        0,
+                        0,
+                        List.of(),
+                        working.dirty(),
+                        working.merging(),
+                        working.conflicts());
             }
 
             if (detached) {
                 // The indicator wants what git shows in its own prompt, not the full hash.
                 return new GitBranchStatus(
-                        abbreviate(branch), true, false, null, 0, 0, localBranches());
+                        abbreviate(branch),
+                        true,
+                        false,
+                        null,
+                        0,
+                        0,
+                        localBranches(),
+                        working.dirty(),
+                        working.merging(),
+                        working.conflicts());
             }
             @Nullable BranchTrackingStatus tracking =
                     unborn ? null : BranchTrackingStatus.of(repository, branch);
@@ -69,10 +93,41 @@ class GitBranches {
                             : Repository.shortenRefName(tracking.getRemoteTrackingBranch()),
                     tracking == null ? 0 : tracking.getAheadCount(),
                     tracking == null ? 0 : tracking.getBehindCount(),
-                    unborn ? List.of() : localBranches());
+                    unborn ? List.of() : localBranches(),
+                    working.dirty(),
+                    working.merging(),
+                    working.conflicts());
         } catch (IOException e) {
             throw new IllegalStateException("Failed to read the branch status", e);
         }
+    }
+
+    /** What the working tree is in the middle of, as one status walk answers it. */
+    private record Working(boolean dirty, boolean merging, List<String> conflicts) {}
+
+    /**
+     * Whether anything tracked is uncommitted, and whether a merge is unfinished.
+     *
+     * <p>Untracked files deliberately do not count as dirty: git lets a switch carry them across
+     * untouched, and counting them would put the "what about your changes" question in front of a
+     * user whose only untracked file is a build report.
+     */
+    private Working working() {
+        Status status;
+        try {
+            status = git.status().call();
+        } catch (GitAPIException e) {
+            throw new IllegalStateException("Failed to compute working tree status", e);
+        }
+        boolean dirty =
+                !status.getAdded().isEmpty()
+                        || !status.getChanged().isEmpty()
+                        || !status.getModified().isEmpty()
+                        || !status.getRemoved().isEmpty()
+                        || !status.getMissing().isEmpty()
+                        || !status.getConflicting().isEmpty();
+        boolean merging = repository.getRepositoryState() != RepositoryState.SAFE;
+        return new Working(dirty, merging, List.copyOf(status.getConflicting()));
     }
 
     private static String abbreviate(String hash) {

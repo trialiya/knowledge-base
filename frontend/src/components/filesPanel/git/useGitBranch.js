@@ -64,7 +64,18 @@ export default function useGitBranch({ project, refreshToken }) {
     [project],
   );
 
-  const fetchRemote = useCallback(() => run(gitApi.fetch), [run]);
+  const commands = useMemo(
+    () => ({
+      fetchRemote: () => run(gitApi.fetch),
+      switchBranch: (branch, create) => run((o) => gitApi.switchBranch(branch, { ...o, create })),
+      stashPush: () => run(gitApi.stashPush),
+      stashPop: () => run(gitApi.stashPop),
+      commit: (message) => run((o) => gitApi.commit(message, o)),
+      discard: (path) => run((o) => gitApi.discard(path, o)),
+      abortMerge: () => run(gitApi.abortMerge),
+    }),
+    [run],
+  );
 
   return useMemo(
     () => ({
@@ -73,8 +84,8 @@ export default function useGitBranch({ project, refreshToken }) {
       loading: !fresh,
       error: fresh?.error ?? null,
       running,
-      fetchRemote,
+      ...commands,
     }),
-    [fresh, running, fetchRemote],
+    [fresh, running, commands],
   );
 }

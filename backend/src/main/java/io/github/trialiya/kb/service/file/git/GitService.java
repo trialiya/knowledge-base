@@ -171,7 +171,7 @@ public class GitService {
         this.visible = new VisibleFiles(project, paths, repository);
         this.writer = new GitWriter(project, paths, visible, git);
         this.branches = new GitBranches(repository, git);
-        this.commands = new GitCommands(paths.root(), branches);
+        this.commands = new GitCommands(paths, repository, git, branches);
         log.info("GitService initialised for project {}: {}", project.id(), paths.root());
     }
 
@@ -1058,6 +1058,62 @@ public class GitService {
      */
     public GitCommandResult fetch() {
         return commands.fetch();
+    }
+
+    /**
+     * Moves the checkout onto {@code branch}, creating it at the current commit when {@code create}
+     * — {@code git switch} and {@code git switch -c}.
+     *
+     * <p>Never forced: a switch that would overwrite uncommitted changes is refused, naming the
+     * files, and the user stashes or commits them first. Losing a working tree to a click is the
+     * one outcome this whole feature must not have.
+     */
+    public GitCommandResult switchBranch(@NonNull String branch, boolean create) {
+        return commands.switchBranch(branch, create);
+    }
+
+    /**
+     * Puts the tracked changes aside ({@code git stash push}) — the way out of "the switch you
+     * asked for would overwrite these files".
+     */
+    public GitCommandResult stashPush() {
+        return commands.stashPush();
+    }
+
+    /**
+     * Brings the newest stash back and drops it ({@code git stash pop}). A pop that conflicts keeps
+     * the stash: the work would otherwise exist nowhere but a conflicted working tree.
+     */
+    public GitCommandResult stashPop() {
+        return commands.stashPop();
+    }
+
+    /**
+     * Commits the tracked changes with {@code message} — the same files the panel lists under
+     * "changes", including the edits the assistant staged.
+     *
+     * <p>Refused when the repository has no commit identity: it belongs to whoever owns the
+     * deployment, and a history signed with a made-up address is worse than a refusal.
+     */
+    public GitCommandResult commit(@NonNull String message) {
+        return commands.commit(message);
+    }
+
+    /**
+     * Restores one tracked file to its committed state ({@code git restore}) — the only command
+     * here that destroys work rather than moving it, which is why it takes a path and never a whole
+     * tree.
+     */
+    public GitCommandResult discard(@NonNull String filePath) {
+        return commands.discard(filePath);
+    }
+
+    /**
+     * Leaves an unfinished merge ({@code git merge --abort}) — the guaranteed way out of a
+     * conflicted working tree, and the reason a conflicted pull is not a dead end.
+     */
+    public GitCommandResult abortMerge() {
+        return commands.abortMerge();
     }
 
     // ── Working-tree writes ─────────────────────────────────────────────────

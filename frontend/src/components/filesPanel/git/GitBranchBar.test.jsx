@@ -38,7 +38,7 @@ describe('GitBranchBar', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
 
     rerender(<GitBranchBar status={status()} capabilities={{ commands: true }} onFetch={onFetch} />);
-    await userEvent.click(screen.getByRole('button'));
+    await userEvent.click(screen.getByRole('button', { name: 'git.fetch' }));
 
     expect(onFetch).toHaveBeenCalled();
   });
@@ -46,7 +46,7 @@ describe('GitBranchBar', () => {
   test('a command in flight disables its button', () => {
     render(<GitBranchBar status={status()} capabilities={{ commands: true }} running onFetch={vi.fn()} />);
 
-    expect(screen.getByRole('button')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'git.fetch' })).toBeDisabled();
   });
 
   /** Detached HEAD — состояние, а не имя ветки: панель обязана это сказать. */

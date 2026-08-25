@@ -13,8 +13,8 @@ import AdminPanel from '@/components/adminPanel/AdminPanel';
 import SettingsPanel from '@/components/settingsPanel/SettingsPanel';
 import { SEARCH_MODE } from '@/constants/searchMode';
 import { invalidateDocPreviewCache } from '@/components/common/preview/useDocPreview';
-import { invalidateFilePreviewCache } from '@/components/common/preview/useFilePreview';
-import { invalidatePath as invalidateFileTreePath } from '@/components/filesPanel/fileTreeStore';
+import { invalidateFilePreviewCache, invalidateAllFilePreviewCache } from '@/components/common/preview/useFilePreview';
+import { invalidatePath as invalidateFileTreePath, resetFileTreeCache } from '@/components/filesPanel/fileTreeStore';
 import '@/App.css';
 
 // Вкладки-иконки в левой зоне шапки. Подпись одна на кнопку: она же
@@ -116,6 +116,19 @@ function App() {
     setFilesRefreshTick((n) => n + 1);
   }, []);
 
+  /**
+   * Команда git из панели файлов сдвинула рабочее дерево целиком: checkout,
+   * stash, коммит или откат файла меняют сразу и дерево, и список изменений, и
+   * содержимое открытого файла. Точечная инвалидация тут не подходит — какие
+   * именно пути поменялись, знает только git, — поэтому весь кэш панели
+   * сбрасывается одним тиком, тем же, что и после правки файла ассистентом.
+   */
+  const handleRepoChanged = useCallback(() => {
+    resetFileTreeCache();
+    invalidateAllFilePreviewCache();
+    setFilesRefreshTick((n) => n + 1);
+  }, []);
+
   // Уход из KB с несохранёнными правками спрашивает подтверждение — переключаем
   // разделы через goView, а не через switchView напрямую.
   const { goView, pendingView, confirmLeave, cancelLeave } = useUnsavedViewGuard({ view, switchView });
@@ -211,6 +224,7 @@ function App() {
               onChangesToggle={setFileChanges}
               onPathChange={openFilePath}
               refreshToken={filesRefreshTick}
+              onRepoChanged={handleRepoChanged}
               panels={panels}
             />
           </div>

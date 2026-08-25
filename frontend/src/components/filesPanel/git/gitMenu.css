@@ -1,0 +1,80 @@
+/* ═══════════════════════════════════════════════
+   GIT MENU — операции над репозиторием рядом с веткой
+═══════════════════════════════════════════════ */
+
+.git-menu {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+
+/* Выпадает влево: меню стоит у правого края узкой панели, и раскрытие вправо
+   уводило бы его за границу окна. */
+.git-menu__dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 200px;
+  /* Веток бывает много: список прокручивается, а панель — нет. */
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 5px;
+  background: var(--kb-white);
+  border: 1.5px solid var(--kb-border);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(91, 79, 207, 0.16);
+  z-index: 1200;
+}
+
+.git-menu__section {
+  padding: 5px 8px 3px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--kb-muted);
+}
+
+.git-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--kb-text);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.git-menu__item:hover:not(:disabled) {
+  background: var(--kb-accent-light);
+  color: var(--kb-accent);
+}
+.git-menu__item:disabled {
+  color: var(--kb-muted);
+  cursor: default;
+}
+
+/* Колонка под галочку одна на все пункты — иначе строки текущей ветки и
+   остальных разъезжались бы по левому краю. */
+.git-menu__mark {
+  flex: none;
+  width: 12px;
+  display: flex;
+  color: var(--kb-accent);
+}
+
+.git-menu__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-menu__sep {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--kb-border-light);
+}

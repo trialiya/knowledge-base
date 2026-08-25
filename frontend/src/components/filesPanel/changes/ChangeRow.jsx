@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { DiffStats } from '@/components/chatPanel/messages/diffRender';
+import { IconEraser } from '@/icons/index';
 
 /**
  * Строка изменённого файла — одна на обе раскладки: в плоской перед именем
@@ -12,7 +13,7 @@ import { DiffStats } from '@/components/chatPanel/messages/diffRender';
  * `role` задаёт вызывающий: плоский список — `option` в `listbox`,
  * иерархия — `treeitem` в `tree`.
  */
-const ChangeRow = ({ entry, depth = 0, showDir = false, selected, onSelect, role = 'option', level }) => {
+const ChangeRow = ({ entry, depth = 0, showDir = false, selected, onSelect, onDiscard, role = 'option', level }) => {
   const { t } = useTranslation('files');
   const status = entry.status;
   const name = entry.path.split('/').pop();
@@ -43,6 +44,23 @@ const ChangeRow = ({ entry, depth = 0, showDir = false, selected, onSelect, role
       <span className="file-changes__stats">
         <DiffStats additions={entry.additions} deletions={entry.deletions} />
       </span>
+      {/* Откат только у отслеживаемого файла: у неотслеживаемого нет
+          закоммиченного состояния, к которому его возвращать, и команда
+          ответила бы отказом. Клик не должен открывать файл заодно. */}
+      {onDiscard && entry.status !== 'U' && (
+        <button
+          type="button"
+          className="icon-btn icon-btn--danger file-changes__discard"
+          title={t('git.discard')}
+          aria-label={t('git.discard')}
+          onClick={(e) => {
+            e.stopPropagation();
+            onDiscard(entry.path);
+          }}
+        >
+          <IconEraser size={13} />
+        </button>
+      )}
     </div>
   );
 };

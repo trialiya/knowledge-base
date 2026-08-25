@@ -17,7 +17,13 @@ const status = (over = {}) => ({
   ...over,
 });
 
-const caps = (over = {}) => ({ project: PROJECT, available: true, commands: true, push: false, ...over });
+const caps = (over = {}) => ({
+  project: PROJECT,
+  available: true,
+  commands: true,
+  push: false,
+  ...over,
+});
 
 describe('useGitBranch', () => {
   afterEach(() => vi.resetAllMocks());
@@ -42,7 +48,11 @@ describe('useGitBranch', () => {
   test('a fetch leaves the fresh state behind', async () => {
     gitApi.getBranches.mockResolvedValueOnce(status()).mockResolvedValueOnce(status({ behind: 2 }));
     gitApi.getCapabilities.mockResolvedValue(caps());
-    gitApi.fetch.mockResolvedValue({ command: 'fetch', output: '', status: status({ behind: 2 }) });
+    gitApi.fetch.mockResolvedValue({
+      command: 'fetch',
+      output: '',
+      status: status({ behind: 2 }),
+    });
 
     const { result } = renderHook(() => useGitBranch({ project: PROJECT }));
     await waitFor(() => expect(result.current.loading).toBe(false));

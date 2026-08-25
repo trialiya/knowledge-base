@@ -12,12 +12,25 @@ import GitBranchBar from './git/GitBranchBar';
  * включённое состояние в них уже нарисовано, своего семейства «сегментов»
  * заводить не за чем.
  */
-const FilesToolbar = ({ project, changes, onChangesToggle, flat, onFlatToggle, onSelect, git, onFetch }) => {
+const FilesToolbar = ({ project, changes, onChangesToggle, flat, onFlatToggle, onSelect, git, actions }) => {
   const { t } = useTranslation('files');
 
   return (
     <div className="files-toolbar">
-      <GitBranchBar status={git.status} capabilities={git.capabilities} running={git.running} onFetch={onFetch} />
+      <GitBranchBar
+        status={git.status}
+        capabilities={git.capabilities}
+        running={git.running}
+        onFetch={actions.fetch}
+        onAbortMerge={actions.abortMerge}
+        commands={{
+          onSwitch: actions.switchBranch,
+          onCreateBranch: actions.askNewBranch,
+          onStashPush: actions.stashPush,
+          onStashPop: actions.stashPop,
+          onCommit: actions.askCommit,
+        }}
+      />
       <div className="files-toolbar__row">
         <div className="files-toolbar__modes" role="group" aria-label={t('panel.mode')}>
           <button

@@ -1,0 +1,43 @@
+/* ═══════════════════════════════════════════════
+   GIT PROMPT — ввод имени ветки / сообщения коммита
+═══════════════════════════════════════════════ */
+
+.git-prompt__title {
+  margin: 0 0 6px;
+  font-size: 1rem;
+  color: var(--kb-text);
+}
+
+.git-prompt__hint {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--kb-muted);
+}
+
+.git-prompt__label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--kb-muted);
+}
+
+.git-prompt__input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1.5px solid var(--kb-border);
+  border-radius: 8px;
+  background: var(--kb-white);
+  color: var(--kb-text);
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+.git-prompt__input:focus {
+  outline: none;
+  border-color: var(--kb-accent);
+}
+
+.git-prompt__input--area {
+  resize: vertical;
+  min-height: 64px;
+}

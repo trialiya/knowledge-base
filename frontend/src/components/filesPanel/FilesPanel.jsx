@@ -11,6 +11,9 @@ import { readChangesFlat, saveChangesFlat } from './changes/changesLayout';
 import ProjectPicker from './ProjectPicker';
 import useFileTree from './useFileTree';
 import useGitBranch from './git/useGitBranch';
+import useGitActions, { GIT_PROMPT } from './git/useGitActions';
+import GitPromptModal from './git/GitPromptModal';
+import ConfirmModal from '@/components/common/modal/ConfirmModal';
 import useNotice from '@/components/common/ui/useNotice';
 import ErrorModal from '@/components/common/modal/ErrorModal';
 import useProjectConfig from '@/components/common/config/useProjectConfig';
@@ -38,6 +41,7 @@ const FilesPanelForProject = ({
   onPathChange,
   onProjectChange,
   refreshToken,
+  onRepoChanged,
   panels,
 }) => {
   const { t } = useTranslation('files');
@@ -60,16 +64,7 @@ const FilesPanelForProject = ({
   // («Permission denied (publickey)»), и это ровно то, что нужно показать —
   // своя формулировка сказала бы меньше.
   const { notice, notify, dismissNotice } = useNotice();
-  const runFetch = () =>
-    git.fetchRemote().catch((error) =>
-      notify({
-        titleKey: 'git.failed',
-        messageKey: 'git.failedMessage',
-        // Текст git'а показываем как есть; своего у нас только случай, когда
-        // ответа не было вовсе (сеть, 500) и показывать нечего.
-        params: { reason: error?.reason || t('git.failedUnknown') },
-      }),
-    );
+  const actions = useGitActions({ git, onRepoChanged, notify, t });
 
   // Раскладка списка изменений — предпочтение, переживающее и проект, и
   // перезагрузку (см. changesLayout).
@@ -136,7 +131,7 @@ const FilesPanelForProject = ({
               onFlatToggle={changeFlat}
               onSelect={onPathChange}
               git={git}
-              onFetch={runFetch}
+              actions={actions}
             />
           ),
           // Дерево прокручивает себя само (строки шире панели — нужен и
@@ -153,6 +148,9 @@ const FilesPanelForProject = ({
                   error={changeList.error}
                   selectedPath={path}
                   onSelect={selectNode}
+                  // Откат правки предлагается только там, где проекту разрешены
+                  // команды: без разрешения кнопка отвечала бы отказом сервера.
+                  onDiscard={git.capabilities?.commands ? actions.askDiscard : null}
                 />
               ) : (
                 <FileTree
@@ -182,6 +180,34 @@ const FilesPanelForProject = ({
         }
         right={rightTabs}
       />
+      <GitPromptModal
+        open={actions.prompt === GIT_PROMPT.BRANCH}
+        title={t('git.newBranch')}
+        label={t('git.branchName')}
+        hint={git.status ? t('git.branchFrom', { branch: git.status.current }) : undefined}
+        placeholder="feature/…"
+        confirmLabel={t('git.create')}
+        onConfirm={actions.confirmPrompt}
+        onCancel={actions.cancelPrompt}
+      />
+      <GitPromptModal
+        open={actions.prompt === GIT_PROMPT.COMMIT}
+        title={t('git.commit')}
+        label={t('git.commitMessage')}
+        hint={t('git.commitHint')}
+        confirmLabel={t('git.commit')}
+        multiline
+        onConfirm={actions.confirmPrompt}
+        onCancel={actions.cancelPrompt}
+      />
+      <ConfirmModal
+        open={!!actions.discarding}
+        title={t('git.discardTitle')}
+        message={t('git.discardMessage', { path: actions.discarding })}
+        confirmLabel={t('git.discardConfirm')}
+        onConfirm={actions.confirmDiscard}
+        onCancel={actions.cancelDiscard}
+      />
       <ErrorModal
         open={!!notice}
         title={notice ? t(notice.titleKey) : ''}
@@ -198,7 +224,7 @@ const FilesPanelForProject = ({
  * при сбросе показало бы файлы прежнего репозитория. Кэши при этом не теряются:
  * они живут в модуле и разложены по проектам (fileTreeStore).
  */
-const FilesPanel = ({ project, path, changes, onChangesToggle, onPathChange, refreshToken, panels }) => {
+const FilesPanel = ({ project, path, changes, onChangesToggle, onPathChange, refreshToken, onRepoChanged, panels }) => {
   const { projectOptions, defaultProjectId, ready } = useProjectConfig();
   // Адрес без проекта означает дефолтный. Ждём ответа со списком: смонтироваться
   // раньше — значит смонтироваться на пустом ключе и тут же перемонтироваться,
@@ -226,6 +252,7 @@ const FilesPanel = ({ project, path, changes, onChangesToggle, onPathChange, ref
       // Дефолтный проект в адрес не пишем: пустое значение и означает его.
       onProjectChange={(id) => onPathChange('', id === defaultProjectId ? '' : id)}
       refreshToken={refreshToken}
+      onRepoChanged={onRepoChanged}
       panels={panels}
     />
   );

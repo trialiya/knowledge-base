@@ -85,6 +85,27 @@
     "fetch": "Update from the remote (fetch)",
     "failed": "The git command did not run",
     "failedMessage": "{{reason}}",
-    "failedUnknown": "No answer from the server. The application log has the details."
+    "failedUnknown": "No answer from the server. The application log has the details.",
+    "menu": "Repository actions",
+    "switchTo": "Switch to",
+    "newBranch": "New branch",
+    "branchName": "Branch name",
+    "branchFrom": "Created from “{{branch}}” and checked out",
+    "create": "Create",
+    "stash": "Stash changes",
+    "stashPop": "Pop the stash",
+    "nothingToStash": "Nothing to stash: there are no changes",
+    "commit": "Commit",
+    "commitMessage": "Commit message",
+    "commitHint": "The tracked changes go in — the same ones the Changes mode lists, the assistant's edits included",
+    "nothingToCommit": "Nothing to commit: there are no changes",
+    "cancel": "Cancel",
+    "discard": "Discard the file's changes",
+    "discardTitle": "Discard the file's changes?",
+    "discardMessage": "“{{path}}” goes back to its committed state. The edits, the assistant's included, are lost for good.",
+    "discardConfirm": "Discard",
+    "merging": "Unfinished merge",
+    "mergeConflicts": "Merge conflict in {{count}} file(s)",
+    "abortMerge": "Abort the merge"
   }
 }
