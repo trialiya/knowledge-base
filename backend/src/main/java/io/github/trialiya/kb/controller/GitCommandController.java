@@ -160,6 +160,12 @@ public class GitCommandController {
             throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
         } catch (GitCommandFailedException e) {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, e.getMessage());
+        } catch (IllegalStateException e) {
+            // The command could not be run at all: no git binary, an unreadable HEAD, a reader
+            // that never drained. Ours to fix rather than the user's, but it still travels with
+            // its message — "Cannot run git fetch" is the whole diagnosis, and a bare 500 sends
+            // whoever is looking at the panel to the server log for a sentence we already have.
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
         }
     }
 
