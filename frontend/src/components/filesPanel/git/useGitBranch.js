@@ -15,11 +15,16 @@ import gitApi from '@/api/gitApi';
  * и у дерева файлов: коммит, сделанный из панели, двигает и счётчик «впереди».
  */
 export default function useGitBranch({ project, refreshToken }) {
-  const key = `${refreshToken ?? 0} ${project ?? ''}`;
   // Ответ вместе с ключом, которому он принадлежит, — как в useUncommittedChanges:
   // отдельный флаг loading означал бы setState из эффекта.
   const [answer, setAnswer] = useState(null);
   const [running, setRunning] = useState(false);
+  // Только для fetch: он двигает счётчики, но не рабочее дерево, и поднимать
+  // ради него общий сигнал значило бы перезапросить заодно дерево, изменения и
+  // превью, которых fetch не касается.
+  const [reloads, setReloads] = useState(0);
+
+  const key = `${refreshToken ?? 0} ${project ?? ''} ${reloads}`;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -40,32 +45,30 @@ export default function useGitBranch({ project, refreshToken }) {
   const fresh = answer?.key === key ? answer : null;
 
   /**
-   * Выполнить команду и показать состояние, которое она оставила.
+   * Выполнить команду. Перечитывать состояние здесь нечем и незачем: команда,
+   * сдвинувшая рабочее дерево, доходит до панели через общий `refreshToken` —
+   * он же входит в ключ запроса, — и лишний запрос отсюда стал бы вторым на ту
+   * же перерисовку. Исключение — fetch: он рабочее дерево не трогает и общий
+   * сигнал не поднимает, поэтому свою строку обновляет сам.
    *
-   * Перезапроса нет: ответ уже несёт состояние в себе
-   * (`GitCommandResult.status`), а права команда не меняет — их отзывает только
-   * перемонтированный ro-mount, и это придёт со следующим общим обновлением.
    * Ошибка возвращается вызывающему, а не гасится здесь: показать её — дело
    * панели, у неё для этого один ErrorModal.
    */
   const run = useCallback(
     (command) => {
       setRunning(true);
-      return command({ project })
-        .then((result) => {
-          if (result?.status) {
-            setAnswer((prev) => (prev?.key === key ? { ...prev, status: result.status } : prev));
-          }
-          return result;
-        })
-        .finally(() => setRunning(false));
+      return command({ project }).finally(() => setRunning(false));
     },
-    [project, key],
+    [project],
   );
 
   const commands = useMemo(
     () => ({
-      fetchRemote: () => run(gitApi.fetch),
+      fetchRemote: () =>
+        run(gitApi.fetch).then((result) => {
+          setReloads((n) => n + 1);
+          return result;
+        }),
       pull: () => run(gitApi.pull),
       push: () => run(gitApi.push),
       switchBranch: (branch, create) => run((o) => gitApi.switchBranch(branch, { ...o, create })),
