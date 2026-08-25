@@ -72,5 +72,19 @@
       "U": "Не отслеживается"
     },
     "noPatch": "Показать изменение нечем — бинарный или слишком большой файл"
+  },
+  "git": {
+    "branch": "Ветка",
+    "detached": "detached",
+    "detachedHint": "HEAD не на ветке: коммит не переживёт переключения",
+    "unborn": "нет коммитов",
+    "upstream": "Отслеживает {{upstream}}",
+    "noUpstream": "Ветка ничего не отслеживает",
+    "aheadHint": "Своих коммитов, которых нет в upstream: {{count}}",
+    "behindHint": "Коммитов в upstream, которых нет здесь: {{count}} — их принесёт pull",
+    "fetch": "Обновить из remote (fetch)",
+    "failed": "Команда git не выполнена",
+    "failedMessage": "{{reason}}",
+    "failedUnknown": "Сервер не ответил. Подробности — в логе приложения."
   }
 }

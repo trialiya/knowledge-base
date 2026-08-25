@@ -12,13 +12,34 @@
 // раньше там подряд шли limit/from/to/signal, и проект, вставленный в эту
 // очередь, менялся бы местами с соседом без единой ошибки.
 
-import { request } from './client';
+import { request, requestRaw } from './client';
 
 /** Опции запроса → query + fetch-init. */
 const opts = (params, project, signal) => {
   if (project) params.set('project', project);
   const qs = params.toString();
   return [qs ? `?${qs}` : '', signal ? { signal } : undefined];
+};
+
+/**
+ * Команда пользователя (POST /api/git/<глагол>) — как request(), но с текстом
+ * отказа. Отказывает такая команда словами самого git («Permission denied
+ * (publickey)», «couldn't find remote ref»), и это ровно то, по чему человек
+ * поймёт, что чинить: `HTTP 422` вместо них не говорит ничего. Бэкенд кладёт
+ * их в тело (см. GitCommandController.GitCommandError).
+ */
+const command = async (url, init) => {
+  const res = await requestRaw(url, { ...init, method: 'POST' });
+  const text = await res.text();
+  const body = text ? JSON.parse(text) : null;
+  if (res.ok) return body;
+  const err = new Error(body?.message || `HTTP ${res.status}`);
+  err.type = 'http';
+  err.status = res.status;
+  // Отдельным полем: сообщение может оказаться и нашим «HTTP 500», а панели
+  // важно знать, был ли это ответ git'а, который показывают как есть.
+  err.reason = body?.message ?? null;
+  throw err;
 };
 
 const gitApi = {
@@ -92,6 +113,39 @@ const gitApi = {
     if (patch) params.set('patch', 'true');
     const [qs, init] = opts(params, project, signal);
     return request(`/api/git/status${qs}`, init);
+  },
+
+  /**
+   * На какой ветке рабочее дерево, насколько разошлось с upstream и какие ветки
+   * ещё есть. Возвращает GitBranchStatus { current, detached, unborn, upstream,
+   * ahead, behind, branches }.
+   *
+   * Счётчики читаются по refs на диске — они настолько свежие, насколько свеж
+   * последний fetch, и ни один запрос отсюда в сеть не ходит.
+   */
+  getBranches: ({ project, signal } = {}) => {
+    const [qs, init] = opts(new URLSearchParams(), project, signal);
+    return request(`/api/git/branches${qs}`, init);
+  },
+
+  /**
+   * Что интерфейс вправе предлагать по этому репозиторию: открылся ли он,
+   * разрешены ли git-команды пользователя и входит ли в них push.
+   * Возвращает GitCapabilities { project, available, commands, push }.
+   */
+  getCapabilities: ({ project, signal } = {}) => {
+    const [qs, init] = opts(new URLSearchParams(), project, signal);
+    return request(`/api/git/capabilities${qs}`, init);
+  },
+
+  /**
+   * `git fetch` — обновить remote-refs, чтобы счётчику «позади» было что
+   * показывать. Рабочее дерево не трогает: ничего не сливается, файлы не
+   * меняются. Возвращает GitCommandResult { command, output, status }.
+   */
+  fetch: ({ project, signal } = {}) => {
+    const [qs, init] = opts(new URLSearchParams(), project, signal);
+    return command(`/api/git/fetch${qs}`, init);
   },
 
   /**

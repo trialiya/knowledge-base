@@ -208,6 +208,22 @@ public class GitRegistry {
     }
 
     /**
+     * The repository of {@code projectId}, provided the user's git commands are available for it —
+     * otherwise a refusal naming the project, the same shape {@link #requireEditable} takes.
+     */
+    public GitService requireGitCommands(@Nullable String projectId) {
+        Project project = catalog.require(projectId);
+        if (!gitCommandsAllowed(project.id())) {
+            throw new IllegalStateException(
+                    "Project \""
+                            + project.id()
+                            + "\" does not offer git commands: they are not enabled for it, or its"
+                            + " working tree is read-only");
+        }
+        return forProject(project.id());
+    }
+
+    /**
      * What the UI may offer for this project — the capabilities behind the buttons, answered for
      * the state the repository is in right now rather than for the configuration alone.
      */

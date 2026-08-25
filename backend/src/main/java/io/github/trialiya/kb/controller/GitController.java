@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.controller;
 
+import io.github.trialiya.kb.model.git.dto.GitBranchStatus;
 import io.github.trialiya.kb.model.git.dto.GitCapabilities;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
@@ -155,6 +156,20 @@ public class GitController {
             requireSafePath(path);
         }
         return git(project).getFileTree(path);
+    }
+
+    /**
+     * Which branch this repository is on, how far it has drifted from its upstream and what other
+     * branches it has — the panel's branch indicator, and the picker a switch is chosen from.
+     *
+     * <p>A plain read, available whether or not the project permits git commands: a panel says
+     * which branch it is showing even when nobody may change it. The ahead/behind counters are read
+     * off the refs on disk, so they are as fresh as the last fetch — nothing here reaches a remote.
+     */
+    @GetMapping("/branches")
+    public GitBranchStatus branches(
+            @RequestParam(name = "project", required = false) @Nullable String project) {
+        return git(project).branchStatus();
     }
 
     /**

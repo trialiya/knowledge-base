@@ -1,6 +1,8 @@
 package io.github.trialiya.kb.service.file.git;
 
 import io.github.trialiya.kb.model.git.dto.FileEntryType;
+import io.github.trialiya.kb.model.git.dto.GitBranchStatus;
+import io.github.trialiya.kb.model.git.dto.GitCommandResult;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitEditResult;
@@ -78,8 +80,9 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>All operations run against this project's repository via JGit, in-process — no {@code git}
  * subprocess, no argv, no output parsing — except {@link #grepContent}, which still shells out to
- * {@code git grep} (JGit has no equivalent). Files matched by {@code .gitignore} are excluded from
- * tree/search/status results the same way native git excludes them.
+ * {@code git grep} (JGit has no equivalent), and the user's network commands ({@link #fetch}, see
+ * {@code GitCommands}), which shell out to reuse the host's credentials. Files matched by {@code
+ * .gitignore} are excluded from tree/search/status results the same way native git excludes them.
  */
 @Slf4j
 public class GitService {
@@ -137,6 +140,12 @@ public class GitService {
     /** The working-tree writes, kept apart from this far larger read surface. */
     private final GitWriter writer;
 
+    /** Which branch this repository is on and what else it has. */
+    private final GitBranches branches;
+
+    /** The git commands a user runs from the UI; reached only through {@code GitRegistry}. */
+    private final GitCommands commands;
+
     public GitService(Project project, OutlineService outlineService) {
         this.project = project;
         this.paths = new RepoPaths(project.path());
@@ -161,6 +170,8 @@ public class GitService {
         this.git = new Git(repository);
         this.visible = new VisibleFiles(project, paths, repository);
         this.writer = new GitWriter(project, paths, visible, git);
+        this.branches = new GitBranches(repository, git);
+        this.commands = new GitCommands(paths.root(), branches);
         log.info("GitService initialised for project {}: {}", project.id(), paths.root());
     }
 
@@ -1021,6 +1032,32 @@ public class GitService {
      */
     public Path repoPath() {
         return paths.root();
+    }
+
+    // ── Branches and the user's commands ────────────────────────────────────
+
+    /**
+     * Which branch the working tree is on, how far it has drifted from its upstream, and what other
+     * branches there are — see {@link GitBranchStatus}.
+     *
+     * <p>A plain read, available on every project: the panel says which branch it is showing
+     * whether or not anyone may change it. The counters are as fresh as the last fetch — nothing
+     * here contacts a remote.
+     */
+    public GitBranchStatus branchStatus() {
+        return branches.status();
+    }
+
+    /**
+     * Updates the remote-tracking refs of this repository ({@code git fetch --prune --no-tags}) —
+     * what makes the "behind" counter mean anything, since it is read off those refs.
+     *
+     * <p>Writes nothing in the working tree: the branch stays where it is, and a pull remains a
+     * separate, explicit step. Guarded by {@code GitRegistry.requireGitCommands} like every other
+     * command a user runs.
+     */
+    public GitCommandResult fetch() {
+        return commands.fetch();
     }
 
     // ── Working-tree writes ─────────────────────────────────────────────────
