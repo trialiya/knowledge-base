@@ -126,7 +126,12 @@ class GitBranches {
                         || !status.getRemoved().isEmpty()
                         || !status.getMissing().isEmpty()
                         || !status.getConflicting().isEmpty();
-        boolean merging = repository.getRepositoryState() != RepositoryState.SAFE;
+        // Not "anything but SAFE": that also covers rebase, cherry-pick, revert and bisect, none
+        // of which `git merge --abort` — the only escape hatch this panel offers — can leave. A
+        // banner offering to abort a rebase would fail with "There is no merge to abort".
+        RepositoryState state = repository.getRepositoryState();
+        boolean merging =
+                state == RepositoryState.MERGING || state == RepositoryState.MERGING_RESOLVED;
         return new Working(dirty, merging, List.copyOf(status.getConflicting()));
     }
 

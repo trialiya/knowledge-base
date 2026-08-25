@@ -23,6 +23,7 @@ import org.eclipse.jgit.api.errors.RefAlreadyExistsException;
 import org.eclipse.jgit.api.errors.RefNotFoundException;
 import org.eclipse.jgit.api.errors.StashApplyFailureException;
 import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.RepositoryState;
 import org.eclipse.jgit.lib.UserConfig;
@@ -186,6 +187,19 @@ class GitCommands {
      */
     GitCommandResult switchBranch(String branch, boolean create) {
         String name = requireBranchName(branch);
+        if (!create) {
+            try {
+                // `checkout().setName()` resolves through `findRef`, which also matches
+                // `refs/remotes/…` and `refs/tags/…` — switching to "origin/main" would silently
+                // detach HEAD there instead of refusing. The panel only ever offers local
+                // branches, so anything else is refused by name rather than followed.
+                if (repository.findRef(Constants.R_HEADS + name) == null) {
+                    throw new GitCommandFailedException("No such branch: " + name);
+                }
+            } catch (IOException e) {
+                throw new GitCommandFailedException("Cannot resolve branch: " + name);
+            }
+        }
         return local(
                 create ? "switch -c " + name : "switch " + name,
                 () -> {
@@ -273,6 +287,13 @@ class GitCommands {
                     "The commit message is longer than " + MAX_MESSAGE_CHARS + " characters");
         }
         requireIdentity();
+        if (branches.status().detached()) {
+            // JGit's checkout would happily commit onto a detached HEAD, but the commit is
+            // reachable from nothing once the next switch moves HEAD elsewhere — the panel has no
+            // way to warn about that at click time, so the safer refusal is to not create it.
+            throw new GitCommandFailedException(
+                    "HEAD is not on a branch — switch to one first, or the commit will be lost");
+        }
         return local(
                 "commit",
                 () -> {
@@ -323,9 +344,18 @@ class GitCommands {
                         // while still sitting there, which is the one answer a discard must not
                         // give. Deleting it instead is not this command's business either: it
                         // restores committed state, and an untracked file has none.
-                        if (repository.resolve(Constants.HEAD + ":" + path) == null) {
+                        ObjectId blob = repository.resolve(Constants.HEAD + ":" + path);
+                        if (blob == null) {
                             throw new GitCommandFailedException(
                                     "Nothing committed at " + path + " to restore it to");
+                        }
+                        // A directory resolves too — to a tree, not a blob — and `addPath` filters
+                        // by prefix, so checking out a directory would restore every file beneath
+                        // it at once. This command takes one file; a directory is refused rather
+                        // than silently widened into "restore everything under here".
+                        if (repository.open(blob).getType() != Constants.OBJ_BLOB) {
+                            throw new GitCommandFailedException(
+                                    path + " is a directory, not a file");
                         }
                         git.checkout().setStartPoint(Constants.HEAD).addPath(path).call();
                         return "";
@@ -348,7 +378,8 @@ class GitCommands {
      * @see GitService#abortMerge()
      */
     GitCommandResult abortMerge() {
-        if (repository.getRepositoryState() == RepositoryState.SAFE) {
+        RepositoryState state = repository.getRepositoryState();
+        if (state != RepositoryState.MERGING && state != RepositoryState.MERGING_RESOLVED) {
             throw new GitCommandFailedException("There is no merge in progress");
         }
         // JGit has no equivalent: a hard reset to ORIG_HEAD comes close but loses the distinction
@@ -455,11 +486,11 @@ class GitCommands {
         // username on a repository whose credentials the deployment did not provide — and waits
         // out the whole timeout below instead of saying so in a second.
         builder.environment().put("GIT_TERMINAL_PROMPT", "0");
-        // The same for ssh, which asks on its own tty rather than through git. Only when the
-        // deployment configured no command of its own: overriding that would undo the very
-        // credentials this subprocess exists to reuse.
-        builder.environment()
-                .putIfAbsent("GIT_SSH_COMMAND", "ssh -o BatchMode=yes -o StrictHostKeyChecking=no");
+        // The same for ssh, which asks on its own tty rather than through git. Only BatchMode:
+        // that alone stops the hang this exists to prevent. Host key checking is left at git's
+        // own default — turning it off would accept any host's key silently, on every command,
+        // whenever the deployment has not set its own GIT_SSH_COMMAND (the common case).
+        builder.environment().putIfAbsent("GIT_SSH_COMMAND", "ssh -o BatchMode=yes");
 
         Process process;
         try {
@@ -516,10 +547,16 @@ class GitCommands {
         }
     }
 
+    /**
+     * Cuts from the front, not the back: git writes its verdict last — "! [remote rejected] …
+     * (pre-receive hook declined)" after however much progress chatter preceded it — and a panel
+     * that shows the beginning of a long push instead of its ending shows the one line that
+     * mattered least.
+     */
     private static String truncate(List<String> lines) {
         String text = String.join("\n", lines).strip();
         return text.length() <= MAX_OUTPUT_CHARS
                 ? text
-                : text.substring(0, MAX_OUTPUT_CHARS) + "\n… (output truncated)";
+                : "(output truncated) …\n" + text.substring(text.length() - MAX_OUTPUT_CHARS);
     }
 }

@@ -29,7 +29,13 @@ export default function useGitActions({ git, onRepoChanged, notify, t }) {
           onRepoChanged();
           return result;
         })
-        .catch((error) => notify(failure(error, t))),
+        .catch((error) => {
+          // A refusal can still have moved the working tree — a conflicting `stash pop` applies
+          // the stash and only then fails, leaving real conflicts on disk. Refreshing only on
+          // success would leave the panel showing the state from before the command ran.
+          onRepoChanged();
+          notify(failure(error, t));
+        }),
     [onRepoChanged, notify, t],
   );
 

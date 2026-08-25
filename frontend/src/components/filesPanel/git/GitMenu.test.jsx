@@ -84,6 +84,20 @@ describe('GitMenu', () => {
     expect(screen.getByRole('menuitem', { name: 'git.push' })).toBeEnabled();
   });
 
+  /**
+   * Detached HEAD в репозитории с одной веткой: без списка на неё было бы не
+   * вернуться — pull и push сервер на detached отклоняет, а больше идти некуда.
+   */
+  test('a detached HEAD offers the branch list even with a single branch', async () => {
+    const onSwitch = vi.fn();
+    render(<GitMenu status={status({ branches: ['main'], detached: true, current: 'a1b2c3d' })} onSwitch={onSwitch} />);
+
+    await open();
+    await userEvent.click(screen.getByRole('menuitem', { name: /main/ }));
+
+    expect(onSwitch).toHaveBeenCalledWith('main');
+  });
+
   test('a running command blocks the trigger', () => {
     render(<GitMenu status={status()} running />);
 

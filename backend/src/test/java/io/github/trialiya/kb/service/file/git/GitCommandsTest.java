@@ -187,6 +187,55 @@ class GitCommandsTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    /**
+     * A directory resolves against HEAD too — to a tree, not a blob — and would otherwise restore
+     * everything beneath it at once. Discard takes one file.
+     */
+    @Test
+    void discardingADirectoryIsRefusedRatherThanRestoringEverythingUnderIt() {
+        Path sub = repoDir.resolve("dir");
+        write("dir/kept.md", "kept\n");
+        git("add", "-A");
+        git("commit", "-q", "-m", "add dir");
+        write("dir/kept.md", "changed\n");
+
+        assertThatThrownBy(() -> service.discard("dir"))
+                .isInstanceOf(GitCommandFailedException.class)
+                .hasMessageContaining("directory");
+        assertThat(read("dir/kept.md")).isEqualTo("changed\n");
+        assertThat(sub).exists();
+    }
+
+    // ── switch ───────────────────────────────────────────────────────────────
+
+    /**
+     * {@code checkout().setName()} resolves through {@code findRef}, which also matches remote and
+     * tag refs — switching to one would silently detach HEAD instead of refusing.
+     */
+    @Test
+    void switchingToARemoteTrackingRefIsRefusedRatherThanDetaching() {
+        git("branch", "feature/x");
+        git("update-ref", "refs/remotes/origin/feature/x", "refs/heads/feature/x");
+
+        assertThatThrownBy(() -> service.switchBranch("origin/feature/x", false))
+                .isInstanceOf(GitCommandFailedException.class)
+                .hasMessageContaining("No such branch");
+        assertThat(service.branchStatus().detached()).isFalse();
+    }
+
+    // ── commit ───────────────────────────────────────────────────────────────
+
+    /** A commit made on a detached HEAD is reachable from nothing after the next switch. */
+    @Test
+    void committingOnADetachedHeadIsRefused() {
+        git("switch", "-q", "--detach", "HEAD");
+        write("README.md", "changed\n");
+
+        assertThatThrownBy(() -> service.commit("message"))
+                .isInstanceOf(GitCommandFailedException.class)
+                .hasMessageContaining("not on a branch");
+    }
+
     // ── merge --abort ────────────────────────────────────────────────────────
 
     /** Конфликт после merge — не тупик: abort обязан вернуть дерево в рабочее состояние. */
@@ -211,6 +260,29 @@ class GitCommandsTest {
         assertThat(read("README.md")).isEqualTo("ours side\n");
     }
 
+    /**
+     * A stopped rebase is not a merge: the banner offering "abort merge" would run {@code git merge
+     * --abort}, which fails with "There is no merge to abort" and leaves the user exactly where
+     * they were.
+     */
+    @Test
+    void anInterruptedRebaseIsNotReportedAsAMergeAndCannotBeAbortedAsOne() {
+        service.switchBranch("feature/x", true);
+        write("README.md", "theirs side\n");
+        git("commit", "-q", "-am", "theirs");
+        service.switchBranch("main", false);
+        write("README.md", "ours side\n");
+        git("commit", "-q", "-am", "ours");
+        git(repoDir, false, "rebase", "feature/x");
+
+        assertThat(service.branchStatus().merging()).isFalse();
+        assertThatThrownBy(() -> service.abortMerge())
+                .isInstanceOf(GitCommandFailedException.class)
+                .hasMessageContaining("no merge in progress");
+
+        git(repoDir, false, "rebase", "--abort");
+    }
+
     @Test
     void abortingWithoutAMergeIsRefused() {
         assertThatThrownBy(() -> service.abortMerge())
@@ -222,7 +294,9 @@ class GitCommandsTest {
 
     private void write(String name, String content) {
         try {
-            Files.writeString(repoDir.resolve(name), content, StandardCharsets.UTF_8);
+            Path file = repoDir.resolve(name);
+            Files.createDirectories(file.getParent());
+            Files.writeString(file, content, StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

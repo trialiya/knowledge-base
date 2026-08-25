@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconDots, IconCheck } from '@/icons/index';
+import useDismissable from '@/components/common/layout/useDismissable';
 import './gitMenu.css';
 
 /**
@@ -14,7 +15,7 @@ import './gitMenu.css';
  * Пункты, которым сейчас нечего делать, показываются выключенными, а не
  * прячутся: исчезающий пункт заставляет гадать, был он вообще или нет, тогда как
  * выключенный вместе с подписью отвечает, чего не хватает (нечего коммитить,
- * stash пуст).
+ * ветка ничего не отслеживает).
  */
 const GitMenu = ({
   status,
@@ -31,22 +32,9 @@ const GitMenu = ({
   const { t } = useTranslation('files');
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  const close = useCallback(() => setOpen(false), []);
 
-  useEffect(() => {
-    if (!open) return undefined;
-    const onDocClick = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    };
-    const onKey = (e) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', onDocClick);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDocClick);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
+  useDismissable(open, ref, close);
 
   const act = (fn) => () => {
     setOpen(false);
@@ -76,7 +64,7 @@ const GitMenu = ({
 
       {open && (
         <div className="git-menu__dropdown" role="menu">
-          {branches.length > 1 && (
+          {(branches.length > 1 || status?.detached) && (
             <>
               <div className="git-menu__section">{t('git.switchTo')}</div>
               {branches.map((branch) => {

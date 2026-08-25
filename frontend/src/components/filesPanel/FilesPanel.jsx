@@ -150,7 +150,7 @@ const FilesPanelForProject = ({
                   onSelect={selectNode}
                   // Откат правки предлагается только там, где проекту разрешены
                   // команды: без разрешения кнопка отвечала бы отказом сервера.
-                  onDiscard={git.capabilities?.commands ? actions.askDiscard : null}
+                  onDiscard={git.capabilities?.commands && !git.running ? actions.askDiscard : null}
                 />
               ) : (
                 <FileTree

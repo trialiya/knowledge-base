@@ -15,17 +15,11 @@ import gitApi from '@/api/gitApi';
  * и у дерева файлов: коммит, сделанный из панели, двигает и счётчик «впереди».
  */
 export default function useGitBranch({ project, refreshToken }) {
-  const requestKey = `${refreshToken ?? 0} ${project ?? ''}`;
+  const key = `${refreshToken ?? 0} ${project ?? ''}`;
   // Ответ вместе с ключом, которому он принадлежит, — как в useUncommittedChanges:
   // отдельный флаг loading означал бы setState из эффекта.
   const [answer, setAnswer] = useState(null);
-  // Своя перезагрузка после команды: refreshToken принадлежит всему приложению,
-  // и дёргать его ради собственной строки — значит перезапросить заодно дерево,
-  // изменения и превью, которых fetch не касается.
-  const [reloads, setReloads] = useState(0);
   const [running, setRunning] = useState(false);
-
-  const key = `${requestKey} ${reloads}`;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -46,22 +40,27 @@ export default function useGitBranch({ project, refreshToken }) {
   const fresh = answer?.key === key ? answer : null;
 
   /**
-   * Выполнить команду и показать состояние, которое она оставила: ответ уже
-   * несёт его в себе (GitCommandResult.status), поэтому перезапрос нужен только
-   * ради прав — их команда не меняет. Ошибка возвращается вызывающему, а не
-   * гасится здесь: показать её — дело панели, у неё для этого один ErrorModal.
+   * Выполнить команду и показать состояние, которое она оставила.
+   *
+   * Перезапроса нет: ответ уже несёт состояние в себе
+   * (`GitCommandResult.status`), а права команда не меняет — их отзывает только
+   * перемонтированный ro-mount, и это придёт со следующим общим обновлением.
+   * Ошибка возвращается вызывающему, а не гасится здесь: показать её — дело
+   * панели, у неё для этого один ErrorModal.
    */
   const run = useCallback(
     (command) => {
       setRunning(true);
       return command({ project })
         .then((result) => {
-          setReloads((n) => n + 1);
+          if (result?.status) {
+            setAnswer((prev) => (prev?.key === key ? { ...prev, status: result.status } : prev));
+          }
           return result;
         })
         .finally(() => setRunning(false));
     },
-    [project],
+    [project, key],
   );
 
   const commands = useMemo(

@@ -50,7 +50,7 @@ const ChangeRow = ({ entry, depth = 0, showDir = false, selected, onSelect, onDi
       {onDiscard && entry.status !== 'U' && (
         <button
           type="button"
-          className="icon-btn icon-btn--danger file-changes__discard"
+          className="ws-item__action icon-btn--danger"
           title={t('git.discard')}
           aria-label={t('git.discard')}
           onClick={(e) => {

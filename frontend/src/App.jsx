@@ -14,7 +14,10 @@ import SettingsPanel from '@/components/settingsPanel/SettingsPanel';
 import { SEARCH_MODE } from '@/constants/searchMode';
 import { invalidateDocPreviewCache } from '@/components/common/preview/useDocPreview';
 import { invalidateFilePreviewCache, invalidateAllFilePreviewCache } from '@/components/common/preview/useFilePreview';
-import { invalidatePath as invalidateFileTreePath, resetFileTreeCache } from '@/components/filesPanel/fileTreeStore';
+import {
+  invalidatePath as invalidateFileTreePath,
+  invalidateFileListings,
+} from '@/components/filesPanel/fileTreeStore';
 import '@/App.css';
 
 // Вкладки-иконки в левой зоне шапки. Подпись одна на кнопку: она же
@@ -120,11 +123,12 @@ function App() {
    * Команда git из панели файлов сдвинула рабочее дерево целиком: checkout,
    * stash, коммит или откат файла меняют сразу и дерево, и список изменений, и
    * содержимое открытого файла. Точечная инвалидация тут не подходит — какие
-   * именно пути поменялись, знает только git, — поэтому весь кэш панели
-   * сбрасывается одним тиком, тем же, что и после правки файла ассистентом.
+   * именно пути поменялись, знает только git, — поэтому листинги сбрасываются
+   * целиком, одним тиком, тем же, что и после правки файла ассистентом.
+   * Раскрытые каталоги при этом сохраняются: от коммита они не зависят.
    */
   const handleRepoChanged = useCallback(() => {
-    resetFileTreeCache();
+    invalidateFileListings();
     invalidateAllFilePreviewCache();
     setFilesRefreshTick((n) => n + 1);
   }, []);

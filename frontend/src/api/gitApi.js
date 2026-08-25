@@ -31,7 +31,18 @@ const opts = (params, project, signal) => {
 const command = async (url, init) => {
   const res = await requestRaw(url, { ...init, method: 'POST' });
   const text = await res.text();
-  const body = text ? JSON.parse(text) : null;
+  // Разобрать тело можно только когда оно и правда JSON: истёкшая сессия или
+  // упавший прокси отвечают HTML-страницей, и JSON.parse на ней бросил бы
+  // SyntaxError без .status/.reason — панель показала бы общее «сервер не
+  // ответил» вместо настоящей причины.
+  let body = null;
+  if (text) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      body = null;
+    }
+  }
   if (res.ok) return body;
   const err = new Error(body?.message || `HTTP ${res.status}`);
   err.type = 'http';
@@ -191,10 +202,20 @@ const gitApi = {
     return command(`/api/git/stash/pop${qs}`, init);
   },
 
-  /** `git commit` отслеживаемых изменений — тех самых, что показывает режим «Изменения». */
+  /**
+   * `git commit` отслеживаемых изменений — тех самых, что показывает режим «Изменения».
+   *
+   * Сообщение — в теле формы, а не в query: длинный текст (сервер разрешает
+   * до 4000 символов) в строке запроса упирается в лимит длины стартовой
+   * строки запроса на сервере, и вместо понятного отказа приходит голый 400.
+   */
   commit: (message, { project, signal } = {}) => {
-    const [qs, init] = opts(new URLSearchParams({ message }), project, signal);
-    return command(`/api/git/commit${qs}`, init);
+    const [qs, init] = opts(new URLSearchParams(), project, signal);
+    return command(`/api/git/commit${qs}`, {
+      ...init,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ message }).toString(),
+    });
   },
 
   /** `git restore <path>` — вернуть один файл к закоммиченному состоянию. Правки теряются. */
