@@ -57,6 +57,7 @@ class SearchAgentServiceIT {
     private OpenAiChatModel chatModel;
     private ToolCallingManager toolCallingManager;
     private ToolCallback[] readOnlyTools;
+    private GitRegistry gitRegistry;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -75,7 +76,7 @@ class SearchAgentServiceIT {
         git("add", "-A");
         git("commit", "-q", "-m", "init");
 
-        GitRegistry gitRegistry = TestProjects.registry(repo, false);
+        gitRegistry = TestProjects.registry(repo, false);
 
         Set<String> allowed =
                 Set.of(
@@ -97,7 +98,7 @@ class SearchAgentServiceIT {
         SubAgentConfig cfg = new SubAgentConfig(true, "test-model", 4000, maxIterations, Set.of());
         Resource prompt = new ByteArrayResource("system".getBytes(StandardCharsets.UTF_8));
         return new SearchAgentService(
-                chatModel, toolCallingManager, cfg, prompt, "", readOnlyTools);
+                chatModel, toolCallingManager, cfg, prompt, "", readOnlyTools, gitRegistry);
     }
 
     @Test
@@ -108,7 +109,7 @@ class SearchAgentServiceIT {
                 .thenReturn(text("Итог: найдено в AuthService.java:2"));
 
         SearchAgentResult result =
-                newService(6).run("Где определён " + MAGIC + "?", "code", null, null);
+                newService(6).run("Где определён " + MAGIC + "?", "code", null, null, null);
 
         assertThat(result.report()).isEqualTo("Итог: найдено в AuthService.java:2");
         assertThat(result.complete()).isTrue();
@@ -132,7 +133,7 @@ class SearchAgentServiceIT {
                 .thenReturn(toolCall("grepContent", "{\"pattern\":\"class\"}"))
                 .thenReturn(text("Итог: сводка по бюджету."));
 
-        SearchAgentResult result = newService(2).run("исследуй " + MAGIC, null, null, null);
+        SearchAgentResult result = newService(2).run("исследуй " + MAGIC, null, null, null, null);
 
         assertThat(result.report()).isEqualTo("Итог: сводка по бюджету.");
         assertThat(result.complete()).isFalse();
@@ -160,7 +161,8 @@ class SearchAgentServiceIT {
                 .thenReturn(toolCall("nonExistentTool", "{}"))
                 .thenReturn(text("Итог: восстановился после ошибки."));
 
-        SearchAgentResult result = newService(3).run("проверка устойчивости", null, null, null);
+        SearchAgentResult result =
+                newService(3).run("проверка устойчивости", null, null, null, null);
 
         assertThat(result.report()).isNotBlank();
     }

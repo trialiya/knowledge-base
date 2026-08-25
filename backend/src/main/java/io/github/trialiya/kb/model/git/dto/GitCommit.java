@@ -10,6 +10,9 @@ import org.jspecify.annotations.Nullable;
 /**
  * Запись из истории коммитов.
  *
+ * <p>Репозиторий коммит не называет: он один на всю выдачу и назван обёрткой ответа ({@code
+ * ToolResult}).
+ *
  * @param hash полный SHA коммита
  * @param shortHash сокращённый SHA (минимум 7 символов, длиннее при неоднозначности)
  * @param author имя автора

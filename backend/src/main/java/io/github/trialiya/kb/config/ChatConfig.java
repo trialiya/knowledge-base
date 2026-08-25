@@ -218,7 +218,8 @@ public class ChatConfig {
                 subAgentConfig,
                 searchAgentPrompt,
                 scriptInstructions,
-                readOnly);
+                readOnly,
+                gitRegistry);
     }
 
     /**

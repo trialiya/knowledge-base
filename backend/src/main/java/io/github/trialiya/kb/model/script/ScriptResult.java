@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.model.script;
 
 import io.github.trialiya.kb.model.git.dto.GitEditResult;
+import io.github.trialiya.kb.model.tool.ProjectScoped;
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.model.tool.ToolCallResultMetaProvider;
 import io.github.trialiya.kb.tools.Compact;
@@ -36,7 +37,7 @@ public record ScriptResult(
         @Nullable ScriptError error,
         List<String> filesRead,
         List<GitEditResult> edits)
-        implements ToolCallResponseItem, ToolCallResultMetaProvider {
+        implements ProjectScoped, ToolCallResponseItem, ToolCallResultMetaProvider {
 
     /** Paths listed in the UI meta; a script may legitimately touch far more than fits a plaque. */
     private static final int META_PATH_LIMIT = 50;

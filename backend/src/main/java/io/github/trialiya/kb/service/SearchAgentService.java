@@ -6,6 +6,7 @@ import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
 
 import io.github.trialiya.kb.config.model.SubAgentConfig;
 import io.github.trialiya.kb.model.search.SearchAgentResult;
+import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.tools.ProjectContext;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -73,16 +74,25 @@ public class SearchAgentService {
     private final String systemPrompt;
     private final ToolCallback[] toolCallbacks;
 
+    /**
+     * Only to canonicalize the project the run works on — the id the report echoes has to be the
+     * one a repository actually answers by, not the raw argument (which may be absent, or name the
+     * default project explicitly). Reading is the sub-agent's tools' business, not this class's.
+     */
+    private final GitRegistry gitRegistry;
+
     public SearchAgentService(
             OpenAiChatModel chatModel,
             ToolCallingManager toolCallingManager,
             SubAgentConfig config,
             Resource systemPrompt,
             String extraInstructions,
-            ToolCallback[] toolCallbacks) {
+            ToolCallback[] toolCallbacks,
+            GitRegistry gitRegistry) {
         this.chatModel = chatModel;
         this.toolCallingManager = toolCallingManager;
         this.config = config;
+        this.gitRegistry = gitRegistry;
         String basePrompt = readResource(systemPrompt);
         this.systemPrompt =
                 extraInstructions.isBlank() ? basePrompt : basePrompt + "\n\n" + extraInstructions;
@@ -105,17 +115,28 @@ public class SearchAgentService {
      * @param pathGlob optional glob to restrict code paths (e.g. {@code "backend/**\/*.java"})
      * @param parentContext the parent tool context, for the conversation id and the run's project —
      *     the sub-agent reads the same repository the chat that called it does
+     * @param requestedProject the repository the caller named instead, for a cross-project search;
+     *     {@code null} or blank — the parent run's own project. The whole sub-run reads it: it is
+     *     what the sub-agent's own tools receive as their context project
      */
     public SearchAgentResult run(
             String task,
             @Nullable String scope,
             @Nullable String pathGlob,
-            @Nullable ToolContext parentContext) {
+            @Nullable ToolContext parentContext,
+            @Nullable String requestedProject) {
         final long startMs = System.currentTimeMillis();
         final TokenUsage usage = new TokenUsage();
         final String conversationId =
                 parentContext != null ? conversationId(parentContext) : DEFAULT_CONVERSATION_ID;
-        final String projectId = ProjectContext.from(parentContext);
+        // Canonical, not the raw argument: it goes into the report's echo, which the write guard
+        // (ToolInvocationCollector#hasSeenFile) compares against a canonical id. An unknown id
+        // fails here, loudly, instead of silently searching the default repository.
+        final String projectId =
+                gitRegistry
+                        .forProject(ProjectContext.resolve(parentContext, requestedProject))
+                        .project()
+                        .id();
         final String fullTask = buildTask(task, scope, pathGlob);
 
         final OpenAiChatOptions toolOptions =
@@ -142,6 +163,7 @@ public class SearchAgentService {
             log.error("[{}] search sub-agent initial call failed", conversationId, e);
             return result(
                     conversationId,
+                    projectId,
                     "Поиск не выполнен: " + rootMessage(e),
                     false,
                     0,
@@ -157,7 +179,7 @@ public class SearchAgentService {
                         conversationId,
                         config.maxIterations());
                 String text = summarize(prompt, conversationId, fullTask, SUMMARIZE_BUDGET, usage);
-                return result(conversationId, text, false, hops, startMs, usage);
+                return result(conversationId, projectId, text, false, hops, startMs, usage);
             }
 
             final ToolExecutionResult exec;
@@ -172,7 +194,7 @@ public class SearchAgentService {
                         conversationId,
                         e.getMessage());
                 String text = summarize(prompt, conversationId, fullTask, SUMMARIZE_BUDGET, usage);
-                return result(conversationId, text, false, hops, startMs, usage);
+                return result(conversationId, projectId, text, false, hops, startMs, usage);
             }
 
             prompt = new Prompt(exec.conversationHistory(), toolOptions);
@@ -185,7 +207,7 @@ public class SearchAgentService {
                         conversationId,
                         e.getMessage());
                 String text = summarize(prompt, conversationId, fullTask, SUMMARIZE_BUDGET, usage);
-                return result(conversationId, text, false, hops, startMs, usage);
+                return result(conversationId, projectId, text, false, hops, startMs, usage);
             }
             hops++;
         }
@@ -195,9 +217,9 @@ public class SearchAgentService {
         if (text == null || text.isBlank()) {
             // Model stopped without producing prose — ask it to summarize the gathered evidence.
             String summary = summarize(prompt, conversationId, fullTask, SUMMARIZE_DONE, usage);
-            return result(conversationId, summary, true, hops, startMs, usage);
+            return result(conversationId, projectId, summary, true, hops, startMs, usage);
         }
-        return result(conversationId, text, true, hops, startMs, usage);
+        return result(conversationId, projectId, text, true, hops, startMs, usage);
     }
 
     /**
@@ -205,6 +227,7 @@ public class SearchAgentService {
      */
     private SearchAgentResult result(
             String conversationId,
+            String project,
             String report,
             boolean complete,
             int hops,
@@ -212,9 +235,10 @@ public class SearchAgentService {
             TokenUsage usage) {
         long durationMs = System.currentTimeMillis() - startMs;
         log.info(
-                "[{}] search sub-agent done: complete={}, hops={}, {} ms, "
+                "[{}] search sub-agent done: project={}, complete={}, hops={}, {} ms, "
                         + "tokens(prompt={}, completion={}, total={}), report='{}'",
                 conversationId,
+                project,
                 complete,
                 hops,
                 durationMs,
@@ -222,7 +246,7 @@ public class SearchAgentService {
                 usage.completion,
                 usage.total,
                 truncate(report, 1000));
-        return new SearchAgentResult(report, complete, hops, durationMs);
+        return new SearchAgentResult(project, report, complete, hops, durationMs);
     }
 
     /**

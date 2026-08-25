@@ -90,7 +90,8 @@ class DocumentFunctionSectionToolsTest {
                         null,
                         "{}",
                         null,
-                        collector.nextCallIndex()));
+                        collector.nextCallIndex(),
+                        null));
     }
 
     @Nested

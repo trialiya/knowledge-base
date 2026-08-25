@@ -8,9 +8,11 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.trialiya.kb.model.project.Project;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
 import java.lang.reflect.Constructor;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -115,6 +117,11 @@ class ToolArgumentGapsTest {
         if (dependency == GitRegistry.class) {
             final GitRegistry registry = mock(GitRegistry.class);
             final GitService gitService = mock(GitService.class);
+            // Свой проект репозиторий называет и на пустом вызове: им подписан ответ читающего
+            // инструмента (ToolResult), так что мок без него падал бы на сборке ответа — то есть
+            // уже после того, о чём этот класс.
+            when(gitService.project())
+                    .thenReturn(new Project("kb", "KB", Path.of("/repo"), false, false, null));
             when(registry.forProject(any())).thenReturn(gitService);
             when(registry.requireEditable(any())).thenReturn(gitService);
             return registry;

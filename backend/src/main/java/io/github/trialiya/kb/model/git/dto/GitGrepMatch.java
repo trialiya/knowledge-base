@@ -22,15 +22,15 @@ import java.util.Map;
  *
  * Строки с совпадением обрамлены {@code :N:}, строки контекста — {@code -N-}.
  *
- * @param project id репозитория, в котором найдено совпадение — обязателен в ответе, потому что
- *     {@code grepContent} умеет искать не только в активном проекте чата (см. {@code
- *     GitFunction#grepContent}), и без эха модель не отличит, откуда пришло совпадение
+ * <p>Репозиторий совпадение не называет: он один на всю выдачу и назван обёрткой ответа ({@code
+ * ToolResult}).
+ *
  * @param path относительный путь к файлу от корня репозитория
  * @param matchLine номер строки совпадения (1-based); при нескольких совпадениях в одном блоке —
  *     номер первого
  * @param text текст блока: одна строка (без контекста) или многострочный фрагмент (с контекстом)
  */
-public record GitGrepMatch(String project, String path, int matchLine, String text)
+public record GitGrepMatch(String path, int matchLine, String text)
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
     @Override

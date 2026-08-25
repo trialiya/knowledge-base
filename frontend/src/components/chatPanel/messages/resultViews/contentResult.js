@@ -91,9 +91,15 @@ const hasCollection = (obj) => COLLECTION_FIELDS.some((field) => Array.isArray(o
  */
 export const isContentText = (text) => text.includes('\n') || text.length >= MIN_TEXT_LEN;
 
-const factsOf = (obj, skipField) =>
+/**
+ * Факты в шапке блока. `project` — единственный, который может прийти не из
+ * самой записи, а обёрткой всего ответа (см. registry.js); у ответов из истории
+ * чатов он лежит в записи и оттуда же и берётся. Ключ один на оба случая,
+ * поэтому двух фактов «проект» не выходит ни при каком раскладе.
+ */
+const factsOf = (obj, skipField, project) =>
   FACT_FIELDS.filter((key) => key !== skipField)
-    .map((key) => ({ key, value: obj[key] }))
+    .map((key) => ({ key, value: key === 'project' ? obj.project ?? project : obj[key] }))
     .filter(({ value }) => value !== null && value !== undefined && value !== '');
 
 /**
@@ -102,13 +108,22 @@ const factsOf = (obj, skipField) =>
  * `binary: true` — тоже валидный блок: показать нечего, но сказать об этом
  * нужно, иначе «Обзор» просто исчезнет и пользователь решит, что вид сломан.
  */
-const toItem = (obj, key) => {
+const toItem = (obj, key, project) => {
   if (!isPlainObject(obj)) return null;
 
   const title = firstString(obj, TITLE_FIELDS)?.value ?? null;
 
   if (obj.binary === true) {
-    return { key, title, binary: true, text: null, language: null, startLine: 1, markdown: false, facts: factsOf(obj) };
+    return {
+      key,
+      title,
+      binary: true,
+      text: null,
+      language: null,
+      startLine: 1,
+      markdown: false,
+      facts: factsOf(obj, null, project),
+    };
   }
   if (hasCollection(obj)) return null;
   // Совпадение grepContent: его text уже несёт собственную нумерацию
@@ -132,7 +147,7 @@ const toItem = (obj, key) => {
     startLine: Number.isInteger(obj.fromLine) && obj.fromLine > 0 ? obj.fromLine : 1,
     // descriptionVersion есть только у документов базы знаний — они markdown по определению.
     markdown: language === 'markdown' || obj.descriptionVersion !== undefined,
-    facts: factsOf(obj, text.field),
+    facts: factsOf(obj, text.field, project),
   };
 };
 
@@ -141,9 +156,9 @@ const toItem = (obj, key) => {
  * другой формы, список показывает JSON — иначе часть выдачи молча пропала бы
  * с экрана.
  */
-const itemsOfArray = (parsed) => {
+const itemsOfArray = (parsed, project) => {
   if (parsed.length === 0 || parsed.length > MAX_ITEMS) return null;
-  const items = parsed.map((entry, i) => toItem(entry, `item-${i}`));
+  const items = parsed.map((entry, i) => toItem(entry, `item-${i}`, project));
   return items.every(Boolean) ? items : null;
 };
 
@@ -191,7 +206,7 @@ const titleFromArgs = (argumentsRaw) => {
  * голая строка и имени файла в нём нет (`getAttachmentContent` отдаёт текст
  * вложения, а его имя осталось в аргументах вызова).
  */
-export const detectContentResult = ({ parsed, isJson, resultText, argumentsRaw }) => {
+export const detectContentResult = ({ parsed, isJson, resultText, argumentsRaw, project }) => {
   if (!isJson) {
     // Не JSON вовсе — значит, инструмент вернул сырой текст.
     const item = bareTextItem(resultText, titleFromArgs(argumentsRaw));
@@ -203,8 +218,8 @@ export const detectContentResult = ({ parsed, isJson, resultText, argumentsRaw }
     return item ? [item] : null;
   }
 
-  if (Array.isArray(parsed)) return itemsOfArray(parsed);
+  if (Array.isArray(parsed)) return itemsOfArray(parsed, project);
 
-  const item = toItem(parsed, 'item-0');
+  const item = toItem(parsed, 'item-0', project);
   return item ? [item] : null;
 };

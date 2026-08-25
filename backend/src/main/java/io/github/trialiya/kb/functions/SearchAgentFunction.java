@@ -21,6 +21,10 @@ import org.springframework.ai.tool.annotation.ToolParam;
  *
  * <p>This tool is intentionally NOT part of the sub-agent's own tool set (see {@code
  * kb.search.subagent.allowed-tools}) — that is the recursion guard.
+ *
+ * <p>Like the git read tools, it takes an optional {@code project}: the whole sub-run then reads
+ * that repository, and the report echoes which one it was. The sub-agent's own prompt says nothing
+ * about projects, so it never wanders off on its own — the repository is decided here, once.
  */
 @Slf4j
 @AllArgsConstructor
@@ -56,15 +60,23 @@ public class SearchAgentFunction {
                                     "Glob pattern to restrict code search (e.g., \"backend/**/*.java\"). "
                                             + "Null for no restriction.",
                             required = false)
-                    @Nullable String pathGlob) {
+                    @Nullable String pathGlob,
+            @ToolParam(
+                            description =
+                                    "Optional: another project (repository id) to read instead of"
+                                            + " the chat's active one; the response's"
+                                            + " \"project\" field says which one answered.",
+                            required = false)
+                    @Nullable String project) {
         requireText(task, "task");
         final String effectiveScope = orDefault(scope, "all");
         final String conversationId = conversationId(context);
         log.info(
-                "[{}] searchCodebase called: scope={} pathGlob={}",
+                "[{}] searchCodebase called: scope={} pathGlob={} project={}",
                 conversationId,
                 effectiveScope,
-                pathGlob);
-        return searchAgent.run(task, effectiveScope, pathGlob, context);
+                pathGlob,
+                project);
+        return searchAgent.run(task, effectiveScope, pathGlob, context, project);
     }
 }

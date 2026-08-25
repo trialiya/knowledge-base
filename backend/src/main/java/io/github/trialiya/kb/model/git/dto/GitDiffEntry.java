@@ -6,6 +6,9 @@ import org.jspecify.annotations.Nullable;
 /**
  * Одна запись из diff коммита.
  *
+ * <p>Репозиторий запись не называет: он один на всю выдачу и назван обёрткой ответа ({@code
+ * ToolResult}).
+ *
  * @param status статус: A (added), M (modified), D (deleted), R (renamed), C (copied), а для
  *     рабочего дерева ещё и U (untracked) — файл, который git не отслеживает и который проект
  *     показывает только через {@code allow-globs}; в индексе его нет, в коммит он сам не попадёт

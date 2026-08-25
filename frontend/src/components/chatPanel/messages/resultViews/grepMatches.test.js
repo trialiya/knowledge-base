@@ -81,12 +81,20 @@ describe('detectGrepMatches — совпадения по документам',
 });
 
 describe('detectGrepMatches — проект вызова', () => {
-  it('берётся из ответа: grepContent мог искать в соседнем репозитории', () => {
+  it('берётся из обёртки ответа: grepContent мог искать в соседнем репозитории', () => {
+    const data = detect(
+      JSON.stringify({ project: 'billing', result: [{ path: 'a/A.java', matchLine: 1, text: 'x' }] }),
+    );
+    expect(data.project).toBe('billing');
+    expect(data.matches).toBe(1);
+  });
+
+  it('ответ из истории чата: проект лежит в самих совпадениях', () => {
     const data = detect(JSON.stringify([{ project: 'billing', path: 'a/A.java', matchLine: 1, text: 'x' }]));
     expect(data.project).toBe('billing');
   });
 
-  it('старый ответ без проекта не ломает разбор', () => {
+  it('ответ без проекта вовсе не ломает разбор', () => {
     const data = detect(JSON.stringify([{ path: 'a/A.java', matchLine: 1, text: 'x' }]));
     expect(data.project).toBeNull();
   });

@@ -58,7 +58,7 @@ const toLines = (text, matchLine) =>
  * сохранить стоит. Поле `path` у источника — то, чем он подписан: путь файла или
  * заголовок документа, а `kind` — чем подписывать их количество.
  */
-export const detectGrepMatches = ({ parsed, isJson }) => {
+export const detectGrepMatches = ({ parsed, isJson, project: wrapperProject }) => {
   if (!isJson || !Array.isArray(parsed)) return null;
   if (parsed.length === 0 || parsed.length > MAX_MATCHES) return null;
   if (!parsed.every(isMatchRecord)) return null;
@@ -75,7 +75,11 @@ export const detectGrepMatches = ({ parsed, isJson }) => {
   // Проект у всех совпадений один — вызов ищет в одном репозитории, — но брать
   // его надо из ответа, а не из проекта чата: у grepContent есть аргумент
   // project, и вызов мог искать в соседнем.
-  const project = parsed.find((match) => match.project)?.project ?? null;
+  //
+  // Обычно id приходит обёрткой ответа (см. registry.js). Поиск по элементам —
+  // это ответы из истории чатов, где id лежал в каждом совпадении; они
+  // неизменны, так что вторая ветка нужна навсегда.
+  const project = wrapperProject ?? parsed.find((match) => match.project)?.project ?? null;
 
   // Чем подписывать группы в шапке. Вид один на оба инструмента, а считает он либо файлы,
   // либо документы — смешанной выдачи не бывает: вызов ищет либо в репозитории, либо в базе.

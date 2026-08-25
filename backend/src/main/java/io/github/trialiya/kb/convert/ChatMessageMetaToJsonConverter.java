@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.convert;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,7 +29,15 @@ public final class ChatMessageMetaToJsonConverter {
      * <p><b>Новое поле {@link ChatMessageMeta} само сюда не попадёт.</b> Список полей тут явный, и
      * в обе стороны: не дописав его здесь, получишь запись, которая пишется и читается как {@code
      * null}, — молча, потому что компилятор об этом ничего не скажет.
+     *
+     * <p>Незаполненные поля в JSON не пишутся: у большинства рядов заполнено два-три поля из
+     * восьми, а колонка хранится в каждом сообщении каждого чата. Чтение от этого не страдает —
+     * отсутствующее поле Jackson отдаёт как {@code null}, то есть ровно тем, чем оно было записано,
+     * а пустые списки нормализует {@link ChatMessageMeta} своим компактным конструктором. Аннотация
+     * стоит на проекции, а не на {@link ObjectMapper}: он общий с REST, и ответы API форму менять
+     * не должны.
      */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record MetaJson(
             @Nullable String runId,
@@ -46,6 +55,7 @@ public final class ChatMessageMetaToJsonConverter {
      * появления нового вида превращался бы в отказ читать историю целиком — на каждом открытии
      * чата, где такой элемент записан.
      */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record ContextItemJson(
             @Nullable String kind,

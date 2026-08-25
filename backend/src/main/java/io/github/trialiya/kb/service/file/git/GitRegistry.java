@@ -104,6 +104,15 @@ public class GitRegistry {
         return service;
     }
 
+    /**
+     * Whether this project's repository actually opened at startup — the same fact {@link
+     * ProjectView#available()} carries to the selector, asked directly where no view is built:
+     * naming an unopened project in the prompt would only buy the model a refusal.
+     */
+    public boolean isAvailable(@Nullable String projectId) {
+        return catalog.find(projectId).map(p -> byProjectId.containsKey(p.id())).orElse(false);
+    }
+
     /** The repository every caller that names no project gets. */
     public GitService defaultProject() {
         return forProject(null);

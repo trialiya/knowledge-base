@@ -15,7 +15,8 @@ class SearchAgentResultTest {
 
     @Test
     void modelPayloadExposesReportButHidesDuration() {
-        SearchAgentResult result = new SearchAgentResult("найдено в Foo.java:10", true, 2, 1234L);
+        SearchAgentResult result =
+                new SearchAgentResult("billing", "найдено в Foo.java:10", true, 2, 1234L);
 
         String json = new DefaultToolCallResultConverter().convert(result, SearchAgentResult.class);
 
@@ -24,14 +25,18 @@ class SearchAgentResultTest {
                 .contains("найдено в Foo.java:10")
                 .contains("complete")
                 .contains("iterations")
+                // The repository the citations are rooted in travels with them, always.
+                .contains("\"project\":\"billing\"")
                 .doesNotContain("durationMs");
     }
 
     @Test
     void invocationLogCarriesMetaAndGist() {
-        SearchAgentResult result = new SearchAgentResult("a".repeat(300), false, 3, 1234L);
+        SearchAgentResult result =
+                new SearchAgentResult("billing", "a".repeat(300), false, 3, 1234L);
 
         assertThat(result.getResultMeta())
+                .containsEntry("project", "billing")
                 .containsEntry("complete", false)
                 .containsEntry("iterations", 3)
                 .containsEntry("durationMs", 1234L)

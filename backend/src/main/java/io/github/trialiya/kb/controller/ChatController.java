@@ -370,7 +370,9 @@ public class ChatController {
                                                 .param(
                                                         "project_context",
                                                         projectPromptService.context(
-                                                                options.project())))
+                                                                options.project(),
+                                                                chatHistory.earlierProjects(
+                                                                        conversationId))))
                         .user(userMessage)
                         .toolContext(
                                 context(conversationId)

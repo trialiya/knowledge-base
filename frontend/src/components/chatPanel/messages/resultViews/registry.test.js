@@ -11,8 +11,34 @@ describe('parseResult', () => {
   });
 
   it('не JSON помечается флагом, а не выбрасывается', () => {
-    expect(parseResult('просто текст')).toMatchObject({ isJson: false, parsed: null, resultText: 'просто текст' });
-    expect(parseResult('{"a":1}')).toMatchObject({ isJson: true, parsed: { a: 1 } });
+    expect(parseResult('просто текст')).toMatchObject({
+      isJson: false,
+      parsed: null,
+      resultText: 'просто текст',
+      project: null,
+    });
+    expect(parseResult('{"a":1}')).toMatchObject({ isJson: true, parsed: { a: 1 }, project: null });
+  });
+
+  it('обёртка `{project, result}` распаковывается: виды получают сам ответ', () => {
+    expect(parseResult('{"project":"kb","result":[{"path":"a.java"}]}')).toMatchObject({
+      project: 'kb',
+      parsed: [{ path: 'a.java' }],
+    });
+    // Порядок ключей в JSON произвольный, а `result` бывает и скаляром.
+    expect(parseResult('{"result":"готово","project":"kb"}')).toMatchObject({ project: 'kb', parsed: 'готово' });
+  });
+
+  it('посторонний объект с такими же именами полей остаётся целым', () => {
+    const intact = (resultText, parsed) => expect(parseResult(resultText)).toMatchObject({ project: null, parsed });
+
+    // Третье поле — значит, это ответ инструмента, а не обёртка.
+    intact('{"project":"kb","result":"ok","status":"done"}', { project: 'kb', result: 'ok', status: 'done' });
+    intact('{"project":"kb"}', { project: 'kb' });
+    intact('{"result":"ok","count":1}', { result: 'ok', count: 1 });
+    // Пустой или нестроковый id репозитория обёрткой не считается.
+    intact('{"project":"","result":"ok"}', { project: '', result: 'ok' });
+    intact('{"project":7,"result":"ok"}', { project: 7, result: 'ok' });
   });
 });
 
@@ -164,7 +190,10 @@ describe('detectResultView', () => {
   it('прогон скрипта — scriptRun, хотя его правки формой подошли бы и diff’у', () => {
     // Вид, который содержит другой вид, обязан стоять выше него: иначе ответ
     // разобрали бы по частям и лог со статистикой потерялись бы.
+    // runScript обёртки не знает: id репозитория — его собственное поле верхнего
+    // уровня, и распаковка до этого ответа не дотягивается.
     const script = JSON.stringify({
+      project: 'kb',
       value: null,
       log: ['готово'],
       stats: { filesRead: 2, bytesRead: 4096, calls: 5, filesEdited: 1, elapsedMs: 120 },
@@ -175,6 +204,22 @@ describe('detectResultView', () => {
       ],
     });
     expect(detectResultView(script).id).toBe('scriptRun');
+  });
+
+  // Инструменты чтения репозитория отдают ответ обёрнутым в `{project, result}`,
+  // а сохранённая история чатов — в прежней форме. Отбор вида обязан совпадать:
+  // обёртку снимает реестр, и до видов доходит один и тот же payload.
+  it('обёрнутый ответ отбирается тем же видом, что и голый', () => {
+    const wrap = (result) => JSON.stringify({ project: 'kb', result });
+
+    expect(detectResultView(wrap([{ path: 'a/b.java', name: 'b.java', type: 'FILE', size: 12 }])).id).toBe('tree');
+    expect(detectResultView(wrap([{ shortHash: 'abc', author: 'kb', message: 'fix', files: null }])).id).toBe(
+      'recordList',
+    );
+    expect(detectResultView(wrap({ path: 'a.md', content: 'x\n'.repeat(20) })).id).toBe('content');
+
+    const edit = { operation: 'edit', path: 'a.js', additions: 1, deletions: 1, diff: '@@ -1 +1 @@\n-a\n+b' };
+    expect(detectResultView(wrap([edit])).id).toBe('diff');
   });
 
   it('форма без вида — обзора нет вовсе', () => {

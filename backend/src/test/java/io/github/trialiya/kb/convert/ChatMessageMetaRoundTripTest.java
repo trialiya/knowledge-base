@@ -61,4 +61,35 @@ class ChatMessageMetaRoundTripTest {
 
         assertThat(read).isEqualTo(meta);
     }
+
+    /**
+     * Незаполненное поле в колонку не пишется. Это не только про размер: по подстроке в {@code
+     * meta} ходит запрос ({@code ChatMessageRepository#findProjectSwitches}), и выписанный {@code
+     * null} для него неотличим от настоящего значения.
+     */
+    @Test
+    void anEmptyFieldIsAbsentFromTheColumnRatherThanWrittenAsNull() {
+        final ChatMessageMeta sparse = ChatMessageMeta.ofProject("billing");
+
+        final String json = new ChatMessageMetaToJsonConverter.Writer(objectMapper).convert(sparse);
+
+        assertThat(json).contains("\"project\":\"billing\"").doesNotContain("null");
+        assertThat(new ChatMessageMetaToJsonConverter.Reader(objectMapper).convert(json))
+                .isEqualTo(sparse);
+    }
+
+    /**
+     * Ряды, записанные с выписанными {@code null}, лежат в базе и читаются наравне: отсутствующее
+     * поле и поле-{@code null} означают одно и то же.
+     */
+    @Test
+    void aRowThatSpellsOutItsNullsReadsTheSame() {
+        final String withNulls =
+                "{\"runId\":null,\"toolCalls\":false,\"invocations\":[],\"contextItems\":null,"
+                        + "\"project\":\"billing\",\"projectSwitchFrom\":null,\"model\":null,"
+                        + "\"compact\":null}";
+
+        assertThat(new ChatMessageMetaToJsonConverter.Reader(objectMapper).convert(withNulls))
+                .isEqualTo(ChatMessageMeta.ofProject("billing"));
+    }
 }
