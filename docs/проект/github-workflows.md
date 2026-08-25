@@ -69,7 +69,7 @@ CI/CD построен на GitHub Actions. Три workflow + Dependabot для 
 2. `actions/setup-java@v5` — Temurin JDK 25
 3. `gradle/actions/setup-gradle@v5`
 4. Кэширование `node_modules`, `.gradle/nodejs`, `.gradle/yarn` через `actions/cache@v4`
-5. `./gradlew :frontend:build` — полный цикл: `yarnInstall` → `yarnTest` → `yarnBuild` → `copyFrontend` + `spotlessCheck`
+5. `./gradlew :frontend:build` — полный цикл: `yarnInstall` → `yarnBuild` → `copyFrontend` + `check` (`yarnTest`, `yarnLint`, `spotlessCheck`)
 6. Загрузка артефакта `frontend/build` (retention: 7 дней)
 
 **Переменные окружения:**
@@ -119,5 +119,5 @@ Dependabot (weekly)
    frontend-main-daily.yml (cron: daily, только при изменениях)
         │
         ▼
-   :frontend:build (yarnInstall → yarnTest → yarnBuild → copyFrontend)
+   :frontend:build (yarnInstall → yarnBuild → copyFrontend + check: yarnTest, yarnLint)
 ```

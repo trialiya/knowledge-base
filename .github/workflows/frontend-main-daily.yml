@@ -109,8 +109,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-frontend-node-${{ env.NODE_VERSION }}-
 
-      # Прогоняет фронт-модуль: yarnInstall → yarnTest → yarnLint → yarnBuild →
-      # copyFrontend, плюс spotlessCheck (через check). Тесты гейтят артефакт.
+      # Прогоняет фронт-модуль целиком: yarnInstall → yarnBuild → copyFrontend
+      # плюс check (yarnTest, yarnLint, spotlessCheck). Тесты живут на check и
+      # артефакт не гейтят, но `build` тянет и то и другое.
       - name: Build (with tests)
         run: ./gradlew -PuseSystemNode=true "${FRONTEND_MODULE}:build" --no-daemon --stacktrace
 
