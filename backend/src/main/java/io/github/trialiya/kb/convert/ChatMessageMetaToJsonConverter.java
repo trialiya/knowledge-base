@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
+import io.github.trialiya.kb.model.chat.entity.CompactMeta;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.chat.entity.ContextItemKind;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
@@ -36,7 +37,8 @@ public final class ChatMessageMetaToJsonConverter {
             @Nullable List<ContextItemJson> contextItems,
             @Nullable String project,
             @Nullable String projectSwitchFrom,
-            @Nullable String model) {}
+            @Nullable String model,
+            @Nullable CompactMeta compact) {}
 
     /**
      * {@code kind} читается строкой, а не сразу {@link ContextItemKind}: вид, которого эта версия
@@ -105,7 +107,8 @@ public final class ChatMessageMetaToJsonConverter {
                         contextItemsOf(json.contextItems()),
                         json.project(),
                         json.projectSwitchFrom(),
-                        json.model());
+                        json.model(),
+                        json.compact());
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to deserialize chat message meta", e);
             }
@@ -140,7 +143,8 @@ public final class ChatMessageMetaToJsonConverter {
                                         .toList(),
                                 source.project(),
                                 source.projectSwitchFrom(),
-                                source.model()));
+                                source.model(),
+                                source.compact()));
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to serialize chat message meta", e);
             }

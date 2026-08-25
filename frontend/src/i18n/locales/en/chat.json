@@ -201,7 +201,12 @@
     "draftMessage": "This chat has not started yet — there is nothing to compact.",
     "emptyMessage": "This chat's context is already a single summary.",
     "errorTitle": "Compaction failed",
-    "startErrorMessage": "The compaction request never reached the server. Try again."
+    "startErrorMessage": "The compaction request never reached the server. Try again.",
+    "details": "Details",
+    "summaryTitle": "Compaction summary",
+    "summaryChars": "Summary length: {{chars}} characters.",
+    "summaryLoadError": "Could not load the summary.",
+    "summaryNotFound": "The summary of this compaction was not found."
   },
   "fileInput": {
     "hintStart": "Type a file name to search",

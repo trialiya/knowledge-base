@@ -1,0 +1,132 @@
+/* ── Сжатие контекста (/compact) ──
+   Плашка-разделитель в ленте и модалка с получившейся сводкой. */
+
+/* Плашка — разделитель, а не пузырь: сжатие это событие с чатом, а не реплика. */
+.compact-notice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.35rem 0;
+  color: var(--kb-muted);
+  font-size: 0.78rem;
+}
+
+.compact-notice__icon {
+  font-size: 0.9em;
+}
+
+.compact-notice__details {
+  background: none;
+  border: none;
+  padding: 0 2px;
+  font: inherit;
+  color: var(--kb-accent);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.compact-notice__details:hover {
+  color: var(--kb-accent-hover);
+}
+
+/* ── Модалка сводки ──
+   Overlay/portal/escape/aria — за ModalShell; здесь только размеры и отступы. */
+.modal-shell.compact-summary {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.22);
+  width: 860px;
+  max-width: 95vw;
+  height: 85vh;
+  max-height: 85vh;
+  /* Токены идут вместе с padding: по ним find-бар считает, на сколько выйти
+     за отступы диалога (см. modalShell.css). */
+  --modal-shell-pad-x: 0px;
+  --modal-shell-pad-top: 0px;
+  padding: 0;
+  gap: 0;
+}
+
+.compact-summary__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid #eee;
+  flex-shrink: 0;
+}
+
+.compact-summary__title {
+  flex: 1;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #222;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compact-summary__copy,
+.compact-summary__close {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  color: #999;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.compact-summary__copy:hover,
+.compact-summary__close:hover {
+  background: #f0f0f0;
+  color: #444;
+}
+.compact-summary__copy--done {
+  color: var(--kb-success, #34a853);
+}
+
+.compact-summary__notice {
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #888;
+}
+.compact-summary__notice--error {
+  color: #ea4335;
+}
+
+.compact-summary__body {
+  padding: 12px 16px 16px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* Базовый .md-preview — колонка редактора базы знаний: своя прокрутка, свой
+   padding и flex. Внутри модалки прокручивается тело целиком, поэтому гасим всё
+   три: иначе сводка живёт во вложенном скролле и отбита от строки с числами. */
+.compact-summary__body .md-preview {
+  flex: none;
+  overflow: visible;
+  padding: 0;
+  background: transparent;
+}
+.compact-summary__body .md-preview > :first-child {
+  margin-top: 0;
+}
+
+.compact-summary__stats {
+  font-size: 0.78rem;
+  color: var(--kb-muted);
+}

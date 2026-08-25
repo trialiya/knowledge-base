@@ -3,8 +3,10 @@ package io.github.trialiya.kb.service.chat.memory;
 import com.google.common.util.concurrent.Striped;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
+import io.github.trialiya.kb.model.chat.entity.CompactMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import java.time.LocalDateTime;
+import java.util.Objects;
 import java.util.concurrent.locks.Lock;
 import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
@@ -58,7 +60,9 @@ public class SummaryWriter {
      * @param position позиция самой сводки — позиция последнего сжатого сообщения, чтобы при
      *     следующем чтении сводка встала перед живым хвостом
      * @param createdAt время сводки — время последнего сжатого сообщения (порядок чтения истории
-     *     идёт по нему, а уже потом по позиции)
+     *     идёт по нему, а уже потом по позиции). У {@code /compact} это время завершения раунда:
+     *     живого хвоста после него не остаётся, поэтому сводке нечего обгонять, зато её время видит
+     *     пользователь — на строке-плашке (см. {@link #writeCompacted})
      * @param project проект, на котором закончилась сжатая часть; {@code null} — чат никуда не
      *     переезжал, и проект самого чата всё покрывает
      */
@@ -88,24 +92,74 @@ public class SummaryWriter {
 
     /** Помечает старые сообщения сжатыми и вставляет строку-сводку — атомарно. */
     public void write(SummaryRow row) {
-        transactionTemplate.executeWithoutResult(
-                s -> {
-                    chatMessageRepository.updateSummarized(
-                            row.conversationId(), row.startPosition(), row.endPosition());
-                    chatMessageRepository.save(
-                            new ChatMessageEntity(
-                                    0L,
-                                    row.conversationId(),
-                                    row.text(),
-                                    MessageType.ASSISTANT,
-                                    row.position(),
-                                    false,
-                                    true,
-                                    row.createdAt(),
-                                    row.project() == null
-                                            ? null
-                                            : ChatMessageMeta.ofProject(row.project())));
-                });
+        transactionTemplate.executeWithoutResult(s -> saveSummary(row));
+    }
+
+    /**
+     * То же, что {@link #write}, плюс видимая строка-плашка «контекст сжат» — тем же одним
+     * действием, потому что смысла порознь у них нет: сводка без плашки — молча исчезнувшая на
+     * перезагрузке история сжатия, плашка без сводки — ссылка в никуда.
+     *
+     * <p>Плашка — отдельный ряд, а не сама сводка, потому что у них противоположные роли: сводка
+     * уезжает модели и не показывается ({@code summary = true}), плашка показывается и модели не
+     * уезжает ({@code summarized = true}). Ни один флаг по отдельности такого ряда не описывает,
+     * поэтому их два, и цена — один лишний ряд на сжатие.
+     *
+     * <p>Позиция плашки — сразу за сводкой: в размеченный диапазон она не попадает (её и так не
+     * видит модель), а следующее сообщение чата встанет за ней, как за любым последним рядом.
+     *
+     * @param stats числа для самой плашки; записью, а не парой {@code int}, — в позиционном вызове
+     *     они меняются местами без единой ошибки компиляции
+     * @return строка-плашка; её id уезжает в {@code COMPACT_DONE} и служит адресом деталей сжатия
+     */
+    public ChatMessageEntity writeCompacted(SummaryRow row, CompactStats stats) {
+        return Objects.requireNonNull(
+                transactionTemplate.execute(
+                        s -> {
+                            final ChatMessageEntity summary = saveSummary(row);
+                            return chatMessageRepository.save(
+                                    new ChatMessageEntity(
+                                            0L,
+                                            row.conversationId(),
+                                            "",
+                                            MessageType.ASSISTANT,
+                                            row.position() + 1,
+                                            true,
+                                            false,
+                                            row.createdAt(),
+                                            ChatMessageMeta.ofCompact(
+                                                    new CompactMeta(
+                                                            stats.messages(),
+                                                            stats.summaryChars(),
+                                                            summary.getId()))));
+                        }));
+    }
+
+    /**
+     * Числа для плашки сжатия.
+     *
+     * @param messages сколько сообщений перестало ехать модели
+     * @param summaryChars длина документа, который написала модель, — без обёртки, в которую сводка
+     *     попадает в {@code row.text()}: плашка и модалка показывают это число рядом с самим
+     *     документом, и считать его надо по нему же
+     */
+    public record CompactStats(int messages, int summaryChars) {}
+
+    /** Разметка сжатого куска и сама строка-сводка; вызывать только внутри транзакции. */
+    private ChatMessageEntity saveSummary(SummaryRow row) {
+        chatMessageRepository.updateSummarized(
+                row.conversationId(), row.startPosition(), row.endPosition());
+        return chatMessageRepository.save(
+                new ChatMessageEntity(
+                        0L,
+                        row.conversationId(),
+                        row.text(),
+                        MessageType.ASSISTANT,
+                        row.position(),
+                        false,
+                        true,
+                        row.createdAt(),
+                        row.project() == null ? null : ChatMessageMeta.ofProject(row.project())));
     }
 
     /**

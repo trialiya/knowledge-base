@@ -6,16 +6,21 @@ import static io.github.trialiya.kb.model.chat.dto.ChatEventType.COMPACT_STARTED
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.USER_MESSAGE;
 
 import io.github.trialiya.kb.config.ChatModelRegistry;
+import io.github.trialiya.kb.model.chat.dto.CompactDetail;
 import io.github.trialiya.kb.model.chat.dto.CompactPayload;
 import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
+import io.github.trialiya.kb.model.chat.entity.CompactMeta;
+import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService.PromptRow;
 import io.github.trialiya.kb.service.chat.run.ChatEventService;
 import io.github.trialiya.kb.service.chat.run.ChatRunService;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
@@ -53,6 +58,12 @@ import org.springframework.web.server.ResponseStatusException;
  * — с хвостом команды в роли фокуса и справкой о самом чате. По завершении раунда позиция самой
  * команды попадает в тот же размеченный {@code summarized}-диапазон, что и сжатое окно: дальше она
  * видна пользователю в истории, но перестаёт ехать модели — как и всё, что раунд заменил сводкой.
+ *
+ * <p><b>След сжатия остаётся в истории.</b> Кроме самой сводки раунд пишет строку-плашку — ряд,
+ * который видит только пользователь (см. {@code SummaryWriter#writeCompacted}). Без неё сжатие жило
+ * бы одним событием: вкладка, открытая после перезагрузки, показывала бы команду, за которой ничего
+ * не произошло. По id этой строки {@link #detail} отдаёт и текст сводки — иначе увидеть результат
+ * сжатия нельзя вообще ниоткуда.
  */
 @Slf4j
 @Service
@@ -61,16 +72,23 @@ public class CompactService {
     private final ChatModelRegistry chatModelRegistry;
     private final ChatHistoryService chatHistory;
     private final ChatTopicRepository chatTopicRepository;
+    private final ChatMessageRepository chatMessageRepository;
     private final SummaryWriter summaryWriter;
     private final ChatRunService chatRunService;
     private final ChatEventService events;
     private final Resource compactorPrompt;
     private final Executor executor;
 
+    /** Границы обёртки сводки — общие у {@link #summaryText} и {@link #unwrap}. */
+    private static final String OPEN = "<summary>\n";
+
+    private static final String CLOSE = "\n</summary>\n";
+
     public CompactService(
             ChatModelRegistry chatModelRegistry,
             ChatHistoryService chatHistory,
             ChatTopicRepository chatTopicRepository,
+            ChatMessageRepository chatMessageRepository,
             SummaryWriter summaryWriter,
             ChatRunService chatRunService,
             ChatEventService events,
@@ -79,6 +97,7 @@ public class CompactService {
         this.chatModelRegistry = chatModelRegistry;
         this.chatHistory = chatHistory;
         this.chatTopicRepository = chatTopicRepository;
+        this.chatMessageRepository = chatMessageRepository;
         this.summaryWriter = summaryWriter;
         this.chatRunService = chatRunService;
         this.events = events;
@@ -270,23 +289,58 @@ public class CompactService {
             throw new IllegalStateException("The model returned an empty compaction");
         }
 
-        summaryWriter.write(
-                new SummaryWriter.SummaryRow(
-                        conversationId,
-                        startPosition,
-                        // Диапазон захватывает и саму команду — не только сжатое окно, — поэтому
-                        // дальше она видна в истории, но модели больше не едет.
-                        commandRow.getPosition(),
-                        commandRow.getPosition(),
-                        commandRow.getCreatedAt(),
-                        summaryText(content),
-                        SummaryWriter.lastProject(rows.stream().map(PromptRow::entity))));
+        final int messages = rows.size() + 1;
+        final ChatMessageEntity notice =
+                summaryWriter.writeCompacted(
+                        new SummaryWriter.SummaryRow(
+                                conversationId,
+                                startPosition,
+                                // Диапазон захватывает и саму команду — не только сжатое окно, —
+                                // поэтому дальше она видна в истории, но модели больше не едет.
+                                commandRow.getPosition(),
+                                commandRow.getPosition(),
+                                // Время раунда, а не команды: плашка со сводкой встаёт под ней
+                                // отдельным сообщением, и её время — это время, когда сжатие
+                                // закончилось, иногда через десятки секунд после команды.
+                                LocalDateTime.now(),
+                                summaryText(content),
+                                SummaryWriter.lastProject(rows.stream().map(PromptRow::entity))),
+                        new SummaryWriter.CompactStats(messages, content.length()));
         log.info(
                 "[{}] Compaction finished: {} messages -> {} chars",
                 conversationId,
-                rows.size() + 1,
+                messages,
                 content.length());
-        return new CompactPayload(rows.size() + 1, content.length());
+        return CompactPayload.of(notice);
+    }
+
+    /**
+     * Детали сжатия по id его строки-плашки: числа с самой плашки и текст сводки, которую она
+     * заменила. {@code Optional.empty()} — плашки нет, она из другого чата или сводка, на которую
+     * она ссылается, не нашлась (чат мог быть удалён между запросами).
+     */
+    public Optional<CompactDetail> detail(String conversationId, long messageId) {
+        final @Nullable ChatMessageEntity notice =
+                chatMessageRepository.findById(messageId).orElse(null);
+        if (notice == null || !notice.getConversationId().equals(conversationId)) {
+            return Optional.empty();
+        }
+        final @Nullable CompactMeta compact =
+                notice.getMeta() == null ? null : notice.getMeta().compact();
+        if (compact == null) {
+            return Optional.empty();
+        }
+        return chatMessageRepository
+                .findById(compact.summaryId())
+                .filter(summary -> summary.getConversationId().equals(conversationId))
+                .map(
+                        summary ->
+                                new CompactDetail(
+                                        notice.getId(),
+                                        compact.messages(),
+                                        compact.summaryChars(),
+                                        notice.getCreatedAt(),
+                                        unwrap(summary.getContent())));
     }
 
     /**
@@ -351,10 +405,22 @@ public class CompactService {
      */
     private static String summaryText(String content) {
         return "Compacted conversation summary (requested by the user):\n"
-                + "<summary>\n"
+                + OPEN
                 + content
-                + "\n</summary>\n"
+                + CLOSE
                 + "Treat this as authoritative context for the entire conversation so far: the"
                 + " messages it covers are no longer in the context and cannot be re-read.";
+    }
+
+    /**
+     * Обратное {@link #summaryText}: документ модели без адресованной ей обёртки — то, что читает
+     * человек, открывший детали сжатия. Строка не той формы отдаётся как есть: сводки, записанные
+     * до появления обёртки (или другой её версией), обязаны показываться, а не превращаться в
+     * пустой экран.
+     */
+    private static String unwrap(String stored) {
+        final int start = stored.indexOf(OPEN);
+        final int end = stored.lastIndexOf(CLOSE);
+        return start < 0 || end < start ? stored : stored.substring(start + OPEN.length(), end);
     }
 }

@@ -104,13 +104,14 @@ const clearPreparing = (msgs, runId) => {
 
 // Снимает метку runId (для live-tracking) и транзиентный флаг sealed, сохраняет runId
 // как toolCallsRunId (для загрузки деталей tool call после завершения прогона).
-// Пустые пузыри без вызовов (например, хвостовой после границы сегмента) выбрасывает.
+// Пустые пузыри без вызовов (например, хвостовой после границы сегмента) выбрасывает —
+// кроме плашки сжатия: у неё текста нет вовсе, весь её смысл в поле compact.
 const finalize = (msgs, runId) => {
   for (let i = msgs.length - 1; i >= 0; i--) {
     if (msgs[i].sender === SENDER.AI && msgs[i].runId === runId) {
       const { runId: _drop, preparing: _p, sealed: _s, ...rest } = msgs[i];
       const text = (rest.text || '').trimEnd();
-      if (text === '' && !(rest.toolCalls || []).length && !rest.error) {
+      if (text === '' && !(rest.toolCalls || []).length && !rest.error && !rest.compact) {
         msgs.splice(i, 1);
       } else {
         msgs[i] = { ...rest, text, toolCallsRunId: runId };
@@ -123,7 +124,7 @@ const finalize = (msgs, runId) => {
  * @param chat объект чата ({ id, messages, runId, ... })
  * @param ev   событие { type, runId, clientMsgId, payload, seq }
  * @param ctx  { isLocal(clientMsgId), stoppedLabel, errorLabel, interruptedNote,
- *               compactingLabel, compactDoneLabel(messages), compactErrorLabel }
+ *               compactingLabel, compactErrorLabel }
  */
 export function applyChatEvent(chat, ev, ctx) {
   if (!chat) return chat;
@@ -353,11 +354,19 @@ export function applyChatEvent(chat, ev, ctx) {
       return { ...chat, messages: msgs, runId, compacting: true };
     }
 
+    // Плашка «сжимаю…» становится плашкой итога — той же самой, что приезжает из истории
+    // после перезагрузки (см. useChatMessages.transformPage): один компонент, один вид.
+    // dbId — id строки-плашки в БД: по нему модалка запрашивает текст сводки.
     case CHAT_EVENT.COMPACT_DONE: {
-      const idx = lastAiIndexForRun(msgs, runId);
-      if (idx >= 0) {
-        msgs[idx] = { ...msgs[idx], text: ctx.compactDoneLabel(payload?.messages ?? 0) };
-      }
+      let idx = lastAiIndexForRun(msgs, runId);
+      if (idx < 0) idx = pushAi(msgs, runId);
+      msgs[idx] = {
+        ...msgs[idx],
+        text: '',
+        dbId: payload?.messageId ?? null,
+        compact: { messages: payload?.messages ?? 0, summaryChars: payload?.summaryChars ?? 0 },
+        ...(payload?.createdAt ? { timestamp: payload.createdAt } : {}),
+      };
       finalize(msgs, runId);
       return { ...chat, messages: msgs, runId: null, compacting: false };
     }
