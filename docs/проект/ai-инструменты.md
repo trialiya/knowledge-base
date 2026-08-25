@@ -197,7 +197,7 @@ untracked. В выдаче инструментов они помечены `[un
 ### `getCommitDiff`
 Изменения для указанного коммита.
 - **Параметры:** `commitHashes` (String), `includePatch` (Boolean|null, default false), `filePath` (String|null), `project` (String|null — работать в другом репозитории вместо проекта чата, см. «Проект в аргументах» ниже)
-- **Возвращает:** список `GitCommit` с вложенными `GitDiffEntry` + diff (опционально); `project` есть и у коммита, и у каждой записи
+- **Возвращает:** список `GitCommit` с вложенными `GitDiffEntry` + diff (опционально); `project` называет репозиторий на уровне коммита, у вложенных записей его нет — он одинаков для всего списка
 
 ### `getUncommittedChanges`
 Незакоммиченные изменения отслеживаемых файлов в рабочей директории (staged и unstaged).

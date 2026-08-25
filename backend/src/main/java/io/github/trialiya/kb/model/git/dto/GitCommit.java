@@ -19,7 +19,8 @@ import org.jspecify.annotations.Nullable;
  * @param email email автора
  * @param date дата коммита (ISO-8601 с offset)
  * @param message сообщение коммита (subject)
- * @param files список затронутых файлов (только если запрошены изменения)
+ * @param files список затронутых файлов (только если запрошены изменения); {@code project} у
+ *     вложенных записей — {@code null}: репозиторий на весь список один, и назван он здесь
  */
 public record GitCommit(
         String project,

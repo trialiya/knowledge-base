@@ -480,7 +480,9 @@ public class GitService {
                     formatter.setPathFilter(PathFilterGroup.createFromStrings(List.of(filePath)));
                 }
                 for (DiffEntry entry : formatter.scan(oldTree, newTree)) {
-                    entries.add(toGitDiffEntry(entry, formatter, includePatch, patchOut));
+                    // null: репозиторий записи называет объемлющий GitCommit, повтор в каждой —
+                    // токены за то, что уже сказано.
+                    entries.add(toGitDiffEntry(null, entry, formatter, includePatch, patchOut));
                 }
             }
             return toGitCommit(commit, entries, reader);
@@ -1240,7 +1242,8 @@ public class GitService {
                                 && !wanted.equals(entry.getNewPath())
                                 && !wanted.equals(entry.getOldPath())) continue;
                         GitDiffEntry mapped =
-                                toGitDiffEntry(entry, formatter, includePatch, patchOut);
+                                toGitDiffEntry(
+                                        project.id(), entry, formatter, includePatch, patchOut);
                         if (RepoPaths.isJunkFile(mapped.path())) continue;
                         entries.add(mapped);
                     }
@@ -1355,8 +1358,12 @@ public class GitService {
      * already computed (add/modify/delete/rename/copy) rather than inferring it from add/delete
      * line counts — the previous numstat-based heuristic (add&gt;0 &amp;&amp; del==0 ⇒ "A")
      * misclassified an append-only edit to an *existing* file as "added".
+     *
+     * <p>{@code entryProject} is the project echo for a top-level entry (uncommitted changes) and
+     * null for one nested in a {@link GitCommit}, which already names the repository itself.
      */
     private GitDiffEntry toGitDiffEntry(
+            @Nullable String entryProject,
             DiffEntry entry,
             DiffFormatter formatter,
             boolean includePatch,
@@ -1397,7 +1404,7 @@ public class GitService {
                         ? Diffs.split(Diffs.truncate(formatted(entry, formatter, patchOut)))
                         : new Diffs.Parts(null, null);
         return new GitDiffEntry(
-                project.id(),
+                entryProject,
                 status,
                 path,
                 reportedOldPath,

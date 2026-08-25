@@ -198,6 +198,26 @@ class GitServiceTest {
         assertThat(files.get(0).additions()).isEqualTo(2);
     }
 
+    /**
+     * Эхо {@code project} — по одному на ответ: коммит называет репозиторий за весь свой список
+     * файлов, и только верхнеуровневая запись ({@code getUncommittedChanges}) несёт его сама —
+     * другого места у неё нет.
+     */
+    @Test
+    void projectEchoLivesOnTheCommitNotOnItsNestedEntries() {
+        writeFile("a.txt", "line1\n");
+        commitAll();
+        writeFile("a.txt", "line1\nline2\n");
+
+        List<GitCommit> diff =
+                service.getCommitDiff(service.getCommitLog(1, null).get(0).hash(), false);
+        assertThat(diff.get(0).project()).isEqualTo(TestProjects.ID);
+        assertThat(diff.get(0).files()).allSatisfy(e -> assertThat(e.project()).isNull());
+
+        assertThat(service.getUncommittedChanges(false))
+                .allSatisfy(e -> assertThat(e.project()).isEqualTo(TestProjects.ID));
+    }
+
     @Test
     void appendOnlyEditToExistingFileIsReportedAsModifyNotAdd() throws IOException {
         writeFile("a.txt", "line1\nline2\n");

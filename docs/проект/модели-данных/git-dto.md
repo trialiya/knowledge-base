@@ -9,6 +9,7 @@ Git-модели — только DTO (нет сущностей в БД). Ис�
 
 | Поле | Тип | Описание |
 |---|---|---|
+| `project` | String | Id репозитория, из истории которого взят коммит (эхо для кросс-проектного чтения, см. [ai-инструменты](../ai-инструменты.md)) |
 | `hash` | String | Полный SHA |
 | `shortHash` | String | Первые 8 символов SHA |
 | `author` | String | Имя автора |
@@ -17,13 +18,14 @@ Git-модели — только DTO (нет сущностей в БД). Ис�
 | `message` | String | Сообщение коммита |
 | `files` | List\<GitDiffEntry\> | Затронутые файлы (null если не запрошены) |
 
-`getResultMeta()`: `shortHash`, `author`, `email`, `date`, `message`, `changesFilesCount`.
+`getResultMeta()`: `project`, `shortHash`, `author`, `email`, `date`, `message`, `changesFilesCount`.
 
 ### GitDiffEntry
 Одна запись из diff коммита. Реализует `ToolCallResponseItem`.
 
 | Поле | Тип | Описание |
 |---|---|---|
+| `project` | String | Id репозитория — только у верхнеуровневой записи (`getUncommittedChanges`); внутри `GitCommit` — null и в JSON не сериализуется: репозиторий уже назван коммитом |
 | `status` | String | A/M/D/R (added/modified/deleted/renamed) |
 | `path` | String | Путь к файлу (новый при rename) |
 | `oldPath` | String | Старый путь (только при rename) |
@@ -39,6 +41,7 @@ Git-модели — только DTO (нет сущностей в БД). Ис�
 
 | Поле | Тип | Описание |
 |---|---|---|
+| `project` | String | Id репозитория, из которого прочитан файл |
 | `path` | String | Относительный путь |
 | `content` | String | Текстовое содержимое (null для бинарных) |
 | `binary` | boolean | Флаг бинарности |
@@ -54,6 +57,7 @@ Git-модели — только DTO (нет сущностей в БД). Ис�
 
 | Поле | Тип | Описание |
 |---|---|---|
+| `project` | String | Id репозитория, к которому относится файл |
 | `path` | String | Относительный путь |
 | `language` | String | Определённый язык |
 | `lineCount` | int | Всего строк |
@@ -88,6 +92,7 @@ DTO-обёртка для `getFileOutline`. Реализует `ToolCallResponse
 
 | Поле | Тип | Описание |
 |---|---|---|
+| `project` | String | Id репозитория, чьё дерево перечисляется |
 | `path` | String | Полный путь от корня репо |
 | `name` | String | Имя файла/каталога |
 | `type` | String | `"file"` или `"directory"` |
@@ -100,6 +105,7 @@ DTO-обёртка для `getFileOutline`. Реализует `ToolCallResponse
 
 | Поле | Тип | Описание |
 |---|---|---|
+| `project` | String | Id репозитория, в котором найдено совпадение |
 | `path` | String | Путь к файлу |
 | `matchLine` | int | Номер строки совпадения (1-based) |
 | `text` | String | Текст строки с совпадением |

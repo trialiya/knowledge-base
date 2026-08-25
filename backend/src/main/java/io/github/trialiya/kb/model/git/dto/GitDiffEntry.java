@@ -1,15 +1,18 @@
 package io.github.trialiya.kb.model.git.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import org.jspecify.annotations.Nullable;
 
 /**
  * Одна запись из diff коммита.
  *
- * @param project id репозитория, к которому относится изменение — обязателен в ответе, потому что
- *     {@code getUncommittedChanges} и {@code getCommitDiff} умеют читать не только активный проект
- *     чата (см. {@code GitFunction}). Внутри {@link GitCommit} он повторяет проект коммита: одно
- *     правило «каждая запись называет свой репозиторий» дешевле исключения из него
+ * @param project id репозитория, к которому относится изменение — обязателен, когда запись
+ *     верхнеуровневая ({@code getUncommittedChanges}): инструмент умеет читать не только активный
+ *     проект чата (см. {@code GitFunction}), и без эха ответ не говорит, чей это рабочий каталог.
+ *     Внутри {@link GitCommit} — {@code null} и в JSON не попадает: репозиторий уже назвал коммит,
+ *     повторять его в каждой из десятков записей — платить токенами за то, что читается строкой
+ *     выше
  * @param status статус: A (added), M (modified), D (deleted), R (renamed), C (copied), а для
  *     рабочего дерева ещё и U (untracked) — файл, который git не отслеживает и который проект
  *     показывает только через {@code allow-globs}; в индексе его нет, в коммит он сам не попадёт
@@ -23,7 +26,7 @@ import org.jspecify.annotations.Nullable;
  * @param patch текстовый diff (unified), начиная с первого {@code @@}; null если не запрашивался
  */
 public record GitDiffEntry(
-        String project,
+        @Nullable @JsonInclude(JsonInclude.Include.NON_NULL) String project,
         String status,
         String path,
         @Nullable String oldPath,
