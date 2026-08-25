@@ -11,9 +11,11 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
+import io.github.trialiya.kb.model.tool.ProjectScoped;
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.model.tool.ToolCallResultMetaProvider;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
+import io.github.trialiya.kb.model.tool.ToolResult;
 import io.micrometer.common.util.StringUtils;
 import java.util.Collection;
 import java.util.Map;
@@ -86,23 +88,26 @@ public class RecordingToolCallback implements ToolCallback {
                             null,
                             toolInput,
                             null,
-                            callIdx));
+                            callIdx,
+                            null));
         }
         try {
             CURRENT_RESULT.remove();
             String result = delegate.call(toolInput, toolContext);
             if (collector != null) {
+                Object raw = CURRENT_RESULT.get();
                 collector.record(
                         new ToolInvocation(
                                 name,
                                 toolInputMap,
                                 OK,
                                 null,
-                                getMeta(CURRENT_RESULT.get()),
-                                getGist(CURRENT_RESULT.get()),
+                                getMeta(payload(raw)),
+                                getGist(payload(raw)),
                                 toolInput,
                                 result,
-                                callIdx));
+                                callIdx,
+                                projectOf(raw)));
             }
             return result;
         } catch (Exception e) {
@@ -117,7 +122,8 @@ public class RecordingToolCallback implements ToolCallback {
                                 null,
                                 toolInput,
                                 null,
-                                callIdx));
+                                callIdx,
+                                null));
             }
             throw e;
         } finally {
@@ -174,6 +180,24 @@ public class RecordingToolCallback implements ToolCallback {
                     "Malformed tool call arguments, replacing with an empty object: {}", arguments);
             return "{}";
         }
+    }
+
+    /**
+     * Репозиторий, который ответил, — для guard'а записи ({@code
+     * ToolInvocationCollector#hasSeenFile}). {@code null} у инструмента, который о репозиториях не
+     * знает вовсе: сверять его результат не с чем.
+     */
+    private static @Nullable String projectOf(Object result) {
+        return result instanceof ProjectScoped scoped ? scoped.project() : null;
+    }
+
+    /**
+     * Содержимое ответа без общей обёртки: сводка и метаданные считаются по той же форме, что и у
+     * инструментов, которые обёртки не носят, — иначе {@link ToolResult} провалился бы мимо всех
+     * веток {@link #getGist} в безликий {@code truncateObject}.
+     */
+    private static Object payload(Object result) {
+        return result instanceof ToolResult<?> wrapped ? wrapped.result() : result;
     }
 
     private Map<String, ?> getMeta(Object result) {

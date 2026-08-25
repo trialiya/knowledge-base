@@ -129,6 +129,7 @@ class DocumentFunctionUpdateGuardTest {
                         null,
                         "{}",
                         null,
-                        collector.nextCallIndex()));
+                        collector.nextCallIndex(),
+                        null));
     }
 }

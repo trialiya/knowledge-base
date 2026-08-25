@@ -216,7 +216,8 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
                 "gist",
                 "{}",
                 "результат",
-                callIndex);
+                callIndex,
+                null);
     }
 
     @Test

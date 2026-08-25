@@ -828,7 +828,7 @@ Fuzzy-поиск tracked-файлов по имени (subsequence match, рег
 | `patch` | boolean | `false` | Включить текст unified diff |
 | `project` | String? | `null` | ID проекта; пусто — дефолтный |
 
-**Response:** `List<GitDiffEntry>` — `{ project, status, path, oldPath, additions, deletions, patchHeader, patch }`. Статусы: `A`, `M`, `D`, `R`, `C`, `U`. Служебная шапка патча (`diff --git`, `index`, `--- a/…`, `+++ b/…`) приходит отдельным полем `patchHeader`, а `patch` начинается с первого `@@`. У файла без незакоммиченных изменений ответ — пустой список, а не `404`.
+**Response:** `List<GitDiffEntry>` — `{ status, path, oldPath, additions, deletions, patchHeader, patch }`. Статусы: `A`, `M`, `D`, `R`, `C`, `U`. Служебная шапка патча (`diff --git`, `index`, `--- a/…`, `+++ b/…`) приходит отдельным полем `patchHeader`, а `patch` начинается с первого `@@`. У файла без незакоммиченных изменений ответ — пустой список, а не `404`.
 
 **Ошибки:** `400` — путь содержит `..`, `/`, `-` в начале, `\0`
 

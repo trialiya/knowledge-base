@@ -10,20 +10,18 @@ import org.jspecify.annotations.Nullable;
 /**
  * Запись из истории коммитов.
  *
- * @param project id репозитория, из истории которого взят коммит — обязателен в ответе, потому что
- *     {@code getCommitLog} и {@code getCommitDiff} умеют читать не только активный проект чата (см.
- *     {@code GitFunction}), а хеш сам по себе о репозитории не говорит
+ * <p>Репозиторий коммит не называет: он один на всю выдачу и назван обёрткой ответа ({@code
+ * ToolResult}).
+ *
  * @param hash полный SHA коммита
  * @param shortHash сокращённый SHA (минимум 7 символов, длиннее при неоднозначности)
  * @param author имя автора
  * @param email email автора
  * @param date дата коммита (ISO-8601 с offset)
  * @param message сообщение коммита (subject)
- * @param files список затронутых файлов (только если запрошены изменения); {@code project} у
- *     вложенных записей — {@code null}: репозиторий на весь список один, и назван он здесь
+ * @param files список затронутых файлов (только если запрошены изменения)
  */
 public record GitCommit(
-        String project,
         String hash,
         String shortHash,
         String author,
@@ -45,7 +43,6 @@ public record GitCommit(
     @Override
     public Map<String, Object> getResultMeta() {
         return Map.of(
-                "project", project,
                 "shortHash", shortHash,
                 "author", author,
                 "email", email,

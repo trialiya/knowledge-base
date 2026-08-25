@@ -21,27 +21,6 @@ public final class ToolInvocationCollector {
     private static final Set<String> PATH_ARG_READ_TOOLS =
             Set.of("getFileContent", "getFileOutline", "editFile");
 
-    /**
-     * Инструменты, которые умеют читать не только активный проект чата ({@code project} — их
-     * необязательный аргумент). Их результат надо сверять с {@code project} по факту — эхом,
-     * которое сам ответ обязан нести (поле {@code project} в DTO пакета {@code model.git.dto},
-     * {@code SearchAgentResult}, {@code ScriptResult}), а не по аргументу вызова: {@code project}
-     * мог быть не указан и разрешиться в дефолтный, или указан явно тем же дефолтным id — оба
-     * случая должны засчитаться как «свой проект», а сверка по сырому аргументу этого не различает.
-     */
-    private static final Set<String> PROJECT_AWARE_TOOLS =
-            Set.of(
-                    "getFileContent",
-                    "grepContent",
-                    "getFileTree",
-                    "searchFiles",
-                    "getFileOutline",
-                    "getCommitLog",
-                    "getCommitDiff",
-                    "getUncommittedChanges",
-                    "searchCodebase",
-                    "runScript");
-
     private final List<ToolInvocation> invocations = new CopyOnWriteArrayList<>();
     private final AtomicInteger callIndex = new AtomicInteger(0);
 
@@ -108,13 +87,14 @@ public final class ToolInvocationCollector {
      *
      * <p>Но не проект: чтение файла в одном репозитории не должно засчитываться за запись
      * одноимённого пути в другом (запись всегда идёт в проект прогона — см. {@code
-     * ScriptFunction#runScript}). Для инструментов из {@link #PROJECT_AWARE_TOOLS} совпадение
-     * засчитывается только когда собственное эхо ответа называет тот же {@code project}; остальные
-     * (поиск по документам, вложения) о репозиториях не знают вовсе, так что для них сверка не
-     * нужна.
+     * ScriptFunction#runScript}). Репозиторий вызова берётся из {@code ToolInvocation#project} —
+     * его проставил {@code RecordingToolCallback} по {@code ProjectScoped} самого ответа, то есть
+     * уже канонизированным. Сверять по аргументу вызова нельзя: {@code project} мог быть не указан
+     * и разрешиться в дефолтный, или указан явно тем же дефолтным id — оба случая означают «свой
+     * проект», а сырой аргумент этого не различает.
      *
      * @param path путь так, как его пишет репозиторий (канонизированный вызывающим)
-     * @param project id проекта, куда пойдёт запись (канонический — тот же, что несёт эхо ответа)
+     * @param project id проекта, куда пойдёт запись (канонический — тот же, что несёт ответ)
      */
     public boolean hasSeenFile(String path, String project) {
         return snapshot().stream()
@@ -123,16 +103,12 @@ public final class ToolInvocationCollector {
                 .anyMatch(inv -> namesFileAsPathArgument(inv, path) || mentionsFile(inv, path));
     }
 
+    /**
+     * {@code null} — результат к репозиторию не привязан (документы, вложения): сверять нечего, и
+     * такой вызов засчитывается как раньше.
+     */
     private static boolean matchesProject(ToolInvocation invocation, String project) {
-        if (!PROJECT_AWARE_TOOLS.contains(invocation.name())) {
-            return true;
-        }
-        return invocation.resultText() != null
-                && invocation.resultText().contains(projectEchoMarker(project));
-    }
-
-    private static String projectEchoMarker(String project) {
-        return "\"project\":\"" + project + "\"";
+        return invocation.project() == null || invocation.project().equals(project);
     }
 
     private static boolean namesFileAsPathArgument(ToolInvocation invocation, String path) {

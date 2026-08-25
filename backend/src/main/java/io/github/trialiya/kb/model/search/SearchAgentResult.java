@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.model.search;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import io.github.trialiya.kb.model.tool.ProjectScoped;
 import io.github.trialiya.kb.model.tool.ToolCallResponseItem;
 import io.github.trialiya.kb.model.tool.ToolCallResultMetaProvider;
 import io.github.trialiya.kb.tools.Compact;
@@ -32,7 +33,7 @@ public record SearchAgentResult(
         boolean complete,
         int iterations,
         @JsonIgnore long durationMs)
-        implements ToolCallResponseItem, ToolCallResultMetaProvider {
+        implements ProjectScoped, ToolCallResponseItem, ToolCallResultMetaProvider {
 
     /** Short, human-readable gist for the invocation log. */
     @Override

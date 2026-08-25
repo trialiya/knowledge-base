@@ -9,8 +9,8 @@ import org.jspecify.annotations.Nullable;
  * Структурный обзор файла: список символов верхнего уровня без полного содержимого. Позволяет ИИ
  * понять устройство файла и затем точечно прочитать нужный диапазон строк через getFileContent.
  *
- * @param project id репозитория, чей файл разобран — обязателен в ответе, потому что {@code
- *     getFileOutline} умеет смотреть не только в активный проект чата (см. {@code GitFunction})
+ * <p>Репозиторий обзор не называет: его называет обёртка ответа ({@code ToolResult}).
+ *
  * @param path относительный путь
  * @param language определённый язык, либо null
  * @param lineCount общее количество строк
@@ -18,7 +18,6 @@ import org.jspecify.annotations.Nullable;
  * @param symbols список символов в порядке появления в файле
  */
 public record GitFileOutline(
-        String project,
         String path,
         @Nullable String language,
         int lineCount,
@@ -31,7 +30,6 @@ public record GitFileOutline(
         StringBuilder sb =
                 new StringBuilder(
                         Compact.tag("file:" + path)
-                                .add("project", project)
                                 .add("lang", language)
                                 .add("lines", lineCount)
                                 .done());

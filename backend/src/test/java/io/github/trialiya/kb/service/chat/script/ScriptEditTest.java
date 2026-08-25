@@ -255,8 +255,13 @@ class ScriptEditTest {
                         null,
                         null,
                         null,
-                        "{\"project\":\"" + TestProjects.ID + "\",\"path\":\"" + LOGO_PNG + "\"}",
-                        collector.nextCallIndex()));
+                        "{\"project\":\""
+                                + TestProjects.ID
+                                + "\",\"result\":{\"path\":\""
+                                + LOGO_PNG
+                                + "\"}}",
+                        collector.nextCallIndex(),
+                        TestProjects.ID));
 
         ScriptResult result =
                 run("kb.writeBytes('static/logo.png', [1, 2, 3]); return 'ok';", collector);
@@ -285,7 +290,8 @@ class ScriptEditTest {
                         "{\"project\":\""
                                 + TestProjects.ID
                                 + "\",\"value\":\"ok\",\"filesRead\":[\"static/logo.png\"]}",
-                        collector.nextCallIndex()));
+                        collector.nextCallIndex(),
+                        TestProjects.ID));
 
         ScriptResult result =
                 run("kb.writeBytes('static/logo.png', [4, 5]); return 'ok';", collector);
@@ -311,8 +317,9 @@ class ScriptEditTest {
                         null,
                         null,
                         null,
-                        "{\"project\":\"billing\",\"path\":\"" + LOGO_PNG + "\"}",
-                        collector.nextCallIndex()));
+                        "{\"project\":\"billing\",\"result\":{\"path\":\"" + LOGO_PNG + "\"}}",
+                        collector.nextCallIndex(),
+                        "billing"));
 
         ScriptResult result =
                 run("kb.writeBytes('static/logo.png', [1, 2, 3]); return 'ok';", collector);
@@ -336,7 +343,8 @@ class ScriptEditTest {
                         null,
                         null,
                         null,
-                        collector.nextCallIndex()));
+                        collector.nextCallIndex(),
+                        null));
 
         ScriptResult result =
                 run("kb.writeBytes('static/logo.png', [1, 2, 3]); return 'ok';", collector);

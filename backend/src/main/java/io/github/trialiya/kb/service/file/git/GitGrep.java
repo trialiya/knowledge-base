@@ -71,7 +71,7 @@ final class GitGrep {
      * whose {@code text} reproduces the git grep format ({@code :N:} for matches, {@code -N-} for
      * context). The {@code matchLine} field holds the line number of the first match in the block.
      */
-    static List<GitGrepMatch> parse(List<String> lines, int ctx, int limit, String project) {
+    static List<GitGrepMatch> parse(List<String> lines, int ctx, int limit) {
         List<GitGrepMatch> results = new ArrayList<>();
 
         if (ctx == 0) {
@@ -80,7 +80,7 @@ final class GitGrep {
                 if (line.isBlank()) continue;
                 ParsedLine pl = parseLine(line);
                 if (pl == null) continue;
-                results.add(new GitGrepMatch(project, pl.path(), pl.lineNum(), pl.text()));
+                results.add(new GitGrepMatch(pl.path(), pl.lineNum(), pl.text()));
                 if (results.size() >= limit) break;
             }
             return results;
@@ -89,7 +89,7 @@ final class GitGrep {
         // Context case: lines accumulate into a block until the next "--" separator (or,
         // defensively,
         // a change of path — git grep -C keeps one file's lines together between separators).
-        Block block = new Block(project, limit, results);
+        Block block = new Block(limit, results);
         for (String line : lines) {
             if (line.equals("--")) {
                 if (block.flush()) return results;
@@ -109,7 +109,6 @@ final class GitGrep {
     /** One in-progress context block: the lines seen so far for one file, and its first match. */
     private static final class Block {
 
-        private final String project;
         private final int limit;
         private final List<GitGrepMatch> results;
         private final StringBuilder buf = new StringBuilder();
@@ -117,8 +116,7 @@ final class GitGrep {
         private @Nullable String path;
         private int firstMatchLine = -1;
 
-        Block(String project, int limit, List<GitGrepMatch> results) {
-            this.project = project;
+        Block(int limit, List<GitGrepMatch> results) {
             this.limit = limit;
             this.results = results;
         }
@@ -153,7 +151,7 @@ final class GitGrep {
             if (finished == null || matchLine < 0 || results.size() >= limit) {
                 return false;
             }
-            results.add(new GitGrepMatch(project, finished, matchLine, text));
+            results.add(new GitGrepMatch(finished, matchLine, text));
             return results.size() >= limit;
         }
     }

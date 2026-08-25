@@ -230,12 +230,7 @@ public class GitService {
                         String dirPath = dir.isEmpty() ? name : dir + "/" + name;
                         GitFileNode node =
                                 new GitFileNode(
-                                        project.id(),
-                                        dirPath,
-                                        name,
-                                        FileEntryType.DIRECTORY,
-                                        null,
-                                        isTracked);
+                                        dirPath, name, FileEntryType.DIRECTORY, null, isTracked);
                         // A directory counts as tracked as soon as one tracked file runs through
                         // it, whichever order the paths arrive in.
                         bucket.merge(dirPath, node, (old, fresh) -> old.tracked() ? old : fresh);
@@ -244,12 +239,7 @@ public class GitService {
                         bucket.putIfAbsent(
                                 path,
                                 new GitFileNode(
-                                        project.id(),
-                                        path,
-                                        name,
-                                        FileEntryType.FILE,
-                                        fileSize(path),
-                                        isTracked));
+                                        path, name, FileEntryType.FILE, fileSize(path), isTracked));
                     }
                 }
                 if (slash < 0) break;
@@ -480,9 +470,7 @@ public class GitService {
                     formatter.setPathFilter(PathFilterGroup.createFromStrings(List.of(filePath)));
                 }
                 for (DiffEntry entry : formatter.scan(oldTree, newTree)) {
-                    // null: репозиторий записи называет объемлющий GitCommit, повтор в каждой —
-                    // токены за то, что уже сказано.
-                    entries.add(toGitDiffEntry(null, entry, formatter, includePatch, patchOut));
+                    entries.add(toGitDiffEntry(entry, formatter, includePatch, patchOut));
                 }
             }
             return toGitCommit(commit, entries, reader);
@@ -563,7 +551,6 @@ public class GitService {
                 .map(
                         s ->
                                 new GitFileNode(
-                                        project.id(),
                                         s.path(),
                                         s.name(),
                                         FileEntryType.FILE,
@@ -671,11 +658,7 @@ public class GitService {
                         ? null
                         : RepoPaths.toForwardSlashes(pathGlob.strip());
         List<GitGrepMatch> tracked =
-                GitGrep.parse(
-                        exec(GitGrep.args(pattern, glob, regex, ctx, null)),
-                        ctx,
-                        limit,
-                        project.id());
+                GitGrep.parse(exec(GitGrep.args(pattern, glob, regex, ctx, null)), ctx, limit);
         // No roots left to search is not "search everywhere": without a pathspec the untracked run
         // would sweep the whole working tree.
         if (!includeUntracked || visible.allowGlobRoots().isEmpty()) {
@@ -691,8 +674,7 @@ public class GitService {
                 GitGrep.parse(
                         exec(GitGrep.args(pattern, null, regex, ctx, visible.allowGlobRoots())),
                         ctx,
-                        Integer.MAX_VALUE,
-                        project.id());
+                        Integer.MAX_VALUE);
         Set<String> trackedPaths = Set.copyOf(visible.trackedPaths());
         @Nullable Pathspec pathspec = Pathspec.of(glob);
         List<GitGrepMatch> merged = new ArrayList<>(tracked);
@@ -759,17 +741,7 @@ public class GitService {
 
         if (fb.binary()) {
             return new GitFileContent(
-                    project.id(),
-                    fb.path(),
-                    fb.tracked(),
-                    null,
-                    true,
-                    fb.size(),
-                    language,
-                    0,
-                    false,
-                    null,
-                    null);
+                    fb.path(), fb.tracked(), null, true, fb.size(), language, 0, false, null, null);
         }
 
         String full = RepoFiles.decodeToLf(fb.bytes());
@@ -783,7 +755,6 @@ public class GitService {
         if (!rangeRequested && fb.size() > RepoFiles.MAX_FILE_SIZE) {
             String excerpt = headTailExcerpt(lines);
             return new GitFileContent(
-                    project.id(),
                     fb.path(),
                     fb.tracked(),
                     excerpt,
@@ -798,7 +769,6 @@ public class GitService {
 
         if (!rangeRequested) {
             return new GitFileContent(
-                    project.id(),
                     fb.path(),
                     fb.tracked(),
                     full,
@@ -817,7 +787,6 @@ public class GitService {
         if (from > total || from > to) {
             // Empty/invalid slice — return no content but keep metadata truthful.
             return new GitFileContent(
-                    project.id(),
                     fb.path(),
                     fb.tracked(),
                     "",
@@ -832,7 +801,6 @@ public class GitService {
         String slice = String.join("\n", Arrays.asList(lines).subList(from - 1, to));
         boolean truncated = from > 1 || to < total;
         return new GitFileContent(
-                project.id(),
                 fb.path(),
                 fb.tracked(),
                 slice,
@@ -876,8 +844,7 @@ public class GitService {
         String source = RepoFiles.decodeToLf(fb.bytes());
         int total = source.split("\n", -1).length;
         OutlineResult result = outlineService.outline(language, source);
-        return new GitFileOutline(
-                project.id(), fb.path(), language, total, result.parser(), result.symbols());
+        return new GitFileOutline(fb.path(), language, total, result.parser(), result.symbols());
     }
 
     /** Returns the first {@code TRUNCATE_HEAD_LINES} and last {@code TRUNCATE_TAIL_LINES} lines. */
@@ -1242,8 +1209,7 @@ public class GitService {
                                 && !wanted.equals(entry.getNewPath())
                                 && !wanted.equals(entry.getOldPath())) continue;
                         GitDiffEntry mapped =
-                                toGitDiffEntry(
-                                        project.id(), entry, formatter, includePatch, patchOut);
+                                toGitDiffEntry(entry, formatter, includePatch, patchOut);
                         if (RepoPaths.isJunkFile(mapped.path())) continue;
                         entries.add(mapped);
                     }
@@ -1287,7 +1253,7 @@ public class GitService {
             content = null;
         }
         if (content == null || RepoFiles.isBinary(content)) {
-            return new GitDiffEntry(project.id(), UNTRACKED_STATUS, path, null, 0, 0, null, null);
+            return new GitDiffEntry(UNTRACKED_STATUS, path, null, 0, 0, null, null);
         }
         String text = new String(content, StandardCharsets.UTF_8);
         List<String> lines = text.isEmpty() ? List.of() : List.of(text.split("\n", -1));
@@ -1308,8 +1274,7 @@ public class GitService {
             // блоком читалась бы как сломанный патч.
             patch = sb.isEmpty() ? null : sb.toString();
         }
-        return new GitDiffEntry(
-                project.id(), UNTRACKED_STATUS, path, null, lines.size(), 0, patchHeader, patch);
+        return new GitDiffEntry(UNTRACKED_STATUS, path, null, lines.size(), 0, patchHeader, patch);
     }
 
     /** HEAD's tree, or an empty tree when the branch is unborn (no commits yet). */
@@ -1336,14 +1301,13 @@ public class GitService {
         return visible.paths();
     }
 
-    private GitCommit toGitCommit(
+    private static GitCommit toGitCommit(
             RevCommit commit, @Nullable List<GitDiffEntry> files, ObjectReader reader)
             throws IOException {
         PersonIdent author = commit.getAuthorIdent();
         OffsetDateTime date =
                 author.getWhenAsInstant().atZone(author.getZoneId()).toOffsetDateTime();
         return new GitCommit(
-                project.id(),
                 commit.getName(),
                 reader.abbreviate(commit, ABBREV_LEN).name(),
                 author.getName(),
@@ -1358,12 +1322,8 @@ public class GitService {
      * already computed (add/modify/delete/rename/copy) rather than inferring it from add/delete
      * line counts — the previous numstat-based heuristic (add&gt;0 &amp;&amp; del==0 ⇒ "A")
      * misclassified an append-only edit to an *existing* file as "added".
-     *
-     * <p>{@code entryProject} is the project echo for a top-level entry (uncommitted changes) and
-     * null for one nested in a {@link GitCommit}, which already names the repository itself.
      */
-    private GitDiffEntry toGitDiffEntry(
-            @Nullable String entryProject,
+    private static GitDiffEntry toGitDiffEntry(
             DiffEntry entry,
             DiffFormatter formatter,
             boolean includePatch,
@@ -1404,14 +1364,7 @@ public class GitService {
                         ? Diffs.split(Diffs.truncate(formatted(entry, formatter, patchOut)))
                         : new Diffs.Parts(null, null);
         return new GitDiffEntry(
-                entryProject,
-                status,
-                path,
-                reportedOldPath,
-                add,
-                del,
-                parts.header(),
-                parts.body());
+                status, path, reportedOldPath, add, del, parts.header(), parts.body());
     }
 
     /** One entry's unified diff as text; the buffer is the formatter's own, hence the reset. */

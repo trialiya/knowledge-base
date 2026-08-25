@@ -7,7 +7,6 @@ import io.github.trialiya.kb.model.git.dto.FileEntryType;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileNode;
-import io.github.trialiya.kb.model.git.dto.GitGrepMatch;
 import io.github.trialiya.kb.model.git.dto.GitTreeLevel;
 import io.github.trialiya.kb.support.TestProjects;
 import java.io.IOException;
@@ -160,25 +159,6 @@ class GitServiceTest {
     }
 
     @Test
-    void getFileContentEchoesTheServicesOwnProject() {
-        writeFile("tracked.txt", "tracked");
-        commitAll();
-
-        assertThat(service.getFileContent("tracked.txt").project()).isEqualTo(TestProjects.ID);
-    }
-
-    @Test
-    void grepContentEchoesTheServicesOwnProjectOnEveryMatch() {
-        writeFile("tracked.txt", "needle\nhaystack");
-        commitAll();
-
-        List<GitGrepMatch> matches = service.grepContent("needle", null, false, 0, 10, false);
-
-        assertThat(matches).isNotEmpty();
-        assertThat(matches).allSatisfy(m -> assertThat(m.project()).isEqualTo(TestProjects.ID));
-    }
-
-    @Test
     void rootCommitDiffIncludesTheInitialFiles() {
         writeFile("a.txt", "line1\nline2\n");
         commitAll();
@@ -196,26 +176,6 @@ class GitServiceTest {
         assertThat(files.get(0).status()).isEqualTo("A");
         assertThat(files.get(0).path()).isEqualTo("a.txt");
         assertThat(files.get(0).additions()).isEqualTo(2);
-    }
-
-    /**
-     * Эхо {@code project} — по одному на ответ: коммит называет репозиторий за весь свой список
-     * файлов, и только верхнеуровневая запись ({@code getUncommittedChanges}) несёт его сама —
-     * другого места у неё нет.
-     */
-    @Test
-    void projectEchoLivesOnTheCommitNotOnItsNestedEntries() {
-        writeFile("a.txt", "line1\n");
-        commitAll();
-        writeFile("a.txt", "line1\nline2\n");
-
-        List<GitCommit> diff =
-                service.getCommitDiff(service.getCommitLog(1, null).get(0).hash(), false);
-        assertThat(diff.get(0).project()).isEqualTo(TestProjects.ID);
-        assertThat(diff.get(0).files()).allSatisfy(e -> assertThat(e.project()).isNull());
-
-        assertThat(service.getUncommittedChanges(false))
-                .allSatisfy(e -> assertThat(e.project()).isEqualTo(TestProjects.ID));
     }
 
     @Test

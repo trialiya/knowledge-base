@@ -9,9 +9,9 @@ import org.jspecify.annotations.Nullable;
 /**
  * Один узел файлового дерева репозитория.
  *
- * @param project id репозитория, к которому относится узел — обязателен в ответе, потому что {@code
- *     getFileTree} и {@code searchFiles} умеют смотреть не только в активный проект чата (см.
- *     {@code GitFunction}), и без эха модель не отличит, где лежит найденный путь
+ * <p>Репозиторий узел не называет: он один на всю выдачу и назван обёрткой ответа ({@code
+ * ToolResult}).
+ *
  * @param path относительный путь от корня репозитория
  * @param name имя файла/каталога
  * @param type тип записи (файл или директория)
@@ -21,18 +21,12 @@ import org.jspecify.annotations.Nullable;
  *     попадёт в коммит, и создать рядом новый нельзя
  */
 public record GitFileNode(
-        String project,
-        String path,
-        String name,
-        FileEntryType type,
-        @Nullable Long size,
-        boolean tracked)
+        String path, String name, FileEntryType type, @Nullable Long size, boolean tracked)
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
 
     /** Отслеживаемый узел — обычный случай, для него и есть этот конструктор. */
-    public GitFileNode(
-            String project, String path, String name, FileEntryType type, @Nullable Long size) {
-        this(project, path, name, type, size, true);
+    public GitFileNode(String path, String name, FileEntryType type, @Nullable Long size) {
+        this(path, name, type, size, true);
     }
 
     @Override
@@ -46,7 +40,6 @@ public record GitFileNode(
     @Override
     public Map<String, Object> getResultMeta() {
         Map<String, Object> meta = new HashMap<>();
-        meta.put("project", project);
         meta.put("path", path);
         meta.put("name", name);
         meta.put("sizeBytes", size);

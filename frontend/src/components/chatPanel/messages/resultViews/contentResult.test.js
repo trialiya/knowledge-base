@@ -40,19 +40,58 @@ describe('detectContentResult — что попадает в «Обзор»', ()
     expect(items[0].facts.map((f) => f.key)).toEqual(['language', 'lineCount', 'sizeBytes']);
   });
 
-  it('getFileContent: проект показан фактом — вызов мог прочитать соседний репозиторий', () => {
+  const fileContent = (extra) => ({
+    path: 'pom.xml',
+    content: long('line'),
+    binary: false,
+    sizeBytes: 11542,
+    language: 'xml',
+    lineCount: 323,
+    truncated: false,
+    ...extra,
+  });
+
+  it('getFileContent: проект из обёртки показан фактом — вызов мог прочитать соседний репозиторий', () => {
+    const items = detect(JSON.stringify({ project: 'billing', result: fileContent() }));
+    expect(items[0].facts).toContainEqual({ key: 'project', value: 'billing' });
+    // Остальные факты обёртка не трогает.
+    expect(items[0].facts.map((f) => f.key)).toEqual(['project', 'language', 'lineCount', 'sizeBytes']);
+  });
+
+  it('ответ из истории чата: проект лежит в самой записи и фактом идёт один раз', () => {
+    const items = detect(JSON.stringify(fileContent({ project: 'billing' })));
+    expect(items[0].facts.filter((f) => f.key === 'project')).toEqual([{ key: 'project', value: 'billing' }]);
+  });
+
+  it('без проекта в обеих формах факта нет', () => {
+    expect(
+      detect(JSON.stringify(fileContent()))
+        .at(0)
+        .facts.map((f) => f.key),
+    ).not.toContain('project');
+  });
+
+  it('обёртка вокруг списка: проект достаётся каждому блоку', () => {
     const items = detect(
       JSON.stringify({
         project: 'billing',
-        path: 'pom.xml',
-        content: long('line'),
-        binary: false,
-        sizeBytes: 11542,
-        language: 'xml',
-        lineCount: 323,
-        truncated: false,
+        result: [fileContent(), fileContent({ path: 'build.gradle' })],
       }),
     );
+    expect(items.map((item) => item.facts[0])).toEqual([
+      { key: 'project', value: 'billing' },
+      { key: 'project', value: 'billing' },
+    ]);
+  });
+
+  it('обёртка вокруг бинарного файла: блока без текста она тоже касается', () => {
+    const items = detect(
+      JSON.stringify({
+        project: 'billing',
+        result: { path: 'logo.png', content: null, binary: true, sizeBytes: 2048, lineCount: 0 },
+      }),
+    );
+    expect(items[0]).toMatchObject({ title: 'logo.png', binary: true });
     expect(items[0].facts).toContainEqual({ key: 'project', value: 'billing' });
   });
 
