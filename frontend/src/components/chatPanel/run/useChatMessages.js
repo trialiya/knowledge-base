@@ -51,6 +51,18 @@ export const transformPage = (rawMsgs) => {
       }
       continue; // преамбулу как сообщение не рендерим
     }
+    // След команды /compact: ряд без текста, весь смысл которого — в мете (см.
+    // SummaryWriter.writeCompacted). Отдельным пузырём-плашкой, а не репликой ассистента.
+    if (m.compact) {
+      bubbles.push({
+        mid: nextMessageId(),
+        dbId: m.id ?? null,
+        sender: SENDER.AI,
+        compact: { messages: m.compact.messages, summaryChars: m.compact.summaryChars },
+        timestamp: m.timestamp || null,
+      });
+      continue;
+    }
     if (type === 'system') continue; // прочие системные сообщения (напр. summary) не показываем
     // Протокольные TOOL-сообщения (ответы инструментов) — не для показа: их содержимое
     // видно через плашки/модалку деталей соответствующего сегмента.
@@ -64,7 +76,12 @@ export const transformPage = (rawMsgs) => {
     // Прикрепляем только при совместимых runId — callIndex уникален лишь в рамках прогона.
     if (type !== 'user' && !(m.content || '').trim()) {
       const prev = bubbles[bubbles.length - 1];
-      if (prev?.sender === SENDER.AI && (!prev.toolCallsRunId || !m.runId || prev.toolCallsRunId === m.runId)) {
+      // Плашка сжатия — не сегмент ответа: вызовы к ней не липнут (см. ниже attachLeadingMetas).
+      if (
+        prev?.sender === SENDER.AI &&
+        !prev.compact &&
+        (!prev.toolCallsRunId || !m.runId || prev.toolCallsRunId === m.runId)
+      ) {
         prev.toolCalls = [...(prev.toolCalls || []), ...metas.map(metaToCall)];
         if (m.runId && !prev.toolCallsRunId) prev.toolCallsRunId = m.runId;
         continue;
@@ -120,7 +137,7 @@ export const trimActiveRunTail = (bubbles) => {
 export const attachLeadingMetas = (bubbles, metas) => {
   if (!metas || !metas.length) return [];
   for (let i = bubbles.length - 1; i >= 0; i--) {
-    if (bubbles[i].sender === SENDER.AI) {
+    if (bubbles[i].sender === SENDER.AI && !bubbles[i].compact) {
       bubbles[i] = { ...bubbles[i], toolCalls: [...(bubbles[i].toolCalls || []), ...metas] };
       return [];
     }

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
+import io.github.trialiya.kb.model.chat.entity.CompactMeta;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.chat.entity.ContextItemKind;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
@@ -51,7 +52,8 @@ class ChatMessageMetaRoundTripTest {
                                         Map.of("size", 12))),
                         "billing",
                         "default",
-                        "deepseek-chat");
+                        "deepseek-chat",
+                        new CompactMeta(21, 4096, 512));
 
         final String json = new ChatMessageMetaToJsonConverter.Writer(objectMapper).convert(meta);
         final ChatMessageMeta read =

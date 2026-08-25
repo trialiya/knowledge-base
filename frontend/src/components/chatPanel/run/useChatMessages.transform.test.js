@@ -113,6 +113,38 @@ describe('transformPage', () => {
   });
 });
 
+describe('transformPage: compaction notice', () => {
+  test('renders the /compact notice row as its own bubble, not as an assistant reply', () => {
+    const { bubbles } = transformPage([
+      { id: 1, content: '/compact', type: 'USER' },
+      {
+        id: 2,
+        content: '',
+        type: 'ASSISTANT',
+        timestamp: '2026-08-25T12:00:00',
+        compact: { messages: 21, summaryChars: 4096, summaryId: 3 },
+      },
+    ]);
+    expect(bubbles).toHaveLength(2);
+    // dbId — адрес деталей: по нему модалка запрашивает текст сводки.
+    expect(bubbles[1]).toMatchObject({
+      sender: 'ai',
+      dbId: 2,
+      compact: { messages: 21, summaryChars: 4096 },
+      timestamp: '2026-08-25T12:00:00',
+    });
+  });
+
+  test('does not glue a following tool-only segment onto the notice', () => {
+    const { bubbles } = transformPage([
+      { id: 1, content: '', type: 'ASSISTANT', compact: { messages: 4, summaryChars: 100, summaryId: 0 } },
+      { id: 2, content: '', type: 'ASSISTANT', runId: 'r1', toolInvocationMetas: [meta('searchDocs')] },
+    ]);
+    expect(bubbles[0].toolCalls).toBeUndefined();
+    expect(bubbles[1].toolCalls.map((t) => t.name)).toEqual(['searchDocs']);
+  });
+});
+
 describe('trimActiveRunTail', () => {
   const u = (text) => ({ mid: 1, sender: 'user', text });
   const a = (text) => ({ mid: 2, sender: 'ai', text });

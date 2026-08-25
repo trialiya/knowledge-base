@@ -25,6 +25,10 @@ import org.jspecify.annotations.Nullable;
  * ChatHistoryService.markRunModel}). Только на ASSISTANT-рядах и только начиная с прогонов, где
  * поле уже существовало: у старых ответов его нет, и {@code null} здесь значит «неизвестно», а не
  * «дефолтная модель» — чат мог идти на любой.
+ *
+ * <p>{@code compact} — итог сжатия по команде {@code /compact} (см. {@link CompactMeta}). Стоит
+ * ровно на одном ряду — строке-плашке, которую сжатие оставляет в истории вместо себя, — и он же
+ * признак этой строки: ни у одного другого сообщения поля нет.
  */
 public record ChatMessageMeta(
         @Nullable String runId,
@@ -33,11 +37,23 @@ public record ChatMessageMeta(
         List<ContextItem> contextItems,
         @Nullable String project,
         @Nullable String projectSwitchFrom,
-        @Nullable String model) {
+        @Nullable String model,
+        @Nullable CompactMeta compact) {
 
     public ChatMessageMeta {
         invocations = invocations == null ? List.of() : invocations;
         contextItems = contextItems == null ? List.of() : contextItems;
+    }
+
+    public ChatMessageMeta(
+            @Nullable String runId,
+            boolean toolCalls,
+            List<ToolInvocationMeta> invocations,
+            List<ContextItem> contextItems,
+            @Nullable String project,
+            @Nullable String projectSwitchFrom,
+            @Nullable String model) {
+        this(runId, toolCalls, invocations, contextItems, project, projectSwitchFrom, model, null);
     }
 
     public ChatMessageMeta(
@@ -89,6 +105,13 @@ public record ChatMessageMeta(
         return new ChatMessageMeta(null, false, List.of(), contextItems);
     }
 
+    /**
+     * Метаданные строки-плашки «контекст сжат»: что именно сделало сжатие и где лежит его сводка.
+     */
+    public static ChatMessageMeta ofCompact(CompactMeta compact) {
+        return new ChatMessageMeta(null, false, List.of(), List.of(), null, null, null, compact);
+    }
+
     /** Метаданные summary-строки: проект, на котором закончилась сжатая часть истории. */
     public static ChatMessageMeta ofProject(String project) {
         return new ChatMessageMeta(null, false, List.of(), List.of(), project, null);
@@ -101,7 +124,14 @@ public record ChatMessageMeta(
      */
     public ChatMessageMeta withRun(String runId, String model) {
         return new ChatMessageMeta(
-                runId, toolCalls, invocations, contextItems, project, projectSwitchFrom, model);
+                runId,
+                toolCalls,
+                invocations,
+                contextItems,
+                project,
+                projectSwitchFrom,
+                model,
+                compact);
     }
 
     /**
@@ -111,6 +141,13 @@ public record ChatMessageMeta(
     public ChatMessageMeta withProjectSwitch(
             @Nullable String project, @Nullable String projectSwitchFrom) {
         return new ChatMessageMeta(
-                runId, toolCalls, invocations, contextItems, project, projectSwitchFrom, model);
+                runId,
+                toolCalls,
+                invocations,
+                contextItems,
+                project,
+                projectSwitchFrom,
+                model,
+                compact);
     }
 }

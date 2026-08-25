@@ -9,15 +9,18 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.config.ChatModelRegistry;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
+import io.github.trialiya.kb.model.chat.dto.CompactDetail;
 import io.github.trialiya.kb.model.chat.dto.CompactPayload;
 import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
+import io.github.trialiya.kb.model.chat.entity.CompactMeta;
 import io.github.trialiya.kb.model.tool.ToolData;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
@@ -27,6 +30,7 @@ import io.github.trialiya.kb.service.chat.run.ChatRunService;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import org.junit.jupiter.api.BeforeEach;
@@ -69,6 +73,9 @@ class CompactServiceTest {
     @BeforeEach
     void setUp() {
         repository = mock(ChatMessageRepository.class);
+        // Записанный ряд возвращается как есть: раунд читает id сводки, чтобы плашка знала,
+        // где лежит её текст.
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         chatHistory = mock(ChatHistoryService.class);
         chatRunService = mock(ChatRunService.class);
         events = mock(ChatEventService.class);
@@ -88,15 +95,96 @@ class CompactServiceTest {
                 service().compact(CONV, turns(3), commandRow(9).entity(), null, null);
 
         verify(repository).updateSummarized(CONV, 0L, 9L);
-        final ArgumentCaptor<ChatMessageEntity> saved =
-                ArgumentCaptor.forClass(ChatMessageEntity.class);
-        verify(repository).save(saved.capture());
-        assertThat(saved.getValue().isSummary()).isTrue();
-        assertThat(saved.getValue().getType()).isEqualTo(MessageType.ASSISTANT);
-        assertThat(saved.getValue().getPosition()).isEqualTo(9L);
-        assertThat(saved.getValue().getContent()).contains("## Overview\ncompacted");
+        final ChatMessageEntity summary = savedRows().get(0);
+        assertThat(summary.isSummary()).isTrue();
+        assertThat(summary.getType()).isEqualTo(MessageType.ASSISTANT);
+        assertThat(summary.getPosition()).isEqualTo(9L);
+        assertThat(summary.getContent()).contains("## Overview\ncompacted");
         // 9 живых сообщений окна + сама команда — ровно то, что перестало ехать модели.
         assertThat(payload.messages()).isEqualTo(10);
+    }
+
+    /**
+     * Второй записанный ряд — видимая плашка «контекст сжат»: показывается ({@code summary =
+     * false}), модели не едет ({@code summarized = true}) и знает, где лежит её сводка. Без неё
+     * перезагруженная вкладка показала бы команду, за которой ничего не произошло.
+     */
+    @Test
+    void aVisibleNoticeRowSurvivesTheRoundAndPointsAtTheSummary() {
+        final CompactPayload payload =
+                service().compact(CONV, turns(3), commandRow(9).entity(), null, null);
+
+        final ChatMessageEntity notice = savedRows().get(1);
+        assertThat(notice.isSummary()).isFalse();
+        assertThat(notice.isSummarized()).isTrue();
+        assertThat(notice.getPosition()).isEqualTo(10L);
+        assertThat(notice.getMeta()).isNotNull();
+        final CompactMeta compact = notice.getMeta().compact();
+        assertThat(compact).isNotNull();
+        assertThat(compact.messages()).isEqualTo(10);
+        // Длина — по документу модели, а не по строке с обёрткой: рядом с этим числом модалка
+        // показывает сам документ.
+        assertThat(compact.summaryChars()).isEqualTo("## Overview\ncompacted".length());
+        assertThat(payload.messages()).isEqualTo(compact.messages());
+        assertThat(payload.createdAt()).isEqualTo(notice.getCreatedAt());
+    }
+
+    /**
+     * Время сводки и плашки — время завершения раунда, а не команды: раунд живёт десятки секунд, и
+     * подпись под плашкой обязана говорить, когда сжатие закончилось.
+     */
+    @Test
+    void theSummaryIsDatedByTheEndOfTheRoundNotByTheCommand() {
+        final ChatMessageEntity command = commandRow(9).entity();
+
+        service().compact(CONV, turns(3), command, null, null);
+
+        assertThat(savedRows())
+                .allSatisfy(row -> assertThat(row.getCreatedAt()).isAfter(command.getCreatedAt()));
+    }
+
+    /** Детали сжатия: числа с плашки и текст сводки — без адресованной модели обёртки. */
+    @Test
+    void detailsReturnTheSummaryTextWithoutItsProtocolWrapper() {
+        final ChatMessageEntity summary =
+                new ChatMessageEntity(
+                        7L,
+                        CONV,
+                        "Compacted conversation summary (requested by the user):\n"
+                                + "<summary>\n## Overview\ncompacted\n</summary>\nTreat this as…",
+                        MessageType.ASSISTANT,
+                        9L,
+                        false,
+                        true,
+                        LocalDateTime.now(),
+                        null);
+        final ChatMessageEntity notice =
+                new ChatMessageEntity(
+                        8L,
+                        CONV,
+                        "",
+                        MessageType.ASSISTANT,
+                        10L,
+                        true,
+                        false,
+                        LocalDateTime.now(),
+                        ChatMessageMeta.ofCompact(new CompactMeta(10, 128, 7L)));
+        when(repository.findById(8L)).thenReturn(Optional.of(notice));
+        when(repository.findById(7L)).thenReturn(Optional.of(summary));
+
+        final CompactDetail detail = service().detail(CONV, 8L).orElseThrow();
+
+        assertThat(detail.messages()).isEqualTo(10);
+        assertThat(detail.summaryChars()).isEqualTo(128);
+        assertThat(detail.summary()).isEqualTo("## Overview\ncompacted");
+    }
+
+    /** Обычное сообщение деталями сжатия не притворяется — у него просто нет такой меты. */
+    @Test
+    void detailsOfAnOrdinaryMessageAreNotFound() {
+        when(repository.findById(3L)).thenReturn(Optional.of(commandRow(3).entity()));
+
+        assertThat(service().detail(CONV, 3L)).isEmpty();
     }
 
     /**
@@ -155,11 +243,9 @@ class CompactServiceTest {
 
         service().compact(CONV, rows, commandRow(6).entity(), null, null);
 
-        final ArgumentCaptor<ChatMessageEntity> saved =
-                ArgumentCaptor.forClass(ChatMessageEntity.class);
-        verify(repository).save(saved.capture());
-        assertThat(saved.getValue().getMeta()).isNotNull();
-        assertThat(saved.getValue().getMeta().project()).isEqualTo("billing");
+        final ChatMessageEntity summary = savedRows().get(0);
+        assertThat(summary.getMeta()).isNotNull();
+        assertThat(summary.getMeta().project()).isEqualTo("billing");
     }
 
     /**
@@ -274,6 +360,14 @@ class CompactServiceTest {
     }
 
     // -------------------------------------------------------------------------
+
+    /** Записанные раундом ряды по порядку: сначала сводка, за ней видимая плашка. */
+    private List<ChatMessageEntity> savedRows() {
+        final ArgumentCaptor<ChatMessageEntity> saved =
+                ArgumentCaptor.forClass(ChatMessageEntity.class);
+        verify(repository, times(2)).save(saved.capture());
+        return saved.getAllValues();
+    }
 
     private static List<PromptRow> append(List<PromptRow> rows, PromptRow extra) {
         final List<PromptRow> all = new ArrayList<>(rows);
@@ -407,6 +501,7 @@ class CompactServiceTest {
                 models,
                 chatHistory,
                 mock(ChatTopicRepository.class),
+                repository,
                 new SummaryWriter(repository, transactionManager()),
                 chatRunService,
                 events,

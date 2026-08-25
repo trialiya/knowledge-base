@@ -155,9 +155,8 @@ export default function useChatEventStream({
       errorLabel: i18n.t('chat:window.genericError'),
       interruptedNote: `\n\n_**${i18n.t('chat:message.interrupted')}**_`,
       compactingLabel: `_${i18n.t('chat:compact.running')}_`,
-      // messages, а не count: count у i18next включает разрешение множественных форм,
-      // а множественных ключей в локалях этого проекта нет ни одного.
-      compactDoneLabel: (messages) => `_${i18n.t('chat:compact.done', { messages })}_`,
+      // Итог сжатия подписи здесь не получает: его рисует плашка (CompactNotice) — ровно та
+      // же, что приезжает из истории после перезагрузки, и переводит она себя сама.
       compactErrorLabel: i18n.t('chat:compact.error'),
     };
     closeStream = openChatEventStream(chatId, {

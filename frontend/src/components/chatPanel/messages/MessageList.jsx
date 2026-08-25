@@ -2,6 +2,7 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Message from './Message';
+import CompactNotice from './CompactNotice';
 import DocChangeBlock from './DocChangeBlock';
 import FileChangeBlock from './FileChangeBlock';
 import { IconArrowDown } from '@/icons/index';
@@ -269,24 +270,36 @@ const MessageList = ({
                   })}
                 </div>
               )}
-              <Message
-                text={msg.text}
-                sender={msg.sender}
-                toolCalls={msg.toolCalls}
-                timestamp={msg.timestamp}
-                modelLabel={modelLabelOf(modelOptions, msg.model)}
-                toolCallsRunId={msg.toolCallsRunId ?? msg.runId}
-                preparing={msg.preparing}
-                error={msg.error}
-                contextItems={msg.contextItems}
-                // Кнопку повтора показываем только у ошибок с известным режимом повтора
-                // (см. constants/retryMode.js): после начатого ответа модели её нет вовсе.
-                onRetry={onRetry && msg.error && msg.retryMode ? () => onRetry(msg.mid) : undefined}
-                conversationId={conversationId}
-                onNavigateToDoc={onNavigateToDoc}
-                mid={msg.mid}
-                searchActive={msg.mid != null && msg.mid === activeSearchMid}
-              />
+              {msg.compact ? (
+                // Сжатие контекста — событие с самим чатом, а не реплика: своя плашка вместо
+                // пузыря (и вместо тех же метаданных под ним — модели у неё нет, копировать
+                // нечего, а время живёт в подсказке самой плашки).
+                <CompactNotice
+                  conversationId={conversationId}
+                  messageId={msg.dbId}
+                  compact={msg.compact}
+                  timestamp={msg.timestamp}
+                />
+              ) : (
+                <Message
+                  text={msg.text}
+                  sender={msg.sender}
+                  toolCalls={msg.toolCalls}
+                  timestamp={msg.timestamp}
+                  modelLabel={modelLabelOf(modelOptions, msg.model)}
+                  toolCallsRunId={msg.toolCallsRunId ?? msg.runId}
+                  preparing={msg.preparing}
+                  error={msg.error}
+                  contextItems={msg.contextItems}
+                  // Кнопку повтора показываем только у ошибок с известным режимом повтора
+                  // (см. constants/retryMode.js): после начатого ответа модели её нет вовсе.
+                  onRetry={onRetry && msg.error && msg.retryMode ? () => onRetry(msg.mid) : undefined}
+                  conversationId={conversationId}
+                  onNavigateToDoc={onNavigateToDoc}
+                  mid={msg.mid}
+                  searchActive={msg.mid != null && msg.mid === activeSearchMid}
+                />
+              )}
               {groupEnd && groupToolCalls.length > 0 && (
                 <>
                   <DocChangeBlock toolCalls={groupToolCalls} onNavigateToDoc={onNavigateToDoc} />

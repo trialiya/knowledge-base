@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.model.chat.dto;
 
+import io.github.trialiya.kb.model.chat.entity.CompactMeta;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import java.time.LocalDateTime;
@@ -18,4 +19,9 @@ public record ChatMessage(
         @Nullable String project,
         @Nullable String projectSwitchFrom,
         /** Модель, написавшая ответ; {@code null} — ответы старее этого поля и вопросы. */
-        @Nullable String model) {}
+        @Nullable String model,
+        /**
+         * Итог сжатия {@code /compact}; непустой ровно у строки-плашки, которую сжатие оставило в
+         * истории вместо себя, — по нему фронт и опознаёт её среди обычных сообщений.
+         */
+        @Nullable CompactMeta compact) {}

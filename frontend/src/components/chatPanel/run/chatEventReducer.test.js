@@ -6,7 +6,6 @@ const ctx = {
   errorLabel: 'Ошибка',
   interruptedNote: '\n_прервано_',
   compactingLabel: 'сжимаю…',
-  compactDoneLabel: (messages) => `сжато: ${messages}`,
   compactErrorLabel: 'сжать не вышло',
 };
 
@@ -586,14 +585,36 @@ describe('applyChatEvent', () => {
     expect(last(chat)).toMatchObject({ sender: 'ai', runId: 'r1', text: 'сжимаю…' });
   });
 
-  test('COMPACT_DONE rewrites that bubble and unblocks the chat', () => {
+  test('COMPACT_DONE turns that bubble into the notice and unblocks the chat', () => {
     let chat = applyChatEvent(userChat(), { type: 'COMPACT_STARTED', runId: 'r1' }, ctx);
-    chat = applyChatEvent(chat, { type: 'COMPACT_DONE', runId: 'r1', payload: { messages: 42 } }, ctx);
+    chat = applyChatEvent(
+      chat,
+      {
+        type: 'COMPACT_DONE',
+        runId: 'r1',
+        payload: { messageId: 77, messages: 42, summaryChars: 1024, createdAt: '2026-08-25T12:00:00' },
+      },
+      ctx,
+    );
     expect(chat.messages.filter((m) => m.sender === 'ai')).toHaveLength(1);
-    expect(last(chat).text).toBe('сжато: 42');
+    // Плашка живёт полем compact, а не текстом: рисует её CompactNotice, тот же компонент,
+    // что и после перезагрузки страницы.
+    expect(last(chat)).toMatchObject({
+      dbId: 77,
+      text: '',
+      compact: { messages: 42, summaryChars: 1024 },
+      timestamp: '2026-08-25T12:00:00',
+    });
     expect(last(chat).runId).toBeUndefined();
     expect(chat.runId).toBeNull();
     expect(chat.compacting).toBe(false);
+  });
+
+  test('COMPACT_DONE survives finalize even though the notice bubble has no text', () => {
+    let chat = applyChatEvent(userChat(), { type: 'COMPACT_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(chat, { type: 'COMPACT_DONE', runId: 'r1', payload: { messageId: 5, messages: 3 } }, ctx);
+    chat = applyChatEvent(chat, { type: 'RUN_DONE', runId: 'r1' }, ctx);
+    expect(chat.messages.filter((m) => m.compact)).toHaveLength(1);
   });
 
   test('COMPACT_ERROR flags the bubble and unblocks the chat without offering a retry', () => {

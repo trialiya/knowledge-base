@@ -13,6 +13,7 @@ import io.github.trialiya.kb.model.chat.dto.Chat;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.ChatMessage;
 import io.github.trialiya.kb.model.chat.dto.ChatSearchResult;
+import io.github.trialiya.kb.model.chat.dto.CompactDetail;
 import io.github.trialiya.kb.model.chat.dto.CompactRequest;
 import io.github.trialiya.kb.model.chat.dto.MessagePage;
 import io.github.trialiya.kb.model.chat.dto.MessageSearchHit;
@@ -254,7 +255,8 @@ public class ChatController {
                                                 e.getMeta() != null
                                                         ? e.getMeta().projectSwitchFrom()
                                                         : null,
-                                                e.getMeta() != null ? e.getMeta().model() : null))
+                                                e.getMeta() != null ? e.getMeta().model() : null,
+                                                e.getMeta() != null ? e.getMeta().compact() : null))
                         .toList();
         return new MessagePage(dtos, page.hasMore(), page.oldestCursor());
     }
@@ -482,6 +484,24 @@ public class ChatController {
     }
 
     /**
+     * Детали одного сжатия — числа с его плашки и текст получившейся сводки. Отдельным запросом, а
+     * не полем страницы истории: сводка бывает в десятки килобайт, а открывают её изредка и по
+     * одной.
+     *
+     * @param messageId id строки-плашки «контекст сжат» (см. {@code COMPACT_DONE} и поле {@code
+     *     compact} сообщения в {@code GET /messages})
+     */
+    @GetMapping("/{conversationId}/compact")
+    public ResponseEntity<CompactDetail> getCompactDetail(
+            @PathVariable String conversationId, @RequestParam long messageId) {
+        verifyOwnerIfPresent(conversationId);
+        return compactService
+                .detail(conversationId, messageId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
      * Поток Server-Sent Events для чата: и стриминг текущего ответа, и кросс-вкладочная
      * синхронизация. При подключении сначала реплеятся пропущенные события (seq &gt; {@code
      * fromSeq}), затем идут живые — так вкладка догоняет генерацию после перезагрузки/позднего
@@ -613,7 +633,8 @@ public class ChatController {
                 chatMessageEntity.getContextItems(),
                 meta != null ? meta.project() : null,
                 meta != null ? meta.projectSwitchFrom() : null,
-                meta != null ? meta.model() : null);
+                meta != null ? meta.model() : null,
+                meta != null ? meta.compact() : null);
     }
 
     /** «Крошка» вызовов инструментов — служебное сообщение, которое не показываем пользователю. */

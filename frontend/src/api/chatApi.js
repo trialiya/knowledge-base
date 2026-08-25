@@ -149,6 +149,16 @@ const chatApi = {
     });
   },
 
+  /**
+   * Детали одного сжатия по id его плашки: { messageId, messages, summaryChars, createdAt,
+   * summary }. Отдельным запросом, а не полем страницы истории: сводка бывает в десятки
+   * килобайт, а открывают её изредка и по одной.
+   */
+  getCompactDetail: (chatId, messageId) => {
+    const params = new URLSearchParams({ messageId: String(messageId) });
+    return request(`/api/chats/${enc(chatId)}/compact?${params}`);
+  },
+
   /** Остановить прогон. Ошибки — только в консоль. */
   stopRun: (id, runId) =>
     requestRaw(`/api/chats/${enc(id)}/runs/${enc(runId)}/stop`, { method: 'POST' }).catch((e) =>
