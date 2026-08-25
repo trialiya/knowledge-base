@@ -2,6 +2,7 @@ package io.github.trialiya.kb.support;
 
 import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.config.model.ProjectProperties;
+import io.github.trialiya.kb.config.model.ProjectProperties.GitCommandsOption;
 import io.github.trialiya.kb.config.model.ProjectProperties.ProjectOption;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.git.GitService;
@@ -26,7 +27,14 @@ public final class TestProjects {
         return registry(
                 List.of(
                         new ProjectOption(
-                                ID, null, repoDir.toString(), editEnabled, false, null, true)));
+                                ID,
+                                null,
+                                repoDir.toString(),
+                                editEnabled,
+                                false,
+                                null,
+                                null,
+                                true)));
     }
 
     /** A registry over several configured projects — the first one is the default. */
@@ -38,7 +46,25 @@ public final class TestProjects {
 
     /** A read-only project entry at {@code path}. */
     public static ProjectOption project(String id, Path path) {
-        return new ProjectOption(id, null, path.toString(), false, false, null, true);
+        return new ProjectOption(id, null, path.toString(), false, false, null, null, true);
+    }
+
+    /** A project entry at {@code path} whose user-run git commands are configured as given. */
+    public static ProjectOption gitCommandsProject(String id, Path path, boolean push) {
+        return new ProjectOption(
+                id,
+                null,
+                path.toString(),
+                false,
+                false,
+                null,
+                new GitCommandsOption(true, push),
+                true);
+    }
+
+    /** A registry over the single repository at {@code repoDir}, with git commands configured. */
+    public static GitRegistry gitCommandsRegistry(Path repoDir, boolean push) {
+        return registry(List.of(gitCommandsProject(ID, repoDir, push)));
     }
 
     /** The {@link GitService} of that single repository. */
@@ -76,6 +102,7 @@ public final class TestProjects {
                                 editEnabled,
                                 untrackedEdits,
                                 allowGlobs,
+                                null,
                                 true)));
     }
 }

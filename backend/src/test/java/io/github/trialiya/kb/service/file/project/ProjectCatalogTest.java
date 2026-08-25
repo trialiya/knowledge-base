@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.trialiya.kb.config.model.GitProperties;
 import io.github.trialiya.kb.config.model.ProjectProperties;
+import io.github.trialiya.kb.config.model.ProjectProperties.GitCommandsOption;
 import io.github.trialiya.kb.config.model.ProjectProperties.ProjectOption;
 import io.github.trialiya.kb.model.project.Project;
 import java.nio.file.Path;
@@ -58,9 +59,17 @@ class ProjectCatalogTest {
                                         true,
                                         true,
                                         List.of("notes/**"),
+                                        null,
                                         true),
                                 new ProjectOption(
-                                        "billing", null, "/srv/billing", false, false, null, true)),
+                                        "billing",
+                                        null,
+                                        "/srv/billing",
+                                        false,
+                                        false,
+                                        null,
+                                        null,
+                                        true)),
                         legacy(null));
 
         assertThat(catalog.require("kb").editEnabled()).isTrue();
@@ -88,6 +97,7 @@ class ProjectCatalogTest {
                                         false,
                                         true,
                                         List.of("notes/**"),
+                                        null,
                                         true)),
                         legacy(null));
 
@@ -95,11 +105,84 @@ class ProjectCatalogTest {
         assertThat(catalog.require("kb").untrackedEditEnabled()).isFalse();
     }
 
+    /** Пользовательские git-команды — свой раздел конфигурации и своё разрешение на проект. */
+    @Test
+    void gitCommandsAreCarriedPerProject() {
+        ProjectCatalog catalog =
+                catalog(
+                        List.of(
+                                new ProjectOption(
+                                        "kb",
+                                        null,
+                                        "/srv/kb",
+                                        false,
+                                        false,
+                                        null,
+                                        new GitCommandsOption(true, true),
+                                        true),
+                                new ProjectOption(
+                                        "billing",
+                                        null,
+                                        "/srv/billing",
+                                        false,
+                                        false,
+                                        null,
+                                        new GitCommandsOption(true, false),
+                                        true)),
+                        legacy(null));
+
+        assertThat(catalog.require("kb").gitCommandsEnabled()).isTrue();
+        assertThat(catalog.require("kb").gitPushEnabled()).isTrue();
+        assertThat(catalog.require("billing").gitCommandsEnabled()).isTrue();
+        assertThat(catalog.require("billing").gitPushEnabled()).isFalse();
+    }
+
+    /** Раздела нет — не даётся ничего: команды пользователя всегда явный opt-in. */
+    @Test
+    void withoutTheSectionNoGitCommandIsOffered() {
+        ProjectCatalog catalog =
+                catalog(
+                        List.of(
+                                new ProjectOption(
+                                        "kb", null, "/srv/kb", true, false, null, null, true)),
+                        legacy(null));
+
+        assertThat(catalog.require("kb").gitCommandsEnabled()).isFalse();
+        assertThat(catalog.require("kb").gitPushEnabled()).isFalse();
+    }
+
+    /**
+     * {@code push-enabled} только сужает набор команд: без {@code enabled} он не должен открыть
+     * публикацию в remote в обход второго флага — ровно как {@code untracked-edit-enabled} не
+     * открывает записи.
+     */
+    @Test
+    void pushNeedsTheProjectToAllowGitCommandsAtAll() {
+        ProjectCatalog catalog =
+                catalog(
+                        List.of(
+                                new ProjectOption(
+                                        "kb",
+                                        null,
+                                        "/srv/kb",
+                                        false,
+                                        false,
+                                        null,
+                                        new GitCommandsOption(false, true),
+                                        true)),
+                        legacy(null));
+
+        assertThat(catalog.require("kb").gitCommandsEnabled()).isFalse();
+        assertThat(catalog.require("kb").gitPushEnabled()).isFalse();
+    }
+
     @Test
     void theLabelDefaultsToTheId() {
         ProjectCatalog catalog =
                 catalog(
-                        List.of(new ProjectOption("kb", " ", "/srv/kb", false, false, null, true)),
+                        List.of(
+                                new ProjectOption(
+                                        "kb", " ", "/srv/kb", false, false, null, null, true)),
                         legacy(null));
 
         assertThat(catalog.defaultProject().label()).isEqualTo("kb");
@@ -111,13 +194,15 @@ class ProjectCatalogTest {
         ProjectCatalog catalog =
                 catalog(
                         List.of(
-                                new ProjectOption("kb", null, "/srv/kb", false, false, null, true),
+                                new ProjectOption(
+                                        "kb", null, "/srv/kb", false, false, null, null, true),
                                 new ProjectOption(
                                         "billing",
                                         "Billing",
                                         "/srv/billing",
                                         true,
                                         false,
+                                        null,
                                         null,
                                         true)),
                         legacy(null));
@@ -139,13 +224,15 @@ class ProjectCatalogTest {
         ProjectCatalog catalog =
                 catalog(
                         List.of(
-                                new ProjectOption("kb", null, "/srv/kb", false, false, null, true),
+                                new ProjectOption(
+                                        "kb", null, "/srv/kb", false, false, null, null, true),
                                 new ProjectOption(
                                         "billing",
                                         null,
                                         "/srv/billing",
                                         false,
                                         false,
+                                        null,
                                         null,
                                         false)),
                         legacy(null));
@@ -161,9 +248,10 @@ class ProjectCatalogTest {
         ProjectCatalog catalog =
                 catalog(
                         List.of(
-                                new ProjectOption("kb", null, "/srv/kb", false, false, null, true),
                                 new ProjectOption(
-                                        "Not An Id", null, "", false, false, null, false)),
+                                        "kb", null, "/srv/kb", false, false, null, null, true),
+                                new ProjectOption(
+                                        "Not An Id", null, "", false, false, null, null, false)),
                         legacy(null));
 
         assertThat(catalog.defaultProject().id()).isEqualTo("kb");
@@ -177,7 +265,7 @@ class ProjectCatalogTest {
                                         List.of(
                                                 new ProjectOption(
                                                         "kb", null, "/srv/kb", false, false, null,
-                                                        false)),
+                                                        null, false)),
                                         legacy("/srv/legacy")))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("every configured project is disabled");
@@ -191,7 +279,7 @@ class ProjectCatalogTest {
                                         List.of(
                                                 new ProjectOption(
                                                         "My Repo", null, "/srv/kb", false, false,
-                                                        null, true)),
+                                                        null, null, true)),
                                         legacy(null)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("My Repo");
@@ -204,7 +292,8 @@ class ProjectCatalogTest {
                                 catalog(
                                         List.of(
                                                 new ProjectOption(
-                                                        "kb", null, " ", false, false, null, true)),
+                                                        "kb", null, " ", false, false, null, null,
+                                                        true)),
                                         legacy(null)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("No project configured");
@@ -214,7 +303,9 @@ class ProjectCatalogTest {
     void namingNoProjectMeansTheFirstOne() {
         ProjectCatalog catalog =
                 catalog(
-                        List.of(new ProjectOption("kb", null, "/srv/kb", false, false, null, true)),
+                        List.of(
+                                new ProjectOption(
+                                        "kb", null, "/srv/kb", false, false, null, null, true)),
                         legacy(null));
 
         assertThat(catalog.find(null)).contains(catalog.defaultProject());
@@ -231,7 +322,9 @@ class ProjectCatalogTest {
     void anUnsetProjectIsNotAllowedEvenThoughItResolvesToTheDefault() {
         ProjectCatalog catalog =
                 catalog(
-                        List.of(new ProjectOption("kb", null, "/srv/kb", false, false, null, true)),
+                        List.of(
+                                new ProjectOption(
+                                        "kb", null, "/srv/kb", false, false, null, null, true)),
                         legacy(null));
 
         assertThat(catalog.isAllowed("kb")).isTrue();
@@ -244,7 +337,9 @@ class ProjectCatalogTest {
     void anUnknownProjectIsAnErrorRatherThanASilentFallback() {
         ProjectCatalog catalog =
                 catalog(
-                        List.of(new ProjectOption("kb", null, "/srv/kb", false, false, null, true)),
+                        List.of(
+                                new ProjectOption(
+                                        "kb", null, "/srv/kb", false, false, null, null, true)),
                         legacy(null));
 
         assertThat(catalog.find("billing")).isEmpty();

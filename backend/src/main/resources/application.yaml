@@ -173,6 +173,14 @@ kb:
       # real directory, and the app refuses to start otherwise. grepContent skips these files
       # unless asked. Empty — tracked files only. e.g. ["notes/**", "build/reports/**"]
       allow-globs: []
+      # Git commands a USER may run on this repository from the UI (the model gets no tool for
+      # any of them). Off, the panel shows no git controls at all. Even on, they are withheld
+      # when the working tree is not writable — every one of them writes, a fetch included.
+      git-commands:
+        enabled: ${KB_GIT_COMMANDS_ENABLED:false}
+        # push is the only one that publishes this repository outside the deployment, so it is a
+        # grant of its own. Only narrows `enabled` — it does nothing while that one is false.
+        push-enabled: ${KB_GIT_PUSH_ENABLED:false}
     # A slot for a second repository, switched off until PROJECT2_ENABLED=true. Off, it is out of
     # the catalogue entirely — not opened, not validated, not listed, not routable — so this block
     # (and its mount) can land before anyone serves it. Turning it on takes the flag, the mount at
@@ -185,6 +193,9 @@ kb:
       edit-enabled: ${PROJECT2_EDIT_ENABLED:false}
       untracked-edit-enabled: ${PROJECT2_UNTRACKED_EDIT_ENABLED:false}
       allow-globs: []
+      git-commands:
+        enabled: ${PROJECT2_GIT_COMMANDS_ENABLED:false}
+        push-enabled: ${PROJECT2_GIT_PUSH_ENABLED:false}
       enabled: ${PROJECT2_ENABLED:false}
   script:
     # The runScript tool: the model writes a short JS script that walks the repository itself,

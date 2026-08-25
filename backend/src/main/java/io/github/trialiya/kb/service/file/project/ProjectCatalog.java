@@ -53,12 +53,22 @@ public class ProjectCatalog {
                 projects.stream().map(p -> p.id() + " → " + p.path() + mode(p)).toList());
     }
 
-    /** What the startup line says about a project's writes: nothing, {@code rw}, or both. */
+    /**
+     * What the startup line says a project permits — the writes and the user's git commands, or
+     * nothing at all when it permits neither.
+     */
     private static String mode(Project project) {
-        if (!project.editEnabled()) {
-            return "";
+        List<String> granted = new ArrayList<>();
+        if (project.editEnabled()) {
+            granted.add("rw");
+            if (project.untrackedEditEnabled()) {
+                granted.add("untracked rw");
+            }
         }
-        return project.untrackedEditEnabled() ? " (rw, untracked rw)" : " (rw)";
+        if (project.gitCommandsEnabled()) {
+            granted.add(project.gitPushEnabled() ? "git commands, push" : "git commands");
+        }
+        return granted.isEmpty() ? "" : " (" + String.join(", ", granted) + ")";
     }
 
     /** Every configured project, in configuration order. Never empty. */
@@ -125,10 +135,19 @@ public class ProjectCatalog {
                         "No project configured: set kb.projects[0].path (or the legacy"
                                 + " kb.git.project-path)");
             }
-            // The legacy form carries no edit flag and no globs: edits and untracked access are
-            // per-project opt-ins, and opting in means writing the kb.projects entry out.
+            // The legacy form carries no flags and no globs: edits, untracked access and the
+            // user's git commands are per-project opt-ins, and opting in means writing the
+            // kb.projects entry out.
             return List.of(
-                    new Project(LEGACY_ID, LEGACY_ID, absolute(path), false, false, List.of()));
+                    new Project(
+                            LEGACY_ID,
+                            LEGACY_ID,
+                            absolute(path),
+                            false,
+                            false,
+                            List.of(),
+                            false,
+                            false));
         }
         List<Project> resolved = new ArrayList<>();
         Set<String> ids = new LinkedHashSet<>();
@@ -162,7 +181,9 @@ public class ProjectCatalog {
                             absolute(option.path()),
                             option.editEnabled(),
                             untrackedEdits(option),
-                            option.allowGlobs()));
+                            option.allowGlobs(),
+                            option.gitCommands().enabled(),
+                            gitPush(option)));
         }
         return List.copyOf(resolved);
     }
@@ -197,6 +218,26 @@ public class ProjectCatalog {
                     "kb.projects[{}]: untracked-edit-enabled is set while allow-globs is empty —"
                             + " the project serves no untracked file to edit",
                     option.id());
+        }
+        return true;
+    }
+
+    /**
+     * Whether this project really offers {@code push}: {@code push-enabled} <em>and</em> the
+     * commands it is part of. Logged rather than refused, for the reason {@link
+     * #untrackedEdits(ProjectOption)} states — the flag grants nothing on its own, and a startup
+     * failure over a permission nobody gained would be the worse outcome.
+     */
+    private static boolean gitPush(ProjectOption option) {
+        if (!option.gitCommands().pushEnabled()) {
+            return false;
+        }
+        if (!option.gitCommands().enabled()) {
+            log.warn(
+                    "kb.projects[{}]: git-commands.push-enabled is set while git-commands.enabled"
+                            + " is false — no git command is offered for this project",
+                    option.id());
+            return false;
         }
         return true;
     }

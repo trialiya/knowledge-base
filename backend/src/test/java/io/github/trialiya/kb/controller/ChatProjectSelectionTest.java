@@ -102,7 +102,7 @@ class ChatProjectSelectionTest {
                 new ProjectProperties(
                         List.of(
                                 new ProjectOption(
-                                        "kb", "KB", "/srv/kb", false, false, null, true))),
+                                        "kb", "KB", "/srv/kb", false, false, null, null, true))),
                 new GitProperties(null));
     }
 

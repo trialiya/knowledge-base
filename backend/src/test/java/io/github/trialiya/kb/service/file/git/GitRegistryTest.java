@@ -3,6 +3,7 @@ package io.github.trialiya.kb.service.file.git;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.github.trialiya.kb.model.git.dto.GitCapabilities;
 import io.github.trialiya.kb.support.TestProjects;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -81,6 +82,60 @@ class GitRegistryTest {
         assertThat(registry.editsAllowed(null)).isTrue();
         assertThat(registry.anyEditable()).isTrue();
         assertThat(registry.requireEditable(null)).isSameAs(registry.defaultProject());
+    }
+
+    // ── Команды пользователя ─────────────────────────────────────────────────
+
+    /** Команды пользователя — не правки модели: разрешение своё, и одно другого не даёт. */
+    @Test
+    void gitCommandsAndModelEditsAreSeparateGrants() {
+        GitRegistry commandsOnly = TestProjects.gitCommandsRegistry(repoDir, false);
+
+        assertThat(commandsOnly.gitCommandsAllowed(null)).isTrue();
+        assertThat(commandsOnly.gitPushAllowed(null)).isFalse();
+        assertThat(commandsOnly.editsAllowed(null)).isFalse();
+
+        GitRegistry editsOnly = TestProjects.registry(repoDir, true);
+
+        assertThat(editsOnly.editsAllowed(null)).isTrue();
+        assertThat(editsOnly.gitCommandsAllowed(null)).isFalse();
+        assertThat(editsOnly.gitPushAllowed(null)).isFalse();
+    }
+
+    @Test
+    void pushIsOfferedOnlyWhereItIsConfigured() {
+        assertThat(TestProjects.gitCommandsRegistry(repoDir, true).gitPushAllowed(null)).isTrue();
+    }
+
+    /** То же, что с правками: не открывшийся репозиторий не даёт ни одной команды. */
+    @Test
+    void aProjectWhoseRepositoryIsMissingOffersNoCommands() {
+        GitRegistry registry =
+                TestProjects.registry(
+                        List.of(
+                                TestProjects.project("kb", repoDir),
+                                TestProjects.gitCommandsProject(
+                                        "billing", secondRepo, true))); // git init не звали
+
+        assertThat(registry.gitCommandsAllowed("billing")).isFalse();
+        assertThat(registry.gitPushAllowed("billing")).isFalse();
+        assertThat(registry.capabilities("billing"))
+                .satisfies(
+                        c -> {
+                            assertThat(c.project()).isEqualTo("billing");
+                            assertThat(c.available()).isFalse();
+                            assertThat(c.commands()).isFalse();
+                            assertThat(c.push()).isFalse();
+                        });
+    }
+
+    /** Проект не назван — ответ приходит про дефолтный, и он назван в ответе. */
+    @Test
+    void capabilitiesNameTheProjectTheyAnswerAbout() {
+        GitRegistry registry = TestProjects.gitCommandsRegistry(repoDir, false);
+
+        assertThat(registry.capabilities(null))
+                .isEqualTo(new GitCapabilities(TestProjects.ID, true, true, false));
     }
 
     // ── Несколько проектов ───────────────────────────────────────────────────

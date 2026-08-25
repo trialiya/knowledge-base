@@ -54,7 +54,15 @@ class GitFunctionTest {
         GitService billing = mock(GitService.class);
         when(billing.project())
                 .thenReturn(
-                        new Project("billing", "Billing", Path.of("/repo"), false, false, null));
+                        new Project(
+                                "billing",
+                                "Billing",
+                                Path.of("/repo"),
+                                false,
+                                false,
+                                null,
+                                false,
+                                false));
         when(billing.getFileContent(anyString(), any(), any()))
                 .thenReturn(
                         new GitFileContent(

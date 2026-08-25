@@ -17,6 +17,9 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *       edit-enabled: false
  *       untracked-edit-enabled: false
  *       allow-globs: []
+ *       git-commands:
+ *         enabled: false
+ *         push-enabled: false
  * </pre>
  *
  * <p>Several entries are served at once: each is a repository of its own with its own mount, and
@@ -65,6 +68,11 @@ public record ProjectProperties(List<ProjectOption> projects) {
      *     every glob has to start with a real directory rather than a wildcard — {@code
      *     ProjectCatalog} refuses to start otherwise. Empty by default — tracked files only, as
      *     everywhere else
+     * @param gitCommands whether the <em>user</em> may run git commands against this repository
+     *     from the UI, and which of them — see {@link GitCommandsOption}. A section of its own
+     *     because it grants something different from {@link #editEnabled()}: that one says what the
+     *     model may write into the working tree, this one says which repository operations a person
+     *     driving the UI may perform on it. Absent — every command is off
      * @param enabled {@code false} — the project is not served: no repository is opened for it, it
      *     is absent from {@code GET /api/chats/projects}, and a call naming it is refused. Chats
      *     that had chosen it keep the id in {@code chat_topic.project} and run on the default one,
@@ -78,15 +86,46 @@ public record ProjectProperties(List<ProjectOption> projects) {
             @DefaultValue("false") boolean editEnabled,
             @DefaultValue("false") boolean untrackedEditEnabled,
             List<String> allowGlobs,
+            @DefaultValue GitCommandsOption gitCommands,
             @DefaultValue("true") boolean enabled) {
 
         public ProjectOption {
             allowGlobs = allowGlobs == null ? List.of() : List.copyOf(allowGlobs);
+            gitCommands = gitCommands == null ? GitCommandsOption.OFF : gitCommands;
         }
 
         /** What to show when the config named no label. */
         public String displayLabel() {
             return label == null || label.isBlank() ? id : label;
         }
+    }
+
+    /**
+     * The git commands a user may run on one project from the UI — {@code kb.projects[].git-
+     * commands}.
+     *
+     * <p>These are never the model's: the assistant gets no tool for them, and every one of them is
+     * a person's explicit action in the interface. The configuration exists because the operations
+     * reach past the working tree — they change which commit the checkout sits on, and one of them
+     * publishes to a remote — so a deployment has to name the repositories it is opening up.
+     *
+     * <p>Like {@code edit-enabled}, this is the configured intent and not the answer: a read-only
+     * mount withholds all of it regardless, and {@code GitRegistry} is where the two halves meet.
+     *
+     * @param enabled whether the local commands are offered at all — the branch/status reads, and
+     *     the operations that move the working tree (switch, stash, commit, discard, merge --abort)
+     *     plus the network reads (fetch, pull). Defaults to {@code false}
+     * @param pushEnabled whether {@code push} is offered as well. Separate because it is the one
+     *     command that publishes this repository's content outside the deployment: "keep the
+     *     checkout up to date" and "may send commits to the remote" are different grants, and the
+     *     first is the common one. Only narrows {@link #enabled()} and never widens it — {@code
+     *     ProjectCatalog} says so rather than leaving the configuration to look effective. Defaults
+     *     to {@code false}
+     */
+    public record GitCommandsOption(
+            @DefaultValue("false") boolean enabled, @DefaultValue("false") boolean pushEnabled) {
+
+        /** What a project that configured no {@code git-commands} section grants: nothing. */
+        public static final GitCommandsOption OFF = new GitCommandsOption(false, false);
     }
 }
