@@ -69,27 +69,6 @@
   white-space: nowrap;
 }
 
-.compact-summary__copy,
-.compact-summary__close {
-  background: none;
-  border: none;
-  font-size: 1rem;
-  cursor: pointer;
-  color: #999;
-  padding: 2px 6px;
-  border-radius: 4px;
-  flex-shrink: 0;
-  line-height: 1;
-}
-.compact-summary__copy:hover,
-.compact-summary__close:hover {
-  background: #f0f0f0;
-  color: #444;
-}
-.compact-summary__copy--done {
-  color: var(--kb-success, #34a853);
-}
-
 .compact-summary__notice {
   padding: 24px 16px;
   text-align: center;

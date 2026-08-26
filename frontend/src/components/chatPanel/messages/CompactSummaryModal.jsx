@@ -4,8 +4,8 @@ import remarkGfm from 'remark-gfm';
 import { useTranslation } from 'react-i18next';
 import chatApi from '@/api/chatApi';
 import ModalShell from '@/components/common/modal/ModalShell';
-import useCopyFeedback from '@/components/common/ui/useCopyFeedback';
-import { IconCopySmall, IconCopied } from '@/icons/index';
+import CopyButton from '@/components/common/ui/CopyButton';
+import '@/components/common/ui/buttons.css';
 import '../styles/compact.css';
 
 /**
@@ -20,7 +20,6 @@ const CompactSummaryModal = ({ conversationId, messageId, onClose }) => {
   const { t } = useTranslation('chat');
   // Ответ сервера; null — запрос ещё идёт. loading/error выводятся из него при рендере.
   const [answer, setAnswer] = useState(null); // { detail, failed } | null
-  const [copied, copy] = useCopyFeedback();
 
   useEffect(() => {
     let cancelled = false;
@@ -49,17 +48,8 @@ const CompactSummaryModal = ({ conversationId, messageId, onClose }) => {
         <span className="compact-summary__title">
           <span aria-hidden="true">🗜️</span> {t('compact.summaryTitle')}
         </span>
-        {detail && (
-          <button
-            type="button"
-            className={`compact-summary__copy${copied ? ' compact-summary__copy--done' : ''}`}
-            onClick={() => copy(detail.summary)}
-            title={copied ? t('common:copied') : t('toolCall.copy')}
-          >
-            {copied ? <IconCopied /> : <IconCopySmall />}
-          </button>
-        )}
-        <button type="button" className="compact-summary__close" onClick={onClose} title={t('close')}>
+        <CopyButton value={detail?.summary} />
+        <button type="button" className="icon-btn" onClick={onClose} title={t('close')}>
           ✕
         </button>
       </div>
