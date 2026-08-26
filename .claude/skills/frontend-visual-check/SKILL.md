@@ -28,7 +28,9 @@ Reach for **harness** for a state the running app cannot be asked for on demand:
 an unfinished merge, a chat with the model mid-answer, a repository that refuses
 a push. Those live in `frontend/tests/visual/fixtures/`, and the harness mounts
 one component straight into a page. Case ids are the same `fixtures:` references
-`cases.yaml` uses (`<module>#<export>`); the opt-in list is
+`cases.yaml` uses (`<module>#<export>`, plus `@variant` where one fixture is
+drawn by more than one component — the snapshot of the config is read by three
+groups of «Настройки»); the opt-in list is
 `frontend/tests/visual/harness/registry.jsx`, and a fixture only becomes
 shootable once it is listed there. Shots land in `harness/shots/` (git-ignored),
 one per case, and a case whose page logged a console error is reported `✗`.
@@ -36,6 +38,22 @@ one per case, and a case whose page logged a console error is reported `✗`.
 ```bash
 ./run/test.sh harness -- chatRepo.js#repoTabMerging
 ```
+
+A registry entry carries more than a component and a frame:
+
+- `api` — the server answers for this case (`{ '<url prefix>': data }` or a
+  function of the fixture). A screen that fetches its own data — every group of
+  «Настройки»/«Администрирование», the tool-call detail modal — shows «Загрузка…»
+  without them. A request the entry does not declare is *not* stubbed: it 404s
+  against the stand's static server and lands in the case's console errors, so a
+  forgotten route shows up as `✗` instead of hiding behind a plausible shot.
+- `steps` — `{ click }`, `{ press }`, `{ type }` before the shot, for a state the
+  component opens itself: a dropdown, the modal's find bar, the query typed into
+  it.
+
+Neither makes the harness a substitute for a screen: what a *scenario* case
+checks (state surviving a section switch, a re-measure on a new path, a search
+scoped to the dialog rather than the page under it) still needs `smoke`.
 
 **The harness can be the thing that is wrong.** It builds its own frame around
 the component, and its CSS bundle is ordered by its own import graph, not the

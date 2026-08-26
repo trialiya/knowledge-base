@@ -29,10 +29,12 @@
  *     [caseId ...] [--no-build] [--locale=ru|en] [--port=8099] [--out=<dir>]
  *
  * Case ids are the `fixtures:` references from frontend/tests/visual/cases.yaml
- * (`<module>#<export>`); the opt-in list is harness/registry.jsx, where a case
- * may also name a selector to click before the shot. Run with no
- * ids to shoot them all — the summary line per case reports the console errors
- * the page produced, which is half of what the run is for.
+ * (`<module>#<export>`, plus `@variant` where one fixture is drawn by more than
+ * one component); the opt-in list is harness/registry.jsx, where a case may also
+ * name the steps to take before the shot (click, keypress, typing) and the
+ * server answers to hand the component. Run with no ids to shoot them all — the
+ * summary line per case reports the console errors the page produced, which is
+ * half of what the run is for.
  */
 const { spawnSync } = require('child_process');
 const fs = require('fs');
@@ -86,10 +88,17 @@ function serve(dir) {
   return new Promise((resolve) => server.listen(port, '127.0.0.1', () => resolve(server)));
 }
 
-/** Case ids, read out of the built bundle's own registry so the two cannot drift. */
-function caseIds() {
-  const source = fs.readFileSync(path.join(HARNESS, 'registry.jsx'), 'utf8');
-  return [...source.matchAll(/id: '([^']+)'/g)].map((m) => m[1]);
+/**
+ * Case ids, read out of the built bundle's own registry so the two cannot drift:
+ * the stand's index page lists every case, each link tagged with its id. Reading
+ * the source instead would mean re-parsing JSX here — and would miss the ids a
+ * registry entry builds rather than spells out (the tool-call cases are one map
+ * over a list of fixture names).
+ */
+async function caseIds(page) {
+  await page.goto(`http://127.0.0.1:${port}/index.html`);
+  await page.waitForFunction(() => document.documentElement.dataset.harness === 'ready');
+  return page.$$eval('[data-case-id]', (nodes) => nodes.map((n) => n.dataset.caseId));
 }
 
 async function main() {
@@ -105,19 +114,24 @@ async function main() {
     process.exit(1);
   }
 
-  const ids = wanted.length ? wanted : caseIds();
-  const unknown = ids.filter((id) => !caseIds().includes(id));
-  if (unknown.length) {
-    console.error(`Нет таких кейсов: ${unknown.join(', ')}`);
-    console.error(`Известные:\n  ${caseIds().join('\n  ')}`);
-    process.exit(2);
-  }
-
   fs.mkdirSync(outDir, { recursive: true });
   const server = await serve(DIST);
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
   const context = await browser.newContext({ locale, viewport: { width: 1440, height: 900 } });
   let failed = 0;
+
+  const indexPage = await context.newPage();
+  const known = await caseIds(indexPage);
+  await indexPage.close();
+  const ids = wanted.length ? wanted : known;
+  const unknown = ids.filter((id) => !known.includes(id));
+  if (unknown.length) {
+    console.error(`Нет таких кейсов: ${unknown.join(', ')}`);
+    console.error(`Известные:\n  ${known.join('\n  ')}`);
+    await browser.close();
+    server.close();
+    process.exit(2);
+  }
 
   for (const id of ids) {
     const page = await context.newPage();
@@ -129,15 +143,24 @@ async function main() {
     // The dictionary is a separate chunk and the first frame waits for it. The
     // flag sits on <html>: a modal portals into document.body, leaving #root empty.
     await page.waitForFunction(() => document.documentElement.dataset.harness === 'ready');
-    // A state the component opens itself — a dropdown menu — is in no fixture's
-    // reach: the case names the selector to click, main.jsx passes it through.
-    const click = await page.evaluate(() => document.documentElement.dataset.harnessClick);
-    if (click) {
-      // A selector that no longer matches is this case's failure, not the run's:
-      // left to reject, it would take the browser and the server down with it and
+    // A state the component opens itself — a dropdown menu, a find bar, the text
+    // typed into it — is in no fixture's reach: the case names the steps,
+    // main.jsx passes them through.
+    const steps = JSON.parse((await page.evaluate(() => document.documentElement.dataset.harnessSteps)) || '[]');
+    for (const step of steps) {
+      // A step that no longer lands is this case's failure, not the run's: left
+      // to reject, it would take the browser and the server down with it and
       // skip every case after this one, naming none of them. Short timeout —
       // nothing is loading any more, the element is either there or it is not.
-      await page.click(click, { timeout: 2000 }).catch((e) => problems.push(`click ${click}: ${e.message}`));
+      const run = step.click
+        ? page.click(step.click, { timeout: 2000 })
+        : step.press
+          ? page.keyboard.press(step.press)
+          : page.keyboard.type(step.type);
+      await run.catch((e) => problems.push(`${JSON.stringify(step)}: ${e.message}`));
+      // Между шагами — кадр: клик открывает меню, а следующий шаг метит в то,
+      // чего до этого кадра в DOM ещё нет.
+      await page.waitForTimeout(50);
     }
     await page.waitForTimeout(200);
 

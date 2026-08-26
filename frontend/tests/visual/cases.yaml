@@ -244,7 +244,7 @@
     auth: admin
     route: /knowledge/doc/76
     profile: h2
-  fixtures: ./fixtures/detailHeader.js#documentNodeProps
+  fixtures: ./fixtures/detailHeader.js#documentInFolder
   expected:
     - Имя ведёт себя как кнопка — курсор pointer, подсказка «Нажмите чтобы переименовать», по наведению цвет уходит в акцент
     - Кнопки-карандаша в шапке нет (.detail-header__rename-btn), справа только скачивание и удаление
@@ -614,7 +614,7 @@
     auth: admin
     route: /knowledge/doc/76
     profile: h2
-  fixtures: ./fixtures/detailHeader.js#documentNodeProps
+  fixtures: ./fixtures/detailHeader.js#documentInFolder
   expected:
     - Шапка остаётся одной строкой — крошка, иконка типа, имя, справа кнопки
     - Кнопка скачивания — обычная ссылка <a download> на /api/documents/{id}/download?meta=false, а не fetch
