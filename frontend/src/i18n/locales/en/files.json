@@ -88,6 +88,8 @@
     "failedUnknown": "No answer from the server. The application log has the details.",
     "menu": "Repository actions",
     "switchTo": "Switch to",
+    "filterBranches": "Filter branches",
+    "noBranchMatch": "No branch matches",
     "newBranch": "New branch",
     "branchName": "Branch name",
     "branchFrom": "Created from “{{branch}}” and checked out",

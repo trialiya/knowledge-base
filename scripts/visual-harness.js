@@ -132,7 +132,13 @@ async function main() {
     // A state the component opens itself — a dropdown menu — is in no fixture's
     // reach: the case names the selector to click, main.jsx passes it through.
     const click = await page.evaluate(() => document.documentElement.dataset.harnessClick);
-    if (click) await page.click(click);
+    if (click) {
+      // A selector that no longer matches is this case's failure, not the run's:
+      // left to reject, it would take the browser and the server down with it and
+      // skip every case after this one, naming none of them. Short timeout —
+      // nothing is loading any more, the element is either there or it is not.
+      await page.click(click, { timeout: 2000 }).catch((e) => problems.push(`click ${click}: ${e.message}`));
+    }
     await page.waitForTimeout(200);
 
     const file = path.join(outDir, `${id.replace(/[^\w.-]+/g, '-')}.png`);

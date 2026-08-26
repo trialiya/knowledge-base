@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import GitMenu from './GitMenu';
+import GitMenu, { positionDropdown } from './GitMenu';
 
 const status = (over = {}) => ({
   current: 'main',
@@ -127,5 +127,31 @@ describe('GitMenu', () => {
     render(<GitMenu status={status()} running />);
 
     expect(screen.getByRole('button', { name: 'git.menu' })).toBeDisabled();
+  });
+
+  /**
+   * Список позиционирован `fixed` — уехавший за край окна не доскроллить. На
+   * узком экране панель всплывает поверх центра, и кнопка оказывается у правого
+   * края: помещается список только если поедет влево вслед за нехваткой места.
+   */
+  describe('positionDropdown', () => {
+    const anchor = (left) => ({ left, bottom: 100 });
+
+    test('keeps the list inside a narrow viewport, whatever the anchor', () => {
+      const { left, maxWidth, minWidth } = positionDropdown(anchor(244), 375);
+
+      expect(left).toBeGreaterThanOrEqual(12);
+      expect(left + maxWidth).toBeLessThanOrEqual(375 - 12);
+      // Пол ширины уступает потолку — иначе он же вытолкнул бы список за край.
+      expect(minWidth).toBeLessThanOrEqual(maxWidth);
+    });
+
+    test('leaves the list at the trigger while the window has room for it', () => {
+      expect(positionDropdown(anchor(253), 1440)).toMatchObject({ left: 253, maxWidth: 420 });
+    });
+
+    test('never asks the browser for a negative width', () => {
+      expect(positionDropdown(anchor(0), 10).maxWidth).toBe(0);
+    });
   });
 });
