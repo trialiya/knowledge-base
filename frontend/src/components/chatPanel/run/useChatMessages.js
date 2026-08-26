@@ -93,6 +93,7 @@ export const transformPage = (rawMsgs) => {
       if (
         prev?.sender === SENDER.AI &&
         !prev.compact &&
+        !prev.gitEvent &&
         (!prev.toolCallsRunId || !m.runId || prev.toolCallsRunId === m.runId)
       ) {
         prev.toolCalls = [...(prev.toolCalls || []), ...metas.map(metaToCall)];
@@ -136,12 +137,17 @@ export const transformPage = (rawMsgs) => {
 export const trimActiveRunTail = (bubbles) => {
   let lastUser = -1;
   for (let i = bubbles.length - 1; i >= 0; i--) {
-    if (bubbles[i].sender === SENDER.USER) {
+    // Ряд git-команды — тоже USER, но вопросом не является: обрезав хвост по
+    // нему, оставили бы на экране ответ, который стрим сейчас перепишет заново.
+    if (bubbles[i].sender === SENDER.USER && !bubbles[i].gitEvent) {
       lastUser = i;
       break;
     }
   }
-  return lastUser < 0 ? bubbles : bubbles.slice(0, lastUser + 1);
+  // Отрезаются только незаконченные сегменты ответа. Ряды git-команд в хвосте
+  // остаются: они уже сохранены в истории, и выбросив их, карточка вывода
+  // пропадала бы на время прогона и возвращалась после перезагрузки.
+  return lastUser < 0 ? bubbles : bubbles.filter((b, i) => i <= lastUser || !!b.gitEvent);
 };
 
 // Прицепляет «висячие» metas (крошки без ассистента в своей странице) к последнему

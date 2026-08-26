@@ -5,6 +5,7 @@ import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
 
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
+import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.tools.CompactToolResultConverter;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -49,7 +50,16 @@ public class MessageLookupFunction {
                                                 + "] "
                                                 + m.getMessageType()
                                                 + ": <msg>\n"
-                                                + m.getText()
+                                                // У ряда git-команды текста нет вовсе: его
+                                                // содержимое — нотис, который собирается на
+                                                // чтении. Без этого «точный текст сообщения»
+                                                // возвращал бы пустоту там, где сводка сослалась
+                                                // на выполненную команду.
+                                                + (m.getMeta() != null
+                                                                && m.getMeta().gitEvent() != null
+                                                        ? ChatHistoryService.gitCommandNotice(
+                                                                m.getMeta())
+                                                        : m.getText())
                                                 // Приложенное к вопросу живёт в meta, а не в
                                                 // тексте: без этого «точный текст сообщения»
                                                 // молча терял бы упоминание вложения.

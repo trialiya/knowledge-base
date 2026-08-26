@@ -52,10 +52,12 @@ const runChangeRefs = (msgs, runId) => {
  *                                           мутации прогона, кроме последней, — например, при
  *                                           создании нескольких документов в одном ответе ассистента.
  * @param {Function} [p.onFileChanged]      (refs) => void — то же для file-мутаций
- * @param {Function} [p.onRepoChanged]      () => void — git-команда сдвинула рабочее дерево
  *                                           (createFile/editFile/runScript), refs из getFileChangeRefs;
  *                                           один tool call может дать несколько refs — runScript
  *                                           применяет пачку правок за вызов.
+ * @param {Function} [p.onRepoChanged]      () => void — git-команда пользователя сдвинула рабочее
+ *                                           дерево целиком; какие пути — не знает никто, кроме git,
+ *                                           поэтому аргументов нет.
  */
 export default function useChatEventStream({
   activeChatId,

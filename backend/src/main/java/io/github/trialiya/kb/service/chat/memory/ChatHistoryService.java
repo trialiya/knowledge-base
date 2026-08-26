@@ -335,11 +335,21 @@ public class ChatHistoryService {
     static List<ChatMessageEntity> tailAfterLastUser(List<ChatMessageEntity> rows) {
         int lastUser = -1;
         for (int i = 0; i < rows.size(); i++) {
-            if (rows.get(i).getType() == MessageType.USER) {
+            if (rows.get(i).getType() == MessageType.USER && !isGitEvent(rows.get(i))) {
                 lastUser = i;
             }
         }
         return rows.subList(lastUser + 1, rows.size());
+    }
+
+    /**
+     * Ряд git-команды — тоже {@code USER}, но ходом пользователя в разговоре не является: он ничего
+     * не спрашивает и ответа не ждёт. Всё, что ищет «последний вопрос», обязано смотреть сквозь
+     * него, иначе команда, выполненная посреди прогона, обрежет его хвост — и ряды выше останутся
+     * без модели и без плашек вызовов навсегда.
+     */
+    private static boolean isGitEvent(ChatMessageEntity row) {
+        return row.getMeta() != null && row.getMeta().gitEvent() != null;
     }
 
     public void delete(String conversationId) {
@@ -508,7 +518,7 @@ public class ChatHistoryService {
      * состоянии. Требование «сохраняй дословно», как и у маркера смены проекта, адресовано
      * summarizer'у (правило продублировано в {@code prompt/summarizer.md}).
      */
-    private static String gitCommandNotice(@Nullable ChatMessageMeta meta) {
+    public static String gitCommandNotice(@Nullable ChatMessageMeta meta) {
         if (meta == null || meta.gitEvent() == null) {
             return "";
         }
@@ -560,14 +570,17 @@ public class ChatHistoryService {
      * человек успел сделать pull, пока думал. Повторный прогон прочитает их наравне с остальной
      * историей и ответит на вопрос один раз — зная, что репозиторий с тех пор сдвинулся.
      *
-     * <p>Хвост читается пачкой, а не по одному ряду: команд подряд может быть несколько, а глубже
-     * пачки искать нечего — где-то там уже стоит ответ модели, который повтор и запрещает.
+     * <p>Хвост читается пачкой в двадцать рядов, а не по одному: команд подряд может быть
+     * несколько. Двадцать — это граница, а не доказательство: набрать их столько, не написав ни
+     * слова, можно, и тогда «Повторить» пропадёт у вопроса, который его заслуживает. Цена ошибки в
+     * эту сторону — одна кнопка, а вопрос можно задать заново; в другую — прогон поверх чужого
+     * хвоста.
      */
     public Optional<ChatMessageEntity> unansweredUserMessage(String conversationId) {
         for (ChatMessageEntity row :
                 chatMessageRepository.findTop20ByConversationIdOrderByPositionDesc(
                         conversationId)) {
-            if (row.getMeta() != null && row.getMeta().gitEvent() != null) {
+            if (isGitEvent(row)) {
                 continue;
             }
             return row.getType() == MessageType.USER ? Optional.of(row) : Optional.empty();

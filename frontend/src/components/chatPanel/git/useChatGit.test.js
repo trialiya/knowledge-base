@@ -126,6 +126,28 @@ describe('useChatGit', () => {
     await waitFor(() => expect(result.current.status.current).toBe('feature/x'));
   });
 
+  /**
+   * Ответ другого проекта — не устаревший, а чужой. Показать ветку проекта A
+   * под выбранным B значило бы предложить в модалке переключение на ветку,
+   * которой у B нет, — и отправить команду туда, где её не ждали.
+   */
+  test('switching to another project blanks the state instead of keeping the old one', async () => {
+    const { result, rerender } = await ready();
+    expect(result.current.status.current).toBe('main');
+
+    let resolveB;
+    gitApi.getBranches.mockReturnValue(new Promise((r) => (resolveB = r)));
+    rerender({ chatId: 'c-1', project: 'other', refreshToken: 0, busy: false });
+
+    expect(result.current.status).toBeNull();
+    expect(result.current.capabilities).toBeNull();
+
+    await act(async () => {
+      resolveB({ ...status, current: 'release' });
+    });
+    await waitFor(() => expect(result.current.status.current).toBe('release'));
+  });
+
   /** Пока команда идёт, вторую не запускают — и причина у этого своя. */
   test('a command in flight is its own reason, not the assistant working', async () => {
     let finish;

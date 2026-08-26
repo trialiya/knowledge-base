@@ -55,7 +55,9 @@
   align-items: flex-start;
 }
 
-.git-commands__group-title {
+/* Селектор с блоком, а не один класс: `.modal-shell h3` задаёт заголовкам
+   диалогов 1rem/700, и одного класса не хватает, чтобы его перебить. */
+.git-commands .git-commands__group-title {
   margin: 0;
   color: var(--kb-muted);
   font-size: 0.65rem;

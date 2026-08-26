@@ -38,22 +38,26 @@ export default function useGitBranch({ project, refreshToken, chat }) {
       gitApi.getBranches({ project, signal: controller.signal }),
       gitApi.getCapabilities({ project, signal: controller.signal }),
     ])
-      .then(([status, capabilities]) => setAnswer({ key, status, capabilities }))
+      .then(([status, capabilities]) => setAnswer({ key, project, status, capabilities }))
       .catch((error) => {
         if (controller.signal.aborted) return;
         // Строка ветки — не главное содержимое панели: репозиторий, который не
         // отвечает про ветки, всё ещё показывает дерево, и строка просто молчит.
-        setAnswer({ key, status: null, capabilities: null, error });
+        setAnswer({ key, project, status: null, capabilities: null, error });
       });
     return () => controller.abort();
   }, [key, project]);
 
-  // Пока перезапрос не вернулся, показываем прежний ответ, а не пустоту.
-  // Иначе каждая команда гасила бы то, из чего её запустили: она поднимает
-  // общий сигнал обновления, сигнал входит в ключ, и на время round-trip'а и
-  // строка ветки, и модалка команд оставались бы без состояния — то есть
-  // исчезали бы с экрана и возвращались.
-  const fresh = answer;
+  // Пока перезапрос не вернулся, показываем прежний ответ, а не пустоту: иначе
+  // каждая команда гасила бы то, из чего её запустили — она поднимает общий
+  // сигнал обновления, сигнал входит в ключ, и на время round-trip'а строка
+  // ветки и модалка команд оставались бы без состояния.
+  //
+  // Но только про тот же репозиторий. Ответ другого проекта не устаревший, а
+  // чужой: показать ветку проекта A под выбранным B — это не мигание, это
+  // ложь, и модалка по ней предложила бы переключиться на ветку, которой у B
+  // нет. Проект входит в ключ, поэтому сравнивается он, а не ключ целиком.
+  const fresh = answer?.project === project ? answer : null;
   const loading = answer?.key !== key;
 
   /**

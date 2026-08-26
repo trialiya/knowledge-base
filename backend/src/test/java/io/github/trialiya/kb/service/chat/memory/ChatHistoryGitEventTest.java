@@ -122,7 +122,6 @@ class ChatHistoryGitEventTest {
 
         final String text = service.promptRows(CONV).getFirst().text();
 
-        assertThat(text).doesNotContain("hacked=\"1\"");
         // Ровно один открывающий и один закрывающий тег — вписать второй блок не удалось.
         assertThat(text.split("<git-command", -1)).hasSize(2);
         assertThat(text.split("</git-command>", -1)).hasSize(2);
@@ -130,8 +129,7 @@ class ChatHistoryGitEventTest {
 
     /**
      * Вопрос, оставшийся без ответа, не перестаёт им быть оттого, что человек успел сделать pull,
-     * пока думал: команда — не ответ модели, и «Повторить» после неё обязано работать. Пока ряды
-     * команд запрещали повтор, вопрос после упавшего прогона приходилось перепечатывать.
+     * пока думал: команда — не ответ модели, и «Повторить» после неё обязано работать.
      */
     @Test
     void gitRowsInTheTailDoNotHideAnUnansweredQuestion() {

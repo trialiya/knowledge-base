@@ -78,18 +78,27 @@ const ChatRepoPanel = ({ git, onOpenCommands }) => {
         <section className="chat-repo__section">
           <h3 className="chat-repo__section-title">{t('repo.uncommitted', { count: git.changes.length })}</h3>
           <ul className="chat-repo__files">
-            {git.changes.map((entry) => (
-              // Буква — вся ширина, которую можно потратить в панели 320px, но
-              // сама по себе она ничего не значит: слово живёт в подсказке.
-              <li
-                key={entry.path}
-                className="chat-repo__file"
-                title={`${entry.path} — ${t(`repo.fileStatus.${entry.status}`, entry.status)}`}
-              >
-                <span className={`chat-repo__status chat-repo__status--${entry.status}`}>{entry.status}</span>
-                <span className="chat-repo__path">{entry.path}</span>
-              </li>
-            ))}
+            {git.changes.map((entry) => {
+              const name = entry.path.split('/').pop();
+              const dir = entry.path.slice(0, -name.length - 1);
+              return (
+                // Буква статуса — те же обозначения, что печатает `git status`:
+                // подписать их словом в панели шириной 320px негде, и слово
+                // живёт в подсказке строки, как и в панели «Файлы».
+                <li
+                  key={entry.path}
+                  className="chat-repo__file"
+                  title={`${t(`repo.fileStatus.${entry.status}`, entry.status)} · ${entry.path}`}
+                >
+                  <span className={`chat-repo__status chat-repo__status--${entry.status}`}>{entry.status}</span>
+                  {/* Имя раньше каталога, хотя в пути порядок обратный: сжимать
+                      в такой строке приходится именно каталог — обрезанное имя
+                      файла не опознать вовсе. */}
+                  <span className="chat-repo__name">{name}</span>
+                  {dir && <span className="chat-repo__dir">{dir}</span>}
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}

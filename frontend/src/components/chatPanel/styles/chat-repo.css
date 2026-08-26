@@ -1,5 +1,5 @@
 /* Вкладка «Репозиторий» правой панели чата.
-   Показывает — здесь; делает — модалка (gitCommandsModal.css). */
+   Показывает — здесь; делает — модалка (git-commands.css). */
 
 .chat-repo {
   display: flex;
@@ -110,17 +110,24 @@
   color: var(--kb-error);
 }
 
-.chat-repo__path {
-  flex: 1;
+/* Имя не сжимается, каталог — сжимается: та же раскладка, что у строки в
+   панели «Файлы», и по той же причине. Обрезка пути с начала (direction: rtl)
+   выглядит заманчивее, но утаскивает ведущую точку в конец — `.github/ci.yml`
+   читается как `github/ci.yml.`, а дотфайлов в git-статусе полно. */
+.chat-repo__name {
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
-  /* Обрезаем начало: имя файла отличает строки друг от друга, а общий префикс
-     каталога у них чаще всего один и тот же. plaintext обязателен — без него
-     RTL-абзац утаскивает ведущую точку в конец, и `.github/ci.yml` читается как
-     `github/ci.yml.`, а дотфайлов в git-статусе полно. */
-  direction: rtl;
-  unicode-bidi: plaintext;
-  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-repo__dir {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--kb-muted);
+  font-size: 0.72rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
