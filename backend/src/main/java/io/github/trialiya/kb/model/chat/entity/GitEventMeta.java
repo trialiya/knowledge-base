@@ -23,8 +23,9 @@ import org.jspecify.annotations.Nullable;
  *     all
  * @param output git's own words — its output on success, its refusal on failure, both as they came.
  *     Empty when the command said nothing, which for several git commands is the ordinary success
- * @param branch the branch the working tree sat on after the command; null when it could not be
- *     read (a refusal that never reached the repository)
+ * @param branch the branch the working tree sat on after the command; null on a refusal, which
+ *     carries git's message and no state — and needs none, since a refused command left the branch
+ *     where the row above already says it was
  */
 public record GitEventMeta(
         String command,

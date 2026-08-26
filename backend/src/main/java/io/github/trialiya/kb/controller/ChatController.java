@@ -214,7 +214,15 @@ public class ChatController {
         final @Nullable List<ChatMessage> messages =
                 includeMessages
                         ? chatHistory.displayMessages(conversationId).stream()
-                                .filter(a -> a.getText() != null && !a.getText().isBlank())
+                                // Пустой текст обычно значит «служебный ряд, показывать нечего», но
+                                // у ряда git-команды весь смысл в мете: выбросив его здесь, эта
+                                // проекция рассказывала бы историю без pull'а, который посреди
+                                // разговора сдвинул ветку, — а GET /messages с ним.
+                                .filter(
+                                        a ->
+                                                (a.getText() != null && !a.getText().isBlank())
+                                                        || (a.getMeta() != null
+                                                                && a.getMeta().gitEvent() != null))
                                 .map(this::toChatMessage)
                                 .toList()
                         : null;

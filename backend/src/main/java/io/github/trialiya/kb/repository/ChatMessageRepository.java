@@ -40,6 +40,13 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
 
     Optional<ChatMessageEntity> findFirstByConversationIdOrderByPositionDesc(String conversationId);
 
+    /**
+     * Хвост чата, свежее первым, — для читателей, которым мало последнего ряда: ряды git-команд
+     * стоят между вопросом и ответом и не отвечают ни за то, ни за другое, поэтому «последний
+     * вопрос» приходится искать сквозь них (см. {@code ChatHistoryService.unansweredUserMessage}).
+     */
+    List<ChatMessageEntity> findTop20ByConversationIdOrderByPositionDesc(String conversationId);
+
     /** Максимальная позиция в чате, 0 для пустого — источник номера для нового ряда. */
     @Query(
             """

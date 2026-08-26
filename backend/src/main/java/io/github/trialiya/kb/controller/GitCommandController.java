@@ -218,12 +218,10 @@ public class GitCommandController {
                             : HttpStatus.SERVICE_UNAVAILABLE,
                     e.getMessage());
         }
-        // Before the command, and only for a chat: the same 409 a busy repository answers with,
-        // because it is the same answer — something else is holding the working tree, try again
-        // when it lets go. Nothing is written to the history for a command that never ran.
-        if (chat != null && chatGitLog.busy(chat)) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT, "The assistant is working on this chat right now");
+        // Whose chat it is and whether the assistant is in it — before the command, so a refusal
+        // leaves the working tree untouched (see ChatGitLog.requireIdleAndOwned).
+        if (chat != null) {
+            chatGitLog.requireIdleAndOwned(chat);
         }
         try {
             final GitCommandResult result = command.apply(git);

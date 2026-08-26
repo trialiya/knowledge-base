@@ -194,11 +194,18 @@ public class ChatHistoryService {
      * контент пустой, весь смысл — в мете (см. {@link GitEventMeta}), и текст для модели собирается
      * на чтении в {@link #promptRow}, как и маркер смены проекта.
      *
-     * <p>Первым рядом чата такое не пишется: чат заводится вопросом, и история, начинающаяся с
-     * git-команды, ни о чём модели не говорит — рассказывать не о чем.
+     * <p>Ряд пишется в любом месте истории, первым в том числе: команда, выполненная в ещё пустом
+     * чате, — такое же его начало, как вложение, загруженное до первого вопроса.
+     *
+     * <p>Оборванный хвост чинится ПЕРЕД записью — по той же причине, по которой это делает {@code
+     * ChatRunService.start} перед сохранением вопроса: {@link #repairDanglingToolCalls} смотрит
+     * только на последний ряд, и {@code USER}, вставший поверх незакрытой пары {@code
+     * assistant.tool_calls} ↔ {@code tool}, спрятал бы её навсегда. Чат после этого получал бы
+     * {@code 400} от модели на каждое следующее сообщение.
      */
     @Transactional
     public ChatMessageEntity appendGitEvent(String conversationId, GitEventMeta event) {
+        repairDanglingToolCalls(conversationId);
         return chatMessageRepository.save(
                 new ChatMessageEntity(
                         0,
@@ -526,12 +533,14 @@ public class ChatHistoryService {
     }
 
     /**
-     * Значение атрибута нотиса. Кавычка в имени ветки git'ом не запрещена, а закрыв ею атрибут,
-     * ветка дописала бы в нотис свои «атрибуты» — единственное место, где текст извне попадает в
-     * разметку, которую читает модель.
+     * Значение атрибута нотиса. Имена веток и пути — единственное место, где текст извне попадает в
+     * разметку, которую читает модель, а git запрещает в них далеко не всё: ни кавычка, ни угловые
+     * скобки под запрет не попадают. Кавычкой закрывают атрибут, угловой скобкой — сам тег, и
+     * ветка, названная {@code main>...</git-command}, дописала бы модели произвольный текст поверх
+     * нотиса. Вывод команды такой поверхностью не является: он модели не показывается вовсе.
      */
     private static String attr(String value) {
-        return value.replace("\"", "'");
+        return value.replace("\"", "'").replace("<", "‹").replace(">", "›");
     }
 
     /**
@@ -546,14 +555,24 @@ public class ChatHistoryService {
      * побочные эффекты уже выполненных инструментов). Оба варианта хуже прямого продолжения
      * диалога, поэтому дальше пользователь пишет сам.
      *
-     * <p>Ряд git-команды — тоже {@code USER}, но вопросом не является: повторять там нечего, и
-     * прогон, запущенный «поверх» него, ответил бы на вопрос выше второй раз.
+     * <p>Ряды git-команд в хвосте пропускаются, а не запрещают повтор. Они тоже {@code USER}, но
+     * вопросом не являются, и вопрос, оставшийся без ответа, не перестаёт им быть оттого, что
+     * человек успел сделать pull, пока думал. Повторный прогон прочитает их наравне с остальной
+     * историей и ответит на вопрос один раз — зная, что репозиторий с тех пор сдвинулся.
+     *
+     * <p>Хвост читается пачкой, а не по одному ряду: команд подряд может быть несколько, а глубже
+     * пачки искать нечего — где-то там уже стоит ответ модели, который повтор и запрещает.
      */
     public Optional<ChatMessageEntity> unansweredUserMessage(String conversationId) {
-        return chatMessageRepository
-                .findFirstByConversationIdOrderByPositionDesc(conversationId)
-                .filter(last -> last.getType() == MessageType.USER)
-                .filter(last -> last.getMeta() == null || last.getMeta().gitEvent() == null);
+        for (ChatMessageEntity row :
+                chatMessageRepository.findTop20ByConversationIdOrderByPositionDesc(
+                        conversationId)) {
+            if (row.getMeta() != null && row.getMeta().gitEvent() != null) {
+                continue;
+            }
+            return row.getType() == MessageType.USER ? Optional.of(row) : Optional.empty();
+        }
+        return Optional.empty();
     }
 
     /**
