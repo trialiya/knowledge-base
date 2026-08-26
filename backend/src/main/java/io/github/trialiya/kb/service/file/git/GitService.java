@@ -1,6 +1,8 @@
 package io.github.trialiya.kb.service.file.git;
 
 import io.github.trialiya.kb.model.git.dto.FileEntryType;
+import io.github.trialiya.kb.model.git.dto.GitBranchStatus;
+import io.github.trialiya.kb.model.git.dto.GitCommandResult;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitEditResult;
@@ -78,8 +80,9 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>All operations run against this project's repository via JGit, in-process — no {@code git}
  * subprocess, no argv, no output parsing — except {@link #grepContent}, which still shells out to
- * {@code git grep} (JGit has no equivalent). Files matched by {@code .gitignore} are excluded from
- * tree/search/status results the same way native git excludes them.
+ * {@code git grep} (JGit has no equivalent), and the user's network commands ({@link #fetch}, see
+ * {@code GitCommands}), which shell out to reuse the host's credentials. Files matched by {@code
+ * .gitignore} are excluded from tree/search/status results the same way native git excludes them.
  */
 @Slf4j
 public class GitService {
@@ -137,6 +140,12 @@ public class GitService {
     /** The working-tree writes, kept apart from this far larger read surface. */
     private final GitWriter writer;
 
+    /** Which branch this repository is on and what else it has. */
+    private final GitBranches branches;
+
+    /** The git commands a user runs from the UI; reached only through {@code GitRegistry}. */
+    private final GitCommands commands;
+
     public GitService(Project project, OutlineService outlineService) {
         this.project = project;
         this.paths = new RepoPaths(project.path());
@@ -161,6 +170,8 @@ public class GitService {
         this.git = new Git(repository);
         this.visible = new VisibleFiles(project, paths, repository);
         this.writer = new GitWriter(project, paths, visible, git);
+        this.branches = new GitBranches(repository, git);
+        this.commands = new GitCommands(paths, repository, git, branches);
         log.info("GitService initialised for project {}: {}", project.id(), paths.root());
     }
 
@@ -1021,6 +1032,113 @@ public class GitService {
      */
     public Path repoPath() {
         return paths.root();
+    }
+
+    // ── Branches and the user's commands ────────────────────────────────────
+
+    /**
+     * Which branch the working tree is on, how far it has drifted from its upstream, and what other
+     * branches there are — see {@link GitBranchStatus}.
+     *
+     * <p>A plain read, available on every project: the panel says which branch it is showing
+     * whether or not anyone may change it. The counters are as fresh as the last fetch — nothing
+     * here contacts a remote.
+     */
+    public GitBranchStatus branchStatus() {
+        return branches.status();
+    }
+
+    /**
+     * Updates the remote-tracking refs of this repository ({@code git fetch --prune --no-tags}) —
+     * what makes the "behind" counter mean anything, since it is read off those refs.
+     *
+     * <p>Writes nothing in the working tree: the branch stays where it is, and a pull remains a
+     * separate, explicit step. Guarded by {@code GitRegistry.requireGitCommands} like every other
+     * command a user runs.
+     */
+    public GitCommandResult fetch() {
+        return commands.fetch();
+    }
+
+    /**
+     * Brings in what the upstream has ({@code git pull --ff-only}) — a fast-forward and nothing
+     * else.
+     *
+     * <p>Diverged histories are refused rather than merged: the merge commit a plain pull would
+     * write is a decision, and nobody makes a decision by clicking "update". The user merges
+     * deliberately, and a merge that ends in conflict has {@link #abortMerge()} as its way out.
+     */
+    public GitCommandResult pull() {
+        return commands.pull();
+    }
+
+    /**
+     * Publishes this branch to its remote ({@code git push}), setting the upstream on a branch that
+     * tracks nothing yet when the repository leaves no doubt which remote that is.
+     *
+     * <p>Never forced, in any spelling: a rejected push means the remote moved, and overwriting
+     * someone else's history is not something a click may do. Guarded by its own grant ({@code
+     * git-commands.push-enabled}) — it is the one command that sends this repository's content
+     * outside the deployment.
+     */
+    public GitCommandResult push() {
+        return commands.push();
+    }
+
+    /**
+     * Moves the checkout onto {@code branch}, creating it at the current commit when {@code create}
+     * — {@code git switch} and {@code git switch -c}.
+     *
+     * <p>Never forced: a switch that would overwrite uncommitted changes is refused, naming the
+     * files, and the user stashes or commits them first. Losing a working tree to a click is the
+     * one outcome this whole feature must not have.
+     */
+    public GitCommandResult switchBranch(@NonNull String branch, boolean create) {
+        return commands.switchBranch(branch, create);
+    }
+
+    /**
+     * Puts the tracked changes aside ({@code git stash push}) — the way out of "the switch you
+     * asked for would overwrite these files".
+     */
+    public GitCommandResult stashPush() {
+        return commands.stashPush();
+    }
+
+    /**
+     * Brings the newest stash back and drops it ({@code git stash pop}). A pop that conflicts keeps
+     * the stash: the work would otherwise exist nowhere but a conflicted working tree.
+     */
+    public GitCommandResult stashPop() {
+        return commands.stashPop();
+    }
+
+    /**
+     * Commits the tracked changes with {@code message} — the same files the panel lists under
+     * "changes", including the edits the assistant staged.
+     *
+     * <p>Refused when the repository has no commit identity: it belongs to whoever owns the
+     * deployment, and a history signed with a made-up address is worse than a refusal.
+     */
+    public GitCommandResult commit(@NonNull String message) {
+        return commands.commit(message);
+    }
+
+    /**
+     * Restores one tracked file to its committed state ({@code git restore}) — the only command
+     * here that destroys work rather than moving it, which is why it takes a path and never a whole
+     * tree.
+     */
+    public GitCommandResult discard(@NonNull String filePath) {
+        return commands.discard(filePath);
+    }
+
+    /**
+     * Leaves an unfinished merge ({@code git merge --abort}) — the guaranteed way out of a
+     * conflicted working tree, and the reason a conflicted pull is not a dead end.
+     */
+    public GitCommandResult abortMerge() {
+        return commands.abortMerge();
     }
 
     // ── Working-tree writes ─────────────────────────────────────────────────

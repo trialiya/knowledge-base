@@ -1,5 +1,7 @@
 package io.github.trialiya.kb.controller;
 
+import io.github.trialiya.kb.model.git.dto.GitBranchStatus;
+import io.github.trialiya.kb.model.git.dto.GitCapabilities;
 import io.github.trialiya.kb.model.git.dto.GitCommit;
 import io.github.trialiya.kb.model.git.dto.GitDiffEntry;
 import io.github.trialiya.kb.model.git.dto.GitFileContent;
@@ -32,7 +34,8 @@ import org.springframework.web.server.ResponseStatusException;
  * children of a single directory (a chevron click in that tree); {@code GET /status} lists the
  * working tree's uncommitted changes for the panel's review mode; {@code GET /commits} returns
  * commit history for a path. All delegate to {@link GitService}, which enforces tracked-files-only
- * access, path-traversal guards and binary/size limits.
+ * access, path-traversal guards and binary/size limits. {@code GET /capabilities} is the one
+ * endpoint about the project rather than its content: which git controls the panel may show.
  */
 @RestController
 @RequestMapping("/api/git")
@@ -153,6 +156,38 @@ public class GitController {
             requireSafePath(path);
         }
         return git(project).getFileTree(path);
+    }
+
+    /**
+     * Which branch this repository is on, how far it has drifted from its upstream and what other
+     * branches it has — the panel's branch indicator, and the picker a switch is chosen from.
+     *
+     * <p>A plain read, available whether or not the project permits git commands: a panel says
+     * which branch it is showing even when nobody may change it. The ahead/behind counters are read
+     * off the refs on disk, so they are as fresh as the last fetch — nothing here reaches a remote.
+     */
+    @GetMapping("/branches")
+    public GitBranchStatus branches(
+            @RequestParam(name = "project", required = false) @Nullable String project) {
+        return git(project).branchStatus();
+    }
+
+    /**
+     * What the panel may offer for this project: whether its repository is there at all, whether
+     * the user's git commands are permitted on it, and whether {@code push} is among them.
+     *
+     * <p>Asked here rather than read off the project list because the answer follows the working
+     * tree's current state — a mount remounted read-only revokes the commands mid-session — and
+     * because the list is cached by the client while this is not.
+     */
+    @GetMapping("/capabilities")
+    public GitCapabilities capabilities(
+            @RequestParam(name = "project", required = false) @Nullable String project) {
+        try {
+            return gitRegistry.capabilities(project);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
     }
 
     /**

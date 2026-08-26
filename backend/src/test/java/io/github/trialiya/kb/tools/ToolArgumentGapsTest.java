@@ -121,7 +121,16 @@ class ToolArgumentGapsTest {
             // инструмента (ToolResult), так что мок без него падал бы на сборке ответа — то есть
             // уже после того, о чём этот класс.
             when(gitService.project())
-                    .thenReturn(new Project("kb", "KB", Path.of("/repo"), false, false, null));
+                    .thenReturn(
+                            new Project(
+                                    "kb",
+                                    "KB",
+                                    Path.of("/repo"),
+                                    false,
+                                    false,
+                                    null,
+                                    false,
+                                    false));
             when(registry.forProject(any())).thenReturn(gitService);
             when(registry.requireEditable(any())).thenReturn(gitService);
             return registry;

@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.service.file.git;
 
+import io.github.trialiya.kb.model.git.dto.GitCapabilities;
 import io.github.trialiya.kb.model.project.Project;
 import io.github.trialiya.kb.model.project.ProjectOptions;
 import io.github.trialiya.kb.model.project.ProjectView;
@@ -32,6 +33,11 @@ import org.springframework.stereotype.Service;
  * Project#editEnabled}) and the working tree's own permissions are two halves of one question, and
  * the {@code editFile} tool, the {@code runScript} write methods ({@code ScriptEditPolicy}) and the
  * Settings panel all have to give the same answer.
+ *
+ * <p>The user's own git commands are gated the same way and in the same place ({@link
+ * #gitCommandsAllowed}), from a configuration section of their own: what a person may do to the
+ * repository through the UI is a separate grant from what the model may write into the working
+ * tree.
  */
 @Slf4j
 @Service
@@ -172,5 +178,77 @@ public class GitRegistry {
     /** Whether any configured project accepts writes — what decides if the edit tools exist. */
     public boolean anyEditable() {
         return catalog.projects().stream().anyMatch(p -> editsAllowed(p.id()));
+    }
+
+    // ── The user's git commands ─────────────────────────────────────────────
+
+    /**
+     * Whether a user may run git commands on this project right now: configured <em>and</em>
+     * physically possible, the same pair {@link #editsAllowed} answers. Every one of these commands
+     * writes — a checkout moves files, a stash rewrites them — so a read-only mount withholds them
+     * all, including the ones that only read a remote: a fetch that cannot write {@code .git} is no
+     * fetch.
+     *
+     * <p>This is not a model capability: no tool is derived from it, and no prompt mentions it. It
+     * gates the endpoints a person's click reaches.
+     */
+    public boolean gitCommandsAllowed(@Nullable String projectId) {
+        Project project = catalog.require(projectId);
+        GitService service = byProjectId.get(project.id());
+        return project.gitCommandsEnabled() && service != null && service.isRepoWritable();
+    }
+
+    /**
+     * Whether {@code push} is among the commands available for this project — the one that
+     * publishes outside the deployment, hence a grant of its own on top of {@link
+     * #gitCommandsAllowed}.
+     */
+    public boolean gitPushAllowed(@Nullable String projectId) {
+        return catalog.require(projectId).gitPushEnabled() && gitCommandsAllowed(projectId);
+    }
+
+    /**
+     * The repository of {@code projectId}, provided the user's git commands are available for it —
+     * otherwise a refusal naming the project, the same shape {@link #requireEditable} takes.
+     */
+    public GitService requireGitCommands(@Nullable String projectId) {
+        Project project = catalog.require(projectId);
+        if (!gitCommandsAllowed(project.id())) {
+            throw new IllegalStateException(
+                    "Project \""
+                            + project.id()
+                            + "\" does not offer git commands: they are not enabled for it, or its"
+                            + " working tree is read-only");
+        }
+        return forProject(project.id());
+    }
+
+    /**
+     * As {@link #requireGitCommands}, for the one command that needs the push grant on top of it —
+     * the only operation here that publishes this repository outside the deployment.
+     */
+    public GitService requireGitPush(@Nullable String projectId) {
+        Project project = catalog.require(projectId);
+        if (!gitPushAllowed(project.id())) {
+            throw new IllegalStateException(
+                    "Project \""
+                            + project.id()
+                            + "\" does not offer push: it is not enabled for"
+                            + " this project, or the project offers no git commands at all");
+        }
+        return forProject(project.id());
+    }
+
+    /**
+     * What the UI may offer for this project — the capabilities behind the buttons, answered for
+     * the state the repository is in right now rather than for the configuration alone.
+     */
+    public GitCapabilities capabilities(@Nullable String projectId) {
+        Project project = catalog.require(projectId);
+        return new GitCapabilities(
+                project.id(),
+                isAvailable(project.id()),
+                gitCommandsAllowed(project.id()),
+                gitPushAllowed(project.id()));
     }
 }

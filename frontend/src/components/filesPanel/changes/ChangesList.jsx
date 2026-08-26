@@ -14,7 +14,7 @@ import { buildChangeTree, sortByName } from './changeTree';
  * Заголовок секции не строка списка: он ничего не открывает, поэтому стрелками
  * не достаётся и в `listbox`/`tree` входит группой (`role="group"`).
  */
-const ChangesSection = ({ title, entries, flat, selectedPath, collapsed, onToggle, onSelect }) => {
+const ChangesSection = ({ title, entries, flat, selectedPath, collapsed, onToggle, onSelect, onDiscard }) => {
   const tree = useMemo(() => (flat ? null : buildChangeTree(entries)), [flat, entries]);
   const rows = useMemo(() => (flat ? sortByName(entries) : null), [flat, entries]);
 
@@ -32,6 +32,7 @@ const ChangesSection = ({ title, entries, flat, selectedPath, collapsed, onToggl
               showDir
               selected={entry.path === selectedPath}
               onSelect={onSelect}
+              onDiscard={onDiscard}
             />
           ))
         : tree.map((node) => (
@@ -43,6 +44,7 @@ const ChangesSection = ({ title, entries, flat, selectedPath, collapsed, onToggl
               collapsed={collapsed}
               onToggle={onToggle}
               onSelect={onSelect}
+              onDiscard={onDiscard}
             />
           ))}
     </div>
@@ -53,7 +55,7 @@ const ChangesSection = ({ title, entries, flat, selectedPath, collapsed, onToggl
  * Левый блок в режиме «Изменения». Раскладка (плоская/иерархия) приходит
  * пропом: её помнит панель, а не список, — переключатель живёт в тулбаре.
  */
-const ChangesList = ({ tracked, untracked, flat, loading, error, selectedPath, onSelect }) => {
+const ChangesList = ({ tracked, untracked, flat, loading, error, selectedPath, onSelect, onDiscard }) => {
   const { t } = useTranslation('files');
   const handleKeyDown = useListNavigation();
   // Свёрнутые каталоги, а не раскрытые: по умолчанию раскрыто всё, и набор
@@ -104,6 +106,7 @@ const ChangesList = ({ tracked, untracked, flat, loading, error, selectedPath, o
           collapsed={collapsed}
           onToggle={onToggle}
           onSelect={onSelect}
+          onDiscard={onDiscard}
         />
       )}
       {untracked.length > 0 && (
@@ -115,6 +118,7 @@ const ChangesList = ({ tracked, untracked, flat, loading, error, selectedPath, o
           collapsed={collapsed}
           onToggle={onToggle}
           onSelect={onSelect}
+          onDiscard={onDiscard}
         />
       )}
     </div>

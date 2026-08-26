@@ -10,6 +10,12 @@ import useChangeDiff from './changes/useChangeDiff';
 import { readChangesFlat, saveChangesFlat } from './changes/changesLayout';
 import ProjectPicker from './ProjectPicker';
 import useFileTree from './useFileTree';
+import useGitBranch from './git/useGitBranch';
+import useGitActions, { GIT_PROMPT } from './git/useGitActions';
+import GitPromptModal from './git/GitPromptModal';
+import ConfirmModal from '@/components/common/modal/ConfirmModal';
+import useNotice from '@/components/common/ui/useNotice';
+import ErrorModal from '@/components/common/modal/ErrorModal';
 import useProjectConfig from '@/components/common/config/useProjectConfig';
 import { resolveProjectChoice } from '@/components/common/config/projectChoice';
 import WorkspaceLayout from '@/components/common/layout/WorkspaceLayout';
@@ -35,6 +41,7 @@ const FilesPanelForProject = ({
   onPathChange,
   onProjectChange,
   refreshToken,
+  onRepoChanged,
   panels,
 }) => {
   const { t } = useTranslation('files');
@@ -45,8 +52,19 @@ const FilesPanelForProject = ({
     refreshToken,
   });
 
-  const changeList = useUncommittedChanges({ project, refreshToken, enabled: changes });
+  const changeList = useUncommittedChanges({
+    project,
+    refreshToken,
+    enabled: changes,
+  });
   const diff = useChangeDiff({ project, path, refreshToken, enabled: changes });
+  const git = useGitBranch({ project, refreshToken });
+
+  // Одно уведомление на панель: git-команда отказывает словами самого git
+  // («Permission denied (publickey)»), и это ровно то, что нужно показать —
+  // своя формулировка сказала бы меньше.
+  const { notice, notify, dismissNotice } = useNotice();
+  const actions = useGitActions({ git, onRepoChanged, notify, t });
 
   // Раскладка списка изменений — предпочтение, переживающее и проект, и
   // перезагрузку (см. changesLayout).
@@ -89,73 +107,114 @@ const FilesPanelForProject = ({
   );
 
   return (
-    <WorkspaceLayout
-      className="workspace--files"
-      {...panels}
-      left={{
-        // Заголовок панели — сам селектор репозитория: панель показывает один
-        // репозиторий, и его имя и есть её заголовок, отдельной строки под выбор
-        // не нужно. Единственный проект выбирать не из чего — остаётся надпись.
-        title:
-          projectOptions.length > 1 ? (
-            <ProjectPicker value={project} options={projectOptions} onChange={onProjectChange} />
-          ) : (
-            t('panel.tree')
-          ),
-        ariaLabel: t(changes ? 'panel.changes' : 'panel.tree'),
-        toolbar: (
-          <FilesToolbar
-            project={project}
-            changes={changes}
-            onChangesToggle={onChangesToggle}
-            flat={flat}
-            onFlatToggle={changeFlat}
-            onSelect={onPathChange}
-          />
-        ),
-        // Дерево прокручивает себя само (строки шире панели — нужен и
-        // горизонтальный скролл), поэтому тело панели скролл не берёт.
-        bodyScroll: false,
-        children: (
-          <div className="files-panel-tree">
-            {changes ? (
-              <ChangesList
-                tracked={changeList.tracked}
-                untracked={changeList.untracked}
-                flat={flat}
-                loading={changeList.loading}
-                error={changeList.error}
-                selectedPath={path}
-                onSelect={selectNode}
-              />
+    <>
+      <WorkspaceLayout
+        className="workspace--files"
+        {...panels}
+        left={{
+          // Заголовок панели — сам селектор репозитория: панель показывает один
+          // репозиторий, и его имя и есть её заголовок, отдельной строки под выбор
+          // не нужно. Единственный проект выбирать не из чего — остаётся надпись.
+          title:
+            projectOptions.length > 1 ? (
+              <ProjectPicker value={project} options={projectOptions} onChange={onProjectChange} />
             ) : (
-              <FileTree
-                treeCache={treeCache}
-                loadingDirs={loadingDirs}
-                expanded={expanded}
-                selectedPath={path}
-                onToggle={toggleExpand}
-                onSelect={selectNode}
-              />
-            )}
-          </div>
-        ),
-      }}
-      center={
-        <FileContent
-          content={content}
-          path={path}
-          loading={contentLoading || diffPending}
-          onNavigate={onPathChange}
-          // Тумблер «оригинал ↔ diff» показываем только там, где есть что
-          // переключать: панель в режиме изменений и открыт какой-то путь.
-          diff={changes && path ? diff : null}
-          showDiff={showDiff}
-          onToggleDiff={setDiffChoice}
-        />
-      }
-      right={rightTabs}
-    />
+              t('panel.tree')
+            ),
+          ariaLabel: t(changes ? 'panel.changes' : 'panel.tree'),
+          toolbar: (
+            <FilesToolbar
+              project={project}
+              changes={changes}
+              onChangesToggle={onChangesToggle}
+              flat={flat}
+              onFlatToggle={changeFlat}
+              onSelect={onPathChange}
+              git={git}
+              actions={actions}
+            />
+          ),
+          // Дерево прокручивает себя само (строки шире панели — нужен и
+          // горизонтальный скролл), поэтому тело панели скролл не берёт.
+          bodyScroll: false,
+          children: (
+            <div className="files-panel-tree">
+              {changes ? (
+                <ChangesList
+                  tracked={changeList.tracked}
+                  untracked={changeList.untracked}
+                  flat={flat}
+                  loading={changeList.loading}
+                  error={changeList.error}
+                  selectedPath={path}
+                  onSelect={selectNode}
+                  // Откат правки предлагается только там, где проекту разрешены
+                  // команды: без разрешения кнопка отвечала бы отказом сервера.
+                  onDiscard={git.capabilities?.commands && !git.running ? actions.askDiscard : null}
+                />
+              ) : (
+                <FileTree
+                  treeCache={treeCache}
+                  loadingDirs={loadingDirs}
+                  expanded={expanded}
+                  selectedPath={path}
+                  onToggle={toggleExpand}
+                  onSelect={selectNode}
+                />
+              )}
+            </div>
+          ),
+        }}
+        center={
+          <FileContent
+            content={content}
+            path={path}
+            loading={contentLoading || diffPending}
+            onNavigate={onPathChange}
+            // Тумблер «оригинал ↔ diff» показываем только там, где есть что
+            // переключать: панель в режиме изменений и открыт какой-то путь.
+            diff={changes && path ? diff : null}
+            showDiff={showDiff}
+            onToggleDiff={setDiffChoice}
+          />
+        }
+        right={rightTabs}
+      />
+      <GitPromptModal
+        open={actions.prompt === GIT_PROMPT.BRANCH}
+        title={t('git.newBranch')}
+        label={t('git.branchName')}
+        hint={git.status ? t('git.branchFrom', { branch: git.status.current }) : undefined}
+        placeholder="feature/…"
+        confirmLabel={t('git.create')}
+        onConfirm={actions.confirmPrompt}
+        onCancel={actions.cancelPrompt}
+      />
+      <GitPromptModal
+        open={actions.prompt === GIT_PROMPT.COMMIT}
+        title={t('git.commit')}
+        label={t('git.commitMessage')}
+        hint={t('git.commitHint')}
+        confirmLabel={t('git.commit')}
+        multiline
+        onConfirm={actions.confirmPrompt}
+        onCancel={actions.cancelPrompt}
+      />
+      <ConfirmModal
+        open={!!actions.discarding}
+        title={t('git.discardTitle')}
+        message={t('git.discardMessage', { path: actions.discarding })}
+        confirmLabel={t('git.discardConfirm')}
+        onConfirm={actions.confirmDiscard}
+        onCancel={actions.cancelDiscard}
+      />
+      <ErrorModal
+        open={!!notice}
+        title={notice ? t(notice.titleKey) : ''}
+        message={notice ? t(notice.messageKey, notice.params) : ''}
+        onClose={dismissNotice}
+      />
+    </>
   );
 };
 
@@ -165,7 +224,7 @@ const FilesPanelForProject = ({
  * при сбросе показало бы файлы прежнего репозитория. Кэши при этом не теряются:
  * они живут в модуле и разложены по проектам (fileTreeStore).
  */
-const FilesPanel = ({ project, path, changes, onChangesToggle, onPathChange, refreshToken, panels }) => {
+const FilesPanel = ({ project, path, changes, onChangesToggle, onPathChange, refreshToken, onRepoChanged, panels }) => {
   const { projectOptions, defaultProjectId, ready } = useProjectConfig();
   // Адрес без проекта означает дефолтный. Ждём ответа со списком: смонтироваться
   // раньше — значит смонтироваться на пустом ключе и тут же перемонтироваться,
@@ -193,6 +252,7 @@ const FilesPanel = ({ project, path, changes, onChangesToggle, onPathChange, ref
       // Дефолтный проект в адрес не пишем: пустое значение и означает его.
       onProjectChange={(id) => onPathChange('', id === defaultProjectId ? '' : id)}
       refreshToken={refreshToken}
+      onRepoChanged={onRepoChanged}
       panels={panels}
     />
   );

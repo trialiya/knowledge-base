@@ -8,7 +8,7 @@ import ChangeRow from './ChangeRow';
  * (`collapsed`): набор изменений мал, и дерево, которое приходится раскрывать
  * руками, показало бы при открытии панели одни имена каталогов.
  */
-const ChangeTreeNode = ({ node, level, selectedPath, collapsed, onToggle, onSelect }) => {
+const ChangeTreeNode = ({ node, level, selectedPath, collapsed, onToggle, onSelect, onDiscard }) => {
   if (node.type === 'file') {
     return (
       <ChangeRow
@@ -18,6 +18,7 @@ const ChangeTreeNode = ({ node, level, selectedPath, collapsed, onToggle, onSele
         depth={level}
         selected={node.path === selectedPath}
         onSelect={onSelect}
+        onDiscard={onDiscard}
       />
     );
   }
@@ -54,6 +55,7 @@ const ChangeTreeNode = ({ node, level, selectedPath, collapsed, onToggle, onSele
               collapsed={collapsed}
               onToggle={onToggle}
               onSelect={onSelect}
+              onDiscard={onDiscard}
             />
           ))}
         </div>

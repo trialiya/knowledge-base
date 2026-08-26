@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconRefresh, IconCheck, IconChevron, IconDots, IconWorld, IconTool, IconSettings } from '@/icons/index';
+import useDismissable from './useDismissable';
 import './headerMenu.css';
 
 const LANGS = [
@@ -25,25 +26,11 @@ const HeaderMenu = ({ showRefresh, refreshing, onRefresh, onOpenAdmin, onOpenSet
   const [open, setOpen] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
   const ref = useRef(null);
+  const close = useCallback(() => setOpen(false), []);
 
   const lang = (i18n.language || 'ru').slice(0, 2);
 
-  // Закрытие по клику снаружи и Escape
-  useEffect(() => {
-    if (!open) return;
-    const onDocClick = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    };
-    const onKey = (e) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', onDocClick);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDocClick);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
+  useDismissable(open, ref, close);
 
   // Меню всегда открывается кнопкой, поэтому подменю языка достаточно свернуть
   // здесь — закрыть его могут и клик снаружи, и Escape, а открыть только она.
@@ -51,8 +38,6 @@ const HeaderMenu = ({ showRefresh, refreshing, onRefresh, onOpenAdmin, onOpenSet
     setOpen((o) => !o);
     setLangOpen(false);
   };
-
-  const close = () => setOpen(false);
 
   const pickLang = (code) => {
     i18n.changeLanguage(code);

@@ -42,7 +42,8 @@ class ProjectPromptServiceTest {
         } catch (IOException | InterruptedException e) {
             throw new IllegalStateException(e);
         }
-        return new ProjectOption(id, id.toUpperCase(), dir.toString(), false, false, null, true);
+        return new ProjectOption(
+                id, id.toUpperCase(), dir.toString(), false, false, null, null, true);
     }
 
     @Test

@@ -599,6 +599,28 @@ export const IconRefreshCw = ({ size = 14, spinning }) => (
   </svg>
 );
 
+// ─── Git ──────────────────────────────────────────────────────────────────────
+
+/** Ветка git: две линии и развилка между ними — метка текущей ветки репозитория. */
+export const IconBranch = ({ size = 14 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <circle cx="6" cy="5" r="2.4" />
+    <circle cx="6" cy="19" r="2.4" />
+    <circle cx="18" cy="9" r="2.4" />
+    <path d="M6 7.4v9.2" />
+    <path d="M18 11.4a5 5 0 0 1-5 5H9" />
+  </svg>
+);
+
 // ─── Brand / integration logos ────────────────────────────────────────────────
 
 /** Логотип Jira (32×32 viewBox, fill-based). */

@@ -25,6 +25,13 @@ import java.util.List;
  *     never staged. Inside the globs the working tree is the truth, {@code .gitignore} included;
  *     empty — tracked files only. Enforced by {@code GitService}, rooted-ness checked by {@code
  *     ProjectCatalog}
+ * @param gitCommandsEnabled whether a <em>user</em> may run git commands on this repository from
+ *     the UI — a different grant from {@link #editEnabled()}, which is about what the model writes
+ *     into the working tree. The configured intent again: {@code GitRegistry} combines it with the
+ *     tree's own permissions, and a read-only mount withholds the commands whatever this says
+ * @param gitPushEnabled whether {@code push} is among them. Already combined with {@link
+ *     #gitCommandsEnabled()} here — the configuration only narrows the commands with it, so a
+ *     project whose commands are off never has this on
  */
 public record Project(
         String id,
@@ -32,7 +39,9 @@ public record Project(
         Path path,
         boolean editEnabled,
         boolean untrackedEditEnabled,
-        List<String> allowGlobs) {
+        List<String> allowGlobs,
+        boolean gitCommandsEnabled,
+        boolean gitPushEnabled) {
 
     public Project {
         allowGlobs = allowGlobs == null ? List.of() : List.copyOf(allowGlobs);

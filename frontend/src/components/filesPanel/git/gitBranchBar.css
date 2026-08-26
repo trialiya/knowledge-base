@@ -1,0 +1,76 @@
+/* ═══════════════════════════════════════════════
+   GIT BRANCH BAR — строка состояния репозитория над деревом файлов
+═══════════════════════════════════════════════ */
+
+.git-branch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  /* В проекте нет глобального border-box: без него padding и рамка добавились
+     бы к заданной высоте (см. правила стилей). */
+  box-sizing: border-box;
+  min-height: 24px;
+  font-size: 12px;
+  color: var(--kb-muted);
+}
+
+/* Имя ветки — вместе с иконкой один смысловой элемент, поэтому и сжимается
+   целиком: в узкой панели длинное имя обрезается, а счётчики и кнопка остаются
+   на месте (ради них строку и читают). */
+.git-branch__name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  flex: 1;
+}
+
+.git-branch__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--kb-text);
+}
+
+/* «detached» / «нет коммитов» — состояние, а не имя: тусклее и мельче, чтобы
+   не спорить с веткой за внимание. */
+.git-branch__tag {
+  flex: none;
+  padding: 0 4px;
+  border: 1px solid var(--kb-border-light);
+  border-radius: 3px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.git-branch__count {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.git-branch__action {
+  flex: none;
+}
+
+/* ── Незавершённый merge ── */
+
+/* Полоса над строкой ветки, а не рядом с ней: пока merge не закрыт, это главное
+   про репозиторий, и всё остальное в панели читается уже с оглядкой на неё. */
+.git-merge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  margin-bottom: 6px;
+  border: 1px solid var(--kb-border);
+  border-left: 3px solid var(--kb-error);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--kb-text);
+}
+
+.git-merge__text {
+  flex: 1;
+  min-width: 0;
+}

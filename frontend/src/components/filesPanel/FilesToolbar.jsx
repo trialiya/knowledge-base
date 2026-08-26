@@ -1,21 +1,38 @@
 import { useTranslation } from 'react-i18next';
 import { IconList, IconFolder } from '@/icons/index';
 import FileSearch from './FileSearch';
+import GitBranchBar from './git/GitBranchBar';
 
 /**
- * Тулбар левой панели: чем панель показывает репозиторий — деревом файлов или
- * списком незакоммиченных изменений, — поиск файла и, в режиме изменений,
- * раскладка списка.
+ * Тулбар левой панели: на какой ветке репозиторий, чем панель его показывает —
+ * деревом файлов или списком незакоммиченных изменений, — поиск файла и, в
+ * режиме изменений, раскладка списка.
  *
  * Оба переключателя — общие классы кнопок с `aria-pressed` (см. buttons.css):
  * включённое состояние в них уже нарисовано, своего семейства «сегментов»
  * заводить не за чем.
  */
-const FilesToolbar = ({ project, changes, onChangesToggle, flat, onFlatToggle, onSelect }) => {
+const FilesToolbar = ({ project, changes, onChangesToggle, flat, onFlatToggle, onSelect, git, actions }) => {
   const { t } = useTranslation('files');
 
   return (
     <div className="files-toolbar">
+      <GitBranchBar
+        status={git.status}
+        capabilities={git.capabilities}
+        running={git.running}
+        onFetch={actions.fetch}
+        onAbortMerge={actions.abortMerge}
+        commands={{
+          onSwitch: actions.switchBranch,
+          onCreateBranch: actions.askNewBranch,
+          onStashPush: actions.stashPush,
+          onStashPop: actions.stashPop,
+          onCommit: actions.askCommit,
+          onPull: actions.pull,
+          onPush: actions.push,
+        }}
+      />
       <div className="files-toolbar__row">
         <div className="files-toolbar__modes" role="group" aria-label={t('panel.mode')}>
           <button
