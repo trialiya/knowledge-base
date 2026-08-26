@@ -29,6 +29,10 @@ import org.jspecify.annotations.Nullable;
  * <p>{@code compact} — итог сжатия по команде {@code /compact} (см. {@link CompactMeta}). Стоит
  * ровно на одном ряду — строке-плашке, которую сжатие оставляет в истории вместо себя, — и он же
  * признак этой строки: ни у одного другого сообщения поля нет.
+ *
+ * <p>{@code gitEvent} — git-команда, выполненная пользователем из этого чата (см. {@link
+ * GitEventMeta}). Тоже признак своего ряда: у такого сообщения пустой контент, и весь его смысл в
+ * этом поле — карточка вывода на фронте, нотис модели в {@code ChatHistoryService.promptRow}.
  */
 public record ChatMessageMeta(
         @Nullable String runId,
@@ -38,7 +42,8 @@ public record ChatMessageMeta(
         @Nullable String project,
         @Nullable String projectSwitchFrom,
         @Nullable String model,
-        @Nullable CompactMeta compact) {
+        @Nullable CompactMeta compact,
+        @Nullable GitEventMeta gitEvent) {
 
     public ChatMessageMeta {
         invocations = invocations == null ? List.of() : invocations;
@@ -53,7 +58,16 @@ public record ChatMessageMeta(
             @Nullable String project,
             @Nullable String projectSwitchFrom,
             @Nullable String model) {
-        this(runId, toolCalls, invocations, contextItems, project, projectSwitchFrom, model, null);
+        this(
+                runId,
+                toolCalls,
+                invocations,
+                contextItems,
+                project,
+                projectSwitchFrom,
+                model,
+                null,
+                null);
     }
 
     public ChatMessageMeta(
@@ -109,7 +123,18 @@ public record ChatMessageMeta(
      * Метаданные строки-плашки «контекст сжат»: что именно сделало сжатие и где лежит его сводка.
      */
     public static ChatMessageMeta ofCompact(CompactMeta compact) {
-        return new ChatMessageMeta(null, false, List.of(), List.of(), null, null, null, compact);
+        return new ChatMessageMeta(
+                null, false, List.of(), List.of(), null, null, null, compact, null);
+    }
+
+    /**
+     * Метаданные ряда git-команды. Проект остаётся внутри самого события: {@code project} на этом
+     * уровне значит «проект, на котором закончилась сжатая история» (см. {@link #ofProject}), а
+     * этот ряд историю ни во что не переводит.
+     */
+    public static ChatMessageMeta ofGitEvent(GitEventMeta gitEvent) {
+        return new ChatMessageMeta(
+                null, false, List.of(), List.of(), null, null, null, null, gitEvent);
     }
 
     /** Метаданные summary-строки: проект, на котором закончилась сжатая часть истории. */
@@ -131,7 +156,8 @@ public record ChatMessageMeta(
                 project,
                 projectSwitchFrom,
                 model,
-                compact);
+                compact,
+                gitEvent);
     }
 
     /**
@@ -148,6 +174,7 @@ public record ChatMessageMeta(
                 project,
                 projectSwitchFrom,
                 model,
-                compact);
+                compact,
+                gitEvent);
     }
 }

@@ -2,6 +2,7 @@ package io.github.trialiya.kb.model.chat.dto;
 
 import io.github.trialiya.kb.model.chat.entity.CompactMeta;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
+import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -24,4 +25,9 @@ public record ChatMessage(
          * Итог сжатия {@code /compact}; непустой ровно у строки-плашки, которую сжатие оставило в
          * истории вместо себя, — по нему фронт и опознаёт её среди обычных сообщений.
          */
-        @Nullable CompactMeta compact) {}
+        @Nullable CompactMeta compact,
+        /**
+         * Git-команда, выполненная пользователем из этого чата; непустой ровно у ряда этой команды
+         * — по нему фронт и рисует карточку вывода вместо обычного пузыря.
+         */
+        @Nullable GitEventMeta gitEvent) {}

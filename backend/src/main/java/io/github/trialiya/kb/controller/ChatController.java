@@ -256,7 +256,10 @@ public class ChatController {
                                                         ? e.getMeta().projectSwitchFrom()
                                                         : null,
                                                 e.getMeta() != null ? e.getMeta().model() : null,
-                                                e.getMeta() != null ? e.getMeta().compact() : null))
+                                                e.getMeta() != null ? e.getMeta().compact() : null,
+                                                e.getMeta() != null
+                                                        ? e.getMeta().gitEvent()
+                                                        : null))
                         .toList();
         return new MessagePage(dtos, page.hasMore(), page.oldestCursor());
     }
@@ -636,7 +639,8 @@ public class ChatController {
                 meta != null ? meta.project() : null,
                 meta != null ? meta.projectSwitchFrom() : null,
                 meta != null ? meta.model() : null,
-                meta != null ? meta.compact() : null);
+                meta != null ? meta.compact() : null,
+                meta != null ? meta.gitEvent() : null);
     }
 
     /** «Крошка» вызовов инструментов — служебное сообщение, которое не показываем пользователю. */

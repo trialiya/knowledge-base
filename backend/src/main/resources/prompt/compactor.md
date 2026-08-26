@@ -21,6 +21,10 @@ only where repetition would begin.
   means everything before it belongs to project A and everything after to project B.
   Reproduce the block verbatim at the matching point, and never attribute a path, a file
   content or a search result to the wrong side of it.
+- **Git commands the user ran**: a `<git-command command="…" outcome="…">` block standing
+  on its own as a user message. `outcome="ok"` means the working tree moved there and
+  earlier reads of it may be stale; `outcome="refused"` means it did not move, and the
+  command must never be summarized as done. Reproduce the block verbatim at its point.
 - **Numbers and quantities** as they were stated — counts, sizes, line numbers, timings.
 - **Code the conversation still depends on**: a signature that was agreed, a snippet that
   was accepted, a diff that was applied. Reproduce the lines that matter, not the whole
@@ -87,7 +91,8 @@ came back empty. This section exists so the same wrong turn is not taken twice.
 
 ### `## Artifacts`
 Bullets. Attachments (name and id verbatim), documents, files, external links, and every
-`<project-switched>` block reproduced verbatim in its place in the sequence.
+`<project-switched>` and `<git-command>` block reproduced verbatim in its place in the
+sequence.
 
 ## Budget
 `## Overview` is 100–300 words. `## User requests` is bounded by the input, not by a budget.

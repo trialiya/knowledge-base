@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.controller;
 
 import io.github.trialiya.kb.model.git.dto.GitCommandResult;
+import io.github.trialiya.kb.service.chat.git.ChatGitLog;
 import io.github.trialiya.kb.service.file.git.GitBusyException;
 import io.github.trialiya.kb.service.file.git.GitCommandFailedException;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
@@ -32,15 +33,24 @@ import org.springframework.web.server.ResponseStatusException;
  *
  * <p>Each answer carries the branch state the command left behind ({@link GitCommandResult}), so a
  * client never has to draw the state it had before the command it just ran.
+ *
+ * <p>The optional {@code chat} parameter says the command was run from a chat rather than the files
+ * panel. It changes two things and nothing else: the command is refused while that chat has a run
+ * in flight, and what it did is written into that chat's history as a row of its own (see {@code
+ * ChatHistoryService.appendGitEvent}) — where the user sees the output again and the model learns
+ * the repository moved. The verbs, the permissions and the failures stay the same, because it is
+ * the same command from another surface.
  */
 @RestController
 @RequestMapping("/api/git")
 public class GitCommandController {
 
     private final GitRegistry gitRegistry;
+    private final ChatGitLog chatGitLog;
 
-    public GitCommandController(GitRegistry gitRegistry) {
+    public GitCommandController(GitRegistry gitRegistry, ChatGitLog chatGitLog) {
         this.gitRegistry = gitRegistry;
+        this.chatGitLog = chatGitLog;
     }
 
     /**
@@ -53,8 +63,9 @@ public class GitCommandController {
      */
     @PostMapping("/fetch")
     public GitCommandResult fetch(
-            @RequestParam(name = "project", required = false) @Nullable String project) {
-        return run(project, GitService::fetch);
+            @RequestParam(name = "project", required = false) @Nullable String project,
+            @RequestParam(name = "chat", required = false) @Nullable String chat) {
+        return run("fetch", project, chat, GitService::fetch);
     }
 
     /**
@@ -66,8 +77,9 @@ public class GitCommandController {
      */
     @PostMapping("/pull")
     public GitCommandResult pull(
-            @RequestParam(name = "project", required = false) @Nullable String project) {
-        return run(project, GitService::pull);
+            @RequestParam(name = "project", required = false) @Nullable String project,
+            @RequestParam(name = "chat", required = false) @Nullable String chat) {
+        return run("pull", project, chat, GitService::pull);
     }
 
     /**
@@ -80,8 +92,9 @@ public class GitCommandController {
      */
     @PostMapping("/push")
     public GitCommandResult push(
-            @RequestParam(name = "project", required = false) @Nullable String project) {
-        return run(project, GitService::push, true);
+            @RequestParam(name = "project", required = false) @Nullable String project,
+            @RequestParam(name = "chat", required = false) @Nullable String chat) {
+        return run("push", project, chat, GitService::push, true);
     }
 
     /**
@@ -97,15 +110,17 @@ public class GitCommandController {
     public GitCommandResult switchBranch(
             @RequestParam("branch") String branch,
             @RequestParam(name = "create", defaultValue = "false") boolean create,
-            @RequestParam(name = "project", required = false) @Nullable String project) {
-        return run(project, git -> git.switchBranch(branch, create));
+            @RequestParam(name = "project", required = false) @Nullable String project,
+            @RequestParam(name = "chat", required = false) @Nullable String chat) {
+        return run("switch " + branch, project, chat, git -> git.switchBranch(branch, create));
     }
 
     /** Puts the tracked changes aside ({@code git stash push}). */
     @PostMapping("/stash")
     public GitCommandResult stashPush(
-            @RequestParam(name = "project", required = false) @Nullable String project) {
-        return run(project, GitService::stashPush);
+            @RequestParam(name = "project", required = false) @Nullable String project,
+            @RequestParam(name = "chat", required = false) @Nullable String chat) {
+        return run("stash", project, chat, GitService::stashPush);
     }
 
     /**
@@ -113,8 +128,9 @@ public class GitCommandController {
      */
     @PostMapping("/stash/pop")
     public GitCommandResult stashPop(
-            @RequestParam(name = "project", required = false) @Nullable String project) {
-        return run(project, GitService::stashPop);
+            @RequestParam(name = "project", required = false) @Nullable String project,
+            @RequestParam(name = "chat", required = false) @Nullable String chat) {
+        return run("stash pop", project, chat, GitService::stashPop);
     }
 
     /**
@@ -125,8 +141,9 @@ public class GitCommandController {
     @PostMapping("/commit")
     public GitCommandResult commit(
             @RequestParam("message") String message,
-            @RequestParam(name = "project", required = false) @Nullable String project) {
-        return run(project, git -> git.commit(message));
+            @RequestParam(name = "project", required = false) @Nullable String project,
+            @RequestParam(name = "chat", required = false) @Nullable String chat) {
+        return run("commit", project, chat, git -> git.commit(message));
     }
 
     /**
@@ -139,8 +156,9 @@ public class GitCommandController {
     @PostMapping("/discard")
     public GitCommandResult discard(
             @RequestParam("path") String path,
-            @RequestParam(name = "project", required = false) @Nullable String project) {
-        return run(project, git -> git.discard(path));
+            @RequestParam(name = "project", required = false) @Nullable String project,
+            @RequestParam(name = "chat", required = false) @Nullable String chat) {
+        return run("discard " + path, project, chat, git -> git.discard(path));
     }
 
     /**
@@ -149,8 +167,9 @@ public class GitCommandController {
      */
     @PostMapping("/merge/abort")
     public GitCommandResult abortMerge(
-            @RequestParam(name = "project", required = false) @Nullable String project) {
-        return run(project, GitService::abortMerge);
+            @RequestParam(name = "project", required = false) @Nullable String project,
+            @RequestParam(name = "chat", required = false) @Nullable String chat) {
+        return run("merge --abort", project, chat, GitService::abortMerge);
     }
 
     /**
@@ -161,16 +180,24 @@ public class GitCommandController {
      * what tells the user what to do next, and rewording it would only lose that.
      */
     private GitCommandResult run(
-            @Nullable String project, Function<GitService, GitCommandResult> command) {
-        return run(project, command, false);
+            String verb,
+            @Nullable String project,
+            @Nullable String chat,
+            Function<GitService, GitCommandResult> command) {
+        return run(verb, project, chat, command, false);
     }
 
     /**
+     * @param verb the command in the words the chat will remember it by. Passed in rather than read
+     *     off the result, because a refusal has no result and it is exactly the refusals the chat
+     *     most needs to name
      * @param push whether this command also needs the project's push grant — the one permission
      *     that is not implied by "may run git commands here"
      */
     private GitCommandResult run(
+            String verb,
             @Nullable String project,
+            @Nullable String chat,
             Function<GitService, GitCommandResult> command,
             boolean push) {
         GitService git;
@@ -191,8 +218,25 @@ public class GitCommandController {
                             : HttpStatus.SERVICE_UNAVAILABLE,
                     e.getMessage());
         }
+        // Before the command, and only for a chat: the same 409 a busy repository answers with,
+        // because it is the same answer — something else is holding the working tree, try again
+        // when it lets go. Nothing is written to the history for a command that never ran.
+        if (chat != null && chatGitLog.busy(chat)) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "The assistant is working on this chat right now");
+        }
         try {
-            return command.apply(git);
+            final GitCommandResult result = command.apply(git);
+            if (chat != null) {
+                chatGitLog.record(
+                        chat,
+                        result.command(),
+                        project,
+                        true,
+                        result.output(),
+                        result.status().current());
+            }
+            return result;
         } catch (IllegalArgumentException e) {
             // An unusable path — the same refusal RepoPaths gives every other endpoint, and the
             // caller's mistake rather than git's.
@@ -200,6 +244,12 @@ public class GitCommandController {
         } catch (GitBusyException e) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
         } catch (GitCommandFailedException e) {
+            // git refused, and that is an outcome the chat records: the user will want to read the
+            // reason again, and the model must not take the command for done. A busy repository
+            // and a bad argument are not outcomes — nothing was attempted.
+            if (chat != null) {
+                chatGitLog.record(chat, verb, project, false, String.valueOf(e.getMessage()), null);
+            }
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, e.getMessage());
         } catch (IllegalStateException e) {
             // The command could not be run at all: no git binary, an unreadable HEAD, a reader

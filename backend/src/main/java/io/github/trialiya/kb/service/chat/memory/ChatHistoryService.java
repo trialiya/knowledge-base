@@ -4,6 +4,7 @@ import io.github.trialiya.kb.model.chat.dto.MessageCursor;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
+import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
 import io.github.trialiya.kb.model.chat.spring.IMessage;
 import io.github.trialiya.kb.model.chat.spring.UserChatMessage;
 import io.github.trialiya.kb.model.project.ProjectSwitch;
@@ -182,6 +183,33 @@ public class ChatHistoryService {
         chatMessageRepository.saveAll(newRows).forEach(saved::add);
         toolCalls.index(conversationId, saved);
         toolCallEvents.publish(conversationId, saved);
+    }
+
+    /**
+     * Записывает git-команду, которую пользователь выполнил из этого чата, отдельным рядом истории.
+     *
+     * <p>Ряд, а не поле на следующем вопросе: команду выполняют между сообщениями, и её результат
+     * надо показать сразу — вопроса, к которому его можно было бы приложить, может не быть ещё
+     * долго. Тип {@code USER}, потому что это и правда ход пользователя, а не слова ассистента;
+     * контент пустой, весь смысл — в мете (см. {@link GitEventMeta}), и текст для модели собирается
+     * на чтении в {@link #promptRow}, как и маркер смены проекта.
+     *
+     * <p>Первым рядом чата такое не пишется: чат заводится вопросом, и история, начинающаяся с
+     * git-команды, ни о чём модели не говорит — рассказывать не о чем.
+     */
+    @Transactional
+    public ChatMessageEntity appendGitEvent(String conversationId, GitEventMeta event) {
+        return chatMessageRepository.save(
+                new ChatMessageEntity(
+                        0,
+                        conversationId,
+                        "",
+                        MessageType.USER,
+                        lastPosition(conversationId) + 1,
+                        false,
+                        false,
+                        LocalDateTime.now(),
+                        ChatMessageMeta.ofGitEvent(event)));
     }
 
     /**
@@ -424,6 +452,12 @@ public class ChatHistoryService {
         if (entity.getType() != MessageType.USER) {
             return new PromptRow(entity, entity.getContent());
         }
+        final String gitCommand = gitCommandNotice(entity.getMeta());
+        if (!gitCommand.isEmpty()) {
+            // Ряд команды несёт только её: описи у него нет (пользователь ничего не прикладывал),
+            // а маркера смены проекта — тем более, чат этим рядом никуда не переходит.
+            return new PromptRow(entity, gitCommand);
+        }
         final String notice = projectSwitchNotice(entity.getMeta());
         if (notice.isEmpty() && inventory == null) {
             return new PromptRow(entity, entity.getContent());
@@ -458,6 +492,49 @@ public class ChatHistoryService {
     }
 
     /**
+     * Текст ряда git-команды для модели. Вывод самого git сюда не идёт: модели нужно знать, что
+     * репозиторий сдвинулся и куда, а не читать «Fast-forward» построчно — вывод для человека и
+     * лежит там, где человек его открывает.
+     *
+     * <p>Отказ рассказывается наравне с успехом, и он важнее: после отклонённого push ветка
+     * осталась там же, где была, и модель, решившая иначе, будет строить работу на несуществующем
+     * состоянии. Требование «сохраняй дословно», как и у маркера смены проекта, адресовано
+     * summarizer'у (правило продублировано в {@code prompt/summarizer.md}).
+     */
+    private static String gitCommandNotice(@Nullable ChatMessageMeta meta) {
+        if (meta == null || meta.gitEvent() == null) {
+            return "";
+        }
+        final GitEventMeta event = meta.gitEvent();
+        return "<git-command command=\""
+                + attr(event.command())
+                + "\" outcome=\""
+                + (event.ok() ? "ok" : "refused")
+                + "\""
+                + (event.project() == null ? "" : " project=\"" + attr(event.project()) + "\"")
+                + (event.branch() == null ? "" : " branch=\"" + attr(event.branch()) + "\"")
+                + ">\n"
+                + "The user ran this git command on the project from this chat — not you, and not"
+                + " through any tool of yours. "
+                + (event.ok()
+                        ? "It succeeded: the working tree may differ from what you read earlier, so"
+                                + " re-read with the tools anything you are about to rely on."
+                        : "It was refused, so the repository is where it was before — do not treat"
+                                + " the command as done.")
+                + " When summarizing, preserve this notice verbatim.\n"
+                + "</git-command>\n";
+    }
+
+    /**
+     * Значение атрибута нотиса. Кавычка в имени ветки git'ом не запрещена, а закрыв ею атрибут,
+     * ветка дописала бы в нотис свои «атрибуты» — единственное место, где текст извне попадает в
+     * разметку, которую читает модель.
+     */
+    private static String attr(String value) {
+        return value.replace("\"", "'");
+    }
+
+    /**
      * Последнее сообщение чата — но только если это вопрос пользователя, на который модель ещё
      * ничего не ответила. Единственное состояние, из которого «Повторить» означает продолжить тот
      * же ход: дописывать в историю нечего, прогон просто запускается заново поверх неё (см. {@code
@@ -468,11 +545,15 @@ public class ChatHistoryService {
      * способов: задвоив вопрос вторым USER-рядом или удалив то, что модель успела сделать (включая
      * побочные эффекты уже выполненных инструментов). Оба варианта хуже прямого продолжения
      * диалога, поэтому дальше пользователь пишет сам.
+     *
+     * <p>Ряд git-команды — тоже {@code USER}, но вопросом не является: повторять там нечего, и
+     * прогон, запущенный «поверх» него, ответил бы на вопрос выше второй раз.
      */
     public Optional<ChatMessageEntity> unansweredUserMessage(String conversationId) {
         return chatMessageRepository
                 .findFirstByConversationIdOrderByPositionDesc(conversationId)
-                .filter(last -> last.getType() == MessageType.USER);
+                .filter(last -> last.getType() == MessageType.USER)
+                .filter(last -> last.getMeta() == null || last.getMeta().gitEvent() == null);
     }
 
     /**
