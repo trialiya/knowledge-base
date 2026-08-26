@@ -22,6 +22,17 @@ const opts = (params, project, signal) => {
 };
 
 /**
+ * То же для команд: они дополнительно принимают чат, из которого их запустили.
+ * С ним бэкенд оставляет в истории этого чата ряд с выводом и отказывает, пока
+ * в нём работает модель. У чтений такого параметра нет — читать состояние можно
+ * когда угодно и откуда угодно.
+ */
+const commandOpts = ({ project, chat, signal } = {}, params = new URLSearchParams()) => {
+  if (chat) params.set('chat', chat);
+  return opts(params, project, signal);
+};
+
+/**
  * Команда пользователя (POST /api/git/<глагол>) — как request(), но с текстом
  * отказа. Отказывает такая команда словами самого git («Permission denied
  * (publickey)», «couldn't find remote ref»), и это ровно то, по чему человек
@@ -154,8 +165,8 @@ const gitApi = {
    * показывать. Рабочее дерево не трогает: ничего не сливается, файлы не
    * меняются. Возвращает GitCommandResult { command, output, status }.
    */
-  fetch: ({ project, signal } = {}) => {
-    const [qs, init] = opts(new URLSearchParams(), project, signal);
+  fetch: (options = {}) => {
+    const [qs, init] = commandOpts(options);
     return command(`/api/git/fetch${qs}`, init);
   },
 
@@ -164,8 +175,8 @@ const gitApi = {
    * fast-forward: разошедшиеся истории приходят отказом, а не merge-коммитом,
    * которого никто не заказывал.
    */
-  pull: ({ project, signal } = {}) => {
-    const [qs, init] = opts(new URLSearchParams(), project, signal);
+  pull: (options = {}) => {
+    const [qs, init] = commandOpts(options);
     return command(`/api/git/pull${qs}`, init);
   },
 
@@ -173,8 +184,8 @@ const gitApi = {
    * `git push` — опубликовать текущую ветку. Никогда не форсируется; ветке без
    * upstream он проставляется сам, если remote у репозитория ровно один.
    */
-  push: ({ project, signal } = {}) => {
-    const [qs, init] = opts(new URLSearchParams(), project, signal);
+  push: (options = {}) => {
+    const [qs, init] = commandOpts(options);
     return command(`/api/git/push${qs}`, init);
   },
 
@@ -183,22 +194,22 @@ const gitApi = {
    * на текущем коммите (`switch -c`). Никогда не форсируется: переключение,
    * которое затёрло бы незакоммиченные правки, приходит отказом с их именами.
    */
-  switchBranch: (branch, { create = false, project, signal } = {}) => {
+  switchBranch: (branch, { create = false, ...options } = {}) => {
     const params = new URLSearchParams({ branch });
     if (create) params.set('create', 'true');
-    const [qs, init] = opts(params, project, signal);
+    const [qs, init] = commandOpts(options, params);
     return command(`/api/git/switch${qs}`, init);
   },
 
   /** `git stash push` — убрать отслеживаемые изменения в сторону. */
-  stashPush: ({ project, signal } = {}) => {
-    const [qs, init] = opts(new URLSearchParams(), project, signal);
+  stashPush: (options = {}) => {
+    const [qs, init] = commandOpts(options);
     return command(`/api/git/stash${qs}`, init);
   },
 
   /** `git stash pop` — вернуть последний stash; конфликт оставляет его на месте. */
-  stashPop: ({ project, signal } = {}) => {
-    const [qs, init] = opts(new URLSearchParams(), project, signal);
+  stashPop: (options = {}) => {
+    const [qs, init] = commandOpts(options);
     return command(`/api/git/stash/pop${qs}`, init);
   },
 
@@ -209,8 +220,8 @@ const gitApi = {
    * до 4000 символов) в строке запроса упирается в лимит длины стартовой
    * строки запроса на сервере, и вместо понятного отказа приходит голый 400.
    */
-  commit: (message, { project, signal } = {}) => {
-    const [qs, init] = opts(new URLSearchParams(), project, signal);
+  commit: (message, options = {}) => {
+    const [qs, init] = commandOpts(options);
     return command(`/api/git/commit${qs}`, {
       ...init,
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -219,14 +230,14 @@ const gitApi = {
   },
 
   /** `git restore <path>` — вернуть один файл к закоммиченному состоянию. Правки теряются. */
-  discard: (path, { project, signal } = {}) => {
-    const [qs, init] = opts(new URLSearchParams({ path }), project, signal);
+  discard: (path, options = {}) => {
+    const [qs, init] = commandOpts(options, new URLSearchParams({ path }));
     return command(`/api/git/discard${qs}`, init);
   },
 
   /** `git merge --abort` — выйти из незавершённого merge. */
-  abortMerge: ({ project, signal } = {}) => {
-    const [qs, init] = opts(new URLSearchParams(), project, signal);
+  abortMerge: (options = {}) => {
+    const [qs, init] = commandOpts(options);
     return command(`/api/git/merge/abort${qs}`, init);
   },
 

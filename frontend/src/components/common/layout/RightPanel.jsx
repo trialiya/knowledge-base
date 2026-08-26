@@ -10,7 +10,10 @@ import { IconChevronRight } from '@/icons/index';
  * колонкой иконок, каждая из которых раскрывает свою вкладку.
  *
  * props:
- *   tabs      — [{ key, label, icon, badge, content }] (content — узел)
+ *   tabs      — [{ key, label, icon, badge, alert, content }] (content — узел)
+ *               badge — число (сколько), alert — точка (требует внимания:
+ *               счётчика у такого состояния нет, а сказать о нём надо и
+ *               свёрнутой панели)
  *   activeKey — ключ раскрытой вкладки
  *   onTabChange — (key) => void
  *   onClose   — () => void
@@ -28,6 +31,7 @@ const RightPanel = ({ tabs, activeKey, onTabChange, onClose }) => {
             {active.icon}
             {active.label}
             {active.badge > 0 && <span className="workspace__tab-badge">{active.badge}</span>}
+            {active.alert && <span className="workspace__tab-dot" aria-hidden="true" />}
           </span>
         ) : (
           <div className="workspace__tabs" role="tablist">
@@ -44,6 +48,7 @@ const RightPanel = ({ tabs, activeKey, onTabChange, onClose }) => {
               >
                 {tab.label}
                 {tab.badge > 0 && <span className="workspace__tab-badge">{tab.badge}</span>}
+                {tab.alert && <span className="workspace__tab-dot" aria-hidden="true" />}
               </button>
             ))}
           </div>

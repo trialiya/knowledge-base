@@ -1,6 +1,7 @@
 import ChatInfo from './ChatInfo';
+import ChatRepoPanel from '../git/ChatRepoPanel';
 import AttachmentPanel from '@/components/common/attachments/AttachmentPanel';
-import { IconInfo, IconPaperclip } from '@/icons/index';
+import { IconBranch, IconInfo, IconPaperclip } from '@/icons/index';
 import { RIGHT_TAB } from '@/constants/rightTabs';
 import { OWNER_TYPE } from '@/constants/ownerType';
 import { DRAFT_CHAT_ID } from '@/constants/storage';
@@ -23,6 +24,8 @@ export function buildChatTabs({
   onAttachmentCountChange,
   attachmentsRefreshSignal,
   onAttachmentDeleted,
+  git,
+  onOpenGitCommands,
 }) {
   return [
     {
@@ -54,5 +57,21 @@ export function buildChatTabs({
           />
         ),
     },
+    // Вкладка появляется только там, где проект вообще разрешил команды: без
+    // них она отвечала бы на вопрос «где мы» тем же, что и «Инфо», и стоила бы
+    // третьей кнопки в шапке ради повтора.
+    ...(git?.capabilities?.commands
+      ? [
+          {
+            key: RIGHT_TAB.REPO,
+            label: t('repo.tab'),
+            icon: <IconBranch size={16} />,
+            // Точка — весь бюджет на постоянное присутствие git в интерфейсе:
+            // закрытая панель молчит, а про незакрытый merge молчать нельзя.
+            alert: !!git.status?.merging,
+            content: <ChatRepoPanel git={git} onOpenCommands={onOpenGitCommands} />,
+          },
+        ]
+      : []),
   ];
 }

@@ -1,0 +1,145 @@
+/* Вкладка «Репозиторий» правой панели чата.
+   Показывает — здесь; делает — модалка (gitCommandsModal.css). */
+
+.chat-repo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+}
+
+/* ── Ветка ─────────────────────────────────────────────────────────────── */
+
+.chat-repo__branch {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 24px;
+  color: var(--kb-muted);
+  font-size: 0.78rem;
+}
+
+.chat-repo__branch-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--kb-text);
+  font-weight: 600;
+}
+
+.chat-repo__tag {
+  flex: none;
+  padding: 0 0.3rem;
+  border-radius: 4px;
+  background: var(--kb-bg);
+  font-size: 0.68rem;
+}
+
+.chat-repo__count {
+  flex: none;
+  /* Табличные цифры: счётчики меняются на месте, и прыгающая ширина читалась
+     бы как смена ветки. */
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-repo__merge {
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--kb-border);
+  border-left: 3px solid var(--kb-error);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--kb-error) 8%, transparent);
+  color: var(--kb-text);
+  font-size: 0.78rem;
+}
+
+/* ── Единственная дверь ────────────────────────────────────────────────── */
+
+.chat-repo__commands {
+  justify-content: center;
+  width: 100%;
+  gap: 0.4rem;
+}
+
+/* ── Секции ────────────────────────────────────────────────────────────── */
+
+.chat-repo__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--kb-border);
+}
+
+.chat-repo__section-title {
+  margin: 0;
+  color: var(--kb-muted);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.chat-repo__files {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chat-repo__file {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 24px;
+  font-size: 0.8rem;
+}
+
+.chat-repo__status {
+  flex: none;
+  width: 0.9rem;
+  color: var(--kb-muted);
+  font-family: var(--kb-font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* Конфликт — единственный статус, который требует действия, а не внимания. */
+.chat-repo__status--U {
+  color: var(--kb-error);
+}
+
+.chat-repo__path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  /* Обрезаем начало: имя файла отличает строки друг от друга, а общий префикс
+     каталога у них чаще всего один и тот же. */
+  direction: rtl;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-repo__last {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin: 0;
+  color: var(--kb-muted);
+  font-size: 0.78rem;
+}
+
+.chat-repo__last-command {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--kb-text);
+  font-family: var(--kb-font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-repo__last--failed .chat-repo__last-outcome {
+  color: var(--kb-error);
+}

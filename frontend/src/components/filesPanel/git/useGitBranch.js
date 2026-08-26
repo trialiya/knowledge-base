@@ -13,8 +13,14 @@ import gitApi from '@/api/gitApi';
  *
  * `refreshToken` — тот же внешний сигнал «в репозитории что-то поменялось», что
  * и у дерева файлов: коммит, сделанный из панели, двигает и счётчик «впереди».
+ *
+ * `chat` — id беседы, из которой команду запускают. Панель «Файлы» его не
+ * передаёт, и для неё ничего не меняется; с ним бэкенд оставляет в истории чата
+ * ряд с выводом и отказывает, пока в этом чате работает модель (см.
+ * `GitCommandController`). Чтение состояния от него не зависит: ветка у
+ * репозитория одна, кто бы её ни спрашивал.
  */
-export default function useGitBranch({ project, refreshToken }) {
+export default function useGitBranch({ project, refreshToken, chat }) {
   // Ответ вместе с ключом, которому он принадлежит, — как в useUncommittedChanges:
   // отдельный флаг loading означал бы setState из эффекта.
   const [answer, setAnswer] = useState(null);
@@ -57,9 +63,9 @@ export default function useGitBranch({ project, refreshToken }) {
   const run = useCallback(
     (command) => {
       setRunning(true);
-      return command({ project }).finally(() => setRunning(false));
+      return command({ project, chat }).finally(() => setRunning(false));
     },
-    [project],
+    [project, chat],
   );
 
   const commands = useMemo(

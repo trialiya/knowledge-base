@@ -1,0 +1,81 @@
+/* Вывод git-команды. Тёмное тело — не украшение: это текст терминала, и
+   человек узнаёт его раньше, чем прочтёт. Шапка остаётся светлой, чтобы
+   карточка не выпадала из ленты чёрным прямоугольником. */
+
+.git-output {
+  border: 1px solid var(--kb-border);
+  border-left: 3px solid var(--kb-success);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--kb-white);
+}
+
+.git-output--failed {
+  border-left-color: var(--kb-error);
+}
+
+.git-output__head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.4rem 0.25rem 0.5rem;
+  font-size: 0.73rem;
+}
+
+.git-output__icon {
+  display: flex;
+  flex: none;
+  color: var(--kb-success);
+}
+
+.git-output--failed .git-output__icon {
+  color: var(--kb-error);
+}
+
+.git-output__command {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--kb-text);
+  font-family: var(--kb-font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-output__branch {
+  flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  color: var(--kb-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-output__body {
+  max-height: 18rem;
+  margin: 0;
+  padding: 0.5rem 0.6rem;
+  overflow: auto;
+  background: #1e1e1e;
+  color: #e6e6e6;
+  font-family: var(--kb-font-mono);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  /* Вывод git форматирован пробелами — переносить его по словам значило бы
+     разрушить то единственное, чем он держится. Длинные строки скроллятся. */
+  white-space: pre;
+}
+
+.git-output__silent {
+  margin: 0;
+  padding: 0.35rem 0.6rem;
+  border-top: 1px solid var(--kb-border);
+  color: var(--kb-muted);
+  font-size: 0.73rem;
+}
+
+/* В модалке карточка стоит среди полей формы, а не в ленте: там ей не нужна
+   ни собственная рамка слева, ни лишняя высота. */
+.git-output--compact .git-output__body {
+  max-height: 11rem;
+}

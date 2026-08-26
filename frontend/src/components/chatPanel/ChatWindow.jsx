@@ -23,6 +23,8 @@ import { stampChipProject } from './composer/fileChips';
 
 import ChatCenter from './center/ChatCenter';
 import { buildChatTabs } from './center/chatSidebar';
+import useChatGit from './git/useChatGit';
+import GitCommandsModal from './git/GitCommandsModal';
 import ChatList from './list/ChatList';
 import ChatSearch from './list/ChatSearch';
 import WorkspaceLayout from '@/components/common/layout/WorkspaceLayout';
@@ -38,6 +40,8 @@ const ChatWindow = ({
   onSelectChat,
   onDocChanged,
   onFileChanged,
+  filesRefreshToken,
+  onRepoChanged,
   panels,
 }) => {
   const { t } = useTranslation('chat');
@@ -270,6 +274,19 @@ const ChatWindow = ({
     [onFileChanged, selectedProjectId],
   );
 
+  // ── Репозиторий проекта этого чата ─────────────────────────────────────────
+  // Занят чат — заняты и команды: и генерация, и сжатие читают те же файлы, и
+  // разница между ними для git никакая. Настоящий запрет всё равно на сервере
+  // (см. ChatGitLog): между нажатием и запросом чат успевает стать занятым.
+  const [gitCommandsOpen, setGitCommandsOpen] = useState(false);
+  const git = useChatGit({
+    chatId: activeChatId === DRAFT_CHAT_ID ? null : activeChatId,
+    project: selectedProjectId,
+    refreshToken: filesRefreshToken,
+    busy: isStreaming || isCompacting,
+    onRepoChanged,
+  });
+
   // Чат считается пустым ТОЛЬКО когда сообщения уже загружены (messages !== null)
   // и среди них нет ни одного реального (с полем sender). Пока messages === null
   // (идёт загрузка старого чата), блок не показываем — иначе он мелькает.
@@ -476,6 +493,8 @@ const ChatWindow = ({
         onAttachmentCountChange: setAttachCount,
         attachmentsRefreshSignal: refreshSignal,
         onAttachmentDeleted: handleAttachmentDeleted,
+        git,
+        onOpenGitCommands: () => setGitCommandsOpen(true),
       }),
     [
       t,
@@ -488,6 +507,7 @@ const ChatWindow = ({
       selectedModelLabel,
       selectedModeLabel,
       selectedProjectLabel,
+      git,
     ],
   );
 
@@ -581,6 +601,15 @@ const ChatWindow = ({
         message={notice ? t(notice.messageKey, notice.params) : ''}
         onClose={dismissNotice}
       />
+      {gitCommandsOpen && (
+        <GitCommandsModal
+          git={git}
+          onClose={() => {
+            setGitCommandsOpen(false);
+            git.dismissFailure();
+          }}
+        />
+      )}
     </>
   );
 };

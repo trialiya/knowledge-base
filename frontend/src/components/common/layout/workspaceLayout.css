@@ -213,6 +213,16 @@
   text-align: center;
 }
 
+.workspace__rail-dot {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--kb-error);
+}
+
 /* ── Вкладки правой панели ── */
 
 .workspace__tabs {
@@ -256,6 +266,16 @@
   font-size: 0.66rem;
   font-weight: 700;
   line-height: 1.55;
+}
+
+/* Точка вместо числа: состояние, которое требует внимания, а не пересчёта
+   (незакрытый merge). Красная — она означает «здесь что-то не закрыто», а не
+   «здесь что-то новое», и от акцентного бейджа отличаться обязана. */
+.workspace__tab-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--kb-error);
 }
 
 /* ── Центр ── */
