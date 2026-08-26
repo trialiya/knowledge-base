@@ -2,14 +2,14 @@ import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import chatApi from '@/api/chatApi';
 import { getToolIcon, humanizeTool, toolLabelKey } from '@/components/common/ui/toolNames';
-import { IconCopySmall, IconCopied } from '@/icons/index';
-import useCopyFeedback from '@/components/common/ui/useCopyFeedback';
+import CopyButton from '@/components/common/ui/CopyButton';
 import ModalShell from '@/components/common/modal/ModalShell';
 import { detectResultView } from './resultViews/registry';
 import { detectArgumentList } from './resultViews/argumentList';
 import ArgumentListView from './resultViews/ArgumentListView';
 import { formatJson, tryFormatJson, highlightJson } from './resultViews/jsonText';
 import { TOOL_STATUS } from '@/constants/toolStatus';
+import '@/components/common/ui/buttons.css';
 import '../styles/tool-call-detail.css';
 
 // Два режима на секцию результата, не три: «Обзор» — типизированный вид,
@@ -24,25 +24,6 @@ const POLL_MIN_MS = 1000;
 const POLL_MAX_MS = 15000;
 /** Сколько раз повторяем сорвавшийся запрос, прежде чем оставить ошибку на экране. */
 const ERROR_RETRIES = 3;
-
-/** Маленькая кнопка копирования содержимого секции (аргументы/результат). */
-const CopyButton = ({ value }) => {
-  const { t } = useTranslation('chat');
-  const [copied, copy] = useCopyFeedback();
-
-  if (!value) return null;
-
-  return (
-    <button
-      type="button"
-      className={`tool-call-detail__copy${copied ? ' tool-call-detail__copy--done' : ''}`}
-      onClick={() => copy(value)}
-      title={copied ? t('common:copied') : t('toolCall.copy')}
-    >
-      {copied ? <IconCopied /> : <IconCopySmall />}
-    </button>
-  );
-};
 
 /**
  * Переключатель «Обзор | JSON». Не рендерится, когда обзора для формы нет.
@@ -173,7 +154,7 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
           </span>
           {label}
         </span>
-        <button className="tool-call-detail__close" onClick={onClose} title={t('close')}>
+        <button type="button" className="icon-btn" onClick={onClose} title={t('close')}>
           ✕
         </button>
       </div>
@@ -192,7 +173,7 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
             <div className="tool-call-detail__section-head">
               <div className="tool-call-detail__label">{t('toolCall.detail.arguments')}</div>
               {args && <ModeSwitch mode={argsMode} onChange={setArgsMode} label={t('toolCall.detail.arguments')} />}
-              <CopyButton value={argsPretty} />
+              <CopyButton value={argsPretty} label={t('toolCall.detail.arguments')} />
             </div>
             {args && argsMode === MODE.OVERVIEW ? (
               <ArgumentListView key={callId} data={args} />
@@ -205,7 +186,7 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
             <div className="tool-call-detail__section-head">
               <div className="tool-call-detail__label">{t('toolCall.detail.result')}</div>
               {view && <ModeSwitch mode={mode} onChange={setMode} label={t('toolCall.detail.result')} />}
-              <CopyButton value={details.resultText} />
+              <CopyButton value={details.resultText} label={t('toolCall.detail.result')} />
             </div>
             {running ? (
               <div className="tool-call-detail__notice" role="status" aria-live="polite">
