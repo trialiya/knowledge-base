@@ -17,6 +17,7 @@ starting `dockerd` for Testcontainers.
 ./run/test.sh                  # unit + front — the fast pair, no Docker
 ./run/test.sh pre-pr           # format + back + build — the gate before a PR
 ./run/test.sh smoke            # build the JAR and drive the UI with Chromium
+./run/test.sh harness          # screenshot one component against a fixture, no backend
 ./run/test.sh unit -- --tests '*ToolTranslationsTest'   # after -- goes to Gradle
 ```
 

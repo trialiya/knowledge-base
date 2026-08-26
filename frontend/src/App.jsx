@@ -137,6 +137,19 @@ function App() {
     setFilesRefreshTick((n) => n + 1);
   }, []);
 
+  /**
+   * `fetch` — единственная команда, ничего в рабочем дереве не меняющая: она
+   * двигает только remote-tracking refs, то есть счётчики «впереди/позади».
+   * Свой сигнал, а не общий, потому что общий перезапросил бы заодно дерево,
+   * изменения и содержимое открытого файла, которых fetch не касается.
+   *
+   * И всё же общий на обе поверхности: строк ветки в приложении две — в панели
+   * «Файлы» и во вкладке «Репозиторий» чата, — а репозиторий один, и счётчик,
+   * подвинувшийся в одной, обязан подвинуться в другой.
+   */
+  const [gitRefsTick, setGitRefsTick] = useState(0);
+  const handleGitRefsChanged = useCallback(() => setGitRefsTick((n) => n + 1), []);
+
   // Уход из KB с несохранёнными правками спрашивает подтверждение — переключаем
   // разделы через goView, а не через switchView напрямую.
   const { goView, pendingView, confirmLeave, cancelLeave } = useUnsavedViewGuard({ view, switchView });
@@ -205,7 +218,9 @@ function App() {
             onDocChanged={handleDocChanged}
             onFileChanged={handleFileChanged}
             filesRefreshToken={filesRefreshTick}
+            gitRefsToken={gitRefsTick}
             onRepoChanged={handleRepoChanged}
+            onGitRefsChanged={handleGitRefsChanged}
             panels={panels}
           />
         </div>
@@ -234,7 +249,9 @@ function App() {
               onChangesToggle={setFileChanges}
               onPathChange={openFilePath}
               refreshToken={filesRefreshTick}
+              gitRefsToken={gitRefsTick}
               onRepoChanged={handleRepoChanged}
+              onGitRefsChanged={handleGitRefsChanged}
               panels={panels}
             />
           </div>

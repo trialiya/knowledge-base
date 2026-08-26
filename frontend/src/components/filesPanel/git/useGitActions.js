@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import runGitCommand from './runGitCommand';
 
 /** Что спрашивают перед командой: имя новой ветки или сообщение коммита. */
 export const GIT_PROMPT = { BRANCH: 'branch', COMMIT: 'commit' };
@@ -22,20 +23,13 @@ export default function useGitActions({ git, onRepoChanged, notify, t }) {
   // и подтверждение обязано назвать файл.
   const [discarding, setDiscarding] = useState(null);
 
+  // Правило «перечитать в любом случае» — общее с панелью чата, см. runGitCommand.
   const run = useCallback(
     (command) =>
-      command()
-        .then((result) => {
-          onRepoChanged();
-          return result;
-        })
-        .catch((error) => {
-          // A refusal can still have moved the working tree — a conflicting `stash pop` applies
-          // the stash and only then fails, leaving real conflicts on disk. Refreshing only on
-          // success would leave the panel showing the state from before the command ran.
-          onRepoChanged();
-          notify(failure(error, t));
-        }),
+      runGitCommand(command, {
+        onSettled: onRepoChanged,
+        onFailure: (error) => notify(failure(error, t)),
+      }),
     [onRepoChanged, notify, t],
   );
 
@@ -58,8 +52,8 @@ export default function useGitActions({ git, onRepoChanged, notify, t }) {
   return {
     prompt,
     discarding,
-    // fetch ничего в рабочем дереве не меняет, но счётчики двигает — а их
-    // перечитывает сам useGitBranch, поэтому общий сигнал ему не нужен.
+    // fetch ничего в рабочем дереве не меняет, но счётчики двигает — их
+    // поднимает сам useGitBranch своим сигналом, поэтому общий ему не нужен.
     fetch: () => git.fetchRemote().catch((error) => notify(failure(error, t))),
     pull: () => run(() => git.pull()),
     push: () => run(() => git.push()),

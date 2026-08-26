@@ -37,20 +37,11 @@
   font-size: 0.68rem;
 }
 
-.chat-repo__count {
-  flex: none;
-  /* Табличные цифры: счётчики меняются на месте, и прыгающая ширина читалась
-     бы как смена ветки. */
-  font-variant-numeric: tabular-nums;
-}
-
 .chat-repo__merge {
   padding: 0.3rem 0.5rem;
-  border: 1px solid var(--kb-border);
-  border-left: 3px solid var(--kb-error);
-  border-radius: 6px;
+  /* Заливка — своя: полоса стоит внутри панели, среди прочих секций, и одной
+     грани слева ей мало, чтобы читаться отдельным сообщением. */
   background: color-mix(in srgb, var(--kb-error) 8%, transparent);
-  color: var(--kb-text);
   font-size: 0.78rem;
 }
 

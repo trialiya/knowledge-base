@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { IconBranch, IconTerminal } from '@/icons/index';
 import '@/components/common/ui/buttons.css';
+import '@/components/common/ui/gitChrome.css';
 
 /**
  * Вкладка «Репозиторий» правой панели чата: где мы и что не сохранено.
@@ -41,12 +42,12 @@ const ChatRepoPanel = ({ git, onOpenCommands }) => {
         {/* Ноль не показываем: строка отвечает «разошлись ли», а два нуля рядом
             с веткой читают на каждом открытии панели и ничего из них не узнают. */}
         {behind > 0 && (
-          <span className="chat-repo__count" title={t('files:git.behindHint', { count: behind })}>
+          <span className="git-count" title={t('files:git.behindHint', { count: behind })}>
             ↓{behind}
           </span>
         )}
         {ahead > 0 && (
-          <span className="chat-repo__count" title={t('files:git.aheadHint', { count: ahead })}>
+          <span className="git-count" title={t('files:git.aheadHint', { count: ahead })}>
             ↑{ahead}
           </span>
         )}
@@ -57,7 +58,7 @@ const ChatRepoPanel = ({ git, onOpenCommands }) => {
           об этом говорится прямо — и это единственное, что вкладка показывает
           сверх ветки без просьбы. */}
       {merging && (
-        <div className="chat-repo__merge" role="status">
+        <div className="git-merge-note chat-repo__merge" role="status">
           {conflicts?.length ? t('files:git.mergeConflicts', { count: conflicts.length }) : t('files:git.merging')}
         </div>
       )}

@@ -42,25 +42,28 @@ describe('useGitBranch', () => {
   });
 
   /**
-   * Счётчик «позади» и существует ради fetch'а: команда обязана оставить
-   * панель с обновлённым состоянием, а не с тем, что было до неё.
+   * fetch двигает только счётчики, и перечитывает их не сам хук: строк ветки в
+   * приложении две, репозиторий у них один, и обновиться обязаны обе. Поэтому
+   * хук поднимает общий сигнал, а возвращается ответ уже по новому `refsToken`.
    */
-  test('a fetch leaves the fresh state behind', async () => {
+  test('a fetch raises the shared refs signal and the new token brings the counters', async () => {
     gitApi.getBranches.mockResolvedValueOnce(status()).mockResolvedValueOnce(status({ behind: 2 }));
     gitApi.getCapabilities.mockResolvedValue(caps());
-    gitApi.fetch.mockResolvedValue({
-      command: 'fetch',
-      output: '',
-      status: status({ behind: 2 }),
-    });
+    gitApi.fetch.mockResolvedValue({ command: 'fetch', output: '', status: status({ behind: 2 }) });
+    const onRefsChanged = vi.fn();
 
-    const { result } = renderHook(() => useGitBranch({ project: PROJECT }));
+    const { result, rerender } = renderHook((p) => useGitBranch(p), {
+      initialProps: { project: PROJECT, refsToken: 0, onRefsChanged },
+    });
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(() => result.current.fetchRemote());
 
-    await waitFor(() => expect(result.current.status.behind).toBe(2));
+    expect(onRefsChanged).toHaveBeenCalledTimes(1);
     expect(result.current.running).toBe(false);
+
+    rerender({ project: PROJECT, refsToken: 1, onRefsChanged });
+    await waitFor(() => expect(result.current.status.behind).toBe(2));
   });
 
   /** Отказ git'а — дело панели: хук его не глотает, иначе показать было бы нечего. */

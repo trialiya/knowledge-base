@@ -14,23 +14,25 @@ import gitApi from '@/api/gitApi';
  * `refreshToken` — тот же внешний сигнал «в репозитории что-то поменялось», что
  * и у дерева файлов: коммит, сделанный из панели, двигает и счётчик «впереди».
  *
+ * `refsToken` + `onRefsChanged` — сигнал полегче, только про remote-tracking
+ * refs: их двигает `fetch`, и больше ничего. Общий, а не внутренний счётчик,
+ * потому что таких хуков в приложении два — у панели «Файлы» и у панели чата, —
+ * а репозиторий у них один: fetch, сделанный в файлах, обязан подвинуть
+ * счётчики и в чате. Без `onRefsChanged` fetch не обновит вообще ничего.
+ *
  * `chat` — id беседы, из которой команду запускают. Панель «Файлы» его не
  * передаёт, и для неё ничего не меняется; с ним бэкенд оставляет в истории чата
  * ряд с выводом и отказывает, пока в этом чате работает модель (см.
  * `GitCommandController`). Чтение состояния от него не зависит: ветка у
  * репозитория одна, кто бы её ни спрашивал.
  */
-export default function useGitBranch({ project, refreshToken, chat }) {
+export default function useGitBranch({ project, refreshToken, refsToken, chat, onRefsChanged }) {
   // Ответ вместе с ключом, которому он принадлежит, — как в useUncommittedChanges:
   // отдельный флаг loading означал бы setState из эффекта.
   const [answer, setAnswer] = useState(null);
   const [running, setRunning] = useState(false);
-  // Только для fetch: он двигает счётчики, но не рабочее дерево, и поднимать
-  // ради него общий сигнал значило бы перезапросить заодно дерево, изменения и
-  // превью, которых fetch не касается.
-  const [reloads, setReloads] = useState(0);
 
-  const key = `${refreshToken ?? 0} ${project ?? ''} ${reloads}`;
+  const key = `${refreshToken ?? 0} ${project ?? ''} ${refsToken ?? 0}`;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -81,8 +83,9 @@ export default function useGitBranch({ project, refreshToken, chat }) {
    * Выполнить команду. Перечитывать состояние здесь нечем и незачем: команда,
    * сдвинувшая рабочее дерево, доходит до панели через общий `refreshToken` —
    * он же входит в ключ запроса, — и лишний запрос отсюда стал бы вторым на ту
-   * же перерисовку. Исключение — fetch: он рабочее дерево не трогает и общий
-   * сигнал не поднимает, поэтому свою строку обновляет сам.
+   * же перерисовку. Исключение — fetch: рабочее дерево он не трогает, и общий
+   * сигнал поднял бы заодно дерево, изменения и превью, которых fetch не
+   * касается; ему хватает `onRefsChanged`.
    *
    * Ошибка возвращается вызывающему, а не гасится здесь: показать её — дело
    * панели, у неё для этого один ErrorModal.
@@ -99,7 +102,7 @@ export default function useGitBranch({ project, refreshToken, chat }) {
     () => ({
       fetchRemote: () =>
         run(gitApi.fetch).then((result) => {
-          setReloads((n) => n + 1);
+          onRefsChanged?.();
           return result;
         }),
       pull: () => run(gitApi.pull),
@@ -111,7 +114,7 @@ export default function useGitBranch({ project, refreshToken, chat }) {
       discard: (path) => run((o) => gitApi.discard(path, o)),
       abortMerge: () => run(gitApi.abortMerge),
     }),
-    [run],
+    [run, onRefsChanged],
   );
 
   return useMemo(

@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { IconBranch, IconRefreshCw } from '@/icons/index';
 import GitMenu from './GitMenu';
+import '@/components/common/ui/gitChrome.css';
 import './gitBranchBar.css';
 
 /**
@@ -29,7 +30,7 @@ const GitBranchBar = ({ status, capabilities, running, onFetch, onAbortMerge, co
           он не закрыт, об этом говорится прямо, вместе с гарантированным
           выходом — abort. */}
       {merging && (
-        <div className="git-merge" role="status">
+        <div className="git-merge-note git-merge" role="status">
           <span className="git-merge__text">
             {conflicts?.length ? t('git.mergeConflicts', { count: conflicts.length }) : t('git.merging')}
           </span>
@@ -54,12 +55,12 @@ const GitBranchBar = ({ status, capabilities, running, onFetch, onAbortMerge, co
         {/* Ноль не показываем: строка отвечает «разошлись ли», а два нуля рядом с
           веткой — это шум, который читают на каждом открытии панели. */}
         {behind > 0 && (
-          <span className="git-branch__count" title={t('git.behindHint', { count: behind })}>
+          <span className="git-count" title={t('git.behindHint', { count: behind })}>
             ↓{behind}
           </span>
         )}
         {ahead > 0 && (
-          <span className="git-branch__count" title={t('git.aheadHint', { count: ahead })}>
+          <span className="git-count" title={t('git.aheadHint', { count: ahead })}>
             ↑{ahead}
           </span>
         )}

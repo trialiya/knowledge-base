@@ -41,7 +41,9 @@ const FilesPanelForProject = ({
   onPathChange,
   onProjectChange,
   refreshToken,
+  gitRefsToken,
   onRepoChanged,
+  onGitRefsChanged,
   panels,
 }) => {
   const { t } = useTranslation('files');
@@ -58,7 +60,7 @@ const FilesPanelForProject = ({
     enabled: changes,
   });
   const diff = useChangeDiff({ project, path, refreshToken, enabled: changes });
-  const git = useGitBranch({ project, refreshToken });
+  const git = useGitBranch({ project, refreshToken, refsToken: gitRefsToken, onRefsChanged: onGitRefsChanged });
 
   // Одно уведомление на панель: git-команда отказывает словами самого git
   // («Permission denied (publickey)»), и это ровно то, что нужно показать —
@@ -224,7 +226,18 @@ const FilesPanelForProject = ({
  * при сбросе показало бы файлы прежнего репозитория. Кэши при этом не теряются:
  * они живут в модуле и разложены по проектам (fileTreeStore).
  */
-const FilesPanel = ({ project, path, changes, onChangesToggle, onPathChange, refreshToken, onRepoChanged, panels }) => {
+const FilesPanel = ({
+  project,
+  path,
+  changes,
+  onChangesToggle,
+  onPathChange,
+  refreshToken,
+  gitRefsToken,
+  onRepoChanged,
+  onGitRefsChanged,
+  panels,
+}) => {
   const { projectOptions, defaultProjectId, ready } = useProjectConfig();
   // Адрес без проекта означает дефолтный. Ждём ответа со списком: смонтироваться
   // раньше — значит смонтироваться на пустом ключе и тут же перемонтироваться,
@@ -252,7 +265,9 @@ const FilesPanel = ({ project, path, changes, onChangesToggle, onPathChange, ref
       // Дефолтный проект в адрес не пишем: пустое значение и означает его.
       onProjectChange={(id) => onPathChange('', id === defaultProjectId ? '' : id)}
       refreshToken={refreshToken}
+      gitRefsToken={gitRefsToken}
       onRepoChanged={onRepoChanged}
+      onGitRefsChanged={onGitRefsChanged}
       panels={panels}
     />
   );

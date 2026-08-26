@@ -22,6 +22,10 @@
 #               builds the JAR through the 'jar' suite itself, so running it directly
 #               behaves the same. Scenarios and data live in
 #               frontend/tests/visual/cases.yaml
+#   harness     screenshot single components against their fixtures, no backend
+#               (scripts/visual-harness.js) — for states the running app cannot be
+#               asked for: an unfinished merge, a busy chat, a refused push. Case
+#               ids after `--`; none = all of them
 #   pre-pr      format + back + build — the gate before a pull request
 #   ci          the same three with --console=plain (non-interactive logs). Note: the
 #               GitHub workflows do not call this — they run ./gradlew per module.
@@ -38,6 +42,8 @@
 #   ./test.sh front           # only the frontend checks
 #   ./test.sh pre-pr          # everything expected before a pull request
 #   ./test.sh smoke           # look at the UI, not just at green tests
+#   ./test.sh harness         # look at fixture-only states (merge, busy, refusal)
+#   ./test.sh harness -- chatRepo.js#repoTabMerging        # one of them
 #   ./test.sh unit -- --tests '*ToolTranslationsTest'      # one class
 #   ./test.sh back -- --info                               # noisier output
 #   ./test.sh clean build     # rebuild from scratch
@@ -215,6 +221,17 @@ run_smoke() {
   fi
 }
 
+# Passthrough after `--` goes to the script, not to Gradle: these are case ids.
+run_harness() {
+  echo "→ node scripts/visual-harness.js ${EXTRA_ARGS[*]+${EXTRA_ARGS[*]}}"
+  if [ -d /opt/node22/lib/node_modules ]; then
+    env NODE_PATH=/opt/node22/lib/node_modules node scripts/visual-harness.js \
+      ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
+  else
+    node scripts/visual-harness.js ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
+  fi
+}
+
 run_suite() {
   case "$1" in
     unit)   run_unit ;;
@@ -227,10 +244,11 @@ run_suite() {
     jar)    run_jar ;;
     clean)  run_clean ;;
     smoke)  run_smoke ;;
+    harness) run_harness ;;
     pre-pr | ci) run_format; run_back; run_build ;;
     *)
       echo "ERROR: unknown suite '$1'." >&2
-      echo "       Known: unit it back front format formatApply build jar clean smoke pre-pr ci" >&2
+      echo "       Known: unit it back front format formatApply build jar clean smoke harness pre-pr ci" >&2
       exit 2
       ;;
   esac

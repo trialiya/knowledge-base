@@ -13,15 +13,45 @@ in `frontend/tests/visual/fixtures/`. Add a new check as a case in the same
 format, and **never rename an existing `id`** — it is the future story/baseline
 name.
 
-## The one command
+## Two commands, and they answer different questions
 
 ```bash
-./run/test.sh smoke
+./run/test.sh smoke      # boot the app, drive real screens
+./run/test.sh harness    # render one component against a fixture, no backend
 ```
 
-Runs `scripts/playwright-smoke.js`, which builds the JAR itself through
+Reach for **smoke** by default: it shows the real layout with real data, and it
+is the only thing that can answer a question about a whole screen — a tab strip,
+a panel header, two sections side by side.
+
+Reach for **harness** for a state the running app cannot be asked for on demand:
+an unfinished merge, a chat with the model mid-answer, a repository that refuses
+a push. Those live in `frontend/tests/visual/fixtures/`, and the harness mounts
+one component straight into a page. Case ids are the same `fixtures:` references
+`cases.yaml` uses (`<module>#<export>`); the opt-in list is
+`frontend/tests/visual/harness/registry.jsx`, and a fixture only becomes
+shootable once it is listed there. Shots land in `harness/shots/` (git-ignored),
+one per case, and a case whose page logged a console error is reported `✗`.
+
+```bash
+./run/test.sh harness -- chatRepo.js#repoTabMerging
+```
+
+**The harness can be the thing that is wrong.** It builds its own frame around
+the component, and its CSS bundle is ordered by its own import graph, not the
+app's. It has already shown a modal at 380px that is 560px in the product (two
+rules of equal specificity, opposite order) and browser-default buttons (a
+stylesheet the app happened to load from elsewhere). Before reporting anything
+it shows as a defect, check it against the built app — `frontend/build/static/*.css`
+answers the ordering questions. What the harness is reliably good at is the
+opposite direction: it caught both of those, and they were real gaps in the
+components' own imports.
+
+`smoke` runs `scripts/playwright-smoke.js`, which builds the JAR itself through
 `./run/test.sh jar` before booting it — so running the script directly does the
 same thing. Its Usage header has the flags (`--no-seed`, `--no-build`).
+`harness` runs `scripts/visual-harness.js`, which builds only the stand's own
+Vite bundle and needs no JAR at all; its header has the rest.
 
 ## Driving it yourself
 

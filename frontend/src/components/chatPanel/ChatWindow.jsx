@@ -24,6 +24,7 @@ import { stampChipProject } from './composer/fileChips';
 import ChatCenter from './center/ChatCenter';
 import { buildChatTabs, buildRepoTab } from './center/chatSidebar';
 import useChatGit from './git/useChatGit';
+import { RIGHT_TAB } from '@/constants/rightTabs';
 import GitCommandsModal from './git/GitCommandsModal';
 import ChatList from './list/ChatList';
 import ChatSearch from './list/ChatSearch';
@@ -41,7 +42,9 @@ const ChatWindow = ({
   onDocChanged,
   onFileChanged,
   filesRefreshToken,
+  gitRefsToken,
   onRepoChanged,
+  onGitRefsChanged,
   panels,
 }) => {
   // Второй namespace — ради общего словаря git: названия команд и состояний
@@ -285,8 +288,13 @@ const ChatWindow = ({
     chatId: activeChatId === DRAFT_CHAT_ID ? null : activeChatId,
     project: selectedProjectId,
     refreshToken: filesRefreshToken,
+    refsToken: gitRefsToken,
+    // Список несохранённого спрашивается только под открытой вкладкой; ветка и
+    // права — всегда, они решают, быть ли вкладке вообще.
+    visible: panels.rightTab === RIGHT_TAB.REPO,
     busy: isStreaming || isCompacting,
     onRepoChanged,
+    onRefsChanged: onGitRefsChanged,
   });
 
   // Чат считается пустым ТОЛЬКО когда сообщения уже загружены (messages !== null)

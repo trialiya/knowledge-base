@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import useGitBranch from '@/components/filesPanel/git/useGitBranch';
 import useUncommittedChanges from '@/components/filesPanel/changes/useUncommittedChanges';
+import runGitCommand from '@/components/filesPanel/git/runGitCommand';
 
 /**
  * Состояние репозитория для панели чата и запуск команд из неё.
@@ -22,44 +23,58 @@ import useUncommittedChanges from '@/components/filesPanel/changes/useUncommitte
  * («Permission denied (publickey)»), и это ровно то, по чему человек поймёт,
  * что чинить.
  */
-export default function useChatGit({ chatId, project, refreshToken, busy, onRepoChanged }) {
-  const branch = useGitBranch({ project, refreshToken, chat: chatId });
+export default function useChatGit({
+  chatId,
+  project,
+  refreshToken,
+  refsToken,
+  busy,
+  visible,
+  onRepoChanged,
+  onRefsChanged,
+}) {
+  const branch = useGitBranch({ project, refreshToken, refsToken, chat: chatId, onRefsChanged });
+  // Список несохранённого рисует только сама вкладка, и стоит он отдельного
+  // запроса на каждый тик обновления. Пока вкладку не открыли, спрашивать
+  // нечего: ветка и права нужны и закрытой (по ним решается, быть ли вкладке
+  // вообще и гореть ли на ней точке), а список — нет.
   const changes = useUncommittedChanges({
     project,
     refreshToken,
-    enabled: !!chatId && !!branch.capabilities?.commands,
+    enabled: !!visible && !!chatId && !!branch.capabilities?.commands,
   });
   // Последняя команда — то, что вкладка показывает одной строкой. Журнала нет:
   // вывод целиком лежит в ленте чата, где команда и оставила свой ряд.
   const [last, setLast] = useState(null);
   const [failure, setFailure] = useState(null);
 
+  /**
+   * `movesTree` — трогает ли команда рабочее дерево. У всех, кроме fetch, да, и
+   * тогда поднимается общий сигнал: дерево, изменения и открытый файл поедут
+   * перечитываться вместе. Fetch двигает одни счётчики и обновляет их сам (см.
+   * `useGitBranch`), поэтому общий сигнал стал бы лишней работой на ровном месте.
+   *
+   * Остальное — правило «перечитать и на успехе, и на отказе» — общее с панелью
+   * «Файлы», см. runGitCommand.
+   */
   const run = useCallback(
-    (name, command) => {
+    (name, command, { movesTree = true } = {}) => {
       setFailure(null);
-      return command()
-        .then((result) => {
-          setLast({ command: result?.command ?? name, ok: true, at: Date.now() });
-          onRepoChanged?.();
-          return result;
-        })
-        .catch((error) => {
+      return runGitCommand(command, {
+        onSuccess: (result) => setLast({ command: result?.command ?? name, ok: true, at: Date.now() }),
+        onFailure: (error) => {
           setLast({ command: name, ok: false, at: Date.now() });
           setFailure({ command: name, reason: error?.reason ?? null });
-          // Отказ тоже мог сдвинуть дерево: конфликтующий `stash pop` сначала
-          // накладывает stash и только потом отказывает, оставляя на диске
-          // настоящие конфликты. Обновлять только на успехе значило бы
-          // показывать состояние, которого больше нет.
-          onRepoChanged?.();
-          return null;
-        });
+        },
+        onSettled: movesTree ? onRepoChanged : undefined,
+      });
     },
     [onRepoChanged],
   );
 
   const commands = useMemo(
     () => ({
-      fetch: () => run('fetch', branch.fetchRemote),
+      fetch: () => run('fetch', branch.fetchRemote, { movesTree: false }),
       pull: () => run('pull', branch.pull),
       push: () => run('push', branch.push),
       switchBranch: (name) => run(`switch ${name}`, () => branch.switchBranch(name, false)),

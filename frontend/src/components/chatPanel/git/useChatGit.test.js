@@ -24,7 +24,7 @@ const capabilities = { project: 'kb', available: true, commands: true, push: tru
 
 const ready = async (props = {}) => {
   const hook = renderHook((p) => useChatGit(p), {
-    initialProps: { chatId: 'c-1', project: 'kb', refreshToken: 0, busy: false, ...props },
+    initialProps: { chatId: 'c-1', project: 'kb', refreshToken: 0, busy: false, visible: true, ...props },
   });
   await waitFor(() => expect(hook.result.current.status).not.toBeNull());
   return hook;
@@ -162,5 +162,38 @@ describe('useChatGit', () => {
     await act(async () => {
       finish({ command: 'fetch', output: '', status });
     });
+  });
+
+  /**
+   * Список несохранённого — отдельный запрос, а рисует его одна вкладка. Пока
+   * её не открыли, спрашивать нечего; ветка и права нужны и закрытой — по ним
+   * решается, быть ли вкладке вообще.
+   */
+  test('the uncommitted list is only asked for once the tab is open', async () => {
+    const hook = await ready({ visible: false });
+    expect(gitApi.getStatus).not.toHaveBeenCalled();
+    expect(hook.result.current.capabilities).not.toBeNull();
+
+    hook.rerender({ chatId: 'c-1', project: 'kb', refreshToken: 0, busy: false, visible: true });
+    await waitFor(() => expect(gitApi.getStatus).toHaveBeenCalled());
+  });
+
+  /**
+   * fetch рабочее дерево не трогает: общий сигнал перезапросил бы заодно дерево,
+   * изменения и открытый файл. Счётчики он поднимает своим, лёгким.
+   */
+  test('fetch raises the refs signal, not the heavy one; pull raises the heavy one', async () => {
+    const onRepoChanged = vi.fn();
+    const onRefsChanged = vi.fn();
+    gitApi.fetch.mockResolvedValue({ command: 'fetch', output: '', status });
+    gitApi.pull.mockResolvedValue({ command: 'pull', output: '', status });
+    const { result } = await ready({ onRepoChanged, onRefsChanged });
+
+    await act(() => result.current.fetch());
+    expect(onRefsChanged).toHaveBeenCalledTimes(1);
+    expect(onRepoChanged).not.toHaveBeenCalled();
+
+    await act(() => result.current.pull());
+    expect(onRepoChanged).toHaveBeenCalledTimes(1);
   });
 });
