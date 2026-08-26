@@ -9,6 +9,7 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.CompactMeta;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.chat.entity.ContextItemKind;
+import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import java.util.List;
 import java.util.Map;
@@ -31,7 +32,7 @@ public final class ChatMessageMetaToJsonConverter {
      * null}, — молча, потому что компилятор об этом ничего не скажет.
      *
      * <p>Незаполненные поля в JSON не пишутся: у большинства рядов заполнено два-три поля из
-     * восьми, а колонка хранится в каждом сообщении каждого чата. Чтение от этого не страдает —
+     * девяти, а колонка хранится в каждом сообщении каждого чата. Чтение от этого не страдает —
      * отсутствующее поле Jackson отдаёт как {@code null}, то есть ровно тем, чем оно было записано,
      * а пустые списки нормализует {@link ChatMessageMeta} своим компактным конструктором. Аннотация
      * стоит на проекции, а не на {@link ObjectMapper}: он общий с REST, и ответы API форму менять
@@ -47,7 +48,8 @@ public final class ChatMessageMetaToJsonConverter {
             @Nullable String project,
             @Nullable String projectSwitchFrom,
             @Nullable String model,
-            @Nullable CompactMeta compact) {}
+            @Nullable CompactMeta compact,
+            @Nullable GitEventMeta gitEvent) {}
 
     /**
      * {@code kind} читается строкой, а не сразу {@link ContextItemKind}: вид, которого эта версия
@@ -118,7 +120,8 @@ public final class ChatMessageMetaToJsonConverter {
                         json.project(),
                         json.projectSwitchFrom(),
                         json.model(),
-                        json.compact());
+                        json.compact(),
+                        json.gitEvent());
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to deserialize chat message meta", e);
             }
@@ -154,7 +157,8 @@ public final class ChatMessageMetaToJsonConverter {
                                 source.project(),
                                 source.projectSwitchFrom(),
                                 source.model(),
-                                source.compact()));
+                                source.compact(),
+                                source.gitEvent()));
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to serialize chat message meta", e);
             }

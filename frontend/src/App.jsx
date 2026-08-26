@@ -120,18 +120,35 @@ function App() {
   }, []);
 
   /**
-   * Команда git из панели файлов сдвинула рабочее дерево целиком: checkout,
+   * Команда git сдвинула рабочее дерево целиком: checkout,
    * stash, коммит или откат файла меняют сразу и дерево, и список изменений, и
    * содержимое открытого файла. Точечная инвалидация тут не подходит — какие
    * именно пути поменялись, знает только git, — поэтому листинги сбрасываются
    * целиком, одним тиком, тем же, что и после правки файла ассистентом.
    * Раскрытые каталоги при этом сохраняются: от коммита они не зависят.
+   *
+   * Сигнал общий для обеих поверхностей — панели «Файлы» и панели чата: дерево
+   * у них одно, и pull, сделанный из чата, обязан дойти до открытого файла так
+   * же, как сделанный из файлов.
    */
   const handleRepoChanged = useCallback(() => {
     invalidateFileListings();
     invalidateAllFilePreviewCache();
     setFilesRefreshTick((n) => n + 1);
   }, []);
+
+  /**
+   * `fetch` — единственная команда, ничего в рабочем дереве не меняющая: она
+   * двигает только remote-tracking refs, то есть счётчики «впереди/позади».
+   * Свой сигнал, а не общий, потому что общий перезапросил бы заодно дерево,
+   * изменения и содержимое открытого файла, которых fetch не касается.
+   *
+   * И всё же общий на обе поверхности: строк ветки в приложении две — в панели
+   * «Файлы» и во вкладке «Репозиторий» чата, — а репозиторий один, и счётчик,
+   * подвинувшийся в одной, обязан подвинуться в другой.
+   */
+  const [gitRefsTick, setGitRefsTick] = useState(0);
+  const handleGitRefsChanged = useCallback(() => setGitRefsTick((n) => n + 1), []);
 
   // Уход из KB с несохранёнными правками спрашивает подтверждение — переключаем
   // разделы через goView, а не через switchView напрямую.
@@ -200,6 +217,10 @@ function App() {
             onNavigateToDoc={openDoc}
             onDocChanged={handleDocChanged}
             onFileChanged={handleFileChanged}
+            filesRefreshToken={filesRefreshTick}
+            gitRefsToken={gitRefsTick}
+            onRepoChanged={handleRepoChanged}
+            onGitRefsChanged={handleGitRefsChanged}
             panels={panels}
           />
         </div>
@@ -228,7 +249,9 @@ function App() {
               onChangesToggle={setFileChanges}
               onPathChange={openFilePath}
               refreshToken={filesRefreshTick}
+              gitRefsToken={gitRefsTick}
               onRepoChanged={handleRepoChanged}
+              onGitRefsChanged={handleGitRefsChanged}
               panels={panels}
             />
           </div>

@@ -621,6 +621,23 @@ export const IconBranch = ({ size = 14 }) => (
   </svg>
 );
 
+/** Приглашение командной строки: шеврон и строка ввода — вход в набор команд git. */
+export const IconTerminal = ({ size = 14 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M4 17l6-6-6-6" />
+    <path d="M12 19h8" />
+  </svg>
+);
+
 // ─── Brand / integration logos ────────────────────────────────────────────────
 
 /** Логотип Jira (32×32 viewBox, fill-based). */

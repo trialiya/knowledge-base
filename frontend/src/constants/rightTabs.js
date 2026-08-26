@@ -12,4 +12,5 @@
 export const RIGHT_TAB = {
   INFO: 'info',
   ATTACHMENTS: 'attachments',
+  REPO: 'repo',
 };

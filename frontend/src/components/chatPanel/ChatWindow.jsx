@@ -22,7 +22,10 @@ import { chatLoadErrorNotice, CHAT_DELETED_NOTICE } from './run/chatNotices';
 import { stampChipProject } from './composer/fileChips';
 
 import ChatCenter from './center/ChatCenter';
-import { buildChatTabs } from './center/chatSidebar';
+import { buildChatTabs, buildRepoTab } from './center/chatSidebar';
+import useChatGit from './git/useChatGit';
+import { RIGHT_TAB } from '@/constants/rightTabs';
+import GitCommandsModal from './git/GitCommandsModal';
 import ChatList from './list/ChatList';
 import ChatSearch from './list/ChatSearch';
 import WorkspaceLayout from '@/components/common/layout/WorkspaceLayout';
@@ -38,9 +41,15 @@ const ChatWindow = ({
   onSelectChat,
   onDocChanged,
   onFileChanged,
+  filesRefreshToken,
+  gitRefsToken,
+  onRepoChanged,
+  onGitRefsChanged,
   panels,
 }) => {
-  const { t } = useTranslation('chat');
+  // Второй namespace — ради общего словаря git: названия команд и состояний
+  // репозитория живут в `files` и дублировать их здесь незачем.
+  const { t } = useTranslation(['chat', 'files']);
   // Внутреннее зеркало активного чата. Источник правды — проп propActiveChatId
   // (его держит useAppNavigation в App). Локальные выборы поднимаются наверх
   // через onSelectChat и возвращаются сюда уже как проп.
@@ -270,6 +279,24 @@ const ChatWindow = ({
     [onFileChanged, selectedProjectId],
   );
 
+  // ── Репозиторий проекта этого чата ─────────────────────────────────────────
+  // Занят чат — заняты и команды: и генерация, и сжатие читают те же файлы, и
+  // разница между ними для git никакая. Настоящий запрет всё равно на сервере
+  // (см. ChatGitLog): между нажатием и запросом чат успевает стать занятым.
+  const [gitCommandsOpen, setGitCommandsOpen] = useState(false);
+  const git = useChatGit({
+    chatId: activeChatId === DRAFT_CHAT_ID ? null : activeChatId,
+    project: selectedProjectId,
+    refreshToken: filesRefreshToken,
+    refsToken: gitRefsToken,
+    // Список несохранённого спрашивается только под открытой вкладкой; ветка и
+    // права — всегда, они решают, быть ли вкладке вообще.
+    visible: panels.rightTab === RIGHT_TAB.REPO,
+    busy: isStreaming || isCompacting,
+    onRepoChanged,
+    onRefsChanged: onGitRefsChanged,
+  });
+
   // Чат считается пустым ТОЛЬКО когда сообщения уже загружены (messages !== null)
   // и среди них нет ни одного реального (с полем sender). Пока messages === null
   // (идёт загрузка старого чата), блок не показываем — иначе он мелькает.
@@ -336,6 +363,7 @@ const ChatWindow = ({
     // Правку сделал инструмент этого прогона — значит, в проекте этого чата.
     // Без проекта сброс кэша ударил бы по чужому репозиторию с тем же путём.
     onFileChanged: handleFileChanged,
+    onRepoChanged,
   });
 
   // Вложения активного чата: бейдж, скрепка в композере, чипы отложенных файлов.
@@ -463,7 +491,7 @@ const ChatWindow = ({
   // Мемоизируем: ChatWindow перерисовывается на каждый чанк стриминга, а без
   // этого на каждый чанк пересоздавалось бы и содержимое открытой панели
   // вложений (таблица со списком файлов).
-  const rightTabs = useMemo(
+  const baseTabs = useMemo(
     () =>
       buildChatTabs({
         t,
@@ -489,6 +517,15 @@ const ChatWindow = ({
       selectedModeLabel,
       selectedProjectLabel,
     ],
+  );
+
+  // Вкладка репозитория пересобирается отдельно — и заметно чаще: её состояние
+  // перечитывается после каждой правки файла инструментом прогона. В одном мемо
+  // с остальными она тащила бы за собой пересоздание панели вложений, ради чего
+  // тот мемо и заведён.
+  const rightTabs = useMemo(
+    () => [...baseTabs, ...buildRepoTab({ t, git, onOpen: () => setGitCommandsOpen(true) })],
+    [baseTabs, t, git],
   );
 
   return (
@@ -581,6 +618,15 @@ const ChatWindow = ({
         message={notice ? t(notice.messageKey, notice.params) : ''}
         onClose={dismissNotice}
       />
+      {gitCommandsOpen && (
+        <GitCommandsModal
+          git={git}
+          onClose={() => {
+            setGitCommandsOpen(false);
+            git.dismissFailure();
+          }}
+        />
+      )}
     </>
   );
 };

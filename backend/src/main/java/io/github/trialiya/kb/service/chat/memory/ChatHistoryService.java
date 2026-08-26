@@ -4,6 +4,7 @@ import io.github.trialiya.kb.model.chat.dto.MessageCursor;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
+import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
 import io.github.trialiya.kb.model.chat.spring.IMessage;
 import io.github.trialiya.kb.model.chat.spring.UserChatMessage;
 import io.github.trialiya.kb.model.project.ProjectSwitch;
@@ -185,6 +186,40 @@ public class ChatHistoryService {
     }
 
     /**
+     * Записывает git-команду, которую пользователь выполнил из этого чата, отдельным рядом истории.
+     *
+     * <p>Ряд, а не поле на следующем вопросе: команду выполняют между сообщениями, и её результат
+     * надо показать сразу — вопроса, к которому его можно было бы приложить, может не быть ещё
+     * долго. Тип {@code USER}, потому что это и правда ход пользователя, а не слова ассистента;
+     * контент пустой, весь смысл — в мете (см. {@link GitEventMeta}), и текст для модели собирается
+     * на чтении в {@link #promptRow}, как и маркер смены проекта.
+     *
+     * <p>Ряд пишется в любом месте истории, первым в том числе: команда, выполненная в ещё пустом
+     * чате, — такое же его начало, как вложение, загруженное до первого вопроса.
+     *
+     * <p>Оборванный хвост чинится ПЕРЕД записью — по той же причине, по которой это делает {@code
+     * ChatRunService.start} перед сохранением вопроса: {@link #repairDanglingToolCalls} смотрит
+     * только на последний ряд, и {@code USER}, вставший поверх незакрытой пары {@code
+     * assistant.tool_calls} ↔ {@code tool}, спрятал бы её навсегда. Чат после этого получал бы
+     * {@code 400} от модели на каждое следующее сообщение.
+     */
+    @Transactional
+    public ChatMessageEntity appendGitEvent(String conversationId, GitEventMeta event) {
+        repairDanglingToolCalls(conversationId);
+        return chatMessageRepository.save(
+                new ChatMessageEntity(
+                        0,
+                        conversationId,
+                        "",
+                        MessageType.USER,
+                        lastPosition(conversationId) + 1,
+                        false,
+                        false,
+                        LocalDateTime.now(),
+                        ChatMessageMeta.ofGitEvent(event)));
+    }
+
+    /**
      * Чинит оборванную пару tool-сообщений в хвосте диалога. Если прогон прервали (stop, ошибка,
      * падение процесса) во время выполнения инструментов, последняя строка — ASSISTANT с tool_calls
      * без парной TOOL-строки; следующий запрос к модели с таким хвостом получил бы 400
@@ -300,11 +335,21 @@ public class ChatHistoryService {
     static List<ChatMessageEntity> tailAfterLastUser(List<ChatMessageEntity> rows) {
         int lastUser = -1;
         for (int i = 0; i < rows.size(); i++) {
-            if (rows.get(i).getType() == MessageType.USER) {
+            if (rows.get(i).getType() == MessageType.USER && !isGitEvent(rows.get(i))) {
                 lastUser = i;
             }
         }
         return rows.subList(lastUser + 1, rows.size());
+    }
+
+    /**
+     * Ряд git-команды — тоже {@code USER}, но ходом пользователя в разговоре не является: он ничего
+     * не спрашивает и ответа не ждёт. Всё, что ищет «последний вопрос», обязано смотреть сквозь
+     * него, иначе команда, выполненная посреди прогона, обрежет его хвост — и ряды выше останутся
+     * без модели и без плашек вызовов навсегда.
+     */
+    private static boolean isGitEvent(ChatMessageEntity row) {
+        return row.getMeta() != null && row.getMeta().gitEvent() != null;
     }
 
     public void delete(String conversationId) {
@@ -424,6 +469,12 @@ public class ChatHistoryService {
         if (entity.getType() != MessageType.USER) {
             return new PromptRow(entity, entity.getContent());
         }
+        final String gitCommand = gitCommandNotice(entity.getMeta());
+        if (!gitCommand.isEmpty()) {
+            // Ряд команды несёт только её: описи у него нет (пользователь ничего не прикладывал),
+            // а маркера смены проекта — тем более, чат этим рядом никуда не переходит.
+            return new PromptRow(entity, gitCommand);
+        }
         final String notice = projectSwitchNotice(entity.getMeta());
         if (notice.isEmpty() && inventory == null) {
             return new PromptRow(entity, entity.getContent());
@@ -458,6 +509,51 @@ public class ChatHistoryService {
     }
 
     /**
+     * Текст ряда git-команды для модели. Вывод самого git сюда не идёт: модели нужно знать, что
+     * репозиторий сдвинулся и куда, а не читать «Fast-forward» построчно — вывод для человека и
+     * лежит там, где человек его открывает.
+     *
+     * <p>Отказ рассказывается наравне с успехом, и он важнее: после отклонённого push ветка
+     * осталась там же, где была, и модель, решившая иначе, будет строить работу на несуществующем
+     * состоянии. Требование «сохраняй дословно», как и у маркера смены проекта, адресовано
+     * summarizer'у (правило продублировано в {@code prompt/summarizer.md}).
+     */
+    public static String gitCommandNotice(@Nullable ChatMessageMeta meta) {
+        if (meta == null || meta.gitEvent() == null) {
+            return "";
+        }
+        final GitEventMeta event = meta.gitEvent();
+        return "<git-command command=\""
+                + attr(event.command())
+                + "\" outcome=\""
+                + (event.ok() ? "ok" : "refused")
+                + "\""
+                + (event.project() == null ? "" : " project=\"" + attr(event.project()) + "\"")
+                + (event.branch() == null ? "" : " branch=\"" + attr(event.branch()) + "\"")
+                + ">\n"
+                + "The user ran this git command on the project from this chat — not you, and not"
+                + " through any tool of yours. "
+                + (event.ok()
+                        ? "It succeeded: the working tree may differ from what you read earlier, so"
+                                + " re-read with the tools anything you are about to rely on."
+                        : "It was refused, so the repository is where it was before — do not treat"
+                                + " the command as done.")
+                + " When summarizing, preserve this notice verbatim.\n"
+                + "</git-command>\n";
+    }
+
+    /**
+     * Значение атрибута нотиса. Имена веток и пути — единственное место, где текст извне попадает в
+     * разметку, которую читает модель, а git запрещает в них далеко не всё: ни кавычка, ни угловые
+     * скобки под запрет не попадают. Кавычкой закрывают атрибут, угловой скобкой — сам тег, и
+     * ветка, названная {@code main>...</git-command}, дописала бы модели произвольный текст поверх
+     * нотиса. Вывод команды такой поверхностью не является: он модели не показывается вовсе.
+     */
+    private static String attr(String value) {
+        return value.replace("\"", "'").replace("<", "‹").replace(">", "›");
+    }
+
+    /**
      * Последнее сообщение чата — но только если это вопрос пользователя, на который модель ещё
      * ничего не ответила. Единственное состояние, из которого «Повторить» означает продолжить тот
      * же ход: дописывать в историю нечего, прогон просто запускается заново поверх неё (см. {@code
@@ -468,11 +564,28 @@ public class ChatHistoryService {
      * способов: задвоив вопрос вторым USER-рядом или удалив то, что модель успела сделать (включая
      * побочные эффекты уже выполненных инструментов). Оба варианта хуже прямого продолжения
      * диалога, поэтому дальше пользователь пишет сам.
+     *
+     * <p>Ряды git-команд в хвосте пропускаются, а не запрещают повтор. Они тоже {@code USER}, но
+     * вопросом не являются, и вопрос, оставшийся без ответа, не перестаёт им быть оттого, что
+     * человек успел сделать pull, пока думал. Повторный прогон прочитает их наравне с остальной
+     * историей и ответит на вопрос один раз — зная, что репозиторий с тех пор сдвинулся.
+     *
+     * <p>Хвост читается пачкой в двадцать рядов, а не по одному: команд подряд может быть
+     * несколько. Двадцать — это граница, а не доказательство: набрать их столько, не написав ни
+     * слова, можно, и тогда «Повторить» пропадёт у вопроса, который его заслуживает. Цена ошибки в
+     * эту сторону — одна кнопка, а вопрос можно задать заново; в другую — прогон поверх чужого
+     * хвоста.
      */
     public Optional<ChatMessageEntity> unansweredUserMessage(String conversationId) {
-        return chatMessageRepository
-                .findFirstByConversationIdOrderByPositionDesc(conversationId)
-                .filter(last -> last.getType() == MessageType.USER);
+        for (ChatMessageEntity row :
+                chatMessageRepository.findTop20ByConversationIdOrderByPositionDesc(
+                        conversationId)) {
+            if (isGitEvent(row)) {
+                continue;
+            }
+            return row.getType() == MessageType.USER ? Optional.of(row) : Optional.empty();
+        }
+        return Optional.empty();
     }
 
     /**

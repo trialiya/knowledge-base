@@ -42,25 +42,28 @@ describe('useGitBranch', () => {
   });
 
   /**
-   * Счётчик «позади» и существует ради fetch'а: команда обязана оставить
-   * панель с обновлённым состоянием, а не с тем, что было до неё.
+   * fetch двигает только счётчики, и перечитывает их не сам хук: строк ветки в
+   * приложении две, репозиторий у них один, и обновиться обязаны обе. Поэтому
+   * хук поднимает общий сигнал, а возвращается ответ уже по новому `refsToken`.
    */
-  test('a fetch leaves the fresh state behind', async () => {
+  test('a fetch raises the shared refs signal and the new token brings the counters', async () => {
     gitApi.getBranches.mockResolvedValueOnce(status()).mockResolvedValueOnce(status({ behind: 2 }));
     gitApi.getCapabilities.mockResolvedValue(caps());
-    gitApi.fetch.mockResolvedValue({
-      command: 'fetch',
-      output: '',
-      status: status({ behind: 2 }),
-    });
+    gitApi.fetch.mockResolvedValue({ command: 'fetch', output: '', status: status({ behind: 2 }) });
+    const onRefsChanged = vi.fn();
 
-    const { result } = renderHook(() => useGitBranch({ project: PROJECT }));
+    const { result, rerender } = renderHook((p) => useGitBranch(p), {
+      initialProps: { project: PROJECT, refsToken: 0, onRefsChanged },
+    });
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(() => result.current.fetchRemote());
 
-    await waitFor(() => expect(result.current.status.behind).toBe(2));
+    expect(onRefsChanged).toHaveBeenCalledTimes(1);
     expect(result.current.running).toBe(false);
+
+    rerender({ project: PROJECT, refsToken: 1, onRefsChanged });
+    await waitFor(() => expect(result.current.status.behind).toBe(2));
   });
 
   /** Отказ git'а — дело панели: хук его не глотает, иначе показать было бы нечего. */
@@ -92,5 +95,45 @@ describe('useGitBranch', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.status).toBeNull();
     expect(result.current.error).toBeTruthy();
+  });
+
+  /**
+   * Одна осечка сети посреди работы не отменяет того, что мы про репозиторий уже знаем: обнулив
+   * ответ, панель чата потеряла бы вкладку «Репозиторий» (её нет без capabilities), а открытая
+   * модалка команд опустела бы — до следующего внешнего сигнала, которого может не быть часами.
+   */
+  test('a failed refetch keeps the last known state of the same project', async () => {
+    gitApi.getBranches.mockResolvedValue(status());
+    gitApi.getCapabilities.mockResolvedValue(caps());
+
+    const { result, rerender } = renderHook((p) => useGitBranch(p), {
+      initialProps: { project: PROJECT, refreshToken: 0 },
+    });
+    await waitFor(() => expect(result.current.status).not.toBeNull());
+
+    gitApi.getBranches.mockRejectedValue(new Error('boom'));
+    rerender({ project: PROJECT, refreshToken: 1 });
+
+    await waitFor(() => expect(result.current.error).toBeTruthy());
+    expect(result.current.status).not.toBeNull();
+    expect(result.current.capabilities).not.toBeNull();
+  });
+
+  /** Но только того же репозитория: ветка проекта A под выбранным B — не устаревание, а ложь. */
+  test('a failed read after a project change keeps nothing', async () => {
+    gitApi.getBranches.mockResolvedValue(status());
+    gitApi.getCapabilities.mockResolvedValue(caps());
+
+    const { result, rerender } = renderHook((p) => useGitBranch(p), {
+      initialProps: { project: PROJECT, refreshToken: 0 },
+    });
+    await waitFor(() => expect(result.current.status).not.toBeNull());
+
+    gitApi.getBranches.mockRejectedValue(new Error('boom'));
+    rerender({ project: 'other', refreshToken: 0 });
+
+    await waitFor(() => expect(result.current.error).toBeTruthy());
+    expect(result.current.status).toBeNull();
+    expect(result.current.capabilities).toBeNull();
   });
 });

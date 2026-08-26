@@ -1,6 +1,7 @@
 import ChatInfo from './ChatInfo';
+import ChatRepoPanel from '../git/ChatRepoPanel';
 import AttachmentPanel from '@/components/common/attachments/AttachmentPanel';
-import { IconInfo, IconPaperclip } from '@/icons/index';
+import { IconBranch, IconInfo, IconPaperclip } from '@/icons/index';
 import { RIGHT_TAB } from '@/constants/rightTabs';
 import { OWNER_TYPE } from '@/constants/ownerType';
 import { DRAFT_CHAT_ID } from '@/constants/storage';
@@ -53,6 +54,33 @@ export function buildChatTabs({
             onDeleted={onAttachmentDeleted}
           />
         ),
+    },
+  ];
+}
+
+/**
+ * Вкладка «Репозиторий» — отдельным сборщиком, а не строкой в списке выше.
+ *
+ * Её состояние перечитывается после каждой правки файла инструментом прогона,
+ * то есть заметно чаще остальных вкладок. Собранная вместе с ними, она тащила
+ * бы за собой пересоздание панели вложений на каждую такую правку.
+ *
+ * Пусто там, где проект команд не разрешил: без них вкладка отвечала бы на
+ * вопрос «где мы» тем же, что и «Инфо», и стоила бы третьей кнопки в шапке
+ * ради повтора.
+ */
+export function buildRepoTab({ t, git, onOpen }) {
+  if (!git?.capabilities?.commands) return [];
+  return [
+    {
+      key: RIGHT_TAB.REPO,
+      label: t('repo.tab'),
+      icon: <IconBranch size={16} />,
+      // Точка — весь бюджет на постоянное присутствие git в интерфейсе:
+      // закрытая панель молчит, а про незакрытый merge молчать нельзя. Строкой,
+      // а не флагом: глазами это точка, скринридеру — причина.
+      alert: git.status?.merging ? t('files:git.merging') : false,
+      content: <ChatRepoPanel git={git} onOpenCommands={onOpen} />,
     },
   ];
 }

@@ -214,7 +214,15 @@ public class ChatController {
         final @Nullable List<ChatMessage> messages =
                 includeMessages
                         ? chatHistory.displayMessages(conversationId).stream()
-                                .filter(a -> a.getText() != null && !a.getText().isBlank())
+                                // Пустой текст обычно значит «служебный ряд, показывать нечего», но
+                                // у ряда git-команды весь смысл в мете: выбросив его здесь, эта
+                                // проекция рассказывала бы историю без pull'а, который посреди
+                                // разговора сдвинул ветку, — а GET /messages с ним.
+                                .filter(
+                                        a ->
+                                                (a.getText() != null && !a.getText().isBlank())
+                                                        || (a.getMeta() != null
+                                                                && a.getMeta().gitEvent() != null))
                                 .map(this::toChatMessage)
                                 .toList()
                         : null;
@@ -256,7 +264,10 @@ public class ChatController {
                                                         ? e.getMeta().projectSwitchFrom()
                                                         : null,
                                                 e.getMeta() != null ? e.getMeta().model() : null,
-                                                e.getMeta() != null ? e.getMeta().compact() : null))
+                                                e.getMeta() != null ? e.getMeta().compact() : null,
+                                                e.getMeta() != null
+                                                        ? e.getMeta().gitEvent()
+                                                        : null))
                         .toList();
         return new MessagePage(dtos, page.hasMore(), page.oldestCursor());
     }
@@ -636,7 +647,8 @@ public class ChatController {
                 meta != null ? meta.project() : null,
                 meta != null ? meta.projectSwitchFrom() : null,
                 meta != null ? meta.model() : null,
-                meta != null ? meta.compact() : null);
+                meta != null ? meta.compact() : null,
+                meta != null ? meta.gitEvent() : null);
     }
 
     /** «Крошка» вызовов инструментов — служебное сообщение, которое не показываем пользователю. */

@@ -3,6 +3,7 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } f
 import { useTranslation } from 'react-i18next';
 import Message from './Message';
 import CompactNotice from './CompactNotice';
+import GitOutputCard from '../git/GitOutputCard';
 import DocChangeBlock from './DocChangeBlock';
 import FileChangeBlock from './FileChangeBlock';
 import { IconArrowDown } from '@/icons/index';
@@ -270,7 +271,11 @@ const MessageList = ({
                   })}
                 </div>
               )}
-              {msg.compact ? (
+              {msg.gitEvent ? (
+                // Команду выполнил человек, но написал не он: карточка вывода
+                // вместо пузыря — ряд несёт только то, что ответил git.
+                <GitOutputCard event={msg.gitEvent} />
+              ) : msg.compact ? (
                 // Сжатие контекста — событие с самим чатом, а не реплика: своя плашка вместо
                 // пузыря (и вместо тех же метаданных под ним — модели у неё нет, копировать
                 // нечего, а время живёт в подсказке самой плашки).

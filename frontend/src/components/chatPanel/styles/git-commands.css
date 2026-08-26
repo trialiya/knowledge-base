@@ -1,0 +1,126 @@
+/* Модалка команд репозитория. Шире обычной (380px) и шире «широкой» (460px):
+   групп три, и в каждой ряд кнопок, который на меньшей ширине переносится
+   по одной. */
+
+.git-commands {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 560px;
+  /* max-width не задаём: поля от края экрана держит сам ModalShell, и без них
+     на узком окне диалог упирается в края — закрыть его кликом мимо станет
+     негде. */
+}
+
+.git-commands__title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.git-commands__branch {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--kb-muted);
+  font-family: var(--kb-font-mono);
+  font-size: 0.8rem;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-commands__blocked {
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  background: var(--kb-bg);
+  color: var(--kb-muted);
+  font-size: 0.8rem;
+}
+
+/* ── Группы ────────────────────────────────────────────────────────────── */
+
+.git-commands__group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--kb-border);
+}
+
+.git-commands__group--merge {
+  align-items: flex-start;
+}
+
+/* Селектор с блоком, а не один класс: `.modal-shell h3` задаёт заголовкам
+   диалогов 1rem/700, и одного класса не хватает, чтобы его перебить. */
+.git-commands .git-commands__group-title {
+  margin: 0;
+  color: var(--kb-muted);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.git-commands__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Подпись под рядом кнопок отвечает на «почему серая»: недоступная команда
+   объясняется, а не прячется. */
+.git-commands__note {
+  margin: 0;
+  color: var(--kb-muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+/* ── Поля ──────────────────────────────────────────────────────────────── */
+
+.git-commands__input,
+.git-commands__select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--kb-border);
+  border-radius: 8px;
+  background: var(--kb-white);
+  color: var(--kb-text);
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+
+.git-commands__input {
+  resize: vertical;
+}
+
+.git-commands__input:focus,
+.git-commands__select:focus {
+  border-color: var(--kb-accent);
+  outline: none;
+}
+
+.git-commands__input:disabled,
+.git-commands__select:disabled {
+  background: var(--kb-bg);
+  color: var(--kb-muted);
+}
+
+.git-commands__select {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+
+.git-commands__footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 1rem;
+  border-top: 1px solid var(--kb-border);
+}

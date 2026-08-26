@@ -145,6 +145,50 @@ describe('transformPage: compaction notice', () => {
   });
 });
 
+describe('transformPage — ряд git-команды', () => {
+  const gitEvent = { command: 'pull', project: 'kb', ok: true, output: 'Fast-forward', branch: 'main' };
+
+  /**
+   * Из истории карточка обязана получиться той же, что приезжает живым событием
+   * (см. chatEventReducer, GIT_COMMAND). Разойдись эти два пути — карточка
+   * меняла бы вид на перезагрузке, а ради того, чтобы этого не было, событие и
+   * везёт `GitEventMeta` целиком.
+   */
+  test('turns the empty USER row into a card bubble rather than an empty message', () => {
+    const { bubbles } = transformPage([
+      { id: 1, content: 'вопрос', type: 'USER' },
+      { id: 2, content: '', type: 'USER', gitEvent, timestamp: '2026-08-26T12:00:00' },
+      { id: 3, content: 'ответ', type: 'ASSISTANT' },
+    ]);
+
+    expect(bubbles).toHaveLength(3);
+    expect(bubbles[1]).toMatchObject({
+      dbId: 2,
+      sender: 'user',
+      gitEvent,
+      timestamp: '2026-08-26T12:00:00',
+    });
+    // Пузырём он не притворяется: текста у него нет, весь смысл — в событии.
+    expect(bubbles[1].text).toBeUndefined();
+  });
+
+  /**
+   * Крошка вызовов к ряду команды не липнет: он не сегмент ответа, и плашки
+   * чужого хода на нём выглядели бы как его собственные.
+   */
+  test('a command row never collects the tool-call crumbs of a neighbouring answer', () => {
+    const { bubbles } = transformPage([
+      { id: 1, content: 'вопрос', type: 'USER' },
+      { id: 2, content: '', type: 'USER', gitEvent },
+      { id: 3, content: '', type: 'ASSISTANT', runId: 'r1', toolInvocationMetas: [meta('getDocument')] },
+    ]);
+
+    expect(bubbles.find((b) => b.gitEvent).toolCalls).toBeUndefined();
+    expect(bubbles.at(-1)).toMatchObject({ sender: 'ai' });
+    expect(bubbles.at(-1).toolCalls.map((t) => t.name)).toEqual(['getDocument']);
+  });
+});
+
 describe('trimActiveRunTail', () => {
   const u = (text) => ({ mid: 1, sender: 'user', text });
   const a = (text) => ({ mid: 2, sender: 'ai', text });
@@ -158,6 +202,16 @@ describe('trimActiveRunTail', () => {
   test('keeps history intact when the last user message has no assistant tail yet', () => {
     const bubbles = [u('q1'), a('a1'), u('q2')];
     expect(trimActiveRunTail(bubbles)).toEqual(bubbles);
+  });
+
+  /**
+   * Ряд команды — тоже USER, но вопросом не является: обрезав хвост по нему,
+   * оставили бы на экране ответ, который стрим сейчас перепишет заново.
+   */
+  test('does not mistake a command row for the question the run is answering', () => {
+    const git = { mid: 3, sender: 'user', gitEvent: { command: 'pull', ok: true, output: '' } };
+    const bubbles = [u('q1'), a('a1'), u('q2'), git, a('преамбула')];
+    expect(trimActiveRunTail(bubbles)).toEqual([u('q1'), a('a1'), u('q2'), git]);
   });
 
   test('leaves the page untouched when it contains no user message (older-page run)', () => {

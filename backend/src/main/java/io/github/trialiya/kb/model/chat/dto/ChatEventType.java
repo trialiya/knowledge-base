@@ -44,5 +44,11 @@ public enum ChatEventType {
     /** Контекст сжат ({@code payload}: {@link CompactPayload}). */
     COMPACT_DONE,
     /** Сжатие не удалось ({@code payload}: {@code {"message": …}}). */
-    COMPACT_ERROR
+    COMPACT_ERROR,
+    /**
+     * Пользователь выполнил git-команду из этого чата ({@code payload}: {@link GitCommandPayload}).
+     * Событие, а не только ответ на POST: команда меняет репозиторий для всех вкладок сразу, и та,
+     * что её не запускала, обязана показать и новый ряд истории, и сдвинувшуюся ветку.
+     */
+    GIT_COMMAND
 }

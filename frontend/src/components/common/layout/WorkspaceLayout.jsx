@@ -29,7 +29,7 @@ import './sidePanel.css';
  *           title может быть узлом, а не строкой (в «Файлах» заголовок — селектор
  *           репозитория); тогда имя панели для скринридера берётся из ariaLabel.
  *   center — узел основной области
- *   right — [{ key, label, icon, badge, content }] — вкладки правой панели.
+ *   right — [{ key, label, icon, badge, alert, content }] — вкладки правой панели.
  *           Пустой массив/undefined → правой панели и её рельса нет вовсе.
  *   leftCollapsed / onToggleLeft — состояние и тумблер левой панели
  *   rightTab / onRightTabChange  — раскрытая вкладка справа (null — свёрнута)
@@ -141,6 +141,11 @@ const WorkspaceLayout = ({
               >
                 {tab.icon}
                 {tab.badge > 0 && <span className="workspace__rail-badge">{tab.badge}</span>}
+                {tab.alert && (
+                  <span className="workspace__rail-dot">
+                    {typeof tab.alert === 'string' && <span className="workspace__a11y-only">{tab.alert}</span>}
+                  </span>
+                )}
               </button>
             ))}
           </div>

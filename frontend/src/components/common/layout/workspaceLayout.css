@@ -213,6 +213,16 @@
   text-align: center;
 }
 
+.workspace__rail-dot {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--kb-error);
+}
+
 /* ── Вкладки правой панели ── */
 
 .workspace__tabs {
@@ -256,6 +266,31 @@
   font-size: 0.66rem;
   font-weight: 700;
   line-height: 1.55;
+}
+
+/* Видно только скринридеру: у точки-индикатора нет числа, но состояние она
+   означает вполне определённое, и назвать его надо словами. */
+.workspace__a11y-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Точка вместо числа: состояние, которое требует внимания, а не пересчёта
+   (незакрытый merge). Красная — она означает «здесь что-то не закрыто», а не
+   «здесь что-то новое», и от акцентного бейджа отличаться обязана. */
+.workspace__tab-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--kb-error);
 }
 
 /* ── Центр ── */

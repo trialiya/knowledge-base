@@ -10,11 +10,26 @@ import { IconChevronRight } from '@/icons/index';
  * колонкой иконок, каждая из которых раскрывает свою вкладку.
  *
  * props:
- *   tabs      — [{ key, label, icon, badge, content }] (content — узел)
+ *   tabs      — [{ key, label, icon, badge, alert, content }] (content — узел)
+ *               badge — число (сколько), alert — строка-причина или true:
+ *               точка «требует внимания» там, где считать нечего. Строку
+ *               озвучивает скринридер — без неё вкладка молчала бы ровно о
+ *               том состоянии, ради которого точка и заведена
  *   activeKey — ключ раскрытой вкладки
  *   onTabChange — (key) => void
  *   onClose   — () => void
  */
+/**
+ * Точка «здесь что-то не закрыто». Сама по себе она видна только глазами,
+ * поэтому рядом с ней — та же мысль словами: строка `alert` уезжает в
+ * доступное имя вкладки, а на экране остаётся невидимой.
+ */
+const AlertDot = ({ alert }) => (
+  <span className="workspace__tab-dot">
+    {typeof alert === 'string' && <span className="workspace__a11y-only">{alert}</span>}
+  </span>
+);
+
 const RightPanel = ({ tabs, activeKey, onTabChange, onClose }) => {
   const { t } = useTranslation();
   const active = tabs.find((tab) => tab.key === activeKey) || tabs[0];
@@ -28,6 +43,7 @@ const RightPanel = ({ tabs, activeKey, onTabChange, onClose }) => {
             {active.icon}
             {active.label}
             {active.badge > 0 && <span className="workspace__tab-badge">{active.badge}</span>}
+            {active.alert && <AlertDot alert={active.alert} />}
           </span>
         ) : (
           <div className="workspace__tabs" role="tablist">
@@ -44,6 +60,7 @@ const RightPanel = ({ tabs, activeKey, onTabChange, onClose }) => {
               >
                 {tab.label}
                 {tab.badge > 0 && <span className="workspace__tab-badge">{tab.badge}</span>}
+                {tab.alert && <AlertDot alert={tab.alert} />}
               </button>
             ))}
           </div>
