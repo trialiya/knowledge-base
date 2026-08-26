@@ -35,9 +35,30 @@ groups of «Настройки»); the opt-in list is
 shootable once it is listed there. Shots land in `harness/shots/` (git-ignored),
 one per case, and a case whose page logged a console error is reported `✗`.
 
+**Every shot is compared with its baseline** in `frontend/tests/visual/baselines/`
+(those are in git — without them there is nothing to compare against), so a
+changed screen is caught by the run rather than by your eye. A mismatch writes
+`shots/<case>.diff.png`: what changed, in red over the faded baseline. After a
+deliberate UI change re-take them with `-- --update` and commit the new
+baselines together with the change — the review then shows what the screen now
+looks like.
+
+Do not reach for `--update` to make a red run green. The point of the baseline
+is that it disagrees with you; look at the `.diff.png` first and update only
+once the new picture is the intended one.
+
 ```bash
 ./run/test.sh harness -- chatRepo.js#repoTabMerging
+./run/test.sh harness -- --update            # после осознанной правки интерфейса
 ```
+
+The comparison ignores connected areas smaller than `--min-cluster` (12 pixels
+by default): the cards' rounded corners sit on fractional coordinates and their
+antialiasing rasterises differently between runs, two to four pixels per corner.
+Everything real is far above that — a single letter changing size measured 433
+pixels in its biggest area. Layout itself is reproducible: the same case shot
+twice is byte-identical, so the rule is about rasterisation noise, not about
+tolerating drift.
 
 A registry entry carries more than a component and a frame:
 

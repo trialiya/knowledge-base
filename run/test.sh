@@ -24,8 +24,10 @@
 #               frontend/tests/visual/cases.yaml
 #   harness     screenshot single components against their fixtures, no backend
 #               (scripts/visual-harness.js) — for states the running app cannot be
-#               asked for: an unfinished merge, a busy chat, a refused push. Case
-#               ids after `--`; none = all of them
+#               asked for: an unfinished merge, a busy chat, a refused push. Each
+#               shot is compared with its baseline in frontend/tests/visual/
+#               baselines/; `-- --update` re-takes them after a deliberate UI
+#               change. Case ids after `--`; none = all of them
 #   pre-pr      format + back + build — the gate before a pull request
 #   ci          the same three with --console=plain (non-interactive logs). Note: the
 #               GitHub workflows do not call this — they run ./gradlew per module.

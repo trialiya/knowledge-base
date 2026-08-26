@@ -22,11 +22,22 @@
  * Chromium and Playwright are pre-installed in the sandbox; do not run
  * `playwright install`.
  *
+ * Каждый снимок сверяется с эталоном из frontend/tests/visual/baselines/ — они
+ * лежат в git, и расхождение видно в прогоне, а не глазами. Кадр для этого
+ * воспроизводим: каретка спрятана, анимации выключены, ответы сервера — из
+ * фикстур, дат и случайных чисел в них нет. Расхождение пишет рядом со снимком
+ * `<кейс>.diff.png`: несовпавшие пиксели красным поверх приглушённого эталона.
+ * Правка интерфейса, из-за которой эталон устарел, принимается `--update` —
+ * новые эталоны идут в коммит вместе с самой правкой, и в ревью видно, что
+ * именно на экране изменилось.
+ *
  * Usage:
  *   ./run/test.sh harness                    # every case, into harness/shots/
  *   ./run/test.sh harness -- chatRepo.js#repoTabMerging      # one case
+ *   ./run/test.sh harness -- --update        # переснять эталоны
  *   NODE_PATH=/opt/node22/lib/node_modules node scripts/visual-harness.js \
- *     [caseId ...] [--no-build] [--locale=ru|en] [--port=8099] [--out=<dir>]
+ *     [caseId ...] [--no-build] [--update] [--locale=ru|en] [--port=8099] \
+ *     [--out=<dir>] [--baselines=<dir>]
  *
  * Case ids are the `fixtures:` references from frontend/tests/visual/cases.yaml
  * (`<module>#<export>`, plus `@variant` where one fixture is drawn by more than
@@ -57,6 +68,12 @@ const build = !args.includes('--no-build');
 const locale = flag('locale', 'ru');
 const port = Number(flag('port', '8099'));
 const outDir = path.resolve(ROOT, flag('out', path.join(HARNESS, 'shots')));
+const baseDir = path.resolve(ROOT, flag('baselines', path.join(HARNESS, '..', 'baselines')));
+const update = args.includes('--update');
+// Порог связной области, ниже которого расхождение считается дрожанием
+// сглаживания (см. compare). Замерено: крапины на скруглениях карточек — до
+// четырёх пикселей, самая мелкая настоящая правка (одна буква) — за полсотни.
+const minCluster = Number(flag('min-cluster', '12'));
 const wanted = args.filter((a) => !a.startsWith('--'));
 
 const MIME = {
@@ -101,6 +118,141 @@ async function caseIds(page) {
   return page.$$eval('[data-case-id]', (nodes) => nodes.map((n) => n.dataset.caseId));
 }
 
+/**
+ * Сравнение снимка с эталоном — в том же Chromium, которым снимали: canvas у нас
+ * уже есть, а библиотека сравнения картинок из npm жила бы в зависимостях
+ * frontend/, откуда скрипту её не достать (он запускается с NODE_PATH на
+ * глобальные модули песочницы).
+ *
+ * Пиксель считается разошедшимся при любом отличии канала — допуск по цвету
+ * скрывал бы настоящую правку оттенка, а не шум. Шум здесь другой: скруглённые
+ * углы карточек стоят на дробных координатах (замерено: 108.766, 287.828 — и
+ * от прогона к прогону они те же), но растеризуются через раз по-разному, давая
+ * на каждом углу крапину в два-четыре пикселя.
+ *
+ * Отсюда мера — не доля разошедшихся пикселей, а размер связной области, в
+ * которую они складываются: `minCluster` отсекает эти крапины, а настоящая
+ * правка (другая буква, сдвинутая рамка, другой цвет заливки) даёт область на
+ * порядок больше. Мелочь всё равно считается и печатается: если её станет
+ * много, это уже не дрожание, и правило пора пересматривать.
+ *
+ * @returns {{ pixels: number, specks: number, biggest: number, total: number,
+ *   image: string|null, size: string|null }} `pixels` — в областях крупнее
+ *   порога, `specks` — в отсеянных крапинах, `biggest` — самая большая область.
+ *   `size` заполнен, когда снимок и эталон разных размеров: сравнивать
+ *   попиксельно уже нечего, и это само по себе расхождение.
+ */
+async function compare(page, shotFile, baseFile, minCluster) {
+  const url = (file) => `data:image/png;base64,${fs.readFileSync(file).toString('base64')}`;
+  return page.evaluate(async ([shotUrl, baseUrl, floor]) => {
+    const load = (src) =>
+      new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+      });
+    const [shot, base] = await Promise.all([load(shotUrl), load(baseUrl)]);
+    if (shot.width !== base.width || shot.height !== base.height) {
+      return {
+        pixels: 0,
+        specks: 0,
+        biggest: 0,
+        total: 0,
+        image: null,
+        size: `${shot.width}×${shot.height} против ${base.width}×${base.height}`,
+      };
+    }
+
+    const pixelsOf = (img) => {
+      const canvas = new OffscreenCanvas(img.width, img.height);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      return ctx.getImageData(0, 0, img.width, img.height);
+    };
+    const a = pixelsOf(shot);
+    const b = pixelsOf(base);
+
+    const { width, height } = shot;
+    const total = width * height;
+    const changed = new Uint8Array(total);
+    for (let p = 0; p < total; p += 1) {
+      const i = p * 4;
+      changed[p] =
+        a.data[i] !== b.data[i] ||
+        a.data[i + 1] !== b.data[i + 1] ||
+        a.data[i + 2] !== b.data[i + 2] ||
+        a.data[i + 3] !== b.data[i + 3]
+          ? 1
+          : 0;
+    }
+
+    // Связные области разошедшихся пикселей: обход в ширину по четырём соседям,
+    // очередь — плоский массив, потому что областей бывает много, а рекурсия на
+    // области в тысячи пикселей упёрлась бы в стек.
+    const CLEAN = 0;
+    const SPECK = 1;
+    const BLOB = 2;
+    const kind = new Uint8Array(total);
+    const queue = new Int32Array(total);
+    let pixels = 0;
+    let specks = 0;
+    let biggest = 0;
+    for (let start = 0; start < total; start += 1) {
+      if (!changed[start] || kind[start] !== CLEAN) continue;
+      let head = 0;
+      let tail = 0;
+      queue[tail++] = start;
+      kind[start] = SPECK;
+      while (head < tail) {
+        const p = queue[head++];
+        const x = p % width;
+        if (x > 0 && changed[p - 1] && kind[p - 1] === CLEAN) kind[queue[tail++] = p - 1] = SPECK;
+        if (x < width - 1 && changed[p + 1] && kind[p + 1] === CLEAN) kind[queue[tail++] = p + 1] = SPECK;
+        if (p >= width && changed[p - width] && kind[p - width] === CLEAN) kind[queue[tail++] = p - width] = SPECK;
+        if (p < total - width && changed[p + width] && kind[p + width] === CLEAN)
+          kind[queue[tail++] = p + width] = SPECK;
+      }
+      if (tail > biggest) biggest = tail;
+      if (tail >= floor) {
+        pixels += tail;
+        for (let q = 0; q < tail; q += 1) kind[queue[q]] = BLOB;
+      } else specks += tail;
+    }
+
+    // Картинка расхождения: эталон, приглушённый до бледного фона, и поверх него
+    // красным то, что разошлось — так видно и что изменилось, и где на экране.
+    // Отсеянные крапины рисуем тоже, но бледнее: они видны и не спорят за
+    // внимание с настоящим пятном.
+    const out = new ImageData(width, height);
+    for (let p = 0; p < total; p += 1) {
+      const i = p * 4;
+      const colour = kind[p] === BLOB ? [226, 32, 74] : kind[p] === SPECK ? [246, 173, 190] : null;
+      if (colour) {
+        out.data[i] = colour[0];
+        out.data[i + 1] = colour[1];
+        out.data[i + 2] = colour[2];
+      } else {
+        out.data[i] = 255 - (255 - b.data[i]) * 0.15;
+        out.data[i + 1] = 255 - (255 - b.data[i + 1]) * 0.15;
+        out.data[i + 2] = 255 - (255 - b.data[i + 2]) * 0.15;
+      }
+      out.data[i + 3] = 255;
+    }
+    if (!pixels) return { pixels, specks, biggest, total, image: null, size: null };
+
+    const canvas = new OffscreenCanvas(shot.width, shot.height);
+    canvas.getContext('2d').putImageData(out, 0, 0);
+    const blob = await canvas.convertToBlob({ type: 'image/png' });
+    const buffer = await blob.arrayBuffer();
+    let binary = '';
+    new Uint8Array(buffer).forEach((byte) => {
+      binary += String.fromCharCode(byte);
+    });
+    return { pixels, specks, biggest, total, image: btoa(binary), size: null };
+  }, [url(shotFile), url(baseFile), minCluster]);
+}
+
 async function main() {
   if (build) {
     const built = spawnSync('npx', ['vite', 'build', '--config', path.join(HARNESS, 'vite.config.js')], {
@@ -117,12 +269,21 @@ async function main() {
   fs.mkdirSync(outDir, { recursive: true });
   const server = await serve(DIST);
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-  const context = await browser.newContext({ locale, viewport: { width: 1440, height: 900 } });
+  const context = await browser.newContext({
+    locale,
+    viewport: { width: 1440, height: 900 },
+    // Тот же уговор, что и с кареткой: снимок обязан быть одним и тем же кадром
+    // от прогона к прогону, а переход, начатый на монтировании, к нему не готов.
+    reducedMotion: 'reduce',
+  });
   let failed = 0;
 
   const indexPage = await context.newPage();
   const known = await caseIds(indexPage);
   await indexPage.close();
+  // Отдельная пустая страница под сравнение: на странице кейса чужой canvas
+  // попал бы в её же консольные ошибки, а сам кейс — под шаги сравнения.
+  const diffPage = await context.newPage();
   const ids = wanted.length ? wanted : known;
   const unknown = ids.filter((id) => !known.includes(id));
   if (unknown.length) {
@@ -164,13 +325,42 @@ async function main() {
     }
     await page.waitForTimeout(200);
 
-    const file = path.join(outDir, `${id.replace(/[^\w.-]+/g, '-')}.png`);
-    await page.screenshot({ path: file });
+    const name = `${id.replace(/[^\w.-]+/g, '-')}.png`;
+    const file = path.join(outDir, name);
+    // Каретка и анимации — единственное на этих экранах, что меняется само:
+    // кейс с переименованием снимается с полем в фокусе, и мигающая каретка
+    // расходилась бы с эталоном через раз.
+    await page.screenshot({ path: file, caret: 'hide', animations: 'disabled' });
     // A page that rendered nothing but the "no such fixture" note is a broken
     // registry, and a silent green run would hide it behind a valid-looking PNG.
     const empty = await page.evaluate(() => !!document.querySelector('#root > pre'));
-    if (empty || problems.length) failed += 1;
-    console.log(`${empty || problems.length ? '✗' : '✓'} ${id} → ${path.relative(ROOT, file)}`);
+
+    // Сверка с эталоном — только когда снимку можно верить: у пустого кейса или
+    // кейса с ошибками в консоли сначала чинят их, а не эталон.
+    let verdict = '';
+    const baseFile = path.join(baseDir, name);
+    if (!empty && !problems.length) {
+      if (update || !fs.existsSync(baseFile)) {
+        fs.mkdirSync(baseDir, { recursive: true });
+        fs.copyFileSync(file, baseFile);
+        verdict = update ? ' (эталон обновлён)' : ' (эталон заведён)';
+      } else {
+        const { pixels, specks, biggest, total, image, size } = await compare(diffPage, file, baseFile, minCluster);
+        if (size) problems.push(`размер снимка не совпал с эталоном: ${size}`);
+        else if (pixels) {
+          const diffFile = path.join(outDir, name.replace(/\.png$/, '.diff.png'));
+          fs.writeFileSync(diffFile, Buffer.from(image, 'base64'));
+          problems.push(
+            `${pixels} из ${total} пикселей разошлись с эталоном, ` +
+              `самая большая область — ${biggest} → ${path.relative(ROOT, diffFile)}`,
+          );
+        }
+      }
+    }
+
+    const bad = empty || problems.length;
+    if (bad) failed += 1;
+    console.log(`${bad ? '✗' : '✓'} ${id} → ${path.relative(ROOT, file)}${verdict}`);
     problems.forEach((p) => console.log(`    ${p}`));
     await page.close();
   }

@@ -48,7 +48,10 @@ local-db/
 # Default screenshot of scripts/playwright-smoke.js (./run/test.sh smoke)
 playwright-smoke.png
 
-# Стенд фикстур (scripts/visual-harness.js): собранный бандл и снимки
+# Стенд фикстур (scripts/visual-harness.js): собранный бандл и снимки прогона
+# вместе с картинками расхождений. Эталоны, с которыми снимки сверяются
+# (frontend/tests/visual/baselines/), наоборот, лежат в git — без них сверять
+# не с чем.
 frontend/tests/visual/harness/dist/
 frontend/tests/visual/harness/shots/
 
