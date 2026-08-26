@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { IconBranch, IconTerminal } from '@/icons/index';
+import '@/components/common/ui/buttons.css';
 
 /**
  * Вкладка «Репозиторий» правой панели чата: где мы и что не сохранено.

@@ -93,4 +93,44 @@ describe('useGitBranch', () => {
     expect(result.current.status).toBeNull();
     expect(result.current.error).toBeTruthy();
   });
+
+  /**
+   * Одна осечка сети посреди работы не отменяет того, что мы про репозиторий уже знаем: обнулив
+   * ответ, панель чата потеряла бы вкладку «Репозиторий» (её нет без capabilities), а открытая
+   * модалка команд опустела бы — до следующего внешнего сигнала, которого может не быть часами.
+   */
+  test('a failed refetch keeps the last known state of the same project', async () => {
+    gitApi.getBranches.mockResolvedValue(status());
+    gitApi.getCapabilities.mockResolvedValue(caps());
+
+    const { result, rerender } = renderHook((p) => useGitBranch(p), {
+      initialProps: { project: PROJECT, refreshToken: 0 },
+    });
+    await waitFor(() => expect(result.current.status).not.toBeNull());
+
+    gitApi.getBranches.mockRejectedValue(new Error('boom'));
+    rerender({ project: PROJECT, refreshToken: 1 });
+
+    await waitFor(() => expect(result.current.error).toBeTruthy());
+    expect(result.current.status).not.toBeNull();
+    expect(result.current.capabilities).not.toBeNull();
+  });
+
+  /** Но только того же репозитория: ветка проекта A под выбранным B — не устаревание, а ложь. */
+  test('a failed read after a project change keeps nothing', async () => {
+    gitApi.getBranches.mockResolvedValue(status());
+    gitApi.getCapabilities.mockResolvedValue(caps());
+
+    const { result, rerender } = renderHook((p) => useGitBranch(p), {
+      initialProps: { project: PROJECT, refreshToken: 0 },
+    });
+    await waitFor(() => expect(result.current.status).not.toBeNull());
+
+    gitApi.getBranches.mockRejectedValue(new Error('boom'));
+    rerender({ project: 'other', refreshToken: 0 });
+
+    await waitFor(() => expect(result.current.error).toBeTruthy());
+    expect(result.current.status).toBeNull();
+    expect(result.current.capabilities).toBeNull();
+  });
 });

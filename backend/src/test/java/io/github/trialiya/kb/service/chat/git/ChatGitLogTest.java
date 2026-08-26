@@ -16,6 +16,7 @@ import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.run.ChatEventService;
+import io.github.trialiya.kb.service.chat.run.ChatRunService;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -40,8 +41,10 @@ class ChatGitLogTest {
     private final ChatHistoryService chatHistory = mock(ChatHistoryService.class);
     private final ChatEventService chatEvents = mock(ChatEventService.class);
     private final ChatTopicRepository chatTopicRepository = mock(ChatTopicRepository.class);
+    private final ChatRunService chatRunService = mock(ChatRunService.class);
 
-    private final ChatGitLog log = new ChatGitLog(chatHistory, chatEvents, chatTopicRepository);
+    private final ChatGitLog log =
+            new ChatGitLog(chatHistory, chatEvents, chatTopicRepository, chatRunService);
 
     @BeforeEach
     void signIn() {
@@ -61,7 +64,7 @@ class ChatGitLogTest {
     void aChatBelongingToSomebodyElseIsRefused() {
         givenChatOwnedBy("boris");
 
-        assertThatThrownBy(() -> log.requireIdleAndOwned(CONV))
+        assertThatThrownBy(() -> log.claimIdleAndOwned(CONV))
                 .isInstanceOfSatisfying(
                         ResponseStatusException.class,
                         e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
@@ -74,7 +77,7 @@ class ChatGitLogTest {
     void anUnknownChatIsRefusedRatherThanCreated() {
         when(chatTopicRepository.findById(CONV)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> log.requireIdleAndOwned(CONV))
+        assertThatThrownBy(() -> log.claimIdleAndOwned(CONV))
                 .isInstanceOfSatisfying(
                         ResponseStatusException.class,
                         e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
@@ -87,20 +90,44 @@ class ChatGitLogTest {
     @Test
     void aChatWithARunInFlightIsRefused() {
         givenChatOwnedBy("anna");
-        when(chatEvents.activeRunId(CONV)).thenReturn(Optional.of("run-7"));
+        when(chatRunService.claim(CONV))
+                .thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, "already generating"));
 
-        assertThatThrownBy(() -> log.requireIdleAndOwned(CONV))
+        assertThatThrownBy(() -> log.claimIdleAndOwned(CONV))
                 .isInstanceOfSatisfying(
                         ResponseStatusException.class,
                         e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
     }
 
+    /** Свободный свой чат пропускается — и с этого мгновения занят заявкой команды. */
     @Test
-    void anOwnedIdleChatIsLetThrough() {
+    void anOwnedIdleChatIsClaimedRatherThanMerelyChecked() {
         givenChatOwnedBy("anna");
-        when(chatEvents.activeRunId(CONV)).thenReturn(Optional.empty());
+        when(chatRunService.claim(CONV)).thenReturn("claim-1");
 
-        log.requireIdleAndOwned(CONV);
+        assertThat(log.claimIdleAndOwned(CONV)).isEqualTo("claim-1");
+    }
+
+    /**
+     * Владельца проверяют до заявки: чужой чат не должен даже кратко становиться занятым — иначе
+     * посторонний мог бы держать его заблокированным, ничего в нём не имея права делать.
+     */
+    @Test
+    void aRefusedChatIsNeverClaimed() {
+        givenChatOwnedBy("boris");
+
+        assertThatThrownBy(() -> log.claimIdleAndOwned(CONV))
+                .isInstanceOf(ResponseStatusException.class);
+
+        verify(chatRunService, never()).claim(anyString());
+    }
+
+    /** Заявку возвращают той же службе — иначе чат остался бы занятым навсегда. */
+    @Test
+    void theClaimIsHandedBack() {
+        log.release(CONV, "claim-1");
+
+        verify(chatRunService).release(CONV, "claim-1");
     }
 
     /**

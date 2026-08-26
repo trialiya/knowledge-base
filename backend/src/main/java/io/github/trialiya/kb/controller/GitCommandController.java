@@ -218,11 +218,27 @@ public class GitCommandController {
                             : HttpStatus.SERVICE_UNAVAILABLE,
                     e.getMessage());
         }
-        // Whose chat it is and whether the assistant is in it — before the command, so a refusal
-        // leaves the working tree untouched (see ChatGitLog.requireIdleAndOwned).
-        if (chat != null) {
-            chatGitLog.requireIdleAndOwned(chat);
+        // Whose chat it is, and the chat's claim held for as long as the command runs — taken
+        // before anything is executed, so a refusal leaves the working tree untouched, and held
+        // rather than merely checked, so no run can start alongside the command and race it into
+        // the same history (see ChatGitLog.claimIdleAndOwned).
+        final String claim = chat == null ? null : chatGitLog.claimIdleAndOwned(chat);
+        try {
+            return runClaimed(verb, project, chat, command, git);
+        } finally {
+            if (claim != null) {
+                chatGitLog.release(chat, claim);
+            }
         }
+    }
+
+    /** The command itself, under the chat's claim: run it, and record what it did or refused. */
+    private GitCommandResult runClaimed(
+            String verb,
+            @Nullable String project,
+            @Nullable String chat,
+            Function<GitService, GitCommandResult> command,
+            GitService git) {
         try {
             final GitCommandResult result = command.apply(git);
             if (chat != null) {

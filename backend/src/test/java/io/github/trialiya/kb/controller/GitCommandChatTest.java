@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -37,6 +36,8 @@ import org.springframework.web.server.ResponseStatusException;
 class GitCommandChatTest {
 
     private static final String CHAT = "conv-1";
+
+    private static final String CLAIM = "claim-1";
 
     private final GitRegistry gitRegistry = mock(GitRegistry.class);
     private final ChatGitLog chatGitLog = mock(ChatGitLog.class);
@@ -80,9 +81,8 @@ class GitCommandChatTest {
      */
     @Test
     void aRefusedChatStopsTheCommandBeforeItRuns() {
-        doThrow(new ResponseStatusException(HttpStatus.CONFLICT, "busy"))
-                .when(chatGitLog)
-                .requireIdleAndOwned(CHAT);
+        when(chatGitLog.claimIdleAndOwned(CHAT))
+                .thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, "busy"));
 
         assertThatThrownBy(() -> controller.pull("kb", CHAT))
                 .isInstanceOfSatisfying(
@@ -148,6 +148,33 @@ class GitCommandChatTest {
 
         verify(chatGitLog, never())
                 .record(anyString(), anyString(), any(), anyBoolean(), anyString(), any());
+    }
+
+    /**
+     * Заявка возвращается и после отказа: команда, упавшая с ошибкой, оставившая бы чат занятым,
+     * закрыла бы его для вопросов навсегда — до перезапуска.
+     */
+    @Test
+    void theChatIsFreedEvenWhenTheCommandThrows() {
+        when(chatGitLog.claimIdleAndOwned(CHAT)).thenReturn(CLAIM);
+        when(git.push()).thenThrow(new GitCommandFailedException("remote rejected"));
+
+        assertThatThrownBy(() -> controller.push("kb", CHAT))
+                .isInstanceOf(ResponseStatusException.class);
+
+        verify(chatGitLog).release(CHAT, CLAIM);
+    }
+
+    /** Отказ в допуске заявки не оставил, возвращать нечего. */
+    @Test
+    void aRefusedChatHasNothingToFree() {
+        when(chatGitLog.claimIdleAndOwned(CHAT))
+                .thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, "busy"));
+
+        assertThatThrownBy(() -> controller.pull("kb", CHAT))
+                .isInstanceOf(ResponseStatusException.class);
+
+        verify(chatGitLog, never()).release(anyString(), anyString());
     }
 
     /** Аргумент команды входит в её имя: «switch» без ветки не сказал бы модели ничего. */

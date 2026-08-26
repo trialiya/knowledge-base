@@ -404,7 +404,8 @@
       "A": "added",
       "D": "deleted",
       "R": "renamed",
-      "U": "conflicted"
+      "C": "copied",
+      "U": "untracked"
     }
   }
 }

@@ -43,7 +43,24 @@ export default function useGitBranch({ project, refreshToken, chat }) {
         if (controller.signal.aborted) return;
         // Строка ветки — не главное содержимое панели: репозиторий, который не
         // отвечает про ветки, всё ещё показывает дерево, и строка просто молчит.
-        setAnswer({ key, project, status: null, capabilities: null, error });
+        //
+        // Но молчит только там, где ещё нечего было показать. Одна осечка сети
+        // посреди работы не отменяет того, что мы про репозиторий знаем: обнулив
+        // ответ, мы убрали бы вкладку «Репозиторий» из панели чата (её вовсе нет
+        // без capabilities) и опустошили бы открытую модалку команд — до
+        // следующего внешнего сигнала, которого может не быть часами. Последнее
+        // известное состояние того же проекта переживает ошибку; ошибка едет
+        // рядом с ним, и показать её — дело панели.
+        setAnswer((prev) => {
+          const known = prev?.project === project ? prev : null;
+          return {
+            key,
+            project,
+            status: known?.status ?? null,
+            capabilities: known?.capabilities ?? null,
+            error,
+          };
+        });
       });
     return () => controller.abort();
   }, [key, project]);

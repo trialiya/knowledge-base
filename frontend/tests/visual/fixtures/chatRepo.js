@@ -46,10 +46,13 @@ export const repoTabIdle = {
   onOpenCommands: () => {},
 };
 
+// Причина запрета едет вместе с ним: их три (модель работает, идёт другая
+// команда, чат ещё черновик), и без неё ни подсказка вкладки, ни плашка модалки
+// не появляются вовсе — см. `useChatGit.disabledReason`.
 /** Модель работает: единственная кнопка вкладки выключена. */
 export const repoTabBusy = {
   ...repoTabIdle,
-  git: { ...repoTabIdle.git, disabled: true, last: null },
+  git: { ...repoTabIdle.git, disabled: true, disabledReason: 'busy', last: null },
 };
 
 /**
@@ -61,9 +64,12 @@ export const repoTabMerging = {
   git: {
     ...repoTabIdle.git,
     status: { ...branch, merging: true, conflicts: ['backend/build.gradle', 'settings.gradle'] },
+    // Конфликтные файлы приезжают обычной «M»: буква у ряда — это буква из
+    // `git status`, а про конфликт говорит отдельное поле `conflicts` и полоса
+    // над списком. «U» у бэкенда значит «не отслеживается» (UNTRACKED_STATUS).
     changes: [
-      { status: 'U', path: 'backend/build.gradle' },
-      { status: 'U', path: 'settings.gradle' },
+      { status: 'M', path: 'backend/build.gradle' },
+      { status: 'M', path: 'settings.gradle' },
     ],
     last: { command: 'pull', ok: false, at: 0 },
   },
@@ -89,7 +95,7 @@ export const commandsModalMerging = {
 
 /** Модалка, пока модель работает: причина названа один раз на всю модалку. */
 export const commandsModalBusy = {
-  git: { ...repoTabIdle.git, disabled: true },
+  git: { ...repoTabIdle.git, disabled: true, disabledReason: 'busy' },
   onClose: () => {},
 };
 

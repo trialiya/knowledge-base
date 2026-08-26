@@ -7,6 +7,7 @@ import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.run.ChatEventService;
+import io.github.trialiya.kb.service.chat.run.ChatRunService;
 import io.github.trialiya.kb.utils.ChatUtils;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +37,7 @@ public class ChatGitLog {
     private final ChatHistoryService chatHistory;
     private final ChatEventService chatEvents;
     private final ChatTopicRepository chatTopicRepository;
+    private final ChatRunService chatRunService;
 
     /**
      * Пускает к чату только его владельца и только когда модель в нём не работает.
@@ -52,12 +54,20 @@ public class ChatGitLog {
      * команд может быть открыта с момента до отправки вопроса, и до её кнопок запрет фронта не
      * дотянется.
      *
-     * <p>Занятость определяется по активному прогону в канале событий и потому знает не всё: между
-     * заявкой прогона и его стартом есть окно, в котором чат уже занят, а канал об этом ещё не
-     * знает. Это защита в глубину, а не замок: мьютекс самого репозитория остаётся тем, что не даёт
-     * двум командам разойтись, а окно закрывать нечем — прогон и команда идут разными путями.
+     * <p>Занятость не проверяется, а <b>занимается</b>: заявка на чат — та же самая, что держит
+     * прогон и сжатие ({@link ChatRunService#claim}), поэтому «свободен» и «занял» — одно атомарное
+     * действие. Проверки было бы мало: между ней и записью ряда прогон успевает стартовать, и тогда
+     * {@code appendGitEvent} чинит оборванный хвост одновременно с {@code ChatRunService.start} —
+     * два синтетических {@code TOOL}-ответа на один {@code tool_call_id}, после которых модель
+     * отвергает весь диалог. Заодно это делает запрет настоящим: пока команда идёт, вопрос в этот
+     * чат получает {@code 409}, а не встаёт поперёк неё.
+     *
+     * <p>Заявку держат до конца команды и снимают в {@link #release} — обязательно в {@code
+     * finally}: невозвращённая заявка навсегда оставила бы чат занятым.
+     *
+     * @return токен заявки для {@link #release}
      */
-    public void requireIdleAndOwned(String conversationId) {
+    public String claimIdleAndOwned(String conversationId) {
         final String owner =
                 chatTopicRepository
                         .findById(conversationId)
@@ -70,10 +80,23 @@ public class ChatGitLog {
         if (!owner.equals(ChatUtils.getUser())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Forbidden");
         }
-        if (chatEvents.activeRunId(conversationId).isPresent()) {
+        try {
+            return chatRunService.claim(conversationId);
+        } catch (ResponseStatusException e) {
+            if (e.getStatusCode() != HttpStatus.CONFLICT) {
+                throw e;
+            }
+            // Заявка занята — в этом чате уже работают. Своё сообщение вместо общего «ответ уже
+            // генерируется»: команду мог отклонить и параллельный git из другой вкладки, но для
+            // пользователя это один и тот же ответ — «сейчас нельзя, попробуйте снова».
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT, "The assistant is working on this chat right now");
         }
+    }
+
+    /** Снимает заявку {@link #claimIdleAndOwned}. Идемпотентно. */
+    public void release(String conversationId, String claim) {
+        chatRunService.release(conversationId, claim);
     }
 
     /**

@@ -102,6 +102,9 @@ const clearPreparing = (msgs, runId) => {
   }
 };
 
+/** Карточка выполненной git-команды: отправитель у неё USER, ходом разговора она не является. */
+const isGitRow = (message) => !!message.gitEvent;
+
 // Снимает метку runId (для live-tracking) и транзиентный флаг sealed, сохраняет runId
 // как toolCallsRunId (для загрузки деталей tool call после завершения прогона).
 // Пустые пузыри без вызовов (например, хвостовой после границы сегмента) выбрасывает —
@@ -141,7 +144,7 @@ export function applyChatEvent(chat, ev, ctx) {
       // Своё эхо — уже показано оптимистично; дописать в него осталось только плашку.
       if (clientMsgId && ctx.isLocal?.(clientMsgId)) {
         for (let i = msgs.length - 1; i >= 0; i--) {
-          if (msgs[i].sender !== SENDER.USER) continue;
+          if (msgs[i].sender !== SENDER.USER || isGitRow(msgs[i])) continue;
           if (sameProjectSwitch(projectSwitch, msgs[i].projectSwitch)) return chat;
           msgs[i] = { ...msgs[i], projectSwitch };
           return { ...chat, messages: msgs };
@@ -166,6 +169,12 @@ export function applyChatEvent(chat, ev, ctx) {
       // (В обычном лайв-потоке своё эхо гасится выше по clientMsgId; сюда попадают лишь
       // реплей после reload и эхо чужих вкладок.)
       for (let i = msgs.length - 1; i >= 0; i--) {
+        // Ряд git-команды — тоже USER, но не ход разговора: он лишь отмечает, что репозиторий
+        // сдвинули. Останавливаться на нём нельзя ни здесь, ни в поиске своего эха выше — иначе
+        // «вопрос → неудачный прогон → git-команда → Повторить» сверялся бы с карточкой git,
+        // не находил совпадения и приписывал бы второй такой же вопрос, оставив пузырь с
+        // прошлой ошибкой висеть между ними.
+        if (isGitRow(msgs[i])) continue;
         if (msgs[i].sender === SENDER.USER) {
           // Сверяем по dbId, когда он есть с обеих сторон: два одинаковых вопроса подряд
           // (частый случай — «Повторить») текстовая сверка приняла бы за одно сообщение.
@@ -185,7 +194,13 @@ export function applyChatEvent(chat, ev, ctx) {
             const patched = Object.keys(patch).length > 0;
             if (patched) msgs[i] = { ...msgs[i], ...patch };
             if (i === msgs.length - 1) return patched ? { ...chat, messages: msgs } : chat;
-            return { ...chat, messages: msgs.slice(0, i + 1) };
+            // Хвост срезаем, но карточки git в нём оставляем — по тому же правилу, что и
+            // `trimActiveRunTail`: их пересобирать нечем, реплей событий прогона их не вернёт.
+            // Если срезать оказалось нечего (за вопросом стоят одни карточки), чат остаётся
+            // прежним объектом: повторное эхо не должно перерисовывать ленту впустую.
+            const kept = msgs.filter((m, j) => j <= i || isGitRow(m));
+            if (kept.length === msgs.length) return patched ? { ...chat, messages: msgs } : chat;
+            return { ...chat, messages: kept };
           }
           break; // последний вопрос не совпал — это действительно новое сообщение
         }

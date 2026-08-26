@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ModalShell from '@/components/common/modal/ModalShell';
+import '@/components/common/ui/buttons.css';
 import GitOutputCard from './GitOutputCard';
 
 /**
