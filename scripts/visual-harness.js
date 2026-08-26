@@ -31,6 +31,13 @@
  * новые эталоны идут в коммит вместе с самой правкой, и в ревью видно, что
  * именно на экране изменилось.
  *
+ * Эталоны принадлежат окружению рендера, а не репозиторию вообще: тот же
+ * Chromium с другим набором шрифтов рисует иначе. Их окружение — образ
+ * mcr.microsoft.com/playwright из ежедневного прогона (.github/workflows/
+ * frontend-main-daily.yml), отпечаток лежит рядом с ними в environment.json, и
+ * в чужом окружении сверка пропускается со строкой в отчёте — см. скилл
+ * frontend-visual-check (.claude/skills/), там команда для прогона в образе.
+ *
  * Usage:
  *   ./run/test.sh harness                    # every case, into harness/shots/
  *   ./run/test.sh harness -- chatRepo.js#repoTabMerging      # one case
@@ -112,6 +119,41 @@ function serve(dir) {
  * registry entry builds rather than spells out (the tool-call cases are one map
  * over a list of fixture names).
  */
+/**
+ * Отпечаток окружения рендера: одни и те же эталоны имеют смысл только там, где
+ * пиксели получаются те же. Замерено: тот же Chromium в контейнере playwright
+ * рисует иначе, чем в песочнице (другой набор шрифтов — и 42 кейса из 56
+ * расходятся), поэтому эталоны принадлежат окружению, а не репозиторию вообще.
+ *
+ * В отпечатке — версия браузера и ширины строки-пробы в тех же стеках шрифтов,
+ * которыми набран интерфейс: именно они и разъезжаются, когда fontconfig выдал
+ * другое семейство. Не совпало — сверку пропускаем с явной строкой в отчёте, а
+ * не красим прогон: чужой эталон говорит не о правке интерфейса, а о том, что
+ * снимали в другом месте.
+ */
+async function fingerprint(browser, page) {
+  const PROBE = 'Ag—0О9 gradle/build.gradle 18.07.2026';
+  const widths = await page.evaluate((probe) => {
+    const measure = (font, weight) => {
+      const el = document.createElement('span');
+      el.style.cssText = `position:fixed;left:-9999px;white-space:pre;font:${weight} 14px ${font}`;
+      el.textContent = probe;
+      document.body.appendChild(el);
+      const width = el.getBoundingClientRect().width.toFixed(2);
+      el.remove();
+      return width;
+    };
+    const system = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+    const mono = "'Fira Mono', 'Consolas', monospace";
+    return {
+      system: measure(system, 400),
+      systemBold: measure(system, 700),
+      mono: measure(mono, 400),
+    };
+  }, PROBE);
+  return { chromium: browser.version(), widths };
+}
+
 async function caseIds(page) {
   await page.goto(`http://127.0.0.1:${port}/index.html`);
   await page.waitForFunction(() => document.documentElement.dataset.harness === 'ready');
@@ -268,7 +310,13 @@ async function main() {
 
   fs.mkdirSync(outDir, { recursive: true });
   const server = await serve(DIST);
-  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+  // В песочнице Chromium лежит рядом с ней самой, а не там, где его ищет
+  // playwright по умолчанию; в контейнере (и на раннере) — наоборот, и путь
+  // песочницы там просто не существует.
+  const sandboxChromium = '/opt/pw-browsers/chromium';
+  const browser = await chromium.launch(
+    fs.existsSync(sandboxChromium) ? { executablePath: sandboxChromium } : {},
+  );
   const context = await browser.newContext({
     locale,
     viewport: { width: 1440, height: 900 },
@@ -284,6 +332,25 @@ async function main() {
   // Отдельная пустая страница под сравнение: на странице кейса чужой canvas
   // попал бы в её же консольные ошибки, а сам кейс — под шаги сравнения.
   const diffPage = await context.newPage();
+
+  // Своё ли это окружение для эталонов — решаем один раз на прогон.
+  const envFile = path.join(baseDir, 'environment.json');
+  const here = await fingerprint(browser, diffPage);
+  const stored = fs.existsSync(envFile) ? JSON.parse(fs.readFileSync(envFile, 'utf8')) : null;
+  const sameEnv = stored && JSON.stringify(stored) === JSON.stringify(here);
+  if (update) {
+    fs.mkdirSync(baseDir, { recursive: true });
+    fs.writeFileSync(envFile, `${JSON.stringify(here, null, 2)}\n`);
+  } else if (!stored) {
+    console.log('· эталонов ещё нет — прогон только снимает; заведите их через --update');
+  } else if (!sameEnv) {
+    console.log(
+      '· сверка с эталонами пропущена: они сняты в другом окружении рендера ' +
+        `(${stored.chromium}, пробы ${Object.values(stored.widths).join('/')} против ` +
+        `${here.chromium}, ${Object.values(here.widths).join('/')}). ` +
+        'Эталоны принадлежат контейнеру из ежедневного прогона — см. скилл frontend-visual-check.',
+    );
+  }
   const ids = wanted.length ? wanted : known;
   const unknown = ids.filter((id) => !known.includes(id));
   if (unknown.length) {
@@ -339,7 +406,7 @@ async function main() {
     // кейса с ошибками в консоли сначала чинят их, а не эталон.
     let verdict = '';
     const baseFile = path.join(baseDir, name);
-    if (!empty && !problems.length) {
+    if (!empty && !problems.length && (update || sameEnv)) {
       if (update || !fs.existsSync(baseFile)) {
         fs.mkdirSync(baseDir, { recursive: true });
         fs.copyFileSync(file, baseFile);

@@ -38,19 +38,38 @@ one per case, and a case whose page logged a console error is reported `✗`.
 **Every shot is compared with its baseline** in `frontend/tests/visual/baselines/`
 (those are in git — without them there is nothing to compare against), so a
 changed screen is caught by the run rather than by your eye. A mismatch writes
-`shots/<case>.diff.png`: what changed, in red over the faded baseline. After a
-deliberate UI change re-take them with `-- --update` and commit the new
-baselines together with the change — the review then shows what the screen now
-looks like.
+`shots/<case>.diff.png`: what changed, in red over the faded baseline.
+
+**The baselines belong to one pinned rendering environment**, and it is not this
+sandbox: the same Chromium build with a different font set draws differently
+(measured: 42 of 56 cases disagree, and the sandbox resolves `monospace` to
+DejaVu Sans Mono where the container resolves it to WenQuanYi Zen Hei Mono).
+That environment is the `mcr.microsoft.com/playwright` image the daily workflow
+runs in (`.github/workflows/frontend-main-daily.yml`), and the fingerprint of
+the machine that took them is stored next to them in
+`baselines/environment.json`.
+
+So a plain sandbox run **shoots but does not compare** — it says so in one line
+and still reports console errors as before. To compare (or to re-take baselines
+after a deliberate UI change), run the harness in that image:
+
+```bash
+./run/test.sh harness                        # снимки + ошибки консоли, без сверки
+./run/test.sh harness -- chatRepo.js#repoTabMerging
+docker run --rm --network host \
+  -v "$PWD":/w -v /opt/node22/lib/node_modules:/gm:ro -w /w -e NODE_PATH=/gm \
+  -u "$(id -u):$(id -g)" mcr.microsoft.com/playwright:v1.56.1-noble \
+  node scripts/visual-harness.js            # то же, но со сверкой
+```
+
+Add `--update` to that last command after a deliberate UI change, and commit the
+new baselines together with the change — the review then shows what the screen
+now looks like. `dockerd` may need starting first (`sudo dockerd &`), the same
+daemon the `it` suite uses.
 
 Do not reach for `--update` to make a red run green. The point of the baseline
 is that it disagrees with you; look at the `.diff.png` first and update only
 once the new picture is the intended one.
-
-```bash
-./run/test.sh harness -- chatRepo.js#repoTabMerging
-./run/test.sh harness -- --update            # после осознанной правки интерфейса
-```
 
 The comparison ignores connected areas smaller than `--min-cluster` (12 pixels
 by default): the cards' rounded corners sit on fractional coordinates and their
