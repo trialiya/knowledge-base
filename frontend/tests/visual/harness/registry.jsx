@@ -1,7 +1,9 @@
 import ChatRepoPanel from '@/components/chatPanel/git/ChatRepoPanel';
 import GitCommandsModal from '@/components/chatPanel/git/GitCommandsModal';
 import GitOutputCard from '@/components/chatPanel/git/GitOutputCard';
+import GitBranchBar from '@/components/filesPanel/git/GitBranchBar';
 import * as chatRepo from '../fixtures/chatRepo';
+import * as gitMenu from '../fixtures/gitMenu';
 
 /**
  * Что стенд умеет показать: фикстура из `../fixtures/` плюс компонент, которым
@@ -19,7 +21,13 @@ import * as chatRepo from '../fixtures/chatRepo';
  *             окно, и всё, что решает ширина, окажется непроверенным);
  *   `feed`  — колонка ленты чата: она flex, и элемент без `flex: none` в ней
  *             схлопывается — ровно так однажды пропала карточка вывода;
- *   `bare`  — сам себе рамка (модалка: у неё свой оверлей на всё окно).
+ *   `bare`  — сам себе рамка (модалка: у неё свой оверлей на всё окно);
+ *   `left`  — колонка левой панели и центр рядом с ней: её выпадающие списки
+ *             уходят порталом поверх центра, и без него не видно ни куда они
+ *             попадают, ни сколько места им осталось.
+ *
+ * `click` — что щёлкнуть перед снимком: состояние, которое компонент открывает
+ * сам (меню), пропсами не задаётся вовсе.
  */
 const REGISTRY = [
   { id: 'chatRepo.js#repoTabIdle', frame: 'panel', render: (p) => <ChatRepoPanel {...p} /> },
@@ -31,9 +39,15 @@ const REGISTRY = [
   { id: 'chatRepo.js#outputCardOk', frame: 'feed', render: (p) => <GitOutputCard {...p} /> },
   { id: 'chatRepo.js#outputCardRefused', frame: 'feed', render: (p) => <GitOutputCard {...p} /> },
   { id: 'chatRepo.js#outputCardSilent', frame: 'feed', render: (p) => <GitOutputCard {...p} /> },
+  {
+    id: 'gitMenu.js#branchMenuLongNames',
+    frame: 'left',
+    click: '.git-menu .icon-btn',
+    render: (p) => <GitBranchBar {...p} />,
+  },
 ];
 
-const MODULES = { 'chatRepo.js': chatRepo };
+const MODULES = { 'chatRepo.js': chatRepo, 'gitMenu.js': gitMenu };
 
 /** Все кейсы стенда с уже разрешёнными пропсами. Незнакомый экспорт — ошибка сборки кейса. */
 export const cases = REGISTRY.map((entry) => {

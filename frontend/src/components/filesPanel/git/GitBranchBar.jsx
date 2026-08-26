@@ -47,7 +47,11 @@ const GitBranchBar = ({ status, capabilities, running, onFetch, onAbortMerge, co
           title={detached ? t('git.detachedHint') : upstream ? t('git.upstream', { upstream }) : t('git.noUpstream')}
         >
           <IconBranch size={13} />
-          <span className="git-branch__label">{current}</span>
+          {/* Своя подсказка, хотя на строке уже есть подсказка про upstream: имя
+              здесь обрезается по ширине панели, а полного его больше нигде нет. */}
+          <span className="git-branch__label" title={current}>
+            {current}
+          </span>
           {detached && <span className="git-branch__tag">{t('git.detached')}</span>}
           {unborn && <span className="git-branch__tag">{t('git.unborn')}</span>}
         </span>

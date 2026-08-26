@@ -9,13 +9,19 @@
   flex: none;
 }
 
-/* Выпадает влево: меню стоит у правого края узкой панели, и раскрытие вправо
-   уводило бы его за границу окна. */
+/* Живёт в портале на body, поэтому `fixed`, а координаты и потолок ширины
+   приходят из GitMenu стилем: раскрывается список вправо, поверх центра, — у
+   `.workspace__side` стоит `overflow: hidden`, и внутри панели его обрезало бы
+   её границей, а слева от кнопки нет и ширины панели. */
 .git-menu__dropdown {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  min-width: 200px;
+  position: fixed;
+  /* Глобального border-box в проекте нет: без этой строки padding и рамка
+     добавились бы к потолку ширины, и список вылезал бы за отступ от края окна
+     на свои же 13px (см. правила стилей). */
+  box-sizing: border-box;
+  /* Пол и потолок ширины приходят из GitMenu: на узком экране они зависят от
+     того, сколько окна осталось справа от кнопки, а `min-width` отсюда перебил
+     бы вычисленный потолок и вытолкнул список за край. */
   /* Веток бывает много: список прокручивается, а панель — нет. */
   max-height: 60vh;
   overflow-y: auto;
@@ -25,6 +31,45 @@
   border-radius: 10px;
   box-shadow: 0 12px 32px rgba(91, 79, 207, 0.16);
   z-index: 1200;
+}
+
+/* Поле фильтра прилипает к верху: список под ним прокручивается, и уехавшее
+   вместе с ветками поле пришлось бы искать обратной прокруткой. Отрицательный
+   `top` — на padding самого списка, иначе над полем оставалась бы щель, сквозь
+   которую видно проезжающие мимо пункты. */
+.git-menu__filter {
+  position: sticky;
+  top: -5px;
+  z-index: 1;
+  padding: 2px 3px 6px;
+  background: var(--kb-white);
+}
+
+.git-menu__filter-input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--kb-border-light);
+  border-radius: 7px;
+  background: var(--kb-bg);
+  font: inherit;
+  font-size: 12px;
+  color: var(--kb-text);
+}
+.git-menu__filter-input:focus {
+  outline: none;
+  border-color: var(--kb-accent);
+}
+.git-menu__filter-input::placeholder {
+  color: var(--kb-muted);
+}
+
+/* Ответ «ничего не нашлось» — не пункт меню: кликать по нему нечего, поэтому и
+   выглядит он как подпись, а не как выключенная строка. */
+.git-menu__empty {
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--kb-muted);
 }
 
 .git-menu__section {
@@ -67,7 +112,10 @@
   color: var(--kb-accent);
 }
 
+/* `min-width: 0` — не украшение: flex-элемент по умолчанию не ужимается ниже
+   своего min-content, и без него `text-overflow` ниже мёртв. */
 .git-menu__label {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

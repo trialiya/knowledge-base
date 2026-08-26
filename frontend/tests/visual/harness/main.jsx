@@ -21,6 +21,18 @@ const FRAMES = {
       </aside>
     </div>
   ),
+  // Левая панель вместе с центром: её выпадающие списки уходят порталом поверх
+  // центра, и в одинокой колонке не было бы видно ни куда список попадает, ни
+  // сколько места ему осталось. Панель обрезает своё содержимое
+  // (`overflow: hidden`) — то, из-за чего список и уехал в портал.
+  left: (node) => (
+    <div className="workspace" style={{ height: '100vh' }}>
+      <aside className="workspace__side workspace__side--left">
+        <div className="workspace__side-toolbar">{node}</div>
+      </aside>
+      <div className="workspace__center" />
+    </div>
+  ),
   // Лента чата — flex-колонка: элемент без `flex: none` схлопывается в ней до
   // рамки, и увидеть это можно только здесь.
   //
@@ -61,6 +73,9 @@ i18nReady.finally(() => {
   else if (found) view = <Case entry={found} />;
 
   ReactDOM.createRoot(document.getElementById('root')).render(view);
+  // Что щёлкнуть перед снимком — отсюда, а не из скрипта: реестр кейсов один, и
+  // второй его копии в scripts/ быть не должно.
+  if (found?.click) document.documentElement.dataset.harnessClick = found.click;
   // Отметка «отрисовано» — на <html>, а не по содержимому #root: модалка уходит
   // порталом в document.body, и по пустому #root снимок ждал бы её вечно.
   document.documentElement.dataset.harness = 'ready';
