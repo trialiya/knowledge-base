@@ -24,8 +24,6 @@ export function buildChatTabs({
   onAttachmentCountChange,
   attachmentsRefreshSignal,
   onAttachmentDeleted,
-  git,
-  onOpenGitCommands,
 }) {
   return [
     {
@@ -57,21 +55,32 @@ export function buildChatTabs({
           />
         ),
     },
-    // Вкладка появляется только там, где проект вообще разрешил команды: без
-    // них она отвечала бы на вопрос «где мы» тем же, что и «Инфо», и стоила бы
-    // третьей кнопки в шапке ради повтора.
-    ...(git?.capabilities?.commands
-      ? [
-          {
-            key: RIGHT_TAB.REPO,
-            label: t('repo.tab'),
-            icon: <IconBranch size={16} />,
-            // Точка — весь бюджет на постоянное присутствие git в интерфейсе:
-            // закрытая панель молчит, а про незакрытый merge молчать нельзя.
-            alert: !!git.status?.merging,
-            content: <ChatRepoPanel git={git} onOpenCommands={onOpenGitCommands} />,
-          },
-        ]
-      : []),
+  ];
+}
+
+/**
+ * Вкладка «Репозиторий» — отдельным сборщиком, а не строкой в списке выше.
+ *
+ * Её состояние перечитывается после каждой правки файла инструментом прогона,
+ * то есть заметно чаще остальных вкладок. Собранная вместе с ними, она тащила
+ * бы за собой пересоздание панели вложений на каждую такую правку.
+ *
+ * Пусто там, где проект команд не разрешил: без них вкладка отвечала бы на
+ * вопрос «где мы» тем же, что и «Инфо», и стоила бы третьей кнопки в шапке
+ * ради повтора.
+ */
+export function buildRepoTab({ t, git, onOpen }) {
+  if (!git?.capabilities?.commands) return [];
+  return [
+    {
+      key: RIGHT_TAB.REPO,
+      label: t('repo.tab'),
+      icon: <IconBranch size={16} />,
+      // Точка — весь бюджет на постоянное присутствие git в интерфейсе:
+      // закрытая панель молчит, а про незакрытый merge молчать нельзя. Строкой,
+      // а не флагом: глазами это точка, скринридеру — причина.
+      alert: git.status?.merging ? t('files:git.merging') : false,
+      content: <ChatRepoPanel git={git} onOpenCommands={onOpen} />,
+    },
   ];
 }

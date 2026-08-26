@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ModalShell from '@/components/common/modal/ModalShell';
 import GitOutputCard from './GitOutputCard';
-import './gitCommandsModal.css';
 
 /**
  * Все git-команды чата в одном месте, сгруппированные по тому, что они трогают:
@@ -29,10 +28,13 @@ const GitCommandsModal = ({ git, onClose }) => {
   const off = git.disabled;
   const canPush = !!git.capabilities?.push;
 
+  // Поле очищается только на успехе: отказавшая команда оставляет набранное
+  // сообщение на месте — иначе pre-commit hook или занятый чат стирали бы то,
+  // что человек только что написал, и это надо было бы печатать заново.
   const commit = () => {
     const text = message.trim();
     if (!text) return;
-    git.commit(text).then(() => setMessage(''));
+    git.commit(text).then((result) => result && setMessage(''));
   };
 
   return (
@@ -45,9 +47,9 @@ const GitCommandsModal = ({ git, onClose }) => {
       {/* Одна причина «сейчас нельзя» на всю модалку, а не подпись под каждой из
           девяти кнопок: причина общая, и повторённая девять раз она читается
           как девять разных запретов. */}
-      {off && (
+      {off && git.disabledReason && (
         <p className="git-commands__blocked" role="status">
-          {t('repo.busyHint')}
+          {t(`repo.blocked.${git.disabledReason}`)}
         </p>
       )}
 
@@ -57,12 +59,7 @@ const GitCommandsModal = ({ git, onClose }) => {
           <button type="button" className="btn btn--ghost" disabled={off} onClick={git.fetch}>
             {t('repo.fetch')}
           </button>
-          <button
-            type="button"
-            className="btn btn--ghost"
-            disabled={off || !upstream || unborn}
-            onClick={git.pull}
-          >
+          <button type="button" className="btn btn--ghost" disabled={off || !upstream || unborn} onClick={git.pull}>
             {t('repo.pull')}
           </button>
           <button
@@ -78,16 +75,14 @@ const GitCommandsModal = ({ git, onClose }) => {
           {!upstream
             ? t('files:git.noUpstream')
             : behind > 0 || ahead > 0
-              ? t('repo.diverged', { ahead, behind })
-              : t('repo.inSync', { upstream })}
+            ? t('repo.diverged', { ahead, behind })
+            : t('repo.inSync', { upstream })}
           {!canPush && ` · ${t('repo.pushNotAllowed')}`}
         </p>
       </section>
 
       <section className="git-commands__group">
-        <h3 className="git-commands__group-title">
-          {dirty ? t('repo.groupTreeDirty') : t('repo.groupTreeClean')}
-        </h3>
+        <h3 className="git-commands__group-title">{dirty ? t('repo.groupTreeDirty') : t('repo.groupTreeClean')}</h3>
         <textarea
           className="git-commands__input"
           value={message}
@@ -113,11 +108,7 @@ const GitCommandsModal = ({ git, onClose }) => {
           </button>
         </div>
         <p className="git-commands__note">
-          {detached
-            ? t('files:git.detachedHint')
-            : dirty
-              ? t('files:git.commitHint')
-              : t('files:git.nothingToCommit')}
+          {detached ? t('files:git.detachedHint') : dirty ? t('files:git.commitHint') : t('files:git.nothingToCommit')}
         </p>
       </section>
 
@@ -144,7 +135,7 @@ const GitCommandsModal = ({ git, onClose }) => {
             type="button"
             className="btn btn--ghost"
             disabled={off || !branch}
-            onClick={() => git.switchBranch(branch).then(() => setBranch(''))}
+            onClick={() => git.switchBranch(branch).then((result) => result && setBranch(''))}
           >
             {t('repo.switch')}
           </button>

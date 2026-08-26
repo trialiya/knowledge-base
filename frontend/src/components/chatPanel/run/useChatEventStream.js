@@ -52,6 +52,7 @@ const runChangeRefs = (msgs, runId) => {
  *                                           мутации прогона, кроме последней, — например, при
  *                                           создании нескольких документов в одном ответе ассистента.
  * @param {Function} [p.onFileChanged]      (refs) => void — то же для file-мутаций
+ * @param {Function} [p.onRepoChanged]      () => void — git-команда сдвинула рабочее дерево
  *                                           (createFile/editFile/runScript), refs из getFileChangeRefs;
  *                                           один tool call может дать несколько refs — runScript
  *                                           применяет пачку правок за вызов.
@@ -67,6 +68,7 @@ export default function useChatEventStream({
   reloadMessages,
   onDocChanged,
   onFileChanged,
+  onRepoChanged,
 }) {
   // Курсор последнего виденного seq по КАЖДОМУ чату. Живёт всё время, пока смонтирован
   // компонент (переживает переключения чатов), но не переживает перезагрузку страницы —
@@ -88,6 +90,7 @@ export default function useChatEventStream({
   // с тех пор сменили (см. handleFileChanged в ChatWindow).
   const fireDocChanged = useEffectEvent((refs) => onDocChanged?.(refs));
   const fireFileChanged = useEffectEvent((refs) => onFileChanged?.(refs));
+  const fireRepoChanged = useEffectEvent(() => onRepoChanged?.());
 
   useEffect(() => {
     const chatId = activeChatId;
@@ -173,6 +176,13 @@ export default function useChatEventStream({
         // живом TOOL_CALL — поэтому детектируем doc/file-мутации на этом событии.
         if (ev.type === CHAT_EVENT.TOOL_CALLS) {
           fireChangeRefs(collectChangeRefs(ev.payload?.toolCalls));
+        }
+        // Git-команда сдвинула рабочее дерево — и для этой вкладки тоже, даже
+        // если запускали её в соседней: ветка, список изменений и содержимое
+        // открытого файла у них общие. Какие пути поменялись, знает только git,
+        // поэтому сигнал общий, как после команды из панели «Файлы».
+        if (ev.type === CHAT_EVENT.GIT_COMMAND) {
+          fireRepoChanged();
         }
         // Сжатие контекста завершилось — хаб закрыл ту же заявку на чат, что и у прогона
         // (см. ChatRunService.claim), поэтому и курсор сбрасываем так же.

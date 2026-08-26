@@ -617,6 +617,48 @@ describe('applyChatEvent', () => {
     expect(chat.messages.filter((m) => m.compact)).toHaveLength(1);
   });
 
+  // ─── Git-команда пользователя ──────────────────────────────────────────────
+  // Прогона нет: команду выполнил человек, а не модель. Ряд просто дописывается
+  // в конец — тем же, чем приехал бы из истории после перезагрузки.
+  test('GIT_COMMAND appends the command row without touching the run', () => {
+    const chat = applyChatEvent(
+      userChat(),
+      {
+        type: 'GIT_COMMAND',
+        payload: {
+          id: 91,
+          createdAt: '2026-08-26T12:00:00',
+          event: { command: 'pull', ok: true, output: 'Fast-forward', branch: 'main' },
+        },
+      },
+      ctx,
+    );
+
+    expect(last(chat)).toMatchObject({
+      dbId: 91,
+      sender: 'user',
+      gitEvent: { command: 'pull', ok: true },
+      timestamp: '2026-08-26T12:00:00',
+    });
+    // Прогон командой не заводится и не закрывается: он к ней отношения не имеет.
+    expect(chat.runId).toBe(userChat().runId);
+  });
+
+  /**
+   * Вкладка, запустившая команду, получает своё же событие обратно, а после
+   * переподключения ещё и переиграет пропущенные — ряд обязан остаться один.
+   */
+  test('GIT_COMMAND replayed for the same row does not double it', () => {
+    const ev = {
+      type: 'GIT_COMMAND',
+      payload: { id: 91, event: { command: 'pull', ok: true, output: '' } },
+    };
+    let chat = applyChatEvent(userChat(), ev, ctx);
+    chat = applyChatEvent(chat, ev, ctx);
+
+    expect(chat.messages.filter((m) => m.gitEvent)).toHaveLength(1);
+  });
+
   test('COMPACT_ERROR flags the bubble and unblocks the chat without offering a retry', () => {
     let chat = applyChatEvent(userChat(), { type: 'COMPACT_STARTED', runId: 'r1' }, ctx);
     chat = applyChatEvent(chat, { type: 'COMPACT_ERROR', runId: 'r1', payload: { message: 'boom' } }, ctx);

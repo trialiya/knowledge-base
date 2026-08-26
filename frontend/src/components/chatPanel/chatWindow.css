@@ -11,3 +11,6 @@
 @import './styles/phrase-fill.css';
 @import './styles/modals.css';
 @import './styles/compact.css';
+@import './styles/chat-repo.css';
+@import './styles/git-commands.css';
+@import './styles/git-output.css';

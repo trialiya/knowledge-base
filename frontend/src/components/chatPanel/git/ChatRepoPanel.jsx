@@ -1,6 +1,5 @@
 import { useTranslation } from 'react-i18next';
 import { IconBranch, IconTerminal } from '@/icons/index';
-import './chatRepoPanel.css';
 
 /**
  * Вкладка «Репозиторий» правой панели чата: где мы и что не сохранено.
@@ -14,7 +13,9 @@ import './chatRepoPanel.css';
 const ChatRepoPanel = ({ git, onOpenCommands }) => {
   const { t } = useTranslation(['chat', 'files']);
 
-  if (git.loading) return null;
+  // Пусто только пока ответа не было ни разу: перезапрос после команды держит
+  // прежнее состояние на экране, иначе вкладка мигала бы на каждую команду.
+  if (git.loading && !git.status) return null;
   if (!git.status) return <p className="chat-empty-note">{t('repo.unavailable')}</p>;
 
   const { current, detached, unborn, upstream, ahead, behind, merging, conflicts } = git.status;
@@ -28,8 +29,8 @@ const ChatRepoPanel = ({ git, onOpenCommands }) => {
           detached
             ? t('files:git.detachedHint')
             : upstream
-              ? t('files:git.upstream', { upstream })
-              : t('files:git.noUpstream')
+            ? t('files:git.upstream', { upstream })
+            : t('files:git.noUpstream')
         }
       >
         <IconBranch size={13} />
@@ -56,9 +57,7 @@ const ChatRepoPanel = ({ git, onOpenCommands }) => {
           сверх ветки без просьбы. */}
       {merging && (
         <div className="chat-repo__merge" role="status">
-          {conflicts?.length
-            ? t('files:git.mergeConflicts', { count: conflicts.length })
-            : t('files:git.merging')}
+          {conflicts?.length ? t('files:git.mergeConflicts', { count: conflicts.length }) : t('files:git.merging')}
         </div>
       )}
 
@@ -68,7 +67,7 @@ const ChatRepoPanel = ({ git, onOpenCommands }) => {
           className="btn btn--primary chat-repo__commands"
           onClick={onOpenCommands}
           disabled={git.disabled}
-          title={git.disabled ? t('repo.busyHint') : undefined}
+          title={git.disabledReason ? t(`repo.blocked.${git.disabledReason}`) : undefined}
         >
           <IconTerminal size={14} />
           {t('repo.commands')}
@@ -77,15 +76,17 @@ const ChatRepoPanel = ({ git, onOpenCommands }) => {
 
       {git.changes.length > 0 && (
         <section className="chat-repo__section">
-          <h3 className="chat-repo__section-title">
-            {t('repo.uncommitted', { count: git.changes.length })}
-          </h3>
+          <h3 className="chat-repo__section-title">{t('repo.uncommitted', { count: git.changes.length })}</h3>
           <ul className="chat-repo__files">
             {git.changes.map((entry) => (
-              <li key={entry.path} className="chat-repo__file" title={entry.path}>
-                <span className={`chat-repo__status chat-repo__status--${entry.status}`}>
-                  {entry.status}
-                </span>
+              // Буква — вся ширина, которую можно потратить в панели 320px, но
+              // сама по себе она ничего не значит: слово живёт в подсказке.
+              <li
+                key={entry.path}
+                className="chat-repo__file"
+                title={`${entry.path} — ${t(`repo.fileStatus.${entry.status}`, entry.status)}`}
+              >
+                <span className={`chat-repo__status chat-repo__status--${entry.status}`}>{entry.status}</span>
                 <span className="chat-repo__path">{entry.path}</span>
               </li>
             ))}

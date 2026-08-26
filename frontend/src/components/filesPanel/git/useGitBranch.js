@@ -48,7 +48,13 @@ export default function useGitBranch({ project, refreshToken, chat }) {
     return () => controller.abort();
   }, [key, project]);
 
-  const fresh = answer?.key === key ? answer : null;
+  // Пока перезапрос не вернулся, показываем прежний ответ, а не пустоту.
+  // Иначе каждая команда гасила бы то, из чего её запустили: она поднимает
+  // общий сигнал обновления, сигнал входит в ключ, и на время round-trip'а и
+  // строка ветки, и модалка команд оставались бы без состояния — то есть
+  // исчезали бы с экрана и возвращались.
+  const fresh = answer;
+  const loading = answer?.key !== key;
 
   /**
    * Выполнить команду. Перечитывать состояние здесь нечем и незачем: команда,
@@ -91,11 +97,11 @@ export default function useGitBranch({ project, refreshToken, chat }) {
     () => ({
       status: fresh?.status ?? null,
       capabilities: fresh?.capabilities ?? null,
-      loading: !fresh,
+      loading,
       error: fresh?.error ?? null,
       running,
       ...commands,
     }),
-    [fresh, running, commands],
+    [fresh, loading, running, commands],
   );
 }

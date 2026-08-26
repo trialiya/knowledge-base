@@ -63,6 +63,19 @@ export const transformPage = (rawMsgs) => {
       });
       continue;
     }
+    // След git-команды, выполненной пользователем: ряд USER без текста, весь
+    // смысл которого — в мете (см. ChatHistoryService.appendGitEvent). Пузырём
+    // от лица пользователя он был бы неправдой — человек ничего не написал.
+    if (m.gitEvent) {
+      bubbles.push({
+        mid: nextMessageId(),
+        dbId: m.id ?? null,
+        sender: SENDER.USER,
+        gitEvent: m.gitEvent,
+        timestamp: m.timestamp || null,
+      });
+      continue;
+    }
     if (type === 'system') continue; // прочие системные сообщения (напр. summary) не показываем
     // Протокольные TOOL-сообщения (ответы инструментов) — не для показа: их содержимое
     // видно через плашки/модалку деталей соответствующего сегмента.

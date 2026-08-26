@@ -26,8 +26,11 @@ const git = ({ status: over, capabilities, ...rest } = {}) => ({
   push: vi.fn(),
   stashPush: vi.fn(),
   stashPop: vi.fn(),
-  switchBranch: vi.fn(() => Promise.resolve()),
-  commit: vi.fn(() => Promise.resolve()),
+  // Успешная команда резолвится результатом — именно по нему модалка решает,
+  // очищать ли поле: undefined значил бы «отказ», и тест успеха проверял бы
+  // поведение отказа.
+  switchBranch: vi.fn(() => Promise.resolve({ command: 'switch' })),
+  commit: vi.fn(() => Promise.resolve({ command: 'commit' })),
   abortMerge: vi.fn(),
   dismissFailure: vi.fn(),
   ...rest,
@@ -42,14 +45,19 @@ describe('GitCommandsModal', () => {
    * девяти кнопок, она читалась бы как девять разных запретов.
    */
   test('every command is off while the assistant is working, and the reason is said once', () => {
-    render(<GitCommandsModal git={git({ disabled: true, status: { dirty: true } })} onClose={vi.fn()} />);
+    render(
+      <GitCommandsModal
+        git={git({ disabled: true, disabledReason: 'busy', status: { dirty: true } })}
+        onClose={vi.fn()}
+      />,
+    );
 
     for (const button of screen.getAllByRole('button')) {
       // Кроме «Закрыть»: выйти из модалки можно всегда.
       if (button.textContent === 'repo.close') continue;
       expect(button).toBeDisabled();
     }
-    expect(screen.getAllByText('repo.busyHint')).toHaveLength(1);
+    expect(screen.getAllByText('repo.blocked.busy')).toHaveLength(1);
   });
 
   /**
@@ -80,6 +88,21 @@ describe('GitCommandsModal', () => {
 
     expect(state.commit).toHaveBeenCalledWith('починил сборку');
     expect(field).toHaveValue('');
+  });
+
+  /**
+   * Отказавшая команда оставляет набранное сообщение на месте: pre-commit hook
+   * или занятый чат иначе стирали бы то, что человек только что написал.
+   */
+  test('a refused commit keeps the message the user typed', async () => {
+    const state = git({ status: { dirty: true }, commit: vi.fn(() => Promise.resolve(null)) });
+    render(<GitCommandsModal git={state} onClose={vi.fn()} />);
+
+    const field = screen.getByPlaceholderText('files:git.commitMessage');
+    await userEvent.type(field, 'починил сборку');
+    await userEvent.click(screen.getByRole('button', { name: 'files:git.commit' }));
+
+    expect(field).toHaveValue('починил сборку');
   });
 
   /** Текущая ветка в списке переключения не предлагается: переключаться некуда. */

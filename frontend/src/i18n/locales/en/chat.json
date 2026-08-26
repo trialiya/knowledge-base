@@ -371,7 +371,6 @@
     "tab": "Repository",
     "commands": "Commands…",
     "unavailable": "The project's repository is unavailable.",
-    "busyHint": "Repository commands are off while the assistant is working: it is reading and editing the same files.",
     "uncommitted": "Uncommitted · {{count}}",
     "lastCommand": "Last command",
     "outcomeOk": "done",
@@ -394,6 +393,18 @@
     "copyOutput": "Copy output",
     "expandOutput": "Show output",
     "collapseOutput": "Hide output",
-    "noOutput": "git said nothing — for this command that is the ordinary success."
+    "noOutput": "git said nothing — for this command that is the ordinary success.",
+    "blocked": {
+      "busy": "Repository commands are off while the assistant is working: it is reading and editing the same files.",
+      "running": "A command is already running — the repository takes one at a time.",
+      "draft": "This conversation has not started yet, so there is nowhere to record the command. Send a first message."
+    },
+    "fileStatus": {
+      "M": "modified",
+      "A": "added",
+      "D": "deleted",
+      "R": "renamed",
+      "U": "conflicted"
+    }
   }
 }

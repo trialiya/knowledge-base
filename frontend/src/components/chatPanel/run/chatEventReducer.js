@@ -381,6 +381,24 @@ export function applyChatEvent(chat, ev, ctx) {
       return { ...chat, messages: msgs, runId: null, compacting: false };
     }
 
+    // ─── Git-команда пользователя ────────────────────────────────────────────
+    // Прогона нет и здесь: команда — ход человека, а не модели. Ряд дописывается
+    // в конец, как приехал бы из истории, и той же карточкой; дубль по dbId
+    // отбрасывается — вкладка, которая команду запустила, получает своё же
+    // событие обратно, а после переподключения ещё и переиграет пропущенные.
+    case CHAT_EVENT.GIT_COMMAND: {
+      const id = payload?.id ?? null;
+      if (id != null && msgs.some((m) => m.dbId === id)) return chat;
+      msgs.push({
+        mid: nextMessageId(),
+        dbId: id,
+        sender: SENDER.USER,
+        gitEvent: payload?.event,
+        timestamp: payload?.createdAt ?? null,
+      });
+      return { ...chat, messages: msgs };
+    }
+
     default:
       return chat;
   }

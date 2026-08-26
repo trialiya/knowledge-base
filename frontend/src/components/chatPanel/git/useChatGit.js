@@ -81,9 +81,11 @@ export default function useChatGit({ chatId, project, refreshToken, busy, onRepo
       last,
       failure,
       dismissFailure: () => setFailure(null),
-      // Одно слово на все причины «сейчас нельзя»: у кнопки есть только два
-      // состояния, а объяснять, какая из причин сработала, — дело подписи.
       disabled: !!busy || branch.running || !chatId,
+      // Причин «сейчас нельзя» три, и они разные: модель работает, команда уже
+      // идёт, чата ещё нет. Одна подпись на все три врала бы в двух случаях из
+      // трёх — а именно её человек и читает, чтобы понять, чего ждать.
+      disabledReason: busy ? 'busy' : branch.running ? 'running' : chatId ? null : 'draft',
       ...commands,
     }),
     [branch, changes.entries, last, failure, busy, chatId, commands],

@@ -115,8 +115,11 @@
   min-width: 0;
   overflow: hidden;
   /* Обрезаем начало: имя файла отличает строки друг от друга, а общий префикс
-     каталога у них чаще всего один и тот же. */
+     каталога у них чаще всего один и тот же. plaintext обязателен — без него
+     RTL-абзац утаскивает ведущую точку в конец, и `.github/ci.yml` читается как
+     `github/ci.yml.`, а дотфайлов в git-статусе полно. */
   direction: rtl;
+  unicode-bidi: plaintext;
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;

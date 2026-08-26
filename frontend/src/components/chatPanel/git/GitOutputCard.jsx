@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconCheck, IconChevronDown, IconChevronRight, IconCopy, IconX } from '@/icons/index';
 import useCopyFeedback from '@/components/common/ui/useCopyFeedback';
-import './gitOutputCard.css';
 
 /**
  * Вывод одной git-команды — тёмная карточка с самим текстом, как его написал git.
@@ -55,11 +54,11 @@ const GitOutputCard = ({ event, compact = false }) => {
           </button>
         )}
       </div>
-      {/* Молчаливая удачная команда — не пустая карточка, а строка о том, что
-          git ничего не сказал: пустой чёрный прямоугольник читался бы как
-          потерянный вывод. */}
-      {open && expandable && <pre className="git-output__body">{output}</pre>}
-      {open && !expandable && <p className="git-output__silent">{t('repo.noOutput')}</p>}
+      {open && <pre className="git-output__body">{output}</pre>}
+      {/* Молчаливой команде сворачивать нечего, и строку о том, что git ничего
+          не сказал, она показывает всегда: пустой чёрный прямоугольник читался
+          бы как потерянный вывод, а одна шапка — как обрезанная карточка. */}
+      {!expandable && <p className="git-output__silent">{t('repo.noOutput')}</p>}
     </div>
   );
 };

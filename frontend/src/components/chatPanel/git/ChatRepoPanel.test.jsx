@@ -39,7 +39,7 @@ describe('ChatRepoPanel', () => {
   });
 
   test('the door is shut while the assistant is working', () => {
-    render(<ChatRepoPanel git={git({ disabled: true })} onOpenCommands={vi.fn()} />);
+    render(<ChatRepoPanel git={git({ disabled: true, disabledReason: 'busy' })} onOpenCommands={vi.fn()} />);
 
     expect(screen.getByRole('button', { name: /repo.commands/ })).toBeDisabled();
   });
@@ -74,9 +74,7 @@ describe('ChatRepoPanel', () => {
 
   /** Одна строка про последнюю команду, не журнал: вывод целиком лежит в ленте. */
   test('the last command is one line and carries its outcome', () => {
-    render(
-      <ChatRepoPanel git={git({ last: { command: 'pull', ok: false } })} onOpenCommands={vi.fn()} />,
-    );
+    render(<ChatRepoPanel git={git({ last: { command: 'pull', ok: false } })} onOpenCommands={vi.fn()} />);
 
     expect(screen.getByText('pull')).toBeInTheDocument();
     expect(screen.getByText('repo.outcomeFailed')).toBeInTheDocument();

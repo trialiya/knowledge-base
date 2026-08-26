@@ -1789,3 +1789,145 @@
     До правки кнопка была `icon-btn` 28×28 и висела видимой всегда: самое
     разрушительное действие списка оказывалось самым заметным. Теперь это
     общий `ws-item__action`, как у остальных строк левой панели.
+
+- id: chat-repo-tab-idle
+  component: ChatRepoPanel
+  path: frontend/src/components/chatPanel/git/ChatRepoPanel.jsx
+  title: Вкладка «Репозиторий» в чате — ветка, несохранённое и одна дверь в команды
+  status: blocked
+  origin:
+    - Сессия 2026-08-26, git-команды в панели чата
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /chat/<id чата>?right=repo
+  fixtures: ./fixtures/chatRepo.js#repoTabIdle
+  expected:
+    - В шапке правой панели три вкладки — «Инфо», «Вложения», «Репозиторий»; активна третья
+    - Первая строка тела — иконка ветки, её имя с многоточием и «↑2»; «↓» нет, потому что behind = 0
+    - Ровно одна кнопка на всю вкладку — «Команды…», акцентная, во всю ширину панели
+    - Ниже секция «Не сохранено · 3»: буква статуса и путь, обрезанный слева (виден конец пути, не начало)
+    - Последняя секция — одна строка «commit · выполнена», без вывода и без журнала
+  notes: |
+    Кейс не прогонялся в браузере: команды пользователя требуют проекта с
+    git-commands.enabled, а фикстура h2 такого не поднимает.
+
+- id: chat-repo-tab-busy
+  component: ChatRepoPanel
+  path: frontend/src/components/chatPanel/git/ChatRepoPanel.jsx
+  title: Вкладка «Репозиторий», пока модель работает — дверь закрыта
+  status: blocked
+  origin:
+    - Сессия 2026-08-26, git-команды в панели чата
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /chat/<id чата>?right=repo
+    state: идёт генерация ответа
+  fixtures: ./fixtures/chatRepo.js#repoTabBusy
+  expected:
+    - Кнопка «Команды…» серая и не нажимается; наведение показывает подсказку о том, что модель работает
+    - Ветка, счётчики и список несохранённого выглядят как обычно — читать состояние генерация не мешает
+
+- id: chat-repo-tab-merging
+  component: ChatRepoPanel
+  path: frontend/src/components/chatPanel/git/ChatRepoPanel.jsx
+  title: Вкладка «Репозиторий» с незакрытым merge — полоса и точка на самой вкладке
+  status: blocked
+  origin:
+    - Сессия 2026-08-26, git-команды в панели чата
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /chat/<id чата>?right=repo
+  fixtures: ./fixtures/chatRepo.js#repoTabMerging
+  expected:
+    - Под веткой красная полоса «Конфликт merge: файлов — 2»
+    - На самой вкладке «Репозиторий» красная точка 6px — она же видна, когда панель свёрнута в рельс
+    - Оба файла в списке несохранённого помечены красной «U»
+    - Последняя команда — «pull · отказ», подпись исхода красная
+  notes: |
+    Точка — единственное, чем git присутствует в интерфейсе постоянно:
+    закрытая панель молчит, а про незакрытый merge молчать нельзя.
+
+- id: chat-git-commands-modal
+  component: GitCommandsModal
+  path: frontend/src/components/chatPanel/git/GitCommandsModal.jsx
+  title: Модалка команд репозитория — три группы, недоступное объяснено
+  status: blocked
+  origin:
+    - Сессия 2026-08-26, git-команды в панели чата
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /chat/<id чата>?right=repo
+    action: клик по «Команды…»
+  fixtures: ./fixtures/chatRepo.js#commandsModalDirty
+  expected:
+    - Ширина диалога 560px — шире и обычного (380), и «широкого» (460): ряд из трёх кнопок не переносится
+    - Заголовок «Репозиторий» и рядом имя текущей ветки моноширинным, серым
+    - Три группы через разделители — «Обмен с origin», «Рабочее дерево — есть несохранённое», «Ветка»
+    - Под каждым рядом кнопок серая строка-объяснение; ни одна недоступная команда не спрятана
+    - Поле сообщения коммита активно, кнопка «Закоммитить» серая, пока поле пустое
+    - В списке веток нет текущей — переключаться на неё некуда
+
+- id: chat-git-commands-modal-merging
+  component: GitCommandsModal
+  path: frontend/src/components/chatPanel/git/GitCommandsModal.jsx
+  title: Модалка после конфликтного pull — выход из merge и вывод git на месте
+  status: blocked
+  origin:
+    - Сессия 2026-08-26, git-команды в панели чата
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /chat/<id чата>?right=repo
+  fixtures: ./fixtures/chatRepo.js#commandsModalMerging
+  expected:
+    - Четвёртая группа «Незавершённый merge» с красной кнопкой «Прервать merge»
+    - Под ней строка о том, что файлы с конфликтами правят в разделе «Файлы»
+    - Ниже — карточка вывода с текстом самого git про CONFLICT, развёрнутая
+    - Модалка осталась открытой после команды: следующий шаг делают отсюда же
+
+- id: chat-git-commands-modal-busy
+  component: GitCommandsModal
+  path: frontend/src/components/chatPanel/git/GitCommandsModal.jsx
+  title: Модалка, пока модель работает — причина названа один раз
+  status: blocked
+  origin:
+    - Сессия 2026-08-26, git-команды в панели чата
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /chat/<id чата>?right=repo
+    state: идёт генерация ответа
+  fixtures: ./fixtures/chatRepo.js#commandsModalBusy
+  expected:
+    - Под заголовком одна серая плашка с причиной; под кнопками она НЕ повторяется
+    - Все кнопки, поле коммита и выбор ветки серые
+    - Кнопка «Закрыть» остаётся рабочей — выйти из модалки можно всегда
+
+- id: chat-git-output-card
+  component: GitOutputCard
+  path: frontend/src/components/chatPanel/git/GitOutputCard.jsx
+  title: Карточка вывода git в ленте чата — успех свёрнут, отказ развёрнут
+  status: blocked
+  origin:
+    - Сессия 2026-08-26, git-команды в панели чата
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /chat/<id чата>
+  fixtures:
+    - ./fixtures/chatRepo.js#outputCardOk
+    - ./fixtures/chatRepo.js#outputCardRefused
+    - ./fixtures/chatRepo.js#outputCardSilent
+  expected:
+    - Удачная команда — одна светлая строка с зелёной полосой слева, тела не видно
+    - Отказ развёрнут сам: полоса красная, тело тёмное (#1e1e1e), текст моноширинный, длинные строки скроллятся, а не переносятся
+    - Молчаливая команда показывает строку о том, что вывода нет; кнопок копирования и разворачивания у неё нет
+    - Карточка стоит в ленте на месте сообщения и пузырём не притворяется — человек команду запустил, но ничего не написал
+  notes: |
+    Один и тот же компонент рисует вывод в двух местах — в ленте и в модалке
+    (там с модификатором --compact, тело ниже). Разойтись в том, как выглядит
+    отказ, им нельзя.

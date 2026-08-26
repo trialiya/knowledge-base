@@ -141,7 +141,11 @@ const WorkspaceLayout = ({
               >
                 {tab.icon}
                 {tab.badge > 0 && <span className="workspace__rail-badge">{tab.badge}</span>}
-                {tab.alert && <span className="workspace__rail-dot" aria-hidden="true" />}
+                {tab.alert && (
+                  <span className="workspace__rail-dot">
+                    {typeof tab.alert === 'string' && <span className="workspace__a11y-only">{tab.alert}</span>}
+                  </span>
+                )}
               </button>
             ))}
           </div>

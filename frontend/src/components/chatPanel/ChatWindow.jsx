@@ -22,7 +22,7 @@ import { chatLoadErrorNotice, CHAT_DELETED_NOTICE } from './run/chatNotices';
 import { stampChipProject } from './composer/fileChips';
 
 import ChatCenter from './center/ChatCenter';
-import { buildChatTabs } from './center/chatSidebar';
+import { buildChatTabs, buildRepoTab } from './center/chatSidebar';
 import useChatGit from './git/useChatGit';
 import GitCommandsModal from './git/GitCommandsModal';
 import ChatList from './list/ChatList';
@@ -44,7 +44,9 @@ const ChatWindow = ({
   onRepoChanged,
   panels,
 }) => {
-  const { t } = useTranslation('chat');
+  // Второй namespace — ради общего словаря git: названия команд и состояний
+  // репозитория живут в `files` и дублировать их здесь незачем.
+  const { t } = useTranslation(['chat', 'files']);
   // Внутреннее зеркало активного чата. Источник правды — проп propActiveChatId
   // (его держит useAppNavigation в App). Локальные выборы поднимаются наверх
   // через onSelectChat и возвращаются сюда уже как проп.
@@ -353,6 +355,7 @@ const ChatWindow = ({
     // Правку сделал инструмент этого прогона — значит, в проекте этого чата.
     // Без проекта сброс кэша ударил бы по чужому репозиторию с тем же путём.
     onFileChanged: handleFileChanged,
+    onRepoChanged,
   });
 
   // Вложения активного чата: бейдж, скрепка в композере, чипы отложенных файлов.
@@ -480,7 +483,7 @@ const ChatWindow = ({
   // Мемоизируем: ChatWindow перерисовывается на каждый чанк стриминга, а без
   // этого на каждый чанк пересоздавалось бы и содержимое открытой панели
   // вложений (таблица со списком файлов).
-  const rightTabs = useMemo(
+  const baseTabs = useMemo(
     () =>
       buildChatTabs({
         t,
@@ -493,8 +496,6 @@ const ChatWindow = ({
         onAttachmentCountChange: setAttachCount,
         attachmentsRefreshSignal: refreshSignal,
         onAttachmentDeleted: handleAttachmentDeleted,
-        git,
-        onOpenGitCommands: () => setGitCommandsOpen(true),
       }),
     [
       t,
@@ -507,8 +508,16 @@ const ChatWindow = ({
       selectedModelLabel,
       selectedModeLabel,
       selectedProjectLabel,
-      git,
     ],
+  );
+
+  // Вкладка репозитория пересобирается отдельно — и заметно чаще: её состояние
+  // перечитывается после каждой правки файла инструментом прогона. В одном мемо
+  // с остальными она тащила бы за собой пересоздание панели вложений, ради чего
+  // тот мемо и заведён.
+  const rightTabs = useMemo(
+    () => [...baseTabs, ...buildRepoTab({ t, git, onOpen: () => setGitCommandsOpen(true) })],
+    [baseTabs, t, git],
   );
 
   return (
