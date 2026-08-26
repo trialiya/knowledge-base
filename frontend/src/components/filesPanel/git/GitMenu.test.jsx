@@ -98,6 +98,31 @@ describe('GitMenu', () => {
     expect(onSwitch).toHaveBeenCalledWith('main');
   });
 
+  /**
+   * Список уехал порталом на body — клик по его пункту приходит из-за пределов
+   * триггера, и наивная проверка «клик снаружи» закрывала бы меню под курсором.
+   */
+  test('a click inside the floating list does not count as a click outside', async () => {
+    const onSwitch = vi.fn();
+    render(<GitMenu status={status()} onSwitch={onSwitch} />);
+
+    await open();
+    const item = screen.getByRole('menuitem', { name: /feature\/x/ });
+    expect(item.closest('.git-menu')).toBeNull();
+    await userEvent.click(item);
+
+    expect(onSwitch).toHaveBeenCalledWith('feature/x');
+  });
+
+  /** Имя длиннее списка обрезается с хвоста — прочитать его целиком можно только в подсказке. */
+  test('a branch item carries its full name in the title', async () => {
+    const long = 'feature/knowledge-base-attachments-preview-tooltip-rework-with-inline-editing';
+    render(<GitMenu status={status({ branches: ['main', long] })} />);
+
+    await open();
+    expect(screen.getByRole('menuitem', { name: long })).toHaveAttribute('title', long);
+  });
+
   test('a running command blocks the trigger', () => {
     render(<GitMenu status={status()} running />);
 

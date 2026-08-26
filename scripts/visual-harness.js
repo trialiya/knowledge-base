@@ -29,7 +29,8 @@
  *     [caseId ...] [--no-build] [--locale=ru|en] [--port=8099] [--out=<dir>]
  *
  * Case ids are the `fixtures:` references from frontend/tests/visual/cases.yaml
- * (`<module>#<export>`); the opt-in list is harness/registry.jsx. Run with no
+ * (`<module>#<export>`); the opt-in list is harness/registry.jsx, where a case
+ * may also name a selector to click before the shot. Run with no
  * ids to shoot them all — the summary line per case reports the console errors
  * the page produced, which is half of what the run is for.
  */
@@ -128,6 +129,10 @@ async function main() {
     // The dictionary is a separate chunk and the first frame waits for it. The
     // flag sits on <html>: a modal portals into document.body, leaving #root empty.
     await page.waitForFunction(() => document.documentElement.dataset.harness === 'ready');
+    // A state the component opens itself — a dropdown menu — is in no fixture's
+    // reach: the case names the selector to click, main.jsx passes it through.
+    const click = await page.evaluate(() => document.documentElement.dataset.harnessClick);
+    if (click) await page.click(click);
     await page.waitForTimeout(200);
 
     const file = path.join(outDir, `${id.replace(/[^\w.-]+/g, '-')}.png`);

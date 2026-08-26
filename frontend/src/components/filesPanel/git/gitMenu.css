@@ -9,13 +9,17 @@
   flex: none;
 }
 
-/* Выпадает влево: меню стоит у правого края узкой панели, и раскрытие вправо
-   уводило бы его за границу окна. */
+/* Живёт в портале на body, поэтому `fixed`, а координаты и потолок ширины
+   приходят из GitMenu стилем: раскрывается список вправо, поверх центра, — у
+   `.workspace__side` стоит `overflow: hidden`, и внутри панели его обрезало бы
+   её границей, а слева от кнопки нет и ширины панели. */
 .git-menu__dropdown {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  min-width: 200px;
+  position: fixed;
+  /* Глобального border-box в проекте нет: без этой строки padding и рамка
+     добавились бы к потолку ширины, и список вылезал бы за отступ от края окна
+     на свои же 13px (см. правила стилей). */
+  box-sizing: border-box;
+  min-width: 220px;
   /* Веток бывает много: список прокручивается, а панель — нет. */
   max-height: 60vh;
   overflow-y: auto;
@@ -67,7 +71,10 @@
   color: var(--kb-accent);
 }
 
+/* `min-width: 0` — не украшение: flex-элемент по умолчанию не ужимается ниже
+   своего min-content, и без него `text-overflow` ниже мёртв. */
 .git-menu__label {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
