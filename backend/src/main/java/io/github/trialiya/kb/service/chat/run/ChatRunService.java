@@ -13,6 +13,7 @@ import com.openai.models.chat.completions.ChatCompletion;
 import io.github.trialiya.kb.config.ChatClientRegistry;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.StreamMessage;
+import io.github.trialiya.kb.model.chat.dto.TokenUsage;
 import io.github.trialiya.kb.model.chat.dto.ToolCallsMessage;
 import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
@@ -47,7 +48,6 @@ import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AbstractMessage;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.metadata.ChatGenerationMetadata;
-import org.springframework.ai.chat.metadata.ChatResponseMetadata;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.openai.OpenAiChatOptions;
@@ -94,6 +94,7 @@ public class ChatRunService {
     private final ProjectPromptService projectPromptService;
     private final PendingMessageService pendingMessages;
     private final RunOptionsResolver runOptions;
+    private final RunUsageRegistry runUsage;
     private final Executor executor;
 
     /** runId -&gt; дескриптор активного прогона (для остановки). */
@@ -116,6 +117,7 @@ public class ChatRunService {
             ProjectPromptService projectPromptService,
             PendingMessageService pendingMessages,
             RunOptionsResolver runOptions,
+            RunUsageRegistry runUsage,
             @Qualifier("chatRunExecutor") Executor executor) {
         this.chatClients = chatClients;
         this.chatMemory = chatMemory;
@@ -129,6 +131,7 @@ public class ChatRunService {
         this.projectPromptService = projectPromptService;
         this.pendingMessages = pendingMessages;
         this.runOptions = runOptions;
+        this.runUsage = runUsage;
         this.executor = executor;
     }
 
@@ -227,6 +230,9 @@ public class ChatRunService {
                         new AtomicBoolean(),
                         new AtomicBoolean());
         runs.put(runId, handle);
+        // Счёт токенов открываем вместе с прогоном и закрываем вместе с ним (см. cleanup):
+        // TokenUsageAdvisor считает только заведённые здесь прогоны.
+        runUsage.start(runId);
         events.startRun(conversationId, runId);
         // executor — DelegatingSecurityContextExecutorService: проставит SecurityContext текущего
         // пользователя на worker-поток. Операторы Reactor-стрима исполняются на ДРУГИХ потоках,
@@ -482,9 +488,16 @@ public class ChatRunService {
                                     a ->
                                             a.param(ChatMemory.CONVERSATION_ID, conversationId)
                                                     .param(RUN_ID_PARAM, runId));
+            // streamUsage — это stream_options.include_usage: без него OpenAI-совместимый
+            // эндпоинт в стриме не присылает usage вовсе, и считать прогону будет нечего.
+            // Опции ставим всегда, а не только под явно выбранную модель: на дефолтной модели
+            // прогон точно так же обязан считаться.
+            final OpenAiChatOptions.Builder chatOptions = OpenAiChatOptions.builder();
+            chatOptions.streamUsage(true);
             if (resolvedModel != null) {
-                spec = spec.options(OpenAiChatOptions.builder().model(resolvedModel));
+                chatOptions.model(resolvedModel);
             }
+            spec = spec.options(chatOptions);
 
             final Disposable disposable =
                     spec.stream()
@@ -542,7 +555,6 @@ public class ChatRunService {
             buffer.setLength(0);
         }
         liveSink.accept(new StreamMessage(chunk, finishReason));
-        printUsageStatistics(conversationId, response, finishReason);
     }
 
     private void onComplete(
@@ -697,6 +709,16 @@ public class ChatRunService {
         // Нумерация вызовов прогона живёт ровно столько же, сколько сам прогон.
         toolCallEvents.forget(handle.conversationId());
         runs.remove(handle.runId());
+        final TokenUsage spent = runUsage.forget(handle.runId());
+        if (!spent.isEmpty()) {
+            log.info(
+                    "[{}] Run {} spent {} tokens (prompt {}, completion {})",
+                    handle.conversationId(),
+                    handle.runId(),
+                    spent.totalTokens(),
+                    spent.promptTokens(),
+                    spent.completionTokens());
+        }
         activeByConversation.remove(handle.conversationId(), handle.runId());
     }
 
@@ -741,28 +763,6 @@ public class ChatRunService {
         } catch (Exception e) {
             log.warn("Failed to attach run meta for {}", conversationId, e);
         }
-    }
-
-    private void printUsageStatistics(
-            String conversationId, ChatResponse response, @Nullable String finishReason) {
-        if (finishReason == null
-                || finishReason.isEmpty()
-                || finishReason.equals(_UNKNOWN_FINISH_REASON)) {
-            return;
-        }
-        Optional.ofNullable(response)
-                .map(ChatResponse::getMetadata)
-                .map(ChatResponseMetadata::getUsage)
-                .ifPresent(
-                        usage -> {
-                            log.info("[{}] FinishReason: {}", conversationId, finishReason);
-                            log.info(
-                                    "[{}] Usage:\n PromptToken: {}\n CompletionTokens: {}\n TotalTokens: {}",
-                                    conversationId,
-                                    usage.getPromptTokens(),
-                                    usage.getCompletionTokens(),
-                                    usage.getTotalTokens());
-                        });
     }
 
     private static ChatEventType eventType(Object payload) {

@@ -39,6 +39,7 @@ import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -185,6 +186,9 @@ class ChatRuntimeShutdownTest {
         when(spec.system(any(Consumer.class))).thenReturn(spec);
         when(spec.toolContext(any())).thenReturn(spec);
         when(spec.advisors(any(Consumer.class))).thenReturn(spec);
+        // Опции прогон ставит всегда — в них едет stream_options.include_usage
+        // (см. ChatRunService.run), а не только выбранная модель.
+        when(spec.options(any(OpenAiChatOptions.Builder.class))).thenReturn(spec);
         when(spec.stream()).thenReturn(stream);
         when(stream.chatResponse())
                 .thenReturn(
@@ -208,6 +212,7 @@ class ChatRuntimeShutdownTest {
                 mock(ProjectPromptService.class),
                 pendingMessages,
                 mock(RunOptionsResolver.class),
+                new RunUsageRegistry(),
                 executor);
     }
 

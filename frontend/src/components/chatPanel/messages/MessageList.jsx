@@ -292,6 +292,7 @@ const MessageList = ({
                   toolCalls={msg.toolCalls}
                   timestamp={msg.timestamp}
                   modelLabel={modelLabelOf(modelOptions, msg.model)}
+                  usage={msg.usage}
                   toolCallsRunId={msg.toolCallsRunId ?? msg.runId}
                   preparing={msg.preparing}
                   error={msg.error}

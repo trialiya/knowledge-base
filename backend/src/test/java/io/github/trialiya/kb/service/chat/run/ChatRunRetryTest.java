@@ -75,6 +75,7 @@ class ChatRunRetryTest {
                         mock(ProjectPromptService.class),
                         pendingMessages,
                         mock(RunOptionsResolver.class),
+                        new RunUsageRegistry(),
                         never);
     }
 

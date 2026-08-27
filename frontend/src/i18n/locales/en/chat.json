@@ -8,7 +8,10 @@
     "interrupted": "[⚠ Response interrupted due to a server error]",
     "retry": "Retry",
     "queued": "waiting to be sent…",
-    "answeredBy": "Answered by {{model}}"
+    "answeredBy": "Answered by {{model}}",
+    "tokens": "{{total}} tokens",
+    "tokensTitle": "Tokens spent on this answer: {{total}} — {{prompt}} in, {{completion}} out",
+    "tokensCached": "{{cached}} of them read from the prompt cache"
   },
   "window": {
     "defaultTitle": "New chat",

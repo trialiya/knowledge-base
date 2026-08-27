@@ -109,6 +109,22 @@ const clearPreparing = (msgs, runId) => {
   }
 };
 
+// Токены прогона — нарастающий ИТОГ, а не добавка сегмента: событие приходит по нескольку раз
+// за прогон, и каждое следующее заменяет предыдущее целиком. Держим цифру на последнем пузыре
+// прогона и снимаем со всех прежних: у прогона с инструментами сегментов несколько, а потрачено
+// на них одно на всех — плашка на каждом читалась бы как несколько разных счетов.
+const setRunUsage = (msgs, runId, usage) => {
+  let idx = lastAiIndexForRun(msgs, runId);
+  if (idx < 0) idx = pushAi(msgs, runId);
+  for (let i = 0; i < msgs.length; i++) {
+    if (i !== idx && msgs[i].sender === SENDER.AI && msgs[i].runId === runId && msgs[i].usage) {
+      const { usage: _drop, ...rest } = msgs[i];
+      msgs[i] = rest;
+    }
+  }
+  msgs[idx] = { ...msgs[idx], usage };
+};
+
 /** Карточка выполненной git-команды: отправитель у неё USER, ходом разговора она не является. */
 const isGitRow = (message) => !!message.gitEvent;
 
@@ -401,6 +417,14 @@ export function applyChatEvent(chat, ev, ctx) {
         }
         msgs[target] = { ...msgs[target], toolCalls: mergeToolCall(msgs[target].toolCalls || [], meta) };
       }
+      return { ...chat, messages: msgs, runId };
+    }
+
+    case CHAT_EVENT.RUN_USAGE: {
+      // Провайдер, не присылающий usage, не шлёт и события — плашки просто не будет. Пустую
+      // нагрузку всё же отсеиваем: ноль токенов значил бы «посчитали и вышел ноль».
+      if (!payload?.totalTokens) return chat;
+      setRunUsage(msgs, runId, payload);
       return { ...chat, messages: msgs, runId };
     }
 

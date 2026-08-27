@@ -2,6 +2,7 @@ package io.github.trialiya.kb.config;
 
 import io.github.trialiya.kb.advisor.InterjectionAdvisor;
 import io.github.trialiya.kb.advisor.MessageLoggingAdvisor;
+import io.github.trialiya.kb.advisor.TokenUsageAdvisor;
 import io.github.trialiya.kb.advisor.ToolPreparingAdvisor;
 import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.McpProperties;
@@ -22,6 +23,7 @@ import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.run.ChatEventService;
 import io.github.trialiya.kb.service.chat.run.PendingMessageService;
+import io.github.trialiya.kb.service.chat.run.RunUsageRegistry;
 import io.github.trialiya.kb.service.chat.script.ScriptCancelledException;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
 import io.github.trialiya.kb.service.chat.script.ScriptRunner;
@@ -339,7 +341,8 @@ public class ChatConfig {
             ToolCallingManager toolCallingManager,
             ChatToolset chatToolset,
             ChatEventService chatEventService,
-            PendingMessageService pendingMessageService) {
+            PendingMessageService pendingMessageService,
+            RunUsageRegistry runUsageRegistry) {
         Map<String, ChatClient> byModelId = new LinkedHashMap<>();
         for (String modelId : chatModelRegistry.ownEndpointModelIds()) {
             byModelId.put(
@@ -351,7 +354,8 @@ public class ChatConfig {
                             toolCallingManager,
                             chatToolset,
                             chatEventService,
-                            pendingMessageService));
+                            pendingMessageService,
+                            runUsageRegistry));
         }
         return new ChatClientRegistry(
                 chatModelProperties.defaultModel().id(), chatClient, byModelId);
@@ -365,7 +369,8 @@ public class ChatConfig {
             ToolCallingManager toolCallingManager,
             ChatToolset chatToolset,
             ChatEventService chatEventService,
-            PendingMessageService pendingMessageService) {
+            PendingMessageService pendingMessageService,
+            RunUsageRegistry runUsageRegistry) {
         log.info("Model: {}", chatModel.getOptions());
         return buildChatClient(
                 chatModel,
@@ -374,7 +379,8 @@ public class ChatConfig {
                 toolCallingManager,
                 chatToolset,
                 chatEventService,
-                pendingMessageService);
+                pendingMessageService,
+                runUsageRegistry);
     }
 
     private static ChatClient buildChatClient(
@@ -384,7 +390,8 @@ public class ChatConfig {
             ToolCallingManager toolCallingManager,
             ChatToolset chatToolset,
             ChatEventService chatEventService,
-            PendingMessageService pendingMessageService) {
+            PendingMessageService pendingMessageService,
+            RunUsageRegistry runUsageRegistry) {
         // Advisor chain — outermost to innermost (ascending getOrder()):
         //
         //   ToolCallingAdvisor        (DEFAULT_ORDER     = MIN+300)  — drives the tool loop.
@@ -408,6 +415,11 @@ public class ChatConfig {
         //   ToolPreparingAdvisor      (LOWEST_PRECEDENCE = MAX)      — INSIDE the loop:
         //       called on every iteration; emits TOOL_PREPARING before each tool execution round.
         //
+        //   TokenUsageAdvisor         (LOWEST_PRECEDENCE = MAX)      — INSIDE the loop:
+        //       tallies the run's tokens. Must sit inside: the tool-call chunk carrying an
+        //       iteration's usage never leaves the loop, so from outside only the last
+        //       iteration would ever be counted.
+        //
         //   MessageLoggingAdvisor     (LOWEST_PRECEDENCE = MAX)      — INSIDE the loop, innermost:
         //       DEBUG-only, logs the exact message list about to be sent to the model on each
         //       iteration (post memory-prepend, post history-window trim). Off by default — enable
@@ -424,6 +436,7 @@ public class ChatConfig {
                         .build());
         advisors.add(new InterjectionAdvisor(pendingMessageService));
         advisors.add(new ToolPreparingAdvisor(chatEventService));
+        advisors.add(new TokenUsageAdvisor(chatEventService, runUsageRegistry));
         advisors.add(new MessageLoggingAdvisor());
 
         return ChatClient.builder(chatModel)

@@ -79,6 +79,7 @@ class ChatRunQueuedDeliveryTest {
                         mock(ProjectPromptService.class),
                         pendingMessages,
                         runOptions,
+                        new RunUsageRegistry(),
                         never);
     }
 

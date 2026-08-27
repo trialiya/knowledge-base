@@ -7,6 +7,7 @@ import '../styles/message.css';
 import CodeBlock from '@/components/common/ui/CodeBlock';
 import ToolCallNotifications from './ToolCallNotifications';
 import MessageContextItems from './MessageContextItems';
+import { formatTokens, hasUsage } from './tokenUsage';
 import { IconCopySmall, IconCopied } from '@/icons/index';
 import useCopyFeedback from '@/components/common/ui/useCopyFeedback';
 import { SENDER } from '@/constants/messageSender';
@@ -138,6 +139,7 @@ const Message = ({
   contextItems,
   queued = false,
   modelLabel,
+  usage,
 }) => {
   const { t, i18n } = useTranslation('chat');
   const [showSource, setShowSource] = useState(false);
@@ -160,6 +162,20 @@ const Message = ({
   // гасли при любом ре-рендере списка (например, setShowScrollButton после
   // плавного скролла к совпадению).
   const mdComponents = useMemo(() => getMarkdownComponents(onNavigateToDoc), [onNavigateToDoc]);
+
+  // Разбивка — в подсказке: в футере на неё нет места, а нужна она редко.
+  const usageTitle = hasUsage(usage)
+    ? [
+        t('message.tokensTitle', {
+          total: formatTokens(usage.totalTokens),
+          prompt: formatTokens(usage.promptTokens),
+          completion: formatTokens(usage.completionTokens),
+        }),
+        usage.cacheReadTokens > 0 ? t('message.tokensCached', { cached: formatTokens(usage.cacheReadTokens) }) : null,
+      ]
+        .filter(Boolean)
+        .join('; ')
+    : undefined;
 
   // Пузырь — только контент сообщения, без футера
   const bubble = (
@@ -204,6 +220,13 @@ const Message = ({
           {modelLabel && (
             <span className="message-footer__model" title={t('message.answeredBy', { model: modelLabel })}>
               {modelLabel}
+            </span>
+          )}
+          {/* Токены всего прогона, а не этого сегмента: ответ с инструментами — это несколько
+              оплаченных обращений к модели, и плашка стоит на последнем его пузыре. */}
+          {hasUsage(usage) && (
+            <span className="message-footer__tokens" title={usageTitle}>
+              {t('message.tokens', { total: formatTokens(usage.totalTokens) })}
             </span>
           )}
         </div>

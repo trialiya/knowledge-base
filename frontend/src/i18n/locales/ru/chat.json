@@ -8,7 +8,10 @@
     "interrupted": "[⚠ Ответ прерван из-за ошибки на сервере]",
     "retry": "Повторить",
     "queued": "ожидает отправки…",
-    "answeredBy": "Ответила модель {{model}}"
+    "answeredBy": "Ответила модель {{model}}",
+    "tokens": "{{total}} токенов",
+    "tokensTitle": "Токенов потрачено на этот ответ: {{total}} — {{prompt}} на вход, {{completion}} на выход",
+    "tokensCached": "из них {{cached}} прочитано из кэша промпта"
   },
   "window": {
     "defaultTitle": "Новый чат",
