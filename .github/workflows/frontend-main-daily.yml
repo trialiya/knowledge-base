@@ -141,6 +141,8 @@ jobs:
     container:
       # Версия та же, что у пакета playwright ниже, и та же, в которой сняты
       # frontend/tests/visual/baselines/ (см. в них environment.json).
+      # Окружение, в котором сняты эталоны: тот же тег стоит в run/test.sh
+      # (VISUAL_IMAGE), которым сверяются и обновляются эталоны локально.
       image: mcr.microsoft.com/playwright:v1.56.1-noble
     steps:
       - uses: actions/checkout@v7

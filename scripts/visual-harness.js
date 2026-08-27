@@ -35,13 +35,14 @@
  * Chromium с другим набором шрифтов рисует иначе. Их окружение — образ
  * mcr.microsoft.com/playwright из ежедневного прогона (.github/workflows/
  * frontend-main-daily.yml), отпечаток лежит рядом с ними в environment.json, и
- * в чужом окружении сверка пропускается со строкой в отчёте — см. скилл
- * frontend-visual-check (.claude/skills/), там команда для прогона в образе.
+ * в чужом окружении сверка пропускается со строкой в отчёте. Локально прогон в
+ * этом образе — ./run/test.sh harness-image (там же и `-- --update`).
  *
  * Usage:
  *   ./run/test.sh harness                    # every case, into harness/shots/
  *   ./run/test.sh harness -- chatRepo.js#repoTabMerging      # one case
- *   ./run/test.sh harness -- --update        # переснять эталоны
+ *   ./run/test.sh harness-image              # то же со сверкой с эталонами
+ *   ./run/test.sh harness-image -- --update  # переснять эталоны
  *   NODE_PATH=/opt/node22/lib/node_modules node scripts/visual-harness.js \
  *     [caseId ...] [--no-build] [--update] [--locale=ru|en] [--port=8099] \
  *     [--out=<dir>] [--baselines=<dir>]

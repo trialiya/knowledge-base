@@ -50,22 +50,24 @@ the machine that took them is stored next to them in
 `baselines/environment.json`.
 
 So a plain sandbox run **shoots but does not compare** — it says so in one line
-and still reports console errors as before. To compare (or to re-take baselines
-after a deliberate UI change), run the harness in that image:
+and still reports console errors as before. Comparing means running the same
+stand inside that image, which is its own suite:
 
 ```bash
 ./run/test.sh harness                        # снимки + ошибки консоли, без сверки
 ./run/test.sh harness -- chatRepo.js#repoTabMerging
-docker run --rm --network host \
-  -v "$PWD":/w -v /opt/node22/lib/node_modules:/gm:ro -w /w -e NODE_PATH=/gm \
-  -u "$(id -u):$(id -g)" mcr.microsoft.com/playwright:v1.56.1-noble \
-  node scripts/visual-harness.js            # то же, но со сверкой
+./run/test.sh harness-image                  # то же, но со сверкой с эталонами
+./run/test.sh harness-image -- --update      # переснять эталоны
 ```
 
-Add `--update` to that last command after a deliberate UI change, and commit the
-new baselines together with the change — the review then shows what the screen
-now looks like. `dockerd` may need starting first (`sudo dockerd &`), the same
-daemon the `it` suite uses.
+`harness-image` starts `dockerd` itself if it is not up (the same daemon the
+`it` suite uses) and hands the container the repository plus the `playwright`
+module already installed here — the image ships the browsers, not the module.
+The first run pulls the image: ~3.7 GB on disk, a few minutes; after that a full
+56-case run takes about half a minute, roughly what the native run costs.
+
+`--update` belongs with a deliberate UI change: commit the new baselines
+together with it, and the review shows what the screen now looks like.
 
 Do not reach for `--update` to make a red run green. The point of the baseline
 is that it disagrees with you; look at the `.diff.png` first and update only
