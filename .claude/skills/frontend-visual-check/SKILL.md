@@ -108,7 +108,7 @@ the component, and its CSS bundle is ordered by its own import graph, not the
 app's. It has already shown a modal at 380px that is 560px in the product (two
 rules of equal specificity, opposite order) and browser-default buttons (a
 stylesheet the app happened to load from elsewhere). Before reporting anything
-it shows as a defect, check it against the built app — `frontend/build/static/*.css`
+it shows as a defect, check it against the built app — `frontend/build/dist/static/*.css`
 answers the ordering questions. What the harness is reliably good at is the
 opposite direction: it caught both of those, and they were real gaps in the
 components' own imports.

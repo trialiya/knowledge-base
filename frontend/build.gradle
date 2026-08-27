@@ -83,7 +83,7 @@ tasks.register('yarnBuild', YarnTask) {
 
 tasks.register('copyFrontend', Copy) {
     dependsOn('yarnBuild')
-    from('build') {
+    from('build/dist') {
         include 'index.html'
         include 'static/**'
         include 'manifest.json', 'favicon.ico', 'robots.txt'

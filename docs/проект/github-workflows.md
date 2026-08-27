@@ -70,7 +70,7 @@ CI/CD построен на GitHub Actions. Три workflow + Dependabot для 
 3. `gradle/actions/setup-gradle@v5`
 4. Кэширование `node_modules`, `.gradle/nodejs`, `.gradle/yarn` через `actions/cache@v4`
 5. `./gradlew :frontend:build` — полный цикл: `yarnInstall` → `yarnBuild` → `copyFrontend` + `check` (`yarnTest`, `yarnLint`, `spotlessCheck`)
-6. Загрузка артефакта `frontend/build` (retention: 7 дней)
+6. Загрузка артефакта `frontend/build/dist` (retention: 7 дней)
 
 **Переменные окружения:**
 | Переменная | Значение |
