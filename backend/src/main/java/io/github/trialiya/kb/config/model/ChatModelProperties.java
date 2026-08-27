@@ -26,6 +26,12 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
      *     script-run-extended.md} and its edit counterpart) spelled out — see {@code
      *     ScriptGuideService}. Defaults to {@code true} (the safe assumption for a model nobody has
      *     rated yet) when a deployment's config omits the field entirely.
+     * @param streamUsage whether this model's endpoint understands {@code
+     *     stream_options.include_usage}. On (the default) it is what makes token counting possible
+     *     at all: without the field an OpenAI-compatible endpoint sends no usage in stream mode,
+     *     and a run has nothing to count. Turn it off only for a gateway that rejects the field
+     *     outright — such a gateway fails every run, and the price of the switch is that this
+     *     model's answers carry no token figure.
      * @param baseUrl the OpenAI-compatible endpoint this model lives behind. Omitted — the model is
      *     served by {@code spring.ai.openai.base-url} with the deployment's own key, which is the
      *     usual case. Set — the model gets a connection of its own (see {@code ChatModelRegistry}),
@@ -41,6 +47,7 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
             String id,
             String label,
             @DefaultValue("true") boolean weak,
+            @DefaultValue("true") boolean streamUsage,
             @JsonIgnore @Nullable String baseUrl,
             @JsonIgnore @Nullable String apiKey) {
 
@@ -63,8 +70,9 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
          */
         @Override
         public String toString() {
-            return "ModelOption[id=%s, label=%s, weak=%s, baseUrl=%s, apiKey=%s]"
-                    .formatted(id, label, weak, baseUrl, apiKey == null ? null : "***");
+            return "ModelOption[id=%s, label=%s, weak=%s, streamUsage=%s, baseUrl=%s, apiKey=%s]"
+                    .formatted(
+                            id, label, weak, streamUsage, baseUrl, apiKey == null ? null : "***");
         }
 
         /**
@@ -109,6 +117,23 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
                 .filter(m -> id.equals(m.id()))
                 .findFirst()
                 .map(ModelOption::weak)
+                .orElse(true);
+    }
+
+    /**
+     * Просить ли у эндпоинта этой модели usage в стриме. Разбор {@code id} — тот же, что у {@link
+     * #isWeak}; неизвестная модель считается умеющей, потому что цена ошибки здесь обратная: лишний
+     * запрос счётчика эндпоинту, который его поймёт, стоит ничего, а его отсутствие — прогон без
+     * цифры навсегда.
+     */
+    public boolean streamUsage(@Nullable String id) {
+        if (id == null || id.equals(defaultModel.id())) {
+            return defaultModel.streamUsage();
+        }
+        return models.stream()
+                .filter(m -> id.equals(m.id()))
+                .findFirst()
+                .map(ModelOption::streamUsage)
                 .orElse(true);
     }
 }

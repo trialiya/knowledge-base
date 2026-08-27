@@ -61,7 +61,8 @@ class ChatQueueMessageTest {
         when(runService.isGenerating(CONV, RUN)).thenReturn(true);
 
         final ChatModelProperties models =
-                new ChatModelProperties(new ModelOption("gpt", "GPT", true, null, null), List.of());
+                new ChatModelProperties(
+                        new ModelOption("gpt", "GPT", true, true, null, null), List.of());
         controller =
                 new ChatController(
                         models,

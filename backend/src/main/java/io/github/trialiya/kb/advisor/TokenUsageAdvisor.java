@@ -61,8 +61,9 @@ public class TokenUsageAdvisor implements StreamAdvisor {
     public Flux<ChatClientResponse> adviseStream(
             ChatClientRequest request, StreamAdvisorChain chain) {
         final Object runIdParam = request.context().get(RUN_ID_PARAM);
-        // Тем же ChatClient пользуются сжатие контекста, суб-агент и генерация названия чата —
-        // прогона у них нет, считать нечего (см. RunUsageRegistry).
+        // Считаем только заведённый ChatRunService прогон. Проверка не формальность: параметр
+        // прогона в контексте ставит вызывающий, а карту чистит только владелец прогона, и
+        // накопитель, заведённый здесь по чужому runId, удалить было бы некому.
         if (!(runIdParam instanceof String runId) || !usage.tracked(runId)) {
             return chain.nextStream(request);
         }

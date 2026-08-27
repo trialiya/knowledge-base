@@ -10,7 +10,7 @@
     "queued": "waiting to be sent…",
     "answeredBy": "Answered by {{model}}",
     "tokens": "{{total}} tokens",
-    "tokensTitle": "Tokens spent on this answer: {{total}} — {{prompt}} in, {{completion}} out",
+    "tokensTitle": "Tokens the chat model spent on this answer: {{total}} — {{prompt}} in, {{completion}} out",
     "tokensCached": "{{cached}} of them read from the prompt cache"
   },
   "window": {

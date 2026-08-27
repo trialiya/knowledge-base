@@ -13,6 +13,12 @@ describe('tokenUsage', () => {
     expect(formatTokens(1200000)).toBe('1.2M');
   });
 
+  test('на границах единиц не появляется ни «100.0k», ни «1000k»', () => {
+    expect(formatTokens(99999)).toBe('100k');
+    expect(formatTokens(999499)).toBe('999k');
+    expect(formatTokens(999500)).toBe('1.0M');
+  });
+
   test('плашки нет, пока ничего не насчитано', () => {
     expect(hasUsage(null)).toBe(false);
     expect(hasUsage({ totalTokens: 0 })).toBe(false);

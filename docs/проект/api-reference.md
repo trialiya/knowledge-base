@@ -494,7 +494,7 @@ SSE-поток событий чата: стриминг ответа + крос
 
 **Response:** `text/event-stream` (SSE)
 - `ChatEvent` — каждое событие: `seq`, `type`, `runId`, `clientMsgId`, `payload`
-- Типы: `USER_MESSAGE`, `RUN_STARTED`, `STREAM`, `TOOL_CALL`, `TOOL_CALLS`, `RUN_DONE`, `RUN_STOPPED`, `RUN_ERROR`, `CHAT_DELETED`, `COMPACT_STARTED`, `COMPACT_DONE`, `COMPACT_ERROR`, `GIT_COMMAND`
+- Типы: `USER_MESSAGE`, `RUN_STARTED`, `STREAM`, `TOOL_CALL`, `TOOL_CALLS`, `RUN_USAGE`, `RUN_DONE`, `RUN_STOPPED`, `RUN_ERROR`, `CHAT_DELETED`, `COMPACT_STARTED`, `COMPACT_DONE`, `COMPACT_ERROR`, `GIT_COMMAND`
 - `COMPACT_DONE` несёт `CompactPayload`:
   `{ "messageId": 512, "messages": 42, "summaryChars": 3800, "createdAt": "2026-08-25T12:00:00" }` —
   id строки-плашки «контекст сжат» (адрес деталей, см. `GET /compact`), сколько сообщений заменила

@@ -281,6 +281,8 @@ public class ChatRunService {
      * @param weakModel {@code ChatModelProperties#isWeak} от {@link #model} — решает, попадёт ли в
      *     системный промпт обучающая половина руководства по скриптам (см. {@code
      *     ScriptGuideService})
+     * @param streamUsage {@code ChatModelProperties#streamUsage} от {@link #model} — просить ли у
+     *     эндпоинта счётчик токенов (см. {@code TokenUsageAdvisor})
      * @param modeInstructions инструкции выбранного режима; пустая строка — «без режима»
      * @param project id проекта, в котором работают инструменты прогона; {@code null} — дефолтный
      *     проект списка (см. {@code ProjectCatalog})
@@ -291,6 +293,7 @@ public class ChatRunService {
     public record RunOptions(
             @Nullable String model,
             boolean weakModel,
+            boolean streamUsage,
             String modeInstructions,
             @Nullable String project,
             @Nullable ProjectSwitch projectSwitch) {}
@@ -489,11 +492,12 @@ public class ChatRunService {
                                             a.param(ChatMemory.CONVERSATION_ID, conversationId)
                                                     .param(RUN_ID_PARAM, runId));
             // streamUsage — это stream_options.include_usage: без него OpenAI-совместимый
-            // эндпоинт в стриме не присылает usage вовсе, и считать прогону будет нечего.
-            // Опции ставим всегда, а не только под явно выбранную модель: на дефолтной модели
-            // прогон точно так же обязан считаться.
+            // эндпоинт в стриме не присылает usage вовсе, и считать прогону будет нечего
+            // (см. TokenUsageAdvisor). Опции ставим и без выбранной модели: на дефолтной прогон
+            // обязан считаться так же, а шлюз, который поля не понимает, выключают на своей
+            // модели — kb.chat.models[].stream-usage.
             final OpenAiChatOptions.Builder chatOptions = OpenAiChatOptions.builder();
-            chatOptions.streamUsage(true);
+            chatOptions.streamUsage(options.streamUsage());
             if (resolvedModel != null) {
                 chatOptions.model(resolvedModel);
             }
