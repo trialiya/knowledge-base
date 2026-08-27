@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.config;
 
+import io.github.trialiya.kb.advisor.InterjectionAdvisor;
 import io.github.trialiya.kb.advisor.MessageLoggingAdvisor;
 import io.github.trialiya.kb.advisor.ToolPreparingAdvisor;
 import io.github.trialiya.kb.config.model.ChatModelProperties;
@@ -20,6 +21,7 @@ import io.github.trialiya.kb.service.SearchAgentService;
 import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.run.ChatEventService;
+import io.github.trialiya.kb.service.chat.run.PendingMessageService;
 import io.github.trialiya.kb.service.chat.script.ScriptCancelledException;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
 import io.github.trialiya.kb.service.chat.script.ScriptRunner;
@@ -336,7 +338,8 @@ public class ChatConfig {
             @Value("classpath:prompt/sys.md") Resource sysPrompt,
             ToolCallingManager toolCallingManager,
             ChatToolset chatToolset,
-            ChatEventService chatEventService) {
+            ChatEventService chatEventService,
+            PendingMessageService pendingMessageService) {
         Map<String, ChatClient> byModelId = new LinkedHashMap<>();
         for (String modelId : chatModelRegistry.ownEndpointModelIds()) {
             byModelId.put(
@@ -347,7 +350,8 @@ public class ChatConfig {
                             sysPrompt,
                             toolCallingManager,
                             chatToolset,
-                            chatEventService));
+                            chatEventService,
+                            pendingMessageService));
         }
         return new ChatClientRegistry(
                 chatModelProperties.defaultModel().id(), chatClient, byModelId);
@@ -360,7 +364,8 @@ public class ChatConfig {
             @Value("classpath:prompt/sys.md") Resource sysPrompt,
             ToolCallingManager toolCallingManager,
             ChatToolset chatToolset,
-            ChatEventService chatEventService) {
+            ChatEventService chatEventService,
+            PendingMessageService pendingMessageService) {
         log.info("Model: {}", chatModel.getOptions());
         return buildChatClient(
                 chatModel,
@@ -368,7 +373,8 @@ public class ChatConfig {
                 sysPrompt,
                 toolCallingManager,
                 chatToolset,
-                chatEventService);
+                chatEventService,
+                pendingMessageService);
     }
 
     private static ChatClient buildChatClient(
@@ -377,7 +383,8 @@ public class ChatConfig {
             Resource sysPrompt,
             ToolCallingManager toolCallingManager,
             ChatToolset chatToolset,
-            ChatEventService chatEventService) {
+            ChatEventService chatEventService,
+            PendingMessageService pendingMessageService) {
         // Advisor chain — outermost to innermost (ascending getOrder()):
         //
         //   ToolCallingAdvisor        (DEFAULT_ORDER     = MIN+300)  — drives the tool loop.
@@ -391,6 +398,12 @@ public class ChatConfig {
         //       message to the store; after(): saves each iteration's assistant message —
         //       including intermediate segments with tool_calls. Requires a ChatMemory that
         //       round-trips tool messages (ChatHistoryMemory: chat_message.tool_data).
+        //
+        //   InterjectionAdvisor       (MIN+450)                      — INSIDE the loop:
+        //       delivers messages the user sent mid-run. MUST sit after the memory advisor:
+        //       its before() runs once memory has persisted the iteration's tool responses,
+        //       which is the only protocol-safe insertion point for a USER row (see the
+        //       advisor's own javadoc).
         //
         //   ToolPreparingAdvisor      (LOWEST_PRECEDENCE = MAX)      — INSIDE the loop:
         //       called on every iteration; emits TOOL_PREPARING before each tool execution round.
@@ -409,6 +422,7 @@ public class ChatConfig {
                 MessageChatMemoryAdvisor.builder(chatMemory)
                         .order(ToolCallingAdvisor.DEFAULT_ORDER + 100)
                         .build());
+        advisors.add(new InterjectionAdvisor(pendingMessageService));
         advisors.add(new ToolPreparingAdvisor(chatEventService));
         advisors.add(new MessageLoggingAdvisor());
 

@@ -162,6 +162,7 @@ public class CompactService {
                         commandRow.getCreatedAt(),
                         commandRow.getContextItems(),
                         null,
+                        null,
                         null));
         events.publish(conversationId, COMPACT_STARTED, runId, null, null);
         try {

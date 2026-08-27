@@ -214,6 +214,17 @@ describe('trimActiveRunTail', () => {
     expect(trimActiveRunTail(bubbles)).toEqual([u('q1'), a('a1'), u('q2'), git]);
   });
 
+  /**
+   * Вопрос, отправленный во время прогона, ход не открывает — иначе сегменты, написанные
+   * до него, остались бы на экране и продублировались бы реплеем. Сам он срезается наравне
+   * с ними: событие USER_MESSAGE опубликовано внутри активного прогона и вернёт его.
+   */
+  test('does not mistake a mid-run question for the question the run is answering', () => {
+    const mid = { mid: 4, sender: 'user', text: 'и добавь тесты', interjection: true };
+    const bubbles = [u('q1'), a('a1'), u('q2'), a('преамбула'), mid, a('продолжение')];
+    expect(trimActiveRunTail(bubbles)).toEqual([u('q1'), a('a1'), u('q2')]);
+  });
+
   test('leaves the page untouched when it contains no user message (older-page run)', () => {
     const bubbles = [a('хвост старого ответа'), a('ещё')];
     expect(trimActiveRunTail(bubbles)).toEqual(bubbles);

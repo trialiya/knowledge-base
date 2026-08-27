@@ -296,6 +296,7 @@ const MessageList = ({
                   preparing={msg.preparing}
                   error={msg.error}
                   contextItems={msg.contextItems}
+                  queued={msg.queued}
                   // Кнопку повтора показываем только у ошибок с известным режимом повтора
                   // (см. constants/retryMode.js): после начатого ответа модели её нет вовсе.
                   onRetry={onRetry && msg.error && msg.retryMode ? () => onRetry(msg.mid) : undefined}

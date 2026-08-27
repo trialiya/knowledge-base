@@ -55,7 +55,8 @@ class ChatMessageMetaRoundTripTest {
                         "default",
                         "deepseek-chat",
                         new CompactMeta(21, 4096, 512),
-                        new GitEventMeta("pull", "billing", true, "Fast-forward", "main"));
+                        new GitEventMeta("pull", "billing", true, "Fast-forward", "main"),
+                        true);
 
         final String json = new ChatMessageMetaToJsonConverter.Writer(objectMapper).convert(meta);
         final ChatMessageMeta read =

@@ -2,7 +2,9 @@ package io.github.trialiya.kb.controller;
 
 import static io.github.trialiya.kb.utils.ChatUtils.context;
 import static io.github.trialiya.kb.utils.ChatUtils.getUser;
+import static org.springframework.http.HttpStatus.ACCEPTED;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
@@ -21,25 +23,24 @@ import io.github.trialiya.kb.model.chat.dto.StartRunRequest;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
-import io.github.trialiya.kb.model.project.Project;
 import io.github.trialiya.kb.model.project.ProjectOptions;
-import io.github.trialiya.kb.model.project.ProjectSwitch;
 import io.github.trialiya.kb.model.tool.ToolCallDetail;
+import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.memory.CompactService;
 import io.github.trialiya.kb.service.chat.memory.ToolCallService;
-import io.github.trialiya.kb.service.chat.prompt.ChatModeService;
 import io.github.trialiya.kb.service.chat.prompt.ProjectPromptService;
 import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.run.ChatEventService;
 import io.github.trialiya.kb.service.chat.run.ChatRunService;
+import io.github.trialiya.kb.service.chat.run.PendingMessageService;
+import io.github.trialiya.kb.service.chat.run.RunOptionsResolver;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
 import io.github.trialiya.kb.service.chat.topic.ChatSearchService;
 import io.github.trialiya.kb.service.chat.topic.ChatTopicService;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
-import io.github.trialiya.kb.service.file.project.ProjectCatalog;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import jakarta.annotation.Nonnull;
 import java.time.Clock;
@@ -47,7 +48,6 @@ import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
@@ -68,6 +68,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -79,7 +80,8 @@ public class ChatController {
 
     private final ChatModelProperties chatModelProperties;
     private final ChatModeProperties chatModeProperties;
-    private final ChatModeService chatModeService;
+    private final RunOptionsResolver runOptions;
+    private final PendingMessageService pendingMessages;
     private final ChatClientRegistry chatClients;
     private final ChatTopicRepository chatTopicRepository;
     private final ChatHistoryService chatHistory;
@@ -91,7 +93,6 @@ public class ChatController {
     private final ScriptGuideService scriptGuideService;
     private final ContextItemService contextItemService;
     private final ChatTopicService chatTopicService;
-    private final ProjectCatalog projectCatalog;
     private final GitRegistry gitRegistry;
     private final SystemPromptService systemPromptService;
     private final ProjectPromptService projectPromptService;
@@ -102,7 +103,8 @@ public class ChatController {
     public ChatController(
             ChatModelProperties chatModelProperties,
             ChatModeProperties chatModeProperties,
-            ChatModeService chatModeService,
+            RunOptionsResolver runOptions,
+            PendingMessageService pendingMessages,
             ChatClientRegistry chatClients,
             ChatTopicRepository chatTopicRepository,
             ChatHistoryService chatHistory,
@@ -114,14 +116,14 @@ public class ChatController {
             ScriptGuideService scriptGuideService,
             ContextItemService contextItemService,
             ChatTopicService chatTopicService,
-            ProjectCatalog projectCatalog,
             GitRegistry gitRegistry,
             SystemPromptService systemPromptService,
             ProjectPromptService projectPromptService,
             Clock clock) {
         this.chatModelProperties = chatModelProperties;
         this.chatModeProperties = chatModeProperties;
-        this.chatModeService = chatModeService;
+        this.runOptions = runOptions;
+        this.pendingMessages = pendingMessages;
         this.chatClients = chatClients;
         this.chatTopicRepository = chatTopicRepository;
         this.chatHistory = chatHistory;
@@ -133,7 +135,6 @@ public class ChatController {
         this.scriptGuideService = scriptGuideService;
         this.contextItemService = contextItemService;
         this.chatTopicService = chatTopicService;
-        this.projectCatalog = projectCatalog;
         this.gitRegistry = gitRegistry;
         this.systemPromptService = systemPromptService;
         this.projectPromptService = projectPromptService;
@@ -223,7 +224,7 @@ public class ChatController {
                                                 (a.getText() != null && !a.getText().isBlank())
                                                         || (a.getMeta() != null
                                                                 && a.getMeta().gitEvent() != null))
-                                .map(this::toChatMessage)
+                                .map(a -> toChatMessage(a, a.getInvocations()))
                                 .toList()
                         : null;
         return toChat(chatTopicEntity, messages);
@@ -246,28 +247,14 @@ public class ChatController {
 
         List<ChatMessage> dtos =
                 page.messages().stream()
+                        // invocationsFor синтезирует меты из tool_data для сегментов без
+                        // meta.invocations (оборванные и написанные до этого поля прогоны) —
+                        // проекции чата целиком это не нужно, она отдаёт что записано.
                         .map(
                                 e ->
-                                        new ChatMessage(
-                                                e.getId(),
-                                                e.getContent(),
-                                                e.getType().name(),
-                                                e.getCreatedAt(),
-                                                // синтезирует меты из tool_data для сегментов
-                                                // без meta.invocations (оборванные/старые прогоны)
-                                                toolCallService.invocationsFor(e, page.messages()),
-                                                e.getMeta() != null ? e.getMeta().runId() : null,
-                                                isToolCalls(e),
-                                                e.getContextItems(),
-                                                e.getMeta() != null ? e.getMeta().project() : null,
-                                                e.getMeta() != null
-                                                        ? e.getMeta().projectSwitchFrom()
-                                                        : null,
-                                                e.getMeta() != null ? e.getMeta().model() : null,
-                                                e.getMeta() != null ? e.getMeta().compact() : null,
-                                                e.getMeta() != null
-                                                        ? e.getMeta().gitEvent()
-                                                        : null))
+                                        toChatMessage(
+                                                e,
+                                                toolCallService.invocationsFor(e, page.messages())))
                         .toList();
         return new MessagePage(dtos, page.hasMore(), page.oldestCursor());
     }
@@ -358,7 +345,8 @@ public class ChatController {
             @RequestParam(name = "project", required = false) final String project,
             @RequestBody final String userMessage) {
         checkChat(conversationId, true);
-        final ChatRunService.RunOptions options = resolveRun(conversationId, model, mode, project);
+        final ChatRunService.RunOptions options =
+                runOptions.resolve(conversationId, model, mode, project);
         final String resolvedModel = options.model();
         final ToolInvocationCollector toolCollector = new ToolInvocationCollector();
 
@@ -455,9 +443,65 @@ public class ChatController {
                         getUser(),
                         retry ? null : userMessage,
                         contextItems,
-                        resolveRun(conversationId, model, mode, project),
+                        runOptions.resolve(conversationId, model, mode, project),
                         clientMsgId);
         return Map.of("runId", started.runId(), "messageId", started.userMessageId());
+    }
+
+    /**
+     * Ставит сообщение в очередь идущего прогона: пользователь пишет, не дожидаясь, пока модель
+     * закончит. Ответ — {@code 202}: сообщение принято и сохранено, но в историю чата ещё не
+     * попало. Доставит его {@code PendingMessageService} в ближайшем безопасном месте — между
+     * итерациями tool-цикла, а если такого не случится, то в конце прогона.
+     *
+     * <p>Своим эндпоинтом, а не флагом на {@code POST /runs}: у этого запроса другой ответ (нет ни
+     * {@code runId}, ни id сообщения — ряда истории ещё нет) и другая проверка (нужен активный
+     * прогон, а не свободный чат). {@code runId} — в пути, чтобы очередь не пополнилась под уже
+     * сменившийся прогон: вкладка могла узнать о завершении позже, чем нажали «отправить».
+     *
+     * @return {@code 409}, если этот прогон уже не генерирует, — фронт повторяет обычным {@code
+     *     POST /runs}
+     */
+    @PostMapping("/{conversationId}/runs/{runId}/messages")
+    @ResponseStatus(ACCEPTED)
+    public void queueMessage(
+            @PathVariable final String conversationId,
+            @PathVariable final String runId,
+            @RequestParam(name = "model", required = false) final String model,
+            @RequestParam(name = "mode", required = false) final String mode,
+            @RequestParam(name = "project", required = false) final String project,
+            @RequestParam(name = "clientMsgId", required = false) final String clientMsgId,
+            @RequestBody final StartRunRequest body) {
+        if (!StringUtils.hasText(body.text())) {
+            throw new ResponseStatusException(BAD_REQUEST, "Empty message");
+        }
+        verifyOwnerIfPresent(conversationId);
+        // Выбор запоминаем как есть, не резолвя: резолв пишет в chat_topic и считает смену
+        // проекта, а этому сообщению до собственного прогона ещё дожить надо (см.
+        // ChatRunService#deliverQueued). Проверить существование названного — здесь: приняв
+        // несуществующую модель, отказать пришлось бы уже некому.
+        runOptions.validate(model, mode, project);
+        // Приложенное проверяем ДО постановки в очередь — 404 на чужое вложение не должен
+        // оставлять за собой принятое сообщение.
+        final List<ContextItem> contextItems =
+                contextItemService.resolve(conversationId, body.contextItems());
+        if (!chatRunService.isGenerating(conversationId, runId)) {
+            throw new ResponseStatusException(CONFLICT, "This run is no longer generating");
+        }
+        pendingMessages.enqueue(
+                conversationId,
+                getUser(),
+                body.text(),
+                contextItems,
+                new PendingMessageService.PendingOptions(model, mode, project),
+                runId,
+                clientMsgId);
+        // Прогон мог кончиться между проверкой выше и коммитом строки: его собственная доставка
+        // застала бы очередь пустой, а второй у него не будет. Перепроверяем уже после коммита —
+        // окно закрывается, а повторной доставки не выйдет: строку забирает тот, чей DELETE её
+        // застал (см. ChatRunService#deliverIfNobodyGenerates).
+        chatRunService.deliverIfNobodyGenerates(conversationId);
+        chatTopicRepository.updateUpdatedAt(conversationId, LocalDateTime.now(clock));
     }
 
     /**
@@ -486,7 +530,7 @@ public class ChatController {
         // Не checkChat: у команды нет смысла в ещё не заведённом чате, поэтому здесь строгие
         // 404/403, а не заведение чата на лету.
         final ChatTopicEntity topic = getChatTopic(conversationId);
-        final String model = resolveModel(conversationId, Optional.of(topic), "");
+        final String model = runOptions.resolveModel(conversationId, Optional.of(topic), null);
         final CompactService.StartedCompact started =
                 compactService.start(
                         conversationId, body.text(), body.instructions(), model, clientMsgId);
@@ -620,7 +664,16 @@ public class ChatController {
                 messages);
     }
 
-    private ChatMessage toChatMessage(ChatMessageEntity chatMessageEntity) {
+    /**
+     * Ряд истории → DTO. Одна проекция на оба чтения — страницу истории и чат целиком: полей у
+     * {@code ChatMessage} четырнадцать, и второй позиционный вызов конструктора разошёлся бы с
+     * первым на первом же новом поле, ничего не сломав по дороге.
+     *
+     * @param invocations плашки вызовов этого ряда: страница истории досинтезирует их из {@code
+     *     tool_data}, проекция чата отдаёт что записано
+     */
+    private ChatMessage toChatMessage(
+            ChatMessageEntity chatMessageEntity, @Nullable List<ToolInvocationMeta> invocations) {
         final String message;
         // «Крошки» вызовов инструментов хранят PREAMBLE + JSON: показываем только преамбулу.
         // Раньше их отличали по типу SYSTEM, потом по наличию meta — теперь по явному флагу
@@ -640,7 +693,7 @@ public class ChatController {
                 message,
                 chatMessageEntity.getMessageType().getValue(),
                 chatMessageEntity.getCreatedAt(),
-                chatMessageEntity.getInvocations(),
+                invocations,
                 meta != null ? meta.runId() : null,
                 isToolCalls(chatMessageEntity),
                 chatMessageEntity.getContextItems(),
@@ -648,135 +701,12 @@ public class ChatController {
                 meta != null ? meta.projectSwitchFrom() : null,
                 meta != null ? meta.model() : null,
                 meta != null ? meta.compact() : null,
-                meta != null ? meta.gitEvent() : null);
+                meta != null ? meta.gitEvent() : null,
+                meta != null && meta.interjection() ? Boolean.TRUE : null);
     }
 
     /** «Крошка» вызовов инструментов — служебное сообщение, которое не показываем пользователю. */
     private static boolean isToolCalls(ChatMessageEntity entity) {
         return entity.getMeta() != null && entity.getMeta().toolCalls();
-    }
-
-    /**
-     * Параметр запроса → сохранённая модель чата → null. {@code null} означает «не переопределять»,
-     * т.е. едем на модели из application.yaml.
-     *
-     * @param stored строка чата, если её уже прочитали; пустая — параметр запроса всё решает сам
-     */
-    private @Nullable String resolveModel(
-            final String conversationId,
-            final Optional<ChatTopicEntity> stored,
-            final String requested) {
-        if (StringUtils.hasText(requested)) {
-            if (!chatModelProperties.isAllowed(requested)) {
-                throw new ResponseStatusException(BAD_REQUEST, "Unknown model: " + requested);
-            }
-            chatTopicRepository.updateModel(
-                    conversationId, requested); // запоминаем как «последнюю»
-            return requested;
-        }
-        return stored.map(ChatTopicEntity::getModel)
-                .filter(StringUtils::hasText)
-                .filter(chatModelProperties::isAllowed) // на случай, если модель убрали из конфига
-                .orElse(null);
-    }
-
-    /**
-     * Параметр запроса → сохранённый режим чата → null. {@code null} означает «без режима»
-     * (плейсхолдер {@code mode_instructions} заполняется пустой строкой). Параллель {@link
-     * #resolveModel}.
-     */
-    private @Nullable String resolveMode(
-            final String conversationId,
-            final Optional<ChatTopicEntity> stored,
-            final String requested) {
-        if (StringUtils.hasText(requested)) {
-            if (!chatModeProperties.isAllowed(requested)) {
-                throw new ResponseStatusException(BAD_REQUEST, "Unknown mode: " + requested);
-            }
-            chatTopicRepository.updateMode(conversationId, requested); // запоминаем как «последний»
-            return requested;
-        }
-        return stored.map(ChatTopicEntity::getMode)
-                .filter(StringUtils::hasText)
-                .filter(chatModeProperties::isAllowed) // на случай, если режим убрали из конфига
-                .orElse(null);
-    }
-
-    /**
-     * Параметр запроса → сохранённый проект чата → null. {@code null} означает «проект не назван»:
-     * инструменты прогона поедут на первом проекте списка (см. {@code ProjectCatalog}). Параллель
-     * {@link #resolveModel}.
-     *
-     * <p>В отличие от модели и режима, колонку пишет не этот метод, а {@link #resolveRun} — одной
-     * записью «привести к тому, на чём прогон реально пошёл». Ответ здесь бывает не тем, что
-     * сохранено (выбывший из конфигурации проект вырождается в дефолтный), и записать надо именно
-     * ответ: {@code chat_topic.project} означает «на каком проекте чат реально работал», а не «что
-     * выбрано в селекторе». Выбор, не подтверждённый отправкой, живёт на фронте; поэтому же
-     * сравнение с прежним значением колонки (см. {@link #projectSwitch}) и есть детекция настоящей
-     * смены проекта.
-     */
-    private @Nullable String resolveProject(
-            final Optional<ChatTopicEntity> stored, final String requested) {
-        if (StringUtils.hasText(requested)) {
-            if (!projectCatalog.isAllowed(requested)) {
-                throw new ResponseStatusException(BAD_REQUEST, "Unknown project: " + requested);
-            }
-            return requested;
-        }
-        return stored.map(ChatTopicEntity::getProject)
-                .filter(StringUtils::hasText)
-                .filter(projectCatalog::isAllowed) // на случай, если проект убрали из конфига
-                .orElse(null);
-    }
-
-    /**
-     * Смена проекта относительно того, на котором чат работал до этого сообщения. Сравнение — по
-     * каноническим id: не названный проект и явно названный дефолтный означают один репозиторий.
-     * Проект, выбывший из конфигурации, канонизировать не во что — его id сравнивается как есть, и
-     * переезд с него на дефолтный тоже смена: история-то читана в другом репозитории.
-     */
-    private @Nullable ProjectSwitch projectSwitch(
-            @Nullable final String previous, @Nullable final String resolved) {
-        final String to = projectCatalog.require(resolved).id();
-        final String from =
-                previous == null
-                        ? projectCatalog.defaultProject().id()
-                        : projectCatalog.find(previous).map(Project::id).orElse(previous);
-        return to.equals(from) ? null : new ProjectSwitch(from, to);
-    }
-
-    /**
-     * Настройки прогона из параметров запроса и памяти чата — один вызов на оба пути генерации
-     * (синхронный {@link #createMessage} и фоновый {@link #startRun}), чтобы «что выбрано в этом
-     * чате» решалось для них одинаково.
-     */
-    private ChatRunService.RunOptions resolveRun(
-            final String conversationId,
-            final String model,
-            final String mode,
-            final String project) {
-        // Одна строка chat_topic на все три разрешения (тремя отдельными чтениями это был бы тот
-        // же SELECT трижды на сообщение). Проекту она нужна даже при пришедшем параметре: прежнее
-        // значение колонки — это «на каком проекте шла история», и сравнение с ним даёт маркер
-        // смены проекта.
-        final Optional<ChatTopicEntity> stored = chatTopicRepository.findById(conversationId);
-        final String resolvedModel = resolveModel(conversationId, stored, model);
-        final String previousProject = stored.map(ChatTopicEntity::getProject).orElse(null);
-        final String resolvedProject = resolveProject(stored, project);
-        final ProjectSwitch switched = projectSwitch(previousProject, resolvedProject);
-        if (!Objects.equals(previousProject, resolvedProject)) {
-            // Колонку приводим к тому, на чём прогон реально пошёл, — и когда проект назвали, и
-            // когда сохранённый выбыл из конфигурации и выродился в дефолтный. Второе не записать
-            // нельзя: следующее сообщение сравнилось бы с тем же выбывшим значением и повторило
-            // маркер, которому место ровно на одном вопросе — том, которым история сменила
-            // репозиторий.
-            chatTopicRepository.updateProject(conversationId, resolvedProject);
-        }
-        return new ChatRunService.RunOptions(
-                resolvedModel,
-                chatModelProperties.isWeak(resolvedModel),
-                chatModeService.instructionsFor(resolveMode(conversationId, stored, mode)),
-                resolvedProject,
-                switched);
     }
 }

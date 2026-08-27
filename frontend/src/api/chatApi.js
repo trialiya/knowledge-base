@@ -131,6 +131,30 @@ const chatApi = {
   },
 
   /**
+   * Отправить сообщение, не дожидаясь конца текущего ответа: оно встаёт в очередь идущего
+   * прогона (202, без тела). В историю чата попадёт позже — между вызовами инструментов, а
+   * если такого места не случится, то в конце прогона (см. PendingMessageService).
+   *
+   * Ни runId, ни id сообщения не возвращаются: ряда истории у него ещё нет. О приёме вкладки
+   * узнают событием MESSAGE_QUEUED, о доставке — обычным USER_MESSAGE.
+   *
+   * `409` — этот прогон уже не генерирует (кончился, пока набирали): вызывающий повторяет
+   * обычным startRun.
+   */
+  queueMessage: (id, runId, text, { model, mode, project, clientMsgId, contextItems } = {}) => {
+    const params = new URLSearchParams();
+    if (model) params.set('model', model);
+    if (mode) params.set('mode', mode);
+    if (project) params.set('project', project);
+    if (clientMsgId) params.set('clientMsgId', clientMsgId);
+    const qs = params.toString();
+    return request(`/api/chats/${enc(id)}/runs/${enc(runId)}/messages${qs ? `?${qs}` : ''}`, {
+      method: 'POST',
+      ...json({ text, contextItems: contextItems || [] }),
+    });
+  },
+
+  /**
    * Сжать контекст чата (команда `/compact`). Возвращает { runId, messageId }: сам раунд идёт
    * в фоне, исход приезжает событиями COMPACT_DONE/COMPACT_ERROR. Пока он идёт, чат занят так
    * же, как на генерации, — вопрос в него получит 409.

@@ -7,6 +7,7 @@
     "btnMarkdown": "Markdown",
     "interrupted": "[⚠ Response interrupted due to a server error]",
     "retry": "Retry",
+    "queued": "waiting to be sent…",
     "answeredBy": "Answered by {{model}}"
   },
   "window": {
@@ -44,6 +45,8 @@
     "loadErrorMessage": "Error while loading the chat{{suffix}}. Try again later.",
     "busyTitle": "Generation in progress",
     "busyMessage": "A response is already being generated in this chat (possibly in another tab). Wait for it to finish or stop it before sending a new message.",
+    "queueTitle": "Message not sent",
+    "queueMessage": "The message could not be queued. Try sending it again.",
     "retryUnavailableTitle": "Retry no longer possible",
     "retryUnavailableMessage": "The model already started answering, so this turn cannot be retried. Send a message instead — for example, “continue”.",
     "deletedTitle": "Chat deleted",
@@ -191,6 +194,7 @@
     "placeholder": "Message... (Shift+Enter for a new line)",
     "attach": "Attach file",
     "send": "Send",
+    "sendDuringRun": "Send without waiting for the reply",
     "stop": "Stop"
   },
   "compact": {

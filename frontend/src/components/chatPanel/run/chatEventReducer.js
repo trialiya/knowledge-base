@@ -74,7 +74,7 @@ const lastAiIndexForRun = (msgs, runId) => {
 // подпись под ответом обязана быть той же и в живом потоке, и после перезагрузки, где
 // она приезжает из meta.model сохранённого ряда (см. ChatHistoryService.markRunModel).
 const pushAi = (msgs, runId, model = null) => {
-  msgs.push({
+  const bubble = {
     mid: nextMessageId(),
     text: '',
     sender: SENDER.AI,
@@ -82,8 +82,15 @@ const pushAi = (msgs, runId, model = null) => {
     toolCalls: [],
     ...(model ? { model } : {}),
     timestamp: new Date().toISOString(),
-  });
-  return msgs.length - 1;
+  };
+  // Пузыри, ждущие доставки, стоят в конце ленты и остаются там: ряда истории у них ещё
+  // нет, и лягут они после всего, что модель успеет написать за время ожидания. Новый
+  // сегмент ответа поэтому встаёт ПЕРЕД ними — иначе живой порядок разошёлся бы с тем,
+  // что покажет перезагрузка, и вопрос «прыгал» бы на строку ниже.
+  let at = msgs.length;
+  while (at > 0 && msgs[at - 1].queued) at--;
+  msgs.splice(at, 0, bubble);
+  return at;
 };
 
 // Одна ли это плашка смены проекта. Сравнение по значению, а не по ссылке: из каждого эха
@@ -104,6 +111,56 @@ const clearPreparing = (msgs, runId) => {
 
 /** Карточка выполненной git-команды: отправитель у неё USER, ходом разговора она не является. */
 const isGitRow = (message) => !!message.gitEvent;
+
+/**
+ * Сообщение из очереди доставлено в историю (см. MESSAGE_QUEUED). Общий путь USER_MESSAGE здесь
+ * не годится: он опознаёт эхо уже показанного хода и срезает всё, что стоит после него, — а
+ * доставка внутрь прогона хода не кончает, и всё выше модель написала до этого вопроса.
+ *
+ * @param waiting индекс «ожидающего» пузыря (или -1): его завела своя вкладка оптимистично, а
+ *     чужие — по MESSAGE_QUEUED, и у всех он помечен тем же clientMsgId
+ */
+const applyDelivered = (chat, msgs, { runId, payload }, waiting) => {
+  const dbId = payload?.id ?? null;
+  const contextItems = payload?.contextItems?.length ? payload.contextItems : null;
+  const interjection = !!payload?.interjection;
+  if (waiting >= 0) {
+    const { queued: _drop, ...rest } = msgs[waiting];
+    msgs[waiting] = {
+      ...rest,
+      dbId,
+      ...(interjection ? { interjection: true } : {}),
+      ...(contextItems ? { contextItems } : {}),
+    };
+  } else if (dbId != null && msgs.some((m) => m.dbId === dbId)) {
+    return chat; // реплей уже применённого события
+  } else {
+    msgs.push({
+      mid: nextMessageId(),
+      dbId,
+      text: payload?.text || '',
+      sender: SENDER.USER,
+      ...(interjection ? { interjection: true } : {}),
+      ...(contextItems ? { contextItems } : {}),
+      timestamp: payload?.createdAt ?? new Date().toISOString(),
+    });
+  }
+  // Прогон продолжается — закрываем его текущий сегмент, чтобы продолжение ответа встало ПОД
+  // вопросом, а не над ним. Новый сегмент открываем сразу, а не флагом sealed: STREAM открыл бы
+  // его и сам, а вот TOOL_CALL прилепил бы плашку к сегменту над вопросом.
+  const ai = interjection ? lastAiIndexForRun(msgs, runId) : -1;
+  if (ai >= 0) {
+    const segment = msgs[ai];
+    const written = (segment.text || '').trim() !== '' || (segment.toolCalls || []).length > 0;
+    // Сегмент, в который ещё ничего не написали, не размножаем, а переносим вниз: очередь
+    // доставляется целиком, и на каждое сообщение он открывался бы заново, оставляя в
+    // середине ленты пустые плашки до самого finalize.
+    if (!written) msgs.splice(ai, 1);
+    else msgs[ai] = { ...segment, text: (segment.text || '').trimEnd() };
+    pushAi(msgs, runId, segment.model ?? null);
+  }
+  return { ...chat, messages: msgs };
+};
 
 // Снимает метку runId (для live-tracking) и транзиентный флаг sealed, сохраняет runId
 // как toolCallsRunId (для загрузки деталей tool call после завершения прогона).
@@ -135,7 +192,30 @@ export function applyChatEvent(chat, ev, ctx) {
   const { type, runId, clientMsgId, payload } = ev;
 
   switch (type) {
+    // Сообщение принято в очередь идущего прогона: ряда истории у него ещё нет, поэтому
+    // пузырь заводится «ожидающим» — его увидят и вкладки, которые ничего не отправляли.
+    // Своя вкладка показала его оптимистично и второй раз не заводит.
+    case CHAT_EVENT.MESSAGE_QUEUED: {
+      if (clientMsgId && ctx.isLocal?.(clientMsgId)) return chat;
+      if (clientMsgId && msgs.some((m) => m.clientMsgId === clientMsgId)) return chat;
+      msgs.push({
+        mid: nextMessageId(),
+        clientMsgId,
+        queued: true,
+        text: payload?.text || '',
+        sender: SENDER.USER,
+        ...(payload?.contextItems?.length ? { contextItems: payload.contextItems } : {}),
+        timestamp: payload?.createdAt ?? new Date().toISOString(),
+      });
+      return { ...chat, messages: msgs };
+    }
+
     case CHAT_EVENT.USER_MESSAGE: {
+      // Доставка сообщения из очереди — по «ожидающему» пузырю или по флагу в событии.
+      // Оба признака нужны: пузыря может не быть (вкладка вошла позже), а флага — у
+      // доставки после конца прогона.
+      const waiting = clientMsgId ? msgs.findIndex((m) => m.queued && m.clientMsgId === clientMsgId) : -1;
+      if (waiting >= 0 || payload?.interjection) return applyDelivered(chat, msgs, ev, waiting);
       // Этим вопросом чат сменил проект. Решает это бэкенд (сравнением с сохранённым у чата),
       // поэтому оптимистичный пузырь плашку не знал — она доезжает только эхом.
       const projectSwitch = payload?.projectSwitchFrom
@@ -193,6 +273,15 @@ export function applyChatEvent(chat, ev, ctx) {
             };
             const patched = Object.keys(patch).length > 0;
             if (patched) msgs[i] = { ...msgs[i], ...patch };
+            // Страховка от залипшего «ожидает отправки»: сюда доезжает и эхо follow-up прогона,
+            // который отвечает на доставленное сообщение, — своего clientMsgId у него уже нет,
+            // и ветка доставки выше по нему не сработала бы. Ряд в истории есть, значит ждать
+            // больше нечего, чем бы этот пузырь ни был помечен.
+            if (msgs[i].queued) {
+              const { queued: _drop, ...rest } = msgs[i];
+              msgs[i] = rest;
+              return { ...chat, messages: msgs };
+            }
             if (i === msgs.length - 1) return patched ? { ...chat, messages: msgs } : chat;
             // Хвост срезаем, но карточки git в нём оставляем — по тому же правилу, что и
             // `trimActiveRunTail`: их пересобирать нечем, реплей событий прогона их не вернёт.

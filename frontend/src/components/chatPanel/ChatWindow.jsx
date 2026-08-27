@@ -144,6 +144,11 @@ const ChatWindow = ({
     if (propActiveChatId) localStorage.setItem(STORAGE_KEY_ACTIVE_CHAT, propActiveChatId);
   }, [propActiveChatId]);
 
+  // Вернуть в поле ввода то, что там было. Текст поле стирает на отправке, а сама отправка
+  // может и не состояться (команда чату во время ответа) — черновик при этом не тронут, и
+  // сигнала достаточно, чтобы поле перечитало его из initialText.
+  const restoreDraft = useCallback(() => setComposerDraftSignal((n) => n + 1), []);
+
   const handleLoadError = useCallback((info) => notify(chatLoadErrorNotice(info)), [notify]);
 
   // Загрузка/пагинация сообщений активного чата (+ защита от повторных загрузок и
@@ -173,6 +178,7 @@ const ChatWindow = ({
     selectChat,
     clearDraft,
     clearDraftText,
+    restoreDraft,
     getStagedFor,
     modelConfig,
     modelOptions,
@@ -184,14 +190,22 @@ const ChatWindow = ({
 
   // Идёт генерация в активном чате? Источник правды — runId чата (его ставит старт
   // прогона и снимает терминальное событие) ПЛЮС pendingRunChatId, закрывающий
-  // окно до ответа сервера на POST /runs. Управляет блокировкой ввода и видом
-  // кнопки (отправить ↔ остановить).
+  // окно до ответа сервера на POST /runs. Решает, показывать ли «остановить» и
+  // блокировать ли селекторы — но НЕ поле ввода, см. isComposerBusy ниже.
   const isStreaming = !!activeChat?.runId || pendingRunChatId === activeChatId;
 
   // Чат занят сжатием контекста (/compact), а не генерацией. Занятость та же — ввод
   // заблокирован, — но останавливать нечего: сжатие это один запрос к модели без
   // стриминга, и кнопка «остановить» на нём только обещала бы несуществующее.
   const isCompacting = !!activeChat?.compacting;
+
+  // Занят ли САМ КОМПОЗЕР. Уже не всякой генерацией: пока идёт прогон, сообщение встаёт
+  // в его очередь (см. useChatRun.sendMessage), и блокировать ввод значило бы отнять
+  // ровно то, ради чего очередь и заведена. Остаются два случая, где писать некуда:
+  // сжатие контекста (очереди у него нет — она опустошается терминальной обработкой
+  // прогона, а её здесь не будет) и окно до ответа на POST /runs, пока runId ещё
+  // неизвестен и очередь некуда адресовать.
+  const isComposerBusy = isCompacting || pendingRunChatId === activeChatId;
 
   // Поиск сообщений внутри активного чата (find-бар, Ctrl+F / кнопка-лупа в шапке).
   // messages передаём из рендера (getChats обновляется эффектом и на рендер отстаёт).
@@ -557,6 +571,7 @@ const ChatWindow = ({
             messages={activeMessages}
             loadingMessages={loadingMessages}
             isStreaming={isStreaming}
+            isComposerBusy={isComposerBusy}
             isCompacting={isCompacting}
             isChatEmpty={isChatEmpty}
             isActive={isActive}

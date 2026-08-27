@@ -9,6 +9,9 @@ import { expandTokensForSend } from './fileChips';
 import { parsePlaceholders } from './phrasePlaceholders';
 
 // isEmpty — true когда в чате ещё нет сообщений; тогда показываем git-подсказки.
+// busy — писать некуда: идёт сжатие контекста или прогон ещё не назвал свой runId.
+// generating — идёт ответ модели. Поле при этом НЕ блокируется: сообщение встаёт в
+// очередь прогона (см. useChatRun), а «остановить» просто добавляется рядом с «отправить».
 // stoppable — можно ли прервать то, чем занят чат: у генерации да, у сжатия контекста
 // (/compact) нет, и кнопка «остановить» там показывается неактивной.
 // active — панель чата открыта (не перекрыта другим разделом): по ней ставится фокус.
@@ -17,7 +20,8 @@ import { parsePlaceholders } from './phrasePlaceholders';
 const MessageInput = ({
   onSend,
   onStop,
-  disabled,
+  busy,
+  generating = false,
   stoppable = true,
   onAttach,
   isEmpty = false,
@@ -71,8 +75,8 @@ const MessageInput = ({
   }, [draftSignal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!disabled) inputRef.current?.focus();
-  }, [disabled]);
+    if (!busy) inputRef.current?.focus();
+  }, [busy]);
 
   // Панель чата смонтирована всегда, поверх неё бывают другие разделы — при
   // возврате на неё фокус снова уходит в поле ввода.
@@ -82,7 +86,7 @@ const MessageInput = ({
 
   // Отправка: разворачиваем токены файлов в содержимое, затем отдаём наверх.
   const handleSubmit = async () => {
-    if (!text.trim() || disabled || sending) return;
+    if (!text.trim() || busy || sending) return;
     setSending(true);
     try {
       const expanded = await expandTokensForSend(text, project?.selected);
@@ -149,7 +153,7 @@ const MessageInput = ({
             onTextChange?.(v);
           }}
           onSend={handleSubmit}
-          disabled={disabled}
+          disabled={busy}
           placeholder={t('input.placeholder')}
           chatId={chatId}
         />
@@ -159,7 +163,8 @@ const MessageInput = ({
         model={model}
         mode={mode}
         project={project}
-        disabled={disabled}
+        busy={busy}
+        generating={generating}
         stoppable={stoppable}
         sendDisabled={sendDisabled}
         onAttach={onAttach}

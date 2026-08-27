@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.OptionalInt;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.util.Strings;
-import org.springframework.ai.chat.messages.MessageType;
 
 /**
  * The live window of a conversation cut in two — all of {@code SummarizeService}'s arithmetic, with
@@ -190,8 +189,7 @@ final class SummarizeWindow {
         }
         int seen = 0;
         for (int i = prompt.size() - 1; i >= 0; i--) {
-            if (prompt.get(i).entity().getType() == MessageType.USER
-                    && ++seen == keepUserMessages) {
+            if (opensATurn(prompt.get(i)) && ++seen == keepUserMessages) {
                 return OptionalInt.of(i);
             }
         }
@@ -218,11 +216,21 @@ final class SummarizeWindow {
             return OptionalInt.empty();
         }
         for (int i = upperBound; i > 0; i--) {
-            if (prompt.get(i).entity().getType() == MessageType.USER) {
+            if (opensATurn(prompt.get(i))) {
                 return OptionalInt.of(i);
             }
         }
         return OptionalInt.empty();
+    }
+
+    /**
+     * Открывает ли ряд ход — та же граница, по которой хвост прогона отделяют {@code markRunModel}
+     * и {@code attachRunMeta} (см. {@link ChatHistoryService#opensATurn}). Обе границы обязаны
+     * совпадать: ряд, который здесь считался бы вопросом, а там нет, дал бы окно, открытое на
+     * ответе к вопросу вне окна.
+     */
+    private static boolean opensATurn(PromptRow row) {
+        return ChatHistoryService.opensATurn(row.entity());
     }
 
     // -------------------------------------------------------------------------

@@ -220,6 +220,44 @@ public class ChatHistoryService {
     }
 
     /**
+     * Записывает доставленное из очереди сообщение (см. {@code PendingMessageService}) — вопрос,
+     * отправленный во время активного прогона и доехавший до истории в безопасном «окне».
+     *
+     * <p>{@code interjection} — доставка случилась ПОСРЕДИ прогона, между итерациями tool-цикла:
+     * ряд получает флаг в мете, и {@link #promptRow} обернёт его текст нотисом {@link
+     * #interjectionNotice}. {@code false} — прогон уже завершился, и сообщение становится обычным
+     * вопросом: следующим ходом чата, который подберёт follow-up прогон или «Повторить».
+     *
+     * <p>За протокольную валидность точки вставки отвечает вызывающий: либо хвост истории — TOOL
+     * (окно advisor'а, где ответы инструментов уже записаны), либо {@link #repairDanglingToolCalls}
+     * уже отработал (терминальная доставка и восстановление). Сам метод хвост не чинит: в окне
+     * advisor'а ремонт увидел бы здоровую пару и был бы пустой тратой, а прятать вызов ремонта в
+     * два из трёх путей — значит молча положиться на третий.
+     */
+    @Transactional
+    public ChatMessageEntity saveDeliveredPending(
+            String conversationId,
+            String text,
+            List<ContextItem> contextItems,
+            boolean interjection) {
+        final ChatMessageMeta meta =
+                interjection
+                        ? ChatMessageMeta.ofInterjection(contextItems)
+                        : ChatMessageMeta.ofUserMessage(contextItems, null, null);
+        return chatMessageRepository.save(
+                new ChatMessageEntity(
+                        0,
+                        conversationId,
+                        text,
+                        MessageType.USER,
+                        lastPosition(conversationId) + 1,
+                        false,
+                        false,
+                        LocalDateTime.now(),
+                        meta));
+    }
+
+    /**
      * Чинит оборванную пару tool-сообщений в хвосте диалога. Если прогон прервали (stop, ошибка,
      * падение процесса) во время выполнения инструментов, последняя строка — ASSISTANT с tool_calls
      * без парной TOOL-строки; следующий запрос к модели с таким хвостом получил бы 400
@@ -335,7 +373,7 @@ public class ChatHistoryService {
     static List<ChatMessageEntity> tailAfterLastUser(List<ChatMessageEntity> rows) {
         int lastUser = -1;
         for (int i = 0; i < rows.size(); i++) {
-            if (rows.get(i).getType() == MessageType.USER && !isGitEvent(rows.get(i))) {
+            if (opensATurn(rows.get(i))) {
                 lastUser = i;
             }
         }
@@ -343,11 +381,26 @@ public class ChatHistoryService {
     }
 
     /**
-     * Ряд git-команды — тоже {@code USER}, но ходом пользователя в разговоре не является: он ничего
-     * не спрашивает и ответа не ждёт. Всё, что ищет «последний вопрос», обязано смотреть сквозь
-     * него, иначе команда, выполненная посреди прогона, обрежет его хвост — и ряды выше останутся
-     * без модели и без плашек вызовов навсегда.
+     * Открывает ли ряд новый ход разговора. Не всякий {@code USER}-ряд им открывается, и всё, что
+     * ищет «последний вопрос», обязано смотреть сквозь два исключения:
+     *
+     * <ul>
+     *   <li>ряд git-команды ничего не спрашивает и ответа не ждёт;
+     *   <li>вопрос, доставленный посреди прогона ({@code meta.interjection}), задан внутри уже
+     *       идущего хода — ход открыл вопрос выше него.
+     * </ul>
+     *
+     * <p>Оба попадают в историю в произвольный момент работы модели, и оба, посчитанные границей
+     * хода, обрезали бы хвост прогона посередине: ряды выше остались бы без модели и без плашек
+     * вызовов навсегда (см. {@link #markRunModel}, {@code ToolCallService#attachRunMeta}), а окно
+     * сжатия открылось бы на ответе к вопросу, которого в нём уже нет ({@code SummarizeWindow}).
      */
+    static boolean opensATurn(ChatMessageEntity row) {
+        return row.getType() == MessageType.USER
+                && (row.getMeta() == null
+                        || (row.getMeta().gitEvent() == null && !row.getMeta().interjection()));
+    }
+
     private static boolean isGitEvent(ChatMessageEntity row) {
         return row.getMeta() != null && row.getMeta().gitEvent() != null;
     }
@@ -442,10 +495,25 @@ public class ChatHistoryService {
      * каждом запросе, значит тоже занимают бюджет.
      */
     public List<PromptRow> promptRows(String conversationId) {
-        final List<ChatMessageEntity> rows =
+        return promptRowsFor(
+                conversationId,
                 chatMessageRepository
                         .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
-                                conversationId);
+                                conversationId));
+    }
+
+    /**
+     * Промпт-вид КОНКРЕТНЫХ рядов — для сообщений, которые доставлены внутрь уже идущего прогона и
+     * должны доехать до модели этой же итерацией (см. {@code InterjectionAdvisor}): окно итерации
+     * собрано advisor-ом памяти раньше, чем эти ряды записаны, и перечитывать его целиком ради
+     * хвоста незачем. Текст — тем же {@link #promptRow}, что и у полного окна: нотисы и опись
+     * вложений обязаны быть теми же, какими их увидит следующая итерация из {@link #promptRows}.
+     */
+    public List<Message> promptMessagesFor(String conversationId, List<ChatMessageEntity> rows) {
+        return promptRowsFor(conversationId, rows).stream().map(PromptRow::toMessage).toList();
+    }
+
+    private List<PromptRow> promptRowsFor(String conversationId, List<ChatMessageEntity> rows) {
         final Map<Long, String> context = contextItemService.renderAll(conversationId, rows);
         return rows.stream().map(entity -> promptRow(entity, context.get(entity.getId()))).toList();
     }
@@ -475,7 +543,8 @@ public class ChatHistoryService {
             // а маркера смены проекта — тем более, чат этим рядом никуда не переходит.
             return new PromptRow(entity, gitCommand);
         }
-        final String notice = projectSwitchNotice(entity.getMeta());
+        final String notice =
+                projectSwitchNotice(entity.getMeta()) + interjectionNotice(entity.getMeta());
         if (notice.isEmpty() && inventory == null) {
             return new PromptRow(entity, entity.getContent());
         }
@@ -506,6 +575,26 @@ public class ChatHistoryService {
                 + "\". Re-read whatever you need with the tools. When summarizing, preserve this"
                 + " notice verbatim.\n"
                 + "</project-switched>\n\n";
+    }
+
+    /**
+     * Текст нотиса вопроса, доставленного посреди прогона. В отличие от маркера смены проекта, у
+     * summarizer'а здесь ПРОТИВОПОЛОЖНАЯ инструкция — свернуть как обычную реплику, а тег не
+     * сохранять: после завершения хода сообщение ничем не отличается от прочих просьб пользователя,
+     * и дословная обёртка только копила бы служебный текст в каждой сводке. Формулировка нейтральна
+     * к моменту чтения — тот же текст верен и внутри живой итерации, и в любом последующем прогоне.
+     */
+    private static String interjectionNotice(@Nullable ChatMessageMeta meta) {
+        if (meta == null || !meta.interjection()) {
+            return "";
+        }
+        return "<user-interjection>\n"
+                + "The user sent this message while you were still working on the previous"
+                + " request — they were reacting to your progress, not to a finished answer. Take"
+                + " it into account before continuing: it may redirect, narrow, or add to the"
+                + " task. When summarizing, fold its content into the user's requests as an"
+                + " ordinary message; this tag itself need not be preserved.\n"
+                + "</user-interjection>\n\n";
     }
 
     /**

@@ -10,6 +10,13 @@ public enum ChatEventType {
      * UserMessagePayload}).
      */
     USER_MESSAGE,
+    /**
+     * Сообщение принято в очередь идущего прогона ({@code payload}: {@link QueuedMessagePayload}) —
+     * все вкладки показывают его «ожидающим» пузырём. Доставка в историю приезжает отдельным {@code
+     * USER_MESSAGE} (с флагом {@code interjection}, когда она случилась посреди прогона), и до неё
+     * сообщение живёт только в {@code chat_pending_message}.
+     */
+    MESSAGE_QUEUED,
     /** Начало генерации ответа. */
     RUN_STARTED,
     /** Кусок ответа ассистента ({@code payload}: {@link StreamMessage}). */

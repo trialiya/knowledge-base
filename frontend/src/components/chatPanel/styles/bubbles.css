@@ -34,6 +34,20 @@
   word-wrap: break-word;
 }
 
+/* Отправлено во время ответа и ещё не доставлено в историю: приглушённый пузырь с
+   пометкой. Прозрачностью, а не отдельным цветом, — состояние временное и короткое,
+   а собственный цвет читался бы как ещё один вид сообщения. */
+.message.user.message--queued {
+  opacity: 0.65;
+}
+
+.message-queued-note {
+  margin-top: 4px;
+  font-size: 0.78em;
+  font-style: italic;
+  opacity: 0.85;
+}
+
 /* Сообщение от AI */
 .message.ai {
   background-color: var(--kb-ai-bubble-bg);

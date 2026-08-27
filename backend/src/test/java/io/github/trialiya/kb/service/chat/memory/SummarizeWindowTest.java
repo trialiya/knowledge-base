@@ -92,6 +92,34 @@ class SummarizeWindowTest {
     }
 
     /**
+     * Выравнивание хвоста на целый ход смотрит сквозь вопрос, доставленный внутрь прогона: ход
+     * открыт вопросом выше него. Открывшись на нём, хвост начинался бы репликой, отвечающей на
+     * вопрос, который сжатие только что унесло в сводку.
+     */
+    @Test
+    void theTurnBoundaryLooksThroughAQuestionDeliveredMidRun() {
+        // Чередование вопрос/ответ; граница по числу сообщений даёт 50, и позиция 50 — USER.
+        // Но этот вопрос задан посреди чужого хода, поэтому выравнивание уходит на 48.
+        final List<PromptRow> live = alternating(0, 60);
+        live.set(50, interjection(50));
+
+        assertThat(window(live, properties(10, 3, 1)).endPosition()).isEqualTo(47L);
+    }
+
+    /**
+     * Правило «удержать N вопросов» считает те же вопросы: доставленный внутрь прогона за отдельный
+     * ход не идёт, иначе хвост держал бы меньше настоящих вопросов, чем обещает настройка.
+     */
+    @Test
+    void theUserOverlapDoesNotCountAQuestionDeliveredMidRun() {
+        // Три последних настоящих вопроса — 58, 54 и 52: 56-й доставлен внутрь прогона.
+        final List<PromptRow> live = alternating(0, 60);
+        live.set(56, interjection(56));
+
+        assertThat(window(live, properties(2, 3, 1)).endPosition()).isEqualTo(51L);
+    }
+
+    /**
      * {@code overlap-user-messages: 0} выключает правило целиком и возвращает поведение до его
      * появления — только граница по числу сообщений, выровненная на ближайшее USER-сообщение.
      */
@@ -372,6 +400,18 @@ class SummarizeWindowTest {
     /** {@code chars} — длина текста: она и есть вес сообщения для оценки токенов. */
     private static PromptRow row(long position, MessageType type, int chars) {
         final ChatMessageEntity entity = entity(position, type, text(chars), null, null);
+        return new PromptRow(entity, entity.getContent());
+    }
+
+    /** Вопрос, доставленный внутрь идущего прогона: обычный USER-ряд, не открывающий ход. */
+    private static PromptRow interjection(long position) {
+        final ChatMessageEntity entity =
+                entity(
+                        position,
+                        MessageType.USER,
+                        text(3),
+                        ChatMessageMeta.ofInterjection(List.of()),
+                        null);
         return new PromptRow(entity, entity.getContent());
     }
 

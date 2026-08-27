@@ -33,6 +33,12 @@ import org.jspecify.annotations.Nullable;
  * <p>{@code gitEvent} — git-команда, выполненная пользователем из этого чата (см. {@link
  * GitEventMeta}). Тоже признак своего ряда: у такого сообщения пустой контент, и весь его смысл в
  * этом поле — карточка вывода на фронте, нотис модели в {@code ChatHistoryService.promptRow}.
+ *
+ * <p>{@code interjection} — вопрос доставлен ПОСРЕДИ прогона, между итерациями tool-цикла (см.
+ * {@code PendingMessageService}): пользователь писал, глядя на ход работы, а не на готовый ответ.
+ * Модель предупреждает нотис в {@code ChatHistoryService.promptRow}; для всего, что ищет «последний
+ * вопрос» хода ({@code tailAfterLastUser} и его фронтовый двойник), такой ряд обязан быть
+ * прозрачным — ход открыл не он.
  */
 public record ChatMessageMeta(
         @Nullable String runId,
@@ -43,7 +49,8 @@ public record ChatMessageMeta(
         @Nullable String projectSwitchFrom,
         @Nullable String model,
         @Nullable CompactMeta compact,
-        @Nullable GitEventMeta gitEvent) {
+        @Nullable GitEventMeta gitEvent,
+        boolean interjection) {
 
     public ChatMessageMeta {
         invocations = invocations == null ? List.of() : invocations;
@@ -67,7 +74,8 @@ public record ChatMessageMeta(
                 projectSwitchFrom,
                 model,
                 null,
-                null);
+                null,
+                false);
     }
 
     public ChatMessageMeta(
@@ -124,7 +132,7 @@ public record ChatMessageMeta(
      */
     public static ChatMessageMeta ofCompact(CompactMeta compact) {
         return new ChatMessageMeta(
-                null, false, List.of(), List.of(), null, null, null, compact, null);
+                null, false, List.of(), List.of(), null, null, null, compact, null, false);
     }
 
     /**
@@ -134,7 +142,18 @@ public record ChatMessageMeta(
      */
     public static ChatMessageMeta ofGitEvent(GitEventMeta gitEvent) {
         return new ChatMessageMeta(
-                null, false, List.of(), List.of(), null, null, null, null, gitEvent);
+                null, false, List.of(), List.of(), null, null, null, null, gitEvent, false);
+    }
+
+    /**
+     * Метаданные вопроса, доставленного посреди прогона: приложенный контекст плюс флаг {@code
+     * interjection}. Флаг живёт в мете, а не выводится из положения ряда: после завершения прогона
+     * ряд ничем больше не отличается от обычного вопроса, а прозрачность для «последнего вопроса»
+     * хода нужна и тогда.
+     */
+    public static ChatMessageMeta ofInterjection(List<ContextItem> contextItems) {
+        return new ChatMessageMeta(
+                null, false, List.of(), contextItems, null, null, null, null, null, true);
     }
 
     /** Метаданные summary-строки: проект, на котором закончилась сжатая часть истории. */
@@ -157,7 +176,8 @@ public record ChatMessageMeta(
                 projectSwitchFrom,
                 model,
                 compact,
-                gitEvent);
+                gitEvent,
+                interjection);
     }
 
     /**
@@ -175,6 +195,7 @@ public record ChatMessageMeta(
                 projectSwitchFrom,
                 model,
                 compact,
-                gitEvent);
+                gitEvent,
+                interjection);
     }
 }
