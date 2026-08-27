@@ -5,7 +5,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -86,18 +85,13 @@ class ChatRunQueuedDeliveryTest {
      */
     @Test
     void aCompletedRunAnswersWhatTheQueueHeld() {
-        when(pendingMessages.peekOptions(CONV))
-                .thenReturn(new PendingOptions("gpt-5", "review", "kb"));
-        when(pendingMessages.flushPlain(CONV)).thenReturn(true);
+        when(pendingMessages.flushPlain(CONV))
+                .thenReturn(flushed(new PendingOptions("gpt-5", "review", "kb")));
         when(chatHistory.unansweredUserMessage(CONV)).thenReturn(Optional.of(userRow()));
 
         runService.deliverQueued(CONV, USER, true);
 
-        // Настройки читаются ДО доставки: она забирает строки очереди насовсем. Второй flushPlain
-        // — страховка на старте запущенного здесь же прогона, и очередь она застаёт уже пустой.
-        final InOrder order = inOrder(pendingMessages);
-        order.verify(pendingMessages).peekOptions(CONV);
-        order.verify(pendingMessages, atLeastOnce()).flushPlain(CONV);
+        // Настройки приезжают вместе с доставкой — отдельного «подсмотреть до» нет.
         verify(runOptions).resolve(CONV, "gpt-5", "review", "kb");
         // Путь «Повторить»: нового ряда не заводим — ходом стал доставленный вопрос.
         verify(chatHistory, never()).saveUserMessage(anyString(), anyString(), anyList(), any());
@@ -111,8 +105,7 @@ class ChatRunQueuedDeliveryTest {
      */
     @Test
     void anInterruptedRunDeliversWithoutStartingAnother() {
-        when(pendingMessages.peekOptions(CONV)).thenReturn(PendingOptions.NONE);
-        when(pendingMessages.flushPlain(CONV)).thenReturn(true);
+        when(pendingMessages.flushPlain(CONV)).thenReturn(flushed(PendingOptions.NONE));
 
         runService.deliverQueued(CONV, USER, false);
 
@@ -124,8 +117,8 @@ class ChatRunQueuedDeliveryTest {
     /** Пустая очередь — самый частый случай: ни прогона, ни резолва настроек. */
     @Test
     void anEmptyQueueStartsNothing() {
-        when(pendingMessages.peekOptions(CONV)).thenReturn(PendingOptions.NONE);
-        when(pendingMessages.flushPlain(CONV)).thenReturn(false);
+        when(pendingMessages.flushPlain(CONV))
+                .thenReturn(new PendingMessageService.Flushed(List.of(), PendingOptions.NONE));
 
         runService.deliverQueued(CONV, USER, true);
 
@@ -140,8 +133,7 @@ class ChatRunQueuedDeliveryTest {
      */
     @Test
     void aChatClaimedMeanwhileIsNotAnError() {
-        when(pendingMessages.peekOptions(CONV)).thenReturn(PendingOptions.NONE);
-        when(pendingMessages.flushPlain(CONV)).thenReturn(true);
+        when(pendingMessages.flushPlain(CONV)).thenReturn(flushed(PendingOptions.NONE));
         when(chatHistory.unansweredUserMessage(CONV)).thenReturn(Optional.of(userRow()));
         runService.claim(CONV); // заявку держит кто-то другой
 
@@ -166,6 +158,11 @@ class ChatRunQueuedDeliveryTest {
         order.verify(chatHistory).repairDanglingToolCalls(CONV);
         order.verify(pendingMessages).flushPlain(CONV);
         order.verify(chatHistory).saveUserMessage(eq(CONV), anyString(), anyList(), any());
+    }
+
+    /** Доставлено одно сообщение на названных настройках. */
+    private static PendingMessageService.Flushed flushed(PendingOptions options) {
+        return new PendingMessageService.Flushed(List.of(userRow()), options);
     }
 
     private static ChatMessageEntity userRow() {

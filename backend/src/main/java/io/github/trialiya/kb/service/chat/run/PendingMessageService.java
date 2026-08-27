@@ -115,10 +115,8 @@ public class PendingMessageService {
      */
     @Transactional
     public List<Message> flushMidTurn(String conversationId, @Nullable String runId) {
-        final List<ChatMessageEntity> delivered = flush(conversationId, true, runId);
-        return delivered.isEmpty()
-                ? List.of()
-                : chatHistory.promptMessagesFor(conversationId, delivered);
+        final List<ChatMessageEntity> rows = flush(conversationId, true, runId).rows();
+        return rows.isEmpty() ? List.of() : chatHistory.promptMessagesFor(conversationId, rows);
     }
 
     /**
@@ -126,30 +124,35 @@ public class PendingMessageService {
      * после падения. Вызывающий обязан сперва привести хвост истории в порядок ({@code
      * repairDanglingToolCalls}): здесь запись идёт в конец как есть.
      *
-     * @return {@code true}, если хоть одно сообщение доставлено — сигнал вызывающему, что у чата
-     *     появился неотвеченный вопрос (и, в {@code onComplete}, повод стартовать follow-up прогон)
+     * @return что унесла доставка — см. {@link Flushed}
      */
     @Transactional
-    public boolean flushPlain(String conversationId) {
-        return !flush(conversationId, false, null).isEmpty();
+    public Flushed flushPlain(String conversationId) {
+        return flush(conversationId, false, null);
     }
 
     /**
-     * Настройки прогона из первой строки очереди — прочитать их обязательно ДО {@link #flushPlain},
-     * которая эти строки удаляет. Пустая очередь даёт {@link PendingOptions#NONE}, а не {@code
-     * null}: «очередь пуста» и «в очереди ничего не выбирали» ведут к одному и тому же прогону, и
-     * различать их вызывающему незачем.
+     * Итог доставки: было ли что доставлять и на каких настройках это писали. Настройки едут
+     * ответом, а не отдельным «подсмотреть до», — иначе вызывающий обязан был бы прочитать их ДО
+     * доставки (она забирает строки насовсем), и порядок двух вызовов стал бы негласным
+     * требованием, которое нечем проверить.
+     *
+     * @param delivered доставлено хоть одно сообщение — у чата появился неотвеченный вопрос (и, в
+     *     терминальной обработке завершившегося прогона, повод стартовать follow-up)
+     * @param options настройки первого доставленного сообщения; {@link PendingOptions#NONE}, если
+     *     доставлять было нечего
      */
-    public PendingOptions peekOptions(String conversationId) {
-        return repository.findByConversationIdOrderByIdAsc(conversationId).stream()
-                .findFirst()
-                .map(row -> new PendingOptions(row.getModel(), row.getMode(), row.getProject()))
-                .orElse(PendingOptions.NONE);
+    public record Flushed(List<ChatMessageEntity> rows, PendingOptions options) {
+
+        /** Доставлено хоть одно сообщение — у чата появился неотвеченный вопрос. */
+        public boolean any() {
+            return !rows.isEmpty();
+        }
     }
 
-    private List<ChatMessageEntity> flush(
-            String conversationId, boolean interjection, @Nullable String runId) {
+    private Flushed flush(String conversationId, boolean interjection, @Nullable String runId) {
         final List<ChatMessageEntity> delivered = new ArrayList<>();
+        PendingOptions options = PendingOptions.NONE;
         for (ChatPendingMessageEntity pending :
                 repository.findByConversationIdOrderByIdAsc(conversationId)) {
             // Заявка на строку: 0 — её успела доставить другая точка (advisor против терминальной
@@ -163,6 +166,11 @@ public class PendingMessageService {
                             pending.getContent(),
                             pending.getContextItems(),
                             interjection);
+            if (delivered.isEmpty()) {
+                options =
+                        new PendingOptions(
+                                pending.getModel(), pending.getMode(), pending.getProject());
+            }
             delivered.add(row);
             events.publish(
                     conversationId,
@@ -185,6 +193,6 @@ public class PendingMessageService {
                     delivered.size(),
                     interjection);
         }
-        return delivered;
+        return new Flushed(delivered, options);
     }
 }

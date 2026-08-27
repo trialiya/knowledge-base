@@ -604,11 +604,11 @@ public class ChatRunService {
      */
     void deliverQueued(String conversationId, String user, boolean autoStart) {
         try {
-            // Опции читаем ДО доставки: она забирает строки очереди насовсем, и после неё уже
-            // неоткуда узнать, на какой модели и в каком проекте эти сообщения писали.
-            final PendingMessageService.PendingOptions queued =
-                    pendingMessages.peekOptions(conversationId);
-            if (!pendingMessages.flushPlain(conversationId) || !autoStart) {
+            // Настройки приезжают вместе с доставкой: строки очереди она забирает насовсем, и
+            // отдельным «подсмотреть до» этот порядок стал бы негласным требованием.
+            final PendingMessageService.Flushed flushed =
+                    pendingMessages.flushPlain(conversationId);
+            if (!flushed.any() || !autoStart) {
                 return;
             }
             // Тот же путь, что у «Повторить»: нового ряда не заводим — ходом становится только что
@@ -620,7 +620,10 @@ public class ChatRunService {
                     null,
                     List.of(),
                     runOptions.resolve(
-                            conversationId, queued.model(), queued.mode(), queued.project()),
+                            conversationId,
+                            flushed.options().model(),
+                            flushed.options().mode(),
+                            flushed.options().project()),
                     null);
         } catch (RuntimeException e) {
             // Чат мог занять другая вкладка между cleanup и этим стартом (409) — вопрос уже в

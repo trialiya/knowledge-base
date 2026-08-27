@@ -129,7 +129,7 @@ class PendingMessageServiceTest {
                         invocation ->
                                 deliveredRow(invocation.getArgument(1), invocation.getArgument(3)));
 
-        assertThat(service.flushPlain(CONV)).isTrue();
+        assertThat(service.flushPlain(CONV).any()).isTrue();
 
         verify(chatHistory).saveDeliveredPending(eq(CONV), eq("первое"), anyList(), eq(false));
         final ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
@@ -147,9 +147,10 @@ class PendingMessageServiceTest {
     void anEmptyQueueFlushesToNothing() {
         givenQueued();
 
-        assertThat(service.flushPlain(CONV)).isFalse();
+        assertThat(service.flushPlain(CONV).any()).isFalse();
+        assertThat(service.flushPlain(CONV).options())
+                .isEqualTo(PendingMessageService.PendingOptions.NONE);
         assertThat(service.flushMidTurn(CONV, RUN)).isEmpty();
-        assertThat(service.peekOptions(CONV)).isEqualTo(PendingMessageService.PendingOptions.NONE);
     }
 
     private void givenQueued(ChatPendingMessageEntity... rows) {

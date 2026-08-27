@@ -25,6 +25,7 @@ import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.project.ProjectOptions;
 import io.github.trialiya.kb.model.tool.ToolCallDetail;
+import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
@@ -223,7 +224,7 @@ public class ChatController {
                                                 (a.getText() != null && !a.getText().isBlank())
                                                         || (a.getMeta() != null
                                                                 && a.getMeta().gitEvent() != null))
-                                .map(this::toChatMessage)
+                                .map(a -> toChatMessage(a, a.getInvocations()))
                                 .toList()
                         : null;
         return toChat(chatTopicEntity, messages);
@@ -246,29 +247,14 @@ public class ChatController {
 
         List<ChatMessage> dtos =
                 page.messages().stream()
+                        // invocationsFor синтезирует меты из tool_data для сегментов без
+                        // meta.invocations (оборванные и написанные до этого поля прогоны) —
+                        // проекции чата целиком это не нужно, она отдаёт что записано.
                         .map(
                                 e ->
-                                        new ChatMessage(
-                                                e.getId(),
-                                                e.getContent(),
-                                                e.getType().name(),
-                                                e.getCreatedAt(),
-                                                // синтезирует меты из tool_data для сегментов
-                                                // без meta.invocations (оборванные/старые прогоны)
-                                                toolCallService.invocationsFor(e, page.messages()),
-                                                e.getMeta() != null ? e.getMeta().runId() : null,
-                                                isToolCalls(e),
-                                                e.getContextItems(),
-                                                e.getMeta() != null ? e.getMeta().project() : null,
-                                                e.getMeta() != null
-                                                        ? e.getMeta().projectSwitchFrom()
-                                                        : null,
-                                                e.getMeta() != null ? e.getMeta().model() : null,
-                                                e.getMeta() != null ? e.getMeta().compact() : null,
-                                                e.getMeta() != null ? e.getMeta().gitEvent() : null,
-                                                e.getMeta() != null && e.getMeta().interjection()
-                                                        ? Boolean.TRUE
-                                                        : null))
+                                        toChatMessage(
+                                                e,
+                                                toolCallService.invocationsFor(e, page.messages())))
                         .toList();
         return new MessagePage(dtos, page.hasMore(), page.oldestCursor());
     }
@@ -673,7 +659,16 @@ public class ChatController {
                 messages);
     }
 
-    private ChatMessage toChatMessage(ChatMessageEntity chatMessageEntity) {
+    /**
+     * Ряд истории → DTO. Одна проекция на оба чтения — страницу истории и чат целиком: полей у
+     * {@code ChatMessage} четырнадцать, и второй позиционный вызов конструктора разошёлся бы с
+     * первым на первом же новом поле, ничего не сломав по дороге.
+     *
+     * @param invocations плашки вызовов этого ряда: страница истории досинтезирует их из {@code
+     *     tool_data}, проекция чата отдаёт что записано
+     */
+    private ChatMessage toChatMessage(
+            ChatMessageEntity chatMessageEntity, @Nullable List<ToolInvocationMeta> invocations) {
         final String message;
         // «Крошки» вызовов инструментов хранят PREAMBLE + JSON: показываем только преамбулу.
         // Раньше их отличали по типу SYSTEM, потом по наличию meta — теперь по явному флагу
@@ -693,7 +688,7 @@ public class ChatController {
                 message,
                 chatMessageEntity.getMessageType().getValue(),
                 chatMessageEntity.getCreatedAt(),
-                chatMessageEntity.getInvocations(),
+                invocations,
                 meta != null ? meta.runId() : null,
                 isToolCalls(chatMessageEntity),
                 chatMessageEntity.getContextItems(),

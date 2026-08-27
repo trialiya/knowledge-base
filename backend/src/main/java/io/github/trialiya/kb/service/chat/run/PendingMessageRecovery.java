@@ -48,7 +48,7 @@ public class PendingMessageRecovery {
                 // записанный вопрос навсегда спрятал бы оборванную пару от ремонта, и модель
                 // отвечала бы 400 на каждый следующий запрос этого чата.
                 chatHistory.repairDanglingToolCalls(conversationId);
-                if (pendingMessages.flushPlain(conversationId)) {
+                if (pendingMessages.flushPlain(conversationId).any()) {
                     log.info("[{}] Recovered pending message(s) after restart", conversationId);
                 }
             } catch (RuntimeException e) {
