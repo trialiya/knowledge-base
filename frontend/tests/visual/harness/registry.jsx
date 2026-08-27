@@ -79,11 +79,17 @@ import * as toolCatalog from '../fixtures/toolCatalog';
  * `steps` — что сделать перед снимком: `{ click }`, `{ press }`, `{ type }`.
  * Состояние, которое компонент открывает сам (меню, find-бар, набранный
  * запрос), пропсами не задаётся вовсе.
+ *
+ * `viewport` — `[ширина, высота]` вместо стандартных 1440×900. Рамки высотой в
+ * экран прокручиваются внутри себя, поэтому длинная колонка настроек попадает в
+ * кадр ровно настолько, насколько заказано высоты — ни fullPage, ни прокрутка
+ * её не добирают. Ширина задаётся, когда кейс именно про тесноту: цепочка
+ * крошек схлопывается только там, где она не влезает.
  */
 const noop = () => {};
 
 /** Правая панель узла базы знаний целиком: набор вкладок решает buildDetailTabs. */
-const DetailTabs = ({ node, activeKey }) => {
+const DetailTabs = ({ node, activeKey, folderChildren = [] }) => {
   const { t } = useTranslation('knowledgeBase');
   const tabs = buildDetailTabs({
     node,
@@ -92,6 +98,7 @@ const DetailTabs = ({ node, activeKey }) => {
     onSummarize: noop,
     attachmentCount: 0,
     onAttachmentCountChange: noop,
+    folderChildren,
   });
   return <RightPanel tabs={tabs} activeKey={activeKey} onTabChange={noop} onClose={noop} />;
 };
@@ -112,9 +119,10 @@ const OperationStates = ({ props, icon }) => (
  * Детали вызова инструмента: модалка сама идёт за ними в чат, а `tc` (плашка,
  * из которой её открыли) — это имя и статус того же вызова.
  */
-const toolCallCase = (name) => ({
+const toolCallCase = ([name, viewport]) => ({
   id: `toolCallDetail.js#${name}`,
   frame: 'bare',
+  viewport,
   api: (p) => ({ '/api/chats/': p }),
   render: (p) => (
     <ToolCallDetailModal
@@ -163,22 +171,24 @@ const REGISTRY = [
 
   // Детали вызова инструмента — по виду результата на кейс (см. cases.yaml,
   // tool-call-detail-*).
+  // Окно выше стандартного там, где результат длиннее модалки: тело модалки
+  // 85vh, и на 900px хвост списка правок остаётся за нижней кромкой.
   ...[
-    'fileContentCall',
-    'documentCall',
-    'attachmentsCall',
-    'mcpCall',
-    'editFileCall',
-    'uncommittedChangesCall',
-    'searchDocumentsCall',
-    'attachmentListCall',
-    'insightsCall',
-    'documentOutlineCall',
-    'fileOutlineCall',
-    'grepCall',
-    'docMutationCall',
-    'scriptRunCall',
-    'scriptFailedCall',
+    ['fileContentCall'],
+    ['documentCall'],
+    ['attachmentsCall'],
+    ['mcpCall'],
+    ['editFileCall'],
+    ['uncommittedChangesCall', [1440, 1100]],
+    ['searchDocumentsCall'],
+    ['attachmentListCall'],
+    ['insightsCall'],
+    ['documentOutlineCall'],
+    ['fileOutlineCall'],
+    ['grepCall'],
+    ['docMutationCall'],
+    ['scriptRunCall', [1440, 1350]],
+    ['scriptFailedCall'],
   ].map(toolCallCase),
 
   // ── База знаний ──
@@ -227,13 +237,16 @@ const REGISTRY = [
   {
     id: 'detailPanel.js#folderWithChildren@sidebar',
     frame: 'right',
-    render: (p) => <DetailTabs node={p.node} activeKey={DOC_TAB.CONTENTS} />,
+    render: (p) => <DetailTabs node={p.node} folderChildren={p.children} activeKey={DOC_TAB.CONTENTS} />,
   },
 
   // ── Файлы ──
   {
     id: 'filesBreadcrumb.js#deepJavaPath',
     frame: 'center',
+    // Кейс ровно про то, что делает теснота: на 1440px этот путь влезает целиком
+    // и ни «…», ни прокрутки к концу не показывает.
+    viewport: [1150, 900],
     render: (p) => <Breadcrumb path={p} onNavigate={noop} />,
   },
   {
@@ -267,6 +280,7 @@ const REGISTRY = [
   {
     id: 'aiConfig.js#defaultAiConfig',
     frame: 'center',
+    viewport: [1440, 1560],
     api: (p) => ({ '/api/settings/ai-config': p }),
     render: () => <ModelsSettings />,
   },
@@ -279,30 +293,35 @@ const REGISTRY = [
   {
     id: 'aiConfig.js#defaultAiConfig@tools',
     frame: 'center',
+    viewport: [1440, 1160],
     api: (p) => ({ '/api/settings/ai-config': p, '/api/settings/tools': toolCatalog.builtinTools }),
     render: () => <ToolsSettings />,
   },
   {
     id: 'aiConfig.js#defaultAiConfig@scripts',
     frame: 'center',
+    viewport: [1440, 1560],
     api: (p) => ({ '/api/settings/ai-config': p }),
     render: () => <ScriptsSettings />,
   },
   {
     id: 'aiConfig.js#editEnabledButReadOnlyTree@tools',
     frame: 'center',
+    viewport: [1440, 1210],
     api: (p) => ({ '/api/settings/ai-config': p, '/api/settings/tools': toolCatalog.builtinTools }),
     render: () => <ToolsSettings />,
   },
   {
     id: 'aiConfig.js#strongAndWeakModels',
     frame: 'center',
+    viewport: [1440, 1760],
     api: (p) => ({ '/api/settings/ai-config': p }),
     render: () => <ModelsSettings />,
   },
   {
     id: 'aiConfig.js#scriptEnabled@scripts',
     frame: 'center',
+    viewport: [1440, 1520],
     api: (p) => ({ '/api/settings/ai-config': p }),
     render: () => <ScriptsSettings />,
   },
@@ -326,6 +345,7 @@ const REGISTRY = [
   {
     id: 'systemInfo.js#h2SystemInfo',
     frame: 'center',
+    viewport: [1440, 1210],
     api: (p) => ({ '/api/admin/system': p }),
     render: () => <SystemInfo />,
   },

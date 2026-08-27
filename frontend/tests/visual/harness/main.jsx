@@ -144,7 +144,11 @@ const Index = () => (
   <ul style={{ padding: '1rem 2rem', fontFamily: 'system-ui', lineHeight: 1.8 }}>
     {cases.map((c) => (
       <li key={c.id}>
-        <a data-case-id={c.id} href={`?case=${encodeURIComponent(c.id)}`}>
+        <a
+          data-case-id={c.id}
+          data-case-viewport={c.viewport ? JSON.stringify(c.viewport) : undefined}
+          href={`?case=${encodeURIComponent(c.id)}`}
+        >
           {c.id}
         </a>
         {c.missing && ' — фикстура не найдена'}

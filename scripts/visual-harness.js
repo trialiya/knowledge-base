@@ -155,10 +155,16 @@ async function fingerprint(browser, page) {
   return { chromium: browser.version(), widths };
 }
 
+/**
+ * Кейсы стенда: имя и окно, в котором его снимают. Окно приходит со страницы,
+ * а не из второго списка здесь — реестр кейсов один (registry.jsx).
+ */
 async function caseIds(page) {
   await page.goto(`http://127.0.0.1:${port}/index.html`);
   await page.waitForFunction(() => document.documentElement.dataset.harness === 'ready');
-  return page.$$eval('[data-case-id]', (nodes) => nodes.map((n) => n.dataset.caseId));
+  return page.$$eval('[data-case-id]', (nodes) =>
+    nodes.map((n) => ({ id: n.dataset.caseId, viewport: n.dataset.caseViewport ? JSON.parse(n.dataset.caseViewport) : null })),
+  );
 }
 
 /**
@@ -352,11 +358,12 @@ async function main() {
         'Эталоны принадлежат контейнеру из ежедневного прогона — см. скилл frontend-visual-check.',
     );
   }
-  const ids = wanted.length ? wanted : known;
-  const unknown = ids.filter((id) => !known.includes(id));
+  const names = known.map((c) => c.id);
+  const ids = wanted.length ? wanted : names;
+  const unknown = ids.filter((id) => !names.includes(id));
   if (unknown.length) {
     console.error(`Нет таких кейсов: ${unknown.join(', ')}`);
-    console.error(`Известные:\n  ${known.join('\n  ')}`);
+    console.error(`Известные:\n  ${names.join('\n  ')}`);
     await browser.close();
     server.close();
     process.exit(2);
@@ -364,6 +371,11 @@ async function main() {
 
   for (const id of ids) {
     const page = await context.newPage();
+    // Своё окно кейса. Рамки стенда высотой в экран и прокручиваются внутри
+    // себя, поэтому длинную колонку настроек не спасает ни fullPage, ни скролл:
+    // в кадр попадает ровно столько, сколько заказано высоты.
+    const box = known.find((c) => c.id === id)?.viewport;
+    if (box) await page.setViewportSize({ width: box[0], height: box[1] });
     const problems = [];
     page.on('console', (m) => m.type() === 'error' && problems.push(m.text()));
     page.on('pageerror', (e) => problems.push(String(e)));

@@ -92,6 +92,12 @@ A registry entry carries more than a component and a frame:
 - `steps` — `{ click }`, `{ press }`, `{ type }` before the shot, for a state the
   component opens itself: a dropdown, the modal's find bar, the query typed into
   it.
+- `viewport` — `[width, height]` instead of the default 1440×900. The frames are
+  a screen tall and scroll inside themselves, so a column longer than the frame
+  is simply cut — neither `fullPage` nor scrolling reaches the rest, and the
+  baseline then covers only what fitted. Width goes the other way: a case about
+  running out of room (a breadcrumb chain collapsing its middle) shows nothing
+  at a width where everything fits.
 
 Neither makes the harness a substitute for a screen: what a *scenario* case
 checks (state surviving a section switch, a re-measure on a new path, a search
