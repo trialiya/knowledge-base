@@ -92,6 +92,8 @@ public class ChatRunService {
     private final ScriptGuideService scriptGuideService;
     private final SystemPromptService systemPromptService;
     private final ProjectPromptService projectPromptService;
+    private final PendingMessageService pendingMessages;
+    private final RunOptionsResolver runOptions;
     private final Executor executor;
 
     /** runId -&gt; дескриптор активного прогона (для остановки). */
@@ -112,6 +114,8 @@ public class ChatRunService {
             ScriptGuideService scriptGuideService,
             SystemPromptService systemPromptService,
             ProjectPromptService projectPromptService,
+            PendingMessageService pendingMessages,
+            RunOptionsResolver runOptions,
             @Qualifier("chatRunExecutor") Executor executor) {
         this.chatClients = chatClients;
         this.chatMemory = chatMemory;
@@ -123,6 +127,8 @@ public class ChatRunService {
         this.scriptGuideService = scriptGuideService;
         this.systemPromptService = systemPromptService;
         this.projectPromptService = projectPromptService;
+        this.pendingMessages = pendingMessages;
+        this.runOptions = runOptions;
         this.executor = executor;
     }
 
@@ -151,6 +157,9 @@ public class ChatRunService {
      *     ContextItemService}. На повторе игнорируется: контекст записан вместе с сообщением
      * @param options чем этот прогон отличается от дефолтного — модель, режим, проект (см. {@link
      *     RunOptions})
+     * @param clientMsgId вкладка-отправитель, чтобы она погасила своё эхо; {@code null} — вкладки
+     *     нет вовсе: прогон запущен по очереди сообщений, а не запросом (см. {@link
+     *     #deliverQueued})
      */
     public StartedRun start(
             String conversationId,
@@ -158,7 +167,7 @@ public class ChatRunService {
             @Nullable String userMessage,
             List<ContextItem> contextItems,
             RunOptions options,
-            String clientMsgId) {
+            @Nullable String clientMsgId) {
         final String runId = UUID.randomUUID().toString();
         // Атомарная заявка на чат: если генерация уже идёт (в т.ч. из другой вкладки) — 409,
         // фронт предложит дождаться или остановить текущую.
@@ -174,6 +183,11 @@ public class ChatRunService {
             // repairDanglingToolCalls смотрит только на последнюю строку, и записанное первым
             // сообщение пользователя навсегда спрятало бы от неё оборванную пару.
             chatHistory.repairDanglingToolCalls(conversationId);
+            // Страховка на случай, когда доставить очередь было некому: процесс упал вместе с
+            // прогоном, а восстановление на старте приложения по этому чату не отработало. Строго
+            // после ремонта хвоста и строго до записи нового вопроса — иначе доставленное встало
+            // бы в истории уже после него, то есть после ответа на него же.
+            pendingMessages.flushPlain(conversationId);
             userRow =
                     userMessage != null
                             ? chatHistory.saveUserMessage(
@@ -336,6 +350,16 @@ public class ChatRunService {
     }
 
     /**
+     * Идёт ли прямо сейчас именно генерация — этот прогон в этом чате. Строже, чем {@link
+     * #activeRun}: заявку на чат держит и сжатие контекста ({@link #claim}), а у него нет ни
+     * tool-цикла, ни терминальной обработки, то есть некому и опустошить очередь сообщений.
+     */
+    public boolean isGenerating(String conversationId, String runId) {
+        final RunHandle handle = runs.get(runId);
+        return handle != null && handle.conversationId().equals(conversationId);
+    }
+
+    /**
      * Занимает чат под фоновую операцию, которая генерацией не является, — сейчас это сжатие
      * контекста ({@code CompactService}). Заявка та же самая, что у прогона, и это здесь главное:
      * пока идёт сжатие, вопрос в этот чат получает 409, а сжатие поверх идущей генерации не
@@ -376,7 +400,10 @@ public class ChatRunService {
     }
 
     private void run(
-            RunHandle handle, ChatMessageEntity userRow, RunOptions options, String clientMsgId) {
+            RunHandle handle,
+            ChatMessageEntity userRow,
+            RunOptions options,
+            @Nullable String clientMsgId) {
         final String resolvedModel = options.model();
         final boolean weakModel = options.weakModel();
         final String conversationId = handle.conversationId();
@@ -556,6 +583,50 @@ public class ChatRunService {
                     Map.of("message", "stream error"));
         }
         cleanup(handle);
+        // Строго после cleanup: заявка на чат ещё удерживается, пока прогон в реестре, и
+        // следующий за очередью прогон получил бы 409 от самого себя.
+        deliverQueued(handle.conversationId(), handle.user(), signal == SignalType.ON_COMPLETE);
+    }
+
+    /**
+     * Опустошает очередь сообщений чата в конце прогона — и, если прогон дошёл до конца, отвечает
+     * на них следующим прогоном.
+     *
+     * <p>Сюда доезжает всё, что advisor не успел забрать: сообщение, отправленное после последнего
+     * обращения к модели, и вся очередь, если прогон вообще не дошёл до tool-цикла. Ряды пишутся
+     * обычными вопросами, без {@code interjection}: прогон уже кончился, и «это писали, пока ты
+     * работал» — про ход, которого больше нет.
+     *
+     * <p>Оборванный и упавший прогоны нового не запускают: остановку нажимают, чтобы генерация
+     * прекратилась, а ошибка повторилась бы и на следующем прогоне. Сообщение при этом не теряется
+     * — оно записано последним вопросом истории, то есть ровно в том состоянии, где чат предлагает
+     * «Повторить» (см. {@link ChatHistoryService#unansweredUserMessage}).
+     */
+    void deliverQueued(String conversationId, String user, boolean autoStart) {
+        try {
+            // Опции читаем ДО доставки: она забирает строки очереди насовсем, и после неё уже
+            // неоткуда узнать, на какой модели и в каком проекте эти сообщения писали.
+            final PendingMessageService.PendingOptions queued =
+                    pendingMessages.peekOptions(conversationId);
+            if (!pendingMessages.flushPlain(conversationId) || !autoStart) {
+                return;
+            }
+            // Тот же путь, что у «Повторить»: нового ряда не заводим — ходом становится только что
+            // доставленный вопрос. Настройки берём из очереди, а не из чата: пользователь мог
+            // переключить модель или проект уже после того, как отправил это сообщение.
+            start(
+                    conversationId,
+                    user,
+                    null,
+                    List.of(),
+                    runOptions.resolve(
+                            conversationId, queued.model(), queued.mode(), queued.project()),
+                    null);
+        } catch (RuntimeException e) {
+            // Чат мог занять другая вкладка между cleanup и этим стартом (409) — вопрос уже в
+            // истории, и «Повторить» на нём остаётся.
+            log.warn("Failed to deliver queued messages for {}", conversationId, e);
+        }
     }
 
     private void cleanup(RunHandle handle) {

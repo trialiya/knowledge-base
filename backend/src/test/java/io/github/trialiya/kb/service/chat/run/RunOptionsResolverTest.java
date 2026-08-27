@@ -1,10 +1,9 @@
-package io.github.trialiya.kb.controller;
+package io.github.trialiya.kb.service.chat.run;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -19,82 +18,43 @@ import io.github.trialiya.kb.config.model.ProjectProperties.ProjectOption;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.project.ProjectSwitch;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
-import io.github.trialiya.kb.service.chat.context.ContextItemService;
-import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
-import io.github.trialiya.kb.service.chat.memory.CompactService;
-import io.github.trialiya.kb.service.chat.memory.ToolCallService;
 import io.github.trialiya.kb.service.chat.prompt.ChatModeService;
-import io.github.trialiya.kb.service.chat.prompt.ProjectPromptService;
-import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
-import io.github.trialiya.kb.service.chat.run.ChatEventService;
-import io.github.trialiya.kb.service.chat.run.ChatRunService;
-import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
-import io.github.trialiya.kb.service.chat.topic.ChatSearchService;
-import io.github.trialiya.kb.service.chat.topic.ChatTopicService;
 import io.github.trialiya.kb.service.file.project.ProjectCatalog;
-import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Который репозиторий увидят инструменты прогона. Проверяется на границе контроллера — там, где
- * параметр запроса, память чата и список проектов сходятся в {@code RunOptions}: дальше проект едет
- * уже как ключ {@code ToolContext}, и ошибка здесь означает молчаливое чтение чужого репозитория, а
- * не отказ.
+ * Который репозиторий увидят инструменты прогона. Проверяется там, где параметр запроса, память
+ * чата и список проектов сходятся в {@code RunOptions}: дальше проект едет уже как ключ {@code
+ * ToolContext}, и ошибка здесь означает молчаливое чтение чужого репозитория, а не отказ.
  */
-class ChatProjectSelectionTest {
+class RunOptionsResolverTest {
 
     private static final String CONV = "conv-1";
     private static final String USER = "anonymous";
 
     private ChatTopicRepository topicRepository;
-    private ChatRunService runService;
-    private ChatController controller;
+    private RunOptionsResolver resolver;
 
     @BeforeEach
     void setUp() {
         topicRepository = mock(ChatTopicRepository.class);
-        runService = mock(ChatRunService.class);
-        when(runService.start(anyString(), anyString(), any(), any(), any(), any()))
-                .thenReturn(new ChatRunService.StartedRun("run-1", 1L));
-
-        final ChatTopicService topicService = mock(ChatTopicService.class);
-        when(topicService.ensureExists(CONV)).thenReturn(true);
-        final ContextItemService contextItemService = mock(ContextItemService.class);
-        when(contextItemService.resolve(anyString(), any())).thenReturn(List.of());
         final ChatModeService modeService = mock(ChatModeService.class);
         when(modeService.instructionsFor(any())).thenReturn("");
 
-        controller =
-                new ChatController(
+        resolver =
+                new RunOptionsResolver(
                         new ChatModelProperties(
                                 new ModelOption("gpt", "GPT", true, null, null), List.of()),
                         new ChatModeProperties(List.of()),
                         modeService,
-                        mock(io.github.trialiya.kb.config.ChatClientRegistry.class),
                         topicRepository,
-                        mock(ChatHistoryService.class),
-                        mock(ToolCallService.class),
-                        mock(ChatSearchService.class),
-                        runService,
-                        mock(CompactService.class),
-                        mock(ChatEventService.class),
-                        mock(ScriptGuideService.class),
-                        contextItemService,
-                        topicService,
-                        catalog(),
-                        mock(io.github.trialiya.kb.service.file.git.GitRegistry.class),
-                        mock(SystemPromptService.class),
-                        new ProjectPromptService(
-                                catalog(),
-                                mock(io.github.trialiya.kb.service.file.git.GitRegistry.class)),
-                        Clock.systemUTC());
+                        catalog());
     }
 
     private static ProjectCatalog catalog() {
@@ -110,7 +70,7 @@ class ChatProjectSelectionTest {
     void aChatThatNeverChoseRunsOnTheDefaultProject() {
         storedProject(null);
 
-        assertThat(startRun(null).project()).isNull();
+        assertThat(resolve(null).project()).isNull();
         verify(topicRepository, never()).updateProject(anyString(), anyString());
     }
 
@@ -118,14 +78,14 @@ class ChatProjectSelectionTest {
     void theChatsStoredProjectReachesTheRun() {
         storedProject("kb");
 
-        assertThat(startRun(null).project()).isEqualTo("kb");
+        assertThat(resolve(null).project()).isEqualTo("kb");
     }
 
     @Test
     void anExplicitProjectIsRememberedAsTheChatsChoice() {
         storedProject(null);
 
-        assertThat(startRun("kb").project()).isEqualTo("kb");
+        assertThat(resolve("kb").project()).isEqualTo("kb");
         verify(topicRepository).updateProject(CONV, "kb");
     }
 
@@ -134,14 +94,14 @@ class ChatProjectSelectionTest {
     void aProjectDroppedFromTheConfigDegradesToTheDefault() {
         storedProject("retired");
 
-        assertThat(startRun(null).project()).isNull();
+        assertThat(resolve(null).project()).isNull();
     }
 
     @Test
     void anUnknownProjectInTheRequestIsRejected() {
         storedProject(null);
 
-        assertThatThrownBy(() -> startRun("retired"))
+        assertThatThrownBy(() -> resolve("retired"))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("Unknown project");
     }
@@ -153,11 +113,11 @@ class ChatProjectSelectionTest {
     @Test
     void namingTheProjectTheChatAlreadyRunsOnIsNotASwitch() {
         storedProject(null);
-        assertThat(startRun("kb").projectSwitch()).isNull();
+        assertThat(resolve("kb").projectSwitch()).isNull();
 
         storedProject("kb");
-        assertThat(startRun(null).projectSwitch()).isNull();
-        assertThat(startRun("kb").projectSwitch()).isNull();
+        assertThat(resolve(null).projectSwitch()).isNull();
+        assertThat(resolve("kb").projectSwitch()).isNull();
     }
 
     /**
@@ -169,7 +129,7 @@ class ChatProjectSelectionTest {
     void aChatWhoseProjectWasRetiredSwitchesToTheDefault() {
         storedProject("retired");
 
-        final ProjectSwitch projectSwitch = startRun(null).projectSwitch();
+        final ProjectSwitch projectSwitch = resolve(null).projectSwitch();
 
         assertThat(projectSwitch).isNotNull();
         assertThat(projectSwitch.from()).isEqualTo("retired");
@@ -186,20 +146,15 @@ class ChatProjectSelectionTest {
     void aRetiredProjectIsMarkedOnceAndThenForgotten() {
         storedProject("retired");
 
-        assertThat(startRun(null).projectSwitch()).isNotNull();
+        assertThat(resolve(null).projectSwitch()).isNotNull();
         verify(topicRepository).updateProject(CONV, null);
 
         storedProject(null); // колонку только что привели к дефолтному
-        assertThat(startRun(null).projectSwitch()).isNull();
+        assertThat(resolve(null).projectSwitch()).isNull();
     }
 
-    private ChatRunService.RunOptions startRun(@Nullable String requested) {
-        controller.startRun(CONV, null, null, requested, null, true, null);
-        final ArgumentCaptor<ChatRunService.RunOptions> captor =
-                ArgumentCaptor.forClass(ChatRunService.RunOptions.class);
-        verify(runService, org.mockito.Mockito.atLeastOnce())
-                .start(eq(CONV), eq(USER), any(), any(), captor.capture(), any());
-        return captor.getValue();
+    private ChatRunService.RunOptions resolve(@Nullable String requested) {
+        return resolver.resolve(CONV, null, null, requested);
     }
 
     private void storedProject(@Nullable String project) {

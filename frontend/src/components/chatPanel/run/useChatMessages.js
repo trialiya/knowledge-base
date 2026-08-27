@@ -113,6 +113,8 @@ export const transformPage = (rawMsgs) => {
       ...(m.contextItems?.length ? { contextItems: m.contextItems } : {}),
       // Этим вопросом чат сменил проект — плашка-разделитель перед пузырём.
       ...(m.projectSwitchFrom ? { projectSwitch: { from: m.projectSwitchFrom, to: m.project } } : {}),
+      // Вопрос задан во время прогона: ход открыт не им (см. trimActiveRunTail).
+      ...(m.interjection ? { interjection: true } : {}),
       // Модель, написавшая ответ. У вопросов и у ответов старше этого поля её нет —
       // подпись тогда просто не рендерится (см. Message).
       ...(m.model && type !== 'user' ? { model: m.model } : {}),
@@ -137,18 +139,25 @@ export const transformPage = (rawMsgs) => {
 export const trimActiveRunTail = (bubbles) => {
   let lastUser = -1;
   for (let i = bubbles.length - 1; i >= 0; i--) {
-    // Ряд git-команды — тоже USER, но вопросом не является: обрезав хвост по
-    // нему, оставили бы на экране ответ, который стрим сейчас перепишет заново.
-    if (bubbles[i].sender === SENDER.USER && !bubbles[i].gitEvent) {
+    // Ход открывает не всякий USER-пузырь. Ряд git-команды вопросом не является;
+    // вопрос, отправленный во время прогона, задан внутри уже идущего хода. Обрезав
+    // хвост по любому из них, оставили бы на экране ответ, который стрим сейчас
+    // перепишет заново.
+    if (opensATurn(bubbles[i])) {
       lastUser = i;
       break;
     }
   }
   // Отрезаются только незаконченные сегменты ответа. Ряды git-команд в хвосте
   // остаются: они уже сохранены в истории, и выбросив их, карточка вывода
-  // пропадала бы на время прогона и возвращалась после перезагрузки.
+  // пропадала бы на время прогона и возвращалась после перезагрузки. Пузыри
+  // вопросов из этого же хвоста, наоборот, срезаются: они опубликованы событием
+  // USER_MESSAGE внутри активного прогона, и реплей вернёт их сам.
   return lastUser < 0 ? bubbles : bubbles.filter((b, i) => i <= lastUser || !!b.gitEvent);
 };
+
+// Открывает ли пузырь ход разговора — фронтовый двойник ChatHistoryService.opensATurn.
+const opensATurn = (bubble) => bubble.sender === SENDER.USER && !bubble.gitEvent && !bubble.interjection;
 
 // Прицепляет «висячие» metas (крошки без ассистента в своей странице) к последнему
 // AI-пузырю переданного набора. Возвращает остаток, который не удалось прицепить

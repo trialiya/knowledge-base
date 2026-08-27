@@ -51,6 +51,7 @@ class ChatRunRetryTest {
     private static final String QUESTION = "Привет, модель";
 
     private ChatHistoryService chatHistory;
+    private PendingMessageService pendingMessages;
     private ChatRunService runService;
 
     /** Пул, который задачу не исполняет: тест — только про решения, принятые в start(). */
@@ -59,6 +60,7 @@ class ChatRunRetryTest {
     @BeforeEach
     void setUp() {
         chatHistory = mock(ChatHistoryService.class);
+        pendingMessages = mock(PendingMessageService.class);
         runService =
                 new ChatRunService(
                         new ChatClientRegistry("default-model", mock(ChatClient.class), Map.of()),
@@ -71,6 +73,8 @@ class ChatRunRetryTest {
                         mock(ScriptGuideService.class),
                         mock(SystemPromptService.class),
                         mock(ProjectPromptService.class),
+                        pendingMessages,
+                        mock(RunOptionsResolver.class),
                         never);
     }
 

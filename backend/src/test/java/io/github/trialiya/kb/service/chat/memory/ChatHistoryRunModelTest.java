@@ -143,6 +143,25 @@ class ChatHistoryRunModelTest {
         assertThat(saved()).extracting(ChatMessageEntity::getId).containsExactly(3L);
     }
 
+    /**
+     * Вопрос, доставленный внутрь прогона, стоит между его же сегментами. Посчитанный границей
+     * хода, он обрезал бы хвост посередине — и всё, что модель написала до него, осталось бы без
+     * подписи навсегда: второго прохода по этим рядам не будет.
+     */
+    @Test
+    void looksThroughAQuestionDeliveredMidRun() {
+        history(
+                row(1, MessageType.USER, null),
+                row(2, MessageType.ASSISTANT, null),
+                row(3, MessageType.TOOL, null),
+                row(4, MessageType.USER, ChatMessageMeta.ofInterjection(List.of())),
+                row(5, MessageType.ASSISTANT, null));
+
+        history.markRunModel(CONV, RUN, MODEL);
+
+        assertThat(saved()).extracting(ChatMessageEntity::getId).containsExactly(2L, 5L);
+    }
+
     @Test
     void writesNothingWhenTheTurnHasNoAnswerYet() {
         history(row(1, MessageType.USER, null));

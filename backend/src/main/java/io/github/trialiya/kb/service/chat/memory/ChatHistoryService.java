@@ -373,7 +373,7 @@ public class ChatHistoryService {
     static List<ChatMessageEntity> tailAfterLastUser(List<ChatMessageEntity> rows) {
         int lastUser = -1;
         for (int i = 0; i < rows.size(); i++) {
-            if (rows.get(i).getType() == MessageType.USER && !isGitEvent(rows.get(i))) {
+            if (opensATurn(rows.get(i))) {
                 lastUser = i;
             }
         }
@@ -381,11 +381,26 @@ public class ChatHistoryService {
     }
 
     /**
-     * Ряд git-команды — тоже {@code USER}, но ходом пользователя в разговоре не является: он ничего
-     * не спрашивает и ответа не ждёт. Всё, что ищет «последний вопрос», обязано смотреть сквозь
-     * него, иначе команда, выполненная посреди прогона, обрежет его хвост — и ряды выше останутся
-     * без модели и без плашек вызовов навсегда.
+     * Открывает ли ряд новый ход разговора. Не всякий {@code USER}-ряд им открывается, и всё, что
+     * ищет «последний вопрос», обязано смотреть сквозь два исключения:
+     *
+     * <ul>
+     *   <li>ряд git-команды ничего не спрашивает и ответа не ждёт;
+     *   <li>вопрос, доставленный посреди прогона ({@code meta.interjection}), задан внутри уже
+     *       идущего хода — ход открыл вопрос выше него.
+     * </ul>
+     *
+     * <p>Оба попадают в историю в произвольный момент работы модели, и оба, посчитанные границей
+     * хода, обрезали бы хвост прогона посередине: ряды выше остались бы без модели и без плашек
+     * вызовов навсегда (см. {@link #markRunModel}, {@code ToolCallService#attachRunMeta}), а окно
+     * сжатия открылось бы на ответе к вопросу, которого в нём уже нет ({@code SummarizeWindow}).
      */
+    static boolean opensATurn(ChatMessageEntity row) {
+        return row.getType() == MessageType.USER
+                && (row.getMeta() == null
+                        || (row.getMeta().gitEvent() == null && !row.getMeta().interjection()));
+    }
+
     private static boolean isGitEvent(ChatMessageEntity row) {
         return row.getMeta() != null && row.getMeta().gitEvent() != null;
     }

@@ -55,7 +55,11 @@ public class PendingMessageService {
      * моменту.
      */
     public record PendingOptions(
-            @Nullable String model, @Nullable String mode, @Nullable String project) {}
+            @Nullable String model, @Nullable String mode, @Nullable String project) {
+
+        /** Ничего не выбрано — как отсутствующие параметры запроса: решают память чата и конфиг. */
+        public static final PendingOptions NONE = new PendingOptions(null, null, null);
+    }
 
     /**
      * Принимает сообщение в очередь чата и сообщает всем вкладкам ({@code MESSAGE_QUEUED}).
@@ -130,16 +134,17 @@ public class PendingMessageService {
         return !flush(conversationId, false, null).isEmpty();
     }
 
-    /** Настройки прогона из первой строки очереди — до того, как {@code flushPlain} её удалит. */
-    public @Nullable PendingOptions peekOptions(String conversationId) {
-        final List<ChatPendingMessageEntity> rows =
-                repository.findByConversationIdOrderByIdAsc(conversationId);
-        return rows.isEmpty()
-                ? null
-                : new PendingOptions(
-                        rows.getFirst().getModel(),
-                        rows.getFirst().getMode(),
-                        rows.getFirst().getProject());
+    /**
+     * Настройки прогона из первой строки очереди — прочитать их обязательно ДО {@link #flushPlain},
+     * которая эти строки удаляет. Пустая очередь даёт {@link PendingOptions#NONE}, а не {@code
+     * null}: «очередь пуста» и «в очереди ничего не выбирали» ведут к одному и тому же прогону, и
+     * различать их вызывающему незачем.
+     */
+    public PendingOptions peekOptions(String conversationId) {
+        return repository.findByConversationIdOrderByIdAsc(conversationId).stream()
+                .findFirst()
+                .map(row -> new PendingOptions(row.getModel(), row.getMode(), row.getProject()))
+                .orElse(PendingOptions.NONE);
     }
 
     private List<ChatMessageEntity> flush(

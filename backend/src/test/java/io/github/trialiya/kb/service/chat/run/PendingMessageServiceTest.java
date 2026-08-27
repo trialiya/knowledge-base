@@ -149,7 +149,7 @@ class PendingMessageServiceTest {
 
         assertThat(service.flushPlain(CONV)).isFalse();
         assertThat(service.flushMidTurn(CONV, RUN)).isEmpty();
-        assertThat(service.peekOptions(CONV)).isNull();
+        assertThat(service.peekOptions(CONV)).isEqualTo(PendingMessageService.PendingOptions.NONE);
     }
 
     private void givenQueued(ChatPendingMessageEntity... rows) {
