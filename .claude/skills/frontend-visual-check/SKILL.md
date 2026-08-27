@@ -28,14 +28,80 @@ Reach for **harness** for a state the running app cannot be asked for on demand:
 an unfinished merge, a chat with the model mid-answer, a repository that refuses
 a push. Those live in `frontend/tests/visual/fixtures/`, and the harness mounts
 one component straight into a page. Case ids are the same `fixtures:` references
-`cases.yaml` uses (`<module>#<export>`); the opt-in list is
+`cases.yaml` uses (`<module>#<export>`, plus `@variant` where one fixture is
+drawn by more than one component — the snapshot of the config is read by three
+groups of «Настройки»); the opt-in list is
 `frontend/tests/visual/harness/registry.jsx`, and a fixture only becomes
 shootable once it is listed there. Shots land in `harness/shots/` (git-ignored),
 one per case, and a case whose page logged a console error is reported `✗`.
 
+**Every shot is compared with its baseline** in `frontend/tests/visual/baselines/`
+(those are in git — without them there is nothing to compare against), so a
+changed screen is caught by the run rather than by your eye. A mismatch writes
+`shots/<case>.diff.png`: what changed, in red over the faded baseline.
+
+**The baselines belong to one pinned rendering environment**, and it is not this
+sandbox: the same Chromium build with a different font set draws differently
+(measured: 42 of 56 cases disagree, and the sandbox resolves `monospace` to
+DejaVu Sans Mono where the container resolves it to WenQuanYi Zen Hei Mono).
+That environment is the `mcr.microsoft.com/playwright` image the daily workflow
+runs in (`.github/workflows/frontend-main-daily.yml`), and the fingerprint of
+the machine that took them is stored next to them in
+`baselines/environment.json`.
+
+So a plain sandbox run **shoots but does not compare** — it says so in one line
+and still reports console errors as before. Comparing means running the same
+stand inside that image, which is its own suite:
+
 ```bash
+./run/test.sh harness                        # снимки + ошибки консоли, без сверки
 ./run/test.sh harness -- chatRepo.js#repoTabMerging
+./run/test.sh harness-image                  # то же, но со сверкой с эталонами
+./run/test.sh harness-image -- --update      # переснять эталоны
 ```
+
+`harness-image` starts `dockerd` itself if it is not up (the same daemon the
+`it` suite uses) and hands the container the repository plus the `playwright`
+module already installed here — the image ships the browsers, not the module.
+The first run pulls the image: ~3.7 GB on disk, a few minutes; after that a full
+56-case run takes about half a minute, roughly what the native run costs.
+
+`--update` belongs with a deliberate UI change: commit the new baselines
+together with it, and the review shows what the screen now looks like.
+
+Do not reach for `--update` to make a red run green. The point of the baseline
+is that it disagrees with you; look at the `.diff.png` first and update only
+once the new picture is the intended one.
+
+The comparison ignores connected areas smaller than `--min-cluster` (12 pixels
+by default): the cards' rounded corners sit on fractional coordinates and their
+antialiasing rasterises differently between runs, two to four pixels per corner.
+Everything real is far above that — a single letter changing size measured 433
+pixels in its biggest area. Layout itself is reproducible: the same case shot
+twice is byte-identical, so the rule is about rasterisation noise, not about
+tolerating drift.
+
+A registry entry carries more than a component and a frame:
+
+- `api` — the server answers for this case (`{ '<url prefix>': data }` or a
+  function of the fixture). A screen that fetches its own data — every group of
+  «Настройки»/«Администрирование», the tool-call detail modal — shows «Загрузка…»
+  without them. A request the entry does not declare is *not* stubbed: it 404s
+  against the stand's static server and lands in the case's console errors, so a
+  forgotten route shows up as `✗` instead of hiding behind a plausible shot.
+- `steps` — `{ click }`, `{ press }`, `{ type }` before the shot, for a state the
+  component opens itself: a dropdown, the modal's find bar, the query typed into
+  it.
+- `viewport` — `[width, height]` instead of the default 1440×900. The frames are
+  a screen tall and scroll inside themselves, so a column longer than the frame
+  is simply cut — neither `fullPage` nor scrolling reaches the rest, and the
+  baseline then covers only what fitted. Width goes the other way: a case about
+  running out of room (a breadcrumb chain collapsing its middle) shows nothing
+  at a width where everything fits.
+
+Neither makes the harness a substitute for a screen: what a *scenario* case
+checks (state surviving a section switch, a re-measure on a new path, a search
+scoped to the dialog rather than the page under it) still needs `smoke`.
 
 **The harness can be the thing that is wrong.** It builds its own frame around
 the component, and its CSS bundle is ordered by its own import graph, not the

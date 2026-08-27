@@ -18,6 +18,7 @@ starting `dockerd` for Testcontainers.
 ./run/test.sh pre-pr           # format + back + build — the gate before a PR
 ./run/test.sh smoke            # build the JAR and drive the UI with Chromium
 ./run/test.sh harness          # screenshot one component against a fixture, no backend
+./run/test.sh harness-image    # the same in the image the baselines were taken in
 ./run/test.sh unit -- --tests '*ToolTranslationsTest'   # after -- goes to Gradle
 ```
 

@@ -72,7 +72,9 @@ jobs:
           fi
 
           # Есть ли изменения во фронте между прошлой сборкой и HEAD?
-          if git diff --quiet "$last_sha" HEAD -- "$FRONTEND_DIR"; then
+          # Вместе с фронтом смотрим на сам стенд визуальных кейсов: он живёт
+          # в scripts/, но краснеет ровно на тех же правках.
+          if git diff --quiet "$last_sha" HEAD -- "$FRONTEND_DIR" scripts/visual-harness.js; then
             echo "No frontend changes since $last_sha — skipping build."
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
@@ -121,5 +123,52 @@ jobs:
         with:
           name: frontend-build
           path: ${{ env.FRONTEND_DIR }}/build
+          retention-days: 7
+          if-no-files-found: warn
+
+  # ── 3. Визуальные кейсы: снимок каждого против эталона ─────────────────────
+  # Отдельная джоба, а не шаг сборки: она идёт в контейнере, потому что эталоны
+  # принадлежат окружению рендера. Тот же Chromium с другим набором шрифтов
+  # рисует иначе (замерено: 42 кейса из 56 расходятся), поэтому образ здесь
+  # закреплён по версии, а эталоны в git сняты в нём же. Не совпало окружение —
+  # скрипт не красит прогон, а говорит, что сверка пропущена; тогда виноват не
+  # интерфейс, а образ, и его версию надо привести в согласие с эталонами.
+  visual:
+    name: Visual cases against baselines
+    needs: detect
+    if: needs.detect.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    container:
+      # Версия та же, что у пакета playwright ниже, и та же, в которой сняты
+      # frontend/tests/visual/baselines/ (см. в них environment.json).
+      # Окружение, в котором сняты эталоны: тот же тег стоит в run/test.sh
+      # (VISUAL_IMAGE), которым сверяются и обновляются эталоны локально.
+      image: mcr.microsoft.com/playwright:v1.56.1-noble
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Frontend dependencies
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: yarn install --frozen-lockfile
+
+      # Браузеры в образе уже лежат, а npm-пакета playwright в нём нет — ставим
+      # его глобально, оттуда же его берёт NODE_PATH ниже.
+      - name: Playwright module
+        run: npm install --global playwright@1.56.1
+
+      # Скрипт сам собирает стенд (vite) и сверяет каждый снимок с эталоном.
+      - name: Harness
+        env:
+          NODE_PATH: /usr/lib/node_modules
+        run: node scripts/visual-harness.js
+
+      # Снимки прогона и картинки расхождений — единственный способ увидеть, что
+      # именно разъехалось, не воспроизводя прогон у себя.
+      - name: Upload shots
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: visual-shots
+          path: ${{ env.FRONTEND_DIR }}/tests/visual/harness/shots
           retention-days: 7
           if-no-files-found: warn

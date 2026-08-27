@@ -24,8 +24,17 @@
 #               frontend/tests/visual/cases.yaml
 #   harness     screenshot single components against their fixtures, no backend
 #               (scripts/visual-harness.js) — for states the running app cannot be
-#               asked for: an unfinished merge, a busy chat, a refused push. Case
-#               ids after `--`; none = all of them
+#               asked for: an unfinished merge, a busy chat, a refused push. Each
+#               shot is compared with its baseline in frontend/tests/visual/
+#               baselines/; `-- --update` re-takes them after a deliberate UI
+#               change. Case ids after `--`; none = all of them. The comparison
+#               only runs where the baselines were taken — elsewhere the suite
+#               shoots and says it skipped comparing
+#   harness-image
+#               the same stand inside the image the daily workflow uses (needs
+#               Docker) — that is where the baselines belong, so comparison
+#               works, and new baselines are taken here too (`-- --update`).
+#               The first run pulls the image, ~3.7 GB
 #   pre-pr      format + back + build — the gate before a pull request
 #   ci          the same three with --console=plain (non-interactive logs). Note: the
 #               GitHub workflows do not call this — they run ./gradlew per module.
@@ -44,6 +53,7 @@
 #   ./test.sh smoke           # look at the UI, not just at green tests
 #   ./test.sh harness         # look at fixture-only states (merge, busy, refusal)
 #   ./test.sh harness -- chatRepo.js#repoTabMerging        # one of them
+#   ./test.sh harness-image   # the same, compared with the baselines
 #   ./test.sh unit -- --tests '*ToolTranslationsTest'      # one class
 #   ./test.sh back -- --info                               # noisier output
 #   ./test.sh clean build     # rebuild from scratch
@@ -148,9 +158,10 @@ gradle_run() {
 # developer machine Docker Desktop is normally already up, and then this is a
 # no-op.
 ensure_docker() {
+  local need="${1:-*IT tests}"
   if ! docker ps > /dev/null 2>&1; then
     if ! command -v dockerd > /dev/null 2>&1; then
-      echo "ERROR: *IT tests need Docker, and no daemon is reachable." >&2
+      echo "ERROR: $need need Docker, and no daemon is reachable." >&2
       echo "       Start Docker (Desktop or dockerd) and re-run, or use './test.sh unit'." >&2
       exit 1
     fi
@@ -232,6 +243,38 @@ run_harness() {
   fi
 }
 
+# The rendering environment frontend/tests/visual/baselines/ belong to. The same
+# tag is pinned in .github/workflows/frontend-main-daily.yml — move both at once.
+# A drift between them does not corrupt anything: the run compares a fingerprint
+# of the rendering environment, not the image name, and skips comparing in a
+# foreign one.
+VISUAL_IMAGE="mcr.microsoft.com/playwright:v1.56.1-noble"
+
+# The harness in the baselines' own environment — the only local run that compares.
+run_harness_image() {
+  ensure_docker "the visual harness image"
+
+  # The image ships the browsers but not playwright itself, so hand it the one
+  # already installed here — the native harness run needs it anyway.
+  local pw_entry pw_modules
+  pw_entry="$(NODE_PATH="${NODE_PATH:-/opt/node22/lib/node_modules}" node -e \
+    'try { console.log(require.resolve("playwright/package.json")) } catch (e) {}' 2>/dev/null || true)"
+  if [ -z "$pw_entry" ]; then
+    echo "ERROR: no playwright module found — the stand needs it (browsers come from the image)." >&2
+    echo "       npm install --global playwright@1.56.1, then re-run." >&2
+    exit 1
+  fi
+  pw_modules="$(cd "$(dirname "$(dirname "$pw_entry")")" && pwd)"
+
+  echo "→ $VISUAL_IMAGE: node scripts/visual-harness.js ${EXTRA_ARGS[*]+${EXTRA_ARGS[*]}}"
+  docker run --rm \
+    -v "$ROOT":/w -v "$pw_modules":/pw:ro -w /w \
+    -e NODE_PATH=/pw -e HOME=/tmp \
+    -u "$(id -u):$(id -g)" \
+    "$VISUAL_IMAGE" \
+    node scripts/visual-harness.js ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
+}
+
 run_suite() {
   case "$1" in
     unit)   run_unit ;;
@@ -245,10 +288,11 @@ run_suite() {
     clean)  run_clean ;;
     smoke)  run_smoke ;;
     harness) run_harness ;;
+    harness-image) run_harness_image ;;
     pre-pr | ci) run_format; run_back; run_build ;;
     *)
       echo "ERROR: unknown suite '$1'." >&2
-      echo "       Known: unit it back front format formatApply build jar clean smoke harness pre-pr ci" >&2
+      echo "       Known: unit it back front format formatApply build jar clean smoke harness harness-image pre-pr ci" >&2
       exit 2
       ;;
   esac

@@ -60,8 +60,15 @@ export const documentWithSummary = {
 export const folderWithChildren = {
   node: folderAnalysis,
   path: [],
+  // `updatedAt` — колонка «Обновлено» у ContentsTable: без неё в строке стоит
+  // «Invalid Date».
   children: [
-    { id: 'doc-changelog', title: 'Хронология изменений backend/build.gradle', type: 'document' },
-    { id: 'doc-links', title: 'Пример: ссылки на файлы', type: 'document' },
+    {
+      id: 'doc-changelog',
+      title: 'Хронология изменений backend/build.gradle',
+      type: 'document',
+      updatedAt: '2026-07-18T21:01:19Z',
+    },
+    { id: 'doc-links', title: 'Пример: ссылки на файлы', type: 'document', updatedAt: '2026-07-18T20:59:02Z' },
   ],
 };
