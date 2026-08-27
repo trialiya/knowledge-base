@@ -136,11 +136,17 @@ const Message = ({
   mid,
   searchActive,
   contextItems,
+  queued = false,
   modelLabel,
 }) => {
   const { t, i18n } = useTranslation('chat');
   const [showSource, setShowSource] = useState(false);
-  const messageClass = `message ${sender}${error && sender === SENDER.AI ? ' message--error' : ''}`;
+  const messageClass =
+    `message ${sender}` +
+    (error && sender === SENDER.AI ? ' message--error' : '') +
+    // Отправлено во время ответа и ещё не доставлено в историю: пузырь приглушён, пока
+    // прогон не дойдёт до места, где вопрос можно вставить (см. useChatRun.queueMessage).
+    (queued ? ' message--queued' : '');
   const hasToolCalls = toolCalls && toolCalls.length > 0;
   const showPreparing = preparing && sender === SENDER.AI;
   const timeLabel = formatTimestamp(timestamp, i18n.language);
@@ -172,6 +178,11 @@ const Message = ({
         <>
           <div className="user-message-text">{text}</div>
           <MessageContextItems items={contextItems} />
+          {queued && (
+            <div className="message-queued-note" role="status">
+              {t('message.queued')}
+            </div>
+          )}
         </>
       )}
     </div>

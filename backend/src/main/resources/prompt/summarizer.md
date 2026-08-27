@@ -21,6 +21,13 @@ Summarize conversations. Create dense, complete summaries preserving all semanti
   not, and the command must not be summarized as done. Reproduce the block **verbatim** at
   the matching point of the summary.
 
+## Must not preserve
+- `<user-interjection>` wrappers. Unlike the blocks above, this one is not a fact about the
+  conversation — it only told the model that the user wrote while it was still working on
+  the previous request. By the time you read it that run is long over, so fold the message
+  into the user's requests like any other and drop the tag. What the message *said* still
+  counts as a decision, a constraint or an open question, and belongs in its section.
+
 **Language**: write the summary in the language the user writes in; keep terms, names and
 decisions in their original wording. Section headers are the exception — they stay in
 English, exactly as spelled below.

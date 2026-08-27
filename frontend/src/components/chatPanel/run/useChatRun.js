@@ -12,6 +12,7 @@ import { getLastModel, setLastModel, getLastMode, setLastMode, setLastProject } 
 import {
   chatLoadErrorNotice,
   RUN_BUSY_NOTICE,
+  QUEUE_ERROR_NOTICE,
   RETRY_UNAVAILABLE_NOTICE,
   COMPACT_DRAFT_NOTICE,
   COMPACT_EMPTY_NOTICE,
@@ -233,6 +234,37 @@ export default function useChatRun({
     [hasActiveRun, patchChat, patchMessages, notify],
   );
 
+  // Отправка в очередь идущего прогона: пользователь пишет, не дожидаясь ответа.
+  // Возвращает, что делать дальше:
+  //   'queued' — принято, доставку покажет событие USER_MESSAGE;
+  //   'run'    — прогон кончился, пока набирали (409): отправляем обычным путём;
+  //   'failed' — не приняли, пузырь снят и пользователь предупреждён.
+  // Ввод при этом НЕ блокируем (setPendingRunChatId): чат и так занят прогоном, а
+  // блокировка отняла бы у пользователя ровно ту возможность, ради которой всё и сделано.
+  const queueMessage = useCallback(
+    async (conversationId, runId, { text, clientMsgId, contextItems, model, mode, project }) => {
+      try {
+        await chatApi.queueMessage(conversationId, runId, text, {
+          model,
+          mode,
+          project,
+          clientMsgId,
+          contextItems,
+        });
+        return 'queued';
+      } catch (error) {
+        if (error?.status === 409) return 'run';
+        console.error('Failed to queue message:', error);
+        // Сообщение не принято — «ожидающий» пузырь обещал бы доставку, которой не будет.
+        localClientIdsRef.current.delete(clientMsgId);
+        patchMessages(conversationId, (msgs) => msgs.filter((m) => m.clientMsgId !== clientMsgId));
+        notify(QUEUE_ERROR_NOTICE);
+        return 'failed';
+      }
+    },
+    [patchMessages, notify],
+  );
+
   // Сжатие контекста по команде `/compact`. Сообщение сохраняется на бэке как обычная
   // реплика (остаётся видно в истории, как и любой вопрос — только не участвует в самом
   // сжатии), поэтому здесь тот же оптимистичный пузырь, что и у sendMessage: клиент не
@@ -337,6 +369,12 @@ export default function useChatRun({
       // и запишет их в meta того же ряда (см. ContextItemService).
       const contextItems = getStagedFor(activeChatId);
 
+      // В чате идёт прогон — сообщение встаёт в его очередь, а не ждёт конца ответа.
+      // Прогон обязан быть известен по runId: без него очередь некуда адресовать (композер
+      // на это окно и заблокирован, см. ChatWindow). Черновик сюда попасть не может — в нём
+      // прогона нет по построению.
+      const runIdForQueue = isDraft ? null : chatForSend?.runId || null;
+
       // Оптимистично: промоутим черновик и показываем пузырь пользователя.
       // AI-пузырь не добавляем — его создаст событие RUN_STARTED. Не patchChat:
       // у чата меняется id и он поднимается наверх списка, то есть меняется сам
@@ -352,6 +390,8 @@ export default function useChatRun({
             sender: SENDER.USER,
             clientMsgId,
             contextItems,
+            // Ряда истории у поставленного в очередь ещё нет — пузырь ждёт доставки.
+            ...(runIdForQueue ? { queued: true } : {}),
             timestamp: new Date().toISOString(),
           },
         ];
@@ -375,14 +415,28 @@ export default function useChatRun({
       // Сообщение ушло — черновик этого чата больше не нужен.
       clearDraft(activeChatId);
 
-      await runConversation(conversationId, {
+      const send = {
         text,
         clientMsgId,
         contextItems,
         model: modelForSend,
         mode: modeForSend,
         project: projectForSend,
-      });
+      };
+      if (runIdForQueue) {
+        const outcome = await queueMessage(conversationId, runIdForQueue, send);
+        if (outcome !== 'run') return;
+        // Прогон кончился, пока набирали, — отправляем обычным путём. Пузырь уже показан,
+        // снимаем с него «ожидает»: доставлять теперь нечего, это обычный вопрос.
+        patchMessages(conversationId, (msgs) =>
+          msgs.map((m) => {
+            if (m.clientMsgId !== clientMsgId) return m;
+            const { queued: _drop, ...rest } = m;
+            return rest;
+          }),
+        );
+      }
+      await runConversation(conversationId, send);
     },
     [
       activeChatId,
@@ -396,6 +450,8 @@ export default function useChatRun({
       resolveModeForSend,
       resolveProjectForSend,
       runConversation,
+      queueMessage,
+      patchMessages,
       compactChat,
       notify,
     ],

@@ -25,6 +25,7 @@ const ChatCenter = ({
   messages,
   loadingMessages,
   isStreaming,
+  isComposerBusy,
   isCompacting,
   isChatEmpty,
   isActive,
@@ -130,7 +131,8 @@ const ChatCenter = ({
         <MessageInput
           onSend={onSend}
           onStop={onStop}
-          disabled={isStreaming}
+          busy={isComposerBusy}
+          generating={isStreaming}
           stoppable={!isCompacting}
           onAttach={() => fileInputRef.current?.click()}
           staged={staged}

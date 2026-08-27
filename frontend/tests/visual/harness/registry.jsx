@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import ChatHeader from '@/components/chatPanel/center/ChatHeader';
+import ComposerToolbar from '@/components/chatPanel/composer/ComposerToolbar';
 import PhraseFillModal from '@/components/chatPanel/composer/PhraseFillModal';
 import ChatRepoPanel from '@/components/chatPanel/git/ChatRepoPanel';
 import GitCommandsModal from '@/components/chatPanel/git/GitCommandsModal';
@@ -28,6 +29,7 @@ import { IconRefresh, IconUpload } from '@/icons/index';
 import * as aiConfig from '../fixtures/aiConfig';
 import * as chatHeader from '../fixtures/chatHeader';
 import * as chatRepo from '../fixtures/chatRepo';
+import * as composerToolbar from '../fixtures/composerToolbar';
 import * as detailHeader from '../fixtures/detailHeader';
 import * as detailPanel from '../fixtures/detailPanel';
 import * as filesBreadcrumb from '../fixtures/filesBreadcrumb';
@@ -168,6 +170,14 @@ const REGISTRY = [
     frame: 'bare',
     render: (p) => <PhraseFillModal phraseText={p} onSubmit={noop} onCancel={noop} />,
   },
+
+  // Нижняя панель композера — по состоянию занятости чата на кейс. Рамка `feed`:
+  // панель живёт в колонке ленты, и ряд селекторов меряется её шириной.
+  ...['idleComposer', 'generatingComposer', 'compactingComposer'].map((name) => ({
+    id: `composerToolbar.js#${name}`,
+    frame: 'feed',
+    render: (p) => <ComposerToolbar {...p} onAttach={noop} onSend={noop} onStop={noop} />,
+  })),
 
   // Детали вызова инструмента — по виду результата на кейс (см. cases.yaml,
   // tool-call-detail-*).
@@ -403,6 +413,7 @@ const MODULES = {
   'infoList.js': infoList,
   'modalFind.js': modalFind,
   'operationRow.js': operationRow,
+  'composerToolbar.js': composerToolbar,
   'phraseFill.js': phraseFill,
   'syncDiff.js': syncDiff,
   'systemInfo.js': systemInfo,

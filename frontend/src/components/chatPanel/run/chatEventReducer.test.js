@@ -723,4 +723,99 @@ describe('applyChatEvent', () => {
     chat = applyChatEvent(chat, { type: 'RUN_DONE', runId: 'r1' }, ctx);
     expect(chat.messages.filter((m) => m.sender === 'ai')).toHaveLength(0);
   });
+  // ─── Сообщение, отправленное во время ответа ───────────────────────────────
+
+  test('MESSAGE_QUEUED shows a waiting bubble in the tabs that did not send it', () => {
+    const chat = applyChatEvent(
+      userChat(),
+      { type: 'MESSAGE_QUEUED', runId: 'r1', clientMsgId: 'm1', payload: { id: 7, text: 'и добавь тесты' } },
+      ctx,
+    );
+    expect(last(chat)).toMatchObject({ sender: 'user', text: 'и добавь тесты', queued: true, clientMsgId: 'm1' });
+  });
+
+  test("MESSAGE_QUEUED does not duplicate the sending tab's own optimistic bubble", () => {
+    const local = { ...ctx, isLocal: (id) => id === 'm1' };
+    const chat = applyChatEvent(
+      userChat(),
+      { type: 'MESSAGE_QUEUED', runId: 'r1', clientMsgId: 'm1', payload: { text: 'и добавь тесты' } },
+      local,
+    );
+    expect(chat.messages).toHaveLength(1);
+  });
+
+  /**
+   * Доставка внутрь прогона: пузырь становится настоящим, а продолжение ответа обязано уйти
+   * ПОД него. Иначе текст следующей итерации дописался бы в сегмент над вопросом — и туда же
+   * прилипли бы плашки инструментов, которые этот вопрос уже застали.
+   */
+  test('USER_MESSAGE with interjection delivers the waiting bubble and opens a segment below it', () => {
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1', payload: { model: 'gpt-5' } }, ctx);
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'начал искать' } }, ctx);
+    chat = applyChatEvent(
+      chat,
+      { type: 'MESSAGE_QUEUED', runId: 'r1', clientMsgId: 'm1', payload: { text: 'и добавь тесты' } },
+      ctx,
+    );
+    chat = applyChatEvent(
+      chat,
+      {
+        type: 'USER_MESSAGE',
+        runId: 'r1',
+        clientMsgId: 'm1',
+        payload: { id: 42, text: 'и добавь тесты', interjection: true },
+      },
+      ctx,
+    );
+
+    const delivered = chat.messages.find((m) => m.dbId === 42);
+    expect(delivered).toMatchObject({ sender: 'user', interjection: true });
+    expect(delivered.queued).toBeUndefined();
+    // Сегмент, написанный ДО вопроса, остался на месте и не потерял текста.
+    expect(chat.messages.find((m) => m.text === 'начал искать')).toBeTruthy();
+
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'продолжаю' } }, ctx);
+    expect(last(chat)).toMatchObject({ sender: 'ai', text: 'продолжаю', model: 'gpt-5' });
+  });
+
+  /**
+   * Главная ловушка общего пути USER_MESSAGE: он опознаёт эхо по тексту и срезает всё, что
+   * стоит после совпавшего вопроса. Перебивка, повторяющая текст вопроса, снесла бы этим
+   * идущий ответ.
+   */
+  test('an interjection repeating the question text does not cut the answer written so far', () => {
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'уже написанное' } }, ctx);
+    chat = applyChatEvent(
+      chat,
+      { type: 'USER_MESSAGE', runId: 'r1', payload: { id: 42, text: 'вопрос', interjection: true } },
+      ctx,
+    );
+    expect(chat.messages.some((m) => m.text === 'уже написанное')).toBe(true);
+    expect(chat.messages.filter((m) => m.sender === 'user')).toHaveLength(2);
+  });
+
+  /** Доставка после конца прогона — обычный вопрос: флага нет, но «ожидание» снять надо. */
+  test('a plain delivery clears the waiting bubble without splitting anything', () => {
+    let chat = applyChatEvent(
+      userChat(),
+      { type: 'MESSAGE_QUEUED', runId: 'r1', clientMsgId: 'm1', payload: { text: 'и добавь тесты' } },
+      ctx,
+    );
+    chat = applyChatEvent(
+      chat,
+      { type: 'USER_MESSAGE', clientMsgId: 'm1', payload: { id: 42, text: 'и добавь тесты' } },
+      ctx,
+    );
+    expect(last(chat)).toMatchObject({ sender: 'user', dbId: 42 });
+    expect(last(chat).queued).toBeUndefined();
+    expect(last(chat).interjection).toBeUndefined();
+  });
+
+  test('a replayed interjection is applied once', () => {
+    const ev = { type: 'USER_MESSAGE', runId: 'r1', payload: { id: 42, text: 'и добавь тесты', interjection: true } };
+    let chat = applyChatEvent(userChat(), ev, ctx);
+    chat = applyChatEvent(chat, ev, ctx);
+    expect(chat.messages.filter((m) => m.dbId === 42)).toHaveLength(1);
+  });
 });

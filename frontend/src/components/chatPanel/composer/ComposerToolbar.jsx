@@ -16,7 +16,10 @@ import { IconSend, IconStop, IconPaperclip } from '@/icons/index';
  *   model    — { config, options, selected, onChange } (может отсутствовать)
  *   mode     — { options, selected, onChange } (может отсутствовать)
  *   project  — { options, defaultId, selected, onChange } (может отсутствовать)
- *   disabled — чат занят (кнопка «отправить» → «остановить», селекторы заблокированы)
+ *   busy     — писать некуда: идёт сжатие контекста или прогон ещё не назвал свой runId
+ *   generating — идёт ответ модели: появляется «остановить», селекторы заблокированы.
+ *               «Отправить» при этом остаётся живой — сообщение встаёт в очередь прогона,
+ *               и обе кнопки стоят рядом, а не подменяют друг друга
  *   stoppable — занятость прерываема: сжатие контекста (/compact) прервать нельзя, и
  *               кнопка «остановить» на нём неактивна
  *   sendDisabled — нечего отправлять / идёт разворачивание токенов
@@ -28,7 +31,8 @@ const ComposerToolbar = ({
   model,
   mode,
   project,
-  disabled,
+  busy,
+  generating = false,
   stoppable = true,
   sendDisabled,
   onAttach,
@@ -36,6 +40,11 @@ const ComposerToolbar = ({
   onSend,
 }) => {
   const { t } = useTranslation('chat');
+  // Выбор модели, режима и проекта запирается на всё время занятости чата: прогон уже
+  // едет на своих настройках, а сообщение из очереди поедет на тех, что стояли в момент
+  // отправки (см. PendingMessageService.PendingOptions). Разрешить переключение здесь
+  // значило бы обещать смену, которой не будет.
+  const selectorsLocked = busy || generating;
 
   return (
     <div className="composer-toolbar">
@@ -58,14 +67,19 @@ const ComposerToolbar = ({
             defaultId={model.config?.defaultModel?.id}
             options={model.options}
             onChange={model.onChange}
-            disabled={disabled}
+            disabled={selectorsLocked}
             defaultNote={t('model.default')}
             ariaLabel={t('model.aria')}
             placement="up"
           />
         )}
         {mode && mode.options?.length > 0 && (
-          <ModeSelector value={mode.selected} options={mode.options} onChange={mode.onChange} disabled={disabled} />
+          <ModeSelector
+            value={mode.selected}
+            options={mode.options}
+            onChange={mode.onChange}
+            disabled={selectorsLocked}
+          />
         )}
         {/* Единственный проект показываем наравне с моделью и режимом, а не прячем, как
             это делает панель «Файлы»: там селектор — переход в другой репозиторий, и с
@@ -77,7 +91,7 @@ const ComposerToolbar = ({
             defaultId={project.defaultId}
             options={markUnavailable(project.options, t('project.unavailable'))}
             onChange={project.onChange}
-            disabled={disabled}
+            disabled={selectorsLocked}
             defaultNote={t('project.default')}
             ariaLabel={t('project.aria')}
             placement="up"
@@ -94,16 +108,25 @@ const ComposerToolbar = ({
       </div>
 
       <div className="composer-toolbar__actions">
+        {generating && (
+          <button
+            type="button"
+            className="message-action-btn message-action-btn--stop"
+            onClick={onStop}
+            disabled={!stoppable}
+            title={t('input.stop')}
+          >
+            <IconStop />
+          </button>
+        )}
         <button
           type="button"
-          className={
-            disabled ? 'message-action-btn message-action-btn--stop' : 'message-action-btn message-action-btn--send'
-          }
-          onClick={disabled ? onStop : onSend}
-          disabled={disabled ? !stoppable : sendDisabled}
-          title={disabled ? t('input.stop') : t('input.send')}
+          className="message-action-btn message-action-btn--send"
+          onClick={onSend}
+          disabled={busy || sendDisabled}
+          title={generating && !busy ? t('input.sendDuringRun') : t('input.send')}
         >
-          {disabled ? <IconStop /> : <IconSend />}
+          <IconSend />
         </button>
       </div>
     </div>

@@ -1436,6 +1436,43 @@
     «Начало ответа: .» и вечную кнопку «стоп» — проверено прогоном на jar,
     собранном из состояния перед PR #251.
 
+- id: chat-composer-send-and-stop-during-run
+  component: ComposerToolbar
+  path: frontend/src/components/chatPanel/composer/ComposerToolbar.jsx
+  fixture: composerToolbar.js#generatingComposer
+  title: Композер — во время ответа «отправить» и «остановить» стоят рядом
+  status: verified
+  origin:
+    - Сессия 2026-08-27, сообщение во время прогона (этап 7)
+  preconditions:
+    viewport: [1440, 900]
+  expected:
+    - Обе кнопки видны одновременно; «остановить» слева от «отправить», а не вместо неё
+    - Селекторы модели, режима и проекта заблокированы — прогон уже едет на своих настройках
+    - Ряд не переносится и не сдвигает кнопки за кромку колонки
+  notes: |
+    Стенд, а не приложение: живьём состояние держится ровно столько, сколько модель
+    пишет ответ. Соседний кейс со сжатием контекста ловит обратное — там писать
+    некуда, и обе кнопки неактивны.
+
+- id: chat-composer-compacting-locks-both
+  component: ComposerToolbar
+  path: frontend/src/components/chatPanel/composer/ComposerToolbar.jsx
+  fixture: composerToolbar.js#compactingComposer
+  title: Композер — на сжатии контекста неактивны обе кнопки
+  status: verified
+  origin:
+    - Сессия 2026-08-27, сообщение во время прогона (этап 7)
+  preconditions:
+    viewport: [1440, 900]
+  expected:
+    - '«Отправить» неактивна: очереди у сжатия нет, и принять сообщение некому'
+    - '«Остановить» неактивна: сжатие — один запрос к модели, прерывать нечем'
+    - Селекторы заблокированы
+  notes: |
+    Регрессия, которую кейс держит: расщепление блокировки композера (этап 7) не
+    должно было открыть ввод на сжатии — там очередь никто не опустошит.
+
 - id: chat-composer-project-selector
   component: ComposerToolbar
   path: frontend/src/components/chatPanel/composer/ComposerToolbar.jsx

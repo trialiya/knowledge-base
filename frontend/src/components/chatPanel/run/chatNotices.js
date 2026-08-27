@@ -56,6 +56,13 @@ export const COMPACT_START_ERROR_NOTICE = {
   messageKey: 'compact.startErrorMessage',
 };
 
+/** Сообщение, отправленное во время ответа, не приняли в очередь (сбой запроса). */
+export const QUEUE_ERROR_NOTICE = {
+  icon: '⚠️',
+  titleKey: 'errorModal.queueTitle',
+  messageKey: 'errorModal.queueMessage',
+};
+
 /** Повтор пришёл слишком поздно — бэк ответил 422. */
 export const RETRY_UNAVAILABLE_NOTICE = {
   icon: '↻',

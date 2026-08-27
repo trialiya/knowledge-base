@@ -105,6 +105,51 @@ const clearPreparing = (msgs, runId) => {
 /** Карточка выполненной git-команды: отправитель у неё USER, ходом разговора она не является. */
 const isGitRow = (message) => !!message.gitEvent;
 
+/**
+ * Сообщение из очереди доставлено в историю (см. MESSAGE_QUEUED). Общий путь USER_MESSAGE здесь
+ * не годится: он опознаёт эхо уже показанного хода и срезает всё, что стоит после него, — а
+ * доставка внутрь прогона хода не кончает, и всё выше модель написала до этого вопроса.
+ *
+ * @param waiting индекс «ожидающего» пузыря (или -1): его завела своя вкладка оптимистично, а
+ *     чужие — по MESSAGE_QUEUED, и у всех он помечен тем же clientMsgId
+ */
+const applyDelivered = (chat, msgs, { runId, payload }, waiting) => {
+  const dbId = payload?.id ?? null;
+  const contextItems = payload?.contextItems?.length ? payload.contextItems : null;
+  const interjection = !!payload?.interjection;
+  if (waiting >= 0) {
+    const { queued: _drop, ...rest } = msgs[waiting];
+    msgs[waiting] = {
+      ...rest,
+      dbId,
+      ...(interjection ? { interjection: true } : {}),
+      ...(contextItems ? { contextItems } : {}),
+    };
+  } else if (dbId != null && msgs.some((m) => m.dbId === dbId)) {
+    return chat; // реплей уже применённого события
+  } else {
+    msgs.push({
+      mid: nextMessageId(),
+      dbId,
+      text: payload?.text || '',
+      sender: SENDER.USER,
+      ...(interjection ? { interjection: true } : {}),
+      ...(contextItems ? { contextItems } : {}),
+      timestamp: payload?.createdAt ?? new Date().toISOString(),
+    });
+  }
+  // Прогон продолжается — закрываем его текущий сегмент, чтобы продолжение ответа встало ПОД
+  // вопросом, а не над ним. Новый сегмент открываем сразу, а не флагом sealed: STREAM открыл бы
+  // его и сам, а вот TOOL_CALL прилепил бы плашку к сегменту над вопросом. Пустым он не
+  // останется — finalize выбрасывает сегменты без текста и без плашек.
+  const ai = interjection ? lastAiIndexForRun(msgs, runId) : -1;
+  if (ai >= 0) {
+    msgs[ai] = { ...msgs[ai], text: (msgs[ai].text || '').trimEnd() };
+    pushAi(msgs, runId, msgs[ai].model ?? null);
+  }
+  return { ...chat, messages: msgs };
+};
+
 // Снимает метку runId (для live-tracking) и транзиентный флаг sealed, сохраняет runId
 // как toolCallsRunId (для загрузки деталей tool call после завершения прогона).
 // Пустые пузыри без вызовов (например, хвостовой после границы сегмента) выбрасывает —
@@ -135,7 +180,30 @@ export function applyChatEvent(chat, ev, ctx) {
   const { type, runId, clientMsgId, payload } = ev;
 
   switch (type) {
+    // Сообщение принято в очередь идущего прогона: ряда истории у него ещё нет, поэтому
+    // пузырь заводится «ожидающим» — его увидят и вкладки, которые ничего не отправляли.
+    // Своя вкладка показала его оптимистично и второй раз не заводит.
+    case CHAT_EVENT.MESSAGE_QUEUED: {
+      if (clientMsgId && ctx.isLocal?.(clientMsgId)) return chat;
+      if (clientMsgId && msgs.some((m) => m.clientMsgId === clientMsgId)) return chat;
+      msgs.push({
+        mid: nextMessageId(),
+        clientMsgId,
+        queued: true,
+        text: payload?.text || '',
+        sender: SENDER.USER,
+        ...(payload?.contextItems?.length ? { contextItems: payload.contextItems } : {}),
+        timestamp: payload?.createdAt ?? new Date().toISOString(),
+      });
+      return { ...chat, messages: msgs };
+    }
+
     case CHAT_EVENT.USER_MESSAGE: {
+      // Доставка сообщения из очереди — по «ожидающему» пузырю или по флагу в событии.
+      // Оба признака нужны: пузыря может не быть (вкладка вошла позже), а флага — у
+      // доставки после конца прогона.
+      const waiting = clientMsgId ? msgs.findIndex((m) => m.queued && m.clientMsgId === clientMsgId) : -1;
+      if (waiting >= 0 || payload?.interjection) return applyDelivered(chat, msgs, ev, waiting);
       // Этим вопросом чат сменил проект. Решает это бэкенд (сравнением с сохранённым у чата),
       // поэтому оптимистичный пузырь плашку не знал — она доезжает только эхом.
       const projectSwitch = payload?.projectSwitchFrom
