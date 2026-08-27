@@ -14,9 +14,15 @@ export default defineConfig({
   },
 
   build: {
-    // Раскладку CRA сохраняем: :frontend:copyFrontend забирает из build/
+    // Не `build/`: это каталог сборки Gradle, там же живёт установка prettier
+    // для spotless. Vite чистит outDir перед каждой сборкой, а недоснесённую
+    // установку spotless не восстанавливает — каталог на месте, значит install
+    // считается готовым. Симптом: spotlessCheck падает на каждом .css с
+    // «Cannot find module './parser-postcss.js'», а .js/.jsx проходят —
+    // парсеры prettier грузит лениво.
+    // Раскладку CRA внутри сохраняем: :frontend:copyFrontend забирает
     // index.html и static/** в ресурсы бэкенда.
-    outDir: 'build',
+    outDir: 'build/dist',
     assetsDir: 'static',
 
     // Целевые браузеры задаёт дефолтный build.target Vite, из него же берётся

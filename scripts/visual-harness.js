@@ -17,7 +17,7 @@
  * bundle ordered differently from the app's showed a 380px modal that is 560px
  * in the product, and a missing buttons.css showed browser-default buttons.
  * Before reporting anything the harness shows as a defect, check it against the
- * built app (frontend/build/static/*.css) — the fault is often the stand.
+ * built app (frontend/build/dist/static/*.css) — the fault is often the stand.
  *
  * Chromium and Playwright are pre-installed in the sandbox; do not run
  * `playwright install`.
