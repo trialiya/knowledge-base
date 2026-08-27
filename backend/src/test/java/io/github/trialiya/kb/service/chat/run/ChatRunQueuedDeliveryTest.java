@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -20,6 +21,7 @@ import io.github.trialiya.kb.service.chat.memory.ToolCallEventPublisher;
 import io.github.trialiya.kb.service.chat.memory.ToolCallService;
 import io.github.trialiya.kb.service.chat.prompt.ProjectPromptService;
 import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
+import io.github.trialiya.kb.service.chat.run.PendingMessageService.Flushed;
 import io.github.trialiya.kb.service.chat.run.PendingMessageService.PendingOptions;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
 import java.time.Duration;
@@ -36,8 +38,8 @@ import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.MessageType;
 
 /**
- * Что происходит с очередью чата, когда прогон кончился. Доставка сюда доезжает во всех случаях,
- * когда advisor-окно так и не наступило: финальный ответ без инструментов, остановка, ошибка.
+ * Что происходит с очередью чата, когда прогон кончился. Сюда доезжает всё, что advisor не успел
+ * забрать: финальный ответ без инструментов, остановка, ошибка, падение процесса.
  *
  * <p>Цена ошибки односторонняя и молчаливая: сообщение, за которое пользователь уже получил
  * «принято», просто не появляется в чате — ни ошибки, ни следа.
@@ -46,6 +48,7 @@ class ChatRunQueuedDeliveryTest {
 
     private static final String CONV = "conv-1";
     private static final String USER = "admin";
+    private static final String RUN = "run-1";
 
     private PendingMessageService pendingMessages;
     private RunOptionsResolver runOptions;
@@ -61,6 +64,7 @@ class ChatRunQueuedDeliveryTest {
         runOptions = mock(RunOptionsResolver.class);
         chatHistory = mock(ChatHistoryService.class);
         when(runOptions.resolve(anyString(), any(), any(), any())).thenReturn(options());
+        when(pendingMessages.flushPlain(anyString())).thenReturn(Flushed.NOTHING);
         runService =
                 new ChatRunService(
                         new ChatClientRegistry("default-model", mock(ChatClient.class), Map.of()),
@@ -79,57 +83,52 @@ class ChatRunQueuedDeliveryTest {
     }
 
     /**
-     * Прогон дошёл до конца — на доставленный вопрос отвечает следующий прогон, и настройки он
-     * берёт из очереди: модель и проект могли смениться уже после того, как это сообщение
-     * отправили.
+     * Прогон кончился между проверкой на приёме и коммитом строки очереди: его собственная доставка
+     * застала очередь пустой, а второй у него не будет. Перепроверка на приёме закрывает это окно —
+     * и отвечает на доставленное, раз отвечать больше некому.
      */
     @Test
-    void aCompletedRunAnswersWhatTheQueueHeld() {
+    void aMessageAcceptedAsTheRunEndedIsDeliveredAndAnswered() {
         when(pendingMessages.flushPlain(CONV))
                 .thenReturn(flushed(new PendingOptions("gpt-5", "review", "kb")));
         when(chatHistory.unansweredUserMessage(CONV)).thenReturn(Optional.of(userRow()));
 
-        runService.deliverQueued(CONV, USER, true);
+        runService.deliverIfRunEnded(CONV, RUN);
 
-        // Настройки приезжают вместе с доставкой — отдельного «подсмотреть до» нет.
+        // Настройки — из очереди, а не из чата: модель и проект могли смениться уже после того,
+        // как это сообщение отправили.
         verify(runOptions).resolve(CONV, "gpt-5", "review", "kb");
         // Путь «Повторить»: нового ряда не заводим — ходом стал доставленный вопрос.
         verify(chatHistory, never()).saveUserMessage(anyString(), anyString(), anyList(), any());
         assertThat(runService.activeRunCount()).isEqualTo(1);
     }
 
-    /**
-     * Остановленный и упавший прогоны доставляют, но не отвечают: остановку нажимают, чтобы
-     * генерация прекратилась, а ошибка повторилась бы и на следующем прогоне. Сообщение при этом
-     * становится последним вопросом истории — тем самым состоянием, где чат предлагает «Повторить».
-     */
+    /** Прогон ещё генерирует — доставит он сам, в своей терминальной обработке. */
     @Test
-    void anInterruptedRunDeliversWithoutStartingAnother() {
-        when(pendingMessages.flushPlain(CONV)).thenReturn(flushed(PendingOptions.NONE));
+    void aLiveRunIsLeftToDeliverItsOwnQueue() {
+        when(chatHistory.saveUserMessage(eq(CONV), anyString(), anyList(), any()))
+                .thenReturn(userRow());
+        final String live =
+                runService.start(CONV, USER, "вопрос", List.of(), options(), null).runId();
 
-        runService.deliverQueued(CONV, USER, false);
+        runService.deliverIfRunEnded(CONV, live);
 
-        verify(pendingMessages).flushPlain(CONV);
-        assertThat(runService.activeRunCount()).isZero();
-        assertThat(runService.claimedConversationCount()).isZero();
+        // Один flushPlain — страховочный, на старте прогона; второго тут быть не должно.
+        verify(pendingMessages, times(1)).flushPlain(CONV);
     }
 
     /** Пустая очередь — самый частый случай: ни прогона, ни резолва настроек. */
     @Test
     void anEmptyQueueStartsNothing() {
-        when(pendingMessages.flushPlain(CONV))
-                .thenReturn(new PendingMessageService.Flushed(List.of(), PendingOptions.NONE));
-
-        runService.deliverQueued(CONV, USER, true);
+        runService.deliverIfRunEnded(CONV, RUN);
 
         verify(runOptions, never()).resolve(anyString(), any(), any(), any());
         assertThat(runService.activeRunCount()).isZero();
     }
 
     /**
-     * Чат мог занять другая вкладка между освобождением заявки и этим стартом. Сообщение уже в
-     * истории, поэтому 409 здесь — не потеря, а повод промолчать: терминальная обработка прогона от
-     * этого падать не должна.
+     * Чат мог занять другая вкладка между доставкой и стартом. Сообщение уже в истории, поэтому 409
+     * здесь — не потеря, а повод промолчать: приём сообщения от этого падать не должен.
      */
     @Test
     void aChatClaimedMeanwhileIsNotAnError() {
@@ -137,7 +136,17 @@ class ChatRunQueuedDeliveryTest {
         when(chatHistory.unansweredUserMessage(CONV)).thenReturn(Optional.of(userRow()));
         runService.claim(CONV); // заявку держит кто-то другой
 
-        runService.deliverQueued(CONV, USER, true);
+        runService.deliverIfRunEnded(CONV, RUN);
+
+        assertThat(runService.activeRunCount()).isZero();
+    }
+
+    /** Сорвавшаяся доставка вызывающего не роняет: сообщение ждёт в очереди следующего повода. */
+    @Test
+    void aFailingDeliveryIsSwallowed() {
+        when(pendingMessages.flushPlain(CONV)).thenThrow(new IllegalStateException("boom"));
+
+        runService.deliverIfRunEnded(CONV, RUN);
 
         assertThat(runService.activeRunCount()).isZero();
     }
@@ -161,8 +170,8 @@ class ChatRunQueuedDeliveryTest {
     }
 
     /** Доставлено одно сообщение на названных настройках. */
-    private static PendingMessageService.Flushed flushed(PendingOptions options) {
-        return new PendingMessageService.Flushed(List.of(userRow()), options);
+    private static Flushed flushed(PendingOptions options) {
+        return new Flushed(List.of(userRow()), USER, options);
     }
 
     private static ChatMessageEntity userRow() {

@@ -74,7 +74,7 @@ const lastAiIndexForRun = (msgs, runId) => {
 // подпись под ответом обязана быть той же и в живом потоке, и после перезагрузки, где
 // она приезжает из meta.model сохранённого ряда (см. ChatHistoryService.markRunModel).
 const pushAi = (msgs, runId, model = null) => {
-  msgs.push({
+  const bubble = {
     mid: nextMessageId(),
     text: '',
     sender: SENDER.AI,
@@ -82,8 +82,15 @@ const pushAi = (msgs, runId, model = null) => {
     toolCalls: [],
     ...(model ? { model } : {}),
     timestamp: new Date().toISOString(),
-  });
-  return msgs.length - 1;
+  };
+  // Пузыри, ждущие доставки, стоят в конце ленты и остаются там: ряда истории у них ещё
+  // нет, и лягут они после всего, что модель успеет написать за время ожидания. Новый
+  // сегмент ответа поэтому встаёт ПЕРЕД ними — иначе живой порядок разошёлся бы с тем,
+  // что покажет перезагрузка, и вопрос «прыгал» бы на строку ниже.
+  let at = msgs.length;
+  while (at > 0 && msgs[at - 1].queued) at--;
+  msgs.splice(at, 0, bubble);
+  return at;
 };
 
 // Одна ли это плашка смены проекта. Сравнение по значению, а не по ссылке: из каждого эха
@@ -140,12 +147,17 @@ const applyDelivered = (chat, msgs, { runId, payload }, waiting) => {
   }
   // Прогон продолжается — закрываем его текущий сегмент, чтобы продолжение ответа встало ПОД
   // вопросом, а не над ним. Новый сегмент открываем сразу, а не флагом sealed: STREAM открыл бы
-  // его и сам, а вот TOOL_CALL прилепил бы плашку к сегменту над вопросом. Пустым он не
-  // останется — finalize выбрасывает сегменты без текста и без плашек.
+  // его и сам, а вот TOOL_CALL прилепил бы плашку к сегменту над вопросом.
   const ai = interjection ? lastAiIndexForRun(msgs, runId) : -1;
   if (ai >= 0) {
-    msgs[ai] = { ...msgs[ai], text: (msgs[ai].text || '').trimEnd() };
-    pushAi(msgs, runId, msgs[ai].model ?? null);
+    const segment = msgs[ai];
+    const written = (segment.text || '').trim() !== '' || (segment.toolCalls || []).length > 0;
+    // Сегмент, в который ещё ничего не написали, не размножаем, а переносим вниз: очередь
+    // доставляется целиком, и на каждое сообщение он открывался бы заново, оставляя в
+    // середине ленты пустые плашки до самого finalize.
+    if (!written) msgs.splice(ai, 1);
+    else msgs[ai] = { ...segment, text: (segment.text || '').trimEnd() };
+    pushAi(msgs, runId, segment.model ?? null);
   }
   return { ...chat, messages: msgs };
 };
@@ -261,6 +273,15 @@ export function applyChatEvent(chat, ev, ctx) {
             };
             const patched = Object.keys(patch).length > 0;
             if (patched) msgs[i] = { ...msgs[i], ...patch };
+            // Страховка от залипшего «ожидает отправки»: сюда доезжает и эхо follow-up прогона,
+            // который отвечает на доставленное сообщение, — своего clientMsgId у него уже нет,
+            // и ветка доставки выше по нему не сработала бы. Ряд в истории есть, значит ждать
+            // больше нечего, чем бы этот пузырь ни был помечен.
+            if (msgs[i].queued) {
+              const { queued: _drop, ...rest } = msgs[i];
+              msgs[i] = rest;
+              return { ...chat, messages: msgs };
+            }
             if (i === msgs.length - 1) return patched ? { ...chat, messages: msgs } : chat;
             // Хвост срезаем, но карточки git в нём оставляем — по тому же правилу, что и
             // `trimActiveRunTail`: их пересобирать нечем, реплей событий прогона их не вернёт.

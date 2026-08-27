@@ -11,6 +11,7 @@ import io.github.trialiya.kb.model.chat.entity.ChatPendingMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.repository.ChatPendingMessageRepository;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
+import io.github.trialiya.kb.utils.ChatUtils;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,6 +21,8 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * Очередь сообщений, отправленных в чат во время активного прогона, — единственный писатель и
@@ -132,17 +135,25 @@ public class PendingMessageService {
     }
 
     /**
-     * Итог доставки: было ли что доставлять и на каких настройках это писали. Настройки едут
-     * ответом, а не отдельным «подсмотреть до», — иначе вызывающий обязан был бы прочитать их ДО
-     * доставки (она забирает строки насовсем), и порядок двух вызовов стал бы негласным
-     * требованием, которое нечем проверить.
+     * Итог доставки: что доставлено и на чьих настройках это писали. Настройки едут ответом, а не
+     * отдельным «подсмотреть до», — иначе вызывающий обязан был бы прочитать их ДО доставки (она
+     * забирает строки насовсем), и порядок двух вызовов стал бы негласным требованием, которое
+     * нечем проверить.
      *
-     * @param delivered доставлено хоть одно сообщение — у чата появился неотвеченный вопрос (и, в
-     *     терминальной обработке завершившегося прогона, повод стартовать follow-up)
-     * @param options настройки первого доставленного сообщения; {@link PendingOptions#NONE}, если
-     *     доставлять было нечего
+     * @param rows ряды истории, которыми легла очередь; непустой список означает, что у чата
+     *     появился неотвеченный вопрос (и, за успешно завершившимся прогоном, повод стартовать
+     *     follow-up)
+     * @param user автор ПОСЛЕДНЕГО доставленного сообщения — под ним пойдёт follow-up прогон
+     * @param options настройки ПОСЛЕДНЕГО доставленного сообщения. Именно последнего: follow-up
+     *     идёт путём «Повторить», а тот отвечает на последний неотвеченный вопрос ({@code
+     *     ChatHistoryService#unansweredUserMessage}) — на настройках первого он ответил бы на одно
+     *     сообщение выбором, сделанным для другого
      */
-    public record Flushed(List<ChatMessageEntity> rows, PendingOptions options) {
+    public record Flushed(List<ChatMessageEntity> rows, String user, PendingOptions options) {
+
+        /** Доставлять было нечего. */
+        public static final Flushed NOTHING =
+                new Flushed(List.of(), ChatUtils.ANONYMOUS_USER, PendingOptions.NONE);
 
         /** Доставлено хоть одно сообщение — у чата появился неотвеченный вопрос. */
         public boolean any() {
@@ -152,7 +163,8 @@ public class PendingMessageService {
 
     private Flushed flush(String conversationId, boolean interjection, @Nullable String runId) {
         final List<ChatMessageEntity> delivered = new ArrayList<>();
-        PendingOptions options = PendingOptions.NONE;
+        final List<Runnable> announcements = new ArrayList<>();
+        Flushed flushed = Flushed.NOTHING;
         for (ChatPendingMessageEntity pending :
                 repository.findByConversationIdOrderByIdAsc(conversationId)) {
             // Заявка на строку: 0 — её успела доставить другая точка (advisor против терминальной
@@ -166,33 +178,62 @@ public class PendingMessageService {
                             pending.getContent(),
                             pending.getContextItems(),
                             interjection);
-            if (delivered.isEmpty()) {
-                options =
-                        new PendingOptions(
-                                pending.getModel(), pending.getMode(), pending.getProject());
-            }
             delivered.add(row);
-            events.publish(
-                    conversationId,
-                    USER_MESSAGE,
-                    runId,
-                    pending.getClientMsgId(),
-                    new UserMessagePayload(
-                            row.getId(),
-                            row.getContent(),
-                            row.getCreatedAt(),
-                            row.getContextItems(),
-                            null,
-                            null,
-                            interjection ? Boolean.TRUE : null));
+            flushed =
+                    new Flushed(
+                            delivered,
+                            pending.getUser(),
+                            new PendingOptions(
+                                    pending.getModel(), pending.getMode(), pending.getProject()));
+            final String clientMsgId = pending.getClientMsgId();
+            announcements.add(
+                    () ->
+                            // publishIfPresent, а не publish: восстановление после падения
+                            // процесса доставляет очередь, когда хаба у чата нет и слушать
+                            // событие некому, — а publish завёл бы хаб, который уже некому
+                            // закрыть (закрывает его endRun прогона).
+                            events.publishIfPresent(
+                                    conversationId,
+                                    USER_MESSAGE,
+                                    runId,
+                                    clientMsgId,
+                                    new UserMessagePayload(
+                                            row.getId(),
+                                            row.getContent(),
+                                            row.getCreatedAt(),
+                                            row.getContextItems(),
+                                            null,
+                                            null,
+                                            interjection ? Boolean.TRUE : null)));
         }
-        if (!delivered.isEmpty()) {
-            log.info(
-                    "[{}] Delivered {} pending message(s), interjection={}",
-                    conversationId,
-                    delivered.size(),
-                    interjection);
+        if (delivered.isEmpty()) {
+            return Flushed.NOTHING;
         }
-        return new Flushed(delivered, options);
+        log.info(
+                "[{}] Delivered {} pending message(s), interjection={}",
+                conversationId,
+                delivered.size(),
+                interjection);
+        announce(announcements);
+        return flushed;
+    }
+
+    /**
+     * Рассказывает вкладкам о доставке — строго после коммита. Внутри транзакции событие ушло бы и
+     * в том случае, когда она потом откатится: строку вернул бы себе {@code claim}, ряда с
+     * объявленным id в истории бы не было, а вкладки уже показали бы его настоящим.
+     */
+    private static void announce(List<Runnable> announcements) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            announcements.forEach(Runnable::run);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        announcements.forEach(Runnable::run);
+                    }
+                });
     }
 }

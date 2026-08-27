@@ -496,6 +496,11 @@ public class ChatController {
                 new PendingMessageService.PendingOptions(model, mode, project),
                 runId,
                 clientMsgId);
+        // Прогон мог кончиться между проверкой выше и коммитом строки: его собственная доставка
+        // застала бы очередь пустой, а второй у него не будет. Перепроверяем уже после коммита —
+        // окно закрывается, а повторной доставки не выйдет: строку забирает тот, чей DELETE её
+        // застал (см. ChatRunService#deliverIfRunEnded).
+        chatRunService.deliverIfRunEnded(conversationId, runId);
         chatTopicRepository.updateUpdatedAt(conversationId, LocalDateTime.now(clock));
     }
 

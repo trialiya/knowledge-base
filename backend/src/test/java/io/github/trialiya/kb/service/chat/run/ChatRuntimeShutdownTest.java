@@ -19,6 +19,7 @@ import io.github.trialiya.kb.service.chat.memory.ToolCallEventPublisher;
 import io.github.trialiya.kb.service.chat.memory.ToolCallService;
 import io.github.trialiya.kb.service.chat.prompt.ProjectPromptService;
 import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
+import io.github.trialiya.kb.service.chat.run.PendingMessageService.Flushed;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -57,6 +58,7 @@ class ChatRuntimeShutdownTest {
     private ChatHistoryService chatHistory;
     private ChatEventService events;
     private ChatRunService runService;
+    private PendingMessageService pendingMessages;
     private final Deque<Runnable> pending = new ArrayDeque<>();
 
     /** Пул, который откладывает задачу до явного {@link #runPending()} — для гонки старт/стоп. */
@@ -81,6 +83,8 @@ class ChatRuntimeShutdownTest {
                                         LocalDateTime.now(),
                                         null));
         events = new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1)));
+        pendingMessages = mock(PendingMessageService.class);
+        when(pendingMessages.flushPlain(anyString())).thenReturn(Flushed.NOTHING);
         pending.clear();
     }
 
@@ -120,6 +124,36 @@ class ChatRuntimeShutdownTest {
 
         assertThat(runService.activeRunCount()).isZero();
         verify(chatMemory).add(eq(CONV), any(Message.class));
+    }
+
+    /**
+     * Остановленный прогон очередь всё-таки опустошает — сообщение не теряется, — но отвечать на
+     * неё не начинает: остановку нажимают, чтобы генерация прекратилась. Вопрос остаётся последним
+     * рядом истории, то есть ровно там, где чат предлагает «Повторить».
+     */
+    @Test
+    void aStoppedRunDeliversItsQueueButStartsNoAnswer() {
+        runService = runService(Runnable::run);
+        when(pendingMessages.flushPlain(CONV))
+                .thenReturn(
+                        new Flushed(
+                                List.of(userRow()),
+                                USER,
+                                PendingMessageService.PendingOptions.NONE));
+        runService.start(CONV, USER, "привет", List.of(), options(), "msg-1");
+
+        assertThat(runService.stopAll()).isEqualTo(1);
+
+        // Дважды: страховочный флаш на старте прогона и терминальная доставка. Отвечать на
+        // доставленное при этом никто не начал — иначе появился бы второй прогон.
+        verify(pendingMessages, org.mockito.Mockito.times(2)).flushPlain(CONV);
+        assertThat(runService.activeRunCount()).isZero();
+        assertThat(runService.claimedConversationCount()).isZero();
+    }
+
+    private static ChatMessageEntity userRow() {
+        return new ChatMessageEntity(
+                42L, CONV, "вопрос", MessageType.USER, 2, false, false, LocalDateTime.now(), null);
     }
 
     @Test
@@ -172,7 +206,7 @@ class ChatRuntimeShutdownTest {
                 mock(ScriptGuideService.class),
                 mock(SystemPromptService.class),
                 mock(ProjectPromptService.class),
-                mock(PendingMessageService.class),
+                pendingMessages,
                 mock(RunOptionsResolver.class),
                 executor);
     }

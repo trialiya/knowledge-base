@@ -818,4 +818,45 @@ describe('applyChatEvent', () => {
     chat = applyChatEvent(chat, ev, ctx);
     expect(chat.messages.filter((m) => m.dbId === 42)).toHaveLength(1);
   });
+
+  /**
+   * Пока сообщение ждёт доставки, модель продолжает писать — и написанное обязано встать НАД
+   * «ожидающим» пузырём: ряда истории у него ещё нет, и в БД он ляжет после всего этого.
+   * Иначе после перезагрузки вопрос «прыгал» бы на строку ниже.
+   */
+  test('segments written while a message waits stay above the waiting bubble', () => {
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'ищу файлы' } }, ctx);
+    chat = applyChatEvent(chat, { type: 'TOOL_CALL', runId: 'r1', payload: { toolCall: { name: 'search' } } }, ctx);
+    chat = applyChatEvent(
+      chat,
+      { type: 'MESSAGE_QUEUED', runId: 'r1', clientMsgId: 'm1', payload: { text: 'и добавь тесты' } },
+      ctx,
+    );
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'нашёл, пишу код' } }, ctx);
+
+    // Ожидающий пузырь остаётся последним, а новый сегмент встал перед ним.
+    expect(last(chat)).toMatchObject({ sender: 'user', queued: true });
+    expect(chat.messages.map((m) => m.text)).toEqual(['вопрос', 'ищу файлы', 'нашёл, пишу код', 'и добавь тесты']);
+  });
+
+  /**
+   * Страховка от залипшего «ожидает»: доставка после конца прогона в лог хаба не попадает, и
+   * вкладке, пережившей обрыв, о ней рассказывает уже эхо следующего прогона — без clientMsgId.
+   */
+  test('an ordinary echo clears a waiting flag left over from a delivery it missed', () => {
+    let chat = applyChatEvent(
+      userChat(),
+      { type: 'MESSAGE_QUEUED', runId: 'r1', clientMsgId: 'm1', payload: { text: 'и добавь тесты' } },
+      ctx,
+    );
+    chat = applyChatEvent(
+      chat,
+      { type: 'USER_MESSAGE', runId: 'r2', payload: { id: 42, text: 'и добавь тесты' } },
+      ctx,
+    );
+
+    expect(last(chat)).toMatchObject({ sender: 'user', dbId: 42 });
+    expect(last(chat).queued).toBeUndefined();
+  });
 });

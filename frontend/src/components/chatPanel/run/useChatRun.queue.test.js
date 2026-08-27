@@ -14,6 +14,9 @@ vi.mock('@/api/chatApi', () => ({
 describe('useChatRun — отправка во время прогона', () => {
   const CHAT = 'conv-1';
   let chats;
+  let clearDraft;
+  let clearDraftText;
+  let restoreDraft;
 
   const setup = () => {
     const setChats = vi.fn((fn) => {
@@ -30,8 +33,9 @@ describe('useChatRun — отправка во время прогона', () =>
         patchChat: vi.fn(),
         patchMessages,
         selectChat: vi.fn(),
-        clearDraft: vi.fn(),
-        clearDraftText: vi.fn(),
+        clearDraft,
+        clearDraftText,
+        restoreDraft,
         getStagedFor: () => [],
         modelConfig: { defaultModel: { id: 'gpt' } },
         modelOptions: [{ id: 'gpt' }],
@@ -48,6 +52,9 @@ describe('useChatRun — отправка во время прогона', () =>
 
   beforeEach(() => {
     vi.clearAllMocks();
+    clearDraft = vi.fn();
+    clearDraftText = vi.fn();
+    restoreDraft = vi.fn();
     chatApi.startRun.mockResolvedValue({ runId: 'r2', messageId: 5 });
   });
 
@@ -91,8 +98,11 @@ describe('useChatRun — отправка во время прогона', () =>
     expect(messages().at(-1).queued).toBeUndefined();
   });
 
-  /** Сбой запроса — пузырь снимаем: он обещал бы доставку, которой не будет. */
-  test('сбой постановки в очередь снимает пузырь и не запускает прогон', async () => {
+  /**
+   * Сбой запроса — пузырь снимаем (он обещал бы доставку, которой не будет), но набранное не
+   * теряем: черновик остаётся нетронутым, и поле ввода перечитывает его по сигналу.
+   */
+  test('сбой постановки в очередь снимает пузырь и возвращает набранное', async () => {
     chats = [{ id: CHAT, runId: 'r1', messages: [] }];
     chatApi.queueMessage.mockRejectedValue({ status: 500 });
     const { result } = setup();
@@ -101,5 +111,19 @@ describe('useChatRun — отправка во время прогона', () =>
 
     expect(chatApi.startRun).not.toHaveBeenCalled();
     expect(messages()).toHaveLength(0);
+    expect(clearDraft).not.toHaveBeenCalled();
+    expect(restoreDraft).toHaveBeenCalled();
+  });
+
+  /** Команду чату в очередь не поставишь: у сжатия нет терминальной обработки, которая её опустошит. */
+  test('/compact во время ответа отклоняется и не съедает набранное', async () => {
+    chats = [{ id: CHAT, runId: 'r1', messages: [] }];
+    const { result } = setup();
+
+    await act(() => result.current.sendMessage('/compact ужми'));
+
+    expect(chatApi.queueMessage).not.toHaveBeenCalled();
+    expect(clearDraftText).not.toHaveBeenCalled();
+    expect(restoreDraft).toHaveBeenCalled();
   });
 });

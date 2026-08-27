@@ -144,6 +144,11 @@ const ChatWindow = ({
     if (propActiveChatId) localStorage.setItem(STORAGE_KEY_ACTIVE_CHAT, propActiveChatId);
   }, [propActiveChatId]);
 
+  // Вернуть в поле ввода то, что там было. Текст поле стирает на отправке, а сама отправка
+  // может и не состояться (команда чату во время ответа) — черновик при этом не тронут, и
+  // сигнала достаточно, чтобы поле перечитало его из initialText.
+  const restoreDraft = useCallback(() => setComposerDraftSignal((n) => n + 1), []);
+
   const handleLoadError = useCallback((info) => notify(chatLoadErrorNotice(info)), [notify]);
 
   // Загрузка/пагинация сообщений активного чата (+ защита от повторных загрузок и
@@ -173,6 +178,7 @@ const ChatWindow = ({
     selectChat,
     clearDraft,
     clearDraftText,
+    restoreDraft,
     getStagedFor,
     modelConfig,
     modelOptions,

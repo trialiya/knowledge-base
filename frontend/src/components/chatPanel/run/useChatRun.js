@@ -37,6 +37,8 @@ import { parseChatCommand, CHAT_COMMAND } from './chatCommands';
  * @param {Function} p.clearDraft    (id) => void — черновик композера отправлен
  * @param {Function} p.clearDraftText (id) => void — из черновика ушёл только текст, вложения
  *                                    остались (команда чату, а не вопрос)
+ * @param {Function} p.restoreDraft  () => void — вернуть в поле ввода текст из черновика: поле
+ *                                    стирает его на отправке, а отправка может и не состояться
  * @param {Function} p.getStagedFor  (id) => отложенные к сообщению вложения
  * @param {object}   p.modelConfig
  * @param {Array}    p.modelOptions
@@ -54,6 +56,7 @@ export default function useChatRun({
   selectChat,
   clearDraft,
   clearDraftText,
+  restoreDraft,
   getStagedFor,
   modelConfig,
   modelOptions,
@@ -238,11 +241,12 @@ export default function useChatRun({
   // Возвращает, что делать дальше:
   //   'queued' — принято, доставку покажет событие USER_MESSAGE;
   //   'run'    — прогон кончился, пока набирали (409): отправляем обычным путём;
-  //   'failed' — не приняли, пузырь снят и пользователь предупреждён.
+  //   'failed' — не приняли; под пузырём появилась ошибка с «Повторить».
   // Ввод при этом НЕ блокируем (setPendingRunChatId): чат и так занят прогоном, а
   // блокировка отняла бы у пользователя ровно ту возможность, ради которой всё и сделано.
   const queueMessage = useCallback(
-    async (conversationId, runId, { text, clientMsgId, contextItems, model, mode, project }) => {
+    async (conversationId, runId, send) => {
+      const { text, clientMsgId, contextItems, model, mode, project } = send;
       try {
         await chatApi.queueMessage(conversationId, runId, text, {
           model,
@@ -255,8 +259,11 @@ export default function useChatRun({
       } catch (error) {
         if (error?.status === 409) return 'run';
         console.error('Failed to queue message:', error);
-        // Сообщение не принято — «ожидающий» пузырь обещал бы доставку, которой не будет.
-        localClientIdsRef.current.delete(clientMsgId);
+        // «Ожидающий» пузырь обещал бы доставку, которой не будет, — снимаем. Текст и вложения
+        // при этом не теряются: черновик этого чата ещё не очищен (см. sendMessage), и
+        // вызывающий возвращает его в поле ввода. clientMsgId из локальных НЕ убираем: запрос
+        // мог не удаться уже после того, как бэк принял сообщение (обрыв ответа), и тогда
+        // доставка придёт событием и заведёт пузырь заново — по этому же id.
         patchMessages(conversationId, (msgs) => msgs.filter((m) => m.clientMsgId !== clientMsgId));
         notify(QUEUE_ERROR_NOTICE);
         return 'failed';
@@ -343,6 +350,14 @@ export default function useChatRun({
       // хотя в историю она, как и вопрос, попадает (см. compactChat).
       const command = parseChatCommand(text);
       if (command?.name === CHAT_COMMAND.COMPACT) {
+        // Очереди у сжатия нет: опустошает её терминальная обработка прогона, а у сжатия её не
+        // будет. Поэтому команда во время ответа — отказ, и отказ ДО очистки черновика: поле
+        // ввода уже стёрло текст на отправке, и вернуть его можно только оттуда.
+        if (chatForSend?.runId) {
+          notify(RUN_BUSY_NOTICE);
+          restoreDraft?.();
+          return;
+        }
         // В ещё не начатом чате сжимать нечего — и заводить его ради команды незачем.
         if (activeChatId === DRAFT_CHAT_ID) {
           notify(COMPACT_DRAFT_NOTICE);
@@ -412,9 +427,6 @@ export default function useChatRun({
       if (isDraft) {
         selectChat(conversationId);
       }
-      // Сообщение ушло — черновик этого чата больше не нужен.
-      clearDraft(activeChatId);
-
       const send = {
         text,
         clientMsgId,
@@ -424,10 +436,18 @@ export default function useChatRun({
         project: projectForSend,
       };
       if (runIdForQueue) {
+        // Черновик здесь чистим ПОСЛЕ ответа, а не до: у обычной отправки сбой оставляет за
+        // собой пузырь с «Повторить» по тексту вопроса, а у очереди пузыря не остаётся — и
+        // единственное, откуда можно вернуть набранное, это нетронутый черновик.
         const outcome = await queueMessage(conversationId, runIdForQueue, send);
-        if (outcome !== 'run') return;
-        // Прогон кончился, пока набирали, — отправляем обычным путём. Пузырь уже показан,
-        // снимаем с него «ожидает»: доставлять теперь нечего, это обычный вопрос.
+        if (outcome === 'failed') {
+          restoreDraft?.();
+          return;
+        }
+        clearDraft(activeChatId);
+        if (outcome === 'queued') return;
+        // 'run' — прогон кончился, пока набирали: отправляем обычным путём. Пузырь уже
+        // показан, снимаем с него «ожидает» — доставлять теперь нечего, это обычный вопрос.
         patchMessages(conversationId, (msgs) =>
           msgs.map((m) => {
             if (m.clientMsgId !== clientMsgId) return m;
@@ -435,6 +455,9 @@ export default function useChatRun({
             return rest;
           }),
         );
+      } else {
+        // Сообщение ушло — черновик этого чата больше не нужен.
+        clearDraft(activeChatId);
       }
       await runConversation(conversationId, send);
     },
@@ -445,6 +468,7 @@ export default function useChatRun({
       selectChat,
       clearDraft,
       clearDraftText,
+      restoreDraft,
       getStagedFor,
       resolveModelForSend,
       resolveModeForSend,

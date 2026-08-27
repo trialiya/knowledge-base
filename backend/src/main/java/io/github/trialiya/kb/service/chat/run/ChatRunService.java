@@ -582,10 +582,45 @@ public class ChatRunService {
                     null,
                     Map.of("message", "stream error"));
         }
+        // Прогон перестаёт считаться генерирующим ДО доставки очереди. Приём сообщения сверяется
+        // именно с этим (см. {@link #isGenerating} и {@code ChatController#queueMessage}), и
+        // порядок «сначала перестали генерировать, потом опустошили очередь» — то, что не даёт
+        // сообщению, принятому на самой границе завершения, остаться в таблице: приём, увидевший
+        // прогон живым, гарантированно успел закоммитить строку до этой доставки, а увидевший
+        // мёртвым — доставляет сам.
+        //
+        // Заявку на чат при этом ещё держим (её снимает cleanup): освободить её раньше endRun
+        // нельзя — см. комментарий в cleanup.
+        runs.remove(handle.runId());
+        // Доставка ДО cleanup ещё и по второй причине: лог событий прогона живёт ровно столько,
+        // сколько сам прогон (ConversationHub чистит его в endRun), а опубликованное после
+        // закрытия не переживёт переподключения вкладки и вдобавок подняло бы хаб, который уже
+        // некому закрыть.
+        final PendingMessageService.Flushed flushed = deliverQueued(handle.conversationId());
         cleanup(handle);
-        // Строго после cleanup: заявка на чат ещё удерживается, пока прогон в реестре, и
-        // следующий за очередью прогон получил бы 409 от самого себя.
-        deliverQueued(handle.conversationId(), handle.user(), signal == SignalType.ON_COMPLETE);
+        // Автостарт — строго после cleanup: до него заявка на чат ещё удерживается, и прогон по
+        // очереди получил бы 409 от самого себя.
+        if (flushed.any() && signal == SignalType.ON_COMPLETE) {
+            answerQueued(handle.conversationId(), flushed);
+        }
+    }
+
+    /**
+     * Доставляет очередь чата, если прогон, под который сообщение принимали, уже кончился. Приём
+     * ({@code ChatController#queueMessage}) проверяет прогон до того, как строка окажется в БД, и
+     * между проверкой и коммитом прогон успевает завершиться — его собственная доставка тогда
+     * застаёт очередь пустой, а второй у него не будет. Эта перепроверка идёт уже после коммита,
+     * поэтому окно закрывается полностью; повторной доставки она вызвать не может — строку забирает
+     * тот, чей DELETE её застал.
+     */
+    public void deliverIfRunEnded(String conversationId, String runId) {
+        if (isGenerating(conversationId, runId)) {
+            return;
+        }
+        final PendingMessageService.Flushed flushed = deliverQueued(conversationId);
+        if (flushed.any()) {
+            answerQueued(conversationId, flushed);
+        }
     }
 
     /**
@@ -597,38 +632,47 @@ public class ChatRunService {
      * обычными вопросами, без {@code interjection}: прогон уже кончился, и «это писали, пока ты
      * работал» — про ход, которого больше нет.
      *
-     * <p>Оборванный и упавший прогоны нового не запускают: остановку нажимают, чтобы генерация
-     * прекратилась, а ошибка повторилась бы и на следующем прогоне. Сообщение при этом не теряется
-     * — оно записано последним вопросом истории, то есть ровно в том состоянии, где чат предлагает
-     * «Повторить» (см. {@link ChatHistoryService#unansweredUserMessage}).
+     * <p>Доставка сама по себе ничего не запускает — отвечает на неё {@link #answerQueued}, и
+     * только за успешно завершившимся прогоном. Оборванный и упавший нового не начинают: остановку
+     * нажимают, чтобы генерация прекратилась, а ошибка повторилась бы и на следующем прогоне.
+     * Сообщение при этом не теряется — оно записано последним вопросом истории, то есть ровно в том
+     * состоянии, где чат предлагает «Повторить» (см. {@link
+     * ChatHistoryService#unansweredUserMessage}).
      */
-    void deliverQueued(String conversationId, String user, boolean autoStart) {
+    PendingMessageService.Flushed deliverQueued(String conversationId) {
         try {
             // Настройки приезжают вместе с доставкой: строки очереди она забирает насовсем, и
             // отдельным «подсмотреть до» этот порядок стал бы негласным требованием.
-            final PendingMessageService.Flushed flushed =
-                    pendingMessages.flushPlain(conversationId);
-            if (!flushed.any() || !autoStart) {
-                return;
-            }
-            // Тот же путь, что у «Повторить»: нового ряда не заводим — ходом становится только что
-            // доставленный вопрос. Настройки берём из очереди, а не из чата: пользователь мог
-            // переключить модель или проект уже после того, как отправил это сообщение.
+            return pendingMessages.flushPlain(conversationId);
+        } catch (RuntimeException e) {
+            // Терминальная обработка прогона из-за очереди падать не должна: ответ уже написан
+            // и сохранён, а сообщение остаётся в chat_pending_message до следующего повода.
+            log.warn("Failed to deliver queued messages for {}", conversationId, e);
+            return PendingMessageService.Flushed.NOTHING;
+        }
+    }
+
+    /**
+     * Отвечает на только что доставленную очередь следующим прогоном — тем же путём, что и
+     * «Повторить»: нового ряда не заводим, ходом становится доставленный вопрос. Настройки берём из
+     * очереди, а не из чата: пользователь мог переключить модель или проект уже после того, как
+     * отправил это сообщение.
+     */
+    private void answerQueued(String conversationId, PendingMessageService.Flushed flushed) {
+        final PendingMessageService.PendingOptions queued = flushed.options();
+        try {
             start(
                     conversationId,
-                    user,
+                    flushed.user(),
                     null,
                     List.of(),
                     runOptions.resolve(
-                            conversationId,
-                            flushed.options().model(),
-                            flushed.options().mode(),
-                            flushed.options().project()),
+                            conversationId, queued.model(), queued.mode(), queued.project()),
                     null);
         } catch (RuntimeException e) {
             // Чат мог занять другая вкладка между cleanup и этим стартом (409) — вопрос уже в
             // истории, и «Повторить» на нём остаётся.
-            log.warn("Failed to deliver queued messages for {}", conversationId, e);
+            log.warn("Failed to answer queued messages for {}", conversationId, e);
         }
     }
 
