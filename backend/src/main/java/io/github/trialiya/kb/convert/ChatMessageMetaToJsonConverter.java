@@ -49,7 +49,8 @@ public final class ChatMessageMetaToJsonConverter {
             @Nullable String projectSwitchFrom,
             @Nullable String model,
             @Nullable CompactMeta compact,
-            @Nullable GitEventMeta gitEvent) {}
+            @Nullable GitEventMeta gitEvent,
+            @Nullable Boolean interjection) {}
 
     /**
      * {@code kind} читается строкой, а не сразу {@link ContextItemKind}: вид, которого эта версия
@@ -121,7 +122,8 @@ public final class ChatMessageMetaToJsonConverter {
                         json.projectSwitchFrom(),
                         json.model(),
                         json.compact(),
-                        json.gitEvent());
+                        json.gitEvent(),
+                        Boolean.TRUE.equals(json.interjection()));
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to deserialize chat message meta", e);
             }
@@ -158,7 +160,10 @@ public final class ChatMessageMetaToJsonConverter {
                                 source.projectSwitchFrom(),
                                 source.model(),
                                 source.compact(),
-                                source.gitEvent()));
+                                source.gitEvent(),
+                                // false не выписывается: флаг несут единицы рядов, а колонка —
+                                // каждый ряд каждого чата (см. javadoc проекции).
+                                source.interjection() ? Boolean.TRUE : null));
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to serialize chat message meta", e);
             }

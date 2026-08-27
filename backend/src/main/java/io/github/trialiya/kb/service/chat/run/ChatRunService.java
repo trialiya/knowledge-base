@@ -406,7 +406,8 @@ public class ChatRunService {
                         userRow.getCreatedAt(),
                         userRow.getContextItems(),
                         userRow.getMeta() != null ? userRow.getMeta().project() : null,
-                        userRow.getMeta() != null ? userRow.getMeta().projectSwitchFrom() : null));
+                        userRow.getMeta() != null ? userRow.getMeta().projectSwitchFrom() : null,
+                        null));
         // Модель едет в RUN_STARTED, а не доезжает только после перезагрузки: пузырь помечают все
         // вкладки, включая те, где эту модель не выбирали.
         events.publish(

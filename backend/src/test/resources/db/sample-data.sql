@@ -34,6 +34,10 @@
 --    log) and one document attachment (owner_type='document', on doc 77), covering
 --    both FK branches of the chk_attachment_owner constraint.
 --  * embedding_tasks — one hand-added 'pending' row for document 77.
+--  * chat_pending_message — deliberately EMPTY: rows there are transient (a message queued
+--    mid-run, delivered into chat_message within seconds or by crash recovery on startup).
+--    A fixture row would be injected into the captured chat as a real message on every
+--    boot of a manual-QA instance. SampleDataFixtureTest asserts the emptiness on purpose.
 --
 -- All explicit IDs are followed by ALTER TABLE ... ALTER COLUMN id RESTART WITH n,
 -- so inserting further rows afterwards (in a test or via the app) won't collide.

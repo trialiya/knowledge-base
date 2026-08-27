@@ -16,6 +16,10 @@ import org.jspecify.annotations.Nullable;
  * @param project канонический id проекта, в который этот вопрос перевёл чат; вместе с {@code
  *     projectSwitchFrom} — плашка смены проекта, живьём, как и чипы. {@code null} — смены не было
  * @param projectSwitchFrom откуда чат ушёл (см. {@code ChatMessageMeta})
+ * @param interjection {@code true} — сообщение доставлено посреди прогона, между итерациями
+ *     tool-цикла (см. {@code PendingMessageService}). Фронт обязан вести такую доставку отдельной
+ *     веткой: не срезать по ней хвост прогона и запечатать текущий сегмент ответа. {@code null} —
+ *     обычный вопрос
  */
 public record UserMessagePayload(
         @Nullable Long id,
@@ -23,4 +27,5 @@ public record UserMessagePayload(
         LocalDateTime createdAt,
         List<ContextItem> contextItems,
         @Nullable String project,
-        @Nullable String projectSwitchFrom) {}
+        @Nullable String projectSwitchFrom,
+        @Nullable Boolean interjection) {}
