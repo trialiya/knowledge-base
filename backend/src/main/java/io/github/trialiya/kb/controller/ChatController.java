@@ -499,8 +499,8 @@ public class ChatController {
         // Прогон мог кончиться между проверкой выше и коммитом строки: его собственная доставка
         // застала бы очередь пустой, а второй у него не будет. Перепроверяем уже после коммита —
         // окно закрывается, а повторной доставки не выйдет: строку забирает тот, чей DELETE её
-        // застал (см. ChatRunService#deliverIfRunEnded).
-        chatRunService.deliverIfRunEnded(conversationId, runId);
+        // застал (см. ChatRunService#deliverIfNobodyGenerates).
+        chatRunService.deliverIfNobodyGenerates(conversationId);
         chatTopicRepository.updateUpdatedAt(conversationId, LocalDateTime.now(clock));
     }
 

@@ -18,9 +18,12 @@ import org.springframework.stereotype.Component;
  * истории, а это ровно то состояние, где чат предлагает «Повторить» (см. {@link
  * ChatHistoryService#unansweredUserMessage}).
  *
- * <p>Прогонов на старте нет по построению — реестр {@code ChatRunService} живёт в памяти, — поэтому
- * гонки с advisor-ом здесь быть не может; claim-through-delete в {@link PendingMessageService} всё
- * равно её закрывает.
+ * <p>Каждый чат чинится под заявкой {@link ChatRunService#claim}. Пустой реестр прогонов на старте
+ * — не гарантия: сервер принимает запросы раньше, чем публикуется {@code ApplicationReadyEvent},
+ * так что прогон может начаться прямо посреди этого прохода. А прогон в tool-цикле — ровно то
+ * состояние, где хвост истории выглядит оборванным, хотя оборван он не был: {@code
+ * repairDanglingToolCalls} дописал бы синтетический TOOL-ответ на вызов, ответ на который уже в
+ * пути, и модель получила бы два ответа на один {@code callId}.
  */
 @Slf4j
 @Component
@@ -29,19 +32,30 @@ public class PendingMessageRecovery {
     private final ChatPendingMessageRepository repository;
     private final PendingMessageService pendingMessages;
     private final ChatHistoryService chatHistory;
+    private final ChatRunService runService;
 
     public PendingMessageRecovery(
             ChatPendingMessageRepository repository,
             PendingMessageService pendingMessages,
-            ChatHistoryService chatHistory) {
+            ChatHistoryService chatHistory,
+            ChatRunService runService) {
         this.repository = repository;
         this.pendingMessages = pendingMessages;
         this.chatHistory = chatHistory;
+        this.runService = runService;
     }
 
     @EventListener(ApplicationReadyEvent.class)
     void deliverLeftovers() {
         for (String conversationId : repository.conversationIds()) {
+            final String claim;
+            try {
+                claim = runService.claim(conversationId);
+            } catch (RuntimeException busy) {
+                // Чат успели занять — восстанавливать нечего: и ремонт хвоста, и доставку очереди
+                // начатый прогон делает сам (ChatRunService#start).
+                continue;
+            }
             try {
                 // Прогон оборвался вместе с процессом — в хвосте истории мог остаться
                 // assistant.tool_calls без TOOL-ответа. Достраиваем пару СТРОГО ДО доставки: иначе
@@ -54,6 +68,8 @@ public class PendingMessageRecovery {
             } catch (RuntimeException e) {
                 // Один сорвавшийся чат не повод оставить остальные с потерянными сообщениями.
                 log.warn("Failed to recover pending messages for {}", conversationId, e);
+            } finally {
+                runService.release(conversationId, claim);
             }
         }
     }

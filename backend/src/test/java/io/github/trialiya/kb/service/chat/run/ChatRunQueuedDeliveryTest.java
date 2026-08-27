@@ -93,7 +93,7 @@ class ChatRunQueuedDeliveryTest {
                 .thenReturn(flushed(new PendingOptions("gpt-5", "review", "kb")));
         when(chatHistory.unansweredUserMessage(CONV)).thenReturn(Optional.of(userRow()));
 
-        runService.deliverIfRunEnded(CONV, RUN);
+        runService.deliverIfNobodyGenerates(CONV);
 
         // Настройки — из очереди, а не из чата: модель и проект могли смениться уже после того,
         // как это сообщение отправили.
@@ -103,15 +103,19 @@ class ChatRunQueuedDeliveryTest {
         assertThat(runService.activeRunCount()).isEqualTo(1);
     }
 
-    /** Прогон ещё генерирует — доставит он сам, в своей терминальной обработке. */
+    /**
+     * В чате генерирует прогон — и неважно, тот ли, к которому сообщение вставало в очередь: за
+     * окно между проверкой и коммитом другая вкладка успевает начать следующий. Доставить обычным
+     * вопросом сейчас — значит вписать USER-ряд в середину чужого хода, между {@code
+     * assistant.tool_calls} и ответами инструментов. Очередь остаётся живому прогону.
+     */
     @Test
-    void aLiveRunIsLeftToDeliverItsOwnQueue() {
+    void aChatWithAnyLiveRunIsLeftAlone() {
         when(chatHistory.saveUserMessage(eq(CONV), anyString(), anyList(), any()))
                 .thenReturn(userRow());
-        final String live =
-                runService.start(CONV, USER, "вопрос", List.of(), options(), null).runId();
+        runService.start(CONV, USER, "вопрос", List.of(), options(), null);
 
-        runService.deliverIfRunEnded(CONV, live);
+        runService.deliverIfNobodyGenerates(CONV);
 
         // Один flushPlain — страховочный, на старте прогона; второго тут быть не должно.
         verify(pendingMessages, times(1)).flushPlain(CONV);
@@ -120,7 +124,7 @@ class ChatRunQueuedDeliveryTest {
     /** Пустая очередь — самый частый случай: ни прогона, ни резолва настроек. */
     @Test
     void anEmptyQueueStartsNothing() {
-        runService.deliverIfRunEnded(CONV, RUN);
+        runService.deliverIfNobodyGenerates(CONV);
 
         verify(runOptions, never()).resolve(anyString(), any(), any(), any());
         assertThat(runService.activeRunCount()).isZero();
@@ -136,7 +140,7 @@ class ChatRunQueuedDeliveryTest {
         when(chatHistory.unansweredUserMessage(CONV)).thenReturn(Optional.of(userRow()));
         runService.claim(CONV); // заявку держит кто-то другой
 
-        runService.deliverIfRunEnded(CONV, RUN);
+        runService.deliverIfNobodyGenerates(CONV);
 
         assertThat(runService.activeRunCount()).isZero();
     }
@@ -146,7 +150,7 @@ class ChatRunQueuedDeliveryTest {
     void aFailingDeliveryIsSwallowed() {
         when(pendingMessages.flushPlain(CONV)).thenThrow(new IllegalStateException("boom"));
 
-        runService.deliverIfRunEnded(CONV, RUN);
+        runService.deliverIfNobodyGenerates(CONV);
 
         assertThat(runService.activeRunCount()).isZero();
     }

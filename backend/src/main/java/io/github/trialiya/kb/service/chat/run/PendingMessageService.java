@@ -97,12 +97,19 @@ public class PendingMessageService {
                                 options.mode(),
                                 options.project(),
                                 LocalDateTime.now()));
-        events.publish(
-                conversationId,
-                MESSAGE_QUEUED,
-                runId,
-                clientMsgId,
-                new QueuedMessagePayload(saved.getId(), text, saved.getCreatedAt(), contextItems));
+        announce(
+                List.of(
+                        () ->
+                                events.publish(
+                                        conversationId,
+                                        MESSAGE_QUEUED,
+                                        runId,
+                                        clientMsgId,
+                                        new QueuedMessagePayload(
+                                                saved.getId(),
+                                                text,
+                                                saved.getCreatedAt(),
+                                                contextItems))));
         return saved;
     }
 
@@ -219,9 +226,11 @@ public class PendingMessageService {
     }
 
     /**
-     * Рассказывает вкладкам о доставке — строго после коммита. Внутри транзакции событие ушло бы и
-     * в том случае, когда она потом откатится: строку вернул бы себе {@code claim}, ряда с
-     * объявленным id в истории бы не было, а вкладки уже показали бы его настоящим.
+     * Рассказывает вкладкам о том, что стало со строкой очереди, — строго после коммита. Внутри
+     * транзакции событие ушло бы и в том случае, когда она потом откатится: у доставки строку
+     * вернул бы себе {@code claim}, ряда с объявленным id в истории бы не было, а вкладки уже
+     * показали бы его настоящим; у приёма — вкладки нарисовали бы «ожидает отправки» на строке,
+     * которой в очереди нет, и убрать этот пузырь до перезагрузки было бы нечем.
      */
     private static void announce(List<Runnable> announcements) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
