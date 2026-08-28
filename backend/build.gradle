@@ -143,18 +143,25 @@ tasks.named('test') {
     useJUnitPlatform()
 }
 
+// Статику фронтенда упаковывают сами архивные задачи, читая её из build-каталога
+// :frontend. В build/resources/main она попасть не должна: этот каталог — выход
+// processResources, и всякая задача, которая его читает (jar, bootJar, test,
+// resolveMainClassName), падала бы на implicit dependency validation, пока в неё
+// поимённо не проставлен dependsOn на :frontend:copyFrontend.
+// Зависимость висит только на упаковке, поэтому `:backend:test` по-прежнему не
+// собирает фронтенд (на это рассчитан backend-pr.yml).
+def frontendStatic = project(':frontend').layout.buildDirectory.dir('static')
+
 bootJar {
     dependsOn ':frontend:copyFrontend'
+    from(frontendStatic) {
+        into 'BOOT-INF/classes/static'
+    }
 }
 
-// Обычный jar тоже пакует build/resources/main, куда :frontend:copyFrontend кладёт статику.
-// Без явной зависимости Gradle валит сборку (implicit dependency validation).
 jar {
     dependsOn ':frontend:copyFrontend'
+    from(frontendStatic) {
+        into 'static'
+    }
 }
-
-// compileTestJava/test читают build/resources/main через classpath — той же валидации нужно
-// упорядочивание. mustRunAfter (а не dependsOn): `:backend:test` сам по себе не должен
-// тянуть сборку фронтенда, порядок нужен только когда обе задачи в одном запуске (build).
-tasks.named('compileTestJava') { mustRunAfter ':frontend:copyFrontend' }
-tasks.named('test') { mustRunAfter ':frontend:copyFrontend' }
