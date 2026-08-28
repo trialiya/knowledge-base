@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import ChatHeader from '@/components/chatPanel/center/ChatHeader';
 import ComposerToolbar from '@/components/chatPanel/composer/ComposerToolbar';
 import PhraseFillModal from '@/components/chatPanel/composer/PhraseFillModal';
+import RunStatus from '@/components/chatPanel/composer/RunStatus';
 import ChatRepoPanel from '@/components/chatPanel/git/ChatRepoPanel';
 import GitCommandsModal from '@/components/chatPanel/git/GitCommandsModal';
 import GitOutputCard from '@/components/chatPanel/git/GitOutputCard';
@@ -39,6 +40,7 @@ import * as modalFind from '../fixtures/modalFind';
 import * as operationRow from '../fixtures/operationRow';
 import * as phraseFill from '../fixtures/phraseFill';
 import * as projects from '../fixtures/projects';
+import * as runStatus from '../fixtures/runStatus';
 import * as syncDiff from '../fixtures/syncDiff';
 import * as systemInfo from '../fixtures/systemInfo';
 import * as toolCallDetail from '../fixtures/toolCallDetail';
@@ -176,6 +178,13 @@ const REGISTRY = [
     id: 'phraseFill.js#edgeCasesPhrase',
     frame: 'bare',
     render: (p) => <PhraseFillModal phraseText={p} onSubmit={noop} onCancel={noop} />,
+  },
+
+  // Строка идущего прогона над полем ввода: таймер (в фикстуре укрощён в 0:00) и прирост input.
+  {
+    id: 'runStatus.js#generatingRun',
+    frame: 'feed',
+    render: (p) => <RunStatus startedAt={p.startedAt} inputGrowth={p.inputGrowth} />,
   },
 
   // Нижняя панель композера — по состоянию занятости чата на кейс. Рамка `feed`:
@@ -424,6 +433,7 @@ const MODULES = {
   'operationRow.js': operationRow,
   'composerToolbar.js': composerToolbar,
   'phraseFill.js': phraseFill,
+  'runStatus.js': runStatus,
   'syncDiff.js': syncDiff,
   'systemInfo.js': systemInfo,
   'toolCallDetail.js': toolCallDetail,

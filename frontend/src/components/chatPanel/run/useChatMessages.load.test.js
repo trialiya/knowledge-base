@@ -77,4 +77,30 @@ describe('loadMessages return value', () => {
     expect(returned).toHaveLength(2);
     expect(getChat().messages).toHaveLength(1); // в чате — обрезанная история
   });
+
+  // Вкладка, открывшая чат посреди генерации, ставит таймер по elapsedMs с бэка: якорь — это
+  // «сейчас минус сколько уже идёт», а не ноль. Сжатие контекста приходит без elapsedMs — там
+  // якоря нет и таймер не показывается.
+  test('anchors the run timer from elapsedMs of the active run', async () => {
+    const { result, getChat } = setup({ activeRun: { runId: 'r2', elapsedMs: 90_000 } });
+
+    const before = Date.now();
+    await act(async () => {
+      await result.current.loadMessages('c1');
+    });
+
+    expect(getChat().runStartedAt).toBeGreaterThanOrEqual(before - 90_000);
+    expect(getChat().runStartedAt).toBeLessThanOrEqual(Date.now() - 90_000);
+  });
+
+  test('an active claim without elapsedMs leaves the timer unanchored', async () => {
+    const { result, getChat } = setup({ activeRun: { runId: 'r2' } });
+
+    await act(async () => {
+      await result.current.loadMessages('c1');
+    });
+
+    expect(getChat().runId).toBe('r2');
+    expect(getChat().runStartedAt).toBeNull();
+  });
 });

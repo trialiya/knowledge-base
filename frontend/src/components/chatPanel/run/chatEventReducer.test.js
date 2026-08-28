@@ -190,6 +190,24 @@ describe('applyChatEvent', () => {
     expect(chat.runId).toBeNull();
   });
 
+  // Якорь таймера над полем ввода: RUN_STARTED ставит, реплей того же прогона не сдвигает
+  // (иначе таймер прыгал бы на ноль при каждом переподключении потока), терминал снимает.
+  test('RUN_STARTED anchors the run timer once and the terminal event clears it', () => {
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    const anchored = chat.runStartedAt;
+    expect(anchored).toEqual(expect.any(Number));
+
+    chat = applyChatEvent(chat, { type: 'RUN_STARTED', runId: 'r1' }, ctx); // реплей
+    expect(chat.runStartedAt).toBe(anchored);
+
+    chat = applyChatEvent(chat, { type: 'RUN_DONE', runId: 'r1' }, ctx);
+    expect(chat.runStartedAt).toBeNull();
+
+    // Следующий прогон — новый якорь, а не унаследованный от прошлого.
+    chat = applyChatEvent(chat, { type: 'RUN_STARTED', runId: 'r2' }, ctx);
+    expect(chat.runStartedAt).toEqual(expect.any(Number));
+  });
+
   test('AI bubble keeps a stable mid across streaming updates', () => {
     let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
     const mid = last(chat).mid;

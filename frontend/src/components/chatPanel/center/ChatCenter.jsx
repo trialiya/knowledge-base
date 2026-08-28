@@ -4,7 +4,7 @@ import { UPLOAD_ACCEPT } from '@/constants/uploadAccept';
 import ChatHeader from './ChatHeader';
 import ChatSearchBar from './ChatSearchBar';
 import MessageList from '../messages/MessageList';
-import { contextUsageOf } from '../messages/tokenUsage';
+import { contextUsageOf, runInputGrowth } from '../messages/tokenUsage';
 import MessageInput from '../composer/MessageInput';
 
 /**
@@ -58,6 +58,18 @@ const ChatCenter = ({
   // Счётчик в шапке читает ту же ленту, что и плашки под ответами: другого источника у «сколько
   // занято» нет — бэкенд измеряет контекст только прогоном.
   const contextUsage = useMemo(() => contextUsageOf(messages), [messages]);
+
+  // Строка над полем ввода на время генерации. У сжатия контекста её нет: своя плашка в ленте,
+  // а замера прироста и якоря таймера у него не бывает (см. GET /runs/active на бэке).
+  const runId = chat?.runId;
+  const runStartedAt = chat?.runStartedAt;
+  const run = useMemo(
+    () =>
+      isStreaming && !isCompacting
+        ? { startedAt: runStartedAt ?? null, inputGrowth: runInputGrowth(messages, runId) }
+        : null,
+    [isStreaming, isCompacting, runStartedAt, runId, messages],
+  );
 
   return (
     <>
@@ -152,6 +164,7 @@ const ChatCenter = ({
           model={model}
           mode={mode}
           project={project}
+          run={run}
         />
       )}
     </>

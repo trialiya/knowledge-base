@@ -1483,6 +1483,25 @@
     «Начало ответа: .» и вечную кнопку «стоп» — проверено прогоном на jar,
     собранном из состояния перед PR #251.
 
+- id: chat-run-status-above-input
+  component: RunStatus
+  path: frontend/src/components/chatPanel/composer/RunStatus.jsx
+  fixture: runStatus.js#generatingRun
+  title: Строка прогона над полем ввода — таймер и прирост input
+  status: verified
+  origin:
+    - Сессия 2026-08-28, детали идущего прогона над композером
+  preconditions:
+    viewport: [1440, 900]
+  expected:
+    - Таймер слева (в фикстуре 0:00), прирост справа от него — «+6.4k input»
+    - Строка мелкая и серая, тон счётчика контекста в шапке; одна строка, без переносов
+    - Ничего не сдвигает поле ввода — строка сидит вплотную над ним, в колонке ленты
+  notes: |
+    startedAt в фикстуре лежит в будущем: отрицательное «прошло» клампится в 0:00, и
+    снимок не зависит от момента съёмки. Живой отсчёт секунд проверяет юнит-тест
+    RunStatus.test.jsx с фейковыми часами.
+
 - id: chat-composer-send-and-stop-during-run
   component: ComposerToolbar
   path: frontend/src/components/chatPanel/composer/ComposerToolbar.jsx

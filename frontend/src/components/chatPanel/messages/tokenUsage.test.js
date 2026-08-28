@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { cacheShare, chatUsageTotals, contextUsageOf, formatTokens, hasUsage } from './tokenUsage';
+import { cacheShare, chatUsageTotals, contextUsageOf, formatTokens, hasUsage, runInputGrowth } from './tokenUsage';
 
 describe('tokenUsage', () => {
   test('короткие числа показываются как есть', () => {
@@ -56,6 +56,79 @@ describe('tokenUsage', () => {
     test('в чате без единого замера показывать нечего', () => {
       expect(contextUsageOf([{ sender: 'user' }])).toBeNull();
       expect(contextUsageOf(undefined)).toBeNull();
+    });
+  });
+
+  describe('runInputGrowth', () => {
+    const ai = (usage, rest = {}) => ({ sender: 'ai', usage, ...rest });
+    const live = (usage) => ai(usage, { runId: 'r2' });
+
+    test('прирост — живой контекст минус контекст прошлого прогона: вопрос и инструменты вместе', () => {
+      const messages = [
+        ai({ contextTokens: 10000, toolTokens: 800 }),
+        { sender: 'user' },
+        live({ contextTokens: 16400, toolTokens: 1200 }),
+      ];
+
+      expect(runInputGrowth(messages, 'r2')).toBe(6400);
+    });
+
+    test('первый прогон чата вырос со всего своего контекста', () => {
+      const messages = [{ sender: 'user' }, live({ contextTokens: 5200, toolTokens: 300 })];
+
+      expect(runInputGrowth(messages, 'r2')).toBe(5200);
+    });
+
+    test('неизмеренная история оставляет нижнюю границу — прирост внутри прогона', () => {
+      // «До» неизвестно: прошлые ответы без замера. Весь контекст выдать за прирост нельзя.
+      const messages = [ai(undefined), { sender: 'user' }, live({ contextTokens: 16400, toolTokens: 1200 })];
+
+      expect(runInputGrowth(messages, 'r2')).toBe(1200);
+    });
+
+    test('«до» решает ближайший ответ: за неизмеренным прогоном к старому замеру не идём', () => {
+      // Иначе рост неизмеренного прогона записался бы текущему.
+      const messages = [
+        ai({ contextTokens: 10000 }),
+        ai(undefined, { runId: 'r1' }),
+        { sender: 'user' },
+        live({ contextTokens: 51000, toolTokens: 1200 }),
+      ];
+
+      expect(runInputGrowth(messages, 'r2')).toBe(1200);
+    });
+
+    test('локальный пузырь ошибки отправки историей не считается', () => {
+      // За ним нет прогона (runId не появился) — первый настоящий ответ вырос со всего контекста.
+      const messages = [
+        { sender: 'ai', error: true, retryMode: 'resend' },
+        { sender: 'user' },
+        live({ contextTokens: 5200, toolTokens: 0 }),
+      ];
+
+      expect(runInputGrowth(messages, 'r2')).toBe(5200);
+    });
+
+    test('плашка сжатия обрывает поиск «до» — как и у счётчика в шапке', () => {
+      const messages = [
+        ai({ contextTokens: 90000 }),
+        { sender: 'ai', compact: { messages: 40 } },
+        live({ contextTokens: 6100, toolTokens: 700 }),
+      ];
+
+      expect(runInputGrowth(messages, 'r2')).toBe(700);
+    });
+
+    test('без живого замера показывать нечего — «неизвестно» это не ноль', () => {
+      expect(runInputGrowth([ai({ contextTokens: 10000 }), { sender: 'ai', runId: 'r2' }], 'r2')).toBeNull();
+      expect(runInputGrowth([], 'r2')).toBeNull();
+      expect(runInputGrowth(undefined, null)).toBeNull();
+    });
+
+    test('контекст, ужавшийся после ручной чистки, не даёт отрицательного прироста', () => {
+      const messages = [ai({ contextTokens: 20000 }), live({ contextTokens: 16000, toolTokens: 0 })];
+
+      expect(runInputGrowth(messages, 'r2')).toBe(0);
     });
   });
 

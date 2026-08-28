@@ -176,6 +176,8 @@ export default function useChatRun({
         if (runId) {
           patchChat(conversationId, (c) => ({
             runId,
+            // Якорь таймера над полем ввода. RUN_STARTED из потока ставит его же, если опередил.
+            runStartedAt: c.runStartedAt ?? Date.now(),
             messages: patchedId
               ? (c.messages || []).map((m) => (m.clientMsgId === clientMsgId ? { ...m, dbId: patchedId } : m))
               : c.messages,
@@ -217,6 +219,7 @@ export default function useChatRun({
         localClientIdsRef.current.delete(clientMsgId);
         patchChat(conversationId, (c) => ({
           runId: null,
+          runStartedAt: null,
           messages: [
             ...(c.messages || []),
             {
