@@ -7,6 +7,19 @@ import { request, requestRaw, json } from './client';
 
 const enc = (id) => encodeURIComponent(id);
 
+// Тело запроса, отправляющего сообщение в чат, — одно на POST /runs и на постановку в
+// очередь идущего прогона (StartRunRequest на бэке): выбор едет вместе с сообщением, а не
+// параметрами адреса, который целиком попадает в логи вместе с текстом вопроса.
+const runBody = (text, contextItems, { model, mode, project, clientMsgId, retry = false }) => ({
+  text: text || null,
+  contextItems: contextItems || [],
+  model: model || null,
+  mode: mode || null,
+  project: project || null,
+  clientMsgId: clientMsgId || null,
+  retry,
+});
+
 const chatApi = {
   /** Доступные модели и дефолтная: { defaultModel, models }. */
   getModels: () => request('/api/chats/models'),
@@ -113,22 +126,14 @@ const chatApi = {
    * contextItems — что приложено к этому сообщению: [{ kind, ref }]. Бэк проверяет ссылки,
    * сам проставляет подписи и кладёт результат в meta того же ряда.
    *
-   * retry — повтор упавшего прогона: тела не передаём вовсе, ходом остаётся уже сохранённый
+   * retry — повтор упавшего прогона: текста не передаём, ходом остаётся уже сохранённый
    * вопрос со своим контекстом. Если модель успела начать ответ, бэк отвечает 422.
    */
-  startRun: (id, text, { model, mode, project, clientMsgId, retry, contextItems } = {}) => {
-    const params = new URLSearchParams();
-    if (model) params.set('model', model);
-    if (mode) params.set('mode', mode);
-    if (project) params.set('project', project);
-    if (clientMsgId) params.set('clientMsgId', clientMsgId);
-    if (retry) params.set('retry', 'true');
-    const qs = params.toString();
-    return request(`/api/chats/${enc(id)}/runs${qs ? `?${qs}` : ''}`, {
+  startRun: (id, text, { model, mode, project, clientMsgId, retry, contextItems } = {}) =>
+    request(`/api/chats/${enc(id)}/runs`, {
       method: 'POST',
-      ...(retry ? {} : json({ text, contextItems: contextItems || [] })),
-    });
-  },
+      ...json(runBody(text, contextItems, { model, mode, project, clientMsgId, retry })),
+    }),
 
   /**
    * Отправить сообщение, не дожидаясь конца текущего ответа: оно встаёт в очередь идущего
@@ -141,18 +146,11 @@ const chatApi = {
    * `409` — этот прогон уже не генерирует (кончился, пока набирали): вызывающий повторяет
    * обычным startRun.
    */
-  queueMessage: (id, runId, text, { model, mode, project, clientMsgId, contextItems } = {}) => {
-    const params = new URLSearchParams();
-    if (model) params.set('model', model);
-    if (mode) params.set('mode', mode);
-    if (project) params.set('project', project);
-    if (clientMsgId) params.set('clientMsgId', clientMsgId);
-    const qs = params.toString();
-    return request(`/api/chats/${enc(id)}/runs/${enc(runId)}/messages${qs ? `?${qs}` : ''}`, {
+  queueMessage: (id, runId, text, { model, mode, project, clientMsgId, contextItems } = {}) =>
+    request(`/api/chats/${enc(id)}/runs/${enc(runId)}/messages`, {
       method: 'POST',
-      ...json({ text, contextItems: contextItems || [] }),
-    });
-  },
+      ...json(runBody(text, contextItems, { model, mode, project, clientMsgId })),
+    }),
 
   /**
    * Сжать контекст чата (команда `/compact`). Возвращает { runId, messageId }: сам раунд идёт
@@ -163,15 +161,11 @@ const chatApi = {
    * видно в истории — в отличие от instructions (хвост команды), которое в сжатие не входит,
    * только в фокус для него. clientMsgId — как у startRun: гасит своё эхо USER_MESSAGE.
    */
-  compact: (id, text, instructions, clientMsgId) => {
-    const params = new URLSearchParams();
-    if (clientMsgId) params.set('clientMsgId', clientMsgId);
-    const qs = params.toString();
-    return request(`/api/chats/${enc(id)}/compact${qs ? `?${qs}` : ''}`, {
+  compact: (id, text, instructions, clientMsgId) =>
+    request(`/api/chats/${enc(id)}/compact`, {
       method: 'POST',
-      ...json({ text, instructions: instructions || null }),
-    });
-  },
+      ...json({ text, instructions: instructions || null, clientMsgId: clientMsgId || null }),
+    }),
 
   /**
    * Детали одного сжатия по id его плашки: { messageId, messages, summaryChars, createdAt,

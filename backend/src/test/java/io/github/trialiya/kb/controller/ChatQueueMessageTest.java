@@ -146,7 +146,7 @@ class ChatQueueMessageTest {
 
     private void queue(String text, String model) {
         controller.queueMessage(
-                CONV, RUN, model, null, null, "msg-1", new StartRunRequest(text, null));
+                CONV, RUN, new StartRunRequest(text, null, model, null, null, "msg-1", false));
     }
 
     private static RunOptionsResolver resolver(ChatModelProperties models) {

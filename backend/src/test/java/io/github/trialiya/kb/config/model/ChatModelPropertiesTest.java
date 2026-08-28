@@ -9,7 +9,8 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Юнит-тест правила допуска модели — это контракт, на который опираются {@code ChatController}
- * (валидация {@code ?model=...} и {@code PUT /model}) при работе с моделями. Контейнер не нужен.
+ * (валидация поля {@code model} в теле запроса и {@code PUT /model}) при работе с моделями.
+ * Контейнер не нужен.
  */
 class ChatModelPropertiesTest {
 

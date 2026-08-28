@@ -320,46 +320,31 @@ public class ChatController {
      * ChatHistoryService#saveUserMessage}), поэтому ошибка записи — это ошибка этого запроса, а не
      * тихо потерянное сообщение.
      *
-     * <p>Тело — {@link StartRunRequest}: текст вопроса и приложенный к нему контекст (вложения).
-     * Ссылки на контекст проверяются здесь же и уходят в {@code meta} того же ряда, поэтому
-     * привязка не требует ни знания id заранее, ни второго запроса.
-     *
-     * @param retry повтор упавшего прогона: тело не нужно, новое сообщение не появляется — ходом
-     *     остаётся последний неотвеченный вопрос. Если модель уже начала отвечать, повторять
-     *     нечего: 422, дальше пользователь пишет сам (см. {@link
-     *     ChatHistoryService#unansweredUserMessage})
-     * @param clientMsgId идентификатор клиента — чтобы вкладка-отправитель не задвоила свой
-     *     оптимистично показанный пузырь, получив его же эхом
+     * <p>Тело — {@link StartRunRequest}: вопрос, приложенный к нему контекст (вложения) и выбор
+     * пользователя. Ссылки на контекст проверяются здесь же и уходят в {@code meta} того же ряда,
+     * поэтому привязка не требует ни знания id заранее, ни второго запроса.
      */
     @PostMapping("/{conversationId}/runs")
     public Map<String, Object> startRun(
-            @PathVariable final String conversationId,
-            @RequestParam(name = "model", required = false) final String model,
-            @RequestParam(name = "mode", required = false) final String mode,
-            @RequestParam(name = "project", required = false) final String project,
-            @RequestParam(name = "clientMsgId", required = false) final String clientMsgId,
-            @RequestParam(name = "retry", defaultValue = "false") final boolean retry,
-            @RequestBody(required = false) final StartRunRequest body) {
-        final String userMessage = body == null ? null : body.text();
-        if (!retry && !StringUtils.hasText(userMessage)) {
+            @PathVariable final String conversationId, @RequestBody final StartRunRequest body) {
+        final boolean retry = body.retry();
+        if (!retry && !StringUtils.hasText(body.text())) {
             throw new ResponseStatusException(BAD_REQUEST, "Empty message");
         }
         checkChat(conversationId, true);
         // Проверяем приложенное ДО заявки на чат: 404 на чужое вложение не должен оставлять
         // за собой ни занятый чат, ни записанный вопрос.
         final List<ContextItem> contextItems =
-                retry
-                        ? List.of()
-                        : contextItemService.resolve(
-                                conversationId, body == null ? null : body.contextItems());
+                retry ? List.of() : contextItemService.resolve(conversationId, body.contextItems());
         final ChatRunService.StartedRun started =
                 chatRunService.start(
                         conversationId,
                         getUser(),
-                        retry ? null : userMessage,
+                        retry ? null : body.text(),
                         contextItems,
-                        runOptions.resolve(conversationId, model, mode, project),
-                        clientMsgId);
+                        runOptions.resolve(
+                                conversationId, body.model(), body.mode(), body.project()),
+                        body.clientMsgId());
         return Map.of("runId", started.runId(), "messageId", started.userMessageId());
     }
 
@@ -382,10 +367,6 @@ public class ChatController {
     public void queueMessage(
             @PathVariable final String conversationId,
             @PathVariable final String runId,
-            @RequestParam(name = "model", required = false) final String model,
-            @RequestParam(name = "mode", required = false) final String mode,
-            @RequestParam(name = "project", required = false) final String project,
-            @RequestParam(name = "clientMsgId", required = false) final String clientMsgId,
             @RequestBody final StartRunRequest body) {
         if (!StringUtils.hasText(body.text())) {
             throw new ResponseStatusException(BAD_REQUEST, "Empty message");
@@ -395,7 +376,7 @@ public class ChatController {
         // проекта, а этому сообщению до собственного прогона ещё дожить надо (см.
         // ChatRunService#deliverQueued). Проверить существование названного — здесь: приняв
         // несуществующую модель, отказать пришлось бы уже некому.
-        runOptions.validate(model, mode, project);
+        runOptions.validate(body.model(), body.mode(), body.project());
         // Приложенное проверяем ДО постановки в очередь — 404 на чужое вложение не должен
         // оставлять за собой принятое сообщение.
         final List<ContextItem> contextItems =
@@ -408,9 +389,9 @@ public class ChatController {
                 getUser(),
                 body.text(),
                 contextItems,
-                new PendingMessageService.PendingOptions(model, mode, project),
+                new PendingMessageService.PendingOptions(body.model(), body.mode(), body.project()),
                 runId,
-                clientMsgId);
+                body.clientMsgId());
         // Прогон мог кончиться между проверкой выше и коммитом строки: его собственная доставка
         // застала бы очередь пустой, а второй у него не будет. Перепроверяем уже после коммита —
         // окно закрывается, а повторной доставки не выйдет: строку забирает тот, чей DELETE её
@@ -432,13 +413,10 @@ public class ChatController {
      *
      * @param body {@link CompactRequest} — сообщение целиком; {@code text} обязателен, {@code
      *     instructions} — необязательный хвост-фокус
-     * @param clientMsgId id вкладки-отправителя, тот же смысл, что у {@code POST /runs}
      */
     @PostMapping("/{conversationId}/compact")
     public Map<String, Object> compact(
-            @PathVariable final String conversationId,
-            @RequestParam(name = "clientMsgId", required = false) final String clientMsgId,
-            @RequestBody final CompactRequest body) {
+            @PathVariable final String conversationId, @RequestBody final CompactRequest body) {
         if (!StringUtils.hasText(body.text())) {
             throw new ResponseStatusException(BAD_REQUEST, "Empty message");
         }
@@ -448,7 +426,11 @@ public class ChatController {
         final String model = runOptions.resolveModel(conversationId, Optional.of(topic), null);
         final CompactService.StartedCompact started =
                 compactService.start(
-                        conversationId, body.text(), body.instructions(), model, clientMsgId);
+                        conversationId,
+                        body.text(),
+                        body.instructions(),
+                        model,
+                        body.clientMsgId());
         // Строго после start: 409/422 не сохраняют сообщения, и поднимать за них чат в списке
         // не за что. Успех же дописал в чат обычную реплику — как и любая, она его освежает.
         chatTopicRepository.updateUpdatedAt(conversationId, LocalDateTime.now(clock));
