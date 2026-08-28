@@ -14,7 +14,8 @@ import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
-import io.github.trialiya.kb.service.chat.run.RunUsageRegistry;
+import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
+import io.github.trialiya.kb.service.chat.runtime.RunScope;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -46,10 +47,10 @@ class TokenUsageAdvisorTest {
     private static final String RUN = "run-1";
 
     private final ChatEventService events = mock(ChatEventService.class);
-    private final RunUsageRegistry registry = new RunUsageRegistry();
+    private final RunRegistry runs = new RunRegistry();
     private final StreamAdvisorChain chain = mock(StreamAdvisorChain.class);
 
-    private final TokenUsageAdvisor advisor = new TokenUsageAdvisor(events, registry);
+    private final TokenUsageAdvisor advisor = new TokenUsageAdvisor(events, runs);
 
     /**
      * Ответ с инструментами: prompt второго обращения включает первое целиком, поэтому контекст —
@@ -57,7 +58,7 @@ class TokenUsageAdvisorTest {
      */
     @Test
     void contextComesFromTheLastCallAndGrowthFromTheDifference() {
-        registry.start(RUN);
+        final RunScope scope = runs.open(RUN, CONV, "admin", "gpt-5");
         when(chain.nextStream(any()))
                 .thenReturn(Flux.just(chunk(100, 10)))
                 .thenReturn(Flux.just(chunk(400, 30)));
@@ -65,30 +66,30 @@ class TokenUsageAdvisorTest {
         advisor.adviseStream(request(), chain).blockLast();
         advisor.adviseStream(request(), chain).blockLast();
 
-        assertThat(registry.total(RUN)).isEqualTo(usage(430, 300, 40, 500, 2));
+        assertThat(scope.usage()).isEqualTo(usage(430, 300, 40, 500, 2));
     }
 
     /** Ответ без инструментов: наращивать контекст было нечем, прирост нулевой. */
     @Test
     void aRunWithoutToolsGrowsTheContextByNothing() {
-        registry.start(RUN);
+        final RunScope scope = runs.open(RUN, CONV, "admin", "gpt-5");
         when(chain.nextStream(any())).thenReturn(Flux.just(chunk(1000, 50)));
 
         advisor.adviseStream(request(), chain).blockLast();
 
-        assertThat(registry.total(RUN)).isEqualTo(usage(1050, 0, 50, 1000, 1));
+        assertThat(scope.usage()).isEqualTo(usage(1050, 0, 50, 1000, 1));
     }
 
     /** Нарастающий итог внутри одного обращения складывать нельзя — только брать максимум. */
     @Test
     void aRunningTotalWithinOneCallIsNotSummed() {
-        registry.start(RUN);
+        final RunScope scope = runs.open(RUN, CONV, "admin", "gpt-5");
         when(chain.nextStream(any()))
                 .thenReturn(Flux.just(chunk(100, 5), chunk(100, 20), chunk(100, 33)));
 
         advisor.adviseStream(request(), chain).blockLast();
 
-        assertThat(registry.total(RUN)).isEqualTo(usage(133, 0, 33, 100, 1));
+        assertThat(scope.usage()).isEqualTo(usage(133, 0, 33, 100, 1));
     }
 
     /**
@@ -97,7 +98,7 @@ class TokenUsageAdvisorTest {
      */
     @Test
     void aChunkWithoutAPromptDoesNotCollapseTheContext() {
-        registry.start(RUN);
+        final RunScope scope = runs.open(RUN, CONV, "admin", "gpt-5");
         when(chain.nextStream(any()))
                 .thenReturn(Flux.just(chunk(100, 10)))
                 .thenReturn(Flux.just(chunk(0, 7), chunk(400, 30)));
@@ -106,13 +107,13 @@ class TokenUsageAdvisorTest {
         advisor.adviseStream(request(), chain).blockLast();
 
         assertThat(publishedUsage()).extracting(RunTokenUsage::contextTokens).isSorted();
-        assertThat(registry.total(RUN)).isEqualTo(usage(430, 300, 40, 500, 2));
+        assertThat(scope.usage()).isEqualTo(usage(430, 300, 40, 500, 2));
     }
 
     /** Каждый непустой замер уезжает на фронт, и в событии — состояние всего прогона. */
     @Test
     void eachNonEmptyMeasurementIsPublishedAsTheRunState() {
-        registry.start(RUN);
+        final RunScope scope = runs.open(RUN, CONV, "admin", "gpt-5");
         when(chain.nextStream(any()))
                 .thenReturn(Flux.just(chunk(100, 5), chunk(100, 20)))
                 .thenReturn(Flux.just(chunk(400, 30)));
@@ -133,7 +134,7 @@ class TokenUsageAdvisorTest {
      */
     @Test
     void aMeasurementWithoutAContextIsNotPublished() {
-        registry.start(RUN);
+        final RunScope scope = runs.open(RUN, CONV, "admin", "gpt-5");
         when(chain.nextStream(any()))
                 .thenReturn(Flux.just(chunk(0, 7), chunk(0, 12), chunk(400, 30)));
 
@@ -145,7 +146,7 @@ class TokenUsageAdvisorTest {
     /** Повтор того же замера событие не порождает: у провайдера с финальным чанком оно одно. */
     @Test
     void anUnchangedMeasurementIsNotRepublished() {
-        registry.start(RUN);
+        final RunScope scope = runs.open(RUN, CONV, "admin", "gpt-5");
         when(chain.nextStream(any()))
                 .thenReturn(Flux.just(chunk(100, 20), chunk(100, 20), chunk(100, 20)));
 
@@ -157,13 +158,13 @@ class TokenUsageAdvisorTest {
     /** Эндпоинт без usage в стриме: событий нет вовсе — «неизвестно» это не ноль. */
     @Test
     void anEndpointWithoutUsageProducesNoEvents() {
-        registry.start(RUN);
+        final RunScope scope = runs.open(RUN, CONV, "admin", "gpt-5");
         when(chain.nextStream(any())).thenReturn(Flux.just(chunk(0, 0), chunkWithoutMetadata()));
 
         advisor.adviseStream(request(), chain).blockLast();
 
         verifyNoInteractions(events);
-        assertThat(registry.total(RUN)).isEqualTo(RunTokenUsage.EMPTY);
+        assertThat(scope.usage()).isEqualTo(RunTokenUsage.EMPTY);
     }
 
     /** Сжатие контекста, суб-агент и генерация названия идут мимо прогона — их не считаем. */
@@ -174,19 +175,19 @@ class TokenUsageAdvisorTest {
         advisor.adviseStream(request(), chain).blockLast();
 
         verifyNoInteractions(events);
-        assertThat(registry.trackedRunCount()).isZero();
+        assertThat(runs.size()).isZero();
     }
 
     /** Прогон остановили посреди обращения — потраченное к этому моменту потрачено. */
     @Test
     void aCancelledCallStillCounts() {
-        registry.start(RUN);
+        final RunScope scope = runs.open(RUN, CONV, "admin", "gpt-5");
         when(chain.nextStream(any()))
                 .thenReturn(Flux.just(chunk(100, 10)).concatWith(Flux.never()));
 
         advisor.adviseStream(request(), chain).take(1).blockLast();
 
-        assertThat(registry.total(RUN)).isEqualTo(usage(110, 0, 10, 100, 1));
+        assertThat(scope.usage()).isEqualTo(usage(110, 0, 10, 100, 1));
     }
 
     /** Ожидаемый итог прогона; кэш во всех сценариях здесь нулевой. */

@@ -6,14 +6,14 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.tool.ToolData;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
+import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
+import io.github.trialiya.kb.service.chat.runtime.RunScope;
 import io.github.trialiya.kb.tools.Compact;
 import io.github.trialiya.kb.tools.RecordingToolCallback;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -30,75 +30,33 @@ import org.springframework.stereotype.Service;
  * ToolCallService#findToolCallDetail}), точечным запросом вместо скана истории. {@code callIndex}
  * нужен фронту, чтобы склеить живую плашку с итоговой метой того же вызова, поэтому считается он
  * так же, как в {@code ToolInvocationCollector}: сквозной счётчик вызовов прогона, включая те, что
- * в UI не показываются ({@code SKIP_TOOLS} занимают номер, но события не порождают). Отсюда и
- * состояние на чат ниже — без него номера пришлось бы каждый раз восстанавливать сканом хвоста
- * истории, а он для этого ненадёжен: после повтора упавшего прогона в хвосте лежат ещё и его
- * сегменты, которых счётчик коллектора не видел.
+ * в UI не показываются ({@code SKIP_TOOLS} занимают номер, но события не порождают). Живёт счётчик
+ * в области прогона ({@link RunScope}) — восстанавливать номер сканом хвоста истории нельзя: после
+ * повтора упавшего прогона в хвосте лежат ещё и его сегменты, которых счётчик коллектора не видел.
  *
- * <p>Без активного прогона (синхронный путь, ремонт хвоста) события не шлются.
+ * <p>Без идущего прогона (синхронный путь, ремонт хвоста, сжатие контекста) события не шлются:
+ * области нет — нумеровать нечем и склеивать нечего.
  */
 @AllArgsConstructor
 @Service
 public class ToolCallEventPublisher {
 
     private final ChatEventService events;
-
-    /**
-     * Нумерация вызовов текущего прогона чата. Прогоны на чат строго последовательны, а состояние
-     * живёт до конца прогона — записи ASSISTANT-сегмента (вызовы) и TOOL-ответа приходят разными
-     * {@code append}, и второму нужны номера, розданные первым.
-     *
-     * <p>Снимается по {@link #forget} на завершении прогона: в записях лежат разобранные аргументы
-     * всех его вызовов, и держать их до следующего прогона этого чата (который может не случиться
-     * никогда) — течь размером в историю инструментов на каждый когда-либо открытый чат.
-     */
-    private final Map<String, RunCalls> byConversation = new ConcurrentHashMap<>();
-
-    /** Уже пронумерованные вызовы прогона: номер и аргументы, которыми потом дополняется ответ. */
-    private static final class RunCalls {
-        private final String runId;
-        private final Map<String, Started> byCallId = new HashMap<>();
-        private int next;
-
-        private RunCalls(String runId) {
-            this.runId = runId;
-        }
-    }
-
-    private record Started(int callIndex, Map<Object, Object> arguments) {}
+    private final RunRegistry runs;
 
     public void publish(String conversationId, List<ChatMessageEntity> saved) {
-        final Optional<String> runId = events.activeRunId(conversationId);
-        if (runId.isEmpty()) {
-            byConversation.remove(conversationId);
+        // Область прогона — и есть проверка «прогон ещё жив»: заводит и закрывает её только
+        // владелец, поэтому опоздавшая запись ничего не воскрешает, а просто ничего не находит.
+        final Optional<RunScope> scope = events.activeRunId(conversationId).flatMap(runs::find);
+        if (scope.isEmpty()) {
             return;
         }
-        final RunCalls calls =
-                byConversation.compute(
-                        conversationId,
-                        (id, existing) ->
-                                existing != null && existing.runId.equals(runId.get())
-                                        ? existing
-                                        : new RunCalls(runId.get()));
-        synchronized (calls) {
-            // Гонка с cleanup (endRun → forget): между чтением activeRunId и compute прогон мог
-            // завершиться — тогда compute воскресил состояние мёртвого прогона с нумерацией с
-            // нуля. Перепроверяем под замком: endRun идёт РАНЬШЕ forget, поэтому воскрешённая
-            // после forget запись всегда видит activeRunId пустым (или уже нового прогона) — и
-            // выбрасывается, не публикуя ничего и не оставаясь висеть в byConversation.
-            if (byConversation.get(conversationId) != calls
-                    || !events.activeRunId(conversationId).map(calls.runId::equals).orElse(false)) {
-                byConversation.remove(conversationId, calls);
-                return;
-            }
-            for (ChatMessageEntity row : saved) {
-                publishRow(conversationId, runId.get(), row, calls);
-            }
+        for (ChatMessageEntity row : saved) {
+            publishRow(conversationId, scope.get(), row);
         }
     }
 
-    private void publishRow(
-            String conversationId, String runId, ChatMessageEntity row, RunCalls calls) {
+    private void publishRow(String conversationId, RunScope scope, ChatMessageEntity row) {
         final ToolData toolData = row.getToolData();
         if (toolData == null) {
             return;
@@ -107,27 +65,26 @@ public class ToolCallEventPublisher {
             for (ToolData.Call call : toolData.toolCalls()) {
                 // SKIP_TOOLS не показываем нигде: ни live, ни после перезагрузки
                 // (markRunResult их тоже вырезает); номер при этом занимают — он должен
-                // совпадать со счётчиком коллектора. Запись в byCallId им не нужна:
-                // её читает только ветка ответов ниже, а она SKIP_TOOLS отбрасывает.
-                final int callIndex = calls.next++;
+                // совпадать со счётчиком коллектора. Запоминать их не нужно: запомненное
+                // читает только ветка ответов ниже, а она SKIP_TOOLS отбрасывает.
+                final int callIndex = scope.nextCallIndex();
                 if (!ToolCallService.hasDetails(call.name())) {
                     continue;
                 }
-                final Started started =
-                        new Started(
-                                callIndex, RecordingToolCallback.parseToolInput(call.arguments()));
-                calls.byCallId.put(call.id(), started);
+                final Map<Object, Object> arguments =
+                        RecordingToolCallback.parseToolInput(call.arguments());
+                scope.rememberCall(call.id(), callIndex, arguments);
                 publish(
                         conversationId,
-                        runId,
+                        scope.runId(),
                         new ToolInvocationMeta(
                                 call.name(),
-                                started.arguments(),
+                                arguments,
                                 ToolInvocationStatus.STARTED,
                                 null,
                                 null,
                                 true,
-                                started.callIndex(),
+                                callIndex,
                                 null,
                                 call.id()));
             }
@@ -137,17 +94,17 @@ public class ToolCallEventPublisher {
                 if (!ToolCallService.hasDetails(response.name())) {
                     continue;
                 }
-                final Started started = calls.byCallId.get(response.id());
+                final RunScope.StartedCall started = scope.startedCall(response.id());
                 if (started == null) {
-                    // Вызова нет в состоянии прогона (STARTED этой пары ушёл до сброса
-                    // состояния) — OK без номера и аргументов фронт склеить не сможет,
-                    // событие с пустыми данными хуже его отсутствия: правильную плашку
-                    // всё равно принесёт финальное TOOL_CALLS (markRunResult) или reload.
+                    // Вызова прогон не нумеровал (STARTED этой пары ушёл в другом прогоне) — OK
+                    // без номера и аргументов фронт склеить не сможет, событие с пустыми данными
+                    // хуже его отсутствия: правильную плашку всё равно принесёт финальное
+                    // TOOL_CALLS (markRunResult) или reload.
                     continue;
                 }
                 publish(
                         conversationId,
-                        runId,
+                        scope.runId(),
                         new ToolInvocationMeta(
                                 response.name(),
                                 started.arguments(),
@@ -161,19 +118,6 @@ public class ToolCallEventPublisher {
                                 response.id()));
             }
         }
-    }
-
-    /**
-     * Прогон чата закончился — нумерация его вызовов больше не нужна. Зовётся из {@code
-     * ChatRunService.cleanup}, то есть и на успехе, и на остановке, и на ошибке.
-     */
-    public void forget(String conversationId) {
-        byConversation.remove(conversationId);
-    }
-
-    /** Сколько чатов держат нумерацию вызовов — для мониторинга утечек (см. ChatRuntimeMonitor). */
-    public int trackedConversationCount() {
-        return byConversation.size();
     }
 
     private void publish(String conversationId, String runId, ToolInvocationMeta meta) {

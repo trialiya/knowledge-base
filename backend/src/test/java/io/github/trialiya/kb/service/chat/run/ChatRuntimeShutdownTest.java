@@ -16,12 +16,12 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.memory.SummarizeService;
-import io.github.trialiya.kb.service.chat.memory.ToolCallEventPublisher;
 import io.github.trialiya.kb.service.chat.prompt.ProjectPromptService;
 import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.run.PendingMessageService.Flushed;
+import io.github.trialiya.kb.service.chat.runtime.ConversationSlots;
+import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
-import io.github.trialiya.kb.service.chat.slot.ConversationSlots;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayDeque;
@@ -59,6 +59,7 @@ class ChatRuntimeShutdownTest {
     private ChatMemory chatMemory;
     private ChatHistoryService chatHistory;
     private ChatEventService events;
+    private RunRegistry runs;
     private ConversationSlots slots;
     private ChatRunService runService;
     private PendingMessageService pendingMessages;
@@ -86,6 +87,7 @@ class ChatRuntimeShutdownTest {
                                         LocalDateTime.now(),
                                         null));
         events = new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1)));
+        runs = new RunRegistry();
         slots = new ConversationSlots(events);
         pendingMessages = mock(PendingMessageService.class);
         when(pendingMessages.flushPlain(anyString())).thenReturn(Flushed.NOTHING);
@@ -98,12 +100,12 @@ class ChatRuntimeShutdownTest {
         final SseEmitter emitter = events.subscribe(CONV, 0);
         runService.start(CONV, USER, "привет", List.of(), options(), "msg-1");
 
-        assertThat(runService.activeRunCount()).isEqualTo(1);
+        assertThat(runs.size()).isEqualTo(1);
         assertThat(events.hubCount()).isEqualTo(1);
 
         shutdown(5000).onContextClosed(new ContextClosedEvent(mock(ApplicationContext.class)));
 
-        assertThat(runService.activeRunCount()).isZero();
+        assertThat(runs.size()).isZero();
         assertThat(slots.claimedConversationCount()).isZero();
         assertThat(events.hubCount()).isZero();
         // Оборванный ответ сохранён до закрытия подписок — пул соединений ещё жив.
@@ -122,11 +124,11 @@ class ChatRuntimeShutdownTest {
         runService.start(CONV, USER, "привет", List.of(), options(), "msg-1");
 
         assertThat(runService.stopAll()).isEqualTo(1);
-        assertThat(runService.activeRunCount()).isEqualTo(1); // задача ещё не стартовала
+        assertThat(runs.size()).isEqualTo(1); // задача ещё не стартовала
 
         runPending();
 
-        assertThat(runService.activeRunCount()).isZero();
+        assertThat(runs.size()).isZero();
         verify(chatMemory).add(eq(CONV), any(Message.class));
     }
 
@@ -151,7 +153,7 @@ class ChatRuntimeShutdownTest {
         // Дважды: страховочный флаш на старте прогона и терминальная доставка. Отвечать на
         // доставленное при этом никто не начал — иначе появился бы второй прогон.
         verify(pendingMessages, org.mockito.Mockito.times(2)).flushPlain(CONV);
-        assertThat(runService.activeRunCount()).isZero();
+        assertThat(runs.size()).isZero();
         assertThat(slots.claimedConversationCount()).isZero();
     }
 
@@ -248,7 +250,6 @@ class ChatRuntimeShutdownTest {
                 new ChatClientRegistry("default-model", chatClient, Map.of()),
                 chatMemory,
                 chatHistory,
-                mock(ToolCallEventPublisher.class),
                 mock(SummarizeService.class),
                 events,
                 mock(ScriptGuideService.class),
@@ -256,7 +257,7 @@ class ChatRuntimeShutdownTest {
                 mock(ProjectPromptService.class),
                 pendingMessages,
                 mock(RunOptionsResolver.class),
-                new RunUsageRegistry(),
+                runs,
                 slots,
                 executor);
     }

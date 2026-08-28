@@ -7,7 +7,7 @@ import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
-import io.github.trialiya.kb.service.chat.slot.ConversationSlots;
+import io.github.trialiya.kb.service.chat.runtime.ConversationSlots;
 import io.github.trialiya.kb.utils.ChatUtils;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

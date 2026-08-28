@@ -16,6 +16,7 @@ import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
+import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
 import java.util.List;
 import java.util.Map;
@@ -38,19 +39,27 @@ class ToolCallEventPublisherTest {
     private static final String RUN = "run-1";
 
     private ChatEventService events;
+    private RunRegistry runs;
     private ChatHistoryService history;
 
     @BeforeEach
     void setUp() {
         final ChatMessageRepository messageRepo = mock(ChatMessageRepository.class);
         events = mock(ChatEventService.class);
+        runs = new RunRegistry();
         history =
                 new ChatHistoryService(
                         messageRepo,
                         new ContextItemService(mock(AttachmentService.class)),
                         new ToolCallService(messageRepo, mock(ToolCallIndexRepository.class)),
-                        new ToolCallEventPublisher(events));
+                        new ToolCallEventPublisher(events, runs));
         ToolCallTestSupport.echoSavedWithIds(messageRepo);
+    }
+
+    /** Идущий прогон: вкладки видят его активным, и у него есть область с нумерацией вызовов. */
+    private void generating(String runId) {
+        when(events.activeRunId(CONV)).thenReturn(Optional.of(runId));
+        runs.open(runId, CONV, "admin", "gpt-5");
     }
 
     private List<ToolInvocationMeta> publishedMetas(String runId) {
@@ -67,7 +76,7 @@ class ToolCallEventPublisherTest {
 
     @Test
     void startedAndOkEventsForNewSegmentAndResponses() {
-        when(events.activeRunId(CONV)).thenReturn(Optional.of(RUN));
+        generating(RUN);
 
         history.append(
                 CONV,
@@ -105,7 +114,7 @@ class ToolCallEventPublisherTest {
 
     @Test
     void callIndexContinuesAcrossSegmentsOfTheSameRun() {
-        when(events.activeRunId(CONV)).thenReturn(Optional.of(RUN));
+        generating(RUN);
 
         // Первая итерация tool-цикла: два вызова — номера 0 и 1.
         history.append(
@@ -127,7 +136,7 @@ class ToolCallEventPublisherTest {
 
     @Test
     void newRunStartsCountingFromZero() {
-        when(events.activeRunId(CONV)).thenReturn(Optional.of(RUN));
+        generating(RUN);
         history.append(
                 CONV,
                 List.of(
@@ -136,7 +145,7 @@ class ToolCallEventPublisherTest {
 
         // Повтор упавшего прогона: его сегменты остаются в истории, но счётчик вызовов —
         // это счётчик прогона, и коллектор нового прогона тоже начинает с нуля.
-        when(events.activeRunId(CONV)).thenReturn(Optional.of("run-2"));
+        generating("run-2");
         history.append(
                 CONV,
                 List.of(

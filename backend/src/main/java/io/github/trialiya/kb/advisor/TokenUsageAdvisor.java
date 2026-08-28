@@ -6,7 +6,8 @@ import static io.github.trialiya.kb.model.chat.dto.ChatEventType.RUN_USAGE;
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.model.chat.entity.TokenUsage;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
-import io.github.trialiya.kb.service.chat.run.RunUsageRegistry;
+import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
+import io.github.trialiya.kb.service.chat.runtime.RunScope;
 import java.util.concurrent.atomic.AtomicReference;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.client.ChatClientRequest;
@@ -38,11 +39,11 @@ import reactor.core.publisher.Flux;
 public class TokenUsageAdvisor implements StreamAdvisor {
 
     private final ChatEventService events;
-    private final RunUsageRegistry usage;
+    private final RunRegistry runs;
 
-    public TokenUsageAdvisor(ChatEventService events, RunUsageRegistry usage) {
+    public TokenUsageAdvisor(ChatEventService events, RunRegistry runs) {
         this.events = events;
-        this.usage = usage;
+        this.runs = runs;
     }
 
     @Override
@@ -59,10 +60,14 @@ public class TokenUsageAdvisor implements StreamAdvisor {
     public Flux<ChatClientResponse> adviseStream(
             ChatClientRequest request, StreamAdvisorChain chain) {
         final Object runIdParam = request.context().get(RUN_ID_PARAM);
-        // Считаем только заведённый ChatRunService прогон. Проверка не формальность: параметр
-        // прогона в контексте ставит вызывающий, а карту чистит только владелец прогона, и
-        // накопитель, заведённый здесь по чужому runId, удалить было бы некому.
-        if (!(runIdParam instanceof String runId) || !usage.tracked(runId)) {
+        // Считаем только прогон, который завёл ChatRunService. Проверка не формальность: параметр
+        // прогона в контексте ставит вызывающий, а область прогона заводит и закрывает лишь её
+        // владелец — накопитель, заведённый здесь по чужому runId, удалить было бы некому.
+        if (!(runIdParam instanceof String runId)) {
+            return chain.nextStream(request);
+        }
+        final RunScope scope = runs.find(runId).orElse(null);
+        if (scope == null) {
             return chain.nextStream(request);
         }
         final String conversationId =
@@ -70,10 +75,10 @@ public class TokenUsageAdvisor implements StreamAdvisor {
         final AtomicReference<TokenUsage> iteration = new AtomicReference<>(TokenUsage.EMPTY);
 
         return chain.nextStream(request)
-                .doOnNext(response -> onResponse(conversationId, runId, iteration, response))
+                .doOnNext(response -> onResponse(conversationId, scope, iteration, response))
                 // Итерация кончилась — её замер уходит в итог прогона. Именно doFinally: на
                 // остановке прогона поток отменяют, а потраченное к этому моменту потрачено.
-                .doFinally(signal -> usage.add(runId, iteration.getAndSet(TokenUsage.EMPTY)));
+                .doFinally(signal -> scope.addCall(iteration.getAndSet(TokenUsage.EMPTY)));
     }
 
     /**
@@ -84,7 +89,7 @@ public class TokenUsageAdvisor implements StreamAdvisor {
      */
     private void onResponse(
             String conversationId,
-            String runId,
+            RunScope scope,
             AtomicReference<TokenUsage> iteration,
             @Nullable ChatClientResponse response) {
         final TokenUsage measured = usageOf(response);
@@ -99,11 +104,11 @@ public class TokenUsageAdvisor implements StreamAdvisor {
         // Пока не измерен ни один prompt, заполнения контекста нет, а плашку возглавляет именно
         // оно: провайдер, шлющий сначала выход и лишь в финальном чанке вход, до этого чанка даёт
         // замер, показать который нечем. Ждём — «неизвестно» это не ноль.
-        final RunTokenUsage running = usage.snapshot(runId, merged);
+        final RunTokenUsage running = scope.usageWith(merged);
         if (running.contextTokens() == 0) {
             return;
         }
-        events.publish(conversationId, RUN_USAGE, runId, null, running);
+        events.publish(conversationId, RUN_USAGE, scope.runId(), null, running);
     }
 
     /** Замер из ответа модели; разбор провайдерского usage — в {@link TokenUsage#of}. */

@@ -18,13 +18,13 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.memory.SummarizeService;
-import io.github.trialiya.kb.service.chat.memory.ToolCallEventPublisher;
 import io.github.trialiya.kb.service.chat.prompt.ProjectPromptService;
 import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.run.PendingMessageService.Flushed;
 import io.github.trialiya.kb.service.chat.run.PendingMessageService.PendingOptions;
+import io.github.trialiya.kb.service.chat.runtime.ConversationSlots;
+import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
-import io.github.trialiya.kb.service.chat.slot.ConversationSlots;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -54,6 +54,7 @@ class ChatRunQueuedDeliveryTest {
     private RunOptionsResolver runOptions;
     private ChatHistoryService chatHistory;
     private ChatEventService events;
+    private RunRegistry runs;
     private ConversationSlots slots;
     private ChatRunService runService;
 
@@ -66,6 +67,7 @@ class ChatRunQueuedDeliveryTest {
         runOptions = mock(RunOptionsResolver.class);
         chatHistory = mock(ChatHistoryService.class);
         events = new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1)));
+        runs = new RunRegistry();
         slots = new ConversationSlots(events);
         when(runOptions.resolve(anyString(), any(), any(), any())).thenReturn(options());
         when(pendingMessages.flushPlain(anyString())).thenReturn(Flushed.NOTHING);
@@ -74,7 +76,6 @@ class ChatRunQueuedDeliveryTest {
                         new ChatClientRegistry("default-model", mock(ChatClient.class), Map.of()),
                         mock(ChatMemory.class),
                         chatHistory,
-                        mock(ToolCallEventPublisher.class),
                         mock(SummarizeService.class),
                         events,
                         mock(ScriptGuideService.class),
@@ -82,7 +83,7 @@ class ChatRunQueuedDeliveryTest {
                         mock(ProjectPromptService.class),
                         pendingMessages,
                         runOptions,
-                        new RunUsageRegistry(),
+                        runs,
                         slots,
                         never);
     }
@@ -105,7 +106,7 @@ class ChatRunQueuedDeliveryTest {
         verify(pendingMessages).flushPlain(CONV);
         verify(runOptions, never()).resolve(anyString(), any(), any(), any());
         verify(chatHistory, never()).saveUserMessage(anyString(), anyString(), anyList(), any());
-        assertThat(runService.activeRunCount()).isZero();
+        assertThat(runs.size()).isZero();
     }
 
     /**
@@ -132,7 +133,7 @@ class ChatRunQueuedDeliveryTest {
         runService.deliverIfNobodyGenerates(CONV);
 
         verify(runOptions, never()).resolve(anyString(), any(), any(), any());
-        assertThat(runService.activeRunCount()).isZero();
+        assertThat(runs.size()).isZero();
     }
 
     /** Сорвавшаяся доставка вызывающего не роняет: сообщение ждёт в очереди следующего повода. */
@@ -142,7 +143,7 @@ class ChatRunQueuedDeliveryTest {
 
         runService.deliverIfNobodyGenerates(CONV);
 
-        assertThat(runService.activeRunCount()).isZero();
+        assertThat(runs.size()).isZero();
     }
 
     /**

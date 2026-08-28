@@ -26,7 +26,7 @@ import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService.PromptRow;
-import io.github.trialiya.kb.service.chat.slot.ConversationSlots;
+import io.github.trialiya.kb.service.chat.runtime.ConversationSlots;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;

@@ -15,6 +15,7 @@ import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
+import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -39,7 +40,7 @@ class ChatHistoryInterjectionTest {
                     chatMessageRepository,
                     contextItemService,
                     new ToolCallService(chatMessageRepository, mock(ToolCallIndexRepository.class)),
-                    new ToolCallEventPublisher(mock(ChatEventService.class)));
+                    new ToolCallEventPublisher(mock(ChatEventService.class), new RunRegistry()));
 
     @Test
     void anInterjectionRowIsWrappedInItsNotice() {

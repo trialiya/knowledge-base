@@ -23,7 +23,7 @@ import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.run.PendingMessageService;
-import io.github.trialiya.kb.service.chat.run.RunUsageRegistry;
+import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import io.github.trialiya.kb.service.chat.script.ScriptCancelledException;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
 import io.github.trialiya.kb.service.chat.script.ScriptRunner;
@@ -342,7 +342,7 @@ public class ChatConfig {
             ChatToolset chatToolset,
             ChatEventService chatEventService,
             PendingMessageService pendingMessageService,
-            RunUsageRegistry runUsageRegistry) {
+            RunRegistry runRegistry) {
         Map<String, ChatClient> byModelId = new LinkedHashMap<>();
         for (String modelId : chatModelRegistry.ownEndpointModelIds()) {
             byModelId.put(
@@ -355,7 +355,7 @@ public class ChatConfig {
                             chatToolset,
                             chatEventService,
                             pendingMessageService,
-                            runUsageRegistry));
+                            runRegistry));
         }
         return new ChatClientRegistry(
                 chatModelProperties.defaultModel().id(), chatClient, byModelId);
@@ -370,7 +370,7 @@ public class ChatConfig {
             ChatToolset chatToolset,
             ChatEventService chatEventService,
             PendingMessageService pendingMessageService,
-            RunUsageRegistry runUsageRegistry) {
+            RunRegistry runRegistry) {
         log.info("Model: {}", chatModel.getOptions());
         return buildChatClient(
                 chatModel,
@@ -380,7 +380,7 @@ public class ChatConfig {
                 chatToolset,
                 chatEventService,
                 pendingMessageService,
-                runUsageRegistry);
+                runRegistry);
     }
 
     private static ChatClient buildChatClient(
@@ -391,7 +391,7 @@ public class ChatConfig {
             ChatToolset chatToolset,
             ChatEventService chatEventService,
             PendingMessageService pendingMessageService,
-            RunUsageRegistry runUsageRegistry) {
+            RunRegistry runRegistry) {
         // Advisor chain — outermost to innermost (ascending getOrder()):
         //
         //   ToolCallingAdvisor        (DEFAULT_ORDER     = MIN+300)  — drives the tool loop.
@@ -436,7 +436,7 @@ public class ChatConfig {
                         .build());
         advisors.add(new InterjectionAdvisor(pendingMessageService));
         advisors.add(new ToolPreparingAdvisor(chatEventService));
-        advisors.add(new TokenUsageAdvisor(chatEventService, runUsageRegistry));
+        advisors.add(new TokenUsageAdvisor(chatEventService, runRegistry));
         advisors.add(new MessageLoggingAdvisor());
 
         return ChatClient.builder(chatModel)

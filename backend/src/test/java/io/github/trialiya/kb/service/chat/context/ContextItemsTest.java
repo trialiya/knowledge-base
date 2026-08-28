@@ -29,6 +29,7 @@ import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.memory.ToolCallEventPublisher;
 import io.github.trialiya.kb.service.chat.memory.ToolCallService;
+import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -96,7 +97,8 @@ class ContextItemsTest {
                         new ToolCallService(messageRepo, toolCallIndexRepo),
                         new ToolCallEventPublisher(
                                 new ChatEventService(
-                                        new ChatTimeoutProperties(Duration.ofMinutes(1)))));
+                                        new ChatTimeoutProperties(Duration.ofMinutes(1))),
+                                new RunRegistry()));
     }
 
     /** Вложение чата видно только своему чату — этим и занимается запрос за метаданными. */

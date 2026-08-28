@@ -1,4 +1,4 @@
-package io.github.trialiya.kb.service.chat.slot;
+package io.github.trialiya.kb.service.chat.runtime;
 
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import java.util.Optional;

@@ -9,7 +9,7 @@ import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.repository.ChatPendingMessageRepository;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
-import io.github.trialiya.kb.service.chat.slot.ConversationSlots;
+import io.github.trialiya.kb.service.chat.runtime.ConversationSlots;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
