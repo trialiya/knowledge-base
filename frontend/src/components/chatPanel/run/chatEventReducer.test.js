@@ -774,15 +774,30 @@ describe('applyChatEvent', () => {
     expect(chat.messages.at(-1).usage.contextTokens).toBe(120);
   });
 
-  test('RUN_USAGE arriving after RUN_DONE does not revive the finished run', () => {
+  test('RUN_USAGE arriving after RUN_DONE lands on the answer, not on a new bubble', () => {
     let chat = userChat();
     chat = applyChatEvent(chat, { type: 'RUN_STARTED', runId: 'r1' }, ctx);
     chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'привет' } }, ctx);
     chat = applyChatEvent(chat, { type: 'RUN_DONE', runId: 'r1' }, ctx);
+    const answered = chat.messages.length;
     chat = applyChatEvent(chat, { type: 'RUN_USAGE', runId: 'r1', payload: { contextTokens: 120 } }, ctx);
 
     expect(chat.runId).toBeNull();
-    expect(chat.messages.at(-1).usage.contextTokens).toBe(120);
+    // Пузырь ответа тот же самый: finalize снял с него runId, и плашке нужен toolCallsRunId.
+    expect(chat.messages).toHaveLength(answered);
+    expect(chat.messages.at(-1)).toMatchObject({ text: 'привет', usage: { contextTokens: 120 } });
+    expect(chat.messages.at(-1).runId).toBeUndefined();
+  });
+
+  test('RUN_USAGE for a finished run that left no answer opens no bubble', () => {
+    let chat = userChat();
+    chat = applyChatEvent(chat, { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    // Пустой ответ без вызовов инструментов finalize удаляет — цеплять плашку не к чему.
+    chat = applyChatEvent(chat, { type: 'RUN_DONE', runId: 'r1' }, ctx);
+    const before = chat;
+    chat = applyChatEvent(chat, { type: 'RUN_USAGE', runId: 'r1', payload: { contextTokens: 120 } }, ctx);
+
+    expect(chat).toBe(before);
   });
 
   test('RUN_DONE drops a trailing empty bubble without tool calls', () => {

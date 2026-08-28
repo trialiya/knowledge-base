@@ -99,8 +99,11 @@ public class TokenUsageAdvisor implements StreamAdvisor {
         if (merged.equals(before)) {
             return;
         }
+        // Пока не измерен ни один prompt, заполнения контекста нет, а плашку возглавляет именно
+        // оно: провайдер, шлющий сначала выход и лишь в финальном чанке вход, до этого чанка даёт
+        // замер, показать который нечем. Ждём — «неизвестно» это не ноль.
         final RunTokenUsage running = usage.snapshot(runId, merged);
-        if (running.isEmpty()) {
+        if (running.contextTokens() == 0) {
             return;
         }
         events.publish(conversationId, RUN_USAGE, runId, null, running);

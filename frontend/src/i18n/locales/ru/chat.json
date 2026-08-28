@@ -14,7 +14,7 @@
     "tokensContext": "Контекст после этого ответа: {{context}} токенов",
     "tokensTools": "Инструменты добавили: {{tools}}",
     "tokensOutput": "Сгенерировано: {{output}}",
-    "tokensBilled": "Оплачено: {{billed}} за {{calls}} обращений к модели"
+    "tokensBilled": "Оплачено: {{billed}} · обращений к модели: {{calls}}"
   },
   "window": {
     "defaultTitle": "Новый чат",

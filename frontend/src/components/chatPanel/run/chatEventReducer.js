@@ -113,16 +113,35 @@ const clearPreparing = (msgs, runId) => {
 // за прогон, и каждое следующее заменяет предыдущее целиком. Держим цифру на последнем пузыре
 // прогона и снимаем со всех прежних: у прогона с инструментами сегментов несколько, а потрачено
 // на них одно на всех — плашка на каждом читалась бы как несколько разных счетов.
-const setRunUsage = (msgs, runId, usage) => {
-  let idx = lastAiIndexForRun(msgs, runId);
-  if (idx < 0) idx = pushAi(msgs, runId);
+const ofRun = (message, runId) =>
+  message.sender === SENDER.AI && (message.runId === runId || message.toolCallsRunId === runId);
+
+// Пузырь прогона: у идущего он помечен runId, у законченного — toolCallsRunId (finalize снимает
+// первый и ставит второй). Искать только по runId нельзя: замер вправе приехать после RUN_DONE, и
+// тогда пузырь ответа не нашёлся бы, а плашка уехала бы на свежесозданный пустой.
+const lastAiIndexOfRun = (msgs, runId) => {
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    if (ofRun(msgs[i], runId)) return i;
+  }
+  return -1;
+};
+
+const setRunUsage = (msgs, runId, usage, live) => {
+  let idx = lastAiIndexOfRun(msgs, runId);
+  if (idx < 0) {
+    // Пузыря нет вовсе: у идущего прогона он ещё не открыт, у законченного — не остался (ответ
+    // вышел пустым и finalize его удалил). Открывать пузырь ради плашки во втором случае нечего.
+    if (!live) return false;
+    idx = pushAi(msgs, runId);
+  }
   for (let i = 0; i < msgs.length; i++) {
-    if (i !== idx && msgs[i].sender === SENDER.AI && msgs[i].runId === runId && msgs[i].usage) {
+    if (i !== idx && ofRun(msgs[i], runId) && msgs[i].usage) {
       const { usage: _drop, ...rest } = msgs[i];
       msgs[i] = rest;
     }
   }
   msgs[idx] = { ...msgs[idx], usage };
+  return true;
 };
 
 /** Карточка выполненной git-команды: отправитель у неё USER, ходом разговора она не является. */
@@ -424,7 +443,7 @@ export function applyChatEvent(chat, ev, ctx) {
       // Провайдер, не присылающий usage, не шлёт и события — плашки просто не будет. Пустую
       // нагрузку всё же отсеиваем: ноль токенов значил бы «посчитали и вышел ноль».
       if (!payload?.contextTokens) return chat;
-      setRunUsage(msgs, runId, payload);
+      if (!setRunUsage(msgs, runId, payload, chat.runId === runId)) return chat;
       // runId чата не трогаем: замер прогона его не начинает и не кончает, а событие вправе
       // приехать и после RUN_DONE — подставленный отсюда runId воскресил бы законченный прогон.
       return { ...chat, messages: msgs };

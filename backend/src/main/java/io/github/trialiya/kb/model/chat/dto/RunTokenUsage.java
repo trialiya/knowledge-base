@@ -42,9 +42,13 @@ public record RunTokenUsage(
     public static final RunTokenUsage EMPTY = new RunTokenUsage(0, 0, 0, 0, 0, 0, 0);
 
     /**
-     * Нечего показывать. Проверяем замеры, а не {@link #modelCalls}: обращение к эндпоинту без
+     * Не измерено ничего. Проверяем замеры, а не {@link #modelCalls}: обращение к эндпоинту без
      * поддержки usage в стриме состоялось, но не измерено, и показать по нему уверенный ноль было
      * бы хуже, чем не показать ничего.
+     *
+     * <p>Это условие «есть что записать в лог», а не «есть что показать»: плашку возглавляет {@link
+     * #contextTokens}, и решение публиковать событие принимается по нему одному — см. {@code
+     * TokenUsageAdvisor}.
      */
     public boolean isEmpty() {
         return contextTokens == 0 && outputTokens == 0 && promptTokens == 0;

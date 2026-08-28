@@ -127,6 +127,21 @@ class TokenUsageAdvisorTest {
                         usage(430, 300, 50, 500, 2));
     }
 
+    /**
+     * Пока не измерен ни один prompt, показывать нечего: заполнение контекста — заголовочное число
+     * плашки, и события до него не публикуются вовсе.
+     */
+    @Test
+    void aMeasurementWithoutAContextIsNotPublished() {
+        registry.start(RUN);
+        when(chain.nextStream(any()))
+                .thenReturn(Flux.just(chunk(0, 7), chunk(0, 12), chunk(400, 30)));
+
+        advisor.adviseStream(request(), chain).blockLast();
+
+        assertThat(publishedUsage()).containsExactly(usage(430, 0, 30, 400, 1));
+    }
+
     /** Повтор того же замера событие не порождает: у провайдера с финальным чанком оно одно. */
     @Test
     void anUnchangedMeasurementIsNotRepublished() {

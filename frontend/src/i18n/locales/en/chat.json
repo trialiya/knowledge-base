@@ -14,7 +14,7 @@
     "tokensContext": "Context after this answer: {{context}} tokens",
     "tokensTools": "Tools added: {{tools}}",
     "tokensOutput": "Generated: {{output}}",
-    "tokensBilled": "Billed: {{billed}} over {{calls}} model call(s)"
+    "tokensBilled": "Billed: {{billed}} · model calls: {{calls}}"
   },
   "window": {
     "defaultTitle": "New chat",
