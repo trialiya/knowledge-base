@@ -189,12 +189,7 @@ const Message = ({
         </div>
         <div className="message-footer__actions">
           {error && onRetry && (
-            <button
-              className="message-retry-btn"
-              onClick={() => onRetry(mid)}
-              title={t('message.retry')}
-              type="button"
-            >
+            <button className="message-retry-btn" onClick={() => onRetry(mid)} title={t('message.retry')} type="button">
               ↻ {t('message.retry')}
             </button>
           )}

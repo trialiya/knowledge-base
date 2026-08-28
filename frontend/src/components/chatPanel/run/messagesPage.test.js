@@ -1,4 +1,4 @@
-import { transformPage, attachLeadingMetas, trimActiveRunTail } from './useChatMessages';
+import { transformPage, attachLeadingMetas, trimActiveRunTail } from './messagesPage';
 
 // Тесты маппинга «сырых» сообщений бэка в пузыри: раздельное сохранение сегментов
 // (assistant с toolInvocationMetas, протокольные TOOL-строки) + legacy-крошки.
