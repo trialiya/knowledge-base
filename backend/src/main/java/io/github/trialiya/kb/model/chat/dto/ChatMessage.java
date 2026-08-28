@@ -3,6 +3,7 @@ package io.github.trialiya.kb.model.chat.dto;
 import io.github.trialiya.kb.model.chat.entity.CompactMeta;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
+import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -37,4 +38,10 @@ public record ChatMessage(
          * ищет «последний вопрос» в ленте, обязано смотреть сквозь него (см. {@code
          * trimActiveRunTail}).
          */
-        @Nullable Boolean interjection) {}
+        @Nullable Boolean interjection,
+        /**
+         * Токены прогона, написавшего этот ответ; непустой ровно у одного его ряда — последнего
+         * (см. {@code ChatHistoryService.markRunResult}). Тем же полем чат отвечает на вопрос
+         * «сколько занято контекста»: у самого свежего ответа оно и есть текущее заполнение.
+         */
+        @Nullable RunTokenUsage usage) {}

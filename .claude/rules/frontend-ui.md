@@ -30,7 +30,12 @@ never in big-bang rewrites.
   column seam comes back. It is **one row** that must not wrap: the object's name
   in `.workspace__head-title` (ellipsis; `.workspace__head-edit` for its inline
   rename form), buttons in `.workspace__head-actions`. Metadata does not go there
-  — dates, versions, path and author belong to the right panel's Info tab.
+  — dates, versions, path and author belong to the right panel's Info tab. The
+  one exception is live state that the Info tab does not hold and that is read
+  right before acting on it: chat's context counter (`.chat-header__context`),
+  which changes with every answer and answers "is it time to `/compact`". It
+  earns the spot by staying inside the one row; anything that would wrap it or
+  add a second row still belongs in the right panel.
   `SettingsShell`'s head is deliberately two rows and does not line up; migrate
   it when its subtitle finds another home, and don't copy its metrics anywhere.
 - A path in a header is the shared `<HeadCrumbs>` (`common/layout/HeadCrumbs.jsx`).

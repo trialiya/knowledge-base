@@ -12,12 +12,12 @@ import static io.github.trialiya.kb.model.chat.dto.ChatEventType.USER_MESSAGE;
 import com.openai.models.chat.completions.ChatCompletion;
 import io.github.trialiya.kb.config.ChatClientRegistry;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
-import io.github.trialiya.kb.model.chat.dto.RunTokenUsage;
 import io.github.trialiya.kb.model.chat.dto.StreamMessage;
 import io.github.trialiya.kb.model.chat.dto.ToolCallsMessage;
 import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
+import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.model.project.ProjectSwitch;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
@@ -583,7 +583,11 @@ public class ChatRunService {
                 toolCallService.attachRunMeta(
                         handle.conversationId(), handle.runId(), toolCollector.completedSnapshot());
         // Строго после attachRunMeta — та ищет сегменты без меты (см. её javadoc).
-        chatHistory.markRunModel(handle.conversationId(), handle.runId(), handle.model());
+        chatHistory.markRunResult(
+                handle.conversationId(),
+                handle.runId(),
+                handle.model(),
+                runUsage.total(handle.runId()));
         liveSink.accept(new ToolCallsMessage(metas));
         events.publish(handle.conversationId(), RUN_DONE, handle.runId(), null, null);
         summarizeService.trySummarize(handle.conversationId());
@@ -792,7 +796,8 @@ public class ChatRunService {
                     conversationId, handle.runId(), toolCollector.completedSnapshot());
             // Оборванный ответ тоже кем-то написан — и именно на нём вопрос «какая модель это
             // выдала» задают чаще всего. Порядок тот же, что в onComplete.
-            chatHistory.markRunModel(conversationId, handle.runId(), handle.model());
+            chatHistory.markRunResult(
+                    conversationId, handle.runId(), handle.model(), runUsage.total(handle.runId()));
         } catch (Exception e) {
             log.warn("Failed to attach run meta for {}", conversationId, e);
         }

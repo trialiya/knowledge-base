@@ -13,6 +13,7 @@ import useChatList from './list/useChatList';
 import useChatMessages from './run/useChatMessages';
 import useChatEventStream from './run/useChatEventStream';
 import useChatRun from './run/useChatRun';
+import useChatUsage from './run/useChatUsage';
 import useChatAttachments from './run/useChatAttachments';
 import useInChatSearch from './center/useInChatSearch';
 import useChatDrafts from './composer/useChatDrafts';
@@ -505,12 +506,18 @@ const ChatWindow = ({
   // Мемоизируем: ChatWindow перерисовывается на каждый чанк стриминга, а без
   // этого на каждый чанк пересоздавалось бы и содержимое открытой панели
   // вложений (таблица со списком файлов).
+  // Токены чата отдельным хуком: считаются по ленте (она меняется на каждый чанк), а наружу
+  // отдаются прежним объектом, пока не изменились сами числа — иначе мемо ниже пересобиралось бы
+  // по буквам ответа, ровно вопреки своей цели.
+  const chatUsage = useChatUsage(activeMessages, activeChat?.hasMore);
+
   const baseTabs = useMemo(
     () =>
       buildChatTabs({
         t,
         chatId: activeChatId,
         infoChat,
+        usage: chatUsage,
         modelLabel: selectedModelLabel,
         modeLabel: selectedModeLabel,
         projectLabel: selectedProjectLabel,
@@ -527,6 +534,7 @@ const ChatWindow = ({
       refreshSignal,
       handleAttachmentDeleted,
       infoChat,
+      chatUsage,
       selectedModelLabel,
       selectedModeLabel,
       selectedProjectLabel,

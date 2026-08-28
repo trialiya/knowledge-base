@@ -12,7 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import io.github.trialiya.kb.model.chat.dto.RunTokenUsage;
+import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.service.chat.run.ChatEventService;
 import io.github.trialiya.kb.service.chat.run.RunUsageRegistry;
 import java.util.List;
@@ -38,7 +38,7 @@ import reactor.core.publisher.Flux;
  *
  * <p>Проверяем ровно то, что три числа {@link RunTokenUsage} считаются каждое по своему правилу и
  * не подменяют друг друга: контекст берётся из последнего обращения, прирост — разностью, выход и
- * оплаченный prompt — суммой.
+ * total input — суммой.
  */
 class TokenUsageAdvisorTest {
 

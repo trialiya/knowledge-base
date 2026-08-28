@@ -4,6 +4,7 @@ import chatApi from '@/api/chatApi';
 import { getToolIcon, humanizeTool, toolLabelKey } from '@/components/common/ui/toolNames';
 import CopyButton from '@/components/common/ui/CopyButton';
 import ModalShell from '@/components/common/modal/ModalShell';
+import { formatTokens, usageTooltip } from './tokenUsage';
 import { detectResultView } from './resultViews/registry';
 import { detectArgumentList } from './resultViews/argumentList';
 import ArgumentListView from './resultViews/ArgumentListView';
@@ -47,6 +48,35 @@ const ModeSwitch = ({ mode, onChange, label }) => {
           {t(`toolCall.detail.mode.${value}`)}
         </button>
       ))}
+    </div>
+  );
+};
+
+/**
+ * Чем обошёлся вызов: своя модель инструмента и её токены. Есть только у инструментов, которые
+ * сами ходят в модель (сегодня это searchCodebase), и приезжает в resultMeta, а не в результате —
+ * модели эти числа намеренно не показывают (см. SearchAgentResult).
+ *
+ * Наверху здесь total input и output, а не занятый контекст: контекст суб-агента живёт секунды и
+ * умирает вместе с вызовом, а вопрос к нему один — во сколько обошёлся поиск.
+ */
+const ToolCost = ({ meta }) => {
+  const { t } = useTranslation('chat');
+  if (!meta?.model) return null;
+  const usage = meta.usage;
+
+  return (
+    <div className="tool-call-detail__cost">
+      <span>{t('toolCall.detail.costModel', { model: meta.model })}</span>
+      {usage?.contextTokens > 0 && (
+        <span title={usageTooltip(usage, t, 'toolCall.detail.costContext')}>
+          {t('toolCall.detail.costTokens', {
+            input: formatTokens(usage.promptTokens),
+            output: formatTokens(usage.outputTokens),
+            calls: usage.modelCalls,
+          })}
+        </span>
+      )}
     </div>
   );
 };
@@ -168,6 +198,8 @@ const ToolCallDetailModal = ({ conversationId, callId, tc, onClose }) => {
       {details && !loading && (
         <div className="tool-call-detail__body">
           <div className={`tool-call-detail__status${statusClass}`}>{details.status}</div>
+
+          <ToolCost meta={tc.resultMeta} />
 
           <section className="tool-call-detail__section">
             <div className="tool-call-detail__section-head">

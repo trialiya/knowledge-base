@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconTrash, IconSearch } from '@/icons/index';
+import { formatTokens, usageTooltip } from '../messages/tokenUsage';
 
 /**
  * Шапка активного чата: заголовок с инлайн-переименованием и кнопки
@@ -16,15 +17,21 @@ import { IconTrash, IconSearch } from '@/icons/index';
  * (ChatWindow: activeChat && <ChatHeader …/>). Так внутри нет раннего return
  * между хуками и JSX, о который легко споткнуться, добавляя хук ниже него.
  *
+ * Счётчик занятого контекста — единственная метаданность, которой здесь место (см.
+ * `.claude/rules/frontend-ui.md`): он не дублирует вкладку «Инфо», а показывает то, что меняется с
+ * каждым ответом, и смотрят на него, решая, не пора ли сжать чат, — то есть прямо перед тем, как
+ * писать следующий вопрос. Строку он не растит: садится в тот же ряд перед кнопками.
+ *
  * props:
  *   chat            — активный чат (обязателен)
+ *   contextUsage    — токены последнего измеренного прогона либо null (см. contextUsageOf)
  *   canSearch       — доступен ли find-бар для этого чата
  *   searchOpen      — find-бар открыт (подсветка кнопки)
  *   onToggleSearch  — () => void
  *   onRename        — (chatId, title) => void
  *   onDelete        — (chatId) => void
  */
-const ChatHeader = ({ chat, canSearch, searchOpen, onToggleSearch, onRename, onDelete }) => {
+const ChatHeader = ({ chat, contextUsage, canSearch, searchOpen, onToggleSearch, onRename, onDelete }) => {
   const { t } = useTranslation('chat');
   // Черновик переименования. Храним ВМЕСТЕ с id чата, для которого оно началось:
   // активный чат может смениться до blur (выбор в поиске, синхронизация из другой
@@ -82,6 +89,11 @@ const ChatHeader = ({ chat, canSearch, searchOpen, onToggleSearch, onRename, onD
         >
           {chat.title}
         </h3>
+      )}
+      {contextUsage && (
+        <span className="chat-header__context" title={usageTooltip(contextUsage, t, 'header.contextTooltip')}>
+          {t('header.context', { context: formatTokens(contextUsage.contextTokens) })}
+        </span>
       )}
       <div className="workspace__head-actions">
         {/* Search toggle button in header (Ctrl/Cmd+F) */}

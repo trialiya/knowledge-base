@@ -38,7 +38,7 @@ public class ChatClientRegistry {
     /**
      * The id the run actually goes out with — {@code null} spelled out as {@code
      * kb.chat.default-model.id}. Needed wherever the model is recorded rather than routed by (the
-     * model stamped on an answer, see {@code ChatHistoryService#markRunModel}): "the default one"
+     * model stamped on an answer, see {@code ChatHistoryService#markRunResult}): "the default one"
      * is not an answer once the default changes.
      */
     public String resolveModelId(@Nullable String modelId) {

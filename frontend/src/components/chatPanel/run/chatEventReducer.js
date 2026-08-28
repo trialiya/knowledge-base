@@ -72,7 +72,7 @@ const lastAiIndexForRun = (msgs, runId) => {
 
 // model — id модели прогона из RUN_STARTED. Помечаем пузырь сразу, а не по завершении:
 // подпись под ответом обязана быть той же и в живом потоке, и после перезагрузки, где
-// она приезжает из meta.model сохранённого ряда (см. ChatHistoryService.markRunModel).
+// она приезжает из meta.model сохранённого ряда (см. ChatHistoryService.markRunResult).
 const pushAi = (msgs, runId, model = null) => {
   const bubble = {
     mid: nextMessageId(),

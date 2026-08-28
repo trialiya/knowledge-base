@@ -30,7 +30,8 @@ const detail = (status, resultText) => ({
   createdAt: '2026-08-23T10:00:00',
 });
 
-const open = () => render(<ToolCallDetailModal conversationId="c1" callId="call_1" tc={tc} onClose={() => {}} />);
+const open = (call = tc) =>
+  render(<ToolCallDetailModal conversationId="c1" callId="call_1" tc={call} onClose={() => {}} />);
 
 // Тик опроса: таймер будит запрос, и его ответ приходит уже вне рендера — без act(...)
 // React ругается на состояние, обновлённое мимо него.
@@ -85,5 +86,33 @@ describe('ToolCallDetailModal', () => {
     // Повтор после ошибки приносит результат.
     await tick(2000);
     expect(await screen.findByText(/готово/)).toBeInTheDocument();
+  });
+
+  // Цена вызова приезжает в resultMeta плашки, а не в результате: модели эти числа намеренно
+  // не показывают (SearchAgentResult помечает их @JsonIgnore), а человеку они нужны здесь.
+  it('показывает модель инструмента и его total input, когда он их сообщил', async () => {
+    chatApi.getToolCallDetails.mockResolvedValue(detail('OK', '"нашлось"'));
+    const withCost = {
+      ...tc,
+      status: 'OK',
+      resultMeta: {
+        model: 'gpt-5-mini',
+        usage: { contextTokens: 18400, outputTokens: 870, promptTokens: 41260, modelCalls: 4 },
+      },
+    };
+
+    open(withCost);
+
+    await waitFor(() => expect(screen.getByText(/costModel/)).toBeInTheDocument());
+    expect(screen.getByText(/costTokens/)).toBeInTheDocument();
+  });
+
+  it('у инструмента без собственной модели строки цены нет', async () => {
+    chatApi.getToolCallDetails.mockResolvedValue(detail('OK', '"нашлось"'));
+
+    open({ ...tc, status: 'OK', resultMeta: { project: 'kb' } });
+
+    await waitFor(() => expect(screen.getByText('toolCall.detail.result')).toBeInTheDocument());
+    expect(screen.queryByText(/costModel/)).not.toBeInTheDocument();
   });
 });

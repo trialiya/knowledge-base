@@ -666,8 +666,8 @@ public class ChatController {
 
     /**
      * Ряд истории → DTO. Одна проекция на оба чтения — страницу истории и чат целиком: полей у
-     * {@code ChatMessage} четырнадцать, и второй позиционный вызов конструктора разошёлся бы с
-     * первым на первом же новом поле, ничего не сломав по дороге.
+     * {@code ChatMessage} пятнадцать, и второй позиционный вызов конструктора разошёлся бы с первым
+     * на первом же новом поле, ничего не сломав по дороге.
      *
      * @param invocations плашки вызовов этого ряда: страница истории досинтезирует их из {@code
      *     tool_data}, проекция чата отдаёт что записано
@@ -702,7 +702,8 @@ public class ChatController {
                 meta != null ? meta.model() : null,
                 meta != null ? meta.compact() : null,
                 meta != null ? meta.gitEvent() : null,
-                meta != null && meta.interjection() ? Boolean.TRUE : null);
+                meta != null && meta.interjection() ? Boolean.TRUE : null,
+                meta != null ? meta.usage() : null);
     }
 
     /** «Крошка» вызовов инструментов — служебное сообщение, которое не показываем пользователю. */

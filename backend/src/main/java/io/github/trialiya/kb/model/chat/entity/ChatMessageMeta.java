@@ -22,7 +22,7 @@ import org.jspecify.annotations.Nullable;
  * каком проекте закончилось сжатое», см. {@code SummarizeService}.
  *
  * <p>{@code model} — id модели, которая написала этот ответ (см. {@code
- * ChatHistoryService.markRunModel}). Только на ASSISTANT-рядах и только начиная с прогонов, где
+ * ChatHistoryService.markRunResult}). Только на ASSISTANT-рядах и только начиная с прогонов, где
  * поле уже существовало: у старых ответов его нет, и {@code null} здесь значит «неизвестно», а не
  * «дефолтная модель» — чат мог идти на любой.
  *
@@ -33,6 +33,11 @@ import org.jspecify.annotations.Nullable;
  * <p>{@code gitEvent} — git-команда, выполненная пользователем из этого чата (см. {@link
  * GitEventMeta}). Тоже признак своего ряда: у такого сообщения пустой контент, и весь его смысл в
  * этом поле — карточка вывода на фронте, нотис модели в {@code ChatHistoryService.promptRow}.
+ *
+ * <p>{@code usage} — токены прогона (см. {@link RunTokenUsage}). Стоит на одном ряду прогона, его
+ * последнем ASSISTANT-ряду: числа относятся к прогону целиком, и копия на каждом его сегменте
+ * заставила бы читающего выбирать между одинаковыми. Есть только у прогонов, где эндпоинт отдавал
+ * usage в стриме, — {@code null} здесь значит «не измерено», а не «ноль».
  *
  * <p>{@code interjection} — вопрос доставлен ПОСРЕДИ прогона, между итерациями tool-цикла (см.
  * {@code PendingMessageService}): пользователь писал, глядя на ход работы, а не на готовый ответ.
@@ -50,7 +55,8 @@ public record ChatMessageMeta(
         @Nullable String model,
         @Nullable CompactMeta compact,
         @Nullable GitEventMeta gitEvent,
-        boolean interjection) {
+        boolean interjection,
+        @Nullable RunTokenUsage usage) {
 
     public ChatMessageMeta {
         invocations = invocations == null ? List.of() : invocations;
@@ -75,7 +81,8 @@ public record ChatMessageMeta(
                 model,
                 null,
                 null,
-                false);
+                false,
+                null);
     }
 
     public ChatMessageMeta(
@@ -132,7 +139,7 @@ public record ChatMessageMeta(
      */
     public static ChatMessageMeta ofCompact(CompactMeta compact) {
         return new ChatMessageMeta(
-                null, false, List.of(), List.of(), null, null, null, compact, null, false);
+                null, false, List.of(), List.of(), null, null, null, compact, null, false, null);
     }
 
     /**
@@ -142,7 +149,7 @@ public record ChatMessageMeta(
      */
     public static ChatMessageMeta ofGitEvent(GitEventMeta gitEvent) {
         return new ChatMessageMeta(
-                null, false, List.of(), List.of(), null, null, null, null, gitEvent, false);
+                null, false, List.of(), List.of(), null, null, null, null, gitEvent, false, null);
     }
 
     /**
@@ -153,7 +160,7 @@ public record ChatMessageMeta(
      */
     public static ChatMessageMeta ofInterjection(List<ContextItem> contextItems) {
         return new ChatMessageMeta(
-                null, false, List.of(), contextItems, null, null, null, null, null, true);
+                null, false, List.of(), contextItems, null, null, null, null, null, true, null);
     }
 
     /** Метаданные summary-строки: проект, на котором закончилась сжатая часть истории. */
@@ -163,7 +170,7 @@ public record ChatMessageMeta(
 
     /**
      * Копия с проставленными прогоном и его моделью. Дописывает, а не заменяет: {@code
-     * ChatHistoryService.markRunModel} проходит по рядам прогона последним, и уже сохранённые
+     * ChatHistoryService.markRunResult} проходит по рядам прогона последним, и уже сохранённые
      * плашки вызовов ({@code invocations}) обязаны пережить этот проход.
      */
     public ChatMessageMeta withRun(String runId, String model) {
@@ -177,7 +184,28 @@ public record ChatMessageMeta(
                 model,
                 compact,
                 gitEvent,
-                interjection);
+                interjection,
+                usage);
+    }
+
+    /**
+     * Копия с проставленными токенами прогона. Отдельно от {@link #withRun}: модель проставляется
+     * всем рядам прогона, а токены — одному (см. javadoc записи), и объединение этих двух пометок в
+     * один вызов заставило бы вызывающего передавать {@code null} на каждом ряду, кроме последнего.
+     */
+    public ChatMessageMeta withUsage(RunTokenUsage usage) {
+        return new ChatMessageMeta(
+                runId,
+                toolCalls,
+                invocations,
+                contextItems,
+                project,
+                projectSwitchFrom,
+                model,
+                compact,
+                gitEvent,
+                interjection,
+                usage);
     }
 
     /**
@@ -196,6 +224,7 @@ public record ChatMessageMeta(
                 model,
                 compact,
                 gitEvent,
-                interjection);
+                interjection,
+                usage);
     }
 }

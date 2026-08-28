@@ -8,6 +8,7 @@ import io.github.trialiya.kb.model.chat.entity.CompactMeta;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.chat.entity.ContextItemKind;
 import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
+import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
 import java.util.List;
@@ -56,7 +57,8 @@ class ChatMessageMetaRoundTripTest {
                         "deepseek-chat",
                         new CompactMeta(21, 4096, 512),
                         new GitEventMeta("pull", "billing", true, "Fast-forward", "main"),
-                        true);
+                        true,
+                        new RunTokenUsage(12_400, 700, 320, 31_000, 24_000, 1_100, 3));
 
         final String json = new ChatMessageMetaToJsonConverter.Writer(objectMapper).convert(meta);
         final ChatMessageMeta read =

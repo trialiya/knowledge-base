@@ -361,7 +361,7 @@ ID текущего чата.
 - **`resultGist`** — краткая текстовая сводка результата (например, `"size=1\n4512b4a 2026-06-03 Trialiya: feature: show compact tool result previews..."`)
 - **`ToolCallResponseItem`** — интерфейс с методом `toGist()`, реализуемый всеми DTO: `GitFileContent`, `GitFileOutline`, `GitCommit`, `GitGrepMatch`, `GitFileNode`, `GitDiffEntry`, `DocumentDto`, `DocumentGrepMatch`, `AttachmentDto`, `SearchAgentResult`
 - **`OutlineResult`** — DTO-обёртка для `getFileOutline`, содержит `path`, `language`, `lineCount`, `parser`, `symbols` и реализует `ToolCallResponseItem`
-- **`SearchAgentResult`** — результат `searchCodebase`, реализует `ToolCallResponseItem` и `ToolCallResultMetaProvider`. Gist: `"⚠ неполно • 3 шаг(ов) • краткий фрагмент отчёта…"`. ResultMeta: `complete`, `iterations`, `durationMs`, `reportChars`.
+- **`SearchAgentResult`** — результат `searchCodebase`, реализует `ToolCallResponseItem` и `ToolCallResultMetaProvider`. Gist: `"⚠ неполно • 3 шаг(ов) • краткий фрагмент отчёта…"`. ResultMeta: `complete`, `iterations`, `durationMs`, `reportChars`, `model`, `usage`. `durationMs`, `model` и `usage` помечены `@JsonIgnore` и модели не отдаются — они операционные, и в деталях вызова их читает человек (см. [обзор чат-системы](обзор-чат-системы.md), §6.4).
 
 ### ToolInvocation
 

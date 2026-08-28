@@ -130,7 +130,9 @@ const toolCallCase = ([name, viewport]) => ({
     <ToolCallDetailModal
       conversationId="1"
       callId="call-1"
-      tc={{ name: p.name, status: p.status }}
+      // resultMeta прокидывается: строку цены вызова (модель инструмента и её токены) рисуют
+      // именно из неё, а не из ответа — модели эти числа не показывают.
+      tc={{ name: p.name, status: p.status, resultMeta: p.resultMeta }}
       onClose={noop}
     />
   ),
@@ -140,6 +142,11 @@ const REGISTRY = [
   // ── Чат ──
   {
     id: 'chatHeader.js#activeChatProps',
+    frame: 'center',
+    render: (p) => <ChatHeader {...p} onToggleSearch={noop} onRename={noop} onDelete={noop} />,
+  },
+  {
+    id: 'chatHeader.js#activeChatWithContextProps',
     frame: 'center',
     render: (p) => <ChatHeader {...p} onToggleSearch={noop} onRename={noop} onDelete={noop} />,
   },
@@ -190,6 +197,8 @@ const REGISTRY = [
     ['mcpCall'],
     ['editFileCall'],
     ['uncommittedChangesCall', [1440, 1100]],
+    // Единственный инструмент со строкой цены: он сам ходит в модель (см. фикстуру).
+    ['searchCodebaseCall'],
     ['searchDocumentsCall'],
     ['attachmentListCall'],
     ['insightsCall'],

@@ -5,6 +5,8 @@ import static io.github.trialiya.kb.utils.ChatUtils.context;
 import static io.github.trialiya.kb.utils.ChatUtils.conversationId;
 
 import io.github.trialiya.kb.config.model.SubAgentConfig;
+import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
+import io.github.trialiya.kb.model.chat.entity.TokenUsage;
 import io.github.trialiya.kb.model.search.SearchAgentResult;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.tools.ProjectContext;
@@ -13,12 +15,12 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.model.ToolContext;
@@ -126,7 +128,8 @@ public class SearchAgentService {
             @Nullable ToolContext parentContext,
             @Nullable String requestedProject) {
         final long startMs = System.currentTimeMillis();
-        final TokenUsage usage = new TokenUsage();
+        final AtomicReference<RunTokenUsage.Tally> usage =
+                new AtomicReference<>(RunTokenUsage.Tally.EMPTY);
         final String conversationId =
                 parentContext != null ? conversationId(parentContext) : DEFAULT_CONVERSATION_ID;
         // Canonical, not the raw argument: it goes into the report's echo, which the write guard
@@ -158,7 +161,7 @@ public class SearchAgentService {
         ChatResponse response;
         try {
             response = chatModel.call(prompt);
-            usage.add(response);
+            add(usage, response);
         } catch (Exception e) {
             log.error("[{}] search sub-agent initial call failed", conversationId, e);
             return result(
@@ -200,7 +203,7 @@ public class SearchAgentService {
             prompt = new Prompt(exec.conversationHistory(), toolOptions);
             try {
                 response = chatModel.call(prompt);
-                usage.add(response);
+                add(usage, response);
             } catch (Exception e) {
                 log.warn(
                         "[{}] search sub-agent follow-up call failed: {}",
@@ -232,21 +235,36 @@ public class SearchAgentService {
             boolean complete,
             int hops,
             long startMs,
-            TokenUsage usage) {
+            AtomicReference<RunTokenUsage.Tally> usage) {
         long durationMs = System.currentTimeMillis() - startMs;
+        final RunTokenUsage spent = usage.get().view();
         log.info(
-                "[{}] search sub-agent done: project={}, complete={}, hops={}, {} ms, "
-                        + "tokens(prompt={}, completion={}, total={}), report='{}'",
+                "[{}] search sub-agent done: project={}, complete={}, hops={}, {} ms, model={},"
+                        + " context={}, generated={}, billed={} over {} call(s), report='{}'",
                 conversationId,
                 project,
                 complete,
                 hops,
                 durationMs,
-                usage.prompt,
-                usage.completion,
-                usage.total,
+                config.modelId(),
+                spent.contextTokens(),
+                spent.outputTokens(),
+                spent.promptTokens() + spent.outputTokens(),
+                spent.modelCalls(),
                 truncate(report, 1000));
-        return new SearchAgentResult(project, report, complete, hops, durationMs);
+        return new SearchAgentResult(
+                project, report, complete, hops, durationMs, config.modelId(), spent);
+    }
+
+    /**
+     * Учитывает замер одного обращения суб-агента. Правило то же, что у чата ({@link
+     * RunTokenUsage.Tally}), и это важнее, чем кажется: суб-агент — тоже цикл вызовов, где каждое
+     * следующее обращение несёт всю предыдущую переписку заново, поэтому простая сумма prompt'ов
+     * росла бы квадратично от числа шагов и говорила бы о «размере поиска» неправду.
+     */
+    private static void add(
+            AtomicReference<RunTokenUsage.Tally> usage, @Nullable ChatResponse response) {
+        usage.updateAndGet(tally -> tally.with(TokenUsage.of(response)));
     }
 
     /**
@@ -262,7 +280,7 @@ public class SearchAgentService {
             String conversationId,
             String fullTask,
             String instruction,
-            TokenUsage usage) {
+            AtomicReference<RunTokenUsage.Tally> usage) {
         final List<Message> messages = new ArrayList<>(prompt.getInstructions());
         messages.add(new UserMessage("Напоминание исходной задачи:\n" + fullTask));
         messages.add(new UserMessage(instruction));
@@ -285,7 +303,7 @@ public class SearchAgentService {
 
         try {
             final ChatResponse summary = chatModel.call(new Prompt(messages, finalOptions));
-            usage.add(summary);
+            add(usage, summary);
             final Generation result = summary.getResult();
             final String text = result == null ? null : result.getOutput().getText();
             return (text == null || text.isBlank()) ? "Поиск не дал результатов." : text;
@@ -328,29 +346,5 @@ public class SearchAgentService {
             return "";
         }
         return s.length() <= max ? s : s.substring(0, max) + "…";
-    }
-
-    /** Running token total across every model call in one sub-agent run (loop + summarization). */
-    private static final class TokenUsage {
-        private long prompt;
-        private long completion;
-        private long total;
-
-        private void add(ChatResponse response) {
-            if (response == null || response.getMetadata() == null) {
-                return;
-            }
-            Usage u = response.getMetadata().getUsage();
-            if (u == null) {
-                return;
-            }
-            prompt += nz(u.getPromptTokens());
-            completion += nz(u.getCompletionTokens());
-            total += nz(u.getTotalTokens());
-        }
-
-        private static long nz(Integer value) {
-            return value == null ? 0L : value;
-        }
     }
 }

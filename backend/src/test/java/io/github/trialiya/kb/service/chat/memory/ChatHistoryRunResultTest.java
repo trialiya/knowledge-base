@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
+import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
@@ -27,15 +28,17 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.ai.chat.messages.MessageType;
 
 /**
- * {@link ChatHistoryService#markRunModel}: чем помечены ответы прогона. Модель на записи неизвестна
- * — advisor памяти приносит только сообщения, — поэтому её проставляют по завершении прогона,
- * поверх уже сохранённых рядов.
+ * {@link ChatHistoryService#markRunResult}: чем помечены ответы прогона. Ни модель, ни токены на
+ * записи не известны — advisor памяти приносит только сообщения, — поэтому их проставляют по
+ * завершении прогона, поверх уже сохранённых рядов. Модель достаётся каждому ряду прогона, токены —
+ * одному последнему.
  */
-class ChatHistoryRunModelTest {
+class ChatHistoryRunResultTest {
 
     private static final String CONV = "conv-1";
     private static final String RUN = "run-1";
     private static final String MODEL = "gpt-5";
+    private static final RunTokenUsage USAGE = new RunTokenUsage(12_400, 700, 320, 31_000, 0, 0, 3);
 
     private ChatMessageRepository messageRepo;
     private ChatHistoryService history;
@@ -64,6 +67,10 @@ class ChatHistoryRunModelTest {
                 .thenReturn(List.of(rows));
     }
 
+    private void mark(RunTokenUsage usage) {
+        history.markRunResult(CONV, RUN, MODEL, usage);
+    }
+
     private List<ChatMessageEntity> saved() {
         @SuppressWarnings("unchecked")
         final ArgumentCaptor<Iterable<ChatMessageEntity>> captor =
@@ -83,7 +90,7 @@ class ChatHistoryRunModelTest {
                 row(4, MessageType.TOOL, null),
                 row(5, MessageType.ASSISTANT, null));
 
-        history.markRunModel(CONV, RUN, MODEL);
+        mark(RunTokenUsage.EMPTY);
 
         // Ответ прошлого хода мог быть написан другой моделью — его не трогаем; TOOL-ряд
         // никто не «писал», подписи под ним нет.
@@ -117,7 +124,7 @@ class ChatHistoryRunModelTest {
                         MessageType.ASSISTANT,
                         new ChatMessageMeta(RUN, false, List.of(invocation))));
 
-        history.markRunModel(CONV, RUN, MODEL);
+        mark(RunTokenUsage.EMPTY);
 
         // attachRunMeta ходит первой и уже записала плашки вызовов — пометка модели
         // дописывает поле, а не заменяет мету целиком.
@@ -138,7 +145,7 @@ class ChatHistoryRunModelTest {
                         new ChatMessageMeta(null, false, List.of()).withRun("run-0", "gpt-4")),
                 row(3, MessageType.ASSISTANT, null));
 
-        history.markRunModel(CONV, RUN, MODEL);
+        mark(RunTokenUsage.EMPTY);
 
         assertThat(saved()).extracting(ChatMessageEntity::getId).containsExactly(3L);
     }
@@ -157,16 +164,46 @@ class ChatHistoryRunModelTest {
                 row(4, MessageType.USER, ChatMessageMeta.ofInterjection(List.of())),
                 row(5, MessageType.ASSISTANT, null));
 
-        history.markRunModel(CONV, RUN, MODEL);
+        mark(RunTokenUsage.EMPTY);
 
         assertThat(saved()).extracting(ChatMessageEntity::getId).containsExactly(2L, 5L);
+    }
+
+    /**
+     * Токены относятся к прогону целиком, поэтому висят на одном ряду — последнем его сегменте, том
+     * самом, под которым фронт рисует плашку. Копия на каждом сегменте заставила бы читающего
+     * выбирать между одинаковыми числами, а сумма по ним была бы просто неправдой.
+     */
+    @Test
+    void putsTheRunTokensOnTheLastAnswerSegmentOnly() {
+        history(
+                row(1, MessageType.USER, null),
+                row(2, MessageType.ASSISTANT, null),
+                row(3, MessageType.ASSISTANT, null));
+
+        mark(USAGE);
+
+        assertThat(saved()).extracting(row -> row.getMeta().usage()).containsExactly(null, USAGE);
+    }
+
+    /**
+     * Эндпоинт без поддержки usage в стриме оставляет прогон неизмеренным, и {@code null} в мете —
+     * ровно это. Записанный вместо него ноль фронт показал бы как «контекст пуст».
+     */
+    @Test
+    void leavesAnUnmeasuredRunWithoutTokens() {
+        history(row(1, MessageType.USER, null), row(2, MessageType.ASSISTANT, null));
+
+        mark(RunTokenUsage.EMPTY);
+
+        assertThat(saved().getFirst().getMeta().usage()).isNull();
     }
 
     @Test
     void writesNothingWhenTheTurnHasNoAnswerYet() {
         history(row(1, MessageType.USER, null));
 
-        history.markRunModel(CONV, RUN, MODEL);
+        mark(RunTokenUsage.EMPTY);
 
         verify(messageRepo, never()).saveAll(any());
     }

@@ -3,8 +3,8 @@ package io.github.trialiya.kb.advisor;
 import static io.github.trialiya.kb.advisor.ToolPreparingAdvisor.RUN_ID_PARAM;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.RUN_USAGE;
 
-import io.github.trialiya.kb.model.chat.dto.RunTokenUsage;
-import io.github.trialiya.kb.model.chat.dto.TokenUsage;
+import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
+import io.github.trialiya.kb.model.chat.entity.TokenUsage;
 import io.github.trialiya.kb.service.chat.run.ChatEventService;
 import io.github.trialiya.kb.service.chat.run.RunUsageRegistry;
 import java.util.concurrent.atomic.AtomicReference;
@@ -14,9 +14,6 @@ import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.ai.chat.client.advisor.api.StreamAdvisor;
 import org.springframework.ai.chat.client.advisor.api.StreamAdvisorChain;
 import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.metadata.ChatResponseMetadata;
-import org.springframework.ai.chat.metadata.Usage;
-import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.core.Ordered;
 import reactor.core.publisher.Flux;
 
@@ -109,24 +106,8 @@ public class TokenUsageAdvisor implements StreamAdvisor {
         events.publish(conversationId, RUN_USAGE, runId, null, running);
     }
 
-    /** Замер из ответа модели; {@link TokenUsage#EMPTY}, если провайдер его не прислал. */
+    /** Замер из ответа модели; разбор провайдерского usage — в {@link TokenUsage#of}. */
     private static TokenUsage usageOf(@Nullable ChatClientResponse response) {
-        final ChatResponse chatResponse = response == null ? null : response.chatResponse();
-        final ChatResponseMetadata metadata =
-                chatResponse == null ? null : chatResponse.getMetadata();
-        final Usage measured = metadata == null ? null : metadata.getUsage();
-        if (measured == null) {
-            return TokenUsage.EMPTY;
-        }
-        return new TokenUsage(
-                nz(measured.getPromptTokens()),
-                nz(measured.getCompletionTokens()),
-                nz(measured.getTotalTokens()),
-                nz(measured.getCacheReadInputTokens()),
-                nz(measured.getCacheWriteInputTokens()));
-    }
-
-    private static long nz(@Nullable Number value) {
-        return value == null ? 0L : value.longValue();
+        return TokenUsage.of(response == null ? null : response.chatResponse());
     }
 }
