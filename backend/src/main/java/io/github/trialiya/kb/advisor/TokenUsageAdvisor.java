@@ -110,7 +110,7 @@ public class TokenUsageAdvisor implements StreamAdvisor {
         }
         // Замер последнего чанка доезжает сюда и после того, как прогон закончился и его хаб
         // закрылся: отмена не останавливает доставку мгновенно. Такое событие просто пропадает —
-        // publish с runId хаба не заводит (см. ChatEventService#publish).
+        // хаба публикация не заводит (см. ChatEventService#publish).
         events.publish(conversationId, RUN_USAGE, scope.runId(), null, running);
     }
 

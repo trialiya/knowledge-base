@@ -145,11 +145,13 @@ class ChatGitLogTest {
     }
 
     /**
-     * Событие рассылается только там, где канал уже есть: команда в чат без открытых вкладок иначе
-     * заводила бы канал, который никто не закроет (см. {@code ChatEventService.publish}).
+     * Записанная команда рассылается вкладкам — парой к тесту выше: там событие не уходит потому,
+     * что записи не случилось, а не потому, что рассылки нет вовсе. Дойдёт ли оно до вкладки,
+     * решает уже {@code ChatEventService} (у чата без открытых вкладок и без прогона хаба нет, и
+     * событие теряется) — здесь он мок, и проверять это надо там.
      */
     @Test
-    void theEventGoesOutOnlyToAChannelThatAlreadyExists() {
+    void aRecordedCommandIsAnnouncedToTheTabs() {
         when(chatHistory.appendGitEvent(anyString(), any()))
                 .thenReturn(
                         new ChatMessageEntity(
