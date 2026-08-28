@@ -1,7 +1,6 @@
 package io.github.trialiya.kb.service.chat.memory;
 
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
-import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.tool.ToolCallDetail;
 import io.github.trialiya.kb.model.tool.ToolCallIndexEntity;
 import io.github.trialiya.kb.model.tool.ToolData;
@@ -14,6 +13,7 @@ import io.github.trialiya.kb.tools.RecordingToolCallback;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -23,7 +23,6 @@ import lombok.AllArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Вызовы инструментов внутри истории чата: индекс {@code tool_call_index}, UI-метаданные плашек и
@@ -62,7 +61,7 @@ public class ToolCallService {
     /**
      * Наполняет {@code tool_call_index} сразу при персисте нового сегмента: id вызова уже лежит в
      * {@code tool_data} (в отличие от UI-меты — status/error/resultMeta, — для этого не нужно
-     * позиционное сопоставление с коллектором, см. {@link #attachRunMeta}). Два прохода по только
+     * позиционное сопоставление с коллектором, см. {@link #runInvocations}). Два прохода по только
      * что сохранённым рядам: сперва вставляем строки по tool_calls ASSISTANT-сегментов, затем
      * проставляем {@code responseMessageId} по responses TOOL-сообщений — так пара «вызов и ответ в
      * одном {@code append}» тоже отрабатывает корректно (вставка гарантированно раньше обновления).
@@ -173,7 +172,7 @@ public class ToolCallService {
                                 ? invocation.name()
                                 : Objects.requireNonNull(call).name(),
                         call != null ? call.arguments() : null,
-                        // Мета вызова появляется только в конце прогона (attachRunMeta), а
+                        // Мета вызова появляется только в конце прогона (markRunResult), а
                         // аргументы лежат в сегменте с самого его персиста — модалка деталей
                         // открывается и на ещё работающем вызове. Пока ответа нет, статус —
                         // STARTED, иначе идущий вызов показался бы успешно завершённым; ответ
@@ -191,12 +190,11 @@ public class ToolCallService {
 
     /**
      * Метаданные плашек вызовов для сегмента: сохранённые {@code meta.invocations}, а если их нет
-     * (прогон оборвался до {@link #attachRunMeta}, старые данные) — синтезированные из {@code
-     * tool_data}: имя и усечённые аргументы из toolCalls сегмента, гист — из ответа в
-     * TOOL-сообщениях среди {@code context} (строк той же страницы). Статус всегда OK (история =
-     * завершённые вызовы), hasDetails=false — намеренно не предлагаем детали для этого
-     * синтезированного (не через {@link #attachRunMeta}) пути. {@code SKIP_TOOLS} вырезаны, как и в
-     * {@link #attachRunMeta}.
+     * (прогон оборвался до записи меты, старые данные) — синтезированные из {@code tool_data}: имя
+     * и усечённые аргументы из toolCalls сегмента, гист — из ответа в TOOL-сообщениях среди {@code
+     * context} (строк той же страницы). Статус всегда OK (история = завершённые вызовы),
+     * hasDetails=false — намеренно не предлагаем детали для этого синтезированного (не через {@link
+     * #runInvocations}) пути. {@code SKIP_TOOLS} вырезаны, как и там.
      */
     public @Nullable List<ToolInvocationMeta> invocationsFor(
             ChatMessageEntity entity, List<ChatMessageEntity> context) {
@@ -246,55 +244,41 @@ public class ToolCallService {
     }
 
     /**
-     * Прикрепляет UI-метаданные вызовов инструментов к ASSISTANT-сегментам прогона, которые
-     * advisor-цепочка уже сохранила с протокольными tool_calls (см. {@link
-     * ChatHistoryService#append}). Сегменты идут в порядке позиций, каждый потребляет из общего
-     * списка вызовов столько, сколько у него tool_calls — список вызовов прогона хронологический,
-     * поэтому сопоставление однозначно; та же позиционная связь даёт callId каждого вызова (у
-     * {@link ToolInvocation} самого протокольного id нет — {@code RecordingToolCallback} его не
-     * видит). messageId/responseMessageId сюда не тянем — {@link #index} наполняет ими {@code
-     * tool_call_index} напрямую по callId, без позиционной арифметики.
+     * Раскладывает вызовы прогона по его ASSISTANT-сегментам — тем, что advisor-цепочка уже
+     * сохранила с протокольными tool_calls (см. {@link ChatHistoryService#append}). Сегменты идут в
+     * порядке позиций, каждый потребляет из общего списка вызовов столько, сколько у него
+     * tool_calls — список вызовов прогона хронологический, поэтому сопоставление однозначно; та же
+     * позиционная связь даёт callId каждого вызова (у {@link ToolInvocation} самого протокольного
+     * id нет — {@code RecordingToolCallback} его не видит). messageId/responseMessageId сюда не
+     * тянем — {@link #index} наполняет ими {@code tool_call_index} напрямую по callId, без
+     * позиционной арифметики.
      *
-     * <p>Рассматриваются только сегменты текущего хода (см. {@link
-     * ChatHistoryService#tailAfterLastUser}), а среди них — только необогащённые ({@code meta ==
-     * null}). Отсюда порядок: {@code ChatHistoryService.markRunResult} проставляет мету тем же
-     * рядам и обязана идти ПОСЛЕ, иначе вызовы инструментов этого прогона плашек не получат.
+     * <p>Чистая функция: мету рядам пишет {@link ChatHistoryService#markRunResult} — одним заходом
+     * вместе с моделью и токенами прогона. Порознь это было парой с негласным порядком: плашки
+     * ищутся по {@code meta == null}, и проставленная раньше модель прятала бы от них сегменты.
      *
      * <p>{@code SKIP_TOOLS} вырезаются только из UI-метаданных — протокольные tool_calls сегмента
      * остаются полными, иначе модель получила бы рассинхронизированную пару tool-сообщений.
      *
-     * @return сохранённые метаданные всех вызовов прогона (без SKIP_TOOLS), в хронологическом
-     *     порядке — используется для финального live-события TOOL_CALLS (см. ChatRunService), чтобы
-     *     не пересчитывать то же самое дважды.
+     * @param segments необогащённые ({@code meta == null}) ASSISTANT-ряды хода, в порядке позиций
+     * @param toolCalls вызовы прогона в хронологическом порядке (снимок коллектора)
+     * @return плашки по id сегмента, в том же порядке; сегменты без вызовов в карту не попадают
      */
-    @Transactional
-    public List<ToolInvocationMeta> attachRunMeta(
-            String conversationId, String runId, @Nullable List<ToolInvocation> toolCalls) {
-        if (toolCalls == null || toolCalls.isEmpty()) {
-            return List.of();
+    static Map<Long, List<ToolInvocationMeta>> runInvocations(
+            List<ChatMessageEntity> segments, List<ToolInvocation> toolCalls) {
+        if (toolCalls.isEmpty()) {
+            return Map.of();
         }
-        final List<ChatMessageEntity> tail =
-                ChatHistoryService.tailAfterLastUser(
-                        chatMessageRepository
-                                .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
-                                        conversationId));
-        final List<ChatMessageEntity> segments =
-                tail.stream()
-                        .filter(e -> e.getType() == MessageType.ASSISTANT)
-                        .filter(e -> e.getMeta() == null)
-                        .filter(
-                                e ->
-                                        e.getToolData() != null
-                                                && e.getToolData().toolCalls() != null
-                                                && !e.getToolData().toolCalls().isEmpty())
-                        .toList();
-        final List<ToolInvocationMeta> allMetas = new ArrayList<>();
+        final Map<Long, List<ToolInvocationMeta>> bySegment = new LinkedHashMap<>();
         int cursor = 0;
         for (ChatMessageEntity segment : segments) {
-            // segments was filtered above for getToolData() != null && toolCalls() != null.
-            final List<ToolData.Call> segmentCalls =
-                    Objects.requireNonNull(
-                            Objects.requireNonNull(segment.getToolData()).toolCalls());
+            final ToolData toolData = segment.getToolData();
+            if (toolData == null
+                    || toolData.toolCalls() == null
+                    || toolData.toolCalls().isEmpty()) {
+                continue;
+            }
+            final List<ToolData.Call> segmentCalls = toolData.toolCalls();
             final int end = Math.min(cursor + segmentCalls.size(), toolCalls.size());
             if (cursor >= end) {
                 break;
@@ -309,11 +293,8 @@ public class ToolCallService {
                 metas.add(tc.toMeta(true, call.id()));
             }
             cursor = end;
-            // Короткий конструктор здесь допустим только потому, что сегменты отфильтрованы по
-            // meta == null: терять нечему. Ослабишь фильтр — собирай мету поверх существующей.
-            chatMessageRepository.save(segment.withMeta(new ChatMessageMeta(runId, false, metas)));
-            allMetas.addAll(metas);
+            bySegment.put(segment.getId(), metas);
         }
-        return allMetas;
+        return bySegment;
     }
 }

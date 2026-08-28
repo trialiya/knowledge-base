@@ -106,7 +106,7 @@ public class ToolCallEventPublisher {
         if (toolData.toolCalls() != null) {
             for (ToolData.Call call : toolData.toolCalls()) {
                 // SKIP_TOOLS не показываем нигде: ни live, ни после перезагрузки
-                // (attachRunMeta их тоже вырезает); номер при этом занимают — он должен
+                // (markRunResult их тоже вырезает); номер при этом занимают — он должен
                 // совпадать со счётчиком коллектора. Запись в byCallId им не нужна:
                 // её читает только ветка ответов ниже, а она SKIP_TOOLS отбрасывает.
                 final int callIndex = calls.next++;
@@ -142,7 +142,7 @@ public class ToolCallEventPublisher {
                     // Вызова нет в состоянии прогона (STARTED этой пары ушёл до сброса
                     // состояния) — OK без номера и аргументов фронт склеить не сможет,
                     // событие с пустыми данными хуже его отсутствия: правильную плашку
-                    // всё равно принесёт финальное TOOL_CALLS (attachRunMeta) или reload.
+                    // всё равно принесёт финальное TOOL_CALLS (markRunResult) или reload.
                     continue;
                 }
                 publish(

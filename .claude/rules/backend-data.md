@@ -55,11 +55,12 @@ Migrations for this live in both `db/migration` (Postgres) and `db/migration-h2`
   `SummarizeService`), and its `add` re-reads the whole conversation on every
   advisor call. Writes are append-only; `append` gets the new row's position from
   a single max query, so callers never hand it the history.
-- **Meta written after a run goes on in one order:** `ToolCallService.attachRunMeta`
-  first, `ChatHistoryService.markRunResult` second. The first finds un-enriched
-  segments by `meta == null`, so anything that writes meta earlier hides the
-  run's tool calls from it and the plaques never appear. Both mark the same
-  rows — the ones after the last USER message — through the one shared rule,
+- **Everything a run learns only at its end is written in one pass:**
+  `ChatHistoryService.markRunResult` stamps the tool-call plaques, the model and
+  the run's tokens together. Do not split it back into two writes: the plaques
+  find un-enriched segments by `meta == null`, so a model stamped first hides the
+  run's own tool calls and the plaques never appear. It marks the rows after the
+  last USER message through the one shared rule,
   `ChatHistoryService.tailAfterLastUser`; do not re-derive that cut.
 - **Live `TOOL_CALL` events number calls per run** (`ToolCallEventPublisher`),
   matching `ToolInvocationCollector`'s counter. Do not recompute `callIndex` by

@@ -12,6 +12,7 @@ import io.github.trialiya.kb.model.chat.dto.MessageSearchHit;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
+import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
@@ -204,7 +205,7 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
         assertThat(((AssistantMessage) reloaded.get(1)).getToolCalls()).hasSize(1);
     }
 
-    // ── attachRunMeta: UI-метаданные вызовов по сегментам прогона ────────────
+    // ── markRunResult: плашки вызовов, модель и токены по рядам прогона ──────
 
     private static ToolInvocation invocation(String name, int callIndex) {
         return new ToolInvocation(
@@ -221,7 +222,7 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
     }
 
     @Test
-    void attachRunMetaStampsSegmentsInOrderAndSkipsServiceTools() {
+    void markRunResultStampsSegmentsInOrderAndSkipsServiceTools() {
         String conv = newConversation();
         ChatHistoryService memory = memory();
 
@@ -260,17 +261,22 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
                         segment2,
                         new AssistantMessage("финальный ответ")));
 
-        toolCalls()
-                .attachRunMeta(
-                        conv,
-                        "run-42",
-                        List.of(
-                                invocation("getDocument", 0),
-                                invocation("getCurrentDateTime", 1),
-                                invocation("searchDocs", 2)));
+        memory.markRunResult(
+                conv,
+                "run-42",
+                "gpt-5",
+                RunTokenUsage.EMPTY,
+                List.of(
+                        invocation("getDocument", 0),
+                        invocation("getCurrentDateTime", 1),
+                        invocation("searchDocs", 2)));
 
         List<ChatMessageEntity> rows = memory.displayMessages(conv);
-        List<ChatMessageEntity> stamped = rows.stream().filter(r -> r.getMeta() != null).toList();
+        // Модель достаётся каждому ответу хода, включая финальный без вызовов; плашки — только
+        // сегментам, которые инструменты звали.
+        assertThat(rows.stream().filter(r -> r.getMeta() != null)).hasSize(3);
+        List<ChatMessageEntity> stamped =
+                rows.stream().filter(r -> r.getInvocations() != null).toList();
         assertThat(stamped).hasSize(2);
 
         ChatMessageEntity first = stamped.get(0);
@@ -317,7 +323,7 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
     }
 
     @Test
-    void attachRunMetaIgnoresSegmentsOfPreviousTurns() {
+    void markRunResultIgnoresSegmentsOfPreviousTurns() {
         String conv = newConversation();
         ChatHistoryService memory = memory();
 
@@ -348,7 +354,8 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
                                 Stream.of(new UserMessage("новый вопрос"), (Message) newSegment))
                         .toList());
 
-        toolCalls().attachRunMeta(conv, "run-7", List.of(invocation("searchDocs", 0)));
+        memory.markRunResult(
+                conv, "run-7", "gpt-5", RunTokenUsage.EMPTY, List.of(invocation("searchDocs", 0)));
 
         List<ChatMessageEntity> rows = memory.displayMessages(conv);
         ChatMessageEntity old =

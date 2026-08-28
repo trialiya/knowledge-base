@@ -23,7 +23,6 @@ import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.memory.SummarizeService;
 import io.github.trialiya.kb.service.chat.memory.ToolCallEventPublisher;
-import io.github.trialiya.kb.service.chat.memory.ToolCallService;
 import io.github.trialiya.kb.service.chat.prompt.ProjectPromptService;
 import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
@@ -87,7 +86,6 @@ public class ChatRunService {
     private final ChatClientRegistry chatClients;
     private final ChatMemory chatMemory;
     private final ChatHistoryService chatHistory;
-    private final ToolCallService toolCallService;
     private final ToolCallEventPublisher toolCallEvents;
     private final SummarizeService summarizeService;
     private final ChatEventService events;
@@ -119,7 +117,6 @@ public class ChatRunService {
             ChatClientRegistry chatClients,
             ChatMemory chatMemory,
             ChatHistoryService chatHistory,
-            ToolCallService toolCallService,
             ToolCallEventPublisher toolCallEvents,
             SummarizeService summarizeService,
             ChatEventService events,
@@ -133,7 +130,6 @@ public class ChatRunService {
         this.chatClients = chatClients;
         this.chatMemory = chatMemory;
         this.chatHistory = chatHistory;
-        this.toolCallService = toolCallService;
         this.toolCallEvents = toolCallEvents;
         this.summarizeService = summarizeService;
         this.events = events;
@@ -591,18 +587,16 @@ public class ChatRunService {
     private void onComplete(
             RunHandle handle, ToolInvocationCollector toolCollector, Consumer<Object> liveSink) {
         handle.persisted().set(true);
-        // Персист сначала, затем live-событие с уже персистнутыми metas (messageId/callId/
-        // responseMessageId в них есть только после attachRunMeta — она же вырезает SKIP_TOOLS,
-        // так что после перезагрузки они не покажутся, а тут — так же, одним и тем же списком).
+        // Персист сначала, затем live-событие с уже персистнутыми metas (callId в них есть только
+        // после записи — она же вырезает SKIP_TOOLS, так что после перезагрузки они не покажутся, а
+        // тут — так же, одним и тем же списком).
         final List<ToolInvocationMeta> metas =
-                toolCallService.attachRunMeta(
-                        handle.conversationId(), handle.runId(), toolCollector.completedSnapshot());
-        // Строго после attachRunMeta — та ищет сегменты без меты (см. её javadoc).
-        chatHistory.markRunResult(
-                handle.conversationId(),
-                handle.runId(),
-                handle.model(),
-                runUsage.total(handle.runId()));
+                chatHistory.markRunResult(
+                        handle.conversationId(),
+                        handle.runId(),
+                        handle.model(),
+                        runUsage.total(handle.runId()),
+                        toolCollector.completedSnapshot());
         liveSink.accept(new ToolCallsMessage(metas));
         events.publish(handle.conversationId(), RUN_DONE, handle.runId(), null, null);
         summarizeService.trySummarize(handle.conversationId());
@@ -805,14 +799,15 @@ public class ChatRunService {
         }
         // Свой try: мета относится и к сегментам, которые advisor-цепочка сохранила ПО ХОДУ
         // прогона, — сорвавшаяся выше запись частичного текста не повод оставить их без плашек
-        // и модели.
+        // и модели. Оборванный ответ тоже кем-то написан, и именно на нём вопрос «какая модель это
+        // выдала» задают чаще всего.
         try {
-            toolCallService.attachRunMeta(
-                    conversationId, handle.runId(), toolCollector.completedSnapshot());
-            // Оборванный ответ тоже кем-то написан — и именно на нём вопрос «какая модель это
-            // выдала» задают чаще всего. Порядок тот же, что в onComplete.
             chatHistory.markRunResult(
-                    conversationId, handle.runId(), handle.model(), runUsage.total(handle.runId()));
+                    conversationId,
+                    handle.runId(),
+                    handle.model(),
+                    runUsage.total(handle.runId()),
+                    toolCollector.completedSnapshot());
         } catch (Exception e) {
             log.warn("Failed to attach run meta for {}", conversationId, e);
         }

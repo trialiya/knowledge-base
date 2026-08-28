@@ -17,7 +17,6 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.memory.SummarizeService;
 import io.github.trialiya.kb.service.chat.memory.ToolCallEventPublisher;
-import io.github.trialiya.kb.service.chat.memory.ToolCallService;
 import io.github.trialiya.kb.service.chat.prompt.ProjectPromptService;
 import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
@@ -66,7 +65,6 @@ class ChatRunRetryTest {
                         new ChatClientRegistry("default-model", mock(ChatClient.class), Map.of()),
                         mock(ChatMemory.class),
                         chatHistory,
-                        mock(ToolCallService.class),
                         mock(ToolCallEventPublisher.class),
                         mock(SummarizeService.class),
                         new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))),

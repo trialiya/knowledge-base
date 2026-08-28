@@ -331,7 +331,7 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
     @Test
     void runningCallExposesArgumentsWithStartedStatus() {
         // Инструмент ещё работает: сегмент с вызовом сохранён и проиндексирован, TOOL-ответа
-        // нет, мета появится только в конце прогона (attachRunMeta). Модалка деталей открывается
+        // нет, мета появится только в конце прогона (markRunResult). Модалка деталей открывается
         // уже сейчас — ради аргументов, — и вызов не должен выглядеть завершённым.
         String conv = UUID.randomUUID().toString();
 

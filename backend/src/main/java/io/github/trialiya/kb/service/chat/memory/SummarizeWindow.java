@@ -224,10 +224,9 @@ final class SummarizeWindow {
     }
 
     /**
-     * Открывает ли ряд ход — та же граница, по которой хвост прогона отделяют {@code markRunResult}
-     * и {@code attachRunMeta} (см. {@link ChatHistoryService#opensATurn}). Обе границы обязаны
-     * совпадать: ряд, который здесь считался бы вопросом, а там нет, дал бы окно, открытое на
-     * ответе к вопросу вне окна.
+     * Открывает ли ряд ход — та же граница, по которой хвост прогона отделяет {@code markRunResult}
+     * (см. {@link ChatHistoryService#opensATurn}). Обе границы обязаны совпадать: ряд, который
+     * здесь считался бы вопросом, а там нет, дал бы окно, открытое на ответе к вопросу вне окна.
      */
     private static boolean opensATurn(PromptRow row) {
         return ChatHistoryService.opensATurn(row.entity());

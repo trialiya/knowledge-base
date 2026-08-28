@@ -10,6 +10,8 @@ import io.github.trialiya.kb.model.chat.spring.IMessage;
 import io.github.trialiya.kb.model.chat.spring.UserChatMessage;
 import io.github.trialiya.kb.model.project.ProjectSwitch;
 import io.github.trialiya.kb.model.tool.ToolData;
+import io.github.trialiya.kb.model.tool.ToolInvocation;
+import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.tools.RecordingToolCallback;
@@ -317,29 +319,39 @@ public class ChatHistoryService {
     }
 
     /**
-     * Проставляет прогон, его модель и его токены на ASSISTANT-рядах, которые advisor-цепочка
-     * записала по ходу прогона (см. {@link #append}) — на записи не известно ни то, ни другое:
-     * {@link ChatHistoryMemory#add} получает от advisor'а только сообщения, а модель прогона живёт
-     * в его настройках, токены — в {@code RunUsageRegistry}.
+     * Записывает всё, что известно о прогоне только по его завершении, на ASSISTANT-ряды, которые
+     * advisor-цепочка сохранила по ходу (см. {@link #append}): плашки вызовов инструментов, модель
+     * и токены. На записи не известно ничего из этого — {@link ChatHistoryMemory#add} получает от
+     * advisor'а только сообщения, модель прогона живёт в его настройках, токены — в {@code
+     * RunUsageRegistry}, а вызовы — в снимке коллектора.
+     *
+     * <p>Одной операцией, а не тремя: плашки ищут необогащённые сегменты по {@code meta == null},
+     * поэтому порознь это была бы пара с негласным порядком — модель, проставленная первой, прятала
+     * бы от плашек ряды этого же прогона, и вызовы инструментов не показались бы никогда. Заодно
+     * это одно чтение хвоста и одна запись вместо двух.
      *
      * <p>Модель проставляется каждому ряду прогона, токены — только последнему: числа относятся к
      * прогону целиком, и копия на каждом сегменте заставила бы читающего выбирать между одинаковыми
      * (см. {@link ChatMessageMeta}). Не измеренный прогон не помечается вовсе — {@code null} в мете
      * значит «не измерено», и уверенный ноль был бы неправдой.
      *
-     * <p>Идёт ПОСЛЕ {@code ToolCallService.attachRunMeta}: та ищет необогащённые сегменты по {@code
-     * meta == null}, и проставленная раньше времени модель спрятала бы от неё вызовы инструментов.
-     * Обратный порядок безопасен для самой модели — {@link ChatMessageMeta#withRun} дописывает поле
-     * к уже сохранённой мете, — но плашки вызовов после него не появятся.
-     *
      * <p>Ряды прогона — это хвост после последнего вопроса (см. {@link #tailAfterLastUser}). Ряды
      * оборванных прогонов, оставшиеся в том же хвосте, уже помечены своей моделью и второй раз не
      * переписываются: у ответа стоит та модель, что его написала, а не та, на которой сдались.
+     *
+     * @param toolCalls снимок вызовов прогона в хронологическом порядке; {@code null} — прогон не
+     *     звал инструментов
+     * @return плашки, которые эта запись проставила, в хронологическом порядке — их же прогон шлёт
+     *     финальным live-событием {@code TOOL_CALLS}, чтобы не считать то же самое дважды
      */
     @Transactional
-    public void markRunResult(
-            String conversationId, String runId, String model, RunTokenUsage usage) {
-        final List<ChatMessageEntity> rows =
+    public List<ToolInvocationMeta> markRunResult(
+            String conversationId,
+            String runId,
+            String model,
+            RunTokenUsage usage,
+            @Nullable List<ToolInvocation> toolCalls) {
+        final List<ChatMessageEntity> answers =
                 tailAfterLastUser(
                                 chatMessageRepository
                                         .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
@@ -354,19 +366,28 @@ public class ChatHistoryService {
                                         row.getMeta() == null
                                                 || (row.getMeta().model() == null
                                                         && runId.equals(row.getMeta().runId())))
-                        .map(
-                                row ->
-                                        row.withMeta(
-                                                (row.getMeta() == null
-                                                                ? new ChatMessageMeta(
-                                                                        null, false, List.of())
-                                                                : row.getMeta())
-                                                        .withRun(runId, model)))
                         .toList();
-        if (rows.isEmpty()) {
-            return;
+        if (answers.isEmpty()) {
+            return List.of();
         }
-        final List<ChatMessageEntity> updated = new ArrayList<>(rows);
+        final Map<Long, List<ToolInvocationMeta>> invocations =
+                ToolCallService.runInvocations(
+                        answers.stream().filter(row -> row.getMeta() == null).toList(),
+                        toolCalls == null ? List.of() : toolCalls);
+        final List<ChatMessageEntity> updated = new ArrayList<>(answers.size());
+        for (ChatMessageEntity answer : answers) {
+            final List<ToolInvocationMeta> metas = invocations.get(answer.getId());
+            // Короткий конструктор допустим только под metas != null: плашки раздаются рядам с
+            // meta == null, терять нечему. Ослабишь фильтр в runInvocations — собирай мету поверх
+            // существующей.
+            final ChatMessageMeta base =
+                    metas != null
+                            ? new ChatMessageMeta(runId, false, metas)
+                            : answer.getMeta() == null
+                                    ? new ChatMessageMeta(null, false, List.of())
+                                    : answer.getMeta();
+            updated.add(answer.withMeta(base.withRun(runId, model)));
+        }
         if (!usage.isEmpty()) {
             final int last = updated.size() - 1;
             final ChatMessageEntity answer = updated.get(last);
@@ -376,6 +397,7 @@ public class ChatHistoryService {
                     answer.withMeta(Objects.requireNonNull(answer.getMeta()).withUsage(usage)));
         }
         chatMessageRepository.saveAll(updated);
+        return invocations.values().stream().flatMap(List::stream).toList();
     }
 
     /**
@@ -383,10 +405,8 @@ public class ChatHistoryService {
      * строго последовательны, поэтому «после последнего вопроса» и есть «этим ходом»; повтор
      * упавшего прогона нового вопроса не заводит, так что в хвост попадают и его ряды тоже.
      *
-     * <p>Статический и общий на два вызывающих ({@link #markRunResult} и {@code
-     * ToolCallService#attachRunMeta}): оба дописывают мету рядам одного и того же хода, и вторая
-     * копия этого правила разошлась бы с первой молча. Статический — потому что бином эти два
-     * сервиса связать нельзя: {@link ChatHistoryService} уже зависит от {@code ToolCallService}.
+     * <p>Статический и общий на всех, кто ищет границу хода ({@link #markRunResult}, {@code
+     * SummarizeWindow}): вторая копия этого правила разошлась бы с первой молча.
      */
     static List<ChatMessageEntity> tailAfterLastUser(List<ChatMessageEntity> rows) {
         int lastUser = -1;
@@ -410,8 +430,8 @@ public class ChatHistoryService {
      *
      * <p>Оба попадают в историю в произвольный момент работы модели, и оба, посчитанные границей
      * хода, обрезали бы хвост прогона посередине: ряды выше остались бы без модели и без плашек
-     * вызовов навсегда (см. {@link #markRunResult}, {@code ToolCallService#attachRunMeta}), а окно
-     * сжатия открылось бы на ответе к вопросу, которого в нём уже нет ({@code SummarizeWindow}).
+     * вызовов навсегда (см. {@link #markRunResult}), а окно сжатия открылось бы на ответе к
+     * вопросу, которого в нём уже нет ({@code SummarizeWindow}).
      */
     static boolean opensATurn(ChatMessageEntity row) {
         return row.getType() == MessageType.USER

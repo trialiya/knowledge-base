@@ -16,7 +16,6 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.memory.SummarizeService;
 import io.github.trialiya.kb.service.chat.memory.ToolCallEventPublisher;
-import io.github.trialiya.kb.service.chat.memory.ToolCallService;
 import io.github.trialiya.kb.service.chat.prompt.ProjectPromptService;
 import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.run.PendingMessageService.Flushed;
@@ -245,7 +244,6 @@ class ChatRuntimeShutdownTest {
                 new ChatClientRegistry("default-model", chatClient, Map.of()),
                 chatMemory,
                 chatHistory,
-                mock(ToolCallService.class),
                 mock(ToolCallEventPublisher.class),
                 mock(SummarizeService.class),
                 events,
