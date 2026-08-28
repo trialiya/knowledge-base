@@ -10,7 +10,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import io.github.trialiya.kb.config.ChatClientRegistry;
 import io.github.trialiya.kb.config.model.ChatModeProperties;
 import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.ChatModelProperties.ModelOption;
@@ -21,12 +20,9 @@ import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.memory.CompactService;
 import io.github.trialiya.kb.service.chat.memory.ToolCallService;
-import io.github.trialiya.kb.service.chat.prompt.ProjectPromptService;
-import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.run.ChatRunService;
 import io.github.trialiya.kb.service.chat.run.PendingMessageService;
 import io.github.trialiya.kb.service.chat.run.RunOptionsResolver;
-import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
 import io.github.trialiya.kb.service.chat.topic.ChatSearchService;
 import io.github.trialiya.kb.service.chat.topic.ChatTopicService;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
@@ -69,7 +65,6 @@ class ChatQueueMessageTest {
                         new ChatModeProperties(List.of()),
                         resolver(models),
                         pendingMessages,
-                        mock(ChatClientRegistry.class),
                         mock(ChatTopicRepository.class),
                         mock(ChatHistoryService.class),
                         mock(ToolCallService.class),
@@ -77,12 +72,9 @@ class ChatQueueMessageTest {
                         runService,
                         mock(CompactService.class),
                         mock(ChatEventService.class),
-                        mock(ScriptGuideService.class),
                         contextItemService,
                         mock(ChatTopicService.class),
                         mock(GitRegistry.class),
-                        mock(SystemPromptService.class),
-                        mock(ProjectPromptService.class),
                         Clock.systemUTC());
     }
 

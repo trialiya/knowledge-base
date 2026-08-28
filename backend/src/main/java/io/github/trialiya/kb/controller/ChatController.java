@@ -1,6 +1,5 @@
 package io.github.trialiya.kb.controller;
 
-import static io.github.trialiya.kb.utils.ChatUtils.context;
 import static io.github.trialiya.kb.utils.ChatUtils.getUser;
 import static org.springframework.http.HttpStatus.ACCEPTED;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -8,7 +7,6 @@ import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
-import io.github.trialiya.kb.config.ChatClientRegistry;
 import io.github.trialiya.kb.config.model.ChatModeProperties;
 import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.model.chat.dto.Chat;
@@ -32,20 +30,15 @@ import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.memory.CompactService;
 import io.github.trialiya.kb.service.chat.memory.ToolCallService;
-import io.github.trialiya.kb.service.chat.prompt.ProjectPromptService;
-import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.run.ChatRunService;
 import io.github.trialiya.kb.service.chat.run.PendingMessageService;
 import io.github.trialiya.kb.service.chat.run.RunOptionsResolver;
-import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
 import io.github.trialiya.kb.service.chat.topic.ChatSearchService;
 import io.github.trialiya.kb.service.chat.topic.ChatTopicService;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
-import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import jakarta.annotation.Nonnull;
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,10 +46,6 @@ import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -83,7 +72,6 @@ public class ChatController {
     private final ChatModeProperties chatModeProperties;
     private final RunOptionsResolver runOptions;
     private final PendingMessageService pendingMessages;
-    private final ChatClientRegistry chatClients;
     private final ChatTopicRepository chatTopicRepository;
     private final ChatHistoryService chatHistory;
     private final ToolCallService toolCallService;
@@ -91,12 +79,9 @@ public class ChatController {
     private final ChatRunService chatRunService;
     private final CompactService compactService;
     private final ChatEventService chatEventService;
-    private final ScriptGuideService scriptGuideService;
     private final ContextItemService contextItemService;
     private final ChatTopicService chatTopicService;
     private final GitRegistry gitRegistry;
-    private final SystemPromptService systemPromptService;
-    private final ProjectPromptService projectPromptService;
 
     /** Часы аудита Spring Data — ими же датируется «тронуть чат», см. JdbcConfig#clock. */
     private final Clock clock;
@@ -106,7 +91,6 @@ public class ChatController {
             ChatModeProperties chatModeProperties,
             RunOptionsResolver runOptions,
             PendingMessageService pendingMessages,
-            ChatClientRegistry chatClients,
             ChatTopicRepository chatTopicRepository,
             ChatHistoryService chatHistory,
             ToolCallService toolCallService,
@@ -114,18 +98,14 @@ public class ChatController {
             ChatRunService chatRunService,
             CompactService compactService,
             ChatEventService chatEventService,
-            ScriptGuideService scriptGuideService,
             ContextItemService contextItemService,
             ChatTopicService chatTopicService,
             GitRegistry gitRegistry,
-            SystemPromptService systemPromptService,
-            ProjectPromptService projectPromptService,
             Clock clock) {
         this.chatModelProperties = chatModelProperties;
         this.chatModeProperties = chatModeProperties;
         this.runOptions = runOptions;
         this.pendingMessages = pendingMessages;
-        this.chatClients = chatClients;
         this.chatTopicRepository = chatTopicRepository;
         this.chatHistory = chatHistory;
         this.toolCallService = toolCallService;
@@ -133,12 +113,9 @@ public class ChatController {
         this.chatRunService = chatRunService;
         this.compactService = compactService;
         this.chatEventService = chatEventService;
-        this.scriptGuideService = scriptGuideService;
         this.contextItemService = contextItemService;
         this.chatTopicService = chatTopicService;
         this.gitRegistry = gitRegistry;
-        this.systemPromptService = systemPromptService;
-        this.projectPromptService = projectPromptService;
         this.clock = clock;
     }
 
@@ -327,68 +304,6 @@ public class ChatController {
                                                 LocalDateTime.now(),
                                                 LocalDateTime.now(),
                                                 true)));
-    }
-
-    // ---------------------------------------------------------------------
-    //  Messages: /api/chats/{conversationId}/messages
-    // ---------------------------------------------------------------------
-
-    /**
-     * Sends a user message and returns the assistant reply as a single JSON response. This is the
-     * synchronous, non-streaming path; streaming goes through {@link #startRun} + {@link #events}.
-     */
-    @PostMapping(value = "/{conversationId}/messages", produces = MediaType.APPLICATION_JSON_VALUE)
-    public List<String> createMessage(
-            @PathVariable final String conversationId,
-            @RequestParam(name = "model", required = false) final String model,
-            @RequestParam(name = "mode", required = false) final String mode,
-            @RequestParam(name = "project", required = false) final String project,
-            @RequestBody final String userMessage) {
-        checkChat(conversationId, true);
-        final ChatRunService.RunOptions options =
-                runOptions.resolve(conversationId, model, mode, project);
-        final String resolvedModel = options.model();
-        final ToolInvocationCollector toolCollector = new ToolInvocationCollector();
-
-        ChatClient.ChatClientRequestSpec spec =
-                chatClients
-                        .forModel(resolvedModel)
-                        .prompt()
-                        .system(
-                                sp ->
-                                        sp.param("mode_instructions", options.modeInstructions())
-                                                .param(
-                                                        "script_instructions",
-                                                        scriptGuideService.instructions(
-                                                                options.weakModel(),
-                                                                options.project()))
-                                                .param(
-                                                        "system_extended",
-                                                        systemPromptService.systemExtended(
-                                                                options.weakModel()))
-                                                .param(
-                                                        "project_context",
-                                                        projectPromptService.context(
-                                                                options.project(),
-                                                                chatHistory.earlierProjects(
-                                                                        conversationId))))
-                        .user(userMessage)
-                        .toolContext(
-                                context(conversationId)
-                                        .project(options.project())
-                                        .collector(toolCollector)
-                                        .build())
-                        .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId));
-        if (resolvedModel != null) {
-            spec = spec.options(OpenAiChatOptions.builder().model(resolvedModel));
-        }
-
-        final ChatResponse chatResponse = spec.call().chatResponse();
-
-        return Optional.ofNullable(chatResponse).map(ChatResponse::getResults).stream()
-                .flatMap(Collection::stream)
-                .map(generation -> generation.getOutput().getText())
-                .toList();
     }
 
     // ---------------------------------------------------------------------
