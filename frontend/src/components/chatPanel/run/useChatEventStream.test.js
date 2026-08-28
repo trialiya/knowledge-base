@@ -8,6 +8,77 @@ vi.mock('@/api/chatEvents');
 vi.mock('@/api/chatApi', () => ({ default: { getActiveRun: vi.fn() } }));
 
 /**
+ * Чанки стрима приезжают десятками в секунду, и каждый сам по себе перерисовывал бы всю
+ * ленту ради одного дописанного слова. Они копятся до ближайшего кадра — но только они:
+ * любое другое событие сначала сливает накопленное, иначе ответ собрался бы не в том
+ * порядке, в каком его писала модель.
+ */
+describe('useChatEventStream stream coalescing', () => {
+  let chats;
+
+  function setup() {
+    chats = [{ id: 'c1', messages: [], runId: 'r1', notFound: false, loadError: false }];
+    // Сверка прогона при входе в чат: прогон жив, ничего перезагружать не нужно.
+    chatApi.getActiveRun.mockResolvedValue({ runId: 'r1', kind: 'GENERATION' });
+    let onEvent;
+    openChatEventStream.mockImplementation((chatId, cb) => {
+      onEvent = cb.onEvent;
+      return () => {};
+    });
+    const setChats = vi.fn((fn) => {
+      chats = typeof fn === 'function' ? fn(chats) : fn;
+    });
+
+    renderHook(() =>
+      useChatEventStream({
+        activeChatId: 'c1',
+        activeMessagesReady: true,
+        getChats: () => chats,
+        isLocalClientId: () => false,
+        setChats,
+        onChatDeleted: vi.fn(),
+        onRunSettled: vi.fn(),
+        reloadMessages: vi.fn().mockResolvedValue([]),
+        onDocChanged: vi.fn(),
+        onFileChanged: vi.fn(),
+      }),
+    );
+
+    return { fireEvent: (ev) => onEvent(ev), setChats };
+  }
+
+  const nextFrame = () => act(async () => new Promise((resolve) => requestAnimationFrame(resolve)));
+
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  test('several chunks of one frame reach the chat as a single update', async () => {
+    const { fireEvent, setChats } = setup();
+
+    fireEvent({ type: 'STREAM', runId: 'r1', payload: { message: 'один ' } });
+    fireEvent({ type: 'STREAM', runId: 'r1', payload: { message: 'два ' } });
+    fireEvent({ type: 'STREAM', runId: 'r1', payload: { message: 'три' } });
+    expect(setChats).not.toHaveBeenCalled();
+
+    await nextFrame();
+
+    expect(setChats).toHaveBeenCalledTimes(1);
+    expect(chats[0].messages.at(-1).text).toBe('один два три');
+  });
+
+  test('an event of another kind lands after the chunks it followed, not before them', async () => {
+    const { fireEvent } = setup();
+
+    fireEvent({ type: 'STREAM', runId: 'r1', payload: { message: 'ответ' } });
+    fireEvent({ type: 'RUN_DONE', runId: 'r1' });
+
+    expect(chats[0].messages.at(-1).text).toBe('ответ');
+    expect(chats[0].runId).toBeNull();
+  });
+});
+
+/**
  * REPLAY_GAP говорит вкладке, что показанный ею ответ заведомо неполон: часть событий
  * прогона хаб вытеснил из лога (ConversationHub). Собрать пропущенное неоткуда — целиком
  * ответ окажется в истории, когда прогон кончится, оттуда его и перечитываем. Молча

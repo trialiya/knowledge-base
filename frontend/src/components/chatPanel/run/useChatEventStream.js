@@ -175,10 +175,35 @@ export default function useChatEventStream({
       // же, что приезжает из истории после перезагрузки, и переводит она себя сама.
       compactErrorLabel: i18n.t('chat:compact.error'),
     };
+    // Чанки стрима копятся до ближайшего кадра и укладываются в чат одним обновлением.
+    // Модель шлёт их десятками в секунду, и каждый сам по себе перерисовывал бы всю ленту
+    // ради одного дописанного слова. Порядок при этом не страдает: любое другое событие
+    // сначала сливает накопленное (flushStream), а потом применяется само.
+    let streamBuffer = [];
+    let streamFrame = 0;
+    const flushStream = () => {
+      if (streamFrame) {
+        cancelAnimationFrame(streamFrame);
+        streamFrame = 0;
+      }
+      if (!streamBuffer.length) return;
+      const chunks = streamBuffer;
+      streamBuffer = [];
+      setChats((prev) =>
+        prev.map((c) => (c.id === chatId ? chunks.reduce((acc, ev) => applyChatEvent(acc, ev, ctx), c) : c)),
+      );
+    };
+
     closeStream = openChatEventStream(chatId, {
       fromSeq: seqByChatRef.current.get(chatId) || 0,
       onSeq: (seq) => seqByChatRef.current.set(chatId, seq),
       onEvent: (ev) => {
+        if (ev.type === CHAT_EVENT.STREAM) {
+          streamBuffer.push(ev);
+          if (!streamFrame) streamFrame = requestAnimationFrame(flushStream);
+          return;
+        }
+        flushStream();
         if (ev.type === 'CHAT_DELETED') {
           seqByChatRef.current.delete(chatId);
           onChatDeleted(chatId);
@@ -239,6 +264,9 @@ export default function useChatEventStream({
     return () => {
       cancelled = true;
       closeStream();
+      // Уходя, дописываем накопленное: чанк, за который уже сдвинулся курсор seq, реплей
+      // второй раз не принесёт.
+      flushStream();
     };
   }, [activeChatId, activeMessagesReady, resyncTick, onRunSettled, onChatDeleted, reloadMessages]); // eslint-disable-line react-hooks/exhaustive-deps
 }

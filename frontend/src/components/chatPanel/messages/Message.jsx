@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { memo, useState, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useTranslation } from 'react-i18next';
@@ -189,7 +189,12 @@ const Message = ({
         </div>
         <div className="message-footer__actions">
           {error && onRetry && (
-            <button className="message-retry-btn" onClick={onRetry} title={t('message.retry')} type="button">
+            <button
+              className="message-retry-btn"
+              onClick={() => onRetry(mid)}
+              title={t('message.retry')}
+              type="button"
+            >
               ↻ {t('message.retry')}
             </button>
           )}
@@ -236,4 +241,11 @@ const Message = ({
   return messageBlock;
 };
 
-export default Message;
+/**
+ * Мемоизация здесь не микрооптимизация: на каждый чанк стрима лента получает новый массив
+ * сообщений, и без неё markdown перепарсивался бы у всех пузырей разговора по нескольку раз
+ * в секунду. Пузыри — обычные объекты состояния (редьюсер заменяет только изменившийся),
+ * поэтому поверхностного сравнения хватает; onRetry и onNavigateToDoc приходят сверху
+ * стабильными (useCallback), а не замыканием на сообщение.
+ */
+export default memo(Message);

@@ -299,7 +299,9 @@ const MessageList = ({
                   queued={msg.queued}
                   // Кнопку повтора показываем только у ошибок с известным режимом повтора
                   // (см. constants/retryMode.js): после начатого ответа модели её нет вовсе.
-                  onRetry={onRetry && msg.error && msg.retryMode ? () => onRetry(msg.mid) : undefined}
+                  // Передаём сам обработчик, а не замыкание на сообщение: замыкание было бы
+                  // новым на каждый рендер и обесценило бы memo пузыря — mid он знает сам.
+                  onRetry={onRetry && msg.error && msg.retryMode ? onRetry : undefined}
                   conversationId={conversationId}
                   onNavigateToDoc={onNavigateToDoc}
                   mid={msg.mid}
