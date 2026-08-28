@@ -423,9 +423,11 @@ export function applyChatEvent(chat, ev, ctx) {
     case CHAT_EVENT.RUN_USAGE: {
       // Провайдер, не присылающий usage, не шлёт и события — плашки просто не будет. Пустую
       // нагрузку всё же отсеиваем: ноль токенов значил бы «посчитали и вышел ноль».
-      if (!payload?.totalTokens) return chat;
+      if (!payload?.contextTokens) return chat;
       setRunUsage(msgs, runId, payload);
-      return { ...chat, messages: msgs, runId };
+      // runId чата не трогаем: замер прогона его не начинает и не кончает, а событие вправе
+      // приехать и после RUN_DONE — подставленный отсюда runId воскресил бы законченный прогон.
+      return { ...chat, messages: msgs };
     }
 
     case CHAT_EVENT.RUN_DONE: {

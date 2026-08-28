@@ -12,7 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import io.github.trialiya.kb.model.chat.dto.TokenUsage;
+import io.github.trialiya.kb.model.chat.dto.RunTokenUsage;
 import io.github.trialiya.kb.service.chat.run.ChatEventService;
 import io.github.trialiya.kb.service.chat.run.RunUsageRegistry;
 import java.util.List;
@@ -35,6 +35,10 @@ import reactor.core.publisher.Flux;
 /**
  * Счёт токенов прогона. Advisor — единственное место, где виден usage КАЖДОГО обращения к модели:
  * снаружи tool-цикла чанк с замером итерации отфильтрован, и итог схлопнулся бы до последней.
+ *
+ * <p>Проверяем ровно то, что три числа {@link RunTokenUsage} считаются каждое по своему правилу и
+ * не подменяют друг друга: контекст берётся из последнего обращения, прирост — разностью, выход и
+ * оплаченный prompt — суммой.
  */
 class TokenUsageAdvisorTest {
 
@@ -47,10 +51,13 @@ class TokenUsageAdvisorTest {
 
     private final TokenUsageAdvisor advisor = new TokenUsageAdvisor(events, registry);
 
+    /**
+     * Ответ с инструментами: prompt второго обращения включает первое целиком, поэтому контекст —
+     * это последнее обращение, а не сумма (она была бы 500 при реально занятых 430).
+     */
     @Test
-    void everyIterationOfTheToolLoopAddsUp() {
+    void contextComesFromTheLastCallAndGrowthFromTheDifference() {
         registry.start(RUN);
-        // Итерация 1: инструмент. Итерация 2: ответ на его результат — prompt считается заново.
         when(chain.nextStream(any()))
                 .thenReturn(Flux.just(chunk(100, 10)))
                 .thenReturn(Flux.just(chunk(400, 30)));
@@ -58,24 +65,53 @@ class TokenUsageAdvisorTest {
         advisor.adviseStream(request(), chain).blockLast();
         advisor.adviseStream(request(), chain).blockLast();
 
-        assertThat(registry.total(RUN)).isEqualTo(new TokenUsage(500, 40, 540, 0, 0));
+        assertThat(registry.total(RUN)).isEqualTo(usage(430, 300, 40, 500, 2));
     }
 
-    /** Нарастающий итог внутри одной итерации складывать нельзя — только брать максимум. */
+    /** Ответ без инструментов: наращивать контекст было нечем, прирост нулевой. */
     @Test
-    void aRunningTotalWithinOneIterationIsNotSummed() {
+    void aRunWithoutToolsGrowsTheContextByNothing() {
+        registry.start(RUN);
+        when(chain.nextStream(any())).thenReturn(Flux.just(chunk(1000, 50)));
+
+        advisor.adviseStream(request(), chain).blockLast();
+
+        assertThat(registry.total(RUN)).isEqualTo(usage(1050, 0, 50, 1000, 1));
+    }
+
+    /** Нарастающий итог внутри одного обращения складывать нельзя — только брать максимум. */
+    @Test
+    void aRunningTotalWithinOneCallIsNotSummed() {
         registry.start(RUN);
         when(chain.nextStream(any()))
                 .thenReturn(Flux.just(chunk(100, 5), chunk(100, 20), chunk(100, 33)));
 
         advisor.adviseStream(request(), chain).blockLast();
 
-        assertThat(registry.total(RUN)).isEqualTo(new TokenUsage(100, 33, 133, 0, 0));
+        assertThat(registry.total(RUN)).isEqualTo(usage(133, 0, 33, 100, 1));
     }
 
-    /** Каждый непустой замер уезжает на фронт, и в событии — нарастающий итог всего прогона. */
+    /**
+     * Чанк с одним лишь выходом (провайдер вправе прислать такой по ходу обращения) не становится
+     * ни первым, ни последним обращением: иначе контекст обвалился бы до размера этого чанка.
+     */
     @Test
-    void eachNonEmptyMeasurementIsPublishedAsARunningTotal() {
+    void aChunkWithoutAPromptDoesNotCollapseTheContext() {
+        registry.start(RUN);
+        when(chain.nextStream(any()))
+                .thenReturn(Flux.just(chunk(100, 10)))
+                .thenReturn(Flux.just(chunk(0, 7), chunk(400, 30)));
+
+        advisor.adviseStream(request(), chain).blockLast();
+        advisor.adviseStream(request(), chain).blockLast();
+
+        assertThat(publishedUsage()).extracting(RunTokenUsage::contextTokens).isSorted();
+        assertThat(registry.total(RUN)).isEqualTo(usage(430, 300, 40, 500, 2));
+    }
+
+    /** Каждый непустой замер уезжает на фронт, и в событии — состояние всего прогона. */
+    @Test
+    void eachNonEmptyMeasurementIsPublishedAsTheRunState() {
         registry.start(RUN);
         when(chain.nextStream(any()))
                 .thenReturn(Flux.just(chunk(100, 5), chunk(100, 20)))
@@ -86,9 +122,9 @@ class TokenUsageAdvisorTest {
 
         assertThat(publishedUsage())
                 .containsExactly(
-                        new TokenUsage(100, 5, 105, 0, 0),
-                        new TokenUsage(100, 20, 120, 0, 0),
-                        new TokenUsage(500, 50, 550, 0, 0));
+                        usage(105, 0, 5, 100, 1),
+                        usage(120, 0, 20, 100, 1),
+                        usage(430, 300, 50, 500, 2));
     }
 
     /** Повтор того же замера событие не порождает: у провайдера с финальным чанком оно одно. */
@@ -100,7 +136,7 @@ class TokenUsageAdvisorTest {
 
         advisor.adviseStream(request(), chain).blockLast();
 
-        assertThat(publishedUsage()).containsExactly(new TokenUsage(100, 20, 120, 0, 0));
+        assertThat(publishedUsage()).containsExactly(usage(120, 0, 20, 100, 1));
     }
 
     /** Эндпоинт без usage в стриме: событий нет вовсе — «неизвестно» это не ноль. */
@@ -112,10 +148,10 @@ class TokenUsageAdvisorTest {
         advisor.adviseStream(request(), chain).blockLast();
 
         verifyNoInteractions(events);
-        assertThat(registry.total(RUN)).isEqualTo(TokenUsage.EMPTY);
+        assertThat(registry.total(RUN)).isEqualTo(RunTokenUsage.EMPTY);
     }
 
-    /** Сжатие контекста, суб-агент и генерация названия идут по той же цепочке — их не считаем. */
+    /** Сжатие контекста, суб-агент и генерация названия идут мимо прогона — их не считаем. */
     @Test
     void aCallOutsideAnyRunIsLeftAlone() {
         when(chain.nextStream(any())).thenReturn(Flux.just(chunk(100, 10)));
@@ -126,24 +162,30 @@ class TokenUsageAdvisorTest {
         assertThat(registry.trackedRunCount()).isZero();
     }
 
-    /** Прогон остановили посреди итерации — потраченное к этому моменту потрачено. */
+    /** Прогон остановили посреди обращения — потраченное к этому моменту потрачено. */
     @Test
-    void aCancelledIterationStillCounts() {
+    void aCancelledCallStillCounts() {
         registry.start(RUN);
         when(chain.nextStream(any()))
                 .thenReturn(Flux.just(chunk(100, 10)).concatWith(Flux.never()));
 
         advisor.adviseStream(request(), chain).take(1).blockLast();
 
-        assertThat(registry.total(RUN)).isEqualTo(new TokenUsage(100, 10, 110, 0, 0));
+        assertThat(registry.total(RUN)).isEqualTo(usage(110, 0, 10, 100, 1));
+    }
+
+    /** Ожидаемый итог прогона; кэш во всех сценариях здесь нулевой. */
+    private static RunTokenUsage usage(
+            long context, long tools, long output, long prompt, int calls) {
+        return new RunTokenUsage(context, tools, output, prompt, 0, 0, calls);
     }
 
     /** Замеры, доехавшие до фронта, по порядку. */
-    private List<TokenUsage> publishedUsage() {
+    private List<RunTokenUsage> publishedUsage() {
         final ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
         verify(events, atLeastOnce())
                 .publish(eq(CONV), eq(RUN_USAGE), eq(RUN), isNull(), payload.capture());
-        return payload.getAllValues().stream().map(TokenUsage.class::cast).toList();
+        return payload.getAllValues().stream().map(RunTokenUsage.class::cast).toList();
     }
 
     private static ChatClientRequest request() {

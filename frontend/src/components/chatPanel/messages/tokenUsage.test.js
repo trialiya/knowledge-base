@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { formatTokens, hasUsage } from './tokenUsage';
+import { billedTokens, cacheShare, formatTokens, hasUsage } from './tokenUsage';
 
 describe('tokenUsage', () => {
   test('короткие числа показываются как есть', () => {
@@ -21,7 +21,19 @@ describe('tokenUsage', () => {
 
   test('плашки нет, пока ничего не насчитано', () => {
     expect(hasUsage(null)).toBe(false);
-    expect(hasUsage({ totalTokens: 0 })).toBe(false);
-    expect(hasUsage({ totalTokens: 1 })).toBe(true);
+    expect(hasUsage({ contextTokens: 0 })).toBe(false);
+    expect(hasUsage({ contextTokens: 1 })).toBe(true);
+  });
+
+  test('оплачено — сумма всех prompt-ов плюс выход, а не занятый контекст', () => {
+    // Три обращения по ~10k prompt каждое при 10.7k реально занятого контекста.
+    expect(billedTokens({ contextTokens: 11000, promptTokens: 31100, outputTokens: 650 })).toBe(31750);
+    expect(billedTokens(undefined)).toBe(0);
+  });
+
+  test('доля кэша считается от оплаченного prompt-а', () => {
+    expect(cacheShare({ promptTokens: 31100, cacheReadTokens: 20000 })).toBe(64);
+    // Первое обращение прогона кэш ещё не читает — делить на ноль тут нечего.
+    expect(cacheShare({ promptTokens: 0, cacheReadTokens: 0 })).toBe(0);
   });
 });

@@ -7,7 +7,7 @@ import '../styles/message.css';
 import CodeBlock from '@/components/common/ui/CodeBlock';
 import ToolCallNotifications from './ToolCallNotifications';
 import MessageContextItems from './MessageContextItems';
-import { formatTokens, hasUsage } from './tokenUsage';
+import { billedTokens, cacheShare, formatTokens, hasUsage } from './tokenUsage';
 import { IconCopySmall, IconCopied } from '@/icons/index';
 import useCopyFeedback from '@/components/common/ui/useCopyFeedback';
 import { SENDER } from '@/constants/messageSender';
@@ -163,18 +163,20 @@ const Message = ({
   // плавного скролла к совпадению).
   const mdComponents = useMemo(() => getMarkdownComponents(onNavigateToDoc), [onNavigateToDoc]);
 
-  // Разбивка — в подсказке: в футере на неё нет места, а нужна она редко.
+  // Разбивка — в подсказке: в футере на неё нет места, а нужна она редко. Сверху три числа про
+  // сам разговор, снизу — оплаченное, которое без строки про кэш выглядит необъяснимо большим.
   const usageTitle = hasUsage(usage)
     ? [
-        t('message.tokensTitle', {
-          total: formatTokens(usage.totalTokens),
-          prompt: formatTokens(usage.promptTokens),
-          completion: formatTokens(usage.completionTokens),
-        }),
-        usage.cacheReadTokens > 0 ? t('message.tokensCached', { cached: formatTokens(usage.cacheReadTokens) }) : null,
+        t('message.tokensContext', { context: formatTokens(usage.contextTokens) }),
+        usage.toolTokens > 0 ? t('message.tokensTools', { tools: formatTokens(usage.toolTokens) }) : null,
+        t('message.tokensOutput', { output: formatTokens(usage.outputTokens) }),
+        t('message.tokensBilled', { billed: formatTokens(billedTokens(usage)), calls: usage.modelCalls }),
+        usage.cacheReadTokens > 0
+          ? t('message.tokensCached', { cached: formatTokens(usage.cacheReadTokens), percent: cacheShare(usage) })
+          : null,
       ]
         .filter(Boolean)
-        .join('; ')
+        .join('\n')
     : undefined;
 
   // Пузырь — только контент сообщения, без футера
@@ -223,10 +225,11 @@ const Message = ({
             </span>
           )}
           {/* Токены всего прогона, а не этого сегмента: ответ с инструментами — это несколько
-              оплаченных обращений к модели, и плашка стоит на последнем его пузыре. */}
+              обращений к модели, и плашка стоит на последнем его пузыре. В ней занятый контекст:
+              оплаченное больше в разы и в футере читалось бы как счёт за один ответ. */}
           {hasUsage(usage) && (
             <span className="message-footer__tokens" title={usageTitle}>
-              {t('message.tokens', { total: formatTokens(usage.totalTokens) })}
+              {t('message.tokens', { context: formatTokens(usage.contextTokens) })}
             </span>
           )}
         </div>

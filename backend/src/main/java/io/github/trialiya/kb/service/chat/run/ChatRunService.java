@@ -12,8 +12,8 @@ import static io.github.trialiya.kb.model.chat.dto.ChatEventType.USER_MESSAGE;
 import com.openai.models.chat.completions.ChatCompletion;
 import io.github.trialiya.kb.config.ChatClientRegistry;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
+import io.github.trialiya.kb.model.chat.dto.RunTokenUsage;
 import io.github.trialiya.kb.model.chat.dto.StreamMessage;
-import io.github.trialiya.kb.model.chat.dto.TokenUsage;
 import io.github.trialiya.kb.model.chat.dto.ToolCallsMessage;
 import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
@@ -713,15 +713,19 @@ public class ChatRunService {
         // Нумерация вызовов прогона живёт ровно столько же, сколько сам прогон.
         toolCallEvents.forget(handle.conversationId());
         runs.remove(handle.runId());
-        final TokenUsage spent = runUsage.forget(handle.runId());
+        final RunTokenUsage spent = runUsage.forget(handle.runId());
         if (!spent.isEmpty()) {
             log.info(
-                    "[{}] Run {} spent {} tokens (prompt {}, completion {})",
+                    "[{}] Run {} left {} tokens of context (+{} from tools, {} generated);"
+                            + " billed {} prompt tokens over {} model call(s), {} from cache",
                     handle.conversationId(),
                     handle.runId(),
-                    spent.totalTokens(),
+                    spent.contextTokens(),
+                    spent.toolTokens(),
+                    spent.outputTokens(),
                     spent.promptTokens(),
-                    spent.completionTokens());
+                    spent.modelCalls(),
+                    spent.cacheReadTokens());
         }
         activeByConversation.remove(handle.conversationId(), handle.runId());
     }
