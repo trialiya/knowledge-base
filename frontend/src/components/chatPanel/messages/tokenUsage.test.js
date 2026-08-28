@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { billedTokens, cacheShare, formatTokens, hasUsage } from './tokenUsage';
+import { billedTokens, cacheShare, contextUsageOf, formatTokens, hasUsage } from './tokenUsage';
 
 describe('tokenUsage', () => {
   test('короткие числа показываются как есть', () => {
@@ -35,5 +35,33 @@ describe('tokenUsage', () => {
     expect(cacheShare({ promptTokens: 31100, cacheReadTokens: 20000 })).toBe(64);
     // Первое обращение прогона кэш ещё не читает — делить на ноль тут нечего.
     expect(cacheShare({ promptTokens: 0, cacheReadTokens: 0 })).toBe(0);
+  });
+
+  describe('contextUsageOf', () => {
+    const ai = (usage) => ({ sender: 'ai', usage });
+
+    test('контекст берётся у последнего измеренного ответа, а не суммируется', () => {
+      const messages = [ai({ contextTokens: 4000 }), { sender: 'user' }, ai({ contextTokens: 11000 })];
+
+      expect(contextUsageOf(messages)).toEqual({ contextTokens: 11000 });
+    });
+
+    test('ответ без замера пропускается — измерял предыдущий прогон', () => {
+      // Прогон на эндпоинте без usage в стриме не измерен вовсе, и это не ноль.
+      const messages = [ai({ contextTokens: 11000 }), ai(undefined)];
+
+      expect(contextUsageOf(messages)).toEqual({ contextTokens: 11000 });
+    });
+
+    test('после /compact счётчика нет: замер выше плашки описывает выброшенную историю', () => {
+      const messages = [ai({ contextTokens: 90000 }), { sender: 'ai', compact: { messages: 40 } }];
+
+      expect(contextUsageOf(messages)).toBeNull();
+    });
+
+    test('в чате без единого замера показывать нечего', () => {
+      expect(contextUsageOf([{ sender: 'user' }])).toBeNull();
+      expect(contextUsageOf(undefined)).toBeNull();
+    });
   });
 });

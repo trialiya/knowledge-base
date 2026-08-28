@@ -16,6 +16,10 @@
     "tokensOutput": "Generated: {{output}}",
     "tokensBilled": "Billed: {{billed}} · model calls: {{calls}}"
   },
+  "header": {
+    "context": "Context: {{context}}",
+    "contextTooltip": "Context in use: {{context}} tokens"
+  },
   "window": {
     "defaultTitle": "New chat",
     "renameHint": "Click to rename",

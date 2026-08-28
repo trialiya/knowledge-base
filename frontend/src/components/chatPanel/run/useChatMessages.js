@@ -81,8 +81,21 @@ export const transformPage = (rawMsgs) => {
     // видно через плашки/модалку деталей соответствующего сегмента.
     if (type === 'tool') continue;
     const metas = Array.isArray(m.toolInvocationMetas) ? m.toolInvocationMetas : [];
+    // Токены прогона могут стоять на ряду, который пузырём не станет: остановка посреди работы
+    // инструментов оставляет последним сегмент без текста, а бэкенд пишет токены именно
+    // последнему. Отдаём их предыдущему пузырю ответа — иначе после перезагрузки прогон теряет
+    // и плашку, и счётчик контекста, а тот показывает заниженное число прошлого прогона.
+    const carryUsageToPrev = () => {
+      const prev = bubbles[bubbles.length - 1];
+      if (m.usage && prev?.sender === SENDER.AI && !prev.compact && !prev.gitEvent) {
+        prev.usage = m.usage;
+      }
+    };
     // Сегмент из одних tool_calls без текста и без сохранённых metas показывать нечем.
-    if (type !== 'user' && !(m.content || '').trim() && !metas.length) continue;
+    if (type !== 'user' && !(m.content || '').trim() && !metas.length) {
+      carryUsageToPrev();
+      continue;
+    }
     if (type !== 'user') sawAi = true;
     // Сегмент из одних tool_calls без текста: отдельный «пустой» пузырь визуально разрывает
     // ленту плашек, поэтому его вызовы приклеиваем к предыдущему AI-сегменту того же ответа.
@@ -98,6 +111,7 @@ export const transformPage = (rawMsgs) => {
       ) {
         prev.toolCalls = [...(prev.toolCalls || []), ...metas.map(metaToCall)];
         if (m.runId && !prev.toolCallsRunId) prev.toolCallsRunId = m.runId;
+        carryUsageToPrev();
         continue;
       }
     }
@@ -118,6 +132,9 @@ export const transformPage = (rawMsgs) => {
       // Модель, написавшая ответ. У вопросов и у ответов старше этого поля её нет —
       // подпись тогда просто не рендерится (см. Message).
       ...(m.model && type !== 'user' ? { model: m.model } : {}),
+      // Токены прогона: бэкенд пишет их одному ряду прогона — последнему (markRunResult),
+      // так что плашка после перезагрузки встаёт туда же, куда её ставил редьюсер вживую.
+      ...(m.usage && type !== 'user' ? { usage: m.usage } : {}),
       // Вызовы инструментов этого сегмента (раздельное сохранение): плашки под пузырём.
       ...(metas.length && type !== 'user'
         ? { toolCalls: metas.map(metaToCall), ...(m.runId ? { toolCallsRunId: m.runId } : {}) }

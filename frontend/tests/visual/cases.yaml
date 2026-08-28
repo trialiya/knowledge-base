@@ -50,6 +50,29 @@
     Правая панель в этом прогоне была свёрнута в рельс (состояние по умолчанию)
     с бейджем вложений «1» — это не часть кейса, но так выглядел снимок.
 
+- id: chat-header-context-counter
+  component: ChatHeader
+  path: frontend/src/components/chatPanel/center/ChatHeader.jsx
+  title: Счётчик занятого контекста стоит в той же строке шапки, перед кнопками
+  status: verified
+  origin:
+    - Сессия 2026-08-28, счётчик контекста в шапке чата
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /
+  fixtures: ./fixtures/chatHeader.js#activeChatWithContextProps
+  expected:
+    - Шапка осталась в одну строку — счётчик сел между заголовком и кнопками, высота не выросла
+    - Текст счётчика «Контекст: 11.0k» — занятый контекст, а не оплаченные 31.1k
+    - Набран как подписи в футере ответа: 0.68rem, серый #999 — справка, а не заголовок
+    - Заголовок чата по-прежнему занимает всю оставшуюся ширину и режется многоточием
+  notes: |
+    Плашка не показывается вовсе, когда замера нет (эндпоинт без usage в стриме)
+    и сразу после /compact — базовый кейс chat-header-single-row это и есть.
+    Разрыв между 11.0k занятого и 31.1k оплаченного в фикстуре намеренный: он
+    виден в подсказке при наведении и объясняется долей кэша.
+
 - id: kb-detail-header-document
   component: DetailHeader
   path: frontend/src/components/knowledgeBasePanel/detail/DetailHeader.jsx

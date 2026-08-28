@@ -56,7 +56,7 @@ Migrations for this live in both `db/migration` (Postgres) and `db/migration-h2`
   advisor call. Writes are append-only; `append` gets the new row's position from
   a single max query, so callers never hand it the history.
 - **Meta written after a run goes on in one order:** `ToolCallService.attachRunMeta`
-  first, `ChatHistoryService.markRunModel` second. The first finds un-enriched
+  first, `ChatHistoryService.markRunResult` second. The first finds un-enriched
   segments by `meta == null`, so anything that writes meta earlier hides the
   run's tool calls from it and the plaques never appear. Both mark the same
   rows — the ones after the last USER message — through the one shared rule,

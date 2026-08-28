@@ -1,7 +1,7 @@
 package io.github.trialiya.kb.service.chat.run;
 
-import io.github.trialiya.kb.model.chat.dto.RunTokenUsage;
 import io.github.trialiya.kb.model.chat.dto.TokenUsage;
+import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import org.springframework.stereotype.Component;

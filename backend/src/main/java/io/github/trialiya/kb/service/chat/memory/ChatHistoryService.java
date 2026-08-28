@@ -5,6 +5,7 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
+import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.model.chat.spring.IMessage;
 import io.github.trialiya.kb.model.chat.spring.UserChatMessage;
 import io.github.trialiya.kb.model.project.ProjectSwitch;
@@ -316,9 +317,15 @@ public class ChatHistoryService {
     }
 
     /**
-     * Проставляет прогон и его модель на ASSISTANT-рядах, которые advisor-цепочка записала по ходу
-     * прогона (см. {@link #append}) — модель на записи неизвестна: {@link ChatHistoryMemory#add}
-     * получает от advisor'а только сообщения, а id модели живёт в настройках прогона.
+     * Проставляет прогон, его модель и его токены на ASSISTANT-рядах, которые advisor-цепочка
+     * записала по ходу прогона (см. {@link #append}) — на записи не известно ни то, ни другое:
+     * {@link ChatHistoryMemory#add} получает от advisor'а только сообщения, а модель прогона живёт
+     * в его настройках, токены — в {@code RunUsageRegistry}.
+     *
+     * <p>Модель проставляется каждому ряду прогона, токены — только последнему: числа относятся к
+     * прогону целиком, и копия на каждом сегменте заставила бы читающего выбирать между одинаковыми
+     * (см. {@link ChatMessageMeta}). Не измеренный прогон не помечается вовсе — {@code null} в мете
+     * значит «не измерено», и уверенный ноль был бы неправдой.
      *
      * <p>Идёт ПОСЛЕ {@code ToolCallService.attachRunMeta}: та ищет необогащённые сегменты по {@code
      * meta == null}, и проставленная раньше времени модель спрятала бы от неё вызовы инструментов.
@@ -330,8 +337,9 @@ public class ChatHistoryService {
      * переписываются: у ответа стоит та модель, что его написала, а не та, на которой сдались.
      */
     @Transactional
-    public void markRunModel(String conversationId, String runId, String model) {
-        final List<ChatMessageEntity> updated =
+    public void markRunResult(
+            String conversationId, String runId, String model, RunTokenUsage usage) {
+        final List<ChatMessageEntity> rows =
                 tailAfterLastUser(
                                 chatMessageRepository
                                         .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
@@ -355,9 +363,19 @@ public class ChatHistoryService {
                                                                 : row.getMeta())
                                                         .withRun(runId, model)))
                         .toList();
-        if (!updated.isEmpty()) {
-            chatMessageRepository.saveAll(updated);
+        if (rows.isEmpty()) {
+            return;
         }
+        final List<ChatMessageEntity> updated = new ArrayList<>(rows);
+        if (!usage.isEmpty()) {
+            final int last = updated.size() - 1;
+            final ChatMessageEntity answer = updated.get(last);
+            // Мета здесь заведомо есть — её только что проставил withRun выше.
+            updated.set(
+                    last,
+                    answer.withMeta(Objects.requireNonNull(answer.getMeta()).withUsage(usage)));
+        }
+        chatMessageRepository.saveAll(updated);
     }
 
     /**
@@ -365,7 +383,7 @@ public class ChatHistoryService {
      * строго последовательны, поэтому «после последнего вопроса» и есть «этим ходом»; повтор
      * упавшего прогона нового вопроса не заводит, так что в хвост попадают и его ряды тоже.
      *
-     * <p>Статический и общий на два вызывающих ({@link #markRunModel} и {@code
+     * <p>Статический и общий на два вызывающих ({@link #markRunResult} и {@code
      * ToolCallService#attachRunMeta}): оба дописывают мету рядам одного и того же хода, и вторая
      * копия этого правила разошлась бы с первой молча. Статический — потому что бином эти два
      * сервиса связать нельзя: {@link ChatHistoryService} уже зависит от {@code ToolCallService}.
@@ -392,7 +410,7 @@ public class ChatHistoryService {
      *
      * <p>Оба попадают в историю в произвольный момент работы модели, и оба, посчитанные границей
      * хода, обрезали бы хвост прогона посередине: ряды выше остались бы без модели и без плашек
-     * вызовов навсегда (см. {@link #markRunModel}, {@code ToolCallService#attachRunMeta}), а окно
+     * вызовов навсегда (см. {@link #markRunResult}, {@code ToolCallService#attachRunMeta}), а окно
      * сжатия открылось бы на ответе к вопросу, которого в нём уже нет ({@code SummarizeWindow}).
      */
     static boolean opensATurn(ChatMessageEntity row) {

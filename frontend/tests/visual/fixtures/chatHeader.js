@@ -29,3 +29,21 @@ export const activeChatProps = {
   canSearch: true,
   searchOpen: false,
 };
+
+/**
+ * Та же шапка со счётчиком занятого контекста. Числа — правдоподобный ответ с инструментами:
+ * контекст 11k при оплаченных 31.1k за три обращения, из них 24k из кэша. Разрыв между занятым и
+ * оплаченным здесь не случайность, а суть показанного (см. RunTokenUsage).
+ */
+export const activeChatWithContextProps = {
+  ...activeChatProps,
+  contextUsage: {
+    contextTokens: 11_020,
+    toolTokens: 700,
+    outputTokens: 320,
+    promptTokens: 31_100,
+    cacheReadTokens: 24_000,
+    cacheWriteTokens: 1_100,
+    modelCalls: 3,
+  },
+};

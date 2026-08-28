@@ -10,6 +10,7 @@ import io.github.trialiya.kb.model.chat.entity.CompactMeta;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.chat.entity.ContextItemKind;
 import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
+import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import java.util.List;
 import java.util.Map;
@@ -32,7 +33,7 @@ public final class ChatMessageMetaToJsonConverter {
      * null}, — молча, потому что компилятор об этом ничего не скажет.
      *
      * <p>Незаполненные поля в JSON не пишутся: у большинства рядов заполнено два-три поля из
-     * девяти, а колонка хранится в каждом сообщении каждого чата. Чтение от этого не страдает —
+     * десяти, а колонка хранится в каждом сообщении каждого чата. Чтение от этого не страдает —
      * отсутствующее поле Jackson отдаёт как {@code null}, то есть ровно тем, чем оно было записано,
      * а пустые списки нормализует {@link ChatMessageMeta} своим компактным конструктором. Аннотация
      * стоит на проекции, а не на {@link ObjectMapper}: он общий с REST, и ответы API форму менять
@@ -50,7 +51,8 @@ public final class ChatMessageMetaToJsonConverter {
             @Nullable String model,
             @Nullable CompactMeta compact,
             @Nullable GitEventMeta gitEvent,
-            @Nullable Boolean interjection) {}
+            @Nullable Boolean interjection,
+            @Nullable RunTokenUsage usage) {}
 
     /**
      * {@code kind} читается строкой, а не сразу {@link ContextItemKind}: вид, которого эта версия
@@ -123,7 +125,8 @@ public final class ChatMessageMetaToJsonConverter {
                         json.model(),
                         json.compact(),
                         json.gitEvent(),
-                        Boolean.TRUE.equals(json.interjection()));
+                        Boolean.TRUE.equals(json.interjection()),
+                        json.usage());
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to deserialize chat message meta", e);
             }
@@ -163,7 +166,8 @@ public final class ChatMessageMetaToJsonConverter {
                                 source.gitEvent(),
                                 // false не выписывается: флаг несут единицы рядов, а колонка —
                                 // каждый ряд каждого чата (см. javadoc проекции).
-                                source.interjection() ? Boolean.TRUE : null));
+                                source.interjection() ? Boolean.TRUE : null,
+                                source.usage()));
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to serialize chat message meta", e);
             }

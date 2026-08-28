@@ -1,8 +1,13 @@
-package io.github.trialiya.kb.model.chat.dto;
+package io.github.trialiya.kb.model.chat.entity;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 /**
  * Итог прогона в терминах, в которых о токенах думает пользователь. Собирается из замеров отдельных
- * обращений к модели ({@link TokenUsage}) в {@code RunUsageRegistry}.
+ * обращений к модели ({@code TokenUsage}) в {@code RunUsageRegistry}, по ходу прогона уезжает во
+ * вкладки событием {@code RUN_USAGE}, а по его завершении оседает в мете последнего ответа ({@link
+ * ChatMessageMeta#usage}) — оттуда его и берут плашка под ответом и счётчик контекста в шапке чата
+ * после перезагрузки страницы.
  *
  * <p>Главное здесь — что заголовочная цифра НЕ сумма всех обращений. Ответ с инструментами это
  * несколько обращений подряд, и каждое несёт всю историю диалога заново, поэтому сумма prompt'ов
@@ -49,7 +54,12 @@ public record RunTokenUsage(
      * <p>Это условие «есть что записать в лог», а не «есть что показать»: плашку возглавляет {@link
      * #contextTokens}, и решение публиковать событие принимается по нему одному — см. {@code
      * TokenUsageAdvisor}.
+     *
+     * <p>{@code @JsonIgnore} — запись ездит и в SSE-событии, и в колонке {@code chat_message.meta};
+     * без него Jackson выписал бы вычислимое поле {@code empty}, и чтение записанного ряда падало
+     * бы на нём как на незнакомом.
      */
+    @JsonIgnore
     public boolean isEmpty() {
         return contextTokens == 0 && outputTokens == 0 && promptTokens == 0;
     }

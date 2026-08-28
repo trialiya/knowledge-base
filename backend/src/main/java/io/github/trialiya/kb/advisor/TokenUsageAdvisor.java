@@ -3,8 +3,8 @@ package io.github.trialiya.kb.advisor;
 import static io.github.trialiya.kb.advisor.ToolPreparingAdvisor.RUN_ID_PARAM;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.RUN_USAGE;
 
-import io.github.trialiya.kb.model.chat.dto.RunTokenUsage;
 import io.github.trialiya.kb.model.chat.dto.TokenUsage;
+import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.service.chat.run.ChatEventService;
 import io.github.trialiya.kb.service.chat.run.RunUsageRegistry;
 import java.util.concurrent.atomic.AtomicReference;

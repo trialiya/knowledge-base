@@ -7,7 +7,7 @@ import '../styles/message.css';
 import CodeBlock from '@/components/common/ui/CodeBlock';
 import ToolCallNotifications from './ToolCallNotifications';
 import MessageContextItems from './MessageContextItems';
-import { billedTokens, cacheShare, formatTokens, hasUsage } from './tokenUsage';
+import { formatTokens, hasUsage, usageTooltip } from './tokenUsage';
 import { IconCopySmall, IconCopied } from '@/icons/index';
 import useCopyFeedback from '@/components/common/ui/useCopyFeedback';
 import { SENDER } from '@/constants/messageSender';
@@ -165,19 +165,7 @@ const Message = ({
 
   // Разбивка — в подсказке: в футере на неё нет места, а нужна она редко. Сверху три числа про
   // сам разговор, снизу — оплаченное, которое без строки про кэш выглядит необъяснимо большим.
-  const usageTitle = hasUsage(usage)
-    ? [
-        t('message.tokensContext', { context: formatTokens(usage.contextTokens) }),
-        usage.toolTokens > 0 ? t('message.tokensTools', { tools: formatTokens(usage.toolTokens) }) : null,
-        t('message.tokensOutput', { output: formatTokens(usage.outputTokens) }),
-        t('message.tokensBilled', { billed: formatTokens(billedTokens(usage)), calls: usage.modelCalls }),
-        usage.cacheReadTokens > 0
-          ? t('message.tokensCached', { cached: formatTokens(usage.cacheReadTokens), percent: cacheShare(usage) })
-          : null,
-      ]
-        .filter(Boolean)
-        .join('\n')
-    : undefined;
+  const usageTitle = hasUsage(usage) ? usageTooltip(usage, t, 'message.tokensContext') : undefined;
 
   // Пузырь — только контент сообщения, без футера
   const bubble = (

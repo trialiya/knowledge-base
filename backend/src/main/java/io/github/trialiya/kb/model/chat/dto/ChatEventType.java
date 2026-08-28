@@ -1,5 +1,7 @@
 package io.github.trialiya.kb.model.chat.dto;
 
+import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
+
 /**
  * Тип события в канале чата (см. {@link ChatEvent}). Один поток событий обслуживает и стриминг
  * ответа, и кросс-вкладочную синхронизацию.

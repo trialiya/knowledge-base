@@ -1,9 +1,10 @@
-import { useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { UPLOAD_ACCEPT } from '@/constants/uploadAccept';
 import ChatHeader from './ChatHeader';
 import ChatSearchBar from './ChatSearchBar';
 import MessageList from '../messages/MessageList';
+import { contextUsageOf } from '../messages/tokenUsage';
 import MessageInput from '../composer/MessageInput';
 
 /**
@@ -54,11 +55,16 @@ const ChatCenter = ({
   // В обоих случаях ленты нет, а вместо композера — пояснение, почему нельзя писать.
   const unavailable = !!(chat?.notFound || chat?.loadError);
 
+  // Счётчик в шапке читает ту же ленту, что и плашки под ответами: другого источника у «сколько
+  // занято» нет — бэкенд измеряет контекст только прогоном.
+  const contextUsage = useMemo(() => contextUsageOf(messages), [messages]);
+
   return (
     <>
       {chat && (
         <ChatHeader
           chat={chat}
+          contextUsage={contextUsage}
           canSearch={search.canSearch}
           searchOpen={search.open}
           onToggleSearch={() => (search.open ? search.close() : search.openBar())}

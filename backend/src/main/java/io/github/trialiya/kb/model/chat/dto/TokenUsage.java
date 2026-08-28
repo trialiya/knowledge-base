@@ -1,5 +1,7 @@
 package io.github.trialiya.kb.model.chat.dto;
 
+import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
+
 /**
  * Токены одного обращения к модели, как их измерил {@code TokenUsageAdvisor}. Итог прогона из них
  * собирает {@code RunUsageRegistry} — и собирает не одной лишь суммой, см. {@link RunTokenUsage}.

@@ -16,6 +16,10 @@
     "tokensOutput": "Сгенерировано: {{output}}",
     "tokensBilled": "Оплачено: {{billed}} · обращений к модели: {{calls}}"
   },
+  "header": {
+    "context": "Контекст: {{context}}",
+    "contextTooltip": "Занято контекста: {{context}} токенов"
+  },
   "window": {
     "defaultTitle": "Новый чат",
     "renameHint": "Нажмите чтобы переименовать",

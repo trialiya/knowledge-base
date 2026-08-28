@@ -44,3 +44,41 @@ export const cacheShare = (usage) => {
   const cached = Number(usage?.cacheReadTokens || 0);
   return prompt > 0 ? Math.round((cached / prompt) * 100) : 0;
 };
+
+/**
+ * Разбивка токенов для подсказки: строки одна под другой. Первая своя у каждого места показа
+ * (плашка говорит про свой ответ, счётчик в шапке — про чат сейчас), остальные общие — держать их
+ * двумя копиями значит однажды поправить одну.
+ *
+ * @param headKey ключ первой строки; получает {@code context} — занятый контекст
+ */
+export const usageTooltip = (usage, t, headKey) =>
+  [
+    t(headKey, { context: formatTokens(usage.contextTokens) }),
+    usage.toolTokens > 0 ? t('message.tokensTools', { tools: formatTokens(usage.toolTokens) }) : null,
+    t('message.tokensOutput', { output: formatTokens(usage.outputTokens) }),
+    t('message.tokensBilled', { billed: formatTokens(billedTokens(usage)), calls: usage.modelCalls }),
+    usage.cacheReadTokens > 0
+      ? t('message.tokensCached', { cached: formatTokens(usage.cacheReadTokens), percent: cacheShare(usage) })
+      : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+/**
+ * Чем занят контекст чата сейчас — по последнему прогону, который это измерил. Ищем с конца, а не
+ * суммируем: prompt каждого обращения уже включает всю историю до него, поэтому свежий замер и есть
+ * ответ целиком (см. RunTokenUsage на бэке).
+ *
+ * Плашка сжатия обрывает поиск: /compact выбросил из контекста почти всё, и замер выше неё говорит
+ * про историю, которой больше нет. Показать нечего до следующего ответа — и это честнее, чем число,
+ * завышенное в разы.
+ */
+export const contextUsageOf = (messages) => {
+  for (let i = (messages?.length || 0) - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.compact) return null;
+    if (hasUsage(m.usage)) return m.usage;
+  }
+  return null;
+};

@@ -111,6 +111,23 @@ class SampleDataFixtureTest {
                 .satisfies(m -> assertThat(m.getMeta().model()).isEqualTo("deepseek-chat"));
         assertThat(toolBreadcrumb.getMeta().model()).isNull();
 
+        // Токены прогона: по одному ряду на прогон — последнему, как их пишет markRunResult.
+        // Их тут два, и это не «два числа про один ответ», а два разных прогона в одном чате.
+        assertThat(
+                        messages.stream()
+                                .filter(m -> m.getMeta() != null && m.getMeta().usage() != null)
+                                .map(ChatMessageEntity::getId))
+                .containsExactly(1653L, 1657L);
+        assertThat(
+                        messages.stream()
+                                .filter(m -> m.getId() == 1657)
+                                .findFirst()
+                                .orElseThrow()
+                                .getMeta()
+                                .usage()
+                                .contextTokens())
+                .isEqualTo(21_050);
+
         // Вопрос с приложенным вложением: в сообщении лежит ссылка, а не содержимое файла.
         ChatMessageEntity question =
                 messages.stream().filter(m -> m.getId() == 1638).findFirst().orElseThrow();

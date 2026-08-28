@@ -205,7 +205,7 @@ public class ToolCallService {
             return stored;
         }
         // Условие — «плашек нет», а не «меты нет»: мета есть у каждого ответа прогона (в ней
-        // модель, см. ChatHistoryService#markRunModel), и сегмент с сохранёнными tool_calls, но
+        // модель, см. ChatHistoryService#markRunResult), и сегмент с сохранёнными tool_calls, но
         // без плашек — это как раз оборванный прогон, ради которого синтез и нужен.
         if (entity.getType() != MessageType.ASSISTANT
                 || entity.getToolData() == null
@@ -257,8 +257,8 @@ public class ToolCallService {
      *
      * <p>Рассматриваются только сегменты текущего хода (см. {@link
      * ChatHistoryService#tailAfterLastUser}), а среди них — только необогащённые ({@code meta ==
-     * null}). Отсюда порядок: {@code ChatHistoryService.markRunModel} проставляет мету тем же рядам
-     * и обязана идти ПОСЛЕ, иначе вызовы инструментов этого прогона плашек не получат.
+     * null}). Отсюда порядок: {@code ChatHistoryService.markRunResult} проставляет мету тем же
+     * рядам и обязана идти ПОСЛЕ, иначе вызовы инструментов этого прогона плашек не получат.
      *
      * <p>{@code SKIP_TOOLS} вырезаются только из UI-метаданных — протокольные tool_calls сегмента
      * остаются полными, иначе модель получила бы рассинхронизированную пару tool-сообщений.

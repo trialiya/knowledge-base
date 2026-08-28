@@ -19,6 +19,40 @@ describe('transformPage', () => {
     expect(bubbles[2].toolCalls).toBeUndefined();
   });
 
+  // Бэкенд пишет токены одному ряду прогона — последнему; плашка после перезагрузки обязана
+  // встать туда же, куда её ставил редьюсер вживую, и ровно одна на прогон.
+  test('carries the persisted run tokens onto the answer that holds them', () => {
+    const usage = { contextTokens: 11000, toolTokens: 700, outputTokens: 320, promptTokens: 31100, modelCalls: 3 };
+    const { bubbles } = transformPage([
+      { id: 1, content: 'вопрос', type: 'USER' },
+      { id: 2, content: 'смотрю документ', type: 'ASSISTANT', runId: 'r1' },
+      { id: 3, content: 'ответ', type: 'ASSISTANT', runId: 'r1', usage },
+    ]);
+    expect(bubbles.map((b) => b.usage)).toEqual([undefined, undefined, usage]);
+  });
+
+  // Остановка посреди работы инструментов оставляет последним ряд без текста — а токены бэкенд
+  // пишет именно последнему. Пузырём такой ряд не станет, но потерять с ним счёт нельзя: после
+  // перезагрузки счётчик контекста показал бы заниженное число прошлого прогона.
+  test('rescues the run tokens from a blank last segment onto the answer above it', () => {
+    const usage = { contextTokens: 11000, outputTokens: 320, promptTokens: 31100, modelCalls: 3 };
+    const withMetas = transformPage([
+      { id: 1, content: 'вопрос', type: 'USER' },
+      { id: 2, content: 'смотрю документ', type: 'ASSISTANT', runId: 'r1' },
+      { id: 3, content: '', type: 'ASSISTANT', runId: 'r1', toolInvocationMetas: [meta('getDocument')], usage },
+    ]).bubbles;
+    expect(withMetas).toHaveLength(2);
+    expect(withMetas[1]).toMatchObject({ text: 'смотрю документ', usage });
+
+    const bare = transformPage([
+      { id: 1, content: 'вопрос', type: 'USER' },
+      { id: 2, content: 'смотрю документ', type: 'ASSISTANT', runId: 'r1' },
+      { id: 3, content: '', type: 'ASSISTANT', runId: 'r1', usage },
+    ]).bubbles;
+    expect(bare).toHaveLength(2);
+    expect(bare[1]).toMatchObject({ text: 'смотрю документ', usage });
+  });
+
   test('carries attached context items onto the user bubble', () => {
     const items = [{ kind: 'ATTACHMENT', ref: '12', label: 'report.md' }];
     const { bubbles } = transformPage([

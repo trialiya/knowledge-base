@@ -99,7 +99,7 @@ class ToolCallServiceTest {
 
     @Test
     void invocationsForSynthesizesWhenMetaCarriesOnlyTheModel() {
-        // Прогон оборвался до attachRunMeta, но markRunModel всё же пометила ответ моделью:
+        // Прогон оборвался до attachRunMeta, но markRunResult всё же пометила ответ моделью:
         // мета у сегмента есть, плашек в ней нет — синтез из tool_data обязан сработать,
         // иначе после перезагрузки пропали бы отметки о том, что модель вообще звала.
         final ChatMessageEntity segment =
