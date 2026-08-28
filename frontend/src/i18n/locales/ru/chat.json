@@ -9,9 +9,12 @@
     "retry": "Повторить",
     "queued": "ожидает отправки…",
     "answeredBy": "Ответила модель {{model}}",
-    "tokens": "{{total}} токенов",
-    "tokensTitle": "Токенов израсходовано моделью чата на этот ответ: {{total}} — {{prompt}} на вход, {{completion}} на выход",
-    "tokensCached": "из них {{cached}} прочитано из кэша промпта"
+    "tokens": "{{context}} в контексте",
+    "tokensCached": "Из оплаченного входа {{cached}} прочитано из кэша ({{percent}}%)",
+    "tokensContext": "Контекст после этого ответа: {{context}} токенов",
+    "tokensTools": "Инструменты добавили: {{tools}}",
+    "tokensOutput": "Сгенерировано: {{output}}",
+    "tokensBilled": "Оплачено: {{billed}} · обращений к модели: {{calls}}"
   },
   "window": {
     "defaultTitle": "Новый чат",

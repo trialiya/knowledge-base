@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.service.chat.run;
 
+import io.github.trialiya.kb.model.chat.dto.RunTokenUsage;
 import io.github.trialiya.kb.model.chat.dto.TokenUsage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -17,36 +18,45 @@ import org.springframework.stereotype.Component;
 @Component
 public class RunUsageRegistry {
 
-    private final ConcurrentHashMap<String, AtomicReference<TokenUsage>> totals =
+    private final ConcurrentHashMap<String, AtomicReference<Tally>> tallies =
             new ConcurrentHashMap<>();
 
     /** Начинает счёт для прогона. Обязательно закрыть {@link #forget} — иначе запись протечёт. */
     public void start(String runId) {
-        totals.put(runId, new AtomicReference<>(TokenUsage.EMPTY));
+        tallies.put(runId, new AtomicReference<>(Tally.EMPTY));
     }
 
     /** Считается ли этот прогон вообще (см. javadoc класса). */
     public boolean tracked(String runId) {
-        return totals.containsKey(runId);
-    }
-
-    /** Накопленное прогоном; {@link TokenUsage#EMPTY} у незнакомого или уже закрытого прогона. */
-    public TokenUsage total(String runId) {
-        final AtomicReference<TokenUsage> ref = totals.get(runId);
-        return ref == null ? TokenUsage.EMPTY : ref.get();
+        return tallies.containsKey(runId);
     }
 
     /**
-     * Добавляет к итогу прогона замер одного обращения к модели.
+     * Итог прогона с учётом ещё не закрытого обращения к модели — то, что показывают по ходу
+     * генерации. Ничего не накапливает: {@code pending} доедет до итога отдельно, через {@link
+     * #add}, когда обращение закончится.
+     */
+    public RunTokenUsage snapshot(String runId, TokenUsage pending) {
+        final AtomicReference<Tally> ref = tallies.get(runId);
+        return ref == null ? RunTokenUsage.EMPTY : ref.get().with(pending).view();
+    }
+
+    /** Накопленное прогоном; {@link RunTokenUsage#EMPTY} у незнакомого или уже закрытого. */
+    public RunTokenUsage total(String runId) {
+        return snapshot(runId, TokenUsage.EMPTY);
+    }
+
+    /**
+     * Добавляет к итогу прогона замер одного законченного обращения к модели.
      *
      * @return новый итог прогона
      */
-    public TokenUsage add(String runId, TokenUsage iteration) {
-        final AtomicReference<TokenUsage> ref = totals.get(runId);
+    public RunTokenUsage add(String runId, TokenUsage call) {
+        final AtomicReference<Tally> ref = tallies.get(runId);
         if (ref == null) {
-            return TokenUsage.EMPTY;
+            return RunTokenUsage.EMPTY;
         }
-        return iteration.isEmpty() ? ref.get() : ref.accumulateAndGet(iteration, TokenUsage::plus);
+        return ref.updateAndGet(tally -> tally.with(call)).view();
     }
 
     /**
@@ -54,13 +64,61 @@ public class RunUsageRegistry {
      *
      * @return его итог — последняя возможность его прочитать
      */
-    public TokenUsage forget(String runId) {
-        final AtomicReference<TokenUsage> ref = totals.remove(runId);
-        return ref == null ? TokenUsage.EMPTY : ref.get();
+    public RunTokenUsage forget(String runId) {
+        final AtomicReference<Tally> ref = tallies.remove(runId);
+        return ref == null ? RunTokenUsage.EMPTY : ref.get().view();
     }
 
     /** Число прогонов на учёте — для мониторинга утечек (см. {@link ChatRuntimeMonitor}). */
     public int trackedRunCount() {
-        return totals.size();
+        return tallies.size();
+    }
+
+    /**
+     * Накопитель прогона. Держит первое и последнее обращение отдельно от суммы, потому что три
+     * числа {@link RunTokenUsage} считаются по-разному и из суммы два из них уже не достать.
+     *
+     * @param first первое измеренное обращение — вычитаемое в {@code toolTokens}
+     * @param last последнее измеренное обращение — из него весь контекст разговора
+     * @param sum сумма по обращениям — из неё выход и оплаченный prompt
+     * @param calls сколько обращений учтено
+     */
+    private record Tally(TokenUsage first, TokenUsage last, TokenUsage sum, int calls) {
+
+        static final Tally EMPTY =
+                new Tally(TokenUsage.EMPTY, TokenUsage.EMPTY, TokenUsage.EMPTY, 0);
+
+        /**
+         * Учитывает замер обращения.
+         *
+         * <p>На роль первого и последнего годится только замер с prompt'ом. Провайдер вправе
+         * прислать по ходу обращения чанк с одним лишь выходом, и такой замер, назначенный
+         * последним, обрушил бы contextTokens до размера ответа, а назначенный первым — раздул бы
+         * toolTokens до всего контекста. В сумму он при этом входит: выход в нём настоящий.
+         */
+        Tally with(TokenUsage call) {
+            if (call.isEmpty()) {
+                return this;
+            }
+            final boolean measuresPrompt = call.promptTokens() > 0;
+            return new Tally(
+                    measuresPrompt && first.promptTokens() == 0 ? call : first,
+                    measuresPrompt ? call : last,
+                    sum.plus(call),
+                    calls + 1);
+        }
+
+        RunTokenUsage view() {
+            return new RunTokenUsage(
+                    last.promptTokens() + last.completionTokens(),
+                    // Отрицательной разность быть не может — prompt следующего обращения включает
+                    // предыдущее целиком, — но провайдеру, который посчитал иначе, верить незачем.
+                    Math.max(0, last.promptTokens() - first.promptTokens()),
+                    sum.completionTokens(),
+                    sum.promptTokens(),
+                    sum.cacheReadTokens(),
+                    sum.cacheWriteTokens(),
+                    calls);
+        }
     }
 }

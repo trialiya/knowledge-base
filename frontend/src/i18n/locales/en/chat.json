@@ -9,9 +9,12 @@
     "retry": "Retry",
     "queued": "waiting to be sent…",
     "answeredBy": "Answered by {{model}}",
-    "tokens": "{{total}} tokens",
-    "tokensTitle": "Tokens the chat model spent on this answer: {{total}} — {{prompt}} in, {{completion}} out",
-    "tokensCached": "{{cached}} of them read from the prompt cache"
+    "tokens": "{{context}} in context",
+    "tokensCached": "Of the billed input, {{cached}} was read from cache ({{percent}}%)",
+    "tokensContext": "Context after this answer: {{context}} tokens",
+    "tokensTools": "Tools added: {{tools}}",
+    "tokensOutput": "Generated: {{output}}",
+    "tokensBilled": "Billed: {{billed}} · model calls: {{calls}}"
   },
   "window": {
     "defaultTitle": "New chat",

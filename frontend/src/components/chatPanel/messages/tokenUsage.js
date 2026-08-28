@@ -26,4 +26,21 @@ export const formatTokens = (value) => {
  * Есть ли что показывать. Прогон без единого замера (эндпоинт не поддерживает usage в стриме)
  * плашки не получает вовсе — «неизвестно» это не ноль.
  */
-export const hasUsage = (usage) => !!usage && Number(usage.totalTokens) > 0;
+export const hasUsage = (usage) => !!usage && Number(usage.contextTokens) > 0;
+
+/**
+ * Оплаченное за прогон: сумма prompt'ов всех обращений к модели плюс сгенерированное. У ответа с
+ * инструментами это в разы больше занятого контекста — каждое обращение несёт историю заново, —
+ * поэтому число живёт в подсказке, а не в плашке.
+ */
+export const billedTokens = (usage) => Number(usage?.promptTokens || 0) + Number(usage?.outputTokens || 0);
+
+/**
+ * Какая доля оплаченного prompt'а прочитана из кэша, в процентах. Именно она объясняет разрыв
+ * между занятым контекстом и оплаченным: повторная часть тарифицируется по ставке кэша.
+ */
+export const cacheShare = (usage) => {
+  const prompt = Number(usage?.promptTokens || 0);
+  const cached = Number(usage?.cacheReadTokens || 0);
+  return prompt > 0 ? Math.round((cached / prompt) * 100) : 0;
+};

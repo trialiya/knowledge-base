@@ -718,24 +718,28 @@ describe('applyChatEvent', () => {
     expect(chat.compacting).toBe(false);
   });
 
-  test('RUN_USAGE marks the run bubble with the running total', () => {
+  test('RUN_USAGE marks the run bubble with the run state', () => {
     let chat = userChat();
     chat = applyChatEvent(chat, { type: 'RUN_STARTED', runId: 'r1' }, ctx);
     chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'привет' } }, ctx);
     chat = applyChatEvent(
       chat,
-      { type: 'RUN_USAGE', runId: 'r1', payload: { promptTokens: 100, completionTokens: 20, totalTokens: 120 } },
+      {
+        type: 'RUN_USAGE',
+        runId: 'r1',
+        payload: { contextTokens: 120, outputTokens: 20, promptTokens: 100, modelCalls: 1 },
+      },
       ctx,
     );
 
-    expect(chat.messages.at(-1).usage.totalTokens).toBe(120);
+    expect(chat.messages.at(-1).usage.contextTokens).toBe(120);
   });
 
-  test('RUN_USAGE keeps the total on the last segment only', () => {
+  test('RUN_USAGE keeps the tally on the last segment only', () => {
     let chat = userChat();
     chat = applyChatEvent(chat, { type: 'RUN_STARTED', runId: 'r1' }, ctx);
     chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'ищу' } }, ctx);
-    chat = applyChatEvent(chat, { type: 'RUN_USAGE', runId: 'r1', payload: { totalTokens: 120 } }, ctx);
+    chat = applyChatEvent(chat, { type: 'RUN_USAGE', runId: 'r1', payload: { contextTokens: 120 } }, ctx);
     // Инструмент печатает сегмент, следующий текст открывает новый пузырь.
     chat = applyChatEvent(
       chat,
@@ -743,31 +747,57 @@ describe('applyChatEvent', () => {
       ctx,
     );
     chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'нашёл' } }, ctx);
-    chat = applyChatEvent(chat, { type: 'RUN_USAGE', runId: 'r1', payload: { totalTokens: 500 } }, ctx);
+    chat = applyChatEvent(chat, { type: 'RUN_USAGE', runId: 'r1', payload: { contextTokens: 500 } }, ctx);
 
     const ai = chat.messages.filter((m) => m.sender === 'ai');
     expect(ai).toHaveLength(2);
     expect(ai[0].usage).toBeUndefined();
-    expect(ai[1].usage.totalTokens).toBe(500);
+    expect(ai[1].usage.contextTokens).toBe(500);
   });
 
   test('RUN_USAGE with nothing counted leaves the chat alone', () => {
     let chat = userChat();
     chat = applyChatEvent(chat, { type: 'RUN_STARTED', runId: 'r1' }, ctx);
     const before = chat;
-    chat = applyChatEvent(chat, { type: 'RUN_USAGE', runId: 'r1', payload: { totalTokens: 0 } }, ctx);
+    chat = applyChatEvent(chat, { type: 'RUN_USAGE', runId: 'r1', payload: { contextTokens: 0 } }, ctx);
 
     expect(chat).toBe(before);
   });
 
-  test('RUN_DONE keeps the token total on the finished answer', () => {
+  test('RUN_DONE keeps the token tally on the finished answer', () => {
     let chat = userChat();
     chat = applyChatEvent(chat, { type: 'RUN_STARTED', runId: 'r1' }, ctx);
     chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'привет' } }, ctx);
-    chat = applyChatEvent(chat, { type: 'RUN_USAGE', runId: 'r1', payload: { totalTokens: 120 } }, ctx);
+    chat = applyChatEvent(chat, { type: 'RUN_USAGE', runId: 'r1', payload: { contextTokens: 120 } }, ctx);
     chat = applyChatEvent(chat, { type: 'RUN_DONE', runId: 'r1' }, ctx);
 
-    expect(chat.messages.at(-1).usage.totalTokens).toBe(120);
+    expect(chat.messages.at(-1).usage.contextTokens).toBe(120);
+  });
+
+  test('RUN_USAGE arriving after RUN_DONE lands on the answer, not on a new bubble', () => {
+    let chat = userChat();
+    chat = applyChatEvent(chat, { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'привет' } }, ctx);
+    chat = applyChatEvent(chat, { type: 'RUN_DONE', runId: 'r1' }, ctx);
+    const answered = chat.messages.length;
+    chat = applyChatEvent(chat, { type: 'RUN_USAGE', runId: 'r1', payload: { contextTokens: 120 } }, ctx);
+
+    expect(chat.runId).toBeNull();
+    // Пузырь ответа тот же самый: finalize снял с него runId, и плашке нужен toolCallsRunId.
+    expect(chat.messages).toHaveLength(answered);
+    expect(chat.messages.at(-1)).toMatchObject({ text: 'привет', usage: { contextTokens: 120 } });
+    expect(chat.messages.at(-1).runId).toBeUndefined();
+  });
+
+  test('RUN_USAGE for a finished run that left no answer opens no bubble', () => {
+    let chat = userChat();
+    chat = applyChatEvent(chat, { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    // Пустой ответ без вызовов инструментов finalize удаляет — цеплять плашку не к чему.
+    chat = applyChatEvent(chat, { type: 'RUN_DONE', runId: 'r1' }, ctx);
+    const before = chat;
+    chat = applyChatEvent(chat, { type: 'RUN_USAGE', runId: 'r1', payload: { contextTokens: 120 } }, ctx);
+
+    expect(chat).toBe(before);
   });
 
   test('RUN_DONE drops a trailing empty bubble without tool calls', () => {

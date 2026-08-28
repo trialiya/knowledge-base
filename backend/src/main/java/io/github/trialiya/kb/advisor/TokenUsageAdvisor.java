@@ -3,6 +3,7 @@ package io.github.trialiya.kb.advisor;
 import static io.github.trialiya.kb.advisor.ToolPreparingAdvisor.RUN_ID_PARAM;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.RUN_USAGE;
 
+import io.github.trialiya.kb.model.chat.dto.RunTokenUsage;
 import io.github.trialiya.kb.model.chat.dto.TokenUsage;
 import io.github.trialiya.kb.service.chat.run.ChatEventService;
 import io.github.trialiya.kb.service.chat.run.RunUsageRegistry;
@@ -34,8 +35,8 @@ import reactor.core.publisher.Flux;
  * вызывает заново на КАЖДОЙ итерации, поэтому состояние итерации — обычная локальная переменная, а
  * вынюхивать границу по {@code finishReason} или по старту инструмента не нужно.
  *
- * <p>Правила свёртки (по-полевой максимум внутри итерации, сумма между ними) и почему они такие — в
- * {@link TokenUsage}.
+ * <p>Правила свёртки замеров внутри одного обращения (по-полевой максимум) — в {@link TokenUsage};
+ * как из обращений собирается итог прогона — в {@link RunTokenUsage}.
  */
 public class TokenUsageAdvisor implements StreamAdvisor {
 
@@ -98,7 +99,14 @@ public class TokenUsageAdvisor implements StreamAdvisor {
         if (merged.equals(before)) {
             return;
         }
-        events.publish(conversationId, RUN_USAGE, runId, null, usage.total(runId).plus(merged));
+        // Пока не измерен ни один prompt, заполнения контекста нет, а плашку возглавляет именно
+        // оно: провайдер, шлющий сначала выход и лишь в финальном чанке вход, до этого чанка даёт
+        // замер, показать который нечем. Ждём — «неизвестно» это не ноль.
+        final RunTokenUsage running = usage.snapshot(runId, merged);
+        if (running.contextTokens() == 0) {
+            return;
+        }
+        events.publish(conversationId, RUN_USAGE, runId, null, running);
     }
 
     /** Замер из ответа модели; {@link TokenUsage#EMPTY}, если провайдер его не прислал. */
