@@ -157,6 +157,32 @@ class ChatRuntimeShutdownTest {
                 42L, CONV, "вопрос", MessageType.USER, 2, false, false, LocalDateTime.now(), null);
     }
 
+    /**
+     * Реестр прогонов прогон покидает ДО доставки очереди (иначе принятое на границе завершения
+     * сообщение зависло бы), а доставка пишет в БД. Значит, ждать опустевшего реестра нельзя:
+     * shutdown закрыл бы пул соединений прямо посреди неё.
+     */
+    @Test
+    void quiescenceWaitsForTheDeliveryThatFollowsTheRegistry() {
+        runService = runService(Runnable::run);
+        final Deque<Boolean> quiescentDuringFlush = new ArrayDeque<>();
+        when(pendingMessages.flushPlain(CONV))
+                .thenAnswer(
+                        inv -> {
+                            quiescentDuringFlush.add(runService.awaitQuiescence(Duration.ZERO));
+                            return Flushed.NOTHING;
+                        });
+        runService.start(CONV, USER, "привет", List.of(), options(), "msg-1");
+
+        assertThat(runService.stopAll()).isEqualTo(1);
+
+        // Два флаша: страховочный на старте прогона (тогда ждать и правда некого) и терминальный —
+        // на нём реестр уже пуст, и без отдельного счёта завершающихся ожидание бы закончилось.
+        assertThat(quiescentDuringFlush).containsExactly(true, false);
+        // А после — уже тихо: терминальная обработка дописала.
+        assertThat(runService.awaitQuiescence(Duration.ZERO)).isTrue();
+    }
+
     @Test
     void quiescenceWaitEndsImmediatelyWithoutRuns() {
         runService = runService(Runnable::run);
