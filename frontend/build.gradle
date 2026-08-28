@@ -81,6 +81,10 @@ tasks.register('yarnBuild', YarnTask) {
     args = ['run', 'build']
 }
 
+// Собранная статика остаётся в build-каталоге своего модуля; в JAR её кладёт
+// :backend:processResources. Писать напрямую в backend/build/resources/main нельзя:
+// этот каталог — выход processResources, и любая задача, которая его читает
+// (bootJar, jar, test, resolveMainClassName), падала бы на implicit dependency validation.
 tasks.register('copyFrontend', Copy) {
     dependsOn('yarnBuild')
     from('build/dist') {
@@ -88,7 +92,7 @@ tasks.register('copyFrontend', Copy) {
         include 'static/**'
         include 'manifest.json', 'favicon.ico', 'robots.txt'
     }
-    into("${project(':backend').projectDir}/build/resources/main/static")
+    into(layout.buildDirectory.dir('static'))
 }
 
 tasks.named('build') {
