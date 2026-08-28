@@ -32,9 +32,10 @@
   min-width: 0;
 }
 
-/* Время и модель сидят рядом и набраны одинаково — расходятся только приглушённостью. */
+/* Время, модель и токены сидят рядом и набраны одинаково — расходятся только приглушённостью. */
 .message-footer__time,
-.message-footer__model {
+.message-footer__model,
+.message-footer__tokens {
   font-size: 0.68rem;
   white-space: nowrap;
   user-select: none;
@@ -51,6 +52,12 @@
   color: #999;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Токены, потраченные на ответ. Приглушены как модель, но не обрезаются: число и так короткое,
+   а обрезанное оно врёт. */
+.message-footer__tokens {
+  color: #999;
 }
 
 /* ── Кнопка «копировать всё сообщение» ── */

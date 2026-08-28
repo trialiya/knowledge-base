@@ -14,8 +14,9 @@ import org.springframework.stereotype.Component;
 /**
  * Временный мониторинг утечек чат-рантайма: периодически печатает в лог размеры in-memory реестров
  * — хабы событий ({@link ChatEventService}), активные прогоны и удержанные заявки на чат ({@link
- * ChatRunService}), нумерация вызовов инструментов ({@link ToolCallEventPublisher}). Нужен, чтобы
- * убедиться, что все они корректно закрываются и счётчики в простое возвращаются к нулю.
+ * ChatRunService}), нумерация вызовов инструментов ({@link ToolCallEventPublisher}), счётчики
+ * токенов прогонов ({@link RunUsageRegistry}). Нужен, чтобы убедиться, что все они корректно
+ * закрываются и счётчики в простое возвращаются к нулю.
  *
  * <p>Интервал — {@code kb.chat.monitor-interval-ms} (по умолчанию 60_000); значение {@code <= 0}
  * отключает мониторинг. Свой однопоточный планировщик (а не {@code @Scheduled}) — чтобы не зависеть
@@ -28,6 +29,7 @@ public class ChatRuntimeMonitor {
     private final ChatRunService chatRunService;
     private final ChatEventService chatEventService;
     private final ToolCallEventPublisher toolCallEvents;
+    private final RunUsageRegistry runUsage;
     private final long intervalMs;
     @Nullable private ScheduledExecutorService scheduler;
 
@@ -35,10 +37,12 @@ public class ChatRuntimeMonitor {
             ChatRunService chatRunService,
             ChatEventService chatEventService,
             ToolCallEventPublisher toolCallEvents,
+            RunUsageRegistry runUsage,
             @Value("${kb.chat.monitor-interval-ms:60000}") long intervalMs) {
         this.chatRunService = chatRunService;
         this.chatEventService = chatEventService;
         this.toolCallEvents = toolCallEvents;
+        this.runUsage = runUsage;
         this.intervalMs = intervalMs;
     }
 
@@ -64,11 +68,12 @@ public class ChatRuntimeMonitor {
             chatEventService.sendHeartbeats();
             log.info(
                     "chat runtime registries: eventHubs={}, activeRuns={}, claimedChats={},"
-                            + " toolCallCounters={}",
+                            + " toolCallCounters={}, usageTallies={}",
                     chatEventService.hubCount(),
                     chatRunService.activeRunCount(),
                     chatRunService.claimedConversationCount(),
-                    toolCallEvents.trackedConversationCount());
+                    toolCallEvents.trackedConversationCount(),
+                    runUsage.trackedRunCount());
         } catch (Exception e) {
             log.warn("Chat runtime monitor failed", e);
         }

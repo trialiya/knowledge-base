@@ -75,6 +75,7 @@ class ChatRunRetryTest {
                         mock(ProjectPromptService.class),
                         pendingMessages,
                         mock(RunOptionsResolver.class),
+                        new RunUsageRegistry(),
                         never);
     }
 
@@ -138,6 +139,6 @@ class ChatRunRetryTest {
 
     /** Дефолтные настройки прогона: модель/режим/проект не выбраны. */
     private static ChatRunService.RunOptions options() {
-        return new ChatRunService.RunOptions(null, false, "", null, null);
+        return new ChatRunService.RunOptions(null, false, true, "", null, null);
     }
 }

@@ -79,6 +79,7 @@ class ChatRunQueuedDeliveryTest {
                         mock(ProjectPromptService.class),
                         pendingMessages,
                         runOptions,
+                        new RunUsageRegistry(),
                         never);
     }
 
@@ -185,6 +186,6 @@ class ChatRunQueuedDeliveryTest {
 
     /** Дефолтные настройки прогона: модель/режим/проект не выбраны. */
     private static ChatRunService.RunOptions options() {
-        return new ChatRunService.RunOptions(null, false, "", null, null);
+        return new ChatRunService.RunOptions(null, false, true, "", null, null);
     }
 }

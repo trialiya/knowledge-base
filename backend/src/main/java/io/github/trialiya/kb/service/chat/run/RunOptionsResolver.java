@@ -81,6 +81,7 @@ public class RunOptionsResolver {
         return new ChatRunService.RunOptions(
                 resolvedModel,
                 chatModelProperties.isWeak(resolvedModel),
+                chatModelProperties.streamUsage(resolvedModel),
                 chatModeService.instructionsFor(resolveMode(conversationId, stored, mode)),
                 resolvedProject,
                 switched);
