@@ -496,13 +496,17 @@ SSE-поток событий чата: стриминг ответа + крос
 
 **Response:** `text/event-stream` (SSE)
 - `ChatEvent` — каждое событие: `seq`, `type`, `runId`, `clientMsgId`, `payload`
-- Типы: `USER_MESSAGE`, `RUN_STARTED`, `STREAM`, `TOOL_CALL`, `TOOL_CALLS`, `RUN_USAGE`, `RUN_DONE`, `RUN_STOPPED`, `RUN_ERROR`, `CHAT_DELETED`, `COMPACT_STARTED`, `COMPACT_DONE`, `COMPACT_ERROR`, `GIT_COMMAND`
+- Типы: `USER_MESSAGE`, `RUN_STARTED`, `STREAM`, `TOOL_CALL`, `TOOL_CALLS`, `RUN_USAGE`, `RUN_DONE`, `RUN_STOPPED`, `RUN_ERROR`, `REPLAY_GAP`, `CHAT_DELETED`, `COMPACT_STARTED`, `COMPACT_DONE`, `COMPACT_ERROR`, `GIT_COMMAND`
 - `COMPACT_DONE` несёт `CompactPayload`:
   `{ "messageId": 512, "messages": 42, "summaryChars": 3800, "createdAt": "2026-08-25T12:00:00" }` —
   id строки-плашки «контекст сжат» (адрес деталей, см. `GET /compact`), сколько сообщений заменила
   сводка, какой длины она получилась и когда раунд закончился. Числа берутся с самой плашки, а не
   считаются заново: живая вкладка и вкладка, открытая после перезагрузки, обязаны показать одно и
   то же
+- `REPLAY_GAP` приходит без payload и только той вкладке, чей `fromSeq` уже не покрывается логом
+  хаба: лог держит не больше 2000 последних событий прогона, а событий у него столько же, сколько
+  токенов в ответе. Показанный такой вкладкой ответ заведомо с дырой; целиком он окажется в
+  истории по завершении прогона, оттуда фронт его и перечитывает
 - `GIT_COMMAND` несёт `GitCommandPayload`:
   `{ "id": 513, "createdAt": "2026-08-26T12:00:00", "event": { "command": "pull", "project": "kb",
   "ok": true, "output": "Fast-forward", "branch": "main" } }` — ряд, который команда пользователя

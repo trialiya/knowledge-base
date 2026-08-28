@@ -8,6 +8,64 @@ vi.mock('@/api/chatEvents');
 vi.mock('@/api/chatApi', () => ({ default: { getActiveRun: vi.fn() } }));
 
 /**
+ * REPLAY_GAP говорит вкладке, что показанный ею ответ заведомо неполон: часть событий
+ * прогона хаб вытеснил из лога (ConversationHub). Собрать пропущенное неоткуда — целиком
+ * ответ окажется в истории, когда прогон кончится, оттуда его и перечитываем. Молча
+ * оставить дырявый текст нельзя: он выглядит как настоящий ответ модели.
+ */
+describe('useChatEventStream incomplete replay', () => {
+  const chat = { id: 'c1', messages: [], notFound: false, loadError: false };
+
+  function setup() {
+    let onEvent;
+    openChatEventStream.mockImplementation((chatId, cb) => {
+      onEvent = cb.onEvent;
+      return () => {};
+    });
+    const reloadMessages = vi.fn().mockResolvedValue([]);
+
+    renderHook(() =>
+      useChatEventStream({
+        activeChatId: 'c1',
+        activeMessagesReady: true,
+        getChats: () => [chat],
+        isLocalClientId: () => false,
+        setChats: vi.fn(),
+        onChatDeleted: vi.fn(),
+        onRunSettled: vi.fn(),
+        reloadMessages,
+        onDocChanged: vi.fn(),
+        onFileChanged: vi.fn(),
+      }),
+    );
+
+    return { fireEvent: (ev) => onEvent(ev), reloadMessages };
+  }
+
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  test('rereads the history once the run with a gapped replay is over', () => {
+    const { fireEvent, reloadMessages } = setup();
+
+    fireEvent({ type: 'REPLAY_GAP', runId: 'r1' });
+    expect(reloadMessages).not.toHaveBeenCalled(); // прогон ещё идёт — читать нечего
+
+    fireEvent({ type: 'RUN_DONE', runId: 'r1' });
+    expect(reloadMessages).toHaveBeenCalledWith('c1');
+  });
+
+  test('a run that replayed whole is not rereread at its end', () => {
+    const { fireEvent, reloadMessages } = setup();
+
+    fireEvent({ type: 'RUN_DONE', runId: 'r1' });
+
+    expect(reloadMessages).not.toHaveBeenCalled();
+  });
+});
+
+/**
  * onDocChanged/onFileChanged are the hook's contribution to KB/Files cache
  * invalidation (see App.jsx): fired once per run-final TOOL_CALLS event, with
  * the full array of that event's successful doc/file mutations, so cache

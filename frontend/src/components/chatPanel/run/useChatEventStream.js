@@ -7,6 +7,15 @@ import { CHAT_EVENT } from '@/constants/chatEventTypes';
 import { collectChangeRefs } from '../messages/toolMeta';
 import { fetchRunState, IDLE_RUN_STATE } from './activeRun';
 
+// Чем прогон кончается — любой: и генерация, и операция без собственного прогона.
+const TERMINAL_EVENTS = new Set([
+  CHAT_EVENT.RUN_DONE,
+  CHAT_EVENT.RUN_STOPPED,
+  CHAT_EVENT.RUN_ERROR,
+  CHAT_EVENT.COMPACT_DONE,
+  CHAT_EVENT.COMPACT_ERROR,
+]);
+
 // Мутации ОДНОГО прогона по загруженной истории: вызовы инструментов лежат у пузырей
 // ассистента с его runId (см. transformPage). Дальше последней страницы не смотрим —
 // начало очень длинного прогона могло уехать в ещё не догруженные страницы, и там
@@ -79,6 +88,9 @@ export default function useChatEventStream({
   // с начала, а редьюсер дописал бы этот реплей поверх уже собранного пузыря — ответ
   // задваивался бы (и выглядел бы как «данные другого чата», когда вопрос в чатах похож).
   const seqByChatRef = useRef(new Map());
+  // Чаты, чей реплей приехал с дырой (REPLAY_GAP): их историю нужно перечитать, как только
+  // прогон кончится, — целиком ответ будет только там.
+  const gappedChatsRef = useRef(new Set());
 
   // Счётчик переподписок. Сдвигается, когда обнаружено расхождение с бэком (см.
   // settleStaleRun): поток нужно открыть заново — уже с fromSeq=0, потому что курсор
@@ -189,6 +201,15 @@ export default function useChatEventStream({
         // (см. ConversationSlots.claim), поэтому и курсор сбрасываем так же.
         if (ev.type === CHAT_EVENT.COMPACT_DONE || ev.type === CHAT_EVENT.COMPACT_ERROR) {
           seqByChatRef.current.delete(chatId);
+        }
+        // Реплей неполон: часть событий прогона хаб успел вытеснить (см. ConversationHub).
+        // Склеить показанный ответ нечем — дыра уже в нём; целиком он окажется в истории,
+        // когда прогон кончится, тогда её и перечитываем.
+        if (ev.type === CHAT_EVENT.REPLAY_GAP) {
+          gappedChatsRef.current.add(chatId);
+        }
+        if (TERMINAL_EVENTS.has(ev.type) && gappedChatsRef.current.delete(chatId)) {
+          reloadMessages(chatId);
         }
         if (ev.type === 'RUN_DONE' || ev.type === 'RUN_STOPPED' || ev.type === 'RUN_ERROR') {
           // Прогон завершён: хаб очистит свой лог, а следующий прогон в этом чате начнёт

@@ -65,6 +65,36 @@ class ChatEventDeliveryTest {
     }
 
     /**
+     * Лог реплея не бесконечен, и вкладке, которой выброшенное предназначалось, об этом говорят:
+     * иначе она склеила бы куски ответа с дырой посередине, ничего не заметив. Дыру объявляют один
+     * раз — курсор вкладки встаёт на последнее выброшенное событие.
+     */
+    @Test
+    void aTabWhoseReplayNoLongerFitsInTheLogIsToldSo() throws Exception {
+        events.startRun(CONV, RUN);
+        for (int i = 0; i < 2001; i++) {
+            events.publish(CONV, ChatEventType.STREAM, RUN, null, "чанк");
+        }
+
+        assertThat(body(subscribe(0))).contains("REPLAY_GAP");
+        // Хвост лога цел: вкладка, отставшая на пару событий, догоняет без всяких дыр.
+        assertThat(body(subscribe(2000))).doesNotContain("REPLAY_GAP").contains("чанк");
+    }
+
+    /** Новый прогон начинается с чистого лога — дыра прошлого на него не переезжает. */
+    @Test
+    void theGapDoesNotOutliveTheRunThatCausedIt() throws Exception {
+        events.startRun(CONV, RUN);
+        for (int i = 0; i < 2001; i++) {
+            events.publish(CONV, ChatEventType.STREAM, RUN, null, "чанк");
+        }
+        events.endRun(CONV, RUN);
+        events.startRun(CONV, "run-2");
+
+        assertThat(body(subscribe(0))).doesNotContain("REPLAY_GAP");
+    }
+
+    /**
      * Замер, доехавший после конца прогона, в открытую вкладку всё-таки уходит: хаб держит её
      * подписка, и терять событие не из-за чего. Прогон при этом не воскресает — {@code activeRunId}
      * остаётся пустым, и вкладка не покажет чат занятым.
