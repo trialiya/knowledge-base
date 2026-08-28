@@ -1,6 +1,6 @@
 package io.github.trialiya.kb.advisor;
 
-import static io.github.trialiya.kb.advisor.ToolPreparingAdvisor.RUN_ID_PARAM;
+import static io.github.trialiya.kb.advisor.AdvisorParams.RUN_ID_PARAM;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.RUN_USAGE;
 
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
@@ -22,8 +22,8 @@ import reactor.core.publisher.Flux;
  * Считает токены прогона и шлёт итог на фронт событием {@link
  * io.github.trialiya.kb.model.chat.dto.ChatEventType#RUN_USAGE}.
  *
- * <p>Внутренний advisor ({@link Ordered#LOWEST_PRECEDENCE}, как {@link ToolPreparingAdvisor}), и
- * это здесь не стиль, а единственное рабочее место. Снаружи цикла {@link
+ * <p>Внутренний advisor ({@link Ordered#LOWEST_PRECEDENCE}), и это здесь не стиль, а единственное
+ * рабочее место. Снаружи цикла {@link
  * org.springframework.ai.chat.client.advisor.ToolCallingAdvisor} usage итераций не увидеть: его
  * несёт агрегированный чанк с {@code finishReason=TOOL_CALLS}, а цикл этот чанк из
  * downstream-потока отфильтровывает — до подписчика в {@code ChatRunService} доезжает в лучшем

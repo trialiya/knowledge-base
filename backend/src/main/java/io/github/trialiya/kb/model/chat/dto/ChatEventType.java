@@ -23,13 +23,6 @@ public enum ChatEventType {
     RUN_STARTED,
     /** Кусок ответа ассистента ({@code payload}: {@link StreamMessage}). */
     STREAM,
-    /**
-     * Ранний сигнал: модель начала формировать вызов инструмента (генерирует аргументы), но сам
-     * инструмент ещё не запущен и его имя пока недоступно. Без payload — фронт показывает «готовлю
-     * данные…», если ожидание затягивается. В данный момент работает не корректно, см. <a
-     * href="docs/todo/tool-preparing.md">TOOL_PREPARING</a>.
-     */
-    TOOL_PREPARING,
     /** Обновление одного вызова инструмента ({@code payload}: {@link ToolCallMessage}). */
     TOOL_CALL,
     /**

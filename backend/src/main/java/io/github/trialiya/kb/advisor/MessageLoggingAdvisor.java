@@ -33,8 +33,9 @@ public class MessageLoggingAdvisor implements StreamAdvisor {
 
     @Override
     public int getOrder() {
-        // Максимально близко к модели: после ToolPreparingAdvisor уже нечего менять, порядок
-        // между двумя advisor-ами с одинаковым LOWEST_PRECEDENCE не важен — оба observation-only.
+        // Максимально близко к модели: логировать надо то, что уходит ей, а не то, что ещё
+        // будет переписано. Порядок с TokenUsageAdvisor (тот же LOWEST_PRECEDENCE) не важен —
+        // оба только наблюдают.
         return Ordered.LOWEST_PRECEDENCE;
     }
 
@@ -44,10 +45,7 @@ public class MessageLoggingAdvisor implements StreamAdvisor {
         log.atDebug()
                 .setMessage("LLM request conversationId={} runId={} messages=[\n{}\n]")
                 .addArgument(() -> request.context().getOrDefault(ChatMemory.CONVERSATION_ID, "?"))
-                .addArgument(
-                        () ->
-                                request.context()
-                                        .getOrDefault(ToolPreparingAdvisor.RUN_ID_PARAM, "?"))
+                .addArgument(() -> request.context().getOrDefault(AdvisorParams.RUN_ID_PARAM, "?"))
                 .addArgument(() -> describe(request.prompt().getInstructions()))
                 .log();
         return chain.nextStream(request);

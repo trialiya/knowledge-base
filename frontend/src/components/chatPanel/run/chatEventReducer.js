@@ -97,18 +97,6 @@ const pushAi = (msgs, runId, model = null) => {
 // приезжает свежий объект, а отсутствие плашки — это и null, и undefined.
 const sameProjectSwitch = (a, b) => (a?.from ?? null) === (b?.from ?? null) && (a?.to ?? null) === (b?.to ?? null);
 
-// Снимает флаг «модель готовит вызов инструмента» со всех пузырей прогона.
-// Вызывается, как только появляется что-то осязаемое: текст, плашка вызова или
-// завершение прогона — индикатор «готовлю данные…» при этом исчезает.
-const clearPreparing = (msgs, runId) => {
-  for (let i = 0; i < msgs.length; i++) {
-    if (msgs[i].sender === SENDER.AI && msgs[i].runId === runId && msgs[i].preparing) {
-      const { preparing: _drop, ...rest } = msgs[i];
-      msgs[i] = rest;
-    }
-  }
-};
-
 // Токены прогона — нарастающий ИТОГ, а не добавка сегмента: событие приходит по нескольку раз
 // за прогон, и каждое следующее заменяет предыдущее целиком. Держим цифру на последнем пузыре
 // прогона и снимаем со всех прежних: у прогона с инструментами сегментов несколько, а потрачено
@@ -219,7 +207,7 @@ const applyDelivered = (chat, msgs, { runId, payload }, waiting) => {
 const finalize = (msgs, runId) => {
   for (let i = msgs.length - 1; i >= 0; i--) {
     if (msgs[i].sender === SENDER.AI && msgs[i].runId === runId) {
-      const { runId: _drop, preparing: _p, sealed: _s, ...rest } = msgs[i];
+      const { runId: _drop, sealed: _s, ...rest } = msgs[i];
       const text = (rest.text || '').trimEnd();
       if (text === '' && !(rest.toolCalls || []).length && !rest.error && !rest.compact) {
         msgs.splice(i, 1);
@@ -274,8 +262,7 @@ export function applyChatEvent(chat, ev, ctx) {
       // Своё эхо — уже показано оптимистично; дописать в него осталось только плашку. Ищем
       // именно СВОЙ пузырь, по clientMsgId: последним вопросом в ленте вполне может стоять уже
       // следующий, поставленный в очередь, и плашка уехала бы на него.
-      const own =
-        clientMsgId && ctx.isLocal?.(clientMsgId) ? msgs.findIndex((m) => m.clientMsgId === clientMsgId) : -1;
+      const own = clientMsgId && ctx.isLocal?.(clientMsgId) ? msgs.findIndex((m) => m.clientMsgId === clientMsgId) : -1;
       if (own >= 0) {
         if (sameProjectSwitch(projectSwitch, msgs[own].projectSwitch)) return chat;
         msgs[own] = { ...msgs[own], projectSwitch };
@@ -378,28 +365,12 @@ export function applyChatEvent(chat, ev, ctx) {
       return { ...chat, messages: msgs, runId, runStartedAt };
     }
 
-    // TOOL_PREPARING отключён: сигнал приходит вплотную к TOOL_CALL и не даёт раннего
-    // предупреждения. Причина — OpenAiChatModel.internalStream буферизует все дельты
-    // tool-call через bufferUntil/ChunkMerger и выдаёт один агрегированный чанк уже
-    // с полными аргументами; к этому моменту ToolCallingAdvisor тут же запускает
-    // инструмент. Раннего сигнала ни через advisor, ни через observation получить нельзя —
-    // единственный доступный хук до буферизации — это AsyncStreamResponse.Handler внутри
-    // самого клиента openai-java, но корреляция с conversationId там нетривиальна.
-    // Альтернатива: детекция тишины на фронте (таймер после последнего STREAM-события).
-    // Подробнее: docs/проект/диагностика-tool-preparing-стриминг.md
-    // и docs/features/tool-preparing.md
-    case CHAT_EVENT.TOOL_PREPARING: {
-      return chat;
-    }
-
     case CHAT_EVENT.STREAM: {
       if (!isLiveRun(chat, runId)) return chat;
       const reason = (payload?.finishReason || '').trim();
       let idx = lastAiIndexForRun(msgs, runId);
       if (idx < 0) idx = pushAi(msgs, runId);
       if (payload?.message) {
-        // Пошёл видимый текст — снимаем индикатор подготовки вызова.
-        clearPreparing(msgs, runId);
         // Срезаем ведущие переносы в начале ответа и в начале нового сегмента.
         const startsBubble = msgs[idx].sealed || msgs[idx].text === '';
         const piece = startsBubble ? payload.message.replace(/^\n+/, '') : payload.message;
@@ -417,7 +388,6 @@ export function applyChatEvent(chat, ev, ctx) {
       // сегменту (под текстом, который их вызвал), а следующий пузырь создаст первый текст
       // новой итерации (см. выше).
       if (reason === FINISH_REASON.TOOL_CALLS && !msgs[idx].sealed) {
-        clearPreparing(msgs, runId);
         msgs[idx] = { ...msgs[idx], text: msgs[idx].text.trimEnd(), sealed: true };
       }
       return { ...chat, messages: msgs };
@@ -427,13 +397,12 @@ export function applyChatEvent(chat, ev, ctx) {
       if (!isLiveRun(chat, runId)) return chat;
       let idx = lastAiIndexForRun(msgs, runId);
       if (idx < 0) idx = pushAi(msgs, runId);
-      // Инструмент стартовал — плашка заменяет индикатор подготовки. Само событие — надёжная
-      // граница сегмента: раз инструмент пошёл, текст текущей итерации закончен. Полагаться
+      // Само событие — надёжная граница сегмента: раз инструмент пошёл, текст текущей
+      // итерации закончен. Полагаться
       // на finishReason=TOOL_CALLS нельзя — агрегированный tool-чанк, который его несёт,
       // ToolCallingAdvisor отфильтровывает из downstream-потока, и STREAM-событие с этим
       // finishReason до фронта не доходит. Печатаем (sealed) сегмент здесь; плашка прилипает
       // к нему — под текстом, который и вызвал инструмент.
-      clearPreparing(msgs, runId);
       msgs[idx] = {
         ...msgs[idx],
         text: (msgs[idx].text || '').trimEnd(),
@@ -449,7 +418,6 @@ export function applyChatEvent(chat, ev, ctx) {
       // вызов (см. sameCall); не совпавшие — в последний пузырь прогона.
       const idxLast = lastAiIndexForRun(msgs, runId);
       if (idxLast < 0) return chat;
-      clearPreparing(msgs, runId);
       for (const meta of payload?.toolCalls || []) {
         let target = idxLast;
         for (let i = 0; i < msgs.length; i++) {

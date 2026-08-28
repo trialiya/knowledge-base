@@ -87,7 +87,6 @@
     "status": "Status",
     "result": "Result",
     "error": "Error",
-    "preparing": "Preparing data for a tool call…",
     "detail": {
       "open": "Details",
       "arguments": "Arguments",

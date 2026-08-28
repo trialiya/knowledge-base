@@ -22,6 +22,7 @@ import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.ToolResponseMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.core.Ordered;
 import reactor.core.publisher.Flux;
 
 /**
@@ -83,12 +84,12 @@ class InterjectionAdvisorTest {
         verifyNoInteractions(pendingMessages);
     }
 
-    /** Между памятью (+100) и ToolPreparingAdvisor (MAX) — см. javadoc advisor'а, почему строго. */
+    /** Между памятью (+100) и самыми внутренними (MAX) — см. javadoc advisor'а, почему строго. */
     @Test
-    void theAdvisorSitsBetweenMemoryAndToolPreparing() {
+    void theAdvisorSitsBetweenMemoryAndTheInnermostAdvisors() {
         assertThat(advisor.getOrder())
                 .isGreaterThan(ToolCallingAdvisor.DEFAULT_ORDER + 100)
-                .isLessThan(new ToolPreparingAdvisor(null).getOrder());
+                .isLessThan(Ordered.LOWEST_PRECEDENCE);
     }
 
     private static ChatClientRequest request(
@@ -98,7 +99,7 @@ class InterjectionAdvisorTest {
                 Map.of(
                         ChatMemory.CONVERSATION_ID,
                         conversationId,
-                        ToolPreparingAdvisor.RUN_ID_PARAM,
+                        AdvisorParams.RUN_ID_PARAM,
                         runId));
     }
 

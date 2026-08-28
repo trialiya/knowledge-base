@@ -1,6 +1,6 @@
 package io.github.trialiya.kb.advisor;
 
-import static io.github.trialiya.kb.advisor.ToolPreparingAdvisor.RUN_ID_PARAM;
+import static io.github.trialiya.kb.advisor.AdvisorParams.RUN_ID_PARAM;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.RUN_USAGE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;

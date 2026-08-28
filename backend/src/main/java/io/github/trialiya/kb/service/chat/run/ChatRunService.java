@@ -1,6 +1,6 @@
 package io.github.trialiya.kb.service.chat.run;
 
-import static io.github.trialiya.kb.advisor.ToolPreparingAdvisor.RUN_ID_PARAM;
+import static io.github.trialiya.kb.advisor.AdvisorParams.RUN_ID_PARAM;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.RUN_DONE;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.RUN_ERROR;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.RUN_STARTED;

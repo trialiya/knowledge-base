@@ -151,7 +151,7 @@ const ChatCenter = ({
           onStop={onStop}
           busy={isComposerBusy}
           generating={isStreaming}
-          stoppable={!isCompacting}
+          stoppable={!!runId && !isCompacting}
           onAttach={() => fileInputRef.current?.click()}
           staged={staged}
           onUnstage={onUnstage}
