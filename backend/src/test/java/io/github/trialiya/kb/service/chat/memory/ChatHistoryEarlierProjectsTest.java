@@ -10,7 +10,7 @@ import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
-import io.github.trialiya.kb.service.chat.run.ChatEventService;
+import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.jspecify.annotations.Nullable;

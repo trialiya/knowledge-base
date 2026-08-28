@@ -1,4 +1,4 @@
-package io.github.trialiya.kb.service.chat.run;
+package io.github.trialiya.kb.service.chat.event;
 
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.model.chat.dto.ChatEvent;
@@ -102,14 +102,14 @@ public class ChatEventService {
     /**
      * Отправляет SSE heartbeat всем подписчикам всех хабов. При записи в закрытый сокет (вкладка
      * закрыта) Spring выбрасывает исключение → onError → remove() → хаб выгружается. Вызывается по
-     * расписанию из {@link ChatRuntimeMonitor}.
+     * расписанию из {@code ChatRuntimeMonitor}.
      */
     public void sendHeartbeats() {
         hubs.values().forEach(ConversationHub::sendHeartbeat);
     }
 
     /**
-     * Закрывает все хабы и очищает реестр — при остановке приложения (см. {@link
+     * Закрывает все хабы и очищает реестр — при остановке приложения (см. {@code
      * ChatRuntimeShutdown}). Возвращает число освобождённых SSE-подписок.
      */
     public int closeAll() {

@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.service.chat.run;
 
+import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ToolCallEventPublisher;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;

@@ -5,7 +5,7 @@ import static io.github.trialiya.kb.model.chat.dto.ChatEventType.RUN_USAGE;
 
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.model.chat.entity.TokenUsage;
-import io.github.trialiya.kb.service.chat.run.ChatEventService;
+import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.run.RunUsageRegistry;
 import java.util.concurrent.atomic.AtomicReference;
 import org.jspecify.annotations.Nullable;

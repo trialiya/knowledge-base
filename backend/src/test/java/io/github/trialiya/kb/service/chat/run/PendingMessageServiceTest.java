@@ -18,6 +18,7 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.ChatPendingMessageEntity;
 import io.github.trialiya.kb.repository.ChatPendingMessageRepository;
+import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import java.time.LocalDateTime;
 import java.util.List;
