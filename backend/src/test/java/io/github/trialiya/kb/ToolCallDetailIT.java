@@ -17,10 +17,11 @@ import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
+import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.memory.ToolCallEventPublisher;
 import io.github.trialiya.kb.service.chat.memory.ToolCallService;
-import io.github.trialiya.kb.service.chat.run.ChatEventService;
+import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import io.github.trialiya.kb.support.AbstractPostgresIntegrationTest;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
 import java.time.Duration;
@@ -64,7 +65,8 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
                 new ContextItemService(mock(AttachmentService.class)),
                 toolCalls(),
                 new ToolCallEventPublisher(
-                        new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1)))));
+                        new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))),
+                        new RunRegistry()));
     }
 
     private long position = 0;
@@ -331,7 +333,7 @@ class ToolCallDetailIT extends AbstractPostgresIntegrationTest {
     @Test
     void runningCallExposesArgumentsWithStartedStatus() {
         // Инструмент ещё работает: сегмент с вызовом сохранён и проиндексирован, TOOL-ответа
-        // нет, мета появится только в конце прогона (attachRunMeta). Модалка деталей открывается
+        // нет, мета появится только в конце прогона (markRunResult). Модалка деталей открывается
         // уже сейчас — ради аргументов, — и вызов не должен выглядеть завершённым.
         String conv = UUID.randomUUID().toString();
 

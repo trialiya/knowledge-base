@@ -10,12 +10,15 @@ import static org.mockito.Mockito.when;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
+import io.github.trialiya.kb.model.tool.ToolData;
+import io.github.trialiya.kb.model.tool.ToolInvocation;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
-import io.github.trialiya.kb.service.chat.run.ChatEventService;
+import io.github.trialiya.kb.service.chat.event.ChatEventService;
+import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -28,10 +31,10 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.ai.chat.messages.MessageType;
 
 /**
- * {@link ChatHistoryService#markRunResult}: чем помечены ответы прогона. Ни модель, ни токены на
- * записи не известны — advisor памяти приносит только сообщения, — поэтому их проставляют по
- * завершении прогона, поверх уже сохранённых рядов. Модель достаётся каждому ряду прогона, токены —
- * одному последнему.
+ * {@link ChatHistoryService#markRunResult}: чем помечены ответы прогона. Ни плашки вызовов, ни
+ * модель, ни токены на записи не известны — advisor памяти приносит только сообщения, — поэтому их
+ * проставляют по завершении прогона, поверх уже сохранённых рядов, одним заходом. Плашки достаются
+ * сегментам, которые звали инструменты, модель — каждому ряду прогона, токены — одному последнему.
  */
 class ChatHistoryRunResultTest {
 
@@ -51,13 +54,45 @@ class ChatHistoryRunResultTest {
                         messageRepo,
                         new ContextItemService(mock(AttachmentService.class)),
                         new ToolCallService(messageRepo, mock(ToolCallIndexRepository.class)),
-                        new ToolCallEventPublisher(mock(ChatEventService.class)));
+                        new ToolCallEventPublisher(
+                                mock(ChatEventService.class), new RunRegistry()));
     }
 
     private static ChatMessageEntity row(
             long id, MessageType type, @Nullable ChatMessageMeta meta) {
         return new ChatMessageEntity(
                 id, CONV, "text", type, id, false, false, LocalDateTime.now(), meta);
+    }
+
+    /**
+     * ASSISTANT-сегмент, который позвал один инструмент: плашек ещё нет, протокольный вызов есть.
+     */
+    private static ChatMessageEntity segment(long id, String callId, String tool) {
+        return new ChatMessageEntity(
+                id,
+                CONV,
+                "text",
+                MessageType.ASSISTANT,
+                id,
+                false,
+                false,
+                LocalDateTime.now(),
+                null,
+                new ToolData(List.of(new ToolData.Call(callId, "function", tool, "{}")), null));
+    }
+
+    private static ToolInvocation invocation(String tool) {
+        return new ToolInvocation(
+                tool,
+                Map.of(),
+                ToolInvocationStatus.OK,
+                null,
+                null,
+                "gist",
+                "{}",
+                "результат",
+                0,
+                null);
     }
 
     private void history(ChatMessageEntity... rows) {
@@ -68,7 +103,7 @@ class ChatHistoryRunResultTest {
     }
 
     private void mark(RunTokenUsage usage) {
-        history.markRunResult(CONV, RUN, MODEL, usage);
+        history.markRunResult(CONV, RUN, MODEL, usage, List.of());
     }
 
     private List<ChatMessageEntity> saved() {
@@ -104,8 +139,56 @@ class ChatHistoryRunResultTest {
                         });
     }
 
+    /**
+     * Плашки и модель проставляются одной записью. Порознь это была бы пара с негласным порядком:
+     * плашки ищут сегменты по {@code meta == null}, и модель, проставленная первой, спрятала бы от
+     * них ряды этого же прогона — вызовы инструментов не показались бы никогда.
+     */
     @Test
-    void keepsToolInvocationsWrittenByAttachRunMeta() {
+    void writesToolPlaquesAndTheModelInOneGo() {
+        history(
+                row(1, MessageType.USER, null),
+                segment(2, "call-0", "searchDocuments"),
+                row(3, MessageType.ASSISTANT, null));
+
+        final List<ToolInvocationMeta> written =
+                history.markRunResult(
+                        CONV,
+                        RUN,
+                        MODEL,
+                        RunTokenUsage.EMPTY,
+                        List.of(invocation("searchDocuments")));
+
+        assertThat(written).extracting(ToolInvocationMeta::name).containsExactly("searchDocuments");
+        final ChatMessageEntity segment = saved().getFirst();
+        assertThat(segment.getMeta().model()).isEqualTo(MODEL);
+        assertThat(segment.getMeta().runId()).isEqualTo(RUN);
+        assertThat(segment.getMeta().invocations())
+                .extracting(ToolInvocationMeta::callId)
+                .containsExactly("call-0");
+        // Финальный ответ инструментов не звал — плашек у него нет, модель есть.
+        assertThat(saved().get(1).getMeta().invocations()).isEmpty();
+        assertThat(saved().get(1).getMeta().model()).isEqualTo(MODEL);
+    }
+
+    /** Служебные инструменты в UI не показываются — ни живьём, ни после перезагрузки. */
+    @Test
+    void cutsServiceToolsOutOfThePlaques() {
+        history(row(1, MessageType.USER, null), segment(2, "call-0", "getUserName"));
+
+        assertThat(
+                        history.markRunResult(
+                                CONV,
+                                RUN,
+                                MODEL,
+                                RunTokenUsage.EMPTY,
+                                List.of(invocation("getUserName"))))
+                .isEmpty();
+        assertThat(saved().getFirst().getMeta().invocations()).isEmpty();
+    }
+
+    @Test
+    void keepsToolInvocationsAlreadyWrittenByThisRun() {
         final ToolInvocationMeta invocation =
                 new ToolInvocationMeta(
                         "searchDocuments",
@@ -126,8 +209,7 @@ class ChatHistoryRunResultTest {
 
         mark(RunTokenUsage.EMPTY);
 
-        // attachRunMeta ходит первой и уже записала плашки вызовов — пометка модели
-        // дописывает поле, а не заменяет мету целиком.
+        // Мету этого же прогона запись дополняет, а не заменяет целиком.
         final ChatMessageEntity marked = saved().getFirst();
         assertThat(marked.getMeta().model()).isEqualTo(MODEL);
         assertThat(marked.getMeta().invocations()).containsExactly(invocation);

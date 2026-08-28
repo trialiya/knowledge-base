@@ -14,9 +14,9 @@ import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.chat.entity.CompactMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
+import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService.PromptRow;
-import io.github.trialiya.kb.service.chat.run.ChatEventService;
-import io.github.trialiya.kb.service.chat.run.ChatRunService;
+import io.github.trialiya.kb.service.chat.runtime.ConversationSlots;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -74,7 +74,7 @@ public class CompactService {
     private final ChatTopicRepository chatTopicRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final SummaryWriter summaryWriter;
-    private final ChatRunService chatRunService;
+    private final ConversationSlots slots;
     private final ChatEventService events;
     private final Resource compactorPrompt;
     private final Executor executor;
@@ -90,7 +90,7 @@ public class CompactService {
             ChatTopicRepository chatTopicRepository,
             ChatMessageRepository chatMessageRepository,
             SummaryWriter summaryWriter,
-            ChatRunService chatRunService,
+            ConversationSlots slots,
             ChatEventService events,
             @Value("classpath:prompt/compactor.md") Resource compactorPrompt,
             @Qualifier("chatRunExecutor") Executor executor) {
@@ -99,7 +99,7 @@ public class CompactService {
         this.chatTopicRepository = chatTopicRepository;
         this.chatMessageRepository = chatMessageRepository;
         this.summaryWriter = summaryWriter;
-        this.chatRunService = chatRunService;
+        this.slots = slots;
         this.events = events;
         this.compactorPrompt = compactorPrompt;
         this.executor = executor;
@@ -134,7 +134,7 @@ public class CompactService {
             @Nullable String instructions,
             @Nullable String model,
             @Nullable String clientMsgId) {
-        final String runId = chatRunService.claim(conversationId);
+        final String runId = slots.claim(conversationId);
         final ChatMessageEntity commandRow;
         try {
             // Оборванный прошлый прогон мог оставить в хвосте assistant.tool_calls без TOOL-ответа
@@ -146,7 +146,7 @@ public class CompactService {
             }
             commandRow = chatHistory.saveUserMessage(conversationId, text, List.of(), null);
         } catch (RuntimeException e) {
-            chatRunService.release(conversationId, runId);
+            slots.release(conversationId, runId);
             throw e;
         }
         // Эхо для остальных вкладок — тот же payload, что и у обычного вопроса, поэтому фронту не
@@ -173,7 +173,7 @@ public class CompactService {
             // остались бы на плашке «сжимаю…» навсегда. Значит, гасим тем же событием, каким
             // гасит упавший раунд.
             failed(conversationId, runId, e);
-            chatRunService.release(conversationId, runId);
+            slots.release(conversationId, runId);
             throw e;
         }
         return new StartedCompact(runId, commandRow.getId());
@@ -228,7 +228,7 @@ public class CompactService {
         } catch (Exception e) {
             failed(conversationId, runId, e);
         } finally {
-            chatRunService.release(conversationId, runId);
+            slots.release(conversationId, runId);
         }
     }
 

@@ -5,9 +5,9 @@ import io.github.trialiya.kb.model.chat.dto.GitCommandPayload;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
+import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
-import io.github.trialiya.kb.service.chat.run.ChatEventService;
-import io.github.trialiya.kb.service.chat.run.ChatRunService;
+import io.github.trialiya.kb.service.chat.runtime.ConversationSlots;
 import io.github.trialiya.kb.utils.ChatUtils;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,7 +37,7 @@ public class ChatGitLog {
     private final ChatHistoryService chatHistory;
     private final ChatEventService chatEvents;
     private final ChatTopicRepository chatTopicRepository;
-    private final ChatRunService chatRunService;
+    private final ConversationSlots slots;
 
     /**
      * Пускает к чату только его владельца и только когда модель в нём не работает.
@@ -55,12 +55,12 @@ public class ChatGitLog {
      * дотянется.
      *
      * <p>Занятость не проверяется, а <b>занимается</b>: заявка на чат — та же самая, что держит
-     * прогон и сжатие ({@link ChatRunService#claim}), поэтому «свободен» и «занял» — одно атомарное
-     * действие. Проверки было бы мало: между ней и записью ряда прогон успевает стартовать, и тогда
-     * {@code appendGitEvent} чинит оборванный хвост одновременно с {@code ChatRunService.start} —
-     * два синтетических {@code TOOL}-ответа на один {@code tool_call_id}, после которых модель
-     * отвергает весь диалог. Заодно это делает запрет настоящим: пока команда идёт, вопрос в этот
-     * чат получает {@code 409}, а не встаёт поперёк неё.
+     * прогон и сжатие ({@link ConversationSlots#claim}), поэтому «свободен» и «занял» — одно
+     * атомарное действие. Проверки было бы мало: между ней и записью ряда прогон успевает
+     * стартовать, и тогда {@code appendGitEvent} чинит оборванный хвост одновременно с {@code
+     * ChatRunService.start} — два синтетических {@code TOOL}-ответа на один {@code tool_call_id},
+     * после которых модель отвергает весь диалог. Заодно это делает запрет настоящим: пока команда
+     * идёт, вопрос в этот чат получает {@code 409}, а не встаёт поперёк неё.
      *
      * <p>Заявку держат до конца команды и снимают в {@link #release} — обязательно в {@code
      * finally}: невозвращённая заявка навсегда оставила бы чат занятым.
@@ -81,7 +81,7 @@ public class ChatGitLog {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Forbidden");
         }
         try {
-            return chatRunService.claim(conversationId);
+            return slots.claim(conversationId);
         } catch (ResponseStatusException e) {
             if (e.getStatusCode() != HttpStatus.CONFLICT) {
                 throw e;
@@ -96,7 +96,7 @@ public class ChatGitLog {
 
     /** Снимает заявку {@link #claimIdleAndOwned}. Идемпотентно. */
     public void release(String conversationId, String claim) {
-        chatRunService.release(conversationId, claim);
+        slots.release(conversationId, claim);
     }
 
     /**
@@ -121,7 +121,7 @@ public class ChatGitLog {
         final GitEventMeta event = new GitEventMeta(command, project, ok, output, branch);
         try {
             final ChatMessageEntity row = chatHistory.appendGitEvent(conversationId, event);
-            chatEvents.publishIfPresent(
+            chatEvents.publish(
                     conversationId,
                     ChatEventType.GIT_COMMAND,
                     null,

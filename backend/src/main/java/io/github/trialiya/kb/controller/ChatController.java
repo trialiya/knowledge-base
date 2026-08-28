@@ -28,12 +28,12 @@ import io.github.trialiya.kb.model.tool.ToolCallDetail;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
+import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.memory.CompactService;
 import io.github.trialiya.kb.service.chat.memory.ToolCallService;
 import io.github.trialiya.kb.service.chat.prompt.ProjectPromptService;
 import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
-import io.github.trialiya.kb.service.chat.run.ChatEventService;
 import io.github.trialiya.kb.service.chat.run.ChatRunService;
 import io.github.trialiya.kb.service.chat.run.PendingMessageService;
 import io.github.trialiya.kb.service.chat.run.RunOptionsResolver;
@@ -279,8 +279,7 @@ public class ChatController {
         chatTopicRepository.deleteById(chatTopicEntity.getConversationId());
         chatHistory.delete(conversationId);
         // Уведомляем открытые на этом чате вкладки (в т.ч. в других браузерах) — они закроют его.
-        chatEventService.publishIfPresent(
-                conversationId, ChatEventType.CHAT_DELETED, null, null, null);
+        chatEventService.publish(conversationId, ChatEventType.CHAT_DELETED, null, null, null);
     }
 
     /** Проекты, между которыми можно выбирать, и какой из них дефолтный. */
@@ -602,7 +601,7 @@ public class ChatController {
      * runId активного прогона чата (или пустой объект) — для восстановления состояния на фронте. У
      * генерации рядом едет {@code elapsedMs} — сколько прогон уже идёт: по нему вкладка, открывшая
      * чат посреди ответа, ставит таймер на верное место. У сжатия контекста ключа нет — там нечего
-     * замерять (см. {@code ChatRunService#claim}).
+     * замерять (см. {@code ConversationSlots#claim}).
      */
     @GetMapping("/{conversationId}/runs/active")
     public Map<String, Object> activeRun(@PathVariable final String conversationId) {

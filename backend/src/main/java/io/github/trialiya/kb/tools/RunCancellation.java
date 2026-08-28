@@ -1,6 +1,6 @@
 package io.github.trialiya.kb.tools;
 
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.model.ToolContext;
 
@@ -17,13 +17,13 @@ import org.springframework.ai.chat.model.ToolContext;
  * search sub-agent, tests); there the wall-clock timeout is the only limit, which is why {@link
  * #none()} is a valid answer rather than an error.
  */
-public record RunCancellation(AtomicBoolean stopRequested) {
+public record RunCancellation(BooleanSupplier stopRequested) {
 
     public static final String KEY = "runCancellation";
 
     /** A cancellation that never fires — for call paths with no stoppable run behind them. */
     public static RunCancellation none() {
-        return new RunCancellation(new AtomicBoolean(false));
+        return new RunCancellation(() -> false);
     }
 
     /** Pulls the token out of a {@link ToolContext}; never null, so callers need no null check. */
@@ -37,6 +37,6 @@ public record RunCancellation(AtomicBoolean stopRequested) {
     }
 
     public boolean isStopRequested() {
-        return stopRequested.get();
+        return stopRequested.getAsBoolean();
     }
 }

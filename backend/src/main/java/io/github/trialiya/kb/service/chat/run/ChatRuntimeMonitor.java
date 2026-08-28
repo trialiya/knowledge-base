@@ -1,6 +1,8 @@
 package io.github.trialiya.kb.service.chat.run;
 
-import io.github.trialiya.kb.service.chat.memory.ToolCallEventPublisher;
+import io.github.trialiya.kb.service.chat.event.ChatEventService;
+import io.github.trialiya.kb.service.chat.runtime.ConversationSlots;
+import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import java.util.concurrent.Executors;
@@ -13,9 +15,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * Временный мониторинг утечек чат-рантайма: периодически печатает в лог размеры in-memory реестров
- * — хабы событий ({@link ChatEventService}), активные прогоны и удержанные заявки на чат ({@link
- * ChatRunService}), нумерация вызовов инструментов ({@link ToolCallEventPublisher}), счётчики
- * токенов прогонов ({@link RunUsageRegistry}). Нужен, чтобы убедиться, что все они корректно
+ * — хабы событий ({@link ChatEventService}), идущие прогоны ({@link RunRegistry}) и удержанные
+ * заявки на чат ({@link ConversationSlots}). Нужен, чтобы убедиться, что все они корректно
  * закрываются и счётчики в простое возвращаются к нулю.
  *
  * <p>Интервал — {@code kb.chat.monitor-interval-ms} (по умолчанию 60_000); значение {@code <= 0}
@@ -26,23 +27,20 @@ import org.springframework.stereotype.Component;
 @Component
 public class ChatRuntimeMonitor {
 
-    private final ChatRunService chatRunService;
     private final ChatEventService chatEventService;
-    private final ToolCallEventPublisher toolCallEvents;
-    private final RunUsageRegistry runUsage;
+    private final RunRegistry runs;
+    private final ConversationSlots slots;
     private final long intervalMs;
     @Nullable private ScheduledExecutorService scheduler;
 
     public ChatRuntimeMonitor(
-            ChatRunService chatRunService,
             ChatEventService chatEventService,
-            ToolCallEventPublisher toolCallEvents,
-            RunUsageRegistry runUsage,
+            RunRegistry runs,
+            ConversationSlots slots,
             @Value("${kb.chat.monitor-interval-ms:60000}") long intervalMs) {
-        this.chatRunService = chatRunService;
         this.chatEventService = chatEventService;
-        this.toolCallEvents = toolCallEvents;
-        this.runUsage = runUsage;
+        this.runs = runs;
+        this.slots = slots;
         this.intervalMs = intervalMs;
     }
 
@@ -67,13 +65,10 @@ public class ChatRuntimeMonitor {
         try {
             chatEventService.sendHeartbeats();
             log.info(
-                    "chat runtime registries: eventHubs={}, activeRuns={}, claimedChats={},"
-                            + " toolCallCounters={}, usageTallies={}",
+                    "chat runtime registries: eventHubs={}, activeRuns={}, claimedChats={}",
                     chatEventService.hubCount(),
-                    chatRunService.activeRunCount(),
-                    chatRunService.claimedConversationCount(),
-                    toolCallEvents.trackedConversationCount(),
-                    runUsage.trackedRunCount());
+                    runs.size(),
+                    slots.claimedConversationCount());
         } catch (Exception e) {
             log.warn("Chat runtime monitor failed", e);
         }

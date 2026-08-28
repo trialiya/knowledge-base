@@ -7,7 +7,8 @@ import org.springframework.ai.chat.model.ChatResponse;
 
 /**
  * Токены одного обращения к модели, как их измерил {@code TokenUsageAdvisor}. Итог прогона из них
- * собирает {@code RunUsageRegistry} — и собирает не одной лишь суммой, см. {@link RunTokenUsage}.
+ * собирает область прогона ({@code RunScope}) — и собирает не одной лишь суммой, см. {@link
+ * RunTokenUsage}.
  *
  * <p>Складывается в два уровня, и оба правила разные, потому что разные провайдеры отдают usage
  * по-разному:

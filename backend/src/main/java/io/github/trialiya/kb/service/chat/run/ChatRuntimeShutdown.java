@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.service.chat.run;
 
+import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import java.time.Duration;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;

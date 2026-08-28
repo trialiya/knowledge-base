@@ -61,7 +61,7 @@ class ToolCallServiceTest {
         final List<ToolInvocationMeta> metas =
                 service.invocationsFor(segment, List.of(segment, toolRow));
 
-        // SKIP_TOOLS (getUserName) вырезан, как и в attachRunMeta.
+        // SKIP_TOOLS (getUserName) вырезан, как и в runInvocations.
         assertThat(metas).hasSize(1);
         assertThat(metas.get(0).name()).isEqualTo("searchDocuments");
         assertThat(metas.get(0).status()).isEqualTo(ToolInvocationStatus.OK);
@@ -99,7 +99,7 @@ class ToolCallServiceTest {
 
     @Test
     void invocationsForSynthesizesWhenMetaCarriesOnlyTheModel() {
-        // Прогон оборвался до attachRunMeta, но markRunResult всё же пометила ответ моделью:
+        // Прогон оборвался до записи плашек, но модель на ответе всё же проставлена:
         // мета у сегмента есть, плашек в ней нет — синтез из tool_data обязан сработать,
         // иначе после перезагрузки пропали бы отметки о том, что модель вообще звала.
         final ChatMessageEntity segment =

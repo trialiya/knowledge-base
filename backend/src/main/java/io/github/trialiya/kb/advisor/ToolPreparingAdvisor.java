@@ -2,7 +2,7 @@ package io.github.trialiya.kb.advisor;
 
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.TOOL_PREPARING;
 
-import io.github.trialiya.kb.service.chat.run.ChatEventService;
+import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.jspecify.annotations.Nullable;

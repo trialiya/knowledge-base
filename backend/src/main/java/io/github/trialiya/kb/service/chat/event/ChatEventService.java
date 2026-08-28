@@ -1,7 +1,6 @@
-package io.github.trialiya.kb.service.chat.run;
+package io.github.trialiya.kb.service.chat.event;
 
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
-import io.github.trialiya.kb.model.chat.dto.ChatEvent;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import java.util.List;
 import java.util.Optional;
@@ -49,21 +48,26 @@ public class ChatEventService {
         }
     }
 
-    public ChatEvent publish(
-            String conversationId,
-            ChatEventType type,
-            @Nullable String runId,
-            @Nullable String clientMsgId,
-            @Nullable Object payload) {
-        return hub(conversationId).publish(type, runId, clientMsgId, payload);
-    }
-
     /**
-     * Публикует событие, только если на чат уже есть хаб (кто-то подписан/был прогон). Не создаёт
-     * новый хаб — для уведомлений вроде {@link ChatEventType#CHAT_DELETED}, которые незачем слать,
-     * если чат никто не смотрит (иначе плодили бы пустые хабы).
+     * Публикует событие, если на чат есть хаб, — то есть если его кто-то смотрит или в нём идёт
+     * прогон. Хаба нет — событие пропадает, и это правильный ответ в обоих случаях, когда так
+     * бывает.
+     *
+     * <p><b>Событие без прогона</b> ({@link ChatEventType#CHAT_DELETED} и прочие уведомления)
+     * некому и незачем слушать: вкладка, вошедшая в чат позже, читает состояние запросом, а не из
+     * лога.
+     *
+     * <p><b>Событие прогона</b> в живом прогоне всегда застаёт хаб: его заводит {@link #startRun},
+     * а закрывает {@link #endRun}. Значит, хаба нет ровно тогда, когда событие опоздало — прогона
+     * уже нет. Завести хаб под него было бы худшим из вариантов: {@link #onHubIdle} зовут только
+     * {@code endRun} и уход последнего подписчика, поэтому закрыть такой хаб было бы некому, и он
+     * висел бы в реестре с протухшим событием в логе, дожидаясь вкладки, которой его покажет. Окно
+     * узкое, но оно есть у каждого, кто публикует из прогона: и у tool-цикла (историю пишет свой
+     * поток), и у advisor-ов (последний чанк доезжает уже после отмены).
+     *
+     * <p>Поэтому хаб заводят ровно двое: подписка вкладки и начало прогона.
      */
-    public void publishIfPresent(
+    public void publish(
             String conversationId,
             ChatEventType type,
             @Nullable String runId,
@@ -94,7 +98,9 @@ public class ChatEventService {
         return Optional.ofNullable(hubs.get(conversationId)).map(ConversationHub::activeRunId);
     }
 
-    /** Число живых хабов в реестре — для мониторинга утечек (см. ChatRuntimeMonitor). */
+    /**
+     * Число живых хабов в реестре — для мониторинга утечек (см. {@code run.ChatRuntimeMonitor}).
+     */
     public int hubCount() {
         return hubs.size();
     }
@@ -102,15 +108,15 @@ public class ChatEventService {
     /**
      * Отправляет SSE heartbeat всем подписчикам всех хабов. При записи в закрытый сокет (вкладка
      * закрыта) Spring выбрасывает исключение → onError → remove() → хаб выгружается. Вызывается по
-     * расписанию из {@link ChatRuntimeMonitor}.
+     * расписанию из {@code run.ChatRuntimeMonitor}.
      */
     public void sendHeartbeats() {
         hubs.values().forEach(ConversationHub::sendHeartbeat);
     }
 
     /**
-     * Закрывает все хабы и очищает реестр — при остановке приложения (см. {@link
-     * ChatRuntimeShutdown}). Возвращает число освобождённых SSE-подписок.
+     * Закрывает все хабы и очищает реестр — при остановке приложения (см. {@code
+     * run.ChatRuntimeShutdown}). Возвращает число освобождённых SSE-подписок.
      */
     public int closeAll() {
         final List<ConversationHub> snapshot = List.copyOf(hubs.values());

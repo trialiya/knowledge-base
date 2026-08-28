@@ -10,6 +10,7 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.ChatPendingMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.repository.ChatPendingMessageRepository;
+import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.utils.ChatUtils;
 import java.time.LocalDateTime;
@@ -195,11 +196,10 @@ public class PendingMessageService {
             final String clientMsgId = pending.getClientMsgId();
             announcements.add(
                     () ->
-                            // publishIfPresent, а не publish: восстановление после падения
-                            // процесса доставляет очередь, когда хаба у чата нет и слушать
-                            // событие некому, — а publish завёл бы хаб, который уже некому
-                            // закрыть (закрывает его endRun прогона).
-                            events.publishIfPresent(
+                            // Хаба может не быть вовсе: восстановление после падения процесса
+                            // доставляет очередь в чат, который никто не смотрит. Тогда событие
+                            // просто пропадёт — publish хаба не заводит (см. ChatEventService).
+                            events.publish(
                                     conversationId,
                                     USER_MESSAGE,
                                     runId,

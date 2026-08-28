@@ -14,11 +14,12 @@ import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ToolCallIndexRepository;
 import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
+import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryMemory;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.memory.ToolCallEventPublisher;
 import io.github.trialiya.kb.service.chat.memory.ToolCallService;
-import io.github.trialiya.kb.service.chat.run.ChatEventService;
+import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import io.github.trialiya.kb.support.AbstractPostgresIntegrationTest;
 import java.time.Duration;
 import java.util.List;
@@ -79,7 +80,8 @@ class ChatModelClientIT extends AbstractPostgresIntegrationTest {
                         new ToolCallService(messageRepo, toolCallIndexRepo),
                         new ToolCallEventPublisher(
                                 new ChatEventService(
-                                        new ChatTimeoutProperties(Duration.ofMinutes(1)))));
+                                        new ChatTimeoutProperties(Duration.ofMinutes(1))),
+                                new RunRegistry()));
         ChatMemory chatMemory = new ChatHistoryMemory(history);
 
         // ── модель-заглушка ────────────────────────────────────────────────

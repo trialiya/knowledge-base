@@ -2,6 +2,7 @@ package io.github.trialiya.kb.service.chat.run;
 
 import io.github.trialiya.kb.repository.ChatPendingMessageRepository;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
+import io.github.trialiya.kb.service.chat.runtime.ConversationSlots;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -18,12 +19,12 @@ import org.springframework.stereotype.Component;
  * истории, а это ровно то состояние, где чат предлагает «Повторить» (см. {@link
  * ChatHistoryService#unansweredUserMessage}).
  *
- * <p>Каждый чат чинится под заявкой {@link ChatRunService#claim}. Пустой реестр прогонов на старте
- * — не гарантия: сервер принимает запросы раньше, чем публикуется {@code ApplicationReadyEvent},
- * так что прогон может начаться прямо посреди этого прохода. А прогон в tool-цикле — ровно то
- * состояние, где хвост истории выглядит оборванным, хотя оборван он не был: {@code
- * repairDanglingToolCalls} дописал бы синтетический TOOL-ответ на вызов, ответ на который уже в
- * пути, и модель получила бы два ответа на один {@code callId}.
+ * <p>Каждый чат чинится под заявкой {@link ConversationSlots#claim}. Пустой реестр прогонов на
+ * старте — не гарантия: сервер принимает запросы раньше, чем публикуется {@code
+ * ApplicationReadyEvent}, так что прогон может начаться прямо посреди этого прохода. А прогон в
+ * tool-цикле — ровно то состояние, где хвост истории выглядит оборванным, хотя оборван он не был:
+ * {@code repairDanglingToolCalls} дописал бы синтетический TOOL-ответ на вызов, ответ на который
+ * уже в пути, и модель получила бы два ответа на один {@code callId}.
  */
 @Slf4j
 @Component
@@ -32,17 +33,17 @@ public class PendingMessageRecovery {
     private final ChatPendingMessageRepository repository;
     private final PendingMessageService pendingMessages;
     private final ChatHistoryService chatHistory;
-    private final ChatRunService runService;
+    private final ConversationSlots slots;
 
     public PendingMessageRecovery(
             ChatPendingMessageRepository repository,
             PendingMessageService pendingMessages,
             ChatHistoryService chatHistory,
-            ChatRunService runService) {
+            ConversationSlots slots) {
         this.repository = repository;
         this.pendingMessages = pendingMessages;
         this.chatHistory = chatHistory;
-        this.runService = runService;
+        this.slots = slots;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -50,7 +51,7 @@ public class PendingMessageRecovery {
         for (String conversationId : repository.conversationIds()) {
             final String claim;
             try {
-                claim = runService.claim(conversationId);
+                claim = slots.claim(conversationId);
             } catch (RuntimeException busy) {
                 // Чат успели занять — восстанавливать нечего: и ремонт хвоста, и доставку очереди
                 // начатый прогон делает сам (ChatRunService#start).
@@ -69,7 +70,7 @@ public class PendingMessageRecovery {
                 // Один сорвавшийся чат не повод оставить остальные с потерянными сообщениями.
                 log.warn("Failed to recover pending messages for {}", conversationId, e);
             } finally {
-                runService.release(conversationId, claim);
+                slots.release(conversationId, claim);
             }
         }
     }
