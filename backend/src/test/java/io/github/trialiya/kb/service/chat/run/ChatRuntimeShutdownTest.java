@@ -157,6 +157,48 @@ class ChatRuntimeShutdownTest {
                 42L, CONV, "вопрос", MessageType.USER, 2, false, false, LocalDateTime.now(), null);
     }
 
+    /**
+     * Реестр прогонов прогон покидает ДО доставки очереди (иначе принятое на границе завершения
+     * сообщение зависло бы), а доставка пишет в БД. Значит, ждать опустевшего реестра нельзя:
+     * shutdown закрыл бы пул соединений прямо посреди неё.
+     */
+    @Test
+    void quiescenceWaitsForTheDeliveryThatFollowsTheRegistry() {
+        runService = runService(Runnable::run);
+        final Deque<Boolean> quiescentDuringFlush = new ArrayDeque<>();
+        when(pendingMessages.flushPlain(CONV))
+                .thenAnswer(
+                        inv -> {
+                            quiescentDuringFlush.add(runService.awaitQuiescence(Duration.ZERO));
+                            return Flushed.NOTHING;
+                        });
+        runService.start(CONV, USER, "привет", List.of(), options(), "msg-1");
+
+        assertThat(runService.stopAll()).isEqualTo(1);
+
+        // Два флаша: страховочный на старте прогона (тогда ждать и правда некого) и терминальный —
+        // на нём реестр уже пуст, и без отдельного счёта завершающихся ожидание бы закончилось.
+        assertThat(quiescentDuringFlush).containsExactly(true, false);
+        // А после — уже тихо: терминальная обработка дописала.
+        assertThat(runService.awaitQuiescence(Duration.ZERO)).isTrue();
+    }
+
+    /**
+     * Прогон мог покинуть реестр за миг до остановки приложения и всё ещё дописывать хвост
+     * терминальной обработки — доставку очереди в БД. {@code stopAll} насчитает ноль, но ждать есть
+     * кого: без безусловного вызова пул соединений закрылся бы прямо посреди неё.
+     */
+    @Test
+    void waitsEvenWhenThereWasNobodyToStop() {
+        final ChatRunService finishing = mock(ChatRunService.class);
+        when(finishing.stopAll()).thenReturn(0);
+
+        new ChatRuntimeShutdown(finishing, events, 5000)
+                .onContextClosed(new ContextClosedEvent(mock(ApplicationContext.class)));
+
+        verify(finishing).awaitQuiescence(Duration.ofMillis(5000));
+    }
+
     @Test
     void quiescenceWaitEndsImmediatelyWithoutRuns() {
         runService = runService(Runnable::run);

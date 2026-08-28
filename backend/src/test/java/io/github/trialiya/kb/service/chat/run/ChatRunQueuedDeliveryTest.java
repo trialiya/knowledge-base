@@ -28,7 +28,6 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.Executor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -85,23 +84,23 @@ class ChatRunQueuedDeliveryTest {
 
     /**
      * Прогон кончился между проверкой на приёме и коммитом строки очереди: его собственная доставка
-     * застала очередь пустой, а второй у него не будет. Перепроверка на приёме закрывает это окно —
-     * и отвечает на доставленное, раз отвечать больше некому.
+     * застала очередь пустой, а второй у него не будет. Перепроверка на приёме закрывает это окно.
+     *
+     * <p>Отвечать она при этом не начинает: чем кончился тот прогон, отсюда уже не видно — в
+     * реестре его нет, — а за остановленным и упавшим ответа быть не должно. Сообщение становится
+     * последним вопросом истории, то есть попадает ровно туда, где чат предлагает «Повторить».
      */
     @Test
-    void aMessageAcceptedAsTheRunEndedIsDeliveredAndAnswered() {
+    void aMessageAcceptedAsTheRunEndedIsDeliveredButNotAnswered() {
         when(pendingMessages.flushPlain(CONV))
                 .thenReturn(flushed(new PendingOptions("gpt-5", "review", "kb")));
-        when(chatHistory.unansweredUserMessage(CONV)).thenReturn(Optional.of(userRow()));
 
         runService.deliverIfNobodyGenerates(CONV);
 
-        // Настройки — из очереди, а не из чата: модель и проект могли смениться уже после того,
-        // как это сообщение отправили.
-        verify(runOptions).resolve(CONV, "gpt-5", "review", "kb");
-        // Путь «Повторить»: нового ряда не заводим — ходом стал доставленный вопрос.
+        verify(pendingMessages).flushPlain(CONV);
+        verify(runOptions, never()).resolve(anyString(), any(), any(), any());
         verify(chatHistory, never()).saveUserMessage(anyString(), anyString(), anyList(), any());
-        assertThat(runService.activeRunCount()).isEqualTo(1);
+        assertThat(runService.activeRunCount()).isZero();
     }
 
     /**
@@ -128,21 +127,6 @@ class ChatRunQueuedDeliveryTest {
         runService.deliverIfNobodyGenerates(CONV);
 
         verify(runOptions, never()).resolve(anyString(), any(), any(), any());
-        assertThat(runService.activeRunCount()).isZero();
-    }
-
-    /**
-     * Чат мог занять другая вкладка между доставкой и стартом. Сообщение уже в истории, поэтому 409
-     * здесь — не потеря, а повод промолчать: приём сообщения от этого падать не должен.
-     */
-    @Test
-    void aChatClaimedMeanwhileIsNotAnError() {
-        when(pendingMessages.flushPlain(CONV)).thenReturn(flushed(PendingOptions.NONE));
-        when(chatHistory.unansweredUserMessage(CONV)).thenReturn(Optional.of(userRow()));
-        runService.claim(CONV); // заявку держит кто-то другой
-
-        runService.deliverIfNobodyGenerates(CONV);
-
         assertThat(runService.activeRunCount()).isZero();
     }
 

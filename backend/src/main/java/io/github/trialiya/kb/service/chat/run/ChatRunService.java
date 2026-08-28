@@ -38,6 +38,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -103,6 +104,15 @@ public class ChatRunService {
     /** conversationId -&gt; runId: гарантирует не более одного активного прогона на чат. */
     private final ConcurrentHashMap<String, String> activeByConversation =
             new ConcurrentHashMap<>();
+
+    /**
+     * Прогоны, снятые с учёта, но ещё доделывающие терминальную обработку. Считаются отдельно от
+     * {@link #runs}, потому что из реестра прогон уходит ДО доставки очереди (см. {@link
+     * #onTerminal}), а доставка пишет в БД: без этого счётчика {@link #awaitQuiescence} на
+     * остановке приложения увидел бы пустой реестр и отпустил бы shutdown закрывать пул соединений
+     * прямо посреди неё.
+     */
+    private final AtomicInteger finishing = new AtomicInteger();
 
     public ChatRunService(
             ChatClientRegistry chatClients,
@@ -319,15 +329,17 @@ public class ChatRunService {
     }
 
     /**
-     * Ждёт (не дольше {@code timeout}), пока реестр прогонов опустеет. Терминальная обработка идёт
-     * на других потоках и пишет в БД, поэтому после {@link #stopAll} нужна эта пауза: без неё
-     * shutdown закрыл бы пул соединений раньше, чем сохранится оборванный ответ.
+     * Ждёт (не дольше {@code timeout}), пока прогоны закончатся ПОЛНОСТЬЮ. Терминальная обработка
+     * идёт на других потоках и пишет в БД, поэтому после {@link #stopAll} нужна эта пауза: без неё
+     * shutdown закрыл бы пул соединений раньше, чем сохранится оборванный ответ и опустеет очередь
+     * сообщений чата. Ждём поэтому не опустевшего реестра, а {@link #finishing}: реестр прогон
+     * покидает ещё до доставки очереди.
      *
      * @return {@code true}, если все прогоны успели завершиться
      */
     public boolean awaitQuiescence(Duration timeout) {
         final long deadline = System.nanoTime() + timeout.toNanos();
-        while (!runs.isEmpty()) {
+        while (!runs.isEmpty() || finishing.get() > 0) {
             if (System.nanoTime() - deadline >= 0) {
                 return false;
             }
@@ -335,7 +347,7 @@ public class ChatRunService {
                 Thread.sleep(QUIESCENCE_POLL_MS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                return runs.isEmpty();
+                return runs.isEmpty() && finishing.get() == 0;
             }
         }
         return true;
@@ -607,17 +619,26 @@ public class ChatRunService {
         //
         // Заявку на чат при этом ещё держим (её снимает cleanup): освободить её раньше endRun
         // нельзя — см. комментарий в cleanup.
+        //
+        // Завершающимся прогон считается СТРОГО ДО ухода из реестра: остаток этого метода пишет в
+        // БД, а awaitQuiescence на остановке приложения ждёт именно finishing — увидев между двумя
+        // строками пустой реестр, shutdown закрыл бы пул соединений посреди доставки.
+        finishing.incrementAndGet();
         runs.remove(handle.runId());
-        // Доставка ДО cleanup ещё и по второй причине: лог событий прогона живёт ровно столько,
-        // сколько сам прогон (ConversationHub чистит его в endRun), а опубликованное после
-        // закрытия не переживёт переподключения вкладки и вдобавок подняло бы хаб, который уже
-        // некому закрыть.
-        final PendingMessageService.Flushed flushed = deliverQueued(handle.conversationId());
-        cleanup(handle);
-        // Автостарт — строго после cleanup: до него заявка на чат ещё удерживается, и прогон по
-        // очереди получил бы 409 от самого себя.
-        if (flushed.any() && signal == SignalType.ON_COMPLETE) {
-            answerQueued(handle.conversationId(), flushed);
+        try {
+            // Доставка ДО cleanup ещё и по второй причине: лог событий прогона живёт ровно
+            // столько, сколько сам прогон (ConversationHub чистит его в endRun), а опубликованное
+            // после закрытия не переживёт переподключения вкладки и вдобавок подняло бы хаб,
+            // который уже некому закрыть.
+            final PendingMessageService.Flushed flushed = deliverQueued(handle.conversationId());
+            cleanup(handle);
+            // Автостарт — строго после cleanup: до него заявка на чат ещё удерживается, и прогон
+            // по очереди получил бы 409 от самого себя.
+            if (flushed.any() && signal == SignalType.ON_COMPLETE) {
+                answerQueued(handle.conversationId(), flushed);
+            }
+        } finally {
+            finishing.decrementAndGet();
         }
     }
 
@@ -636,15 +657,19 @@ public class ChatRunService {
      * флагом {@code interjection}) или своей терминальной обработкой. Строка при этом не зависает:
      * реестр {@link #runs} прогон покидает ДО собственной доставки, поэтому увидеть его здесь и не
      * дождаться от него доставки нельзя.
+     *
+     * <p>Доставленное здесь остаётся без ответа — чат предложит «Повторить». Ответ положен за
+     * успешно завершившимся прогоном и не положен за остановленным или упавшим (см. {@link
+     * #deliverQueued}), а чем кончился тот прогон, отсюда уже не видно: в реестре его нет. Отвечать
+     * всем подряд значило бы запускать генерацию после «Стоп» — ровно то, ради чего кнопку и
+     * нажимают; молчать в редком окне за успешным прогоном дешевле: сообщение видно в истории, и
+     * ответ на него — один клик.
      */
     public void deliverIfNobodyGenerates(String conversationId) {
         if (generating(conversationId)) {
             return;
         }
-        final PendingMessageService.Flushed flushed = deliverQueued(conversationId);
-        if (flushed.any()) {
-            answerQueued(conversationId, flushed);
-        }
+        deliverQueued(conversationId);
     }
 
     /** Генерирует ли в этом чате хоть какой-нибудь прогон. */
@@ -653,8 +678,8 @@ public class ChatRunService {
     }
 
     /**
-     * Опустошает очередь сообщений чата в конце прогона — и, если прогон дошёл до конца, отвечает
-     * на них следующим прогоном.
+     * Опустошает очередь сообщений чата обычными вопросами — в конце прогона и на приёме, если
+     * генерации в чате уже нет ({@link #deliverIfNobodyGenerates}).
      *
      * <p>Сюда доезжает всё, что advisor не успел забрать: сообщение, отправленное после последнего
      * обращения к модели, и вся очередь, если прогон вообще не дошёл до tool-цикла. Ряды пишутся
