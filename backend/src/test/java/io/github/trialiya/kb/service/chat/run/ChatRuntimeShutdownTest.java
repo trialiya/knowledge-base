@@ -183,6 +183,22 @@ class ChatRuntimeShutdownTest {
         assertThat(runService.awaitQuiescence(Duration.ZERO)).isTrue();
     }
 
+    /**
+     * Прогон мог покинуть реестр за миг до остановки приложения и всё ещё дописывать хвост
+     * терминальной обработки — доставку очереди в БД. {@code stopAll} насчитает ноль, но ждать есть
+     * кого: без безусловного вызова пул соединений закрылся бы прямо посреди неё.
+     */
+    @Test
+    void waitsEvenWhenThereWasNobodyToStop() {
+        final ChatRunService finishing = mock(ChatRunService.class);
+        when(finishing.stopAll()).thenReturn(0);
+
+        new ChatRuntimeShutdown(finishing, events, 5000)
+                .onContextClosed(new ContextClosedEvent(mock(ApplicationContext.class)));
+
+        verify(finishing).awaitQuiescence(Duration.ofMillis(5000));
+    }
+
     @Test
     void quiescenceWaitEndsImmediatelyWithoutRuns() {
         runService = runService(Runnable::run);
