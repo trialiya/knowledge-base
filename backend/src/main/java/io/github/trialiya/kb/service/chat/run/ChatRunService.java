@@ -36,7 +36,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.OptionalLong;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -244,6 +243,30 @@ public class ChatRunService {
     public record StartedRun(String runId, Long userMessageId) {}
 
     /**
+     * Занятость чата снаружи: id операции и что это за операция.
+     *
+     * @param elapsedMs сколько миллисекунд она уже идёт — для таймера над полем ввода. По часам
+     *     сервера (наружу уходит длительность, а не момент старта: разница часов клиента и сервера
+     *     её не портит). Есть только у генерации: замерять нечем там, где нет области прогона
+     */
+    public record ActiveRun(String runId, Kind kind, @Nullable Long elapsedMs) {
+
+        /**
+         * Что именно держит чат. Различие в том, что вкладке с этим делать: генерацию можно
+         * остановить и ей можно писать в очередь, операции — ни того, ни другого.
+         */
+        public enum Kind {
+            /** Ответ модели: своя область прогона ({@link RunScope}), стрим, tool-цикл, очередь. */
+            GENERATION,
+            /**
+             * Всё остальное, что держит чат заявкой без прогона, — сжатие контекста, git-команда,
+             * восстановление очереди на старте приложения (см. {@code ConversationSlots#claim}).
+             */
+            OPERATION
+        }
+    }
+
+    /**
      * Настройки одного прогона: что выбрано в чате (или передано параметром запроса) поверх
      * дефолтов конфигурации. Собираются в контроллере — см. {@code ChatController#resolveRun}.
      *
@@ -315,19 +338,28 @@ public class ChatRunService {
         return true;
     }
 
-    public Optional<String> activeRun(String conversationId) {
-        return slots.activeRun(conversationId);
-    }
-
     /**
-     * Сколько миллисекунд уже идёт прогон — для таймера над полем ввода. По часам сервера (наружу
-     * уходит длительность, а не момент старта: разница часов клиента и сервера её не портит). Пусто
-     * для заявки без генерации (сжатие контекста и прочее — см. {@code ConversationSlots#claim}) и
-     * для неизвестного runId.
+     * Чем занят чат прямо сейчас, каким это видят вкладки (см. {@code
+     * ConversationSlots#activeRun}), — состояние, по которому вкладка восстанавливает себя после
+     * перезагрузки.
      */
-    public OptionalLong runElapsedMs(String runId) {
-        final RunScope scope = runs.find(runId).orElse(null);
-        return scope == null ? OptionalLong.empty() : OptionalLong.of(scope.elapsedMs());
+    public Optional<ActiveRun> activeRun(String conversationId) {
+        return slots.activeRun(conversationId)
+                .map(
+                        runId ->
+                                runs.find(runId)
+                                        .map(
+                                                scope ->
+                                                        new ActiveRun(
+                                                                runId,
+                                                                ActiveRun.Kind.GENERATION,
+                                                                scope.elapsedMs()))
+                                        .orElseGet(
+                                                () ->
+                                                        new ActiveRun(
+                                                                runId,
+                                                                ActiveRun.Kind.OPERATION,
+                                                                null)));
     }
 
     /**

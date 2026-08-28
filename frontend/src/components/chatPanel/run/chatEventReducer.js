@@ -7,11 +7,15 @@
 // AI-пузыри активного прогона помечаются runId (транзиентно). По завершении метка
 // снимается (finalize). Сообщения из БД runId не имеют — события ложатся поверх
 // истории, не конфликтуя с ней.
+//
+// Занятость самого чата — пара runId + runKind (@/constants/runKind): её ставят те же
+// два события, что открывают прогон, и снимают терминальные.
 
 import { nextMessageId } from '../messages/messageId';
 import { CHAT_EVENT, FINISH_REASON } from '@/constants/chatEventTypes';
 import { SENDER } from '@/constants/messageSender';
 import { RETRY_MODE } from '@/constants/retryMode';
+import { RUN_KIND } from '@/constants/runKind';
 
 // Совпадение вызовов. И живое событие TOOL_CALL, и итоговая мета прогона несут протокольный
 // callId и сквозной callIndex — по ним вызов опознаётся однозначно. Фолбэк на name+arguments
@@ -357,12 +361,12 @@ export function applyChatEvent(chat, ev, ctx) {
       if (i >= 0) {
         if (payload?.model && !msgs[i].model) {
           msgs[i] = { ...msgs[i], model: payload.model };
-          return { ...chat, messages: msgs, runId, runStartedAt };
+          return { ...chat, messages: msgs, runId, runKind: RUN_KIND.GENERATION, runStartedAt };
         }
-        return { ...chat, runId, runStartedAt };
+        return { ...chat, runId, runKind: RUN_KIND.GENERATION, runStartedAt };
       }
       pushAi(msgs, runId, payload?.model ?? null);
-      return { ...chat, messages: msgs, runId, runStartedAt };
+      return { ...chat, messages: msgs, runId, runKind: RUN_KIND.GENERATION, runStartedAt };
     }
 
     case CHAT_EVENT.STREAM: {
@@ -444,7 +448,7 @@ export function applyChatEvent(chat, ev, ctx) {
 
     case CHAT_EVENT.RUN_DONE: {
       finalize(msgs, runId);
-      return { ...chat, messages: msgs, runId: null, runStartedAt: null };
+      return { ...chat, messages: msgs, runId: null, runKind: null, runStartedAt: null };
     }
 
     case CHAT_EVENT.RUN_STOPPED: {
@@ -454,7 +458,7 @@ export function applyChatEvent(chat, ev, ctx) {
         msgs[idx] = { ...msgs[idx], text: base ? `${base} ${ctx.stoppedLabel}` : ctx.stoppedLabel };
       }
       finalize(msgs, runId);
-      return { ...chat, messages: msgs, runId: null, runStartedAt: null };
+      return { ...chat, messages: msgs, runId: null, runKind: null, runStartedAt: null };
     }
 
     case CHAT_EVENT.RUN_ERROR: {
@@ -482,7 +486,7 @@ export function applyChatEvent(chat, ev, ctx) {
         ...(produced ? {} : { retryMode: RETRY_MODE.CONTINUE }),
       };
       finalize(msgs, runId);
-      return { ...chat, messages: msgs, runId: null, runStartedAt: null };
+      return { ...chat, messages: msgs, runId: null, runKind: null, runStartedAt: null };
     }
 
     // ─── Сжатие контекста (/compact) ─────────────────────────────────────────
@@ -493,7 +497,7 @@ export function applyChatEvent(chat, ev, ctx) {
       let idx = lastAiIndexForRun(msgs, runId);
       if (idx < 0) idx = pushAi(msgs, runId);
       msgs[idx] = { ...msgs[idx], text: ctx.compactingLabel };
-      return { ...chat, messages: msgs, runId, compacting: true };
+      return { ...chat, messages: msgs, runId, runKind: RUN_KIND.OPERATION };
     }
 
     // Плашка «сжимаю…» становится плашкой итога — той же самой, что приезжает из истории
@@ -510,7 +514,7 @@ export function applyChatEvent(chat, ev, ctx) {
         ...(payload?.createdAt ? { timestamp: payload.createdAt } : {}),
       };
       finalize(msgs, runId);
-      return { ...chat, messages: msgs, runId: null, compacting: false };
+      return { ...chat, messages: msgs, runId: null, runKind: null };
     }
 
     case CHAT_EVENT.COMPACT_ERROR: {
@@ -520,7 +524,7 @@ export function applyChatEvent(chat, ev, ctx) {
       // поверх той же истории (история могла и успеть измениться).
       msgs[idx] = { ...msgs[idx], text: ctx.compactErrorLabel, error: true };
       finalize(msgs, runId);
-      return { ...chat, messages: msgs, runId: null, compacting: false };
+      return { ...chat, messages: msgs, runId: null, runKind: null };
     }
 
     // ─── Git-команда пользователя ────────────────────────────────────────────

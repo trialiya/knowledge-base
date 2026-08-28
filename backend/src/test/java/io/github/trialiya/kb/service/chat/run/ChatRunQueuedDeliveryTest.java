@@ -165,23 +165,31 @@ class ChatRunQueuedDeliveryTest {
     }
 
     /**
-     * Длительность для таймера над полем ввода есть только у живой генерации: у заявки сжатия
-     * ({@code claim}) нет области прогона, и {@code GET /runs/active} отдаёт её без {@code
-     * elapsedMs} — фронт не показывает там таймер, которому не от чего отсчитываться.
+     * Генерацию и всякую другую занятость чата вкладка различает по {@code kind}: остановить и
+     * дописать в очередь можно только первую. Длительность для таймера над полем ввода есть тоже
+     * только у неё — у заявки без прогона ({@code claim}) нет области прогона, и отсчитывать
+     * таймеру не от чего.
      */
     @Test
-    void elapsedIsMeasuredForGenerationButNotForAClaim() {
+    void aClaimIsReportedAsAnOperationAndWithoutElapsed() {
         when(chatHistory.saveUserMessage(eq(CONV), anyString(), anyList(), any()))
                 .thenReturn(userRow());
         runService.start(CONV, USER, "вопрос", List.of(), options(), null);
-        final String runId = runService.activeRun(CONV).orElseThrow();
 
-        assertThat(runService.runElapsedMs(runId)).isPresent();
-        assertThat(runService.runElapsedMs(runId).getAsLong()).isNotNegative();
+        final ChatRunService.ActiveRun generation = runService.activeRun(CONV).orElseThrow();
+        assertThat(generation.kind()).isEqualTo(ChatRunService.ActiveRun.Kind.GENERATION);
+        assertThat(generation.elapsedMs()).isNotNegative();
 
-        final String claimed = slots.claim("conv-2");
-        assertThat(runService.runElapsedMs(claimed)).isEmpty();
-        assertThat(runService.runElapsedMs("no-such-run")).isEmpty();
+        slots.claim("conv-2");
+        final ChatRunService.ActiveRun claimed = runService.activeRun("conv-2").orElseThrow();
+        assertThat(claimed.kind()).isEqualTo(ChatRunService.ActiveRun.Kind.OPERATION);
+        assertThat(claimed.elapsedMs()).isNull();
+    }
+
+    /** Свободный чат — пустой ответ, а не занятость с неизвестным видом. */
+    @Test
+    void anIdleChatHasNoActiveRun() {
+        assertThat(runService.activeRun("conv-3")).isEmpty();
     }
 
     /** Доставлено одно сообщение на названных настройках. */

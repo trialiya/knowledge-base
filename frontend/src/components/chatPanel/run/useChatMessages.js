@@ -4,6 +4,7 @@ import { STORAGE_KEY_ACTIVE_CHAT, DRAFT_CHAT_ID } from '@/constants/storage';
 import { CHAT_PAGE_SIZE as PAGE_SIZE } from '@/constants/pagination';
 import { nextMessageId } from '../messages/messageId';
 import { SENDER } from '@/constants/messageSender';
+import { fetchRunState, IDLE_RUN_STATE } from './activeRun';
 
 const metaToCall = (x) => ({
   name: x.name,
@@ -249,18 +250,19 @@ export default function useChatMessages({ chats, getChats, setChats, activeChatI
       const load = async () => {
         setLoadingMessages(true);
         try {
-          // getActiveRun — восстановление состояния прогона после перезагрузки: если в чате
-          // прямо сейчас идёт генерация, её частично сохранённые сегменты убираем из
-          // загруженной истории (их пересоберёт SSE-реплей), а runId ставим сразу, чтобы UI
-          // показал «идёт ответ» без мигания до прихода RUN_STARTED из потока.
-          const [meta, page, activeRun] = await Promise.all([
+          // Занятость чата — восстановление состояния после перезагрузки: если в чате прямо
+          // сейчас идёт прогон, его частично сохранённые сегменты убираем из загруженной
+          // истории (их пересоберёт SSE-реплей), а runId ставим сразу, чтобы UI показал
+          // занятость без мигания до прихода RUN_STARTED из потока. Сбой этого запроса не
+          // роняет загрузку: чат рисуется свободным, а занятость вернёт первое же событие
+          // потока или сверка при входе (см. useChatEventStream).
+          const [meta, page, runState] = await Promise.all([
             chatApi.getChatMeta(chatId),
             chatApi.getMessages(chatId, PAGE_SIZE),
-            chatApi.getActiveRun(chatId).catch(() => ({})),
+            fetchRunState(chatId).catch(() => IDLE_RUN_STATE),
           ]);
           const { bubbles, leadingMetas } = transformPage(page.messages);
-          const activeRunId = activeRun?.runId || null;
-          const messages = activeRunId ? trimActiveRunTail(bubbles) : bubbles;
+          const messages = runState.runId ? trimActiveRunTail(bubbles) : bubbles;
 
           failedChatIdsRef.current.delete(chatId);
           setChats((prev) =>
@@ -269,11 +271,7 @@ export default function useChatMessages({ chats, getChats, setChats, activeChatI
                 ? {
                     ...chat,
                     messages,
-                    runId: activeRunId,
-                    // elapsedMs — сколько прогон уже идёт по часам сервера: длительность, а не
-                    // момент старта, поэтому перекос часов клиента и сервера якорь не портит.
-                    // У сжатия контекста ключа нет — таймер там не показывается.
-                    runStartedAt: activeRunId && activeRun.elapsedMs != null ? Date.now() - activeRun.elapsedMs : null,
+                    ...runState,
                     hasMore: !!page.hasMore,
                     oldestCursor: page.oldestCursor || null,
                     // metas, чей ассистент в ещё не загруженной более старой странице

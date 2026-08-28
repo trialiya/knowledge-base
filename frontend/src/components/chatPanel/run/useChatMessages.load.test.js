@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import useChatMessages from './useChatMessages';
 import chatApi from '@/api/chatApi';
+import { RUN_KIND } from '@/constants/runKind';
 
 vi.mock('@/api/chatApi', () => ({
   default: { getChatMeta: vi.fn(), getMessages: vi.fn(), getActiveRun: vi.fn() },
@@ -79,10 +80,10 @@ describe('loadMessages return value', () => {
   });
 
   // Вкладка, открывшая чат посреди генерации, ставит таймер по elapsedMs с бэка: якорь — это
-  // «сейчас минус сколько уже идёт», а не ноль. Сжатие контекста приходит без elapsedMs — там
-  // якоря нет и таймер не показывается.
+  // «сейчас минус сколько уже идёт», а не ноль. Операция приходит без elapsedMs — там якоря
+  // нет и таймер не показывается.
   test('anchors the run timer from elapsedMs of the active run', async () => {
-    const { result, getChat } = setup({ activeRun: { runId: 'r2', elapsedMs: 90_000 } });
+    const { result, getChat } = setup({ activeRun: { runId: 'r2', kind: 'GENERATION', elapsedMs: 90_000 } });
 
     const before = Date.now();
     await act(async () => {
@@ -94,7 +95,7 @@ describe('loadMessages return value', () => {
   });
 
   test('an active claim without elapsedMs leaves the timer unanchored', async () => {
-    const { result, getChat } = setup({ activeRun: { runId: 'r2' } });
+    const { result, getChat } = setup({ activeRun: { runId: 'r2', kind: 'OPERATION' } });
 
     await act(async () => {
       await result.current.loadMessages('c1');
@@ -102,5 +103,28 @@ describe('loadMessages return value', () => {
 
     expect(getChat().runId).toBe('r2');
     expect(getChat().runStartedAt).toBeNull();
+  });
+
+  // Вид занятости переживает перезагрузку страницы: без него чат, застигнутый посреди
+  // сжатия контекста или git-команды, показал бы кнопку «остановить» (останавливать там
+  // нечего) и разблокированный композер — до первого события, которого может и не быть.
+  test('restores what kind of run holds the chat, not just that one does', async () => {
+    const { result, getChat } = setup({ activeRun: { runId: 'r2', kind: 'OPERATION' } });
+
+    await act(async () => {
+      await result.current.loadMessages('c1');
+    });
+
+    expect(getChat().runKind).toBe(RUN_KIND.OPERATION);
+  });
+
+  test('a free chat is restored as free, with no leftover run of its own', async () => {
+    const { result, getChat } = setup({ activeRun: {} });
+
+    await act(async () => {
+      await result.current.loadMessages('c1');
+    });
+
+    expect(getChat()).toMatchObject({ runId: null, runKind: null, runStartedAt: null });
   });
 });

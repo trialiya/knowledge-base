@@ -275,7 +275,7 @@ public class ChatController {
         // чат.
         chatRunService
                 .activeRun(conversationId)
-                .ifPresent(runId -> chatRunService.stop(conversationId, runId));
+                .ifPresent(active -> chatRunService.stop(conversationId, active.runId()));
         chatTopicRepository.deleteById(chatTopicEntity.getConversationId());
         chatHistory.delete(conversationId);
         // Уведомляем открытые на этом чате вкладки (в т.ч. в других браузерах) — они закроют его.
@@ -598,10 +598,10 @@ public class ChatController {
     }
 
     /**
-     * runId активного прогона чата (или пустой объект) — для восстановления состояния на фронте. У
-     * генерации рядом едет {@code elapsedMs} — сколько прогон уже идёт: по нему вкладка, открывшая
-     * чат посреди ответа, ставит таймер на верное место. У сжатия контекста ключа нет — там нечего
-     * замерять (см. {@code ConversationSlots#claim}).
+     * Чем занят чат прямо сейчас (или пустой объект) — этим вкладка восстанавливает своё состояние
+     * после перезагрузки: {@code runId}, {@code kind} и, у генерации, {@code elapsedMs} — сколько
+     * прогон уже идёт, чтобы таймер встал на верное место. Смысл полей — в {@link
+     * ChatRunService.ActiveRun}.
      */
     @GetMapping("/{conversationId}/runs/active")
     public Map<String, Object> activeRun(@PathVariable final String conversationId) {
@@ -609,13 +609,14 @@ public class ChatController {
         return chatRunService
                 .activeRun(conversationId)
                 .<Map<String, Object>>map(
-                        runId -> {
-                            final Map<String, Object> active = new LinkedHashMap<>();
-                            active.put("runId", runId);
-                            chatRunService
-                                    .runElapsedMs(runId)
-                                    .ifPresent(ms -> active.put("elapsedMs", ms));
-                            return active;
+                        active -> {
+                            final Map<String, Object> body = new LinkedHashMap<>();
+                            body.put("runId", active.runId());
+                            body.put("kind", active.kind().name());
+                            if (active.elapsedMs() != null) {
+                                body.put("elapsedMs", active.elapsedMs());
+                            }
+                            return body;
                         })
                 .orElseGet(Map::of);
     }

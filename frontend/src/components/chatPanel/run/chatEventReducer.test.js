@@ -1,4 +1,5 @@
 import { applyChatEvent } from './chatEventReducer';
+import { RUN_KIND } from '@/constants/runKind';
 
 const ctx = {
   isLocal: () => false,
@@ -16,6 +17,9 @@ describe('applyChatEvent', () => {
   test('RUN_STARTED appends an empty AI bubble tagged with runId', () => {
     const chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
     expect(chat.runId).toBe('r1');
+    // Занятость чата — это runId ВМЕСТЕ с видом: генерацию можно остановить, а сообщение в
+    // неё поставить в очередь; операцию (COMPACT_STARTED) — ни того, ни другого.
+    expect(chat.runKind).toBe(RUN_KIND.GENERATION);
     expect(last(chat)).toMatchObject({ sender: 'ai', runId: 'r1', text: '' });
   });
 
@@ -599,7 +603,7 @@ describe('applyChatEvent', () => {
   test('COMPACT_STARTED blocks the chat and shows one notice bubble', () => {
     const chat = applyChatEvent(userChat(), { type: 'COMPACT_STARTED', runId: 'r1' }, ctx);
     expect(chat.runId).toBe('r1');
-    expect(chat.compacting).toBe(true);
+    expect(chat.runKind).toBe(RUN_KIND.OPERATION);
     expect(last(chat)).toMatchObject({ sender: 'ai', runId: 'r1', text: 'сжимаю…' });
   });
 
@@ -625,7 +629,7 @@ describe('applyChatEvent', () => {
     });
     expect(last(chat).runId).toBeUndefined();
     expect(chat.runId).toBeNull();
-    expect(chat.compacting).toBe(false);
+    expect(chat.runKind).toBeNull();
   });
 
   test('COMPACT_DONE survives finalize even though the notice bubble has no text', () => {
@@ -733,7 +737,7 @@ describe('applyChatEvent', () => {
     expect(last(chat)).toMatchObject({ error: true, text: 'сжать не вышло' });
     expect(last(chat).retryMode).toBeUndefined();
     expect(chat.runId).toBeNull();
-    expect(chat.compacting).toBe(false);
+    expect(chat.runKind).toBeNull();
   });
 
   test('RUN_USAGE marks the run bubble with the run state', () => {

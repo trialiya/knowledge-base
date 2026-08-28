@@ -6,6 +6,7 @@ import chatApi from '@/api/chatApi';
 import { DRAFT_CHAT_ID } from '@/constants/storage';
 import { SENDER } from '@/constants/messageSender';
 import { RETRY_MODE } from '@/constants/retryMode';
+import { RUN_KIND } from '@/constants/runKind';
 import { generateUUID } from '@/utils/uuid';
 import { nextMessageId } from '../messages/messageId';
 import { getLastModel, setLastModel, getLastMode, setLastMode, setLastProject } from './lastChoiceStore';
@@ -19,6 +20,7 @@ import {
   COMPACT_START_ERROR_NOTICE,
 } from './chatNotices';
 import { parseChatCommand, CHAT_COMMAND } from './chatCommands';
+import { fetchRunState } from './activeRun';
 
 /**
  * Отправка сообщения, повтор после ошибки и остановка генерации.
@@ -123,8 +125,7 @@ export default function useChatRun({
     async (conversationId) => {
       if (getChats().find((c) => c.id === conversationId)?.runId) return true;
       try {
-        const active = await chatApi.getActiveRun(conversationId);
-        return !!active?.runId;
+        return !!(await fetchRunState(conversationId)).runId;
       } catch {
         return false;
       }
@@ -176,6 +177,7 @@ export default function useChatRun({
         if (runId) {
           patchChat(conversationId, (c) => ({
             runId,
+            runKind: RUN_KIND.GENERATION,
             // Якорь таймера над полем ввода. RUN_STARTED из потока ставит его же, если опередил.
             runStartedAt: c.runStartedAt ?? Date.now(),
             messages: patchedId
@@ -219,6 +221,7 @@ export default function useChatRun({
         localClientIdsRef.current.delete(clientMsgId);
         patchChat(conversationId, (c) => ({
           runId: null,
+          runKind: null,
           runStartedAt: null,
           messages: [
             ...(c.messages || []),
@@ -300,7 +303,7 @@ export default function useChatRun({
         if (runId) {
           patchChat(conversationId, (c) => ({
             runId,
-            compacting: true,
+            runKind: RUN_KIND.OPERATION,
             messages: patchedId
               ? (c.messages || []).map((m) => (m.clientMsgId === clientMsgId ? { ...m, dbId: patchedId } : m))
               : c.messages,

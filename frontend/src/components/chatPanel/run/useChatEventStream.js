@@ -2,10 +2,10 @@ import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import i18n from '@/i18n/index';
 import { openChatEventStream } from '@/api/chatEvents';
 import { applyChatEvent } from './chatEventReducer';
-import chatApi from '@/api/chatApi';
 import { DRAFT_CHAT_ID } from '@/constants/storage';
 import { CHAT_EVENT } from '@/constants/chatEventTypes';
 import { collectChangeRefs } from '../messages/toolMeta';
+import { fetchRunState, IDLE_RUN_STATE } from './activeRun';
 
 // Мутации ОДНОГО прогона по загруженной истории: вызовы инструментов лежат у пузырей
 // ассистента с его runId (см. transformPage). Дальше последней страницы не смотрим —
@@ -125,12 +125,10 @@ export default function useChatEventStream({
     const settleStaleRun = (staleRunId) => {
       closeStream();
       seqByChatRef.current.delete(chatId);
-      // compacting снимаем вместе с runId: его гасят только COMPACT_DONE/ERROR, а сюда мы
-      // попадаем как раз потому, что этих событий не увидели. Оставленный флаг пережил бы
-      // прогон и держал бы Stop выключенным во всех следующих генерациях этого чата.
-      setChats((prev) =>
-        prev.map((c) => (c.id === chatId ? { ...c, runId: null, runStartedAt: null, compacting: false } : c)),
-      );
+      // runKind снимаем вместе с runId: занятость — это они вдвоём, и оставленный вид
+      // операции пережил бы прогон, держа Stop выключенным во всех следующих генерациях
+      // этого чата.
+      setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, ...IDLE_RUN_STATE } : c)));
       onRunSettled(chatId);
       reloadMessages(chatId).then((msgs) => {
         setResyncTick((n) => n + 1);
@@ -145,13 +143,12 @@ export default function useChatEventStream({
     // Идёт ли ещё прогон, который показывает UI. Спрашиваем бэк и сверяем с runId чата
     // на момент ОТВЕТА (за время запроса поток мог сам закрыть прогон).
     const checkRunAlive = () =>
-      chatApi
-        .getActiveRun(chatId)
-        .then((r) => {
+      fetchRunState(chatId)
+        .then((state) => {
           if (cancelled) return;
           const cur = getChats().find((c) => c.id === chatId);
           if (!cur?.runId) return; // поток уже закрыл прогон сам — сверять нечего
-          if (r?.runId === cur.runId) return; // прогон жив — поток догонит пропущенное сам
+          if (state.runId === cur.runId) return; // прогон жив — поток догонит пропущенное сам
           settleStaleRun(cur.runId);
         })
         .catch(() => {});

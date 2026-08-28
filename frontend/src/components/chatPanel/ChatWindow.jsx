@@ -26,6 +26,7 @@ import ChatCenter from './center/ChatCenter';
 import { buildChatTabs, buildRepoTab } from './center/chatSidebar';
 import useChatGit from './git/useChatGit';
 import { RIGHT_TAB } from '@/constants/rightTabs';
+import { RUN_KIND } from '@/constants/runKind';
 import GitCommandsModal from './git/GitCommandsModal';
 import ChatList from './list/ChatList';
 import ChatSearch from './list/ChatSearch';
@@ -195,18 +196,19 @@ const ChatWindow = ({
   // блокировать ли селекторы — но НЕ поле ввода, см. isComposerBusy ниже.
   const isStreaming = !!activeChat?.runId || pendingRunChatId === activeChatId;
 
-  // Чат занят сжатием контекста (/compact), а не генерацией. Занятость та же — ввод
-  // заблокирован, — но останавливать нечего: сжатие это один запрос к модели без
-  // стриминга, и кнопка «остановить» на нём только обещала бы несуществующее.
-  const isCompacting = !!activeChat?.compacting;
+  // Чат занят операцией, а не генерацией: сжатием контекста (/compact), git-командой,
+  // восстановлением очереди на старте бэка. Занятость та же — ввод заблокирован, — но
+  // останавливать нечего: своего прогона у такой операции нет (см. RUN_KIND), и кнопка
+  // «остановить» на ней обещала бы несуществующее.
+  const isOperation = activeChat?.runKind === RUN_KIND.OPERATION;
 
   // Занят ли САМ КОМПОЗЕР. Уже не всякой генерацией: пока идёт прогон, сообщение встаёт
   // в его очередь (см. useChatRun.sendMessage), и блокировать ввод значило бы отнять
   // ровно то, ради чего очередь и заведена. Остаются два случая, где писать некуда:
-  // сжатие контекста (очереди у него нет — она опустошается терминальной обработкой
-  // прогона, а её здесь не будет) и окно до ответа на POST /runs, пока runId ещё
-  // неизвестен и очередь некуда адресовать.
-  const isComposerBusy = isCompacting || pendingRunChatId === activeChatId;
+  // операция (очереди у неё нет — она опустошается терминальной обработкой прогона, а её
+  // здесь не будет) и окно до ответа на POST /runs, пока runId ещё неизвестен и очередь
+  // некуда адресовать.
+  const isComposerBusy = isOperation || pendingRunChatId === activeChatId;
 
   // Поиск сообщений внутри активного чата (find-бар, Ctrl+F / кнопка-лупа в шапке).
   // messages передаём из рендера (getChats обновляется эффектом и на рендер отстаёт).
@@ -307,7 +309,7 @@ const ChatWindow = ({
     // Список несохранённого спрашивается только под открытой вкладкой; ветка и
     // права — всегда, они решают, быть ли вкладке вообще.
     visible: panels.rightTab === RIGHT_TAB.REPO,
-    busy: isStreaming || isCompacting,
+    busy: isStreaming,
     onRepoChanged,
     onRefsChanged: onGitRefsChanged,
   });
@@ -580,7 +582,7 @@ const ChatWindow = ({
             loadingMessages={loadingMessages}
             isStreaming={isStreaming}
             isComposerBusy={isComposerBusy}
-            isCompacting={isCompacting}
+            isOperation={isOperation}
             isChatEmpty={isChatEmpty}
             isActive={isActive}
             search={{ ...inChatSearch, inputRef: inChatSearchInputRef, canSearch: canSearchChat }}

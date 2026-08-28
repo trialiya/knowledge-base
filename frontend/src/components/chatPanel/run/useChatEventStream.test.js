@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 import useChatEventStream from './useChatEventStream';
 import { openChatEventStream } from '@/api/chatEvents';
 import chatApi from '@/api/chatApi';
+import { RUN_KIND } from '@/constants/runKind';
 
 vi.mock('@/api/chatEvents');
 vi.mock('@/api/chatApi', () => ({ default: { getActiveRun: vi.fn() } }));
@@ -241,7 +242,9 @@ describe('useChatEventStream stale run cache invalidation', () => {
   let chats;
 
   function setup({ activeRun = {}, reloaded = [] } = {}) {
-    chats = [{ id: 'c1', messages: [{ mid: 1 }], runId: 'r1', compacting: true, notFound: false, loadError: false }];
+    chats = [
+      { id: 'c1', messages: [{ mid: 1 }], runId: 'r1', runKind: RUN_KIND.OPERATION, notFound: false, loadError: false },
+    ];
     chatApi.getActiveRun.mockResolvedValue(activeRun);
     openChatEventStream.mockImplementation(() => () => {});
 
@@ -333,8 +336,8 @@ describe('useChatEventStream stale run resubscribe order', () => {
   let chats;
   let subscriptions;
 
-  function setup({ reload }) {
-    chats = [{ id: 'c1', messages: [{ mid: 1 }], runId: 'r1', notFound: false, loadError: false }];
+  function setup({ reload, runKind = null }) {
+    chats = [{ id: 'c1', messages: [{ mid: 1 }], runId: 'r1', runKind, notFound: false, loadError: false }];
     chatApi.getActiveRun.mockResolvedValue({});
     subscriptions = [];
     openChatEventStream.mockImplementation((chatId, cb) => {
@@ -399,15 +402,15 @@ describe('useChatEventStream stale run resubscribe order', () => {
     expect(subscriptions[1].fromSeq).toBe(0);
   });
 
-  test('lets go of the compaction lock together with the run', async () => {
-    // compacting гасят только COMPACT_DONE/ERROR, а сюда мы попадаем ровно потому, что их
-    // не увидели: оставленный флаг пережил бы прогон и держал бы Stop выключенным во всех
-    // следующих генерациях этого чата.
-    setup({ reload: vi.fn(() => Promise.resolve([])) });
+  test('lets go of the kind of the run together with the run itself', async () => {
+    // Вид операции гасят только её терминальные события, а сюда мы попадаем ровно потому,
+    // что их не увидели: оставленный runKind пережил бы прогон и держал бы Stop выключенным
+    // во всех следующих генерациях этого чата.
+    setup({ reload: vi.fn(() => Promise.resolve([])), runKind: RUN_KIND.OPERATION });
 
     await act(async () => {});
 
     expect(chats[0].runId).toBeNull();
-    expect(chats[0].compacting).toBe(false);
+    expect(chats[0].runKind).toBeNull();
   });
 });
