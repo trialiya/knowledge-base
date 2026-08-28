@@ -959,4 +959,133 @@ describe('applyChatEvent', () => {
     expect(last(chat)).toMatchObject({ sender: 'user', dbId: 42 });
     expect(last(chat).queued).toBeUndefined();
   });
+
+  // ─── Опоздавшие события прогона ──────────────────────────────────────────
+  // Прогон открывают только RUN_STARTED и COMPACT_STARTED. Всё остальное, доехав после
+  // терминального события, обязано пропасть: снять воскрешённый прогон было бы уже некому.
+
+  test('STREAM arriving after RUN_DONE revives neither the run nor a bubble', () => {
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'привет' } }, ctx);
+    chat = applyChatEvent(chat, { type: 'RUN_DONE', runId: 'r1' }, ctx);
+    const done = chat;
+
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'хвост' } }, ctx);
+
+    expect(chat).toBe(done);
+    expect(chat.runId).toBeNull();
+  });
+
+  test('TOOL_CALL arriving after RUN_STOPPED revives neither the run nor a bubble', () => {
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(chat, { type: 'STREAM', runId: 'r1', payload: { message: 'ищу' } }, ctx);
+    chat = applyChatEvent(chat, { type: 'RUN_STOPPED', runId: 'r1' }, ctx);
+    const stopped = chat;
+
+    chat = applyChatEvent(
+      chat,
+      { type: 'TOOL_CALL', runId: 'r1', payload: { toolCall: { name: 'getFileContent', status: 'STARTED' } } },
+      ctx,
+    );
+
+    expect(chat).toBe(stopped);
+    expect(chat.runId).toBeNull();
+  });
+
+  test('final TOOL_CALLS arriving after the run ended changes nothing', () => {
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(chat, { type: 'RUN_DONE', runId: 'r1' }, ctx);
+    const done = chat;
+
+    chat = applyChatEvent(
+      chat,
+      { type: 'TOOL_CALLS', runId: 'r1', payload: { toolCalls: [{ name: 'getFileContent', callIndex: 0 }] } },
+      ctx,
+    );
+
+    expect(chat).toBe(done);
+    expect(chat.runId).toBeNull();
+  });
+
+  test('a live TOOL_CALL and its final meta are one call — they carry the same callId', () => {
+    let chat = applyChatEvent(userChat(), { type: 'RUN_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(
+      chat,
+      {
+        type: 'TOOL_CALL',
+        runId: 'r1',
+        payload: {
+          toolCall: {
+            name: 'runScript',
+            callId: 'call_7',
+            callIndex: 0,
+            arguments: { path: 'a.js' },
+            status: 'STARTED',
+          },
+        },
+      },
+      ctx,
+    );
+    // Итоговая мета несёт свой разбор аргументов — сверка по name+arguments развела бы одну
+    // плашку на две.
+    chat = applyChatEvent(
+      chat,
+      {
+        type: 'TOOL_CALLS',
+        runId: 'r1',
+        payload: {
+          toolCalls: [
+            {
+              name: 'runScript',
+              callId: 'call_7',
+              callIndex: 0,
+              arguments: { path: 'a.js', dryRun: false },
+              status: 'DONE',
+            },
+          ],
+        },
+      },
+      ctx,
+    );
+
+    expect(last(chat).toolCalls).toHaveLength(1);
+    expect(last(chat).toolCalls[0]).toMatchObject({ status: 'DONE', arguments: { path: 'a.js' } });
+  });
+
+  test('own echo marks its own bubble, not the queued question standing below it', () => {
+    const own = { ...ctx, isLocal: (id) => id === 'm1' };
+    let chat = {
+      id: 'c',
+      runId: 'r1',
+      messages: [
+        { text: 'вопрос', sender: 'user', clientMsgId: 'm1' },
+        { text: 'и ещё', sender: 'user', clientMsgId: 'm2', queued: true },
+      ],
+    };
+
+    chat = applyChatEvent(
+      chat,
+      { type: 'USER_MESSAGE', runId: 'r1', clientMsgId: 'm1', payload: { projectSwitchFrom: 'kb', project: 'app' } },
+      own,
+    );
+
+    expect(chat.messages[0].projectSwitch).toEqual({ from: 'kb', to: 'app' });
+    expect(chat.messages[1].projectSwitch).toBeUndefined();
+  });
+
+  /**
+   * Пузырь своей отправки мог и не остаться: очередь приняли, а ответ до вкладки не доехал (см.
+   * useChatRun.queueMessage). Тогда эхо — единственная весть о сохранённом сообщении, и молчать
+   * в ответ на него значит потерять вопрос до перезагрузки.
+   */
+  test('own echo whose bubble is gone appends the question instead of dropping it', () => {
+    const own = { ...ctx, isLocal: (id) => id === 'm1' };
+    const chat = applyChatEvent(
+      userChat(),
+      { type: 'USER_MESSAGE', runId: 'r2', clientMsgId: 'm1', payload: { id: 42, text: 'и добавь тесты' } },
+      own,
+    );
+
+    expect(last(chat)).toMatchObject({ sender: 'user', dbId: 42, text: 'и добавь тесты' });
+  });
 });

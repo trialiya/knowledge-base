@@ -13,12 +13,12 @@ import { CHAT_EVENT, FINISH_REASON } from '@/constants/chatEventTypes';
 import { SENDER } from '@/constants/messageSender';
 import { RETRY_MODE } from '@/constants/retryMode';
 
-// Совпадение вызовов. Когда callIndex известен у обоих — он однозначен (имя +
-// порядковый номер в прогоне); иначе фолбэк на name+arguments. Фолбэк нужен для
-// живых TOOL_CALL-событий без callIndex, но у него есть предел: два вызова
-// одного инструмента с ОДИНАКОВЫМИ аргументами без callIndex сольются в один.
-// С callIndex (итоговые TOOL_CALLS-metas) такие вызовы остаются раздельными.
+// Совпадение вызовов. И живое событие TOOL_CALL, и итоговая мета прогона несут протокольный
+// callId и сквозной callIndex — по ним вызов опознаётся однозначно. Фолбэк на name+arguments
+// остаётся ради записей, сделанных до появления этих полей: у него есть предел — два вызова
+// одного инструмента с ОДИНАКОВЫМИ аргументами сливаются в один.
 const sameCall = (a, b) => {
+  if (a.callId != null && b.callId != null) return a.callId === b.callId;
   if (a.name !== b.name) return false;
   if (a.callIndex != null && b.callIndex != null) return a.callIndex === b.callIndex;
   return JSON.stringify(a.arguments || {}) === JSON.stringify(b.arguments || {});
@@ -148,6 +148,21 @@ const setRunUsage = (msgs, runId, usage, live) => {
 const isGitRow = (message) => !!message.gitEvent;
 
 /**
+ * Тот ли это прогон, что чат считает идущим. Прогон в чате открывают ровно двое — RUN_STARTED и
+ * COMPACT_STARTED, — а остальные события прогона в него только пишут, и лишь пока он тот же.
+ * Событие, доехавшее после терминального (последний чанк отменённого прогона, запись истории из
+ * tool-цикла), иначе воскресило бы законченный прогон: своё терминальное событие он уже отдал,
+ * снять прогон стало бы некому, и чат остался бы с кнопкой «остановить» и фантомным пузырём до
+ * ухода из него и обратно. Окно узкое, но оно есть у каждого, кто публикует из прогона, а вкладку
+ * с открытым чатом такое событие застаёт: хаб держит её подписка, и до неё оно доходит.
+ *
+ * Исключение ровно одно — RUN_USAGE: замер последнего чанка вправе доехать после конца прогона,
+ * и он полезен, поэтому его ветка ищет пузырь и по законченному прогону тоже, но runId чату всё
+ * равно не возвращает.
+ */
+const isLiveRun = (chat, runId) => chat.runId === runId;
+
+/**
  * Сообщение из очереди доставлено в историю (см. MESSAGE_QUEUED). Общий путь USER_MESSAGE здесь
  * не годится: он опознаёт эхо уже показанного хода и срезает всё, что стоит после него, — а
  * доставка внутрь прогона хода не кончает, и всё выше модель написала до этого вопроса.
@@ -256,16 +271,19 @@ export function applyChatEvent(chat, ev, ctx) {
       const projectSwitch = payload?.projectSwitchFrom
         ? { from: payload.projectSwitchFrom, to: payload.project }
         : null;
-      // Своё эхо — уже показано оптимистично; дописать в него осталось только плашку.
-      if (clientMsgId && ctx.isLocal?.(clientMsgId)) {
-        for (let i = msgs.length - 1; i >= 0; i--) {
-          if (msgs[i].sender !== SENDER.USER || isGitRow(msgs[i])) continue;
-          if (sameProjectSwitch(projectSwitch, msgs[i].projectSwitch)) return chat;
-          msgs[i] = { ...msgs[i], projectSwitch };
-          return { ...chat, messages: msgs };
-        }
-        return chat;
+      // Своё эхо — уже показано оптимистично; дописать в него осталось только плашку. Ищем
+      // именно СВОЙ пузырь, по clientMsgId: последним вопросом в ленте вполне может стоять уже
+      // следующий, поставленный в очередь, и плашка уехала бы на него.
+      const own =
+        clientMsgId && ctx.isLocal?.(clientMsgId) ? msgs.findIndex((m) => m.clientMsgId === clientMsgId) : -1;
+      if (own >= 0) {
+        if (sameProjectSwitch(projectSwitch, msgs[own].projectSwitch)) return chat;
+        msgs[own] = { ...msgs[own], projectSwitch };
+        return { ...chat, messages: msgs };
       }
+      // Свой clientMsgId, а пузыря нет: очередь приняли, но ответ на запрос до вкладки не доехал,
+      // и обещавший доставку пузырь сняли (см. useChatRun.queueMessage). Значит это не эхо уже
+      // показанного, а первая весть о сохранённом сообщении — заводит его общий путь ниже.
       const text = payload?.text || '';
       // id сохранённого сообщения: бэк пишет вопрос до обращения к модели, поэтому он есть
       // уже в событии. Событиям, отреплеенным из прогонов до этого изменения, его взять
@@ -275,12 +293,11 @@ export function applyChatEvent(chat, ev, ctx) {
       // вкладках, не дожидаясь перезагрузки.
       const contextItems = payload?.contextItems?.length ? payload.contextItems : null;
       // Дубликат после перезагрузки: наш вопрос уже в истории (подгружен из БД). Ищем
-      // ПОСЛЕДНЕЕ USER-сообщение — если оно совпало по тексту, это оно и есть, а всё,
-      // что идёт после него, — частично сохранённые сегменты текущего (ещё идущего)
-      // прогона. Реплей событий пересоберёт этот хвост, поэтому срезаем его: иначе и
-      // вопрос, и данные инструментов задвоились бы (reload посреди генерации). Раньше
-      // сверяли только самый последний пузырь, но после reload за вопросом уже стоят
-      // сохранённые ASSISTANT/TOOL-сегменты, и проверка не срабатывала.
+      // ПОСЛЕДНЕЕ USER-сообщение — если оно совпало, это оно и есть, а всё, что идёт после
+      // него, — частично сохранённые сегменты текущего (ещё идущего) прогона. Реплей событий
+      // пересоберёт этот хвост, поэтому срезаем его: иначе и вопрос, и данные инструментов
+      // задвоились бы (reload посреди генерации). Сверять один только последний пузырь мало:
+      // после reload за вопросом уже стоят сохранённые ASSISTANT/TOOL-сегменты.
       // (В обычном лайв-потоке своё эхо гасится выше по clientMsgId; сюда попадают лишь
       // реплей после reload и эхо чужих вкладок.)
       for (let i = msgs.length - 1; i >= 0; i--) {
@@ -372,10 +389,11 @@ export function applyChatEvent(chat, ev, ctx) {
     // Подробнее: docs/проект/диагностика-tool-preparing-стриминг.md
     // и docs/features/tool-preparing.md
     case CHAT_EVENT.TOOL_PREPARING: {
-      return { ...chat, runId };
+      return chat;
     }
 
     case CHAT_EVENT.STREAM: {
+      if (!isLiveRun(chat, runId)) return chat;
       const reason = (payload?.finishReason || '').trim();
       let idx = lastAiIndexForRun(msgs, runId);
       if (idx < 0) idx = pushAi(msgs, runId);
@@ -402,10 +420,11 @@ export function applyChatEvent(chat, ev, ctx) {
         clearPreparing(msgs, runId);
         msgs[idx] = { ...msgs[idx], text: msgs[idx].text.trimEnd(), sealed: true };
       }
-      return { ...chat, messages: msgs, runId };
+      return { ...chat, messages: msgs };
     }
 
     case CHAT_EVENT.TOOL_CALL: {
+      if (!isLiveRun(chat, runId)) return chat;
       let idx = lastAiIndexForRun(msgs, runId);
       if (idx < 0) idx = pushAi(msgs, runId);
       // Инструмент стартовал — плашка заменяет индикатор подготовки. Само событие — надёжная
@@ -421,14 +440,15 @@ export function applyChatEvent(chat, ev, ctx) {
         sealed: true,
         toolCalls: mergeToolCall(msgs[idx].toolCalls || [], payload?.toolCall),
       };
-      return { ...chat, messages: msgs, runId };
+      return { ...chat, messages: msgs };
     }
 
     case CHAT_EVENT.TOOL_CALLS: {
+      if (!isLiveRun(chat, runId)) return chat;
       // Итоговые metas прогона: раскладываем по сегментам, где уже есть совпавший живой
-      // вызов (name+callIndex/arguments); не совпавшие — в последний пузырь прогона.
+      // вызов (см. sameCall); не совпавшие — в последний пузырь прогона.
       const idxLast = lastAiIndexForRun(msgs, runId);
-      if (idxLast < 0) return { ...chat, runId };
+      if (idxLast < 0) return chat;
       clearPreparing(msgs, runId);
       for (const meta of payload?.toolCalls || []) {
         let target = idxLast;
@@ -441,7 +461,7 @@ export function applyChatEvent(chat, ev, ctx) {
         }
         msgs[target] = { ...msgs[target], toolCalls: mergeToolCall(msgs[target].toolCalls || [], meta) };
       }
-      return { ...chat, messages: msgs, runId };
+      return { ...chat, messages: msgs };
     }
 
     case CHAT_EVENT.RUN_USAGE: {
