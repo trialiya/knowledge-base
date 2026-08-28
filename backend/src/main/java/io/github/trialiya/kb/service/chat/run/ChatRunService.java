@@ -27,6 +27,7 @@ import io.github.trialiya.kb.service.chat.memory.ToolCallEventPublisher;
 import io.github.trialiya.kb.service.chat.prompt.ProjectPromptService;
 import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
+import io.github.trialiya.kb.service.chat.slot.ConversationSlots;
 import io.github.trialiya.kb.tools.RunCancellation;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import io.github.trialiya.kb.utils.ChatUtils;
@@ -96,14 +97,11 @@ public class ChatRunService {
     private final PendingMessageService pendingMessages;
     private final RunOptionsResolver runOptions;
     private final RunUsageRegistry runUsage;
+    private final ConversationSlots slots;
     private final Executor executor;
 
     /** runId -&gt; дескриптор активного прогона (для остановки). */
     private final ConcurrentHashMap<String, RunHandle> runs = new ConcurrentHashMap<>();
-
-    /** conversationId -&gt; runId: гарантирует не более одного активного прогона на чат. */
-    private final ConcurrentHashMap<String, String> activeByConversation =
-            new ConcurrentHashMap<>();
 
     /**
      * Прогоны, снятые с учёта, но ещё доделывающие терминальную обработку. Считаются отдельно от
@@ -127,6 +125,7 @@ public class ChatRunService {
             PendingMessageService pendingMessages,
             RunOptionsResolver runOptions,
             RunUsageRegistry runUsage,
+            ConversationSlots slots,
             @Qualifier("chatRunExecutor") Executor executor) {
         this.chatClients = chatClients;
         this.chatMemory = chatMemory;
@@ -140,6 +139,7 @@ public class ChatRunService {
         this.pendingMessages = pendingMessages;
         this.runOptions = runOptions;
         this.runUsage = runUsage;
+        this.slots = slots;
         this.executor = executor;
     }
 
@@ -181,12 +181,10 @@ public class ChatRunService {
             RunOptions options,
             @Nullable String clientMsgId) {
         final String runId = UUID.randomUUID().toString();
-        // Атомарная заявка на чат: если генерация уже идёт (в т.ч. из другой вкладки) — 409,
-        // фронт предложит дождаться или остановить текущую.
-        if (activeByConversation.putIfAbsent(conversationId, runId) != null) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT, "A response is already being generated for this chat");
-        }
+        // Заявка на чат: если он уже занят (генерацией из другой вкладки, сжатием контекста,
+        // git-командой) — 409, фронт предложит дождаться или остановить текущую. Хаб событий здесь
+        // не заводим: RUN_STARTED уходит ниже, уже с сохранённым вопросом на руках.
+        slots.take(conversationId, runId);
         final ChatMessageEntity userRow;
         try {
             // Прошлый прогон могли оборвать во время выполнения инструментов (в т.ч. падением
@@ -226,7 +224,7 @@ public class ChatRunService {
                                     options);
         } catch (RuntimeException e) {
             // Заявку на чат не удерживаем: генерация так и не началась.
-            activeByConversation.remove(conversationId, runId);
+            slots.free(conversationId, runId);
             throw e;
         }
         final RunHandle handle =
@@ -367,13 +365,14 @@ public class ChatRunService {
     }
 
     public Optional<String> activeRun(String conversationId) {
-        return events.activeRunId(conversationId);
+        return slots.activeRun(conversationId);
     }
 
     /**
      * Сколько миллисекунд уже идёт прогон — для таймера над полем ввода. По часам сервера (наружу
      * уходит длительность, а не момент старта: разница часов клиента и сервера её не портит). Пусто
-     * для заявки без генерации (сжатие контекста — см. {@link #claim}) и для неизвестного runId.
+     * для заявки без генерации (сжатие контекста и прочее — см. {@code ConversationSlots#claim}) и
+     * для неизвестного runId.
      */
     public OptionalLong runElapsedMs(String runId) {
         final RunHandle handle = runs.get(runId);
@@ -384,52 +383,18 @@ public class ChatRunService {
 
     /**
      * Идёт ли прямо сейчас именно генерация — этот прогон в этом чате. Строже, чем {@link
-     * #activeRun}: заявку на чат держит и сжатие контекста ({@link #claim}), а у него нет ни
-     * tool-цикла, ни терминальной обработки, то есть некому и опустошить очередь сообщений.
+     * #activeRun}: заявку на чат держит и сжатие контекста ({@code ConversationSlots#claim}), а у
+     * него нет ни tool-цикла, ни терминальной обработки, то есть некому и опустошить очередь
+     * сообщений.
      */
     public boolean isGenerating(String conversationId, String runId) {
         final RunHandle handle = runs.get(runId);
         return handle != null && handle.conversationId().equals(conversationId);
     }
 
-    /**
-     * Занимает чат под фоновую операцию, которая генерацией не является, — сейчас это сжатие
-     * контекста ({@code CompactService}). Заявка та же самая, что у прогона, и это здесь главное:
-     * пока идёт сжатие, вопрос в этот чат получает 409, а сжатие поверх идущей генерации не
-     * начнётся вовсе — обе операции читают и переписывают одну и ту же историю.
-     *
-     * <p>Своего {@link RunHandle} такая операция не заводит: останавливать в ней нечего (один
-     * блокирующий вызов модели без стриминга), поэтому {@link #stop} про неё не знает и вернёт
-     * {@code false}. Для вкладок она всё же прогон — {@link ChatEventService#startRun} держит
-     * {@code runId} активным, и вкладка, вошедшая в чат посреди сжатия, увидит его занятым.
-     *
-     * @return id занятой операции — его же нужно вернуть в {@link #release}
-     * @throws ResponseStatusException 409, если чат уже занят
-     */
-    public String claim(String conversationId) {
-        final String runId = UUID.randomUUID().toString();
-        if (activeByConversation.putIfAbsent(conversationId, runId) != null) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT, "A response is already being generated for this chat");
-        }
-        events.startRun(conversationId, runId);
-        return runId;
-    }
-
-    /** Освобождает чат, занятый {@link #claim}. Идемпотентно. */
-    public void release(String conversationId, String runId) {
-        activeByConversation.remove(conversationId, runId);
-        events.endRun(conversationId, runId);
-    }
-
     /** Число прогонов в реестре — для мониторинга утечек (см. ChatRuntimeMonitor). */
     public int activeRunCount() {
         return runs.size();
-    }
-
-    /** Число чатов с удержанной заявкой — в норме совпадает с {@link #activeRunCount()}. */
-    public int claimedConversationCount() {
-        return activeByConversation.size();
     }
 
     private void run(
@@ -766,7 +731,7 @@ public class ChatRunService {
                     spent.modelCalls(),
                     spent.cacheReadTokens());
         }
-        activeByConversation.remove(handle.conversationId(), handle.runId());
+        slots.free(handle.conversationId(), handle.runId());
     }
 
     private void persistPartial(

@@ -94,7 +94,9 @@ public class ChatEventService {
         return Optional.ofNullable(hubs.get(conversationId)).map(ConversationHub::activeRunId);
     }
 
-    /** Число живых хабов в реестре — для мониторинга утечек (см. ChatRuntimeMonitor). */
+    /**
+     * Число живых хабов в реестре — для мониторинга утечек (см. {@code run.ChatRuntimeMonitor}).
+     */
     public int hubCount() {
         return hubs.size();
     }
@@ -102,7 +104,7 @@ public class ChatEventService {
     /**
      * Отправляет SSE heartbeat всем подписчикам всех хабов. При записи в закрытый сокет (вкладка
      * закрыта) Spring выбрасывает исключение → onError → remove() → хаб выгружается. Вызывается по
-     * расписанию из {@code ChatRuntimeMonitor}.
+     * расписанию из {@code run.ChatRuntimeMonitor}.
      */
     public void sendHeartbeats() {
         hubs.values().forEach(ConversationHub::sendHeartbeat);
@@ -110,7 +112,7 @@ public class ChatEventService {
 
     /**
      * Закрывает все хабы и очищает реестр — при остановке приложения (см. {@code
-     * ChatRuntimeShutdown}). Возвращает число освобождённых SSE-подписок.
+     * run.ChatRuntimeShutdown}). Возвращает число освобождённых SSE-подписок.
      */
     public int closeAll() {
         final List<ConversationHub> snapshot = List.copyOf(hubs.values());

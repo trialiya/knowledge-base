@@ -275,8 +275,12 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
         // Модель достаётся каждому ответу хода, включая финальный без вызовов; плашки — только
         // сегментам, которые инструменты звали.
         assertThat(rows.stream().filter(r -> r.getMeta() != null)).hasSize(3);
+        // Именно «плашки непустые»: getInvocations() отдаёт список меты, а он у помеченного ряда
+        // никогда не null — по != null сюда попал бы и финальный ответ без вызовов.
         List<ChatMessageEntity> stamped =
-                rows.stream().filter(r -> r.getInvocations() != null).toList();
+                rows.stream()
+                        .filter(r -> r.getInvocations() != null && !r.getInvocations().isEmpty())
+                        .toList();
         assertThat(stamped).hasSize(2);
 
         ChatMessageEntity first = stamped.get(0);

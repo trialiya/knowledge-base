@@ -16,7 +16,7 @@ import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
-import io.github.trialiya.kb.service.chat.run.ChatRunService;
+import io.github.trialiya.kb.service.chat.slot.ConversationSlots;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -41,10 +41,10 @@ class ChatGitLogTest {
     private final ChatHistoryService chatHistory = mock(ChatHistoryService.class);
     private final ChatEventService chatEvents = mock(ChatEventService.class);
     private final ChatTopicRepository chatTopicRepository = mock(ChatTopicRepository.class);
-    private final ChatRunService chatRunService = mock(ChatRunService.class);
+    private final ConversationSlots slots = mock(ConversationSlots.class);
 
     private final ChatGitLog log =
-            new ChatGitLog(chatHistory, chatEvents, chatTopicRepository, chatRunService);
+            new ChatGitLog(chatHistory, chatEvents, chatTopicRepository, slots);
 
     @BeforeEach
     void signIn() {
@@ -90,7 +90,7 @@ class ChatGitLogTest {
     @Test
     void aChatWithARunInFlightIsRefused() {
         givenChatOwnedBy("anna");
-        when(chatRunService.claim(CONV))
+        when(slots.claim(CONV))
                 .thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, "already generating"));
 
         assertThatThrownBy(() -> log.claimIdleAndOwned(CONV))
@@ -103,7 +103,7 @@ class ChatGitLogTest {
     @Test
     void anOwnedIdleChatIsClaimedRatherThanMerelyChecked() {
         givenChatOwnedBy("anna");
-        when(chatRunService.claim(CONV)).thenReturn("claim-1");
+        when(slots.claim(CONV)).thenReturn("claim-1");
 
         assertThat(log.claimIdleAndOwned(CONV)).isEqualTo("claim-1");
     }
@@ -119,7 +119,7 @@ class ChatGitLogTest {
         assertThatThrownBy(() -> log.claimIdleAndOwned(CONV))
                 .isInstanceOf(ResponseStatusException.class);
 
-        verify(chatRunService, never()).claim(anyString());
+        verify(slots, never()).claim(anyString());
     }
 
     /** Заявку возвращают той же службе — иначе чат остался бы занятым навсегда. */
@@ -127,7 +127,7 @@ class ChatGitLogTest {
     void theClaimIsHandedBack() {
         log.release(CONV, "claim-1");
 
-        verify(chatRunService).release(CONV, "claim-1");
+        verify(slots).release(CONV, "claim-1");
     }
 
     /**

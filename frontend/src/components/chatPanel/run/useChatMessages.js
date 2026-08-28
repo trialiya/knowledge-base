@@ -21,7 +21,7 @@ const metaToCall = (x) => ({
 const extractRunId = (m) => m.runId || null;
 
 // Превращает «сырые» сообщения с бэка (хронологический порядок) в пузыри для рендера.
-// Системные сообщения-«крошки» (toolInvocationMetas из ToolCallService.attachRunMeta)
+// Системные сообщения-«крошки» (toolInvocationMetas из ChatHistoryService.markRunResult)
 // пузырём не показываем, а прикрепляем к предыдущему ответу ассистента — это даёт
 // resultMeta для блока «изменения документа».
 // Если крошка идёт в самом начале страницы (её ассистент остался в более старой,

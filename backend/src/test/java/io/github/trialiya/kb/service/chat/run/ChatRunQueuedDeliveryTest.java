@@ -24,6 +24,7 @@ import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.run.PendingMessageService.Flushed;
 import io.github.trialiya.kb.service.chat.run.PendingMessageService.PendingOptions;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
+import io.github.trialiya.kb.service.chat.slot.ConversationSlots;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -52,6 +53,8 @@ class ChatRunQueuedDeliveryTest {
     private PendingMessageService pendingMessages;
     private RunOptionsResolver runOptions;
     private ChatHistoryService chatHistory;
+    private ChatEventService events;
+    private ConversationSlots slots;
     private ChatRunService runService;
 
     /** Пул, который задачу не исполняет: тест — про решения, а не про саму генерацию. */
@@ -62,6 +65,8 @@ class ChatRunQueuedDeliveryTest {
         pendingMessages = mock(PendingMessageService.class);
         runOptions = mock(RunOptionsResolver.class);
         chatHistory = mock(ChatHistoryService.class);
+        events = new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1)));
+        slots = new ConversationSlots(events);
         when(runOptions.resolve(anyString(), any(), any(), any())).thenReturn(options());
         when(pendingMessages.flushPlain(anyString())).thenReturn(Flushed.NOTHING);
         runService =
@@ -71,13 +76,14 @@ class ChatRunQueuedDeliveryTest {
                         chatHistory,
                         mock(ToolCallEventPublisher.class),
                         mock(SummarizeService.class),
-                        new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))),
+                        events,
                         mock(ScriptGuideService.class),
                         mock(SystemPromptService.class),
                         mock(ProjectPromptService.class),
                         pendingMessages,
                         runOptions,
                         new RunUsageRegistry(),
+                        slots,
                         never);
     }
 
@@ -172,7 +178,7 @@ class ChatRunQueuedDeliveryTest {
         assertThat(runService.runElapsedMs(runId)).isPresent();
         assertThat(runService.runElapsedMs(runId).getAsLong()).isNotNegative();
 
-        final String claimed = runService.claim("conv-2");
+        final String claimed = slots.claim("conv-2");
         assertThat(runService.runElapsedMs(claimed)).isEmpty();
         assertThat(runService.runElapsedMs("no-such-run")).isEmpty();
     }

@@ -26,7 +26,7 @@ import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService.PromptRow;
-import io.github.trialiya.kb.service.chat.run.ChatRunService;
+import io.github.trialiya.kb.service.chat.slot.ConversationSlots;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -66,7 +66,7 @@ class CompactServiceTest {
 
     private ChatMessageRepository repository;
     private ChatHistoryService chatHistory;
-    private ChatRunService chatRunService;
+    private ConversationSlots slots;
     private ChatEventService events;
     private OpenAiChatModel chatModel;
 
@@ -77,7 +77,7 @@ class CompactServiceTest {
         // где лежит её текст.
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         chatHistory = mock(ChatHistoryService.class);
-        chatRunService = mock(ChatRunService.class);
+        slots = mock(ConversationSlots.class);
         events = mock(ChatEventService.class);
         chatModel = mock(OpenAiChatModel.class);
         when(chatModel.getOptions()).thenReturn(OpenAiChatOptions.builder().build());
@@ -272,14 +272,14 @@ class CompactServiceTest {
      */
     @Test
     void aChatWithNothingButASummaryIsRefusedAndTheClaimIsReleased() {
-        when(chatRunService.claim(CONV)).thenReturn("run-1");
+        when(slots.claim(CONV)).thenReturn("run-1");
         when(chatHistory.promptRows(CONV)).thenReturn(List.of(summaryRow(0)));
 
         assertThatThrownBy(() -> service().start(CONV, "/compact", null, null, null))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("Nothing to compact");
 
-        verify(chatRunService).release(CONV, "run-1");
+        verify(slots).release(CONV, "run-1");
         verify(chatHistory, never()).saveUserMessage(anyString(), anyString(), any(), any());
     }
 
@@ -291,7 +291,7 @@ class CompactServiceTest {
      */
     @Test
     void theCommandIsSavedAndEchoedButExcludedFromTheRound() {
-        when(chatRunService.claim(CONV)).thenReturn("run-1");
+        when(slots.claim(CONV)).thenReturn("run-1");
         final List<PromptRow> oldWindow = turns(1); // позиции 0..2
         final PromptRow command = row(3, MessageType.USER, "/compact фокус");
         // Первый вызов — проверка «есть ли что сжимать», до сохранения команды; второй — уже
@@ -343,7 +343,7 @@ class CompactServiceTest {
      */
     @Test
     void aRejectedRoundUnblocksEveryTabWithAnErrorEvent() {
-        when(chatRunService.claim(CONV)).thenReturn("run-1");
+        when(slots.claim(CONV)).thenReturn("run-1");
         when(chatHistory.promptRows(CONV)).thenReturn(turns(1));
         when(chatHistory.saveUserMessage(eq(CONV), anyString(), any(), any()))
                 .thenReturn(row(3, MessageType.USER, "/compact").entity());
@@ -356,7 +356,7 @@ class CompactServiceTest {
 
         verify(events)
                 .publish(eq(CONV), eq(ChatEventType.COMPACT_ERROR), eq("run-1"), isNull(), any());
-        verify(chatRunService).release(CONV, "run-1");
+        verify(slots).release(CONV, "run-1");
     }
 
     // -------------------------------------------------------------------------
@@ -503,7 +503,7 @@ class CompactServiceTest {
                 mock(ChatTopicRepository.class),
                 repository,
                 new SummaryWriter(repository, transactionManager()),
-                chatRunService,
+                slots,
                 events,
                 new ByteArrayResource("compact".getBytes()),
                 executor);

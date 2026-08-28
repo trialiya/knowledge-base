@@ -21,6 +21,7 @@ import io.github.trialiya.kb.service.chat.memory.ToolCallEventPublisher;
 import io.github.trialiya.kb.service.chat.prompt.ProjectPromptService;
 import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
+import io.github.trialiya.kb.service.chat.slot.ConversationSlots;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -52,6 +53,8 @@ class ChatRunRetryTest {
 
     private ChatHistoryService chatHistory;
     private PendingMessageService pendingMessages;
+    private ChatEventService events;
+    private ConversationSlots slots;
     private ChatRunService runService;
 
     /** Пул, который задачу не исполняет: тест — только про решения, принятые в start(). */
@@ -60,6 +63,8 @@ class ChatRunRetryTest {
     @BeforeEach
     void setUp() {
         chatHistory = mock(ChatHistoryService.class);
+        events = new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1)));
+        slots = new ConversationSlots(events);
         pendingMessages = mock(PendingMessageService.class);
         runService =
                 new ChatRunService(
@@ -68,13 +73,14 @@ class ChatRunRetryTest {
                         chatHistory,
                         mock(ToolCallEventPublisher.class),
                         mock(SummarizeService.class),
-                        new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))),
+                        events,
                         mock(ScriptGuideService.class),
                         mock(SystemPromptService.class),
                         mock(ProjectPromptService.class),
                         pendingMessages,
                         mock(RunOptionsResolver.class),
                         new RunUsageRegistry(),
+                        slots,
                         never);
     }
 
@@ -105,7 +111,7 @@ class ChatRunRetryTest {
                 .isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
 
         assertThat(runService.activeRunCount()).isZero();
-        assertThat(runService.claimedConversationCount()).isZero();
+        assertThat(slots.claimedConversationCount()).isZero();
     }
 
     /**

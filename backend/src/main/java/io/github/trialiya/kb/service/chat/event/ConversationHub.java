@@ -176,7 +176,7 @@ public class ConversationHub {
      * <p>Открытая вкладка — это активный async-запрос: пока {@link SseEmitter} не завершён, Tomcat
      * считает запрос выполняющимся и graceful shutdown ждёт его до своего таймаута (30 с), а потом
      * всё равно обрывает. Поэтому подписки закрываем сами — до старта graceful shutdown (см. {@code
-     * ChatRuntimeShutdown}).
+     * run.ChatRuntimeShutdown}).
      */
     public int close() {
         final List<SseEmitter> snapshot;
@@ -209,7 +209,7 @@ public class ConversationHub {
     /**
      * Отправляет SSE-комментарий всем подписчикам. При записи в закрытый сокет Spring бросает
      * исключение → onError/onCompletion → remove() → хаб выгружается из реестра. Вызывается по
-     * расписанию из {@code ChatRuntimeMonitor}.
+     * расписанию из {@code run.ChatRuntimeMonitor}.
      */
     public void sendHeartbeat() {
         final List<SseEmitter> snapshot;

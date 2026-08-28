@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.repository.ChatPendingMessageRepository;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
+import io.github.trialiya.kb.service.chat.slot.ConversationSlots;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
@@ -24,14 +25,14 @@ class PendingMessageRecoveryTest {
     private final PendingMessageService pendingMessages = mock(PendingMessageService.class);
     private final ChatHistoryService chatHistory = mock(ChatHistoryService.class);
 
-    private final ChatRunService runService = mock(ChatRunService.class);
+    private final ConversationSlots slots = mock(ConversationSlots.class);
 
     private final PendingMessageRecovery recovery =
-            new PendingMessageRecovery(repository, pendingMessages, chatHistory, runService);
+            new PendingMessageRecovery(repository, pendingMessages, chatHistory, slots);
 
     @org.junit.jupiter.api.BeforeEach
     void setUp() {
-        when(runService.claim(anyString())).thenReturn("claim-1");
+        when(slots.claim(anyString())).thenReturn("claim-1");
         when(pendingMessages.flushPlain(anyString()))
                 .thenReturn(PendingMessageService.Flushed.NOTHING);
     }
@@ -61,7 +62,7 @@ class PendingMessageRecoveryTest {
     @Test
     void aChatClaimedByALiveRunIsSkipped() {
         when(repository.conversationIds()).thenReturn(List.of("conv-1"));
-        when(runService.claim("conv-1")).thenThrow(new IllegalStateException("busy"));
+        when(slots.claim("conv-1")).thenThrow(new IllegalStateException("busy"));
 
         recovery.deliverLeftovers();
 
@@ -79,7 +80,7 @@ class PendingMessageRecoveryTest {
 
         recovery.deliverLeftovers();
 
-        verify(runService).release("conv-1", "claim-1");
+        verify(slots).release("conv-1", "claim-1");
     }
 
     /** Один сорвавшийся чат не повод оставить остальные с потерянными сообщениями. */

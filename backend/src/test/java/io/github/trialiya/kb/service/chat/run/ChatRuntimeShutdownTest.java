@@ -21,6 +21,7 @@ import io.github.trialiya.kb.service.chat.prompt.ProjectPromptService;
 import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.run.PendingMessageService.Flushed;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
+import io.github.trialiya.kb.service.chat.slot.ConversationSlots;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayDeque;
@@ -58,6 +59,7 @@ class ChatRuntimeShutdownTest {
     private ChatMemory chatMemory;
     private ChatHistoryService chatHistory;
     private ChatEventService events;
+    private ConversationSlots slots;
     private ChatRunService runService;
     private PendingMessageService pendingMessages;
     private final Deque<Runnable> pending = new ArrayDeque<>();
@@ -84,6 +86,7 @@ class ChatRuntimeShutdownTest {
                                         LocalDateTime.now(),
                                         null));
         events = new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1)));
+        slots = new ConversationSlots(events);
         pendingMessages = mock(PendingMessageService.class);
         when(pendingMessages.flushPlain(anyString())).thenReturn(Flushed.NOTHING);
         pending.clear();
@@ -101,7 +104,7 @@ class ChatRuntimeShutdownTest {
         shutdown(5000).onContextClosed(new ContextClosedEvent(mock(ApplicationContext.class)));
 
         assertThat(runService.activeRunCount()).isZero();
-        assertThat(runService.claimedConversationCount()).isZero();
+        assertThat(slots.claimedConversationCount()).isZero();
         assertThat(events.hubCount()).isZero();
         // Оборванный ответ сохранён до закрытия подписок — пул соединений ещё жив.
         final ArgumentCaptor<Message> saved = ArgumentCaptor.captor();
@@ -149,7 +152,7 @@ class ChatRuntimeShutdownTest {
         // доставленное при этом никто не начал — иначе появился бы второй прогон.
         verify(pendingMessages, org.mockito.Mockito.times(2)).flushPlain(CONV);
         assertThat(runService.activeRunCount()).isZero();
-        assertThat(runService.claimedConversationCount()).isZero();
+        assertThat(slots.claimedConversationCount()).isZero();
     }
 
     private static ChatMessageEntity userRow() {
@@ -254,6 +257,7 @@ class ChatRuntimeShutdownTest {
                 pendingMessages,
                 mock(RunOptionsResolver.class),
                 new RunUsageRegistry(),
+                slots,
                 executor);
     }
 
