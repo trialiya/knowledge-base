@@ -39,8 +39,8 @@ public class RunRegistry {
 
     /**
      * Снимает прогон с учёта. Идемпотентно: снять уже снятый — законный способ дойти до конца по
-     * второму пути (см. {@code ChatRunService.onTerminal} и {@code cleanup}). Накопленное при этом
-     * не пропадает — его держит сама область, а она у вызывающего на руках.
+     * второму пути (см. {@code ChatRunService.onTerminal} и {@code abort}). Накопленное при этом не
+     * пропадает — его держит сама область, а она у вызывающего на руках.
      */
     public void close(String runId) {
         byRunId.remove(runId);
