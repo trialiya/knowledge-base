@@ -158,6 +158,26 @@ class ChatRunQueuedDeliveryTest {
         order.verify(chatHistory).saveUserMessage(eq(CONV), anyString(), anyList(), any());
     }
 
+    /**
+     * Длительность для таймера над полем ввода есть только у живой генерации: у заявки сжатия
+     * ({@code claim}) нет {@code RunHandle}, и {@code GET /runs/active} отдаёт её без {@code
+     * elapsedMs} — фронт не показывает там таймер, которому не от чего отсчитываться.
+     */
+    @Test
+    void elapsedIsMeasuredForGenerationButNotForAClaim() {
+        when(chatHistory.saveUserMessage(eq(CONV), anyString(), anyList(), any()))
+                .thenReturn(userRow());
+        runService.start(CONV, USER, "вопрос", List.of(), options(), null);
+        final String runId = runService.activeRun(CONV).orElseThrow();
+
+        assertThat(runService.runElapsedMs(runId)).isPresent();
+        assertThat(runService.runElapsedMs(runId).getAsLong()).isNotNegative();
+
+        final String claimed = runService.claim("conv-2");
+        assertThat(runService.runElapsedMs(claimed)).isEmpty();
+        assertThat(runService.runElapsedMs("no-such-run")).isEmpty();
+    }
+
     /** Доставлено одно сообщение на названных настройках. */
     private static Flushed flushed(PendingOptions options) {
         return new Flushed(List.of(userRow()), USER, options);

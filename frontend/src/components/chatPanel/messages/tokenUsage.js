@@ -2,6 +2,8 @@
 // здесь только показ — в футере ответа и в шапке помещается одно короткое число, разбивка живёт в
 // подсказке, а расширенная статистика по всему чату — во вкладке «Инфо».
 
+import { SENDER } from '@/constants/messageSender';
+
 const THOUSAND = 1000;
 const MILLION = THOUSAND * THOUSAND;
 
@@ -74,6 +76,47 @@ export const contextUsageOf = (messages) => {
     if (hasUsage(m.usage)) return m.usage;
   }
   return null;
+};
+
+/**
+ * Прирост input за идущий прогон — для строки над полем ввода. Считается разницей между живым
+ * замером прогона и контекстом до него, то есть включает и сам вопрос с вложениями, и всё, что
+ * дочитали инструменты. Когда «до» неизвестно — история чата не измерена или отрезана плашкой
+ * сжатия, — остаётся честная нижняя граница: прирост внутри самого прогона (toolTokens).
+ *
+ * `null` — прогон ещё ничего не измерил (или провайдер не измерит вовсе): показывать нечего.
+ */
+export const runInputGrowth = (messages, runId) => {
+  if (!runId) return null;
+  let live = null;
+  let beforeContext = null;
+  let aiBefore = false;
+  for (let i = (messages?.length || 0) - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.runId === runId) {
+      if (!live && hasUsage(m.usage)) live = m.usage;
+      continue;
+    }
+    if (m.compact) {
+      // История до сжатия была, но её замеры описывают выброшенный контекст — «до» неизвестно.
+      aiBefore = true;
+      break;
+    }
+    if (m.sender !== SENDER.AI || m.gitEvent) continue;
+    // Локальный пузырь ошибки отправки: прогона за ним нет (runId не появился), контекст он не
+    // растил — историей не считается.
+    if (m.error && !m.runId) continue;
+    // «До» решает ближайший настоящий ответ, и только он: замер у прогона стоит на последнем
+    // сегменте, так что с конца он и встретится. Идти дальше, мимо неизмеренного прогона к
+    // более старому замеру, нельзя — рост неизмеренного записался бы этому прогону.
+    aiBefore = true;
+    if (hasUsage(m.usage)) beforeContext = Number(m.usage.contextTokens);
+    break;
+  }
+  if (!hasUsage(live)) return null;
+  if (!aiBefore) return Number(live.contextTokens);
+  if (beforeContext != null) return Math.max(0, Number(live.contextTokens) - beforeContext);
+  return Number(live.toolTokens) || 0;
 };
 
 /**

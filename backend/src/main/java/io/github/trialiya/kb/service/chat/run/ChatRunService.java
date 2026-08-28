@@ -34,6 +34,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -155,6 +156,7 @@ public class ChatRunService {
             String conversationId,
             String user,
             String model,
+            long startedAtNanos,
             AtomicReference<Disposable> disposable,
             AtomicBoolean stopRequested,
             AtomicBoolean persisted) {}
@@ -236,6 +238,7 @@ public class ChatRunService {
                         conversationId,
                         user,
                         chatClients.resolveModelId(options.model()),
+                        System.nanoTime(),
                         new AtomicReference<>(),
                         new AtomicBoolean(),
                         new AtomicBoolean());
@@ -368,6 +371,18 @@ public class ChatRunService {
 
     public Optional<String> activeRun(String conversationId) {
         return events.activeRunId(conversationId);
+    }
+
+    /**
+     * Сколько миллисекунд уже идёт прогон — для таймера над полем ввода. По часам сервера (наружу
+     * уходит длительность, а не момент старта: разница часов клиента и сервера её не портит). Пусто
+     * для заявки без генерации (сжатие контекста — см. {@link #claim}) и для неизвестного runId.
+     */
+    public OptionalLong runElapsedMs(String runId) {
+        final RunHandle handle = runs.get(runId);
+        return handle == null
+                ? OptionalLong.empty()
+                : OptionalLong.of((System.nanoTime() - handle.startedAtNanos()) / 1_000_000);
     }
 
     /**

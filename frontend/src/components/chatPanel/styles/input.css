@@ -1,5 +1,26 @@
 /* ── (legacy form styles removed — see message-input-wrapper below) ── */
 
+/* ── Строка идущего прогона над полем ввода: таймер и прирост input (RunStatus) ── */
+.run-status {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.3rem 1rem 0;
+  font-size: 0.68rem;
+  color: #999;
+  background: var(--kb-bg);
+  flex-shrink: 0;
+  user-select: none;
+}
+/* Таймер моноширинный, чтобы секунды не дёргали строку. */
+.run-status__time {
+  font-variant-numeric: tabular-nums;
+}
+.run-status__tokens {
+  white-space: nowrap;
+  cursor: default;
+}
+
 /* ── Compact message input wrapper ── */
 .message-input-wrapper {
   display: flex;

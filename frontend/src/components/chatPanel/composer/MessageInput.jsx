@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import Phrases from './Phrases';
+import RunStatus from './RunStatus';
 import PhraseFillModal from './PhraseFillModal';
 import ChipEditor from './ChipEditor';
 import ComposerToolbar from './ComposerToolbar';
@@ -15,6 +16,8 @@ import { parsePlaceholders } from './phrasePlaceholders';
 // stoppable — можно ли прервать то, чем занят чат: у генерации да, у сжатия контекста
 // (/compact) нет, и кнопка «остановить» там показывается неактивной.
 // active — панель чата открыта (не перекрыта другим разделом): по ней ставится фокус.
+// run — детали идущего прогона для строки над полем ({ startedAt, inputGrowth }, см. RunStatus);
+// null — прогона нет (или это сжатие контекста, у которого своя плашка в ленте).
 // Кнопки (отправить/остановить, прикрепить) и селекторы модели/режима вынесены
 // под поле ввода в ComposerToolbar; здесь остаётся только само поле + подсказки.
 const MessageInput = ({
@@ -35,6 +38,7 @@ const MessageInput = ({
   project,
   staged,
   onUnstage,
+  run = null,
 }) => {
   const { t } = useTranslation('chat');
   // Текст инициализируем из сохранённого черновика активного чата.
@@ -142,6 +146,9 @@ const MessageInput = ({
       )}
 
       <ContextChips items={staged} onRemove={onUnstage} ariaLabel={t('contextItems.staged')} />
+
+      {/* Детали идущего прогона — поле при нём не блокируется, и строка объясняет, чем чат занят. */}
+      {run && <RunStatus startedAt={run.startedAt} inputGrowth={run.inputGrowth} />}
 
       <div className="message-input-wrapper">
         <ChipEditor

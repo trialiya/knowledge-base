@@ -216,7 +216,9 @@
     "attach": "Attach file",
     "send": "Send",
     "sendDuringRun": "Send without waiting for the reply",
-    "stop": "Stop"
+    "stop": "Stop",
+    "runTokens": "+{{tokens}} input",
+    "runTokensTooltip": "How much the input grew during this reply — the question, attachments and everything the tools read"
   },
   "compact": {
     "running": "Compacting the chat context…",

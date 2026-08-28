@@ -342,18 +342,23 @@ export function applyChatEvent(chat, ev, ctx) {
     }
 
     case CHAT_EVENT.RUN_STARTED: {
+      // Якорь таймера над полем ввода — момент, когда ЭТА вкладка узнала о прогоне (по своим
+      // часам: серверное время сюда не мешаем, перекос часов сдвинул бы отсчёт). Реплей после
+      // переподключения приносит RUN_STARTED заново — уже поставленный якорь того же прогона
+      // не переставляем, иначе таймер прыгнул бы на ноль.
+      const runStartedAt = chat.runId === runId && chat.runStartedAt ? chat.runStartedAt : Date.now();
       // Идемпотентно: если пузырь прогона уже есть (оптимистично/из replay) — не дублируем,
       // но модель дописываем: оптимистичный пузырь заводится до ответа сервера и её не знает.
       const i = lastAiIndexForRun(msgs, runId);
       if (i >= 0) {
         if (payload?.model && !msgs[i].model) {
           msgs[i] = { ...msgs[i], model: payload.model };
-          return { ...chat, messages: msgs, runId };
+          return { ...chat, messages: msgs, runId, runStartedAt };
         }
-        return { ...chat, runId };
+        return { ...chat, runId, runStartedAt };
       }
       pushAi(msgs, runId, payload?.model ?? null);
-      return { ...chat, messages: msgs, runId };
+      return { ...chat, messages: msgs, runId, runStartedAt };
     }
 
     // TOOL_PREPARING отключён: сигнал приходит вплотную к TOOL_CALL и не даёт раннего
@@ -451,7 +456,7 @@ export function applyChatEvent(chat, ev, ctx) {
 
     case CHAT_EVENT.RUN_DONE: {
       finalize(msgs, runId);
-      return { ...chat, messages: msgs, runId: null };
+      return { ...chat, messages: msgs, runId: null, runStartedAt: null };
     }
 
     case CHAT_EVENT.RUN_STOPPED: {
@@ -461,7 +466,7 @@ export function applyChatEvent(chat, ev, ctx) {
         msgs[idx] = { ...msgs[idx], text: base ? `${base} ${ctx.stoppedLabel}` : ctx.stoppedLabel };
       }
       finalize(msgs, runId);
-      return { ...chat, messages: msgs, runId: null };
+      return { ...chat, messages: msgs, runId: null, runStartedAt: null };
     }
 
     case CHAT_EVENT.RUN_ERROR: {
@@ -489,7 +494,7 @@ export function applyChatEvent(chat, ev, ctx) {
         ...(produced ? {} : { retryMode: RETRY_MODE.CONTINUE }),
       };
       finalize(msgs, runId);
-      return { ...chat, messages: msgs, runId: null };
+      return { ...chat, messages: msgs, runId: null, runStartedAt: null };
     }
 
     // ─── Сжатие контекста (/compact) ─────────────────────────────────────────

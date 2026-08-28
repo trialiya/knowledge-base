@@ -270,6 +270,10 @@ export default function useChatMessages({ chats, getChats, setChats, activeChatI
                     ...chat,
                     messages,
                     runId: activeRunId,
+                    // elapsedMs — сколько прогон уже идёт по часам сервера: длительность, а не
+                    // момент старта, поэтому перекос часов клиента и сервера якорь не портит.
+                    // У сжатия контекста ключа нет — таймер там не показывается.
+                    runStartedAt: activeRunId && activeRun.elapsedMs != null ? Date.now() - activeRun.elapsedMs : null,
                     hasMore: !!page.hasMore,
                     oldestCursor: page.oldestCursor || null,
                     // metas, чей ассистент в ещё не загруженной более старой странице

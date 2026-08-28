@@ -128,7 +128,9 @@ export default function useChatEventStream({
       // compacting снимаем вместе с runId: его гасят только COMPACT_DONE/ERROR, а сюда мы
       // попадаем как раз потому, что этих событий не увидели. Оставленный флаг пережил бы
       // прогон и держал бы Stop выключенным во всех следующих генерациях этого чата.
-      setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, runId: null, compacting: false } : c)));
+      setChats((prev) =>
+        prev.map((c) => (c.id === chatId ? { ...c, runId: null, runStartedAt: null, compacting: false } : c)),
+      );
       onRunSettled(chatId);
       reloadMessages(chatId).then((msgs) => {
         setResyncTick((n) => n + 1);

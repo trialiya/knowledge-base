@@ -46,6 +46,7 @@ import jakarta.annotation.Nonnull;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -598,14 +599,25 @@ public class ChatController {
     }
 
     /**
-     * runId активного прогона чата (или пустой объект) — для восстановления состояния на фронте.
+     * runId активного прогона чата (или пустой объект) — для восстановления состояния на фронте. У
+     * генерации рядом едет {@code elapsedMs} — сколько прогон уже идёт: по нему вкладка, открывшая
+     * чат посреди ответа, ставит таймер на верное место. У сжатия контекста ключа нет — там нечего
+     * замерять (см. {@code ChatRunService#claim}).
      */
     @GetMapping("/{conversationId}/runs/active")
-    public Map<String, String> activeRun(@PathVariable final String conversationId) {
+    public Map<String, Object> activeRun(@PathVariable final String conversationId) {
         verifyOwnerIfPresent(conversationId);
         return chatRunService
                 .activeRun(conversationId)
-                .map(runId -> Map.of("runId", runId))
+                .<Map<String, Object>>map(
+                        runId -> {
+                            final Map<String, Object> active = new LinkedHashMap<>();
+                            active.put("runId", runId);
+                            chatRunService
+                                    .runElapsedMs(runId)
+                                    .ifPresent(ms -> active.put("elapsedMs", ms));
+                            return active;
+                        })
                 .orElseGet(Map::of);
     }
 
