@@ -10,11 +10,11 @@
     "queued": "ожидает отправки…",
     "answeredBy": "Ответила модель {{model}}",
     "tokens": "{{context}} в контексте",
-    "tokensCached": "Из оплаченного входа {{cached}} прочитано из кэша ({{percent}}%)",
+    "tokensCached": "Cache read: {{cached}} ({{percent}}% от total input)",
     "tokensContext": "Контекст после этого ответа: {{context}} токенов",
     "tokensTools": "Инструменты добавили: {{tools}}",
-    "tokensOutput": "Сгенерировано: {{output}}",
-    "tokensBilled": "Оплачено: {{billed}} · обращений к модели: {{calls}}"
+    "tokensOutput": "Output: {{output}}",
+    "tokensInput": "Total input: {{input}} · обращений к модели: {{calls}}"
   },
   "header": {
     "context": "Контекст: {{context}}",
@@ -46,7 +46,15 @@
     "mode": "Режим",
     "project": "Проект",
     "id": "ID",
-    "draftNote": "Черновик: чат появится на сервере вместе с первым сообщением."
+    "draftNote": "Черновик: чат появится на сервере вместе с первым сообщением.",
+    "contextTokens": "Занято контекста",
+    "outputTokens": "Output",
+    "cachedValue": "{{cached}} ({{percent}}%)",
+    "modelCalls": "Обращений к модели",
+    "usagePartial": "Токены посчитаны по загруженной части чата — прокрутите ленту вверх, чтобы дочитать остальное.",
+    "inputTokens": "Total input",
+    "cacheReadTokens": "Cache read",
+    "cacheWriteTokens": "Cache write"
   },
   "errorModal": {
     "notFoundTitle": "Чат не найден",
@@ -87,6 +95,8 @@
       "loadError": "Не удалось загрузить детали",
       "notFound": "Детали вызова не сохранены",
       "running": "Инструмент ещё работает — результат появится здесь, когда он ответит",
+      "costModel": "модель: {{model}}",
+      "costContext": "Контекст инструмента на последнем шаге: {{context}} токенов",
       "wrap": "Переносить строки",
       "wrapHint": "Переносить длинные строки вместо горизонтальной прокрутки",
       "mode": {
@@ -193,7 +203,8 @@
       "flag": {
         "yes": "да",
         "no": "нет"
-      }
+      },
+      "costTokens": "total input: {{input}} · output: {{output}} · обращений к модели: {{calls}}"
     }
   },
   "scroll": {

@@ -85,9 +85,13 @@ export const transformPage = (rawMsgs) => {
     // инструментов оставляет последним сегмент без текста, а бэкенд пишет токены именно
     // последнему. Отдаём их предыдущему пузырю ответа — иначе после перезагрузки прогон теряет
     // и плашку, и счётчик контекста, а тот показывает заниженное число прошлого прогона.
+    // Пузырь обязан быть из ТОГО ЖЕ прогона: ход, не оставивший ни одного пузыря (остановлен до
+    // первого текста), иначе затёр бы своим счётом ответ предыдущего прогона — и итоги по чату
+    // недосчитались бы его. Некуда положить — счёт теряется, и это честнее чужой плашки.
     const carryUsageToPrev = () => {
       const prev = bubbles[bubbles.length - 1];
-      if (m.usage && prev?.sender === SENDER.AI && !prev.compact && !prev.gitEvent) {
+      const sameRun = !prev?.toolCallsRunId || !m.runId || prev.toolCallsRunId === m.runId;
+      if (m.usage && sameRun && prev?.sender === SENDER.AI && !prev.compact && !prev.gitEvent) {
         prev.usage = m.usage;
       }
     };

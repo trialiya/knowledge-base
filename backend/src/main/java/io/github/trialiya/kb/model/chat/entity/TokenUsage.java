@@ -1,6 +1,9 @@
-package io.github.trialiya.kb.model.chat.dto;
+package io.github.trialiya.kb.model.chat.entity;
 
-import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
+import org.jspecify.annotations.Nullable;
+import org.springframework.ai.chat.metadata.ChatResponseMetadata;
+import org.springframework.ai.chat.metadata.Usage;
+import org.springframework.ai.chat.model.ChatResponse;
 
 /**
  * Токены одного обращения к модели, как их измерил {@code TokenUsageAdvisor}. Итог прогона из них
@@ -15,8 +18,8 @@ import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
  *       часть прокси разносит prompt и completion по разным чанкам. Максимум верен во всех трёх
  *       случаях, тогда как «первый непустой» терял бы completion, а «последний непустой» — prompt.
  *   <li><b>между обращениями</b> — {@link #plus}, сумма: каждая итерация tool-цикла оплачивается
- *       отдельно, и prompt в ней считается заново от начала диалога. Это оплаченная величина, и
- *       наверх она идёт только в расширенной статистике — почему, см. {@link RunTokenUsage}.
+ *       отдельно, и prompt в ней считается заново от начала диалога. Это total input, и наверх она
+ *       идёт только в расширенной статистике — почему, см. {@link RunTokenUsage}.
  * </ul>
  *
  * <p>Поля — {@code long}: провайдер отдаёт {@code Integer}, но сумма по длинному прогону с большим
@@ -38,6 +41,32 @@ public record TokenUsage(
         long cacheWriteTokens) {
 
     public static final TokenUsage EMPTY = new TokenUsage(0, 0, 0, 0, 0);
+
+    /**
+     * Замер из ответа модели; {@link #EMPTY}, если провайдер его не прислал.
+     *
+     * <p>Разбор провайдерского {@link Usage} живёт здесь, а не у вызывающих: их двое и они не
+     * похожи — стриминговый advisor чата и синхронный цикл суб-агента, — а поля и их {@code null} у
+     * обоих одни и те же. Вторая копия этого метода разошлась бы с первой на первом же поле,
+     * которое провайдер начнёт отдавать (кэш уже был таким полем).
+     */
+    public static TokenUsage of(@Nullable ChatResponse response) {
+        final ChatResponseMetadata metadata = response == null ? null : response.getMetadata();
+        final Usage measured = metadata == null ? null : metadata.getUsage();
+        if (measured == null) {
+            return EMPTY;
+        }
+        return new TokenUsage(
+                nz(measured.getPromptTokens()),
+                nz(measured.getCompletionTokens()),
+                nz(measured.getTotalTokens()),
+                nz(measured.getCacheReadInputTokens()),
+                nz(measured.getCacheWriteInputTokens()));
+    }
+
+    private static long nz(@Nullable Number value) {
+        return value == null ? 0L : value.longValue();
+    }
 
     /**
      * Ничего не насчитано. Именно «все нули», а не «объекта нет»: провайдер без поддержки usage в

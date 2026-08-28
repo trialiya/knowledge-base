@@ -38,7 +38,7 @@ import reactor.core.publisher.Flux;
  *
  * <p>Проверяем ровно то, что три числа {@link RunTokenUsage} считаются каждое по своему правилу и
  * не подменяют друг друга: контекст берётся из последнего обращения, прирост — разностью, выход и
- * оплаченный prompt — суммой.
+ * total input — суммой.
  */
 class TokenUsageAdvisorTest {
 

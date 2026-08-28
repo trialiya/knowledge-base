@@ -164,7 +164,7 @@ const Message = ({
   const mdComponents = useMemo(() => getMarkdownComponents(onNavigateToDoc), [onNavigateToDoc]);
 
   // Разбивка — в подсказке: в футере на неё нет места, а нужна она редко. Сверху три числа про
-  // сам разговор, снизу — оплаченное, которое без строки про кэш выглядит необъяснимо большим.
+  // сам разговор, снизу — total input, который без строки про кэш выглядит необъяснимо большим.
   const usageTitle = hasUsage(usage) ? usageTooltip(usage, t, 'message.tokensContext') : undefined;
 
   // Пузырь — только контент сообщения, без футера
@@ -214,7 +214,7 @@ const Message = ({
           )}
           {/* Токены всего прогона, а не этого сегмента: ответ с инструментами — это несколько
               обращений к модели, и плашка стоит на последнем его пузыре. В ней занятый контекст:
-              оплаченное больше в разы и в футере читалось бы как счёт за один ответ. */}
+              total input больше в разы и в футере читался бы как размер одного ответа. */}
           {hasUsage(usage) && (
             <span className="message-footer__tokens" title={usageTitle}>
               {t('message.tokens', { context: formatTokens(usage.contextTokens) })}

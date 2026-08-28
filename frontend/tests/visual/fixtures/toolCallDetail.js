@@ -509,3 +509,46 @@ export const mcpCall = {
   resultMeta: null,
   createdAt: '2026-08-16T13:14:51',
 };
+
+/**
+ * Поиск по коду суб-агентом: единственный инструмент, который сам ходит в модель, — и потому
+ * единственный, у которого в деталях есть строка цены. Числа в resultMeta намеренно разошлись:
+ * контекст суб-агента 18.4k при total input 41.3k за четыре обращения — это и есть та разница,
+ * ради которой цену вообще показывают. Модели их не отдают (@JsonIgnore в SearchAgentResult), поэтому в
+ * resultText, то есть в JSON-режиме модалки, их нет.
+ */
+export const searchCodebaseCall = {
+  name: 'searchCodebase',
+  argumentsRaw: JSON.stringify({ task: 'где проверяется авторизация запроса', scope: 'backend' }),
+  status: 'OK',
+  error: null,
+  resultText: JSON.stringify({
+    project: 'kb',
+    report:
+      'Проверка авторизации собрана в одном фильтре и одном конфиге:\n\n' +
+      '- `SecurityConfig.java:42` — HTTP Basic на всё, кроме `/actuator/health`\n' +
+      '- `SecurityConfig.java:61` — единственный пользователь берётся из `kb.auth`\n' +
+      '- `SpaForwardController.java:28` — форвард SPA идёт ПОСЛЕ фильтра, поэтому неавторизованный\n' +
+      '  запрос не получает index.html вместо 401',
+    complete: true,
+    iterations: 4,
+  }),
+  resultMeta: {
+    project: 'kb',
+    complete: true,
+    iterations: 4,
+    durationMs: 18420,
+    reportChars: 380,
+    model: 'gpt-5-mini',
+    usage: {
+      contextTokens: 18400,
+      toolTokens: 12100,
+      outputTokens: 870,
+      promptTokens: 41260,
+      cacheReadTokens: 29800,
+      cacheWriteTokens: 1180,
+      modelCalls: 4,
+    },
+  },
+  createdAt: '2026-08-28T11:20:00',
+};

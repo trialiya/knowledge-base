@@ -211,3 +211,14 @@
 .json-highlight__null {
   color: #f38ba8;
 } /* red   — null           */
+
+/* Чем обошёлся вызов: своя модель инструмента и её токены. Приглушено как подписи в футере
+   ответа — это справка о вызове, а не его результат, ради которого модалку открыли. */
+.tool-call-detail__cost {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 0.68rem;
+  color: #999;
+  user-select: none;
+}

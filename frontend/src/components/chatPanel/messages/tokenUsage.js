@@ -1,6 +1,6 @@
-// Токены прогона в подписи под ответом. Считает их бэкенд (см. TokenUsageAdvisor), здесь только
-// формат: в футере рядом со временем и моделью помещается одно короткое число, а разбивка живёт
-// в подсказке.
+// Токены прогонов на фронте: формат и выборки по ленте. Считает их бэкенд (см. TokenUsageAdvisor),
+// здесь только показ — в футере ответа и в шапке помещается одно короткое число, разбивка живёт в
+// подсказке, а расширенная статистика по всему чату — во вкладке «Инфо».
 
 const THOUSAND = 1000;
 const MILLION = THOUSAND * THOUSAND;
@@ -29,15 +29,8 @@ export const formatTokens = (value) => {
 export const hasUsage = (usage) => !!usage && Number(usage.contextTokens) > 0;
 
 /**
- * Оплаченное за прогон: сумма prompt'ов всех обращений к модели плюс сгенерированное. У ответа с
- * инструментами это в разы больше занятого контекста — каждое обращение несёт историю заново, —
- * поэтому число живёт в подсказке, а не в плашке.
- */
-export const billedTokens = (usage) => Number(usage?.promptTokens || 0) + Number(usage?.outputTokens || 0);
-
-/**
- * Какая доля оплаченного prompt'а прочитана из кэша, в процентах. Именно она объясняет разрыв
- * между занятым контекстом и оплаченным: повторная часть тарифицируется по ставке кэша.
+ * Какая доля total input прочитана из кэша, в процентах. Именно она объясняет разрыв между
+ * занятым контекстом и суммарным входом: повторная часть у провайдера идёт по ставке кэша.
  */
 export const cacheShare = (usage) => {
   const prompt = Number(usage?.promptTokens || 0);
@@ -57,7 +50,7 @@ export const usageTooltip = (usage, t, headKey) =>
     t(headKey, { context: formatTokens(usage.contextTokens) }),
     usage.toolTokens > 0 ? t('message.tokensTools', { tools: formatTokens(usage.toolTokens) }) : null,
     t('message.tokensOutput', { output: formatTokens(usage.outputTokens) }),
-    t('message.tokensBilled', { billed: formatTokens(billedTokens(usage)), calls: usage.modelCalls }),
+    t('message.tokensInput', { input: formatTokens(usage.promptTokens), calls: usage.modelCalls }),
     usage.cacheReadTokens > 0
       ? t('message.tokensCached', { cached: formatTokens(usage.cacheReadTokens), percent: cacheShare(usage) })
       : null,
@@ -81,4 +74,35 @@ export const contextUsageOf = (messages) => {
     if (hasUsage(m.usage)) return m.usage;
   }
   return null;
+};
+
+/**
+ * Итоги по чату: что складывается по прогонам, а что нет.
+ *
+ * Складываются output, total input, кэш и число обращений — каждое из них у прогона своё, и в
+ * соседний прогон не входит. `contextTokens` НЕ складывается ни при каких условиях: контекст у
+ * прогонов общий и растёт, а не набирается, и сумма по ним была бы просто числом ниоткуда.
+ * «Сколько занято сейчас» отвечает contextUsageOf.
+ *
+ * `null` — ни один прогон чата не измерен: показывать нечего, и ноль здесь был бы неправдой.
+ */
+export const chatUsageTotals = (messages) => {
+  const totals = {
+    runs: 0,
+    outputTokens: 0,
+    promptTokens: 0,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    modelCalls: 0,
+  };
+  for (const m of messages || []) {
+    if (!hasUsage(m.usage)) continue;
+    totals.runs += 1;
+    totals.outputTokens += Number(m.usage.outputTokens || 0);
+    totals.promptTokens += Number(m.usage.promptTokens || 0);
+    totals.cacheReadTokens += Number(m.usage.cacheReadTokens || 0);
+    totals.cacheWriteTokens += Number(m.usage.cacheWriteTokens || 0);
+    totals.modelCalls += Number(m.usage.modelCalls || 0);
+  }
+  return totals.runs > 0 ? totals : null;
 };

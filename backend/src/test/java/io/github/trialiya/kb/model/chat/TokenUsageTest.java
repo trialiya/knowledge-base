@@ -2,7 +2,7 @@ package io.github.trialiya.kb.model.chat;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.github.trialiya.kb.model.chat.dto.TokenUsage;
+import io.github.trialiya.kb.model.chat.entity.TokenUsage;
 import org.junit.jupiter.api.Test;
 
 /**

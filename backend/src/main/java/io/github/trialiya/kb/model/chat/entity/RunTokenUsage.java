@@ -26,8 +26,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
  *     инструментов и ответы на них. Ноль у прогона без инструментов — там дописывать было нечего
  * @param outputTokens сколько модель сгенерировала за прогон — сумма по обращениям. Здесь именно
  *     сумма и никак иначе: выход каждого обращения свой и в чужой prompt входит только один раз
- * @param promptTokens сумма prompt'ов всех обращений — та самая оплаченная величина. База для
- *     расширенной статистики и знаменатель доли кэша
+ * @param promptTokens сумма prompt'ов всех обращений — total input. База для расширенной статистики
+ *     и знаменатель доли кэша
  * @param cacheReadTokens прочитано из кэша промпта; часть {@link #promptTokens}, а не добавка —
  *     доля кэша это их отношение
  * @param cacheWriteTokens записано в кэш промпта
@@ -62,5 +62,61 @@ public record RunTokenUsage(
     @JsonIgnore
     public boolean isEmpty() {
         return contextTokens == 0 && outputTokens == 0 && promptTokens == 0;
+    }
+
+    /**
+     * Накопитель прогона: из него получается {@link RunTokenUsage}. Держит первое и последнее
+     * обращение отдельно от суммы, потому что три числа выше считаются по-разному и из одной лишь
+     * суммы два из них уже не достать.
+     *
+     * <p>Общий на оба места, где обращения к модели идут пачкой: tool-цикл чата ({@code
+     * RunUsageRegistry}) и цикл поискового суб-агента ({@code SearchAgentService}). Правило у них
+     * обязано быть одно — иначе одна и та же работа в двух местах интерфейса называлась бы разными
+     * числами.
+     *
+     * @param first первое измеренное обращение — вычитаемое в {@link #toolTokens}
+     * @param last последнее измеренное обращение — из него весь контекст разговора
+     * @param sum сумма по обращениям — из неё output и total input
+     * @param calls сколько обращений учтено
+     */
+    public record Tally(TokenUsage first, TokenUsage last, TokenUsage sum, int calls) {
+
+        public static final Tally EMPTY =
+                new Tally(TokenUsage.EMPTY, TokenUsage.EMPTY, TokenUsage.EMPTY, 0);
+
+        /**
+         * Учитывает замер обращения.
+         *
+         * <p>На роль первого и последнего годится только замер с prompt'ом. Провайдер вправе
+         * прислать по ходу обращения чанк с одним лишь выходом, и такой замер, назначенный
+         * последним, обрушил бы {@link #contextTokens} до размера ответа, а назначенный первым —
+         * раздул бы {@link #toolTokens} до всего контекста. В сумму он при этом входит: выход в нём
+         * настоящий.
+         */
+        public Tally with(TokenUsage call) {
+            if (call.isEmpty()) {
+                return this;
+            }
+            final boolean measuresPrompt = call.promptTokens() > 0;
+            return new Tally(
+                    measuresPrompt && first.promptTokens() == 0 ? call : first,
+                    measuresPrompt ? call : last,
+                    sum.plus(call),
+                    calls + 1);
+        }
+
+        /** Итог по накопленному. */
+        public RunTokenUsage view() {
+            return new RunTokenUsage(
+                    last.promptTokens() + last.completionTokens(),
+                    // Отрицательной разность быть не может — prompt следующего обращения включает
+                    // предыдущее целиком, — но провайдеру, который посчитал иначе, верить незачем.
+                    Math.max(0, last.promptTokens() - first.promptTokens()),
+                    sum.completionTokens(),
+                    sum.promptTokens(),
+                    sum.cacheReadTokens(),
+                    sum.cacheWriteTokens(),
+                    calls);
+        }
     }
 }

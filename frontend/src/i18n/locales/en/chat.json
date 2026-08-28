@@ -10,11 +10,11 @@
     "queued": "waiting to be sent…",
     "answeredBy": "Answered by {{model}}",
     "tokens": "{{context}} in context",
-    "tokensCached": "Of the billed input, {{cached}} was read from cache ({{percent}}%)",
+    "tokensCached": "Cache read: {{cached}} ({{percent}}% of total input)",
     "tokensContext": "Context after this answer: {{context}} tokens",
     "tokensTools": "Tools added: {{tools}}",
-    "tokensOutput": "Generated: {{output}}",
-    "tokensBilled": "Billed: {{billed}} · model calls: {{calls}}"
+    "tokensOutput": "Output: {{output}}",
+    "tokensInput": "Total input: {{input}} · model calls: {{calls}}"
   },
   "header": {
     "context": "Context: {{context}}",
@@ -46,7 +46,15 @@
     "mode": "Mode",
     "project": "Project",
     "id": "ID",
-    "draftNote": "Draft: the chat is created on the server with the first message."
+    "draftNote": "Draft: the chat is created on the server with the first message.",
+    "contextTokens": "Context in use",
+    "outputTokens": "Output",
+    "cachedValue": "{{cached}} ({{percent}}%)",
+    "modelCalls": "Model calls",
+    "usagePartial": "Tokens are counted over the loaded part of the chat — scroll up to read in the rest.",
+    "inputTokens": "Total input",
+    "cacheReadTokens": "Cache read",
+    "cacheWriteTokens": "Cache write"
   },
   "errorModal": {
     "notFoundTitle": "Chat not found",
@@ -87,6 +95,8 @@
       "loadError": "Failed to load details",
       "notFound": "Call details not recorded",
       "running": "The tool is still running — the result will appear here once it answers",
+      "costModel": "model: {{model}}",
+      "costContext": "Tool's context on its last step: {{context}} tokens",
       "wrap": "Wrap lines",
       "wrapHint": "Wrap long lines instead of scrolling sideways",
       "mode": {
@@ -193,7 +203,8 @@
       "flag": {
         "yes": "yes",
         "no": "no"
-      }
+      },
+      "costTokens": "total input: {{input}} · output: {{output}} · model calls: {{calls}}"
     }
   },
   "scroll": {
