@@ -279,8 +279,7 @@ public class ChatController {
         chatTopicRepository.deleteById(chatTopicEntity.getConversationId());
         chatHistory.delete(conversationId);
         // Уведомляем открытые на этом чате вкладки (в т.ч. в других браузерах) — они закроют его.
-        chatEventService.publishIfPresent(
-                conversationId, ChatEventType.CHAT_DELETED, null, null, null);
+        chatEventService.publish(conversationId, ChatEventType.CHAT_DELETED, null, null, null);
     }
 
     /** Проекты, между которыми можно выбирать, и какой из них дефолтный. */

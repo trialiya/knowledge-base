@@ -52,6 +52,19 @@ public class ConversationSlots {
     }
 
     /**
+     * Занимает чат под новую операцию, не трогая хаб, — для прогона, который заводит хаб позже
+     * ({@code ChatRunService.start} шлёт RUN_STARTED уже с сохранённым вопросом на руках).
+     *
+     * @return id занятой операции — его же нужно вернуть в {@link #free}
+     * @throws ResponseStatusException 409, если чат уже занят
+     */
+    public String take(String conversationId) {
+        final String runId = UUID.randomUUID().toString();
+        take(conversationId, runId);
+        return runId;
+    }
+
+    /**
      * Снимает заявку, не трогая хаб. Идемпотентно и снимает только СВОЮ заявку: чат, занятый уже
      * следующей операцией, остаётся за ней.
      */
@@ -75,8 +88,7 @@ public class ConversationSlots {
      * @throws ResponseStatusException 409, если чат уже занят
      */
     public String claim(String conversationId) {
-        final String runId = UUID.randomUUID().toString();
-        take(conversationId, runId);
+        final String runId = take(conversationId);
         events.startRun(conversationId, runId);
         return runId;
     }
@@ -87,7 +99,8 @@ public class ConversationSlots {
      * <p>Точное обратное {@link #claim}, и порядок в нём обратный: сначала хаб, потом заявка. Иначе
      * следующая операция успевает занять освободившийся чат и записаться в хаб, который этот {@code
      * endRun} как раз закрывает, — её событие потерялось бы, а вкладки увидели бы чат свободным
-     * посреди её работы. Тем же порядком идёт {@code ChatRunService.cleanup}.
+     * посреди её работы. Этим же и заканчивается прогон ({@code ChatRunService.cleanup}), чтобы
+     * порядок жил в одном месте.
      */
     public void release(String conversationId, String runId) {
         events.endRun(conversationId, runId);

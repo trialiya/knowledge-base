@@ -339,8 +339,8 @@ public class ChatHistoryService {
      * оборванных прогонов, оставшиеся в том же хвосте, уже помечены своей моделью и второй раз не
      * переписываются: у ответа стоит та модель, что его написала, а не та, на которой сдались.
      *
-     * @param toolCalls снимок вызовов прогона в хронологическом порядке; {@code null} — прогон не
-     *     звал инструментов
+     * @param toolCalls снимок вызовов прогона в хронологическом порядке; пустой — инструментов
+     *     прогон не звал
      * @return плашки, которые эта запись проставила, в хронологическом порядке — их же прогон шлёт
      *     финальным live-событием {@code TOOL_CALLS}, чтобы не считать то же самое дважды
      */
@@ -350,7 +350,7 @@ public class ChatHistoryService {
             String runId,
             String model,
             RunTokenUsage usage,
-            @Nullable List<ToolInvocation> toolCalls) {
+            List<ToolInvocation> toolCalls) {
         final List<ChatMessageEntity> answers =
                 tailAfterLastUser(
                                 chatMessageRepository
@@ -372,20 +372,18 @@ public class ChatHistoryService {
         }
         final Map<Long, List<ToolInvocationMeta>> invocations =
                 ToolCallService.runInvocations(
-                        answers.stream().filter(row -> row.getMeta() == null).toList(),
-                        toolCalls == null ? List.of() : toolCalls);
+                        answers.stream().filter(row -> row.getMeta() == null).toList(), toolCalls);
         final List<ChatMessageEntity> updated = new ArrayList<>(answers.size());
         for (ChatMessageEntity answer : answers) {
+            // Мету пишем поверх существующей, а плашки достаются только рядам без неё — их и
+            // отбирает фильтр в runInvocations выше. Ослабишь его — собирай мету поверх
+            // существующей и здесь, иначе она потеряется.
+            final ChatMessageMeta existing = answer.getMeta();
             final List<ToolInvocationMeta> metas = invocations.get(answer.getId());
-            // Короткий конструктор допустим только под metas != null: плашки раздаются рядам с
-            // meta == null, терять нечему. Ослабишь фильтр в runInvocations — собирай мету поверх
-            // существующей.
             final ChatMessageMeta base =
-                    metas != null
-                            ? new ChatMessageMeta(runId, false, metas)
-                            : answer.getMeta() == null
-                                    ? new ChatMessageMeta(null, false, List.of())
-                                    : answer.getMeta();
+                    existing != null
+                            ? existing
+                            : new ChatMessageMeta(null, false, metas == null ? List.of() : metas);
             updated.add(answer.withMeta(base.withRun(runId, model)));
         }
         if (!usage.isEmpty()) {

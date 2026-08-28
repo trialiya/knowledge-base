@@ -20,7 +20,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -172,7 +171,7 @@ class ScriptEditTest {
 
     @Test
     void writesNothingWhenTheUserStopsTheRun() {
-        RunCancellation cancellation = new RunCancellation(new AtomicBoolean(true));
+        RunCancellation cancellation = new RunCancellation(() -> true);
 
         try {
             runner.run(

@@ -141,12 +141,12 @@ class ChatGitLogTest {
 
         log.record(CONV, "pull", "kb", true, "Fast-forward", "main");
 
-        verify(chatEvents, never()).publishIfPresent(anyString(), any(), any(), any(), any());
+        verify(chatEvents, never()).publish(anyString(), any(), any(), any(), any());
     }
 
     /**
      * Событие рассылается только там, где канал уже есть: команда в чат без открытых вкладок иначе
-     * заводила бы канал, который никто не закроет (см. {@code ChatEventService.publishIfPresent}).
+     * заводила бы канал, который никто не закроет (см. {@code ChatEventService.publish}).
      */
     @Test
     void theEventGoesOutOnlyToAChannelThatAlreadyExists() {
@@ -166,7 +166,7 @@ class ChatGitLogTest {
 
         log.record(CONV, "pull", "kb", true, "Fast-forward", "main");
 
-        verify(chatEvents).publishIfPresent(anyString(), any(), any(), any(), any());
+        verify(chatEvents).publish(anyString(), any(), any(), any(), any());
     }
 
     private void givenChatOwnedBy(String user) {

@@ -63,7 +63,7 @@ class ScriptCancellationTest {
     @Test
     void stopsARunawayScriptWhenTheRunIsCancelled() throws Exception {
         AtomicBoolean stopRequested = new AtomicBoolean();
-        RunCancellation cancellation = new RunCancellation(stopRequested);
+        RunCancellation cancellation = new RunCancellation(stopRequested::get);
         AtomicBoolean finished = new AtomicBoolean();
         List<Throwable> thrown = new ArrayList<>();
 
@@ -92,7 +92,7 @@ class ScriptCancellationTest {
 
     @Test
     void aCancelledRunNeverReportsBackToTheModel() {
-        RunCancellation cancellation = new RunCancellation(new AtomicBoolean(true));
+        RunCancellation cancellation = new RunCancellation(() -> true);
 
         // Already cancelled before the first poll — the script must not come back as a result the
         // tool loop would feed to a model that is no longer listening.

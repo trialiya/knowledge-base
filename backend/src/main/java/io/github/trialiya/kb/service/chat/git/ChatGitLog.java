@@ -121,7 +121,7 @@ public class ChatGitLog {
         final GitEventMeta event = new GitEventMeta(command, project, ok, output, branch);
         try {
             final ChatMessageEntity row = chatHistory.appendGitEvent(conversationId, event);
-            chatEvents.publishIfPresent(
+            chatEvents.publish(
                     conversationId,
                     ChatEventType.GIT_COMMAND,
                     null,

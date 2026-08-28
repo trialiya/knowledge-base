@@ -93,7 +93,7 @@ class PendingMessageServiceTest {
 
         final ArgumentCaptor<Object> payloads = ArgumentCaptor.forClass(Object.class);
         verify(events, org.mockito.Mockito.times(2))
-                .publishIfPresent(
+                .publish(
                         eq(CONV),
                         eq(ChatEventType.USER_MESSAGE),
                         eq(RUN),
@@ -118,7 +118,7 @@ class PendingMessageServiceTest {
         verify(chatHistory, never())
                 .saveDeliveredPending(anyString(), anyString(), anyList(), anyBoolean());
         verify(events, never())
-                .publishIfPresent(eq(CONV), eq(ChatEventType.USER_MESSAGE), any(), any(), any());
+                .publish(eq(CONV), eq(ChatEventType.USER_MESSAGE), any(), any(), any());
     }
 
     @Test
@@ -135,7 +135,7 @@ class PendingMessageServiceTest {
         verify(chatHistory).saveDeliveredPending(eq(CONV), eq("первое"), anyList(), eq(false));
         final ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
         verify(events)
-                .publishIfPresent(
+                .publish(
                         eq(CONV),
                         eq(ChatEventType.USER_MESSAGE),
                         eq(null),

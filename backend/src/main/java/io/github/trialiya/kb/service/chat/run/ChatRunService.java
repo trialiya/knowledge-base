@@ -37,7 +37,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
-import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -157,11 +156,10 @@ public class ChatRunService {
             List<ContextItem> contextItems,
             RunOptions options,
             @Nullable String clientMsgId) {
-        final String runId = UUID.randomUUID().toString();
         // Заявка на чат: если он уже занят (генерацией из другой вкладки, сжатием контекста,
         // git-командой) — 409, фронт предложит дождаться или остановить текущую. Хаб событий здесь
         // не заводим: RUN_STARTED уходит ниже, уже с сохранённым вопросом на руках.
-        slots.take(conversationId, runId);
+        final String runId = slots.take(conversationId);
         final ChatMessageEntity userRow;
         try {
             // Прошлый прогон могли оборвать во время выполнения инструментов (в т.ч. падением
@@ -221,7 +219,7 @@ public class ChatRunService {
             // например, RejectedExecutionException при остановке пула — не оставляем чат «занятым».
             // Сообщение пользователя при этом уже сохранено и останется в истории: вопрос без
             // ответа честнее молча потерянного вопроса.
-            cleanup(scope);
+            abort(scope);
             throw e;
         }
         return new StartedRun(runId, userRow.getId());
@@ -277,13 +275,9 @@ public class ChatRunService {
 
     /** Останавливает прогон: dispose → CANCEL → частичное сохранение + событие RUN_STOPPED. */
     public boolean stop(String conversationId, String runId) {
-        return generating(conversationId, runId)
-                .map(
-                        scope -> {
-                            scope.cancel();
-                            return true;
-                        })
-                .orElse(false);
+        final Optional<RunScope> scope = generating(conversationId, runId);
+        scope.ifPresent(RunScope::cancel);
+        return scope.isPresent();
     }
 
     /**
@@ -332,9 +326,8 @@ public class ChatRunService {
      * для неизвестного runId.
      */
     public OptionalLong runElapsedMs(String runId) {
-        return runs.find(runId)
-                .map(scope -> OptionalLong.of(scope.elapsedMs()))
-                .orElseGet(OptionalLong::empty);
+        final RunScope scope = runs.find(runId).orElse(null);
+        return scope == null ? OptionalLong.empty() : OptionalLong.of(scope.elapsedMs());
     }
 
     /**
@@ -428,8 +421,7 @@ public class ChatRunService {
                                             .user(scope.user())
                                             .project(options.project())
                                             .collector(toolCollector)
-                                            .cancellation(
-                                                    new RunCancellation(scope.stopRequested()))
+                                            .cancellation(new RunCancellation(scope::stopRequested))
                                             .build())
                             .advisors(
                                     a ->
@@ -468,7 +460,7 @@ public class ChatRunService {
             log.error("Failed to run {}", conversationId, e);
             events.publish(
                     conversationId, RUN_ERROR, runId, null, Map.of("message", "start failed"));
-            cleanup(scope);
+            abort(scope);
         }
     }
 
@@ -551,8 +543,8 @@ public class ChatRunService {
         // прогон живым, гарантированно успел закоммитить строку до этой доставки, а увидевший
         // мёртвым — доставляет сам.
         //
-        // Заявку на чат при этом ещё держим (её снимает cleanup): освободить её раньше endRun
-        // нельзя — см. комментарий в cleanup.
+        // Заявку на чат при этом ещё держим — её снимает cleanup, вместе с закрытием хаба и в
+        // строго том порядке (см. ConversationSlots#release).
         //
         // Завершающимся прогон считается СТРОГО ДО ухода из реестра: остаток этого метода пишет в
         // БД, а awaitQuiescence на остановке приложения ждёт именно finishing — увидев между двумя
@@ -659,15 +651,17 @@ public class ChatRunService {
         }
     }
 
-    private void cleanup(RunScope scope) {
-        // Сначала закрываем хаб прогона, и только потом снимаем заявку на чат. Иначе новый прогон
-        // мог бы стартовать (заявка свободна) и записаться в хаб, который этот cleanup как раз
-        // закрывает, — событие новой генерации потерялось бы.
-        events.endRun(scope.conversationId(), scope.runId());
-        // На главном пути прогон снят с учёта ещё в onTerminal — здесь это добор для двух
-        // аварийных путей, где терминальной обработки не было вовсе: отказ пула в start и
-        // исключение при сборке стрима. Снятие идемпотентно, накопленное держит сама область.
+    /**
+     * Обрывает прогон, до которого не дошла терминальная обработка: отказ пула в {@link #start} и
+     * исключение при сборке стрима. Только здесь прогон снимают с учёта вне {@link #onTerminal} —
+     * на главном пути реестр он покидает строго до доставки очереди.
+     */
+    private void abort(RunScope scope) {
         runs.close(scope.runId());
+        cleanup(scope);
+    }
+
+    private void cleanup(RunScope scope) {
         final RunTokenUsage spent = scope.usage();
         if (!spent.isEmpty()) {
             log.info(
@@ -682,7 +676,9 @@ public class ChatRunService {
                     spent.modelCalls(),
                     spent.cacheReadTokens());
         }
-        slots.free(scope.conversationId(), scope.runId());
+        // Хаб прогона закрывается до снятия заявки — порядок держит release, почему именно он,
+        // сказано там же (см. ConversationSlots#release).
+        slots.release(scope.conversationId(), scope.runId());
     }
 
     private void persistPartial(

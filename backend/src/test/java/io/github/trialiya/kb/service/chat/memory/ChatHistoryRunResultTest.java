@@ -103,7 +103,7 @@ class ChatHistoryRunResultTest {
     }
 
     private void mark(RunTokenUsage usage) {
-        history.markRunResult(CONV, RUN, MODEL, usage, null);
+        history.markRunResult(CONV, RUN, MODEL, usage, List.of());
     }
 
     private List<ChatMessageEntity> saved() {

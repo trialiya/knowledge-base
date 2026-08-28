@@ -108,10 +108,10 @@ public class TokenUsageAdvisor implements StreamAdvisor {
         if (running.contextTokens() == 0) {
             return;
         }
-        // publishIfPresent, а не publish: отмена прогона не останавливает доставку последнего
-        // чанка мгновенно, и замер из него доезжает сюда уже после того, как cleanup закрыл хаб.
-        // publish завёл бы хаб заново — закрыть его было бы некому (см. ChatEventService).
-        events.publishIfPresent(conversationId, RUN_USAGE, scope.runId(), null, running);
+        // Замер последнего чанка доезжает сюда и после того, как прогон закончился и его хаб
+        // закрылся: отмена не останавливает доставку мгновенно. Такое событие просто пропадает —
+        // publish с runId хаба не заводит (см. ChatEventService#publish).
+        events.publish(conversationId, RUN_USAGE, scope.runId(), null, running);
     }
 
     /** Замер из ответа модели; разбор провайдерского usage — в {@link TokenUsage#of}. */
