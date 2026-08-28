@@ -157,6 +157,24 @@ class ToolCallEventPublisherTest {
                 .containsExactly(0);
     }
 
+    /**
+     * Заявка на чат без прогона — сжатие контекста, git-команда, восстановление очереди: вкладки
+     * видят чат занятым, но области с нумерацией у такой операции нет, и склеивать плашки нечем.
+     * Событие с номером из ниоткуда хуже его отсутствия.
+     */
+    @Test
+    void noEventsForAClaimWithoutARun() {
+        when(events.activeRunId(CONV)).thenReturn(Optional.of("claim-1"));
+
+        history.append(
+                CONV,
+                List.of(
+                        ToolCallTestSupport.assistantWithCalls(
+                                ToolCallTestSupport.call("id-0", "searchDocuments", "{}"))));
+
+        verify(events, never()).publish(any(), any(), any(), any(), any());
+    }
+
     @Test
     void noEventsWithoutActiveRun() {
         when(events.activeRunId(CONV)).thenReturn(Optional.empty());

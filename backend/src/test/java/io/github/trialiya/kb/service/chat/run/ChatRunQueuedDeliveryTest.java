@@ -166,7 +166,7 @@ class ChatRunQueuedDeliveryTest {
 
     /**
      * Длительность для таймера над полем ввода есть только у живой генерации: у заявки сжатия
-     * ({@code claim}) нет {@code RunHandle}, и {@code GET /runs/active} отдаёт её без {@code
+     * ({@code claim}) нет области прогона, и {@code GET /runs/active} отдаёт её без {@code
      * elapsedMs} — фронт не показывает там таймер, которому не от чего отсчитываться.
      */
     @Test

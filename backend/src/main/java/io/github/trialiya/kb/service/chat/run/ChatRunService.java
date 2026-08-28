@@ -204,8 +204,10 @@ public class ChatRunService {
             slots.free(conversationId, runId);
             throw e;
         }
-        // Область прогона открывается здесь и закрывается в cleanup: всё, что о прогоне знают
-        // остальные — токены, нумерация вызовов, подписка на стрим, — живёт ровно столько же.
+        // Область прогона открывается здесь: всё, что о прогоне знают остальные — токены,
+        // нумерация вызовов, подписка на стрим, — живёт ровно столько же, сколько она. С учёта её
+        // снимает терминальная обработка (см. onTerminal), а не cleanup: реестр прогон обязан
+        // покинуть ДО доставки очереди.
         final RunScope scope =
                 runs.open(runId, conversationId, user, chatClients.resolveModelId(options.model()));
         events.startRun(conversationId, runId);
@@ -503,6 +505,8 @@ public class ChatRunService {
 
     private void onComplete(
             RunScope scope, ToolInvocationCollector toolCollector, Consumer<Object> liveSink) {
+        // Результат не читаем намеренно: за успешно завершившимся прогоном частичного сохранения
+        // уже не будет, и заявка нужна только чтобы его не сделал опоздавший терминальный сигнал.
         scope.claimPersist();
         // Персист сначала, затем live-событие с уже персистнутыми metas (callId в них есть только
         // после записи — она же вырезает SKIP_TOOLS, так что после перезагрузки они не покажутся, а
@@ -660,7 +664,9 @@ public class ChatRunService {
         // мог бы стартовать (заявка свободна) и записаться в хаб, который этот cleanup как раз
         // закрывает, — событие новой генерации потерялось бы.
         events.endRun(scope.conversationId(), scope.runId());
-        // Область прогона уходит целиком: с ней и счёт токенов, и нумерация его вызовов.
+        // На главном пути прогон снят с учёта ещё в onTerminal — здесь это добор для двух
+        // аварийных путей, где терминальной обработки не было вовсе: отказ пула в start и
+        // исключение при сборке стрима. Снятие идемпотентно, накопленное держит сама область.
         runs.close(scope.runId());
         final RunTokenUsage spent = scope.usage();
         if (!spent.isEmpty()) {

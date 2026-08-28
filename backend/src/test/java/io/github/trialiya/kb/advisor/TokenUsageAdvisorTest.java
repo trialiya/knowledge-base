@@ -196,11 +196,15 @@ class TokenUsageAdvisorTest {
         return new RunTokenUsage(context, tools, output, prompt, 0, 0, calls);
     }
 
-    /** Замеры, доехавшие до фронта, по порядку. */
+    /**
+     * Замеры, доехавшие до фронта, по порядку. Именно {@code publishIfPresent}: отмена прогона не
+     * останавливает доставку последнего чанка мгновенно, и обычный {@code publish} завёл бы хаб
+     * чата заново — уже после того, как его закрыли, и закрыть повторно было бы некому.
+     */
     private List<RunTokenUsage> publishedUsage() {
         final ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
         verify(events, atLeastOnce())
-                .publish(eq(CONV), eq(RUN_USAGE), eq(RUN), isNull(), payload.capture());
+                .publishIfPresent(eq(CONV), eq(RUN_USAGE), eq(RUN), isNull(), payload.capture());
         return payload.getAllValues().stream().map(RunTokenUsage.class::cast).toList();
     }
 

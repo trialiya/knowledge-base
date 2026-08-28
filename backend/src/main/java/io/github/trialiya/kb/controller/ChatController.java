@@ -602,7 +602,7 @@ public class ChatController {
      * runId активного прогона чата (или пустой объект) — для восстановления состояния на фронте. У
      * генерации рядом едет {@code elapsedMs} — сколько прогон уже идёт: по нему вкладка, открывшая
      * чат посреди ответа, ставит таймер на верное место. У сжатия контекста ключа нет — там нечего
-     * замерять (см. {@code ChatRunService#claim}).
+     * замерять (см. {@code ConversationSlots#claim}).
      */
     @GetMapping("/{conversationId}/runs/active")
     public Map<String, Object> activeRun(@PathVariable final String conversationId) {

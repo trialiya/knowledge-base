@@ -62,10 +62,10 @@ Migrations for this live in both `db/migration` (Postgres) and `db/migration-h2`
   run's own tool calls and the plaques never appear. It marks the rows after the
   last USER message through the one shared rule,
   `ChatHistoryService.tailAfterLastUser`; do not re-derive that cut.
-- **Live `TOOL_CALL` events number calls per run** (`ToolCallEventPublisher`),
-  matching `ToolInvocationCollector`'s counter. Do not recompute `callIndex` by
-  scanning the tail of the history: after a retry the tail also holds the failed
-  run's segments, which that counter never saw.
+- **Live `TOOL_CALL` events number calls per run** (`ToolCallEventPublisher`
+  over the counter in `RunScope`), matching `ToolInvocationCollector`'s counter.
+  Do not recompute `callIndex` by scanning the tail of the history: after a retry
+  the tail also holds the failed run's segments, which that counter never saw.
 
 ## H2 sample data
 

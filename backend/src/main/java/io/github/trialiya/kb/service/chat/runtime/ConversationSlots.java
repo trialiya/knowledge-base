@@ -81,13 +81,25 @@ public class ConversationSlots {
         return runId;
     }
 
-    /** Освобождает чат, занятый {@link #claim}, и закрывает хаб операции. Идемпотентно. */
+    /**
+     * Освобождает чат, занятый {@link #claim}, и закрывает хаб операции. Идемпотентно.
+     *
+     * <p>Точное обратное {@link #claim}, и порядок в нём обратный: сначала хаб, потом заявка. Иначе
+     * следующая операция успевает занять освободившийся чат и записаться в хаб, который этот {@code
+     * endRun} как раз закрывает, — её событие потерялось бы, а вкладки увидели бы чат свободным
+     * посреди её работы. Тем же порядком идёт {@code ChatRunService.cleanup}.
+     */
     public void release(String conversationId, String runId) {
-        free(conversationId, runId);
         events.endRun(conversationId, runId);
+        free(conversationId, runId);
     }
 
-    /** Занят ли чат, и кем — id активной операции, каким его видят вкладки. */
+    /**
+     * Занят ли чат, и кем — id активной операции, <b>каким его видят вкладки</b>. Отвечает хаб
+     * событий, а не карта заявок, и это намеренно: между {@link #take} и {@code startRun} прогон
+     * успевает записать вопрос в БД, и всё это время заявка удержана, а вкладкам показывать ещё
+     * нечего. Поэтому «занят» здесь и {@link #claimedConversationCount()} — не одно и то же.
+     */
     public Optional<String> activeRun(String conversationId) {
         return events.activeRunId(conversationId);
     }

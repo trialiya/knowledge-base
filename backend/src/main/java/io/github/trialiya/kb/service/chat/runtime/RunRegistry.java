@@ -3,7 +3,6 @@ package io.github.trialiya.kb.service.chat.runtime;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
 /**
@@ -39,13 +38,12 @@ public class RunRegistry {
     }
 
     /**
-     * Снимает прогон с учёта.
-     *
-     * @return его область — последняя возможность прочитать накопленное; {@code null}, если прогон
-     *     сняли раньше
+     * Снимает прогон с учёта. Идемпотентно: снять уже снятый — законный способ дойти до конца по
+     * второму пути (см. {@code ChatRunService.onTerminal} и {@code cleanup}). Накопленное при этом
+     * не пропадает — его держит сама область, а она у вызывающего на руках.
      */
-    public @Nullable RunScope close(String runId) {
-        return byRunId.remove(runId);
+    public void close(String runId) {
+        byRunId.remove(runId);
     }
 
     /** Генерирует ли в этом чате хоть какой-нибудь прогон. */

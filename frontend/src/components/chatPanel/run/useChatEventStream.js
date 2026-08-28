@@ -189,7 +189,7 @@ export default function useChatEventStream({
           fireRepoChanged();
         }
         // Сжатие контекста завершилось — хаб закрыл ту же заявку на чат, что и у прогона
-        // (см. ChatRunService.claim), поэтому и курсор сбрасываем так же.
+        // (см. ConversationSlots.claim), поэтому и курсор сбрасываем так же.
         if (ev.type === CHAT_EVENT.COMPACT_DONE || ev.type === CHAT_EVENT.COMPACT_ERROR) {
           seqByChatRef.current.delete(chatId);
         }
