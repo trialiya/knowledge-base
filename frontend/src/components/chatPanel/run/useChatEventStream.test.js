@@ -2,9 +2,160 @@ import { act, renderHook } from '@testing-library/react';
 import useChatEventStream from './useChatEventStream';
 import { openChatEventStream } from '@/api/chatEvents';
 import chatApi from '@/api/chatApi';
+import { RUN_KIND } from '@/constants/runKind';
 
 vi.mock('@/api/chatEvents');
 vi.mock('@/api/chatApi', () => ({ default: { getActiveRun: vi.fn() } }));
+
+/**
+ * Чанки стрима приезжают десятками в секунду, и каждый сам по себе перерисовывал бы всю
+ * ленту ради одного дописанного слова. Они копятся до ближайшего кадра — но только они:
+ * любое другое событие сначала сливает накопленное, иначе ответ собрался бы не в том
+ * порядке, в каком его писала модель.
+ */
+describe('useChatEventStream stream coalescing', () => {
+  let chats;
+
+  function setup() {
+    chats = [{ id: 'c1', messages: [], runId: 'r1', notFound: false, loadError: false }];
+    // Сверка прогона при входе в чат: прогон жив, ничего перезагружать не нужно.
+    chatApi.getActiveRun.mockResolvedValue({ runId: 'r1', kind: 'GENERATION' });
+    let onEvent;
+    openChatEventStream.mockImplementation((chatId, cb) => {
+      onEvent = cb.onEvent;
+      return () => {};
+    });
+    const setChats = vi.fn((fn) => {
+      chats = typeof fn === 'function' ? fn(chats) : fn;
+    });
+
+    renderHook(() =>
+      useChatEventStream({
+        activeChatId: 'c1',
+        activeMessagesReady: true,
+        getChats: () => chats,
+        isLocalClientId: () => false,
+        setChats,
+        onChatDeleted: vi.fn(),
+        onRunSettled: vi.fn(),
+        reloadMessages: vi.fn().mockResolvedValue([]),
+        onDocChanged: vi.fn(),
+        onFileChanged: vi.fn(),
+      }),
+    );
+
+    return { fireEvent: (ev) => onEvent(ev), setChats };
+  }
+
+  const nextFrame = () => act(async () => new Promise((resolve) => requestAnimationFrame(resolve)));
+
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  test('several chunks of one frame reach the chat as a single update', async () => {
+    const { fireEvent, setChats } = setup();
+
+    fireEvent({ type: 'STREAM', runId: 'r1', payload: { message: 'один ' } });
+    fireEvent({ type: 'STREAM', runId: 'r1', payload: { message: 'два ' } });
+    fireEvent({ type: 'STREAM', runId: 'r1', payload: { message: 'три' } });
+    expect(setChats).not.toHaveBeenCalled();
+
+    await nextFrame();
+
+    expect(setChats).toHaveBeenCalledTimes(1);
+    expect(chats[0].messages.at(-1).text).toBe('один два три');
+  });
+
+  test('an event of another kind lands after the chunks it followed, not before them', async () => {
+    const { fireEvent } = setup();
+
+    fireEvent({ type: 'STREAM', runId: 'r1', payload: { message: 'ответ' } });
+    fireEvent({ type: 'RUN_DONE', runId: 'r1' });
+
+    expect(chats[0].messages.at(-1).text).toBe('ответ');
+    expect(chats[0].runId).toBeNull();
+  });
+});
+
+/**
+ * REPLAY_GAP говорит вкладке, что показанный ею ответ заведомо неполон: часть событий
+ * прогона хаб вытеснил из лога (ConversationHub). Собрать пропущенное неоткуда — целиком
+ * ответ окажется в истории, когда прогон кончится, оттуда его и перечитываем. Молча
+ * оставить дырявый текст нельзя: он выглядит как настоящий ответ модели.
+ */
+describe('useChatEventStream incomplete replay', () => {
+  const chat = { id: 'c1', messages: [], notFound: false, loadError: false };
+
+  function setup() {
+    let onEvent;
+    const close = vi.fn();
+    openChatEventStream.mockImplementation((chatId, cb) => {
+      onEvent = cb.onEvent;
+      return close;
+    });
+    const reloadMessages = vi.fn().mockResolvedValue([]);
+
+    renderHook(() =>
+      useChatEventStream({
+        activeChatId: 'c1',
+        activeMessagesReady: true,
+        getChats: () => [chat],
+        isLocalClientId: () => false,
+        setChats: vi.fn(),
+        onChatDeleted: vi.fn(),
+        onRunSettled: vi.fn(),
+        reloadMessages,
+        onDocChanged: vi.fn(),
+        onFileChanged: vi.fn(),
+      }),
+    );
+
+    return { fireEvent: (ev) => onEvent(ev), reloadMessages, close };
+  }
+
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  test('rereads the history once the run with a gapped replay is over', () => {
+    const { fireEvent, reloadMessages } = setup();
+
+    fireEvent({ type: 'REPLAY_GAP', runId: 'r1' });
+    expect(reloadMessages).not.toHaveBeenCalled(); // прогон ещё идёт — читать нечего
+
+    fireEvent({ type: 'RUN_DONE', runId: 'r1' });
+    expect(reloadMessages).toHaveBeenCalledWith('c1');
+  });
+
+  /**
+   * Перезагрузка идёт при закрытом потоке и с переподпиской после неё — иначе она гоняется
+   * с уже начавшимся следующим прогоном (автозапуск по очереди идёт сразу за терминальным
+   * событием этого): страница из БД затёрла бы его первые события, а дальше их отбросил бы
+   * фильтр живого прогона — ответ пропал бы целиком.
+   */
+  test('closes the stream before rereading and resubscribes after', async () => {
+    const { fireEvent, reloadMessages, close } = setup();
+
+    fireEvent({ type: 'REPLAY_GAP', runId: 'r1' });
+    fireEvent({ type: 'RUN_DONE', runId: 'r1' });
+
+    expect(close).toHaveBeenCalled();
+    expect(reloadMessages).toHaveBeenCalledWith('c1');
+    await act(async () => {});
+    // Переподписка после перезагрузки: поток открыт заново, уже с fromSeq=0.
+    expect(openChatEventStream).toHaveBeenCalledTimes(2);
+    expect(openChatEventStream.mock.calls.at(-1)[1].fromSeq).toBe(0);
+  });
+
+  test('a run that replayed whole is not rereread at its end', () => {
+    const { fireEvent, reloadMessages } = setup();
+
+    fireEvent({ type: 'RUN_DONE', runId: 'r1' });
+
+    expect(reloadMessages).not.toHaveBeenCalled();
+  });
+});
 
 /**
  * onDocChanged/onFileChanged are the hook's contribution to KB/Files cache
@@ -154,8 +305,8 @@ describe('useChatEventStream doc/file mutation detection', () => {
 describe('useChatEventStream stale run reconciliation', () => {
   let chats;
 
-  function setup({ runId = 'r1', activeRun = {}, reloaded } = {}) {
-    chats = [{ id: 'c1', messages: [{ mid: 1 }], runId, notFound: false, loadError: false }];
+  function setup({ runId = 'r1', activeRun = {}, reloaded, runStateUnknown = false } = {}) {
+    chats = [{ id: 'c1', messages: [{ mid: 1 }], runId, runStateUnknown, notFound: false, loadError: false }];
     chatApi.getActiveRun.mockResolvedValue(activeRun);
     openChatEventStream.mockImplementation(() => () => {});
 
@@ -228,6 +379,22 @@ describe('useChatEventStream stale run reconciliation', () => {
 
     expect(chatApi.getActiveRun).not.toHaveBeenCalled();
   });
+
+  /**
+   * Занятость чата не спросилась при загрузке истории (сеть), а прогон всё это время шёл:
+   * реплей о нём уже не скажет — RUN_STARTED хаб вытесняет из лога первым. Пересверка после
+   * подписки — единственное, что вернёт чату «Стоп», таймер и текст ответа.
+   */
+  test('busyness unknown after a failed load: adopts the run the backend reports', async () => {
+    setup({ runId: null, runStateUnknown: true, activeRun: { runId: 'r7', kind: RUN_KIND.GENERATION } });
+
+    await act(async () => {});
+
+    expect(chatApi.getActiveRun).toHaveBeenCalledWith('c1');
+    expect(chats[0].runId).toBe('r7');
+    expect(chats[0].runKind).toBe(RUN_KIND.GENERATION);
+    expect(chats[0].runStateUnknown).toBe(false);
+  });
 });
 
 /**
@@ -241,7 +408,9 @@ describe('useChatEventStream stale run cache invalidation', () => {
   let chats;
 
   function setup({ activeRun = {}, reloaded = [] } = {}) {
-    chats = [{ id: 'c1', messages: [{ mid: 1 }], runId: 'r1', compacting: true, notFound: false, loadError: false }];
+    chats = [
+      { id: 'c1', messages: [{ mid: 1 }], runId: 'r1', runKind: RUN_KIND.OPERATION, notFound: false, loadError: false },
+    ];
     chatApi.getActiveRun.mockResolvedValue(activeRun);
     openChatEventStream.mockImplementation(() => () => {});
 
@@ -333,8 +502,8 @@ describe('useChatEventStream stale run resubscribe order', () => {
   let chats;
   let subscriptions;
 
-  function setup({ reload }) {
-    chats = [{ id: 'c1', messages: [{ mid: 1 }], runId: 'r1', notFound: false, loadError: false }];
+  function setup({ reload, runKind = null }) {
+    chats = [{ id: 'c1', messages: [{ mid: 1 }], runId: 'r1', runKind, notFound: false, loadError: false }];
     chatApi.getActiveRun.mockResolvedValue({});
     subscriptions = [];
     openChatEventStream.mockImplementation((chatId, cb) => {
@@ -399,15 +568,15 @@ describe('useChatEventStream stale run resubscribe order', () => {
     expect(subscriptions[1].fromSeq).toBe(0);
   });
 
-  test('lets go of the compaction lock together with the run', async () => {
-    // compacting гасят только COMPACT_DONE/ERROR, а сюда мы попадаем ровно потому, что их
-    // не увидели: оставленный флаг пережил бы прогон и держал бы Stop выключенным во всех
-    // следующих генерациях этого чата.
-    setup({ reload: vi.fn(() => Promise.resolve([])) });
+  test('lets go of the kind of the run together with the run itself', async () => {
+    // Вид операции гасят только её терминальные события, а сюда мы попадаем ровно потому,
+    // что их не увидели: оставленный runKind пережил бы прогон и держал бы Stop выключенным
+    // во всех следующих генерациях этого чата.
+    setup({ reload: vi.fn(() => Promise.resolve([])), runKind: RUN_KIND.OPERATION });
 
     await act(async () => {});
 
     expect(chats[0].runId).toBeNull();
-    expect(chats[0].compacting).toBe(false);
+    expect(chats[0].runKind).toBeNull();
   });
 });

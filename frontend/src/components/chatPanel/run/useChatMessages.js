@@ -2,202 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import chatApi from '@/api/chatApi';
 import { STORAGE_KEY_ACTIVE_CHAT, DRAFT_CHAT_ID } from '@/constants/storage';
 import { CHAT_PAGE_SIZE as PAGE_SIZE } from '@/constants/pagination';
-import { nextMessageId } from '../messages/messageId';
-import { SENDER } from '@/constants/messageSender';
-
-const metaToCall = (x) => ({
-  name: x.name,
-  arguments: x.arguments,
-  status: x.status,
-  error: x.error,
-  resultMeta: x.resultMeta,
-  resultGist: x.resultGist,
-  callIndex: x.callIndex,
-  hasDetails: x.hasDetails,
-  callId: x.callId,
-});
-
-// Extracts runId from a system message that carries tool call breadcrumbs.
-const extractRunId = (m) => m.runId || null;
-
-// Превращает «сырые» сообщения с бэка (хронологический порядок) в пузыри для рендера.
-// Системные сообщения-«крошки» (toolInvocationMetas из ChatHistoryService.markRunResult)
-// пузырём не показываем, а прикрепляем к предыдущему ответу ассистента — это даёт
-// resultMeta для блока «изменения документа».
-// Если крошка идёт в самом начале страницы (её ассистент остался в более старой,
-// ещё не загруженной странице) — её metas возвращаются в leadingMetas, чтобы прицепить
-// их позже, когда догрузим страницу с этим ассистентом (см. attachLeadingMetas).
-export const transformPage = (rawMsgs) => {
-  const bubbles = [];
-  const leadingMetas = [];
-  let sawAi = false;
-  for (const m of rawMsgs || []) {
-    const type = m.type?.toLowerCase?.();
-    // Legacy: сообщения-«крошки» вызовов инструментов помечены флагом toolCalls (единый JSON
-    // со всеми вызовами прогона в конце). Новые чаты крошек не пишут — их вызовы приходят в
-    // toolInvocationMetas обычных assistant-сегментов (см. ниже), но старые чаты живут вечно.
-    if (m.toolCalls) {
-      const metas = m.toolInvocationMetas;
-      const runId = extractRunId(m);
-      const prev = bubbles[bubbles.length - 1];
-      if (Array.isArray(metas) && metas.length) {
-        if (sawAi && prev?.sender === 'ai') {
-          prev.toolCalls = [...(prev.toolCalls || []), ...metas.map(metaToCall)];
-          if (runId) prev.toolCallsRunId = runId;
-        } else {
-          // Ассистент этой крошки — в более старой странице: несём metas наверх.
-          leadingMetas.push(...metas.map(metaToCall));
-        }
-      }
-      continue; // преамбулу как сообщение не рендерим
-    }
-    // След команды /compact: ряд без текста, весь смысл которого — в мете (см.
-    // SummaryWriter.writeCompacted). Отдельным пузырём-плашкой, а не репликой ассистента.
-    if (m.compact) {
-      bubbles.push({
-        mid: nextMessageId(),
-        dbId: m.id ?? null,
-        sender: SENDER.AI,
-        compact: { messages: m.compact.messages, summaryChars: m.compact.summaryChars },
-        timestamp: m.timestamp || null,
-      });
-      continue;
-    }
-    // След git-команды, выполненной пользователем: ряд USER без текста, весь
-    // смысл которого — в мете (см. ChatHistoryService.appendGitEvent). Пузырём
-    // от лица пользователя он был бы неправдой — человек ничего не написал.
-    if (m.gitEvent) {
-      bubbles.push({
-        mid: nextMessageId(),
-        dbId: m.id ?? null,
-        sender: SENDER.USER,
-        gitEvent: m.gitEvent,
-        timestamp: m.timestamp || null,
-      });
-      continue;
-    }
-    if (type === 'system') continue; // прочие системные сообщения (напр. summary) не показываем
-    // Протокольные TOOL-сообщения (ответы инструментов) — не для показа: их содержимое
-    // видно через плашки/модалку деталей соответствующего сегмента.
-    if (type === 'tool') continue;
-    const metas = Array.isArray(m.toolInvocationMetas) ? m.toolInvocationMetas : [];
-    // Токены прогона могут стоять на ряду, который пузырём не станет: остановка посреди работы
-    // инструментов оставляет последним сегмент без текста, а бэкенд пишет токены именно
-    // последнему. Отдаём их предыдущему пузырю ответа — иначе после перезагрузки прогон теряет
-    // и плашку, и счётчик контекста, а тот показывает заниженное число прошлого прогона.
-    // Пузырь обязан быть из ТОГО ЖЕ прогона: ход, не оставивший ни одного пузыря (остановлен до
-    // первого текста), иначе затёр бы своим счётом ответ предыдущего прогона — и итоги по чату
-    // недосчитались бы его. Некуда положить — счёт теряется, и это честнее чужой плашки.
-    const carryUsageToPrev = () => {
-      const prev = bubbles[bubbles.length - 1];
-      const sameRun = !prev?.toolCallsRunId || !m.runId || prev.toolCallsRunId === m.runId;
-      if (m.usage && sameRun && prev?.sender === SENDER.AI && !prev.compact && !prev.gitEvent) {
-        prev.usage = m.usage;
-      }
-    };
-    // Сегмент из одних tool_calls без текста и без сохранённых metas показывать нечем.
-    if (type !== 'user' && !(m.content || '').trim() && !metas.length) {
-      carryUsageToPrev();
-      continue;
-    }
-    if (type !== 'user') sawAi = true;
-    // Сегмент из одних tool_calls без текста: отдельный «пустой» пузырь визуально разрывает
-    // ленту плашек, поэтому его вызовы приклеиваем к предыдущему AI-сегменту того же ответа.
-    // Прикрепляем только при совместимых runId — callIndex уникален лишь в рамках прогона.
-    if (type !== 'user' && !(m.content || '').trim()) {
-      const prev = bubbles[bubbles.length - 1];
-      // Плашка сжатия — не сегмент ответа: вызовы к ней не липнут (см. ниже attachLeadingMetas).
-      if (
-        prev?.sender === SENDER.AI &&
-        !prev.compact &&
-        !prev.gitEvent &&
-        (!prev.toolCallsRunId || !m.runId || prev.toolCallsRunId === m.runId)
-      ) {
-        prev.toolCalls = [...(prev.toolCalls || []), ...metas.map(metaToCall)];
-        if (m.runId && !prev.toolCallsRunId) prev.toolCallsRunId = m.runId;
-        carryUsageToPrev();
-        continue;
-      }
-    }
-    bubbles.push({
-      mid: nextMessageId(),
-      // id сообщения в БД — якорь для поиска по чату (find-бар, Ctrl+F): позволяет
-      // сопоставить хит бэкенда с пузырём и понять, догружена ли страница с совпадением.
-      dbId: m.id ?? null,
-      text: m.content,
-      sender: type === 'user' ? SENDER.USER : SENDER.AI,
-      timestamp: m.timestamp || null,
-      // Приложенное к вопросу (вложения) — чипы под текстом пузыря.
-      ...(m.contextItems?.length ? { contextItems: m.contextItems } : {}),
-      // Этим вопросом чат сменил проект — плашка-разделитель перед пузырём.
-      ...(m.projectSwitchFrom ? { projectSwitch: { from: m.projectSwitchFrom, to: m.project } } : {}),
-      // Вопрос задан во время прогона: ход открыт не им (см. trimActiveRunTail).
-      ...(m.interjection ? { interjection: true } : {}),
-      // Модель, написавшая ответ. У вопросов и у ответов старше этого поля её нет —
-      // подпись тогда просто не рендерится (см. Message).
-      ...(m.model && type !== 'user' ? { model: m.model } : {}),
-      // Токены прогона: бэкенд пишет их одному ряду прогона — последнему (markRunResult),
-      // так что плашка после перезагрузки встаёт туда же, куда её ставил редьюсер вживую.
-      ...(m.usage && type !== 'user' ? { usage: m.usage } : {}),
-      // Вызовы инструментов этого сегмента (раздельное сохранение): плашки под пузырём.
-      ...(metas.length && type !== 'user'
-        ? { toolCalls: metas.map(metaToCall), ...(m.runId ? { toolCallsRunId: m.runId } : {}) }
-        : {}),
-    });
-  }
-  return { bubbles, leadingMetas };
-};
-
-// Обрезает хвостовые сегменты ассистента после последнего USER-сообщения. При
-// активном прогоне это его частично сохранённые сегменты (преамбулы + плашки уже
-// завершённых tool-циклов) — SSE-реплей текущего прогона пришлёт их заново, поэтому
-// из загруженной истории их убираем: иначе перезагрузка страницы ПОСРЕДИ генерации
-// показала бы ответ дважды (из БД + из реплея), пока прогон не завершится. Реплей
-// начинается с RUN_STARTED, т.е. ровно с хода последнего USER-сообщения, так что
-// пересоберёт этот хвост один раз. Если USER-сообщения на странице нет (очень длинный
-// прогон вытеснил его на более старую страницу) — не трогаем: обрезать было бы нечем
-// однозначно, а такой кейс редок.
-export const trimActiveRunTail = (bubbles) => {
-  let lastUser = -1;
-  for (let i = bubbles.length - 1; i >= 0; i--) {
-    // Ход открывает не всякий USER-пузырь. Ряд git-команды вопросом не является;
-    // вопрос, отправленный во время прогона, задан внутри уже идущего хода. Обрезав
-    // хвост по любому из них, оставили бы на экране ответ, который стрим сейчас
-    // перепишет заново.
-    if (opensATurn(bubbles[i])) {
-      lastUser = i;
-      break;
-    }
-  }
-  // Отрезаются только незаконченные сегменты ответа. Ряды git-команд в хвосте
-  // остаются: они уже сохранены в истории, и выбросив их, карточка вывода
-  // пропадала бы на время прогона и возвращалась после перезагрузки. Пузыри
-  // вопросов из этого же хвоста, наоборот, срезаются: они опубликованы событием
-  // USER_MESSAGE внутри активного прогона, и реплей вернёт их сам.
-  return lastUser < 0 ? bubbles : bubbles.filter((b, i) => i <= lastUser || !!b.gitEvent);
-};
-
-// Открывает ли пузырь ход разговора — фронтовый двойник ChatHistoryService.opensATurn.
-const opensATurn = (bubble) => bubble.sender === SENDER.USER && !bubble.gitEvent && !bubble.interjection;
-
-// Прицепляет «висячие» metas (крошки без ассистента в своей странице) к последнему
-// AI-пузырю переданного набора. Возвращает остаток, который не удалось прицепить
-// (если в наборе вообще нет ассистента) — его несём дальше вверх.
-export const attachLeadingMetas = (bubbles, metas) => {
-  if (!metas || !metas.length) return [];
-  for (let i = bubbles.length - 1; i >= 0; i--) {
-    if (bubbles[i].sender === SENDER.AI && !bubbles[i].compact) {
-      bubbles[i] = { ...bubbles[i], toolCalls: [...(bubbles[i].toolCalls || []), ...metas] };
-      return [];
-    }
-  }
-  return metas;
-};
+import { fetchRunState, IDLE_RUN_STATE } from './activeRun';
+import { transformPage, trimActiveRunTail, attachLeadingMetas } from './messagesPage';
 
 /**
  * Загрузка и пагинация сообщений активного чата. Владеет своими защитными ref-ами
- * (повторные/параллельные загрузки) и состоянием loadingMessages; сами сообщения
- * пишет в общий стейт чатов через переданный setChats.
+ * (повторные/параллельные загрузки) и состоянием загрузки; сами сообщения пишет в общий
+ * стейт чатов через переданный setChats. Возвращаемый loadingMessages — про активный чат:
+ * загрузка соседнего заглушку в нём не зажигает.
  *
  * @param {object}   p
  * @param {Array}    p.chats          текущий список чатов (для триггер-эффекта)
@@ -211,7 +23,20 @@ export const attachLeadingMetas = (bubbles, metas) => {
  *             failedChatIdsRef: object }}
  */
 export default function useChatMessages({ chats, getChats, setChats, activeChatId, onLoadError }) {
-  const [loadingMessages, setLoadingMessages] = useState(false);
+  // Какие чаты грузятся прямо сейчас. Множество, а не один флаг: загрузки идут
+  // параллельно (переключение чатов, догоняющая сверка прогона), и «грузится» на экране
+  // обязано означать «грузится ЭТОТ чат» — общий флаг зажигал бы заглушку в открытом чате
+  // из-за загрузки соседнего и гасил бы её, когда та первой заканчивалась.
+  const [loadingChatIds, setLoadingChatIds] = useState(() => new Set());
+  const markLoading = useCallback((chatId, loading) => {
+    setLoadingChatIds((prev) => {
+      if (prev.has(chatId) === loading) return prev;
+      const next = new Set(prev);
+      if (loading) next.add(chatId);
+      else next.delete(chatId);
+      return next;
+    });
+  }, []);
 
   // Ref для защиты от повторных попыток по chatId, которых нет в списке chats.
   const failedChatIdsRef = useRef(new Set());
@@ -247,20 +72,26 @@ export default function useChatMessages({ chats, getChats, setChats, activeChatI
       const inFlight = loadingMessagesRef.current.get(chatId);
       if (inFlight) return inFlight;
       const load = async () => {
-        setLoadingMessages(true);
+        markLoading(chatId, true);
         try {
-          // getActiveRun — восстановление состояния прогона после перезагрузки: если в чате
-          // прямо сейчас идёт генерация, её частично сохранённые сегменты убираем из
-          // загруженной истории (их пересоберёт SSE-реплей), а runId ставим сразу, чтобы UI
-          // показал «идёт ответ» без мигания до прихода RUN_STARTED из потока.
-          const [meta, page, activeRun] = await Promise.all([
+          // Занятость чата — восстановление состояния после перезагрузки: если в чате прямо
+          // сейчас идёт прогон, его частично сохранённые сегменты убираем из загруженной
+          // истории (их пересоберёт SSE-реплей), а runId ставим сразу, чтобы UI показал
+          // занятость без мигания до прихода RUN_STARTED из потока. Сбой этого запроса не
+          // роняет загрузку, но и «свободным» чат тогда не рисуется: занятость остаётся
+          // неизвестной, и её переспросит поток сразу после подписки (см. useChatEventStream).
+          const [meta, page, run] = await Promise.all([
             chatApi.getChatMeta(chatId),
             chatApi.getMessages(chatId, PAGE_SIZE),
-            chatApi.getActiveRun(chatId).catch(() => ({})),
+            fetchRunState(chatId).catch(() => null),
           ]);
           const { bubbles, leadingMetas } = transformPage(page.messages);
-          const activeRunId = activeRun?.runId || null;
-          const messages = activeRunId ? trimActiveRunTail(bubbles) : bubbles;
+          const runState = run ? run.state : { ...IDLE_RUN_STATE, runStateUnknown: true };
+          // Обрезаем хвост прогона, только если реплей его вернёт. У прогона, чьи события
+          // хаб уже начал вытеснять (replayTruncated), реплей начинается не с RUN_STARTED, а
+          // с середины — срезанные сегменты не прислал бы никто, и ответ читался бы с
+          // полуслова до самого конца прогона.
+          const messages = run?.state.runId && !run.replayTruncated ? trimActiveRunTail(bubbles) : bubbles;
 
           failedChatIdsRef.current.delete(chatId);
           setChats((prev) =>
@@ -269,11 +100,7 @@ export default function useChatMessages({ chats, getChats, setChats, activeChatI
                 ? {
                     ...chat,
                     messages,
-                    runId: activeRunId,
-                    // elapsedMs — сколько прогон уже идёт по часам сервера: длительность, а не
-                    // момент старта, поэтому перекос часов клиента и сервера якорь не портит.
-                    // У сжатия контекста ключа нет — таймер там не показывается.
-                    runStartedAt: activeRunId && activeRun.elapsedMs != null ? Date.now() - activeRun.elapsedMs : null,
+                    ...runState,
                     hasMore: !!page.hasMore,
                     oldestCursor: page.oldestCursor || null,
                     // metas, чей ассистент в ещё не загруженной более старой странице
@@ -306,14 +133,14 @@ export default function useChatMessages({ chats, getChats, setChats, activeChatI
           return undefined;
         } finally {
           loadingMessagesRef.current.delete(chatId);
-          setLoadingMessages(false);
+          markLoading(chatId, false);
         }
       };
       const loading = load();
       loadingMessagesRef.current.set(chatId, loading);
       return loading;
     },
-    [setChats],
+    [setChats, markLoading],
   );
 
   // Догрузка более старой страницы сообщений (вызывается при прокрутке вверх).
@@ -382,5 +209,10 @@ export default function useChatMessages({ chats, getChats, setChats, activeChatI
     }
   }, [activeChatId, chats, loadMessages]);
 
-  return { loadingMessages, loadMessages, loadOlderMessages, failedChatIdsRef };
+  return {
+    loadingMessages: loadingChatIds.has(activeChatId),
+    loadMessages,
+    loadOlderMessages,
+    failedChatIdsRef,
+  };
 }

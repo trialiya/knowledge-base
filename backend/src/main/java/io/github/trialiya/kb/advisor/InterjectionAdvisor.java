@@ -16,8 +16,8 @@ import reactor.core.scheduler.Schedulers;
 
 /**
  * Доставляет сообщения, отправленные во время прогона, внутрь его tool-цикла (см. {@link
- * PendingMessageService#flushMidTurn}). Стоит СТРОГО между advisor-ом памяти и {@link
- * ToolPreparingAdvisor}: его {@code before}-сторона исполняется после {@code
+ * PendingMessageService#flushMidTurn}). Стоит СТРОГО после advisor-а памяти и до самых внутренних
+ * ({@code LOWEST_PRECEDENCE}): его {@code before}-сторона исполняется после {@code
  * MessageChatMemoryAdvisor.before()}, который к этому моменту уже записал TOOL-ответы итерации в
  * историю. Ровно поэтому вставка здесь протокольно валидна: хвост чата — {@code tool}, а не
  * оборванный {@code assistant.tool_calls}, и USER-ряд с позицией max+1 не влезает внутрь пары (и не
@@ -47,7 +47,7 @@ public class InterjectionAdvisor implements StreamAdvisor {
 
     @Override
     public int getOrder() {
-        // После памяти (DEFAULT_ORDER + 100), до ToolPreparingAdvisor (LOWEST_PRECEDENCE).
+        // После памяти (DEFAULT_ORDER + 100), до самых внутренних (LOWEST_PRECEDENCE).
         return ToolCallingAdvisor.DEFAULT_ORDER + 150;
     }
 
@@ -67,7 +67,7 @@ public class InterjectionAdvisor implements StreamAdvisor {
             // Путь без памяти (суб-агенты, тесты): очереди у такого вызова нет по построению.
             return request;
         }
-        final Object runId = request.context().get(ToolPreparingAdvisor.RUN_ID_PARAM);
+        final Object runId = request.context().get(AdvisorParams.RUN_ID_PARAM);
         final List<Message> injected =
                 pendingMessages.flushMidTurn(
                         String.valueOf(conversationId),

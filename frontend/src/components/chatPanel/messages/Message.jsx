@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { memo, useState, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useTranslation } from 'react-i18next';
@@ -26,38 +26,6 @@ const MessageCopyButton = ({ text }) => {
     >
       {copied ? <IconCopied /> : <IconCopySmall />}
     </button>
-  );
-};
-
-/** Задержка (мс) перед показом индикатора «готовлю данные…» — короткие паузы не мигают. */
-const PREPARING_VISIBLE_AFTER_MS = 5000;
-
-/**
- * Индикатор раннего сигнала: модель формирует вызов инструмента (имя ещё недоступно).
- * Показываем под сообщением и только если подготовка тянется дольше 5 секунд —
- * быстрые вызовы проходят незаметно. Таймер живёт внутри компонента, поэтому редьюсер
- * остаётся чистым (без меток времени).
- */
-const ToolPreparingIndicator = () => {
-  const { t } = useTranslation('chat');
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const id = setTimeout(() => setVisible(true), PREPARING_VISIBLE_AFTER_MS);
-    return () => clearTimeout(id);
-  }, []);
-
-  if (!visible) return null;
-
-  return (
-    <div className="tool-preparing" role="status" aria-live="polite">
-      <span className="tool-preparing-dots" aria-hidden="true">
-        <span />
-        <span />
-        <span />
-      </span>
-      <span className="tool-preparing-text">{t('toolCall.preparing')}</span>
-    </div>
   );
 };
 
@@ -128,7 +96,6 @@ const Message = ({
   text,
   sender,
   toolCalls,
-  preparing,
   error,
   onRetry,
   conversationId,
@@ -150,7 +117,6 @@ const Message = ({
     // прогон не дойдёт до места, где вопрос можно вставить (см. useChatRun.queueMessage).
     (queued ? ' message--queued' : '');
   const hasToolCalls = toolCalls && toolCalls.length > 0;
-  const showPreparing = preparing && sender === SENDER.AI;
   const timeLabel = formatTimestamp(timestamp, i18n.language);
   const timeTitle = formatFullDatetime(timestamp, i18n.language);
 
@@ -223,7 +189,7 @@ const Message = ({
         </div>
         <div className="message-footer__actions">
           {error && onRetry && (
-            <button className="message-retry-btn" onClick={onRetry} title={t('message.retry')} type="button">
+            <button className="message-retry-btn" onClick={() => onRetry(mid)} title={t('message.retry')} type="button">
               ↻ {t('message.retry')}
             </button>
           )}
@@ -267,16 +233,14 @@ const Message = ({
 
   // Блоки «изменения документов/файлов» рендерит MessageList — одним блоком
   // в конце всего ответа (после последнего сегмента), а не под каждым сегментом.
-  if (showPreparing) {
-    return (
-      <>
-        {messageBlock}
-        <ToolPreparingIndicator />
-      </>
-    );
-  }
-
   return messageBlock;
 };
 
-export default Message;
+/**
+ * Мемоизация здесь не микрооптимизация: на каждый чанк стрима лента получает новый массив
+ * сообщений, и без неё markdown перепарсивался бы у всех пузырей разговора по нескольку раз
+ * в секунду. Пузыри — обычные объекты состояния (редьюсер заменяет только изменившийся),
+ * поэтому поверхностного сравнения хватает; onRetry и onNavigateToDoc приходят сверху
+ * стабильными (useCallback), а не замыканием на сообщение.
+ */
+export default memo(Message);

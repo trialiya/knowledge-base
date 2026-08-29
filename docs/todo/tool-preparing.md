@@ -8,8 +8,11 @@
 
 ## Текущее состояние
 
-**Отключено.** Событие приходит вплотную к `TOOL_CALL` — зазора нет, индикатор никогда не успевает
-появиться. Обработчик в `chatEventReducer.js` закомментирован.
+**Индикатора нет, и события тоже.** Сигнал приходил вплотную к `TOOL_CALL` — зазора нет, индикатор
+никогда не успевал появиться, — поэтому вся цепочка снята: `ToolPreparingAdvisor`, тип события
+`TOOL_PREPARING`, флаг `preparing` в редьюсере, `ToolPreparingIndicator` с его стилями и переводом.
+Ниже — почему поздний сигнал неизбежен на этом пути и чем его можно заменить, если индикатор
+понадобится.
 
 ## Почему не работает
 
@@ -46,7 +49,7 @@ chunks
 
 | Точка | Проблема |
 |---|---|
-| `StreamAdvisor` (`ToolPreparingAdvisor`, `LOWEST_PRECEDENCE`) | Видит чанки уже после `bufferUntil` — первый чанк с `hasToolCalls()=true` уже содержит полные аргументы |
+| `StreamAdvisor` (`LOWEST_PRECEDENCE`, самый внутренний) | Видит чанки уже после `bufferUntil` — первый чанк с `hasToolCalls()=true` уже содержит полные аргументы |
 | `ChatModelObservationConvention` / `ObservationHandler` | Spring AI вызывает `setResponse` один раз по завершении, а не на каждом чанке; `requestTools` содержит **все** зарегистрированные инструменты, а не выбранный |
 | `OpenAIClientAsync.withOptions(...)` | Фасад клиентских сервисов, не поток — подписаться не на что |
 
@@ -82,8 +85,8 @@ OpenAI и дополнительная проводка в `ChatConfig`. Сто�
 - Плюсы: ловит **реальную** паузу, не зависит от бэкенда, минимум кода
 - Минусы: порог подбирается эмпирически; не знает имени инструмента
 
-Вся обвязка (`preparing`-флаг, `ToolPreparingIndicator`, `clearPreparing`) уже есть — меняется
-только триггер: вместо бэкенд-события запускается клиентский таймер тишины.
+Бэкенд при этом не нужен вовсе: паузу видно из самого потока событий, и весь индикатор живёт
+в компоненте сообщения.
 
 ### B. Декоратор `OpenAIClientAsync`
 
@@ -102,8 +105,7 @@ OpenAI и дополнительная проводка в `ChatConfig`. Сто�
 
 ## Связанные файлы
 
-- `backend/src/main/java/io/github/trialiya/kb/advisor/ToolPreparingAdvisor.java` — существующий advisor, публикует событие когда видит `hasToolCalls()`; остаётся рабочим, просто сигнал поздний
-- `backend/src/main/java/io/github/trialiya/kb/config/ChatConfig.java` — регистрирует `ToolPreparingAdvisor` как самый внутренний advisor (LOWEST_PRECEDENCE)
-- `frontend/src/components/chatPanel/run/chatEventReducer.js` — обработчик `TOOL_PREPARING` отключён (no-op)
-- `frontend/src/components/chatPanel/messages/Message.jsx` — `ToolPreparingIndicator` + `showPreparing`-логика готовы к использованию
-- `docs/проект/диагностика-tool-preparing-стриминг.md` — история диагностики (Spring AI 1.1.x)
+- `frontend/src/components/chatPanel/messages/Message.jsx` — место индикатора: он рисуется под пузырём ассистента
+- `frontend/src/components/chatPanel/run/useChatEventStream.js` — поток событий, по которому меряется тишина в варианте A
+- `backend/src/main/java/io/github/trialiya/kb/config/ChatConfig.java` — цепочка advisor-ов, если сигнал всё же будет бэкендным
+- `docs/todo/диагностика-tool-preparing-стриминг.md` — история диагностики (Spring AI 1.1.x)

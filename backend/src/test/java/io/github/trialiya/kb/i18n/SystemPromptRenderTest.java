@@ -99,14 +99,11 @@ class SystemPromptRenderTest {
 
     /**
      * Каждый вызывающий передаёт весь набор — иначе рендер падает именно на его пути, а не на
-     * общем. Синхронный {@code POST /messages} однажды уже разошёлся с фоновым прогоном.
+     * общем. Сейчас запрос к модели с этим промптом собирают в одном месте, и список из одного
+     * имени — это приглашение дописать второе, а не признак лишней параметризации.
      */
     @ParameterizedTest
-    @ValueSource(
-            classes = {
-                io.github.trialiya.kb.service.chat.run.ChatRunService.class,
-                io.github.trialiya.kb.controller.ChatController.class
-            })
+    @ValueSource(classes = {io.github.trialiya.kb.service.chat.run.ChatRunService.class})
     @Timeout(30)
     void everyCallSitePassesThemAll(Class<?> callSite) {
         String source = sourceOf(callSite);

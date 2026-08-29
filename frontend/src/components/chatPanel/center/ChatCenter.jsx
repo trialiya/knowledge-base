@@ -27,7 +27,7 @@ const ChatCenter = ({
   loadingMessages,
   isStreaming,
   isComposerBusy,
-  isCompacting,
+  isOperation,
   isChatEmpty,
   isActive,
   search,
@@ -59,16 +59,16 @@ const ChatCenter = ({
   // занято» нет — бэкенд измеряет контекст только прогоном.
   const contextUsage = useMemo(() => contextUsageOf(messages), [messages]);
 
-  // Строка над полем ввода на время генерации. У сжатия контекста её нет: своя плашка в ленте,
-  // а замера прироста и якоря таймера у него не бывает (см. GET /runs/active на бэке).
+  // Строка над полем ввода на время генерации. У операции её нет: своя плашка в ленте, а
+  // замера прироста и якоря таймера у неё не бывает (см. GET /runs/active на бэке).
   const runId = chat?.runId;
   const runStartedAt = chat?.runStartedAt;
   const run = useMemo(
     () =>
-      isStreaming && !isCompacting
+      isStreaming && !isOperation
         ? { startedAt: runStartedAt ?? null, inputGrowth: runInputGrowth(messages, runId) }
         : null,
-    [isStreaming, isCompacting, runStartedAt, runId, messages],
+    [isStreaming, isOperation, runStartedAt, runId, messages],
   );
 
   return (
@@ -151,7 +151,7 @@ const ChatCenter = ({
           onStop={onStop}
           busy={isComposerBusy}
           generating={isStreaming}
-          stoppable={!isCompacting}
+          stoppable={!!runId && !isOperation}
           onAttach={() => fileInputRef.current?.click()}
           staged={staged}
           onUnstage={onUnstage}

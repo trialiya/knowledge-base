@@ -2,7 +2,9 @@ package io.github.trialiya.kb.service.chat.event;
 
 import io.github.trialiya.kb.model.chat.dto.ChatEvent;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
@@ -20,6 +22,12 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
  * ответ «на лету», а уже завершённый ответ не реплеится повторно — он лежит в БД и грузится обычным
  * запросом истории.
  *
+ * <p>Длина лога ограничена {@link #MAX_LOG_EVENTS}: событий у прогона столько же, сколько токенов в
+ * ответе, плюс вызовы инструментов, а конца у прогона может и не наступить. Из переполненного лога
+ * уходит самое старое, и вкладке, которой выброшенное предназначалось, об этом говорят — событием
+ * {@link ChatEventType#REPLAY_GAP} перед реплеем. Молчать здесь нельзя: вкладка собирает ответ из
+ * чанков подряд и склеила бы куски с дырой посередине, ничего не заметив.
+ *
  * <p>Состояние защищено {@link ReentrantLock} (а не {@code synchronized}): отправка событий идёт
  * под локом и делает блокирующий I/O ({@link SseEmitter#send}), а вызывается в т.ч. с виртуальных
  * потоков пула генерации — на {@code synchronized} это привязывало бы carrier-поток (pinning) до
@@ -33,15 +41,27 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @Slf4j
 public class ConversationHub {
 
+    /**
+     * Потолок лога реплея. Порядок величины — длинный ответ целиком: сотни чанков и десятки вызовов
+     * инструментов помещаются, а прогон, который льёт часами, не растёт в памяти без предела.
+     */
+    private static final int MAX_LOG_EVENTS = 2000;
+
     private final String conversationId;
     private final ReentrantLock lock = new ReentrantLock();
-    private final List<ChatEvent> eventLog = new ArrayList<>();
+    // Дек, а не список: из переполненного лога уходит самое старое, и на горячем пути (событие
+    // на каждый токен) это должно стоить константу, а не сдвиг всего лога.
+    private final Deque<ChatEvent> eventLog = new ArrayDeque<>();
     private final List<SseEmitter> subscribers = new ArrayList<>();
 
     /** Колбэк «хаб простаивает» — реестр пытается выгрузить его (см. {@link ChatEventService}). */
     @Nullable private final Consumer<ConversationHub> onIdle;
 
     private long seq;
+
+    /** Наибольший seq, выброшенный из переполненного лога; 0 — не выброшено ничего. */
+    private long droppedThroughSeq;
+
     @Nullable private String activeRunId;
     private boolean closed;
 
@@ -67,6 +87,19 @@ public class ConversationHub {
         try {
             if (closed) {
                 return null;
+            }
+            // Честная дыра: часть того, что вкладка ждала, из лога уже выброшена. seq у этого
+            // события — seq последнего выброшенного: курсор вкладки встаёт ровно туда, откуда
+            // реплей и продолжится, и второй раз на ту же дыру она не наткнётся.
+            if (droppedThroughSeq > fromSeq) {
+                send(
+                        emitter,
+                        new ChatEvent(
+                                droppedThroughSeq,
+                                ChatEventType.REPLAY_GAP,
+                                activeRunId,
+                                null,
+                                null));
             }
             for (final ChatEvent event : eventLog) {
                 if (event.seq() > fromSeq) {
@@ -105,7 +138,10 @@ public class ConversationHub {
         lock.lock();
         try {
             final ChatEvent event = new ChatEvent(++seq, type, runId, clientMsgId, payload);
-            eventLog.add(event);
+            eventLog.addLast(event);
+            while (eventLog.size() > MAX_LOG_EVENTS) {
+                droppedThroughSeq = eventLog.removeFirst().seq();
+            }
             // Обходим подписчиков без копирования (это горячий путь — на каждый токен). Безопасно:
             // send() сам глотает ошибку отправки, а контейнерные колбэки onError/onCompletion (они
             // вызывают remove) срабатывают не синхронно внутри send, а отдельно, плюс remove берёт
@@ -123,6 +159,7 @@ public class ConversationHub {
         lock.lock();
         try {
             eventLog.clear();
+            droppedThroughSeq = 0;
             activeRunId = runId;
         } finally {
             lock.unlock();
@@ -135,7 +172,22 @@ public class ConversationHub {
             if (runId.equals(activeRunId)) {
                 activeRunId = null;
                 eventLog.clear();
+                droppedThroughSeq = 0;
             }
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * Успел ли лог реплея потерять события текущего прогона. Вкладке это говорит, что реплей начала
+     * прогона не восстановит, — и она грузит его из истории вместо того, чтобы ждать событий (см.
+     * {@code trimActiveRunTail} на фронте).
+     */
+    public boolean replayTruncated() {
+        lock.lock();
+        try {
+            return droppedThroughSeq > 0;
         } finally {
             lock.unlock();
         }
@@ -189,6 +241,7 @@ public class ConversationHub {
             snapshot = List.copyOf(subscribers);
             subscribers.clear();
             eventLog.clear();
+            droppedThroughSeq = 0;
             activeRunId = null;
         } finally {
             lock.unlock();

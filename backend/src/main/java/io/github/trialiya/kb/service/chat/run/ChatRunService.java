@@ -1,6 +1,6 @@
 package io.github.trialiya.kb.service.chat.run;
 
-import static io.github.trialiya.kb.advisor.ToolPreparingAdvisor.RUN_ID_PARAM;
+import static io.github.trialiya.kb.advisor.AdvisorParams.RUN_ID_PARAM;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.RUN_DONE;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.RUN_ERROR;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.RUN_STARTED;
@@ -36,7 +36,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.OptionalLong;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -244,6 +243,34 @@ public class ChatRunService {
     public record StartedRun(String runId, Long userMessageId) {}
 
     /**
+     * Занятость чата снаружи: id операции и что это за операция.
+     *
+     * @param elapsedMs сколько миллисекунд она уже идёт — для таймера над полем ввода. По часам
+     *     сервера (наружу уходит длительность, а не момент старта: разница часов клиента и сервера
+     *     её не портит). Есть только у генерации: замерять нечем там, где нет области прогона
+     * @param replayTruncated лог реплея этого чата успел потерять события текущего прогона (см.
+     *     {@code ConversationHub}) — начало ответа вкладке придётся взять из истории, реплей его
+     *     уже не принесёт
+     */
+    public record ActiveRun(
+            String runId, Kind kind, @Nullable Long elapsedMs, boolean replayTruncated) {
+
+        /**
+         * Что именно держит чат. Различие в том, что вкладке с этим делать: генерацию можно
+         * остановить и ей можно писать в очередь, операции — ни того, ни другого.
+         */
+        public enum Kind {
+            /** Ответ модели: своя область прогона ({@link RunScope}), стрим, tool-цикл, очередь. */
+            GENERATION,
+            /**
+             * Всё остальное, что держит чат заявкой без прогона, — сжатие контекста, git-команда,
+             * восстановление очереди на старте приложения (см. {@code ConversationSlots#claim}).
+             */
+            OPERATION
+        }
+    }
+
+    /**
      * Настройки одного прогона: что выбрано в чате (или передано параметром запроса) поверх
      * дефолтов конфигурации. Собираются в контроллере — см. {@code ChatController#resolveRun}.
      *
@@ -315,19 +342,45 @@ public class ChatRunService {
         return true;
     }
 
-    public Optional<String> activeRun(String conversationId) {
-        return slots.activeRun(conversationId);
+    /**
+     * Чем занят чат прямо сейчас, каким это видят вкладки (см. {@code
+     * ConversationSlots#activeRun}), — состояние, по которому вкладка восстанавливает себя после
+     * перезагрузки.
+     */
+    public Optional<ActiveRun> activeRun(String conversationId) {
+        final boolean replayTruncated = events.replayTruncated(conversationId);
+        return slots.activeRun(conversationId)
+                .map(
+                        runId ->
+                                runs.find(runId)
+                                        .map(
+                                                scope ->
+                                                        new ActiveRun(
+                                                                runId,
+                                                                ActiveRun.Kind.GENERATION,
+                                                                scope.elapsedMs(),
+                                                                replayTruncated))
+                                        .orElseGet(
+                                                () ->
+                                                        new ActiveRun(
+                                                                runId,
+                                                                kindOutsideRegistry(
+                                                                        conversationId, runId),
+                                                                null,
+                                                                replayTruncated)));
     }
 
     /**
-     * Сколько миллисекунд уже идёт прогон — для таймера над полем ввода. По часам сервера (наружу
-     * уходит длительность, а не момент старта: разница часов клиента и сервера её не портит). Пусто
-     * для заявки без генерации (сжатие контекста и прочее — см. {@code ConversationSlots#claim}) и
-     * для неизвестного runId.
+     * Вид занятости, когда прогона в реестре нет. Обычно это операция без прогона ({@code
+     * ConversationSlots#claim}), но так же выглядит и генерация в терминальной обработке: реестр
+     * она покидает ДО доставки очереди, а заявку на чат отдаёт только в самом конце. Вкладке,
+     * попавшей в это окно, «операция» стоила бы заблокированного ввода без кнопки «Стоп» до
+     * ближайшего события потока — поэтому вид спрашиваем у заявки, которая помнит, кто её взял.
      */
-    public OptionalLong runElapsedMs(String runId) {
-        final RunScope scope = runs.find(runId).orElse(null);
-        return scope == null ? OptionalLong.empty() : OptionalLong.of(scope.elapsedMs());
+    private ActiveRun.Kind kindOutsideRegistry(String conversationId, String runId) {
+        return slots.holdsGeneration(conversationId, runId)
+                ? ActiveRun.Kind.GENERATION
+                : ActiveRun.Kind.OPERATION;
     }
 
     /**

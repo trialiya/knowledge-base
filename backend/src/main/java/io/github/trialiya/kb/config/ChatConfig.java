@@ -3,7 +3,6 @@ package io.github.trialiya.kb.config;
 import io.github.trialiya.kb.advisor.InterjectionAdvisor;
 import io.github.trialiya.kb.advisor.MessageLoggingAdvisor;
 import io.github.trialiya.kb.advisor.TokenUsageAdvisor;
-import io.github.trialiya.kb.advisor.ToolPreparingAdvisor;
 import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.McpProperties;
 import io.github.trialiya.kb.config.model.ScriptProperties;
@@ -412,9 +411,6 @@ public class ChatConfig {
         //       which is the only protocol-safe insertion point for a USER row (see the
         //       advisor's own javadoc).
         //
-        //   ToolPreparingAdvisor      (LOWEST_PRECEDENCE = MAX)      — INSIDE the loop:
-        //       called on every iteration; emits TOOL_PREPARING before each tool execution round.
-        //
         //   TokenUsageAdvisor         (LOWEST_PRECEDENCE = MAX)      — INSIDE the loop:
         //       tallies the run's tokens. Must sit inside: the tool-call chunk carrying an
         //       iteration's usage never leaves the loop, so from outside only the last
@@ -435,7 +431,6 @@ public class ChatConfig {
                         .order(ToolCallingAdvisor.DEFAULT_ORDER + 100)
                         .build());
         advisors.add(new InterjectionAdvisor(pendingMessageService));
-        advisors.add(new ToolPreparingAdvisor(chatEventService));
         advisors.add(new TokenUsageAdvisor(chatEventService, runRegistry));
         advisors.add(new MessageLoggingAdvisor());
 
