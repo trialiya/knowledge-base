@@ -170,6 +170,26 @@ public class ChatMessageEntity implements Message, Persistable<Long> {
         return meta != null ? meta.invocations() : null;
     }
 
+    /**
+     * Замер прогона, кончившегося этим рядом, — то есть замер, описывающий контекст чата после
+     * него. {@code null} — замера нет, он не измерен вовсе ({@link RunTokenUsage#isEmpty}) либо он
+     * не про контекст.
+     *
+     * <p>Не про контекст он на ряду ПОЛЬЗОВАТЕЛЯ: там замер бывает у одного случая —
+     * несостоявшегося сжатия, записанного на строку своей команды ({@code
+     * CompactService#spentRound}), — и описывает окно, которое раунд прочитал вместе со своей
+     * инструкцией, при том что само окно осталось в чате как было. В счёт провайдера такой замер
+     * идёт наравне со всеми, а в «сколько занято» — нет. То же правило на фронте ({@code runUsage}
+     * в {@code tokenUsage.js}), и разойтись им нельзя: по одному ряду вышло бы два разных ответа на
+     * вопрос «сколько тут контекста».
+     */
+    public @Nullable RunTokenUsage getRunUsage() {
+        if (type == MessageType.USER || meta == null || meta.usage() == null) {
+            return null;
+        }
+        return meta.usage().isEmpty() ? null : meta.usage();
+    }
+
     /** Приложенное к сообщению (вложения и т.п.); пустой список, если меты нет. */
     public List<ContextItem> getContextItems() {
         return meta != null ? meta.contextItems() : List.of();

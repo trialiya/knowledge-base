@@ -103,7 +103,8 @@ public class SummarizeService implements DisposableBean {
     public void doSummarize(@Nonnull final String conversationId) {
         // promptRows is the one place that answers "what does the model see": every row carries the
         // text that will be sent, inventory included, not the text that happens to be stored. The
-        // prompt below and the estimate inside SummarizeWindow both measure exactly that.
+        // prompt below and the character estimate inside SummarizeWindow both measure exactly that
+        // — and the estimate only runs where the provider measured nothing.
         final SummarizeWindow window =
                 new SummarizeWindow(chatHistory.promptRows(conversationId), summarizeProperties);
 
@@ -120,8 +121,8 @@ public class SummarizeService implements DisposableBean {
                         : "; of them prompt-eligible: " + promptMix);
         if (!window.worthARound()) {
             log.info(
-                    "[{}] Skipping summarization — compressible: {}, ~{} tokens; neither threshold"
-                            + " reached ({} messages / {} tokens). Live window: ~{} tokens",
+                    "[{}] Skipping summarization — compressible: {}, {}; neither threshold"
+                            + " reached ({} messages / {} tokens). Live window: {}",
                     conversationId,
                     MessageMix.of(window.toCompress()),
                     window.sliceTokens(),
@@ -133,7 +134,7 @@ public class SummarizeService implements DisposableBean {
 
         final List<PromptRow> toCompress = window.toCompress();
         log.info(
-                "[{}] Compressing positions {}-{} ({} reached the threshold): {}, ~{} tokens;"
+                "[{}] Compressing positions {}-{} ({} reached the threshold): {}, {};"
                         + " keeping live: {}",
                 conversationId,
                 toCompress.getFirst().entity().getPosition(),
@@ -166,7 +167,7 @@ public class SummarizeService implements DisposableBean {
                                 window.endPosition());
 
         log.info(
-                "[{}] Summarization finished — compressed {} (~{} tokens) into ~{} tokens",
+                "[{}] Summarization finished — compressed {} ({}) into ~{} tokens",
                 conversationId,
                 MessageMix.of(toCompress),
                 window.sliceTokens(),
