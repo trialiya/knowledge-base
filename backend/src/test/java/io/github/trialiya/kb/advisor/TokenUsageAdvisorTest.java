@@ -18,6 +18,7 @@ import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import io.github.trialiya.kb.service.chat.runtime.RunScope;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.ai.chat.client.ChatClientRequest;
@@ -176,6 +177,41 @@ class TokenUsageAdvisorTest {
 
         verifyNoInteractions(events);
         assertThat(runs.size()).isZero();
+    }
+
+    /**
+     * Замер обращения попадает в итог прогона ДО того, как onComplete доходит до подписчика:
+     * подписчик в {@code ChatRunService} на этом сигнале сразу читает {@code scope.usage()} и пишет
+     * его в мету ответа. Замер, доехавший позже (как было бы с одним doFinally), в записанный итог
+     * не попал бы — прогон из одного обращения оставался бы без usage вовсе, а у прогона с
+     * инструментами терялось бы последнее обращение.
+     */
+    @Test
+    void theRunTotalIsCompleteWhenOnCompleteReachesTheSubscriber() {
+        final RunScope scope = runs.open(RUN, CONV, "admin", "gpt-5");
+        when(chain.nextStream(any())).thenReturn(Flux.just(chunk(1000, 50)));
+
+        final AtomicReference<RunTokenUsage> seenAtComplete = new AtomicReference<>();
+        advisor.adviseStream(request(), chain)
+                .subscribe(response -> {}, error -> {}, () -> seenAtComplete.set(scope.usage()));
+
+        assertThat(seenAtComplete.get()).isEqualTo(usage(1050, 0, 50, 1000, 1));
+    }
+
+    /** То же для ошибки: onError тоже терминальный, и потраченное до неё уже в итоге. */
+    @Test
+    void theRunTotalIsCompleteWhenOnErrorReachesTheSubscriber() {
+        final RunScope scope = runs.open(RUN, CONV, "admin", "gpt-5");
+        when(chain.nextStream(any()))
+                .thenReturn(
+                        Flux.just(chunk(1000, 50))
+                                .concatWith(Flux.error(new IllegalStateException("boom"))));
+
+        final AtomicReference<RunTokenUsage> seenAtError = new AtomicReference<>();
+        advisor.adviseStream(request(), chain)
+                .subscribe(response -> {}, error -> seenAtError.set(scope.usage()));
+
+        assertThat(seenAtError.get()).isEqualTo(usage(1050, 0, 50, 1000, 1));
     }
 
     /** Прогон остановили посреди обращения — потраченное к этому моменту потрачено. */
