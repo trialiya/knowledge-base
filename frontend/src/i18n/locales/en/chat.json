@@ -239,8 +239,8 @@
     "summaryChars": "Summary length: {{chars}} characters.",
     "summaryLoadError": "Could not load the summary.",
     "summaryNotFound": "The summary of this compaction was not found.",
-    "savings": "Context: {{before}} → {{after}} (−{{percent}}%)",
-    "savingsBefore": "Context before compaction: {{before}}",
+    "savings": "{{before}} → {{after}} (−{{percent}}%)",
+    "savingsBefore": "was {{before}}",
     "savingsTooltip": "Left — what the compaction round read; right — the context of the next request. A «~» means no answer has followed the compaction yet, so the number is estimated from the system part."
   },
   "fileInput": {

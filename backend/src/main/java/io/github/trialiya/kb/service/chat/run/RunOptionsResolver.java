@@ -89,6 +89,36 @@ public class RunOptionsResolver {
     }
 
     /**
+     * Настройки, на которых чат идёт сейчас, — то же, что вернул бы {@link #resolve} без единого
+     * названного параметра, но <b>ничего не записывая</b>. Для операции, которая обращается к
+     * модели от имени чата, но ходом чата не является: сжатие контекста ({@code CompactService}).
+     *
+     * <p>Разница не косметическая. {@link #resolve} приводит {@code chat_topic.project} к тому, на
+     * чём прогон реально пошёл, и заодно вычисляет маркер смены — а операции этот маркер девать
+     * некуда. Позови она {@code resolve}, чат с выбывшим из конфигурации проектом переписал бы
+     * колонку на дефолтную молча, и следующий вопрос пользователя остался бы без {@code
+     * projectSwitchFrom}: ни модель, ни плашка не узнали бы, что история выше писалась в другом
+     * репозитории.
+     *
+     * <p>{@code projectSwitch} здесь всегда {@code null}, и это правда: операция чат никуда не
+     * переводит.
+     */
+    public ChatRunService.RunOptions current(final String conversationId) {
+        // Ни один из трёх резолвов не пишет, пока ему не назвали значение явно (см. их javadoc).
+        final Optional<ChatTopicEntity> stored = chatTopicRepository.findById(conversationId);
+        final String model = resolveModel(conversationId, stored, null);
+        final String project = resolveProject(stored, null);
+        return new ChatRunService.RunOptions(
+                model,
+                chatModelProperties.isWeak(model),
+                chatModelProperties.streamUsage(model),
+                chatModeService.instructionsFor(resolveMode(conversationId, stored, null)),
+                project,
+                projectCatalog.require(project).id(),
+                null);
+    }
+
+    /**
      * Проверяет, что названные модель, режим и проект вообще существуют, ничего не резолвя и ничего
      * не записывая. Нужно там, где выбор принимают сейчас, а прогон по нему пойдёт позже (очередь
      * сообщений): без этой проверки опечатка в модели обернулась бы не отказом на запросе, а

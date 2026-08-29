@@ -121,6 +121,27 @@ class RunOptionsResolverTest {
     }
 
     /**
+     * Читающий резолв ({@code current}) отвечает то же самое, но колонку не трогает — иначе чат с
+     * выбывшим проектом терял бы маркер смены на команде {@code /compact}: сжатие переписало бы
+     * колонку на дефолтную, а следующий вопрос пользователя, сверяясь уже с ней, не узнал бы, что
+     * история выше читана в другом репозитории. Маркера у него нет и быть не может: операция чат
+     * никуда не переводит.
+     */
+    @Test
+    void theReadOnlyResolveAnswersTheSameWithoutTouchingTheChat() {
+        storedProject("retired");
+
+        final ChatRunService.RunOptions options = resolver.current(CONV);
+
+        assertThat(options.project()).isNull();
+        assertThat(options.canonicalProject()).isEqualTo("kb");
+        assertThat(options.projectSwitch()).isNull();
+        verify(topicRepository, never()).updateProject(anyString(), any());
+        verify(topicRepository, never()).updateModel(anyString(), any());
+        verify(topicRepository, never()).updateMode(anyString(), any());
+    }
+
+    /**
      * Проект чата исчез из конфигурации — прогон уезжает на дефолтный, и это настоящая смена:
      * история читана в другом репозитории, и {@code from} называет его как есть, хоть
      * канонизировать выбывший id уже не во что.

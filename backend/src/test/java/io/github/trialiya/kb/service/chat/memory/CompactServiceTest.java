@@ -296,16 +296,21 @@ class CompactServiceTest {
      * Модель прочла схемы инструментов (они в запросе ради кэша) и вместо документа вызвала один из
      * них: исполнять вызов некому, история остаётся нетронутой, а отказ называет причину — иначе
      * это неотличимо от эндпоинта, который просто ничего не ответил.
+     *
+     * <p>Текст в таком ответе как раз есть — и это не выдуманный краевой случай: {@code sys.md}
+     * требует начинать ответ с {@code recordChatInsights}, так что «сейчас запишу» плюс вызов —
+     * ровно та форма, которую даёт неподчинившаяся модель. Прими её раунд за сводку, этой одной
+     * фразой был бы заменён весь контекст чата.
      */
     @Test
-    void aToolCallInsteadOfTheDocumentFailsTheRoundByName() {
+    void aToolCallInsteadOfTheDocumentFailsTheRoundEvenWithTextBesideIt() {
         when(chatModel.call(any(Prompt.class)))
                 .thenReturn(
                         new ChatResponse(
                                 List.of(
                                         new Generation(
                                                 AssistantMessage.builder()
-                                                        .content("")
+                                                        .content("Записываю инсайты чата.")
                                                         .toolCalls(
                                                                 List.of(
                                                                         new AssistantMessage

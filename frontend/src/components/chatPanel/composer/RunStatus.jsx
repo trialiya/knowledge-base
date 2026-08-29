@@ -28,8 +28,8 @@ const formatElapsed = (ms) => {
 const RunStatus = ({ startedAt, inputGrowth }) => {
   const { t } = useTranslation('chat');
   const [now, setNow] = useState(() => Date.now());
-  // Тик — только пока есть что отсчитывать: без якоря (сжатие, прогон до RUN_STARTED) интервал
-  // впустую перерисовывал бы пустой компонент каждую секунду.
+  // Тик — только пока есть что отсчитывать: без якоря (прогон, чей RUN_STARTED ещё не доехал)
+  // интервал впустую перерисовывал бы пустой компонент каждую секунду.
   useEffect(() => {
     if (!startedAt) return undefined;
     const id = setInterval(() => setNow(Date.now()), 1000);

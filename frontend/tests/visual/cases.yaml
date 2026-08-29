@@ -326,6 +326,30 @@
     кэша у этих прогонов нет, и парная строка без него читалась бы как часть
     чего-то большего.
 
+- id: compact-notice-savings
+  component: CompactNotice
+  path: frontend/src/components/chatPanel/messages/CompactNotice.jsx
+  title: Плашка «контекст сжат» — во что сжатие обошлось контексту
+  status: verified
+  origin:
+    - Сессия 2026-08-29, разбор /compact
+  preconditions:
+    viewport: [1440, 900]
+    auth: admin
+    route: /chat/<id чата, в котором выполнялась команда /compact>
+  fixtures: ./fixtures/compactNotice.js#measured
+  expected:
+    - Плашка остаётся разделителем в одну строку — не пузырём: сжатие это событие с чатом, а не реплика
+    - Строка экономии стоит между текстом «Контекст сжат…» и кнопкой «Подробнее», моноширинно и чуть тише текста
+    - 'Числа читаются как переход и слово «контекст» не повторяют — оно уже в тексте плашки: 169k → 12.0k (−93%)'
+    - Строка не разрывается посередине числа — при нехватке ширины плашка переносит её целиком (flex-wrap на .compact-notice)
+  notes: |
+    Ещё два состояния той же плашки:
+    ./fixtures/compactNotice.js#estimated — ответа после сжатия ещё не было,
+    поэтому «после» оценено по системной части и показано с «~» (~11.0k);
+    ./fixtures/compactNotice.js#unmeasured — раунд не измерен (эндпоинт без
+    usage), строки экономии нет вовсе, плашка выглядит как до этого изменения.
+
 - id: tool-call-cost-of-sub-agent
   component: ToolCallDetailModal + ToolCost
   path: frontend/src/components/chatPanel/messages/ToolCallDetailModal.jsx

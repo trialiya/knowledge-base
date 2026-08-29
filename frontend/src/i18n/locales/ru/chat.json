@@ -239,8 +239,8 @@
     "summaryChars": "Длина сводки: {{chars}} символов.",
     "summaryLoadError": "Не удалось загрузить сводку.",
     "summaryNotFound": "Сводка этого сжатия не найдена.",
-    "savings": "Контекст: {{before}} → {{after}} (−{{percent}}%)",
-    "savingsBefore": "Контекст до сжатия: {{before}}",
+    "savings": "{{before}} → {{after}} (−{{percent}}%)",
+    "savingsBefore": "было {{before}}",
     "savingsTooltip": "Слева — вход раунда сжатия, справа — контекст следующего запроса. «~» значит, что ответа после сжатия ещё не было и число оценено по системной части."
   },
   "fileInput": {

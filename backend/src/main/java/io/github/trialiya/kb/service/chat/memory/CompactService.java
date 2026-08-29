@@ -375,20 +375,21 @@ public class CompactService {
         }
         final @Nullable ChatResponse response = spec.call().chatResponse();
         final @Nullable String content = answerOf(response);
+        // Ответ с вызовом инструмента не годится в сводку, даже когда текст в нём есть. Модель
+        // прочла схемы (они в запросе ради кэша) и не послушалась запрета из compactor.md, а
+        // sys.md как раз требует начинать ответ с recordChatInsights — то есть вероятная форма
+        // такого ответа не пустая, а «сейчас запишу» плюс сам вызов. Пропусти мы её по непустому
+        // тексту, этой одной фразой был бы заменён весь контекст чата, и вернуть его уже неоткуда.
+        // Исполнять вызов всё равно некому, так что раунд кончается здесь.
+        if (calledTools(response)) {
+            throw new IllegalStateException(
+                    "The model called a tool instead of writing the compaction");
+        }
         if (content == null || content.isBlank()) {
             // Разметить окно сжатым, не сохранив сводку, значит стереть чат целиком. Сама команда
             // при этом уже сохранена и никуда не денется — останется в истории неотвеченной, как
             // любой упавший вопрос.
-            //
-            // Отдельный текст на вызов инструмента вместо документа — единственный отказ, у
-            // которого есть внятная причина и адрес: модель прочла схемы (они в запросе ради кэша)
-            // и не послушалась запрета из compactor.md. Исполнить вызов всё равно некому, так что
-            // раунд кончается здесь, но в логе и в событии должно быть видно, что случилось
-            // именно это, а не пустой ответ эндпоинта.
-            throw new IllegalStateException(
-                    calledTools(response)
-                            ? "The model called a tool instead of writing the compaction"
-                            : "The model returned an empty compaction");
+            throw new IllegalStateException("The model returned an empty compaction");
         }
 
         final int messages = rows.size() + 1;

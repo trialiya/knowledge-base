@@ -422,12 +422,11 @@ public class ChatController {
         // Не checkChat: у команды нет смысла в ещё не заведённом чате, поэтому здесь строгие
         // 404/403, а не заведение чата на лету.
         getChatTopic(conversationId);
-        // Настройки берутся тем же резолвом, что и у обычного прогона, и все три ничего не
-        // переопределяют: сжатие идёт на том, что чат уже выбрал. Иначе и нельзя — запрос сжатия
-        // обязан начинаться ровно тем же, чем начинаются запросы этого чата, иначе провайдер не
-        // засчитает ему кэш промпта (см. CompactService).
-        final ChatRunService.RunOptions options =
-                runOptions.resolve(conversationId, null, null, null);
+        // Настройки — те, на которых чат уже идёт, и ровно они: запрос сжатия обязан начинаться
+        // тем же, чем начинаются запросы этого чата, иначе провайдер не засчитает ему кэш промпта
+        // (см. CompactService). Читающим резолвом, а не общим с прогоном: тот приводит к своему
+        // значению колонку проекта и вычисляет маркер смены, а сжатие чат никуда не переводит.
+        final ChatRunService.RunOptions options = runOptions.current(conversationId);
         final CompactService.StartedCompact started =
                 compactService.start(
                         conversationId,
