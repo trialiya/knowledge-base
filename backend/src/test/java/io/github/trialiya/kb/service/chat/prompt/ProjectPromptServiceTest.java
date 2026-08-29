@@ -164,6 +164,25 @@ class ProjectPromptServiceTest {
                 .contains("`kb` — KB — message 10 onward (the active project)");
     }
 
+    /**
+     * Открытая граница последнего отрезка в текст не попадает. Это половина контракта, который
+     * держит блок неизменным внутри прогона: собирается он на каждой итерации tool-цикла, окно за
+     * итерацию прирастает TOOL-рядами, и напечатанный верхний номер двигал бы текст последнего
+     * вопроса на каждой из них — сбивая кэш промпта на ровном месте. Вторую половину (что кроме
+     * этой границы ничего и не двигается) держит {@code ActiveProjectNoticeTest}.
+     */
+    @Test
+    void theOpenEndOfTheLastStretchNeverReachesTheText() throws IOException {
+        ProjectPromptService service = service("kb", "billing");
+
+        String early =
+                service.context("billing", List.of(span("kb", 1, 34), span("billing", 35, 40)));
+        String later =
+                service.context("billing", List.of(span("kb", 1, 34), span("billing", 35, 210)));
+
+        assertThat(later).isEqualTo(early);
+    }
+
     /** Отрезок в одно сообщение так и называется — «message 7», а не «messages 7-7». */
     @Test
     void aSingleMessageStretchIsNotWrittenAsARange() throws IOException {

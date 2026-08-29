@@ -15,6 +15,7 @@ import io.github.trialiya.kb.model.chat.entity.ProjectSpan;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.chat.prompt.ProjectPromptService;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import org.jspecify.annotations.Nullable;
@@ -61,6 +62,14 @@ class ActiveProjectNoticeTest {
                 position,
                 MessageType.USER,
                 new ChatMessageMeta(null, false, List.of(), List.of(), project, null));
+    }
+
+    /** Маркер смены: этим вопросом чат перешёл из {@code from} в {@code to}. */
+    private static ChatMessageEntity switched(long position, String from, String to) {
+        return row(
+                position,
+                MessageType.USER,
+                new ChatMessageMeta(null, false, List.of(), List.of(), to, from));
     }
 
     private static ChatMessageEntity answer(long position) {
@@ -110,39 +119,57 @@ class ActiveProjectNoticeTest {
     /** Активный проект — последний носитель окна, а не первый и не проект чата. */
     @Test
     void theActiveProjectIsTheLastCarrierOfTheWindow() {
-        notice.render(
-                CONV,
-                List.of(
-                        stamp(1, "kb"),
-                        row(
-                                4,
-                                MessageType.USER,
-                                new ChatMessageMeta(
-                                        null, false, List.of(), List.of(), "billing", "kb"))));
+        notice.render(CONV, List.of(stamp(1, "kb"), switched(4, "kb", "billing")));
 
         ArgumentCaptor<String> project = ArgumentCaptor.forClass(String.class);
         verify(projectPrompt).context(project.capture(), any());
         assertThat(project.getValue()).isEqualTo("billing");
     }
 
+    /** Спаны, с которыми звали рендер, — по одному списку на вызов. */
+    private List<List<ProjectSpan>> capturedSpans(int calls) {
+        @SuppressWarnings("unchecked")
+        final ArgumentCaptor<List<ProjectSpan>> captor = ArgumentCaptor.forClass(List.class);
+        verify(projectPrompt, org.mockito.Mockito.times(calls)).context(any(), captor.capture());
+        return List.copyOf(captor.getAllValues());
+    }
+
     @Test
     void theTimelineCarriesEveryStretchOfTheWindow() {
-        notice.render(
-                CONV,
-                List.of(
-                        stamp(1, "kb"),
-                        row(
-                                4,
-                                MessageType.USER,
-                                new ChatMessageMeta(
-                                        null, false, List.of(), List.of(), "billing", "kb")),
-                        answer(5)));
+        notice.render(CONV, List.of(stamp(1, "kb"), switched(4, "kb", "billing"), answer(5)));
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<ProjectSpan>> spans = ArgumentCaptor.forClass(List.class);
         verify(projectPrompt).context(any(), spans.capture());
         assertThat(spans.getValue())
                 .containsExactly(new ProjectSpan("kb", 1, 3), new ProjectSpan("billing", 4, 5));
+    }
+
+    /**
+     * Прирост окна за итерацию tool-цикла двигает ровно одну величину — верхнюю границу последнего,
+     * открытого отрезка. Ни нового отрезка, ни сдвига закрытых от этого возникать не должно: текст
+     * блока стоит на последнем вопросе, и поехав внутри прогона, он сбивал бы кэш промпта. Вторую
+     * половину того же контракта — что открытую границу никто не печатает числом — держит {@code
+     * ProjectPromptServiceTest}.
+     */
+    @Test
+    void growingTheWindowMovesOnlyTheOpenEndOfTheLastStretch() {
+        final List<ChatMessageEntity> window =
+                new ArrayList<>(List.of(stamp(1, "kb"), switched(4, "kb", "billing")));
+
+        notice.render(CONV, window);
+        window.add(answer(5));
+        window.add(answer(6));
+        notice.render(CONV, window);
+
+        final List<List<ProjectSpan>> renders = capturedSpans(2);
+        final List<ProjectSpan> before = renders.get(0);
+        final List<ProjectSpan> after = renders.get(1);
+        assertThat(after).hasSameSizeAs(before);
+        assertThat(after.subList(0, after.size() - 1))
+                .isEqualTo(before.subList(0, before.size() - 1));
+        assertThat(after.getLast().project()).isEqualTo(before.getLast().project());
+        assertThat(after.getLast().from()).isEqualTo(before.getLast().from());
     }
 
     /** Носителя нет — отвечает {@code chat_topic}: чат, начатый git-командой, тоже должен знать. */

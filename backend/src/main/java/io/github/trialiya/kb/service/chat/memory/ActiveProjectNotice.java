@@ -56,6 +56,9 @@ public class ActiveProjectNotice {
      * <p>След собирается тем же {@link ProjectTrace}, что и на записи сводки: спаны последней
      * сводки плюс носители живых рядов. Хвост открыт — последний отрезок кончается на последнем
      * ряду окна и в тексте печатается как «с сообщения N и дальше».
+     *
+     * @param rows окно целиком, не пустое: зовут отсюда только когда {@link #anchor} нашёл, на что
+     *     ставить блок, а нашёл он его среди этих же рядов
      */
     public String render(String conversationId, List<ChatMessageEntity> rows) {
         final ProjectTrace trace =
