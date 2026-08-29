@@ -7,19 +7,17 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.config.model.ScriptProperties;
+import io.github.trialiya.kb.config.model.SystemPromptProperties;
+import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.script.ScriptEditPolicy;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.ai.template.st.StTemplateRenderer;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.util.StreamUtils;
@@ -94,23 +92,28 @@ class SystemPromptRenderTest {
     }
 
     /**
-     * Каждый вызывающий передаёт весь набор — иначе рендер падает именно на его пути, а не на
-     * общем. Сейчас запрос к модели с этим промптом собирают в одном месте, и список из одного
-     * имени — это приглашение дописать второе, а не признак лишней параметризации.
+     * Набор, который отдаёт единственный собирающий его метод, покрывает шаблон целиком.
+     * Незаполненный плейсхолдер — это отказ на каждом запросе чата, а лишний молча ничего не значит
+     * до тех пор, пока имя в шаблоне не опечатались.
+     *
+     * <p>Раньше здесь читались исходники вызывающих: пока набор собирал каждый сам, забытое одним
+     * из них имя валило запросы только на его пути. Вызывающих по-прежнему два — чат и {@code
+     * /compact} — но собирают они набор общим методом, и это единственное, что имеет смысл
+     * проверять.
      */
-    @ParameterizedTest
-    @ValueSource(classes = {io.github.trialiya.kb.service.chat.run.ChatRunService.class})
+    @Test
     @Timeout(30)
-    void everyCallSitePassesThemAll(Class<?> callSite) {
-        String source = sourceOf(callSite);
-        Set<String> passed =
-                PARAM_CALL.matcher(source).results().map(m -> m.group(1)).collect(toSet());
-
-        assertThat(passed).containsAll(FILLED_BY_THE_APPLICATION);
+    void theOnePlaceThatFillsThemCoversTheWholeTemplate() {
+        assertThat(placeholders().keySet())
+                .containsExactlyInAnyOrderElementsOf(placeholdersOf(systemPrompt()));
     }
 
-    /** {@code .param("name",} — как плейсхолдеры и передаются в шаблон системного промпта. */
-    private static final Pattern PARAM_CALL = Pattern.compile("\\.param\\(\\s*\"(\\w+)\"");
+    private static Map<String, Object> placeholders() {
+        ScriptGuideService guide = mock(ScriptGuideService.class);
+        when(guide.instructions(false, null)).thenReturn("");
+        return new SystemPromptService(new SystemPromptProperties(null, null), guide)
+                .placeholders(false, null, "");
+    }
 
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{(\\w+)}");
 
@@ -119,15 +122,6 @@ class SystemPromptRenderTest {
 
     private static Set<String> placeholdersOf(String template) {
         return PLACEHOLDER.matcher(template).results().map(m -> m.group(1)).collect(toSet());
-    }
-
-    private static String sourceOf(Class<?> type) {
-        Path path = Path.of("src/main/java", type.getName().replace('.', '/') + ".java");
-        try {
-            return Files.readString(path, StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new IllegalStateException("Cannot read the source of " + type.getName(), e);
-        }
     }
 
     private static String systemPrompt() {

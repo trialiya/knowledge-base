@@ -4,6 +4,7 @@ import com.google.common.util.concurrent.Striped;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.CompactMeta;
+import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import java.time.LocalDateTime;
 import java.util.Objects;
@@ -116,6 +117,12 @@ public class SummaryWriter {
                 transactionTemplate.execute(
                         s -> {
                             final ChatMessageEntity summary = saveSummary(row);
+                            final ChatMessageMeta meta =
+                                    ChatMessageMeta.ofCompact(
+                                            new CompactMeta(
+                                                    stats.messages(),
+                                                    stats.summaryChars(),
+                                                    summary.getId()));
                             return chatMessageRepository.save(
                                     new ChatMessageEntity(
                                             0L,
@@ -126,11 +133,9 @@ public class SummaryWriter {
                                             true,
                                             false,
                                             row.createdAt(),
-                                            ChatMessageMeta.ofCompact(
-                                                    new CompactMeta(
-                                                            stats.messages(),
-                                                            stats.summaryChars(),
-                                                            summary.getId()))));
+                                            stats.usage() == null
+                                                    ? meta
+                                                    : meta.withUsage(stats.usage())));
                         }));
     }
 
@@ -141,8 +146,13 @@ public class SummaryWriter {
      * @param summaryChars длина документа, который написала модель, — без обёртки, в которую сводка
      *     попадает в {@code row.text()}: плашка и модалка показывают это число рядом с самим
      *     документом, и считать его надо по нему же
+     * @param usage токены раунда — тем же полем меты, что и у обычного ответа ({@code
+     *     ChatMessageMeta#usage}), чтобы итог по чату считался по всем рядам одним правилом. {@code
+     *     null} — эндпоинт замера не отдал. Заголовочный {@code contextTokens} здесь описывает
+     *     контекст самого раунда (сжатое окно плюс сводка), а не то, что осталось в чате после
+     *     него: раунд читал историю целиком, и это последнее место, где она была измерена
      */
-    public record CompactStats(int messages, int summaryChars) {}
+    public record CompactStats(int messages, int summaryChars, @Nullable RunTokenUsage usage) {}
 
     /** Разметка сжатого куска и сама строка-сводка; вызывать только внутри транзакции. */
     private ChatMessageEntity saveSummary(SummaryRow row) {

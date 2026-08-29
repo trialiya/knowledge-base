@@ -5,6 +5,7 @@ import static io.github.trialiya.kb.model.chat.dto.ChatEventType.COMPACT_ERROR;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.COMPACT_STARTED;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.USER_MESSAGE;
 
+import io.github.trialiya.kb.advisor.MessageLoggingAdvisor;
 import io.github.trialiya.kb.config.ChatModelRegistry;
 import io.github.trialiya.kb.model.chat.dto.CompactDetail;
 import io.github.trialiya.kb.model.chat.dto.CompactPayload;
@@ -12,11 +13,18 @@ import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.chat.entity.CompactMeta;
+import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
+import io.github.trialiya.kb.model.chat.entity.TokenUsage;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService.PromptRow;
+import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.runtime.ConversationSlots;
+import io.github.trialiya.kb.tools.ChatToolset;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -25,14 +33,17 @@ import java.util.concurrent.Executor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.ChatClientAttributes;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
+import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StreamUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -47,9 +58,34 @@ import org.springframework.web.server.ResponseStatusException;
  * нет ни рендера истории в текст, ни усечения результатов до гистов, которыми живёт суммаризатор:
  * то, что уезжает модели, и есть история.
  *
- * <p><b>Клиент строится здесь и намеренно голый</b> — без инструментов и, что важнее, без
- * адвайзеров памяти: клиент из {@code ChatClientRegistry} подмешал бы то же окно вторым слоем, а
- * ответ записал бы в историю обычной репликой ассистента.
+ * <p><b>Запрос собран в форме обычного прогона — ради кэша промпта.</b> Провайдер отдаёт по
+ * льготной ставке ту часть запроса, которая совпадает с предыдущим, и совпадение считается от
+ * первого байта: системное сообщение, за ним схемы инструментов, за ними история. Раунд сжатия идёт
+ * по тому же окну, которое чат только что возил модели, поэтому при совпадающем начале почти весь
+ * его вход — это кэш. Свой системный промпт и отсутствие инструментов расходились бы с чатом с
+ * нулевой позиции, и самая дорогая операция чата стала бы единственной, которая платит за весь
+ * контекст по полной ставке. Отсюда четыре требования, каждое из которых обязательно: тот же {@code
+ * sys.md} с теми же подстановками (их собирает {@link SystemPromptService#placeholders} — одно
+ * место на оба запроса), тот же {@link ChatToolset}, та же модель и то же окно, собранное тем же
+ * кодом (см. {@link ChatHistoryService#promptRowsBefore} — там про блок активного проекта, который
+ * иначе уехал бы вместе с командой). Расходится с запросом чата только последнее сообщение — то
+ * самое, которое просит сжать; всё, что перед ним, совпадает.
+ *
+ * <p><b>Инструменты уезжают схемами, но исполнять их некому.</b> {@code
+ * ChatClientAttributes#TOOL_CALLING_ADVISOR_AUTO_REGISTER} выключает адвайзер tool-цикла, который
+ * {@code ChatClient} иначе подставляет сам: схемы нужны префиксу запроса, а вот выполнить вызов
+ * посреди сжатия нельзя — {@code sys.md} требует начинать каждый ответ с {@code
+ * recordChatInsights}, и без этого запрета сжатие ходило бы кругами вместо документа (а в
+ * развёртывании с правом записи могло бы и тронуть репозиторий). Второй рубеж — сам {@code
+ * compactor.md}, который явно снимает роль из системного промпта.
+ *
+ * <p><b>Адвайзеров памяти по-прежнему нет</b> — клиент из {@code ChatClientRegistry} подмешал бы то
+ * же окно вторым слоем, а ответ записал бы в историю обычной репликой ассистента.
+ *
+ * <p><b>Токены раунда — обычный замер обращения</b> ({@link RunTokenUsage} на один вызов), и он
+ * ложится в мету строки-плашки. Без него сжатие было бы единственной операцией чата, которая тратит
+ * деньги и не попадает в статистику: итог по чату переставал бы сходиться со счётом провайдера
+ * ровно на стоимость каждого {@code /compact}.
  *
  * <p><b>Команда остаётся в истории, но не участвует в сжатии.</b> Сообщение {@code /compact
  * <текст>} сохраняется обычной USER-строкой — так же видимой, как любая другая реплика, — но само
@@ -76,7 +112,10 @@ public class CompactService {
     private final SummaryWriter summaryWriter;
     private final ConversationSlots slots;
     private final ChatEventService events;
-    private final Resource compactorPrompt;
+    private final SystemPromptService systemPrompts;
+    private final ChatToolset chatToolset;
+    private final Resource sysPrompt;
+    private final String compactorPrompt;
     private final Executor executor;
 
     /** Границы обёртки сводки — общие у {@link #summaryText} и {@link #unwrap}. */
@@ -92,6 +131,9 @@ public class CompactService {
             SummaryWriter summaryWriter,
             ConversationSlots slots,
             ChatEventService events,
+            SystemPromptService systemPrompts,
+            ChatToolset chatToolset,
+            @Value("classpath:prompt/sys.md") Resource sysPrompt,
             @Value("classpath:prompt/compactor.md") Resource compactorPrompt,
             @Qualifier("chatRunExecutor") Executor executor) {
         this.chatModelRegistry = chatModelRegistry;
@@ -101,12 +143,47 @@ public class CompactService {
         this.summaryWriter = summaryWriter;
         this.slots = slots;
         this.events = events;
-        this.compactorPrompt = compactorPrompt;
+        this.systemPrompts = systemPrompts;
+        this.chatToolset = chatToolset;
+        this.sysPrompt = sysPrompt;
+        // Читается один раз: инструкция сжатия — теперь часть последнего сообщения запроса, и
+        // перечитывать её с диска на каждый /compact незачем (так же поступает
+        // SystemPromptService).
+        this.compactorPrompt = read(compactorPrompt);
         this.executor = executor;
+    }
+
+    private static String read(Resource resource) {
+        try {
+            return StreamUtils.copyToString(resource.getInputStream(), StandardCharsets.UTF_8)
+                    .strip();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to read the compaction prompt: " + resource, e);
+        }
     }
 
     /** {@code runId} занятой операции и id сохранённой команды — параллель {@code StartedRun}. */
     public record StartedCompact(String runId, Long messageId) {}
+
+    /**
+     * Настройки запроса сжатия. Это те же настройки, на которых идёт сам чат ({@code
+     * ChatRunService.RunOptions}) — все три поля влияют на начало запроса, а от него зависит,
+     * попадёт ли раунд в кэш промпта (см. javadoc класса).
+     *
+     * <p>Своя запись, а не {@code RunOptions}: пакеты чата зависят в одну сторону ({@code event} ←
+     * {@code runtime} ← {@code memory} ← {@code run}), и тип из {@code run} здесь был бы ссылкой
+     * назад. Собирает её контроллер — тот же резолв, что и у прогона.
+     *
+     * @param model id модели, уже разрешённый вызывающим; {@code null} — модель из конфигурации
+     * @param weakModel {@code ChatModelProperties#isWeak} от {@link #model}
+     * @param project проект чата; {@code null} — дефолтный проект списка
+     * @param modeInstructions инструкции режима чата; пустая строка — «без режима»
+     */
+    public record CompactOptions(
+            @Nullable String model,
+            boolean weakModel,
+            @Nullable String project,
+            String modeInstructions) {}
 
     /**
      * Занимает чат, сохраняет команду и запускает сжатие в фоне — HTTP-запрос не держим: раунд идёт
@@ -122,8 +199,7 @@ public class CompactService {
      * общим с фоновой суммаризацией замком (см. {@link #run}).
      *
      * @param text сообщение {@code /compact <текст>} целиком — сохраняется как есть
-     * @param model id модели, на которой пойдёт раунд, уже разрешённый вызывающим; {@code null} —
-     *     модель из конфигурации
+     * @param options настройки запроса — те же, на которых идёт чат (см. {@link CompactOptions})
      * @param clientMsgId id вкладки-отправителя — тот же смысл, что и у {@code POST /runs}: своё
      *     эхо {@code USER_MESSAGE} вкладка гасит по нему, не дожидаясь второго пузыря
      * @return runId занятой операции и id сохранённой команды
@@ -132,7 +208,7 @@ public class CompactService {
             String conversationId,
             String text,
             @Nullable String instructions,
-            @Nullable String model,
+            CompactOptions options,
             @Nullable String clientMsgId) {
         final String runId = slots.claim(conversationId);
         final ChatMessageEntity commandRow;
@@ -168,7 +244,7 @@ public class CompactService {
                         null));
         events.publish(conversationId, COMPACT_STARTED, runId, null, null);
         try {
-            executor.execute(() -> run(conversationId, runId, commandRow, instructions, model));
+            executor.execute(() -> run(conversationId, runId, commandRow, instructions, options));
         } catch (RuntimeException e) {
             // COMPACT_STARTED уже ушёл всем вкладкам, и своя — та, что получит здесь ошибку —
             // уже под блокировкой. Снять её ответом на этот запрос нельзя: остальные вкладки
@@ -198,33 +274,29 @@ public class CompactService {
      * окно и записать вторую сводку поверх материала, который эта уже заменила.
      *
      * <p>Поэтому окно снимается ЗДЕСЬ, под замком, а не переносится из {@link #start}: та читала
-     * его только ради ответа «сжимать нечего». Из окна выбрасывается всё от позиции команды и
-     * дальше — сама команда не материал для сжатия, а сигнал к нему, и попади она в окно, раунд
-     * принял бы собственный вызов за часть разговора.
+     * его только ради ответа «сжимать нечего». Отсекает хвост от позиции команды и дальше сам
+     * {@link ChatHistoryService#promptRowsBefore} — сама команда не материал для сжатия, а сигнал к
+     * нему, и попади она в окно, раунд принял бы собственный вызов за часть разговора.
      */
     private void run(
             String conversationId,
             String runId,
             ChatMessageEntity commandRow,
             @Nullable String instructions,
-            @Nullable String model) {
+            CompactOptions options) {
         try {
             summaryWriter.inConversation(
                     conversationId,
                     () -> {
                         final List<PromptRow> rows =
-                                chatHistory.promptRows(conversationId).stream()
-                                        .filter(
-                                                row ->
-                                                        row.entity().getPosition()
-                                                                < commandRow.getPosition())
-                                        .toList();
+                                chatHistory.promptRowsBefore(
+                                        conversationId, commandRow.getPosition());
                         if (nothingToCompact(rows)) {
                             // Пока команда ждала своей очереди, окно сжал кто-то другой.
                             throw new IllegalStateException("Nothing left to compact");
                         }
                         final CompactPayload payload =
-                                compact(conversationId, rows, commandRow, instructions, model);
+                                compact(conversationId, rows, commandRow, instructions, options);
                         events.publish(conversationId, COMPACT_DONE, runId, null, payload);
                     });
         } catch (Exception e) {
@@ -260,10 +332,11 @@ public class CompactService {
             List<PromptRow> rows,
             ChatMessageEntity commandRow,
             @Nullable String instructions,
-            @Nullable String model) {
+            CompactOptions options) {
         final List<Message> history = rows.stream().map(PromptRow::toMessage).toList();
         final long startPosition = rows.getFirst().entity().getPosition();
         final long oldEndPosition = rows.getLast().entity().getPosition();
+        final @Nullable String model = options.model();
         log.info(
                 "[{}] Compacting positions {}-{} (command at {}): {} messages, ~{} chars, model {}",
                 conversationId,
@@ -276,23 +349,54 @@ public class CompactService {
 
         ChatClient.ChatClientRequestSpec spec =
                 ChatClient.builder(chatModelRegistry.forModel(model))
-                        .defaultSystem(compactorPrompt)
+                        .defaultSystem(sysPrompt)
+                        .defaultTools((Object[]) chatToolset.all())
                         .build()
                         .prompt()
+                        .system(
+                                sp ->
+                                        sp.params(
+                                                systemPrompts.placeholders(
+                                                        options.weakModel(),
+                                                        options.project(),
+                                                        options.modeInstructions())))
                         .messages(history)
-                        .user(instruction(conversationId, rows, instructions));
+                        .user(instruction(conversationId, rows, instructions))
+                        .advisors(
+                                a ->
+                                        a.advisors(new MessageLoggingAdvisor())
+                                                .param(
+                                                        ChatClientAttributes
+                                                                .TOOL_CALLING_ADVISOR_AUTO_REGISTER
+                                                                .getKey(),
+                                                        false));
         if (model != null) {
             spec = spec.options(OpenAiChatOptions.builder().model(model));
         }
-        final @Nullable String content = spec.call().content();
+        final @Nullable ChatResponse response = spec.call().chatResponse();
+        final @Nullable String content = answerOf(response);
         if (content == null || content.isBlank()) {
             // Разметить окно сжатым, не сохранив сводку, значит стереть чат целиком. Сама команда
             // при этом уже сохранена и никуда не денется — останется в истории неотвеченной, как
             // любой упавший вопрос.
-            throw new IllegalStateException("The model returned an empty compaction");
+            //
+            // Отдельный текст на вызов инструмента вместо документа — единственный отказ, у
+            // которого есть внятная причина и адрес: модель прочла схемы (они в запросе ради кэша)
+            // и не послушалась запрета из compactor.md. Исполнить вызов всё равно некому, так что
+            // раунд кончается здесь, но в логе и в событии должно быть видно, что случилось
+            // именно это, а не пустой ответ эндпоинта.
+            throw new IllegalStateException(
+                    calledTools(response)
+                            ? "The model called a tool instead of writing the compaction"
+                            : "The model returned an empty compaction");
         }
 
         final int messages = rows.size() + 1;
+        // Замер обращения — накопителем прогона на один вызов: правило сборки у сжатия и у ответа
+        // обязано быть одним, иначе одни и те же деньги в двух местах статистики назывались бы
+        // разными числами. Пустой замер (эндпоинт не отдаёт usage) в мету не идёт — «неизвестно»
+        // это не ноль.
+        final RunTokenUsage usage = RunTokenUsage.Tally.EMPTY.with(TokenUsage.of(response)).view();
         final ChatMessageEntity notice =
                 summaryWriter.writeCompacted(
                         new SummaryWriter.SummaryRow(
@@ -318,13 +422,33 @@ public class CompactService {
                                                         .map(ChatTopicEntity::getProject)
                                                         .orElse(null),
                                         commandRow.getPosition())),
-                        new SummaryWriter.CompactStats(messages, content.length()));
+                        new SummaryWriter.CompactStats(
+                                messages, content.length(), usage.isEmpty() ? null : usage));
         log.info(
-                "[{}] Compaction finished: {} messages -> {} chars",
+                "[{}] Compaction finished: {} messages -> {} chars; input {} ({} from cache),"
+                        + " output {}",
                 conversationId,
                 messages,
-                content.length());
+                content.length(),
+                usage.promptTokens(),
+                usage.cacheReadTokens(),
+                usage.outputTokens());
         return CompactPayload.of(notice);
+    }
+
+    /** Модель ответила вызовом инструмента — см. разбор отказа в {@link #compact}. */
+    private static boolean calledTools(@Nullable ChatResponse response) {
+        return response != null && response.hasToolCalls();
+    }
+
+    /**
+     * Текст ответа модели; {@code null} — ответа нет вовсе (или в нём одни вызовы инструментов).
+     */
+    private static @Nullable String answerOf(@Nullable ChatResponse response) {
+        return Optional.ofNullable(response)
+                .map(ChatResponse::getResult)
+                .map(result -> result.getOutput().getText())
+                .orElse(null);
     }
 
     /**
@@ -357,24 +481,24 @@ public class CompactService {
     }
 
     /**
-     * Инструкция, которая встаёт последним сообщением запроса — на месте невыполненной команды
-     * пользователя. Справка о чате здесь не украшение: сжатое окно останется единственной памятью
-     * разговора, а какому проекту принадлежат пути в нём и на каком языке шёл диалог, из самих
-     * сообщений видно не всегда.
+     * Последнее сообщение запроса — на месте невыполненной команды пользователя: руководство по
+     * сжатию ({@code compactor.md}) плюс справка о самом чате.
+     *
+     * <p>Руководство едет здесь, а не системным сообщением, и это то же требование кэша, что и в
+     * javadoc класса: системное место занято {@code sys.md} чата, и разойдись оно — не совпал бы
+     * весь префикс. Место в конце руководству не мешает, а помогает: оно последнее, что читает
+     * модель перед ответом, и оттуда же снимает роль, назначенную ей системным промптом.
+     *
+     * <p>Справка о чате не украшение: сжатое окно останется единственной памятью разговора, а
+     * какому проекту принадлежат пути в нём и на каком языке шёл диалог, из самих сообщений видно
+     * не всегда.
      */
     private String instruction(
             String conversationId, List<PromptRow> rows, @Nullable String instructions) {
         final @Nullable ChatTopicEntity chat =
                 chatTopicRepository.findById(conversationId).orElse(null);
         final StringBuilder prompt = new StringBuilder();
-        prompt.append(
-                """
-                Everything above this message is the conversation to compact. Replace it with one \
-                document, in the section format of your instructions, and answer with that \
-                document only — no preamble, no closing remark, no question back.
-
-                About this conversation:
-                """);
+        prompt.append(compactorPrompt).append("\n\n").append("About this conversation:\n");
         append(prompt, "Topic", chat == null ? null : chat.getDisplayTopic());
         append(prompt, "Project", chat == null ? null : chat.getProject());
         append(prompt, "Assistant mode", chat == null ? null : chat.getMode());

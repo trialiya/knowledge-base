@@ -42,7 +42,6 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -422,14 +421,23 @@ public class ChatController {
         }
         // Не checkChat: у команды нет смысла в ещё не заведённом чате, поэтому здесь строгие
         // 404/403, а не заведение чата на лету.
-        final ChatTopicEntity topic = getChatTopic(conversationId);
-        final String model = runOptions.resolveModel(conversationId, Optional.of(topic), null);
+        getChatTopic(conversationId);
+        // Настройки берутся тем же резолвом, что и у обычного прогона, и все три ничего не
+        // переопределяют: сжатие идёт на том, что чат уже выбрал. Иначе и нельзя — запрос сжатия
+        // обязан начинаться ровно тем же, чем начинаются запросы этого чата, иначе провайдер не
+        // засчитает ему кэш промпта (см. CompactService).
+        final ChatRunService.RunOptions options =
+                runOptions.resolve(conversationId, null, null, null);
         final CompactService.StartedCompact started =
                 compactService.start(
                         conversationId,
                         body.text(),
                         body.instructions(),
-                        model,
+                        new CompactService.CompactOptions(
+                                options.model(),
+                                options.weakModel(),
+                                options.project(),
+                                options.modeInstructions()),
                         body.clientMsgId());
         // Строго после start: 409/422 не сохраняют сообщения, и поднимать за них чат в списке
         // не за что. Успех же дописал в чат обычную реплику — как и любая, она его освежает.

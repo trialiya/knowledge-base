@@ -23,7 +23,6 @@ import io.github.trialiya.kb.service.chat.run.PendingMessageService.Flushed;
 import io.github.trialiya.kb.service.chat.run.PendingMessageService.PendingOptions;
 import io.github.trialiya.kb.service.chat.runtime.ConversationSlots;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
-import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -77,7 +76,6 @@ class ChatRunQueuedDeliveryTest {
                         chatHistory,
                         mock(SummarizeService.class),
                         events,
-                        mock(ScriptGuideService.class),
                         mock(SystemPromptService.class),
                         pendingMessages,
                         runOptions,

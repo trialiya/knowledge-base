@@ -27,7 +27,6 @@ import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.runtime.ConversationSlots;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import io.github.trialiya.kb.service.chat.runtime.RunScope;
-import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
 import io.github.trialiya.kb.tools.RunCancellation;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import io.github.trialiya.kb.utils.ChatUtils;
@@ -85,7 +84,6 @@ public class ChatRunService {
     private final ChatHistoryService chatHistory;
     private final SummarizeService summarizeService;
     private final ChatEventService events;
-    private final ScriptGuideService scriptGuideService;
     private final SystemPromptService systemPromptService;
     private final PendingMessageService pendingMessages;
     private final RunOptionsResolver runOptions;
@@ -108,7 +106,6 @@ public class ChatRunService {
             ChatHistoryService chatHistory,
             SummarizeService summarizeService,
             ChatEventService events,
-            ScriptGuideService scriptGuideService,
             SystemPromptService systemPromptService,
             PendingMessageService pendingMessages,
             RunOptionsResolver runOptions,
@@ -120,7 +117,6 @@ public class ChatRunService {
         this.chatHistory = chatHistory;
         this.summarizeService = summarizeService;
         this.events = events;
-        this.scriptGuideService = scriptGuideService;
         this.systemPromptService = systemPromptService;
         this.pendingMessages = pendingMessages;
         this.runOptions = runOptions;
@@ -449,17 +445,11 @@ public class ChatRunService {
                             .prompt()
                             .system(
                                     sp ->
-                                            sp.param(
-                                                            "mode_instructions",
-                                                            options.modeInstructions())
-                                                    .param(
-                                                            "script_instructions",
-                                                            scriptGuideService.instructions(
-                                                                    weakModel, options.project()))
-                                                    .param(
-                                                            "system_extended",
-                                                            systemPromptService.systemExtended(
-                                                                    weakModel)))
+                                            sp.params(
+                                                    systemPromptService.placeholders(
+                                                            weakModel,
+                                                            options.project(),
+                                                            options.modeInstructions())))
                             // Своего .user(...) здесь намеренно нет: вопрос уже сохранён в
                             // истории (см. ChatHistoryService.saveUserMessage), и его подмешает
                             // advisor памяти. Передать его ещё и сюда — значит сохранить вторым

@@ -4,6 +4,13 @@ conversation itself — user messages, your own answers, and the full protocol r
 every tool call with its arguments and its result. Replace all of it with one document
 that lets the work continue without ever reading the originals again.
 
+**This message replaces the role the system prompt gave you.** You are not answering the
+user and not continuing the conversation, so nothing that prompt says about how to respond
+applies to this turn. In particular: **call no tool at all** — not `recordChatInsights`,
+not a read, not anything. The tool schemas are in this request only so the record of the
+calls already made above stays readable. Your entire reply is the document, beginning with
+its first section header.
+
 ## What makes this different from a routine summary
 A routine summary compresses the *older* part of a chat and leaves the recent turns
 untouched, so the model keeps a live tail to lean on. Here nothing is left: this document

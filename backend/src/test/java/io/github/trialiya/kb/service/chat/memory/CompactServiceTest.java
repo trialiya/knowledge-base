@@ -21,15 +21,19 @@ import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.CompactMeta;
+import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.model.tool.ToolData;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService.PromptRow;
+import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.runtime.ConversationSlots;
+import io.github.trialiya.kb.tools.ChatToolset;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
@@ -40,11 +44,17 @@ import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.messages.ToolResponseMessage;
+import org.springframework.ai.chat.metadata.ChatResponseMetadata;
+import org.springframework.ai.chat.metadata.DefaultUsage;
+import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.model.tool.ToolCallingChatOptions;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.tool.ToolCallback;
+import org.springframework.ai.tool.definition.DefaultToolDefinition;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
@@ -63,6 +73,10 @@ import org.springframework.web.server.ResponseStatusException;
 class CompactServiceTest {
 
     private static final String CONV = "conv-1";
+
+    /** Настройки чата: их собирает контроллер тем же резолвом, что и для обычного прогона. */
+    private static final CompactService.CompactOptions OPTIONS =
+            new CompactService.CompactOptions(null, false, "kb", "MODE");
 
     private ChatMessageRepository repository;
     private ChatHistoryService chatHistory;
@@ -92,7 +106,7 @@ class CompactServiceTest {
     @Test
     void theWholeLiveWindowPlusTheCommandIsCompactedIntoOneSummaryRow() {
         final CompactPayload payload =
-                service().compact(CONV, turns(3), commandRow(9).entity(), null, null);
+                service().compact(CONV, turns(3), commandRow(9).entity(), null, OPTIONS);
 
         verify(repository).updateSummarized(CONV, 0L, 9L);
         final ChatMessageEntity summary = savedRows().get(0);
@@ -112,7 +126,7 @@ class CompactServiceTest {
     @Test
     void aVisibleNoticeRowSurvivesTheRoundAndPointsAtTheSummary() {
         final CompactPayload payload =
-                service().compact(CONV, turns(3), commandRow(9).entity(), null, null);
+                service().compact(CONV, turns(3), commandRow(9).entity(), null, OPTIONS);
 
         final ChatMessageEntity notice = savedRows().get(1);
         assertThat(notice.isSummary()).isFalse();
@@ -137,7 +151,7 @@ class CompactServiceTest {
     void theSummaryIsDatedByTheEndOfTheRoundNotByTheCommand() {
         final ChatMessageEntity command = commandRow(9).entity();
 
-        service().compact(CONV, turns(3), command, null, null);
+        service().compact(CONV, turns(3), command, null, OPTIONS);
 
         assertThat(savedRows())
                 .allSatisfy(row -> assertThat(row.getCreatedAt()).isAfter(command.getCreatedAt()));
@@ -198,7 +212,7 @@ class CompactServiceTest {
         rows.set(1, withToolCall(1, "grepContent", "{\"query\":\"summarize\"}"));
         rows.set(2, withToolResponse(2, "grepContent", "SummarizeService.java:42 — the whole hit"));
 
-        service().compact(CONV, rows, commandRow(3).entity(), null, null);
+        service().compact(CONV, rows, commandRow(3).entity(), null, OPTIONS);
 
         final List<Message> sent = capturedPrompt().getInstructions();
         // system + 3 строки окна + инструкция; команда сама не входит.
@@ -213,8 +227,119 @@ class CompactServiceTest {
         assertThat(((ToolResponseMessage) sent.get(3)).getResponses().getFirst().responseData())
                 .isEqualTo("SummarizeService.java:42 — the whole hit");
         assertThat(sent.getLast().getText())
-                .contains("Everything above this message is the conversation to compact")
+                .contains("COMPACTOR HANDBOOK")
                 .contains("Of them USER messages: 1");
+    }
+
+    /**
+     * Начало запроса — байт в байт начало обычного запроса чата: тот же {@code sys.md} с теми же
+     * подстановками и те же схемы инструментов. Это и есть весь механизм попадания в кэш промпта:
+     * провайдер считает совпадение от первого байта, и своя роль в системном сообщении обнулила бы
+     * скидку на всём окне, которое сжатие как раз и пришло сократить.
+     */
+    @Test
+    void theRequestStartsExactlyLikeAChatRequestSoTheProviderCountsItAsCached() {
+        service().compact(CONV, turns(1), commandRow(3).entity(), null, OPTIONS);
+
+        final Prompt prompt = capturedPrompt();
+        assertThat(prompt.getInstructions().getFirst())
+                .satisfies(
+                        system -> {
+                            assertThat(system.getMessageType()).isEqualTo(MessageType.SYSTEM);
+                            assertThat(system.getText()).isEqualTo("SYSTEM MODE SCRIPTS");
+                        });
+        assertThat(((ToolCallingChatOptions) prompt.getOptions()).getToolCallbacks())
+                .extracting(callback -> callback.getToolDefinition().name())
+                .containsExactly("getFileContent");
+    }
+
+    /**
+     * Инструкция сжатия едет последним сообщением, а не системным: системное место занято промптом
+     * чата, и подменить его — значит разойтись с ним с нулевой позиции.
+     */
+    @Test
+    void theCompactionHandbookRidesInTheLastMessageNotInTheSystemOne() {
+        service().compact(CONV, turns(1), commandRow(3).entity(), null, OPTIONS);
+
+        final List<Message> sent = capturedPrompt().getInstructions();
+        assertThat(sent.getFirst().getText()).doesNotContain("COMPACTOR HANDBOOK");
+        assertThat(sent.getLast().getMessageType()).isEqualTo(MessageType.USER);
+        assertThat(sent.getLast().getText()).startsWith("COMPACTOR HANDBOOK");
+    }
+
+    /**
+     * Токены раунда ложатся в мету плашки — тем же полем, что и у обычного ответа. Без них сжатие
+     * было бы единственной тратой чата, не попадающей в его же статистику.
+     */
+    @Test
+    void theRoundsTokensAreRecordedOnTheNoticeRow() {
+        answerWith(
+                "## Overview\ncompacted",
+                new DefaultUsage(169_000, 1_200, 170_200, null, 160_000L, 8_000L));
+
+        final CompactPayload payload =
+                service().compact(CONV, turns(3), commandRow(9).entity(), null, OPTIONS);
+
+        final RunTokenUsage usage = savedRows().get(1).getMeta().usage();
+        assertThat(usage).isNotNull();
+        assertThat(usage.promptTokens()).isEqualTo(169_000);
+        assertThat(usage.cacheReadTokens()).isEqualTo(160_000);
+        assertThat(usage.cacheWriteTokens()).isEqualTo(8_000);
+        assertThat(usage.outputTokens()).isEqualTo(1_200);
+        assertThat(usage.modelCalls()).isEqualTo(1);
+        // Событие несёт те же числа, что и мета: живая вкладка и перезагруженная обязаны показать
+        // одну плашку.
+        assertThat(payload.usage()).isEqualTo(usage);
+    }
+
+    /**
+     * Модель прочла схемы инструментов (они в запросе ради кэша) и вместо документа вызвала один из
+     * них: исполнять вызов некому, история остаётся нетронутой, а отказ называет причину — иначе
+     * это неотличимо от эндпоинта, который просто ничего не ответил.
+     */
+    @Test
+    void aToolCallInsteadOfTheDocumentFailsTheRoundByName() {
+        when(chatModel.call(any(Prompt.class)))
+                .thenReturn(
+                        new ChatResponse(
+                                List.of(
+                                        new Generation(
+                                                AssistantMessage.builder()
+                                                        .content("")
+                                                        .toolCalls(
+                                                                List.of(
+                                                                        new AssistantMessage
+                                                                                .ToolCall(
+                                                                                "call-1",
+                                                                                "function",
+                                                                                "recordChatInsights",
+                                                                                "{}")))
+                                                        .build()))));
+
+        assertThatThrownBy(
+                        () ->
+                                service()
+                                        .compact(
+                                                CONV,
+                                                turns(2),
+                                                commandRow(6).entity(),
+                                                null,
+                                                OPTIONS))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("called a tool");
+
+        verify(repository, never()).updateSummarized(anyString(), anyLong(), anyLong());
+        verify(repository, never()).save(any());
+    }
+
+    /** Эндпоинт без usage: в мете {@code null}, а не уверенный ноль. */
+    @Test
+    void anEndpointThatMeasuresNothingLeavesTheNoticeWithoutTokens() {
+        final CompactPayload payload =
+                service().compact(CONV, turns(3), commandRow(9).entity(), null, OPTIONS);
+
+        assertThat(savedRows().get(1).getMeta().usage()).isNull();
+        assertThat(payload.usage()).isNull();
     }
 
     /**
@@ -228,7 +353,7 @@ class CompactServiceTest {
                         turns(1),
                         commandRow(3).entity(),
                         "разбор миграций, остальное коротко",
-                        null);
+                        OPTIONS);
 
         assertThat(capturedPrompt().getInstructions().getLast().getText())
                 .contains("<focus>")
@@ -241,7 +366,7 @@ class CompactServiceTest {
         final List<PromptRow> rows = new ArrayList<>(turns(2));
         rows.set(3, switchRow(3, "kb", "billing"));
 
-        service().compact(CONV, rows, commandRow(6).entity(), null, null);
+        service().compact(CONV, rows, commandRow(6).entity(), null, OPTIONS);
 
         final ChatMessageEntity summary = savedRows().get(0);
         assertThat(summary.getMeta()).isNotNull();
@@ -258,7 +383,14 @@ class CompactServiceTest {
         answerWith("   ");
 
         assertThatThrownBy(
-                        () -> service().compact(CONV, turns(2), commandRow(6).entity(), null, null))
+                        () ->
+                                service()
+                                        .compact(
+                                                CONV,
+                                                turns(2),
+                                                commandRow(6).entity(),
+                                                null,
+                                                OPTIONS))
                 .isInstanceOf(IllegalStateException.class);
 
         verify(repository, never()).updateSummarized(anyString(), anyLong(), anyLong());
@@ -275,7 +407,7 @@ class CompactServiceTest {
         when(slots.claim(CONV)).thenReturn("run-1");
         when(chatHistory.promptRows(CONV)).thenReturn(List.of(summaryRow(0)));
 
-        assertThatThrownBy(() -> service().start(CONV, "/compact", null, null, null))
+        assertThatThrownBy(() -> service().start(CONV, "/compact", null, OPTIONS, null))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("Nothing to compact");
 
@@ -294,15 +426,16 @@ class CompactServiceTest {
         when(slots.claim(CONV)).thenReturn("run-1");
         final List<PromptRow> oldWindow = turns(1); // позиции 0..2
         final PromptRow command = row(3, MessageType.USER, "/compact фокус");
-        // Первый вызов — проверка «есть ли что сжимать», до сохранения команды; второй — уже
-        // сам раунд, и там команда в истории уже стоит: раунд обязан отрезать её сам.
-        when(chatHistory.promptRows(CONV)).thenReturn(oldWindow, append(oldWindow, command));
+        // Проверка «есть ли что сжимать» идёт до сохранения команды и видит всю историю; сам раунд
+        // просит окно ДО позиции команды — и получает его без неё.
+        when(chatHistory.promptRows(CONV)).thenReturn(append(oldWindow, command));
+        when(chatHistory.promptRowsBefore(CONV, 3L)).thenReturn(oldWindow);
         final ChatMessageEntity saved = command.entity();
         when(chatHistory.saveUserMessage(CONV, "/compact фокус", List.of(), null, null))
                 .thenReturn(saved);
 
         final CompactService.StartedCompact started =
-                service().start(CONV, "/compact фокус", "фокус", null, "client-1");
+                service().start(CONV, "/compact фокус", "фокус", OPTIONS, "client-1");
 
         assertThat(started.runId()).isEqualTo("run-1");
         assertThat(started.messageId()).isEqualTo(saved.getId());
@@ -351,7 +484,7 @@ class CompactServiceTest {
         assertThatThrownBy(
                         () ->
                                 service(rejectingExecutor())
-                                        .start(CONV, "/compact", null, null, null))
+                                        .start(CONV, "/compact", null, OPTIONS, null))
                 .isInstanceOf(RejectedExecutionException.class);
 
         verify(events)
@@ -385,6 +518,14 @@ class CompactServiceTest {
         when(chatModel.call(any(Prompt.class)))
                 .thenReturn(
                         new ChatResponse(List.of(new Generation(new AssistantMessage(content)))));
+    }
+
+    private void answerWith(String content, Usage usage) {
+        when(chatModel.call(any(Prompt.class)))
+                .thenReturn(
+                        new ChatResponse(
+                                List.of(new Generation(new AssistantMessage(content))),
+                                ChatResponseMetadata.builder().usage(usage).build()));
     }
 
     private Prompt capturedPrompt() {
@@ -497,6 +638,9 @@ class CompactServiceTest {
     private CompactService service(Executor executor) {
         final ChatModelRegistry models = mock(ChatModelRegistry.class);
         when(models.forModel(any())).thenReturn(chatModel);
+        final SystemPromptService systemPrompts = mock(SystemPromptService.class);
+        when(systemPrompts.placeholders(false, "kb", "MODE"))
+                .thenReturn(Map.of("mode", "MODE", "scripts", "SCRIPTS"));
         return new CompactService(
                 models,
                 chatHistory,
@@ -505,8 +649,24 @@ class CompactServiceTest {
                 new SummaryWriter(repository, transactionManager()),
                 slots,
                 events,
-                new ByteArrayResource("compact".getBytes()),
+                systemPrompts,
+                new ChatToolset(List.of(toolCallback("getFileContent")), List.of()),
+                new ByteArrayResource("SYSTEM {mode} {scripts}".getBytes()),
+                new ByteArrayResource("COMPACTOR HANDBOOK".getBytes()),
                 executor);
+    }
+
+    /** Заглушка инструмента: раунду важна только схема — вызывать её здесь некому. */
+    private static ToolCallback toolCallback(String name) {
+        final ToolCallback callback = mock(ToolCallback.class);
+        when(callback.getToolDefinition())
+                .thenReturn(
+                        DefaultToolDefinition.builder()
+                                .name(name)
+                                .description(name)
+                                .inputSchema("{\"type\":\"object\",\"properties\":{}}")
+                                .build());
+        return callback;
     }
 
     /** Транзакции здесь ничего не защищают — тест смотрит только на вызовы репозитория. */
