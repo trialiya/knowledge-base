@@ -305,8 +305,8 @@ describe('useChatEventStream doc/file mutation detection', () => {
 describe('useChatEventStream stale run reconciliation', () => {
   let chats;
 
-  function setup({ runId = 'r1', activeRun = {}, reloaded } = {}) {
-    chats = [{ id: 'c1', messages: [{ mid: 1 }], runId, notFound: false, loadError: false }];
+  function setup({ runId = 'r1', activeRun = {}, reloaded, runStateUnknown = false } = {}) {
+    chats = [{ id: 'c1', messages: [{ mid: 1 }], runId, runStateUnknown, notFound: false, loadError: false }];
     chatApi.getActiveRun.mockResolvedValue(activeRun);
     openChatEventStream.mockImplementation(() => () => {});
 
@@ -378,6 +378,22 @@ describe('useChatEventStream stale run reconciliation', () => {
     await act(async () => {});
 
     expect(chatApi.getActiveRun).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Занятость чата не спросилась при загрузке истории (сеть), а прогон всё это время шёл:
+   * реплей о нём уже не скажет — RUN_STARTED хаб вытесняет из лога первым. Пересверка после
+   * подписки — единственное, что вернёт чату «Стоп», таймер и текст ответа.
+   */
+  test('busyness unknown after a failed load: adopts the run the backend reports', async () => {
+    setup({ runId: null, runStateUnknown: true, activeRun: { runId: 'r7', kind: RUN_KIND.GENERATION } });
+
+    await act(async () => {});
+
+    expect(chatApi.getActiveRun).toHaveBeenCalledWith('c1');
+    expect(chats[0].runId).toBe('r7');
+    expect(chats[0].runKind).toBe(RUN_KIND.GENERATION);
+    expect(chats[0].runStateUnknown).toBe(false);
   });
 });
 

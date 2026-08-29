@@ -78,15 +78,20 @@ export default function useChatMessages({ chats, getChats, setChats, activeChatI
           // сейчас идёт прогон, его частично сохранённые сегменты убираем из загруженной
           // истории (их пересоберёт SSE-реплей), а runId ставим сразу, чтобы UI показал
           // занятость без мигания до прихода RUN_STARTED из потока. Сбой этого запроса не
-          // роняет загрузку: чат рисуется свободным, а занятость вернёт первое же событие
-          // потока или сверка при входе (см. useChatEventStream).
-          const [meta, page, runState] = await Promise.all([
+          // роняет загрузку, но и «свободным» чат тогда не рисуется: занятость остаётся
+          // неизвестной, и её переспросит поток сразу после подписки (см. useChatEventStream).
+          const [meta, page, run] = await Promise.all([
             chatApi.getChatMeta(chatId),
             chatApi.getMessages(chatId, PAGE_SIZE),
-            fetchRunState(chatId).catch(() => IDLE_RUN_STATE),
+            fetchRunState(chatId).catch(() => null),
           ]);
           const { bubbles, leadingMetas } = transformPage(page.messages);
-          const messages = runState.runId ? trimActiveRunTail(bubbles) : bubbles;
+          const runState = run ? run.state : { ...IDLE_RUN_STATE, runStateUnknown: true };
+          // Обрезаем хвост прогона, только если реплей его вернёт. У прогона, чьи события
+          // хаб уже начал вытеснять (replayTruncated), реплей начинается не с RUN_STARTED, а
+          // с середины — срезанные сегменты не прислал бы никто, и ответ читался бы с
+          // полуслова до самого конца прогона.
+          const messages = run?.state.runId && !run.replayTruncated ? trimActiveRunTail(bubbles) : bubbles;
 
           failedChatIdsRef.current.delete(chatId);
           setChats((prev) =>

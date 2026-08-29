@@ -79,6 +79,45 @@ describe('loadMessages return value', () => {
     expect(getChat().messages).toHaveLength(1); // в чате — обрезанная история
   });
 
+  /**
+   * Прогон, чьи события хаб уже начал вытеснять, реплеится не с начала: срезанные сегменты
+   * не пришлёт никто, и ответ читался бы с полуслова до конца прогона. Такой хвост остаётся
+   * на месте — он и есть единственная копия начала ответа.
+   */
+  test('keeps the run tail when the replay can no longer rebuild it', async () => {
+    const { result, getChat } = setup({
+      activeRun: { runId: 'r1', kind: 'GENERATION', replayTruncated: true },
+      messages: [
+        { id: 1, content: 'вопрос', type: 'USER' },
+        { id: 2, content: 'начало ответа', type: 'ASSISTANT', runId: 'r1' },
+      ],
+    });
+
+    await act(async () => {
+      await result.current.loadMessages('c1');
+    });
+
+    expect(getChat().messages).toHaveLength(2);
+  });
+
+  /**
+   * Занятость спросить не удалось — это не «чат свободен»: прогон мог идти всё это время.
+   * Чат помечается неизвестной занятостью, и её переспросит поток сразу после подписки
+   * (см. useChatEventStream); история при этом грузится как обычно.
+   */
+  test('marks the busyness unknown when the request for it fails', async () => {
+    const { result, getChat } = setup({ messages: [{ id: 1, content: 'вопрос', type: 'USER' }] });
+    chatApi.getActiveRun.mockRejectedValue(new Error('network'));
+
+    await act(async () => {
+      await result.current.loadMessages('c1');
+    });
+
+    expect(getChat().runStateUnknown).toBe(true);
+    expect(getChat().runId).toBeNull();
+    expect(getChat().messages).toHaveLength(1);
+  });
+
   // Вкладка, открывшая чат посреди генерации, ставит таймер по elapsedMs с бэка: якорь — это
   // «сейчас минус сколько уже идёт», а не ноль. Операция приходит без elapsedMs — там якоря
   // нет и таймер не показывается.

@@ -54,7 +54,7 @@ export default function useRunStarter({ getChats, patchChat, patchMessages, noti
     async (conversationId) => {
       if (getChats().find((c) => c.id === conversationId)?.runId) return true;
       try {
-        return !!(await fetchRunState(conversationId)).runId;
+        return !!(await fetchRunState(conversationId)).state.runId;
       } catch {
         return false;
       }

@@ -9,15 +9,30 @@
 import chatApi from '@/api/chatApi';
 import { RUN_KIND } from '@/constants/runKind';
 
-/** Свободный чат — тот же набор полей, чтобы патч состояния был один и тот же. */
-export const IDLE_RUN_STATE = { runId: null, runKind: null, runStartedAt: null };
+/**
+ * Свободный чат — тот же набор полей, чтобы патч состояния был один и тот же.
+ *
+ * runStateUnknown — «занятость спросить не удалось». Свободный чат от неотвеченного вопроса
+ * отличается именно им: показанная занятость обязана сама себя чинить, а «свободен» по ошибке
+ * сети — это чат без текста ответа, без «Стоп» и с композером, чей вопрос получит 409.
+ */
+export const IDLE_RUN_STATE = { runId: null, runKind: null, runStartedAt: null, runStateUnknown: false };
 
-export const fetchRunState = (chatId) => chatApi.getActiveRun(chatId).then(toRunState);
+/**
+ * Занятость чата с бэка: state — поля для состояния чата, replayTruncated — успел ли хаб
+ * потерять часть событий идущего прогона (реплей начала ответа уже не принесёт).
+ */
+export const fetchRunState = (chatId) =>
+  chatApi.getActiveRun(chatId).then((active) => ({
+    state: toRunState(active),
+    replayTruncated: !!active?.replayTruncated,
+  }));
 
 const toRunState = (active) => {
   const runId = active?.runId || null;
   if (!runId) return IDLE_RUN_STATE;
   return {
+    ...IDLE_RUN_STATE,
     runId,
     // Занятость без названного вида — генерация: ею она бывает почти всегда, а цена ошибки
     // здесь мала — лишняя кнопка «остановить», которая просто ничего не сделает.
