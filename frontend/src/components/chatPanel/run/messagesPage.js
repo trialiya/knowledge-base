@@ -5,18 +5,7 @@
 
 import { nextMessageId } from '../messages/messageId';
 import { SENDER } from '@/constants/messageSender';
-
-const metaToCall = (x) => ({
-  name: x.name,
-  arguments: x.arguments,
-  status: x.status,
-  error: x.error,
-  resultMeta: x.resultMeta,
-  resultGist: x.resultGist,
-  callIndex: x.callIndex,
-  hasDetails: x.hasDetails,
-  callId: x.callId,
-});
+import { toolCallOf } from './runMessageOps';
 
 // Extracts runId from a system message that carries tool call breadcrumbs.
 const extractRunId = (m) => m.runId || null;
@@ -43,11 +32,11 @@ export const transformPage = (rawMsgs) => {
       const prev = bubbles[bubbles.length - 1];
       if (Array.isArray(metas) && metas.length) {
         if (sawAi && prev?.sender === 'ai') {
-          prev.toolCalls = [...(prev.toolCalls || []), ...metas.map(metaToCall)];
+          prev.toolCalls = [...(prev.toolCalls || []), ...metas.map(toolCallOf)];
           if (runId) prev.toolCallsRunId = runId;
         } else {
           // Ассистент этой крошки — в более старой странице: несём metas наверх.
-          leadingMetas.push(...metas.map(metaToCall));
+          leadingMetas.push(...metas.map(toolCallOf));
         }
       }
       continue; // преамбулу как сообщение не рендерим
@@ -114,7 +103,7 @@ export const transformPage = (rawMsgs) => {
         !prev.gitEvent &&
         (!prev.toolCallsRunId || !m.runId || prev.toolCallsRunId === m.runId)
       ) {
-        prev.toolCalls = [...(prev.toolCalls || []), ...metas.map(metaToCall)];
+        prev.toolCalls = [...(prev.toolCalls || []), ...metas.map(toolCallOf)];
         if (m.runId && !prev.toolCallsRunId) prev.toolCallsRunId = m.runId;
         carryUsageToPrev();
         continue;
@@ -142,7 +131,7 @@ export const transformPage = (rawMsgs) => {
       ...(m.usage && type !== 'user' ? { usage: m.usage } : {}),
       // Вызовы инструментов этого сегмента (раздельное сохранение): плашки под пузырём.
       ...(metas.length && type !== 'user'
-        ? { toolCalls: metas.map(metaToCall), ...(m.runId ? { toolCallsRunId: m.runId } : {}) }
+        ? { toolCalls: metas.map(toolCallOf), ...(m.runId ? { toolCallsRunId: m.runId } : {}) }
         : {}),
     });
   }

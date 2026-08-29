@@ -16,7 +16,7 @@ import {
   COMPACT_EMPTY_NOTICE,
   COMPACT_START_ERROR_NOTICE,
 } from './chatNotices';
-import { fetchRunState } from './activeRun';
+import { fetchRunState, IDLE_RUN_STATE } from './activeRun';
 
 /**
  * Запуск прогона на бэке: обычный вопрос, сообщение в очередь идущего прогона и сжатие
@@ -149,9 +149,7 @@ export default function useRunStarter({ getChats, patchChat, patchMessages, noti
         // с этой ошибкой. Не придут — останется ошибка с повтором по тексту вопроса.
         localClientIdsRef.current.delete(clientMsgId);
         patchChat(conversationId, (c) => ({
-          runId: null,
-          runKind: null,
-          runStartedAt: null,
+          ...IDLE_RUN_STATE,
           messages: [
             ...(c.messages || []),
             {

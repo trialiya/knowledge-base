@@ -18,7 +18,22 @@ export const sameCall = (a, b) => {
   return JSON.stringify(a.arguments || {}) === JSON.stringify(b.arguments || {});
 };
 
-// Слияние одного вызова инструмента в список (по name+arguments).
+// Поля вызова инструмента, которые показывает плашка. Проекция общая для живого события и для
+// крошки из истории: пузырь обязан выглядеть одинаково и там, и там, а забытое в одном из двух
+// списков поле рисовалось бы вживую и пропадало после перезагрузки.
+export const toolCallOf = (tc) => ({
+  name: tc.name,
+  arguments: tc.arguments,
+  status: tc.status,
+  error: tc.error,
+  resultGist: tc.resultGist,
+  resultMeta: tc.resultMeta,
+  callIndex: tc.callIndex,
+  hasDetails: tc.hasDetails,
+  callId: tc.callId,
+});
+
+// Слияние одного вызова инструмента в список. Совпадение — по sameCall.
 // resultGist приходит из живых TOOL_CALL, resultMeta — из итогового TOOL_CALLS;
 // сохраняем оба, не затирая уже известное.
 export const mergeToolCall = (list, tc) => {
@@ -40,20 +55,7 @@ export const mergeToolCall = (list, tc) => {
         : t,
     );
   }
-  return [
-    ...list,
-    {
-      name: tc.name,
-      arguments: tc.arguments,
-      status: tc.status,
-      error: tc.error,
-      resultGist: tc.resultGist,
-      resultMeta: tc.resultMeta,
-      callIndex: tc.callIndex,
-      hasDetails: tc.hasDetails,
-      callId: tc.callId,
-    },
-  ];
+  return [...list, toolCallOf(tc)];
 };
 
 // Индекс последнего AI-пузыря, принадлежащего прогону runId.

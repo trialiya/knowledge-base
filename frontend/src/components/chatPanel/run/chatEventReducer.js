@@ -28,6 +28,7 @@ import { CHAT_EVENT, FINISH_REASON } from '@/constants/chatEventTypes';
 import { SENDER } from '@/constants/messageSender';
 import { RETRY_MODE } from '@/constants/retryMode';
 import { RUN_KIND } from '@/constants/runKind';
+import { IDLE_RUN_STATE } from './activeRun';
 
 /**
  * @param chat объект чата ({ id, messages, runId, ... })
@@ -255,7 +256,7 @@ export function applyChatEvent(chat, ev, ctx) {
 
     case CHAT_EVENT.RUN_DONE: {
       finalize(msgs, runId);
-      return { ...chat, messages: msgs, runId: null, runKind: null, runStartedAt: null };
+      return { ...chat, messages: msgs, ...IDLE_RUN_STATE };
     }
 
     case CHAT_EVENT.RUN_STOPPED: {
@@ -265,7 +266,7 @@ export function applyChatEvent(chat, ev, ctx) {
         msgs[idx] = { ...msgs[idx], text: base ? `${base} ${ctx.stoppedLabel}` : ctx.stoppedLabel };
       }
       finalize(msgs, runId);
-      return { ...chat, messages: msgs, runId: null, runKind: null, runStartedAt: null };
+      return { ...chat, messages: msgs, ...IDLE_RUN_STATE };
     }
 
     case CHAT_EVENT.RUN_ERROR: {
@@ -293,7 +294,7 @@ export function applyChatEvent(chat, ev, ctx) {
         ...(produced ? {} : { retryMode: RETRY_MODE.CONTINUE }),
       };
       finalize(msgs, runId);
-      return { ...chat, messages: msgs, runId: null, runKind: null, runStartedAt: null };
+      return { ...chat, messages: msgs, ...IDLE_RUN_STATE };
     }
 
     // ─── Сжатие контекста (/compact) ─────────────────────────────────────────
@@ -321,7 +322,7 @@ export function applyChatEvent(chat, ev, ctx) {
         ...(payload?.createdAt ? { timestamp: payload.createdAt } : {}),
       };
       finalize(msgs, runId);
-      return { ...chat, messages: msgs, runId: null, runKind: null };
+      return { ...chat, messages: msgs, ...IDLE_RUN_STATE };
     }
 
     case CHAT_EVENT.COMPACT_ERROR: {
@@ -331,7 +332,7 @@ export function applyChatEvent(chat, ev, ctx) {
       // поверх той же истории (история могла и успеть измениться).
       msgs[idx] = { ...msgs[idx], text: ctx.compactErrorLabel, error: true };
       finalize(msgs, runId);
-      return { ...chat, messages: msgs, runId: null, runKind: null };
+      return { ...chat, messages: msgs, ...IDLE_RUN_STATE };
     }
 
     // ─── Git-команда пользователя ────────────────────────────────────────────
