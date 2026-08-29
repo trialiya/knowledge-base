@@ -23,7 +23,6 @@ import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.memory.SummarizeService;
-import io.github.trialiya.kb.service.chat.prompt.ProjectPromptService;
 import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.runtime.ConversationSlots;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
@@ -88,7 +87,6 @@ public class ChatRunService {
     private final ChatEventService events;
     private final ScriptGuideService scriptGuideService;
     private final SystemPromptService systemPromptService;
-    private final ProjectPromptService projectPromptService;
     private final PendingMessageService pendingMessages;
     private final RunOptionsResolver runOptions;
     private final RunRegistry runs;
@@ -112,7 +110,6 @@ public class ChatRunService {
             ChatEventService events,
             ScriptGuideService scriptGuideService,
             SystemPromptService systemPromptService,
-            ProjectPromptService projectPromptService,
             PendingMessageService pendingMessages,
             RunOptionsResolver runOptions,
             RunRegistry runs,
@@ -125,7 +122,6 @@ public class ChatRunService {
         this.events = events;
         this.scriptGuideService = scriptGuideService;
         this.systemPromptService = systemPromptService;
-        this.projectPromptService = projectPromptService;
         this.pendingMessages = pendingMessages;
         this.runOptions = runOptions;
         this.runs = runs;
@@ -178,6 +174,7 @@ public class ChatRunService {
                                     conversationId,
                                     userMessage,
                                     contextItems,
+                                    options.canonicalProject(),
                                     options.projectSwitch())
                             // Повтор: вопрос уже в истории, ходом остаётся он же. Проверку делаем
                             // ПОСЛЕ ремонта хвоста — достроенный TOOL-ответ как раз и означает,
@@ -288,6 +285,9 @@ public class ChatRunService {
      * @param modeInstructions инструкции выбранного режима; пустая строка — «без режима»
      * @param project id проекта, в котором работают инструменты прогона; {@code null} — дефолтный
      *     проект списка (см. {@code ProjectCatalog})
+     * @param canonicalProject тот же проект, но названный: {@link #project}, разрешённый до
+     *     канонического id. В истории «не назван» хранить нельзя — базовый штамп первого сообщения
+     *     обязан назвать репозиторий, иначе следа проектов у чата не появляется вовсе
      * @param projectSwitch смена проекта относительно предыдущих сообщений чата; {@code null} —
      *     проект тот же. Оседает маркером в meta вопроса (см. {@code
      *     ChatHistoryService#saveUserMessage})
@@ -298,6 +298,7 @@ public class ChatRunService {
             boolean streamUsage,
             String modeInstructions,
             @Nullable String project,
+            String canonicalProject,
             @Nullable ProjectSwitch projectSwitch) {}
 
     /** Останавливает прогон: dispose → CANCEL → частичное сохранение + событие RUN_STOPPED. */
@@ -458,13 +459,7 @@ public class ChatRunService {
                                                     .param(
                                                             "system_extended",
                                                             systemPromptService.systemExtended(
-                                                                    weakModel))
-                                                    .param(
-                                                            "project_context",
-                                                            projectPromptService.context(
-                                                                    options.project(),
-                                                                    chatHistory.earlierProjects(
-                                                                            conversationId))))
+                                                                    weakModel)))
                             // Своего .user(...) здесь намеренно нет: вопрос уже сохранён в
                             // истории (см. ChatHistoryService.saveUserMessage), и его подмешает
                             // advisor памяти. Передать его ещё и сюда — значит сохранить вторым

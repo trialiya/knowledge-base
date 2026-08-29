@@ -144,7 +144,9 @@ public class CompactService {
                 throw new ResponseStatusException(
                         HttpStatus.UNPROCESSABLE_CONTENT, "Nothing to compact");
             }
-            commandRow = chatHistory.saveUserMessage(conversationId, text, List.of(), null);
+            // Проект команде не штампуется: первым сообщением чата она не бывает (сжимать было бы
+            // нечего), а базовый штамп нужен только там.
+            commandRow = chatHistory.saveUserMessage(conversationId, text, List.of(), null, null);
         } catch (RuntimeException e) {
             slots.release(conversationId, runId);
             throw e;
@@ -305,7 +307,17 @@ public class CompactService {
                                 // закончилось, иногда через десятки секунд после команды.
                                 LocalDateTime.now(),
                                 summaryText(content),
-                                SummaryWriter.lastProject(rows.stream().map(PromptRow::entity))),
+                                // Сводка остаётся единственной памятью разговора, и следом
+                                // проектов — тоже: маркеры смены уезжают вместе с окном.
+                                ProjectTrace.of(
+                                        entities(rows, true),
+                                        entities(rows, false),
+                                        () ->
+                                                chatTopicRepository
+                                                        .findById(conversationId)
+                                                        .map(ChatTopicEntity::getProject)
+                                                        .orElse(null),
+                                        commandRow.getPosition())),
                         new SummaryWriter.CompactStats(messages, content.length()));
         log.info(
                 "[{}] Compaction finished: {} messages -> {} chars",
@@ -393,6 +405,17 @@ public class CompactService {
         if (StringUtils.hasText(value)) {
             prompt.append("- ").append(label).append(": ").append(value).append('\n');
         }
+    }
+
+    /**
+     * Ряды окна — сводки отдельно от живых: {@link ProjectTrace} читает у них разное (спаны против
+     * носителей на вопросах), и смешанный список дал бы отрезок там, где чат никуда не переходил.
+     */
+    private static List<ChatMessageEntity> entities(List<PromptRow> rows, boolean summaries) {
+        return rows.stream()
+                .map(PromptRow::entity)
+                .filter(entity -> entity.isSummary() == summaries)
+                .toList();
     }
 
     private static long countOf(List<PromptRow> rows, MessageType type) {

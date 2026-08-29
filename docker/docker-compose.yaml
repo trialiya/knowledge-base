@@ -52,6 +52,9 @@ services:
       # (см. docs/проект/конфигурация.md); исключение git safe.directory для него добавит start.sh.
       # - ${PROJECT2_PATH_MOUNT}:/projects/billing:ro
       - ${DOCUMENTS_EXPORT_PATH:-../doc-export}:/doc-export
+      # Снимок chat_message перед разовым проходом по истории — включается вместе с
+      # KB_BACKFILL_DUMP_PATH в .env; каталог хоста должен быть доступен на запись.
+      # - ${BACKFILL_DUMP_PATH_MOUNT}:/backfill-dump
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
       interval: 10s

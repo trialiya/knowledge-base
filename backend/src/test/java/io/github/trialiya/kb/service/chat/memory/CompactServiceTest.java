@@ -280,7 +280,7 @@ class CompactServiceTest {
                 .hasMessageContaining("Nothing to compact");
 
         verify(slots).release(CONV, "run-1");
-        verify(chatHistory, never()).saveUserMessage(anyString(), anyString(), any(), any());
+        verify(chatHistory, never()).saveUserMessage(anyString(), anyString(), any(), any(), any());
     }
 
     /**
@@ -298,7 +298,7 @@ class CompactServiceTest {
         // сам раунд, и там команда в истории уже стоит: раунд обязан отрезать её сам.
         when(chatHistory.promptRows(CONV)).thenReturn(oldWindow, append(oldWindow, command));
         final ChatMessageEntity saved = command.entity();
-        when(chatHistory.saveUserMessage(CONV, "/compact фокус", List.of(), null))
+        when(chatHistory.saveUserMessage(CONV, "/compact фокус", List.of(), null, null))
                 .thenReturn(saved);
 
         final CompactService.StartedCompact started =
@@ -345,7 +345,7 @@ class CompactServiceTest {
     void aRejectedRoundUnblocksEveryTabWithAnErrorEvent() {
         when(slots.claim(CONV)).thenReturn("run-1");
         when(chatHistory.promptRows(CONV)).thenReturn(turns(1));
-        when(chatHistory.saveUserMessage(eq(CONV), anyString(), any(), any()))
+        when(chatHistory.saveUserMessage(eq(CONV), anyString(), any(), any(), any()))
                 .thenReturn(row(3, MessageType.USER, "/compact").entity());
 
         assertThatThrownBy(

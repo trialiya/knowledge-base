@@ -126,6 +126,17 @@ kb:
     timeout:
       # SseEmitter timeout per browser tab subscription (replay/reconnect window).
       sse: ${KB_CHAT_SSE_TIMEOUT:30m}
+    backfill:
+      # Directory for the snapshot a one-off history pass takes before it rewrites anything: one
+      # NDJSON file per run, holding the previous chat_message.meta of every row the pass reads.
+      # Message text is NOT in it — only the columns the pass computes from and writes to.
+      #
+      # Unset (the default), the pass does not run at all: it computes the project trace rather
+      # than reading it, and a miscomputation with nothing to restore from is not a risk worth
+      # taking silently. Skipping is safe — chats without spans still answer "which repository",
+      # just without per-message ranges. Point it at a mounted directory (NOT the documents export
+      # path — that tree is rewritten wholesale) and restart to run the pass once.
+      dump-path: ${KB_BACKFILL_DUMP_PATH:}
     summarize:
       # Estimated tokens in the compressible slice that trigger a round. Measured on the slice —
       # what is older than the live tail — not on the whole window, so it asks the same question

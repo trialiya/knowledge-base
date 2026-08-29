@@ -15,6 +15,7 @@ import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
+import io.github.trialiya.kb.support.ActiveProjectNotices;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -91,7 +92,8 @@ class PrePersistedUserMessageTest {
                 new ToolCallService(messageRepo, toolCallIndexRepo),
                 new ToolCallEventPublisher(
                         new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))),
-                        new RunRegistry()));
+                        new RunRegistry()),
+                ActiveProjectNotices.silent());
     }
 
     private static ChatModel stubModel() {

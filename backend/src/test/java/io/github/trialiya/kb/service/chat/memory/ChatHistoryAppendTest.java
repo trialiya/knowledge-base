@@ -16,6 +16,7 @@ import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
+import io.github.trialiya.kb.support.ActiveProjectNotices;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,8 +49,8 @@ class ChatHistoryAppendTest {
                         messageRepo,
                         new ContextItemService(mock(AttachmentService.class)),
                         new ToolCallService(messageRepo, toolCallIndexRepo),
-                        new ToolCallEventPublisher(
-                                mock(ChatEventService.class), new RunRegistry()));
+                        new ToolCallEventPublisher(mock(ChatEventService.class), new RunRegistry()),
+                        ActiveProjectNotices.silent());
         ToolCallTestSupport.echoSavedWithIds(messageRepo);
     }
 

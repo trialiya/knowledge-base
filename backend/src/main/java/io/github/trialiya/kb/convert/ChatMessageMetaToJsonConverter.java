@@ -10,6 +10,7 @@ import io.github.trialiya.kb.model.chat.entity.CompactMeta;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.chat.entity.ContextItemKind;
 import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
+import io.github.trialiya.kb.model.chat.entity.ProjectSpan;
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import java.util.List;
@@ -52,7 +53,8 @@ public final class ChatMessageMetaToJsonConverter {
             @Nullable CompactMeta compact,
             @Nullable GitEventMeta gitEvent,
             @Nullable Boolean interjection,
-            @Nullable RunTokenUsage usage) {}
+            @Nullable RunTokenUsage usage,
+            @Nullable List<ProjectSpan> visitedProjects) {}
 
     /**
      * {@code kind} читается строкой, а не сразу {@link ContextItemKind}: вид, которого эта версия
@@ -126,7 +128,8 @@ public final class ChatMessageMetaToJsonConverter {
                         json.compact(),
                         json.gitEvent(),
                         Boolean.TRUE.equals(json.interjection()),
-                        json.usage());
+                        json.usage(),
+                        json.visitedProjects() == null ? List.of() : json.visitedProjects());
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to deserialize chat message meta", e);
             }
@@ -167,7 +170,13 @@ public final class ChatMessageMetaToJsonConverter {
                                 // false не выписывается: флаг несут единицы рядов, а колонка —
                                 // каждый ряд каждого чата (см. javadoc проекции).
                                 source.interjection() ? Boolean.TRUE : null,
-                                source.usage()));
+                                source.usage(),
+                                // Пустой список — не выписывается по той же причине, что и false
+                                // выше: спаны несут только строки-сводки, а колонка есть у каждого
+                                // ряда каждого чата.
+                                source.visitedProjects().isEmpty()
+                                        ? null
+                                        : source.visitedProjects()));
             } catch (JsonProcessingException e) {
                 throw new IllegalStateException("Failed to serialize chat message meta", e);
             }

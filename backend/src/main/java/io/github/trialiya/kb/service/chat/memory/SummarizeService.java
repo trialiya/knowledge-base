@@ -5,8 +5,10 @@ import static io.github.trialiya.kb.utils.ChatUtils.context;
 import io.github.trialiya.kb.config.model.SummarizeProperties;
 import io.github.trialiya.kb.functions.MessageLookupFunction;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
+import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
+import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService.PromptRow;
 import io.github.trialiya.kb.service.chat.memory.SummarizeWindow.MessageMix;
@@ -14,7 +16,6 @@ import jakarta.annotation.Nonnull;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.client.ChatClient;
@@ -46,6 +47,7 @@ public class SummarizeService implements DisposableBean {
 
     private final ChatClient chatClient;
     private final ChatHistoryService chatHistory;
+    private final ChatTopicRepository chatTopicRepository;
     private final ExecutorService executorService;
     private final SummaryWriter summaryWriter;
     private final SummarizeProperties summarizeProperties;
@@ -54,6 +56,7 @@ public class SummarizeService implements DisposableBean {
             OpenAiChatModel openAiChatModel,
             ChatMessageRepository chatMessageRepository,
             ChatHistoryService chatHistory,
+            ChatTopicRepository chatTopicRepository,
             @Value("classpath:prompt/summarizer.md") Resource summarizerPrompt,
             SummaryWriter summaryWriter,
             SummarizeProperties summarizeProperties,
@@ -66,6 +69,7 @@ public class SummarizeService implements DisposableBean {
                                         chatMessageRepository, contextItemService))
                         .build();
         this.chatHistory = chatHistory;
+        this.chatTopicRepository = chatTopicRepository;
         this.summaryWriter = summaryWriter;
         this.executorService = Executors.newVirtualThreadPerTaskExecutor();
         this.summarizeProperties = summarizeProperties;
@@ -311,11 +315,17 @@ public class SummarizeService implements DisposableBean {
                         lastMsg.getPosition(),
                         lastMsg.getCreatedAt(),
                         metaSummaryText,
-                        // The project the compressed slice ended on: its own marker is being
-                        // summarized away, and the summary row is what keeps the trace.
-                        SummaryWriter.lastProject(
-                                Stream.concat(
-                                        existingSummaries.stream(),
-                                        oldMessages.stream().map(PromptRow::entity)))));
+                        // Which repository each compressed stretch belongs to: the markers that
+                        // said so are being summarized away, and the summary row is what keeps
+                        // the trace — this round's carriers on top of the previous summary's.
+                        ProjectTrace.of(
+                                existingSummaries,
+                                oldMessages.stream().map(PromptRow::entity).toList(),
+                                () ->
+                                        chatTopicRepository
+                                                .findById(conversationId)
+                                                .map(ChatTopicEntity::getProject)
+                                                .orElse(null),
+                                endPosition)));
     }
 }

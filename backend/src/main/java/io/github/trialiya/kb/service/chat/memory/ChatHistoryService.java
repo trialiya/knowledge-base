@@ -17,7 +17,6 @@ import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.tools.RecordingToolCallback;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -57,6 +56,7 @@ public class ChatHistoryService {
     private final ContextItemService contextItemService;
     private final ToolCallService toolCalls;
     private final ToolCallEventPublisher toolCallEvents;
+    private final ActiveProjectNotice activeProject;
 
     /** Сообщение + его протокольные tool-данные, извлечённые один раз (см. {@link #toolDataOf}). */
     private record Pending(Message message, @Nullable ToolData toolData) {
@@ -87,18 +87,29 @@ public class ChatHistoryService {
      * записью, поэтому привязка не требует ни второго запроса, ни знания id заранее.
      *
      * <p>{@code projectSwitch} — этим вопросом чат перешёл в другой проект; тоже оседает в {@code
-     * meta} и делает историю выше честной: и промпт (см. {@link #promptRow}), и фронт предупредят,
-     * что прочитанное раньше относится к прежнему репозиторию. Первому сообщению чата маркер не
-     * ставится: над пустой историей предупреждать не о чем, даже когда проект в нём назван явно.
+     * meta} и делает историю выше честной: и промпт (см. {@link ActiveProjectNotice}), и фронт
+     * предупредят, что прочитанное раньше относится к прежнему репозиторию. Первому сообщению чата
+     * маркер не ставится: над пустой историей предупреждать не о чем, даже когда проект в нём
+     * назван явно.
+     *
+     * <p>Зато первое сообщение получает базовый штамп — {@code project} без «откуда». С него
+     * начинается след проектов чата, и без него у истории, которая никуда не переключалась, не
+     * осталось бы ни одного носителя: репозиторий пришлось бы каждый раз спрашивать у {@code
+     * chat_topic}, на каждой итерации tool-цикла.
+     *
+     * @param project канонический id проекта, на котором идёт прогон; {@code null} — вызывающему
+     *     нечего штамповать (команда {@code /compact}, первым сообщением чата не бывающая)
      */
     @Transactional
     public ChatMessageEntity saveUserMessage(
             String conversationId,
             String text,
             List<ContextItem> contextItems,
+            @Nullable String project,
             @Nullable ProjectSwitch projectSwitch) {
         final long position = lastPosition(conversationId) + 1;
         final ProjectSwitch marked = position > 1 ? projectSwitch : null;
+        final String stamped = position > 1 ? (marked == null ? null : marked.to()) : project;
         return chatMessageRepository.save(
                 new ChatMessageEntity(
                         0,
@@ -110,9 +121,7 @@ public class ChatHistoryService {
                         false,
                         LocalDateTime.now(),
                         ChatMessageMeta.ofUserMessage(
-                                contextItems,
-                                marked == null ? null : marked.to(),
-                                marked == null ? null : marked.from())));
+                                contextItems, stamped, marked == null ? null : marked.from())));
     }
 
     /**
@@ -122,25 +131,36 @@ public class ChatHistoryService {
      * <p>Если маркер на вопросе уже стоит, {@code from} сохраняется прежним: он говорит, к какому
      * репозиторию относится история ВЫШЕ, и от повторов её содержимое не меняется. Возврат туда же
      * маркер снимает — сменой относительно истории выше он больше не является.
+     *
+     * <p>Первое сообщение чата маркером не становится и здесь, но базовый штамп на нём переписать
+     * обязано: истории выше нет, а репозиторий, на котором пойдёт прогон, стал другим. Оставь
+     * прежний id — и блок активного проекта назовёт модели чужой репозиторий, то есть ровно ту
+     * тихую ошибку со ссылками на файлы, ради которой он и печатается.
      */
     @Transactional
     public ChatMessageEntity markProjectSwitch(
             ChatMessageEntity question, ProjectSwitch projectSwitch) {
         final ChatMessageMeta meta = question.getMeta();
         if (question.getPosition() <= 1) {
-            return question;
+            return chatMessageRepository.save(
+                    question.withMeta(base(meta).withProjectSwitch(projectSwitch.to(), null)));
         }
         final String from =
                 meta != null && meta.projectSwitchFrom() != null
                         ? meta.projectSwitchFrom()
                         : projectSwitch.from();
         final boolean switched = !from.equals(projectSwitch.to());
-        final ChatMessageMeta base =
-                meta == null ? new ChatMessageMeta(null, false, List.of(), List.of()) : meta;
         return chatMessageRepository.save(
                 question.withMeta(
-                        base.withProjectSwitch(
-                                switched ? projectSwitch.to() : null, switched ? from : null)));
+                        base(meta)
+                                .withProjectSwitch(
+                                        switched ? projectSwitch.to() : null,
+                                        switched ? from : null)));
+    }
+
+    /** Мета, поверх которой переписывается пометка проекта: у вопроса её могло не быть вовсе. */
+    private static ChatMessageMeta base(@Nullable ChatMessageMeta meta) {
+        return meta == null ? new ChatMessageMeta(null, false, List.of(), List.of()) : meta;
     }
 
     /**
@@ -551,7 +571,18 @@ public class ChatHistoryService {
 
     private List<PromptRow> promptRowsFor(String conversationId, List<ChatMessageEntity> rows) {
         final Map<Long, String> context = contextItemService.renderAll(conversationId, rows);
-        return rows.stream().map(entity -> promptRow(entity, context.get(entity.getId()))).toList();
+        // Блок активного проекта собирается один раз на окно и достаётся одному ряду — см.
+        // ActiveProjectNotice. Пустой якорь значит «ставить некуда», и тогда его не собирают вовсе.
+        final long anchor = ActiveProjectNotice.anchor(rows);
+        final String project = anchor < 0 ? "" : activeProject.render(conversationId, rows);
+        return rows.stream()
+                .map(
+                        entity ->
+                                promptRow(
+                                        entity,
+                                        context.get(entity.getId()),
+                                        entity.getPosition() == anchor ? project : ""))
+                .toList();
     }
 
     /**
@@ -568,24 +599,34 @@ public class ChatHistoryService {
      * (см. {@link #projectSwitchNotice}): всё выше в истории читано в прежнем репозитории, и без
      * этой строки модель сочтёт те пути и содержимое актуальными. Как и опись, предупреждение
      * собирается при чтении и в БД не попадает.
+     *
+     * @param activeProject блок активного проекта ({@link ActiveProjectNotice}) — только у ряда, на
+     *     который он назначен, у остальных пустая строка. Идёт последним, ПОСЛЕ описи: это
+     *     действующая справка о том, где искать файлы, и стоять ей у самого места ответа
      */
-    private static PromptRow promptRow(ChatMessageEntity entity, @Nullable String inventory) {
+    private static PromptRow promptRow(
+            ChatMessageEntity entity, @Nullable String inventory, String activeProject) {
         if (entity.getType() != MessageType.USER) {
             return new PromptRow(entity, entity.getContent());
         }
         final String gitCommand = gitCommandNotice(entity.getMeta());
         if (!gitCommand.isEmpty()) {
             // Ряд команды несёт только её: описи у него нет (пользователь ничего не прикладывал),
-            // а маркера смены проекта — тем более, чат этим рядом никуда не переходит.
+            // маркера смены проекта — тем более, чат этим рядом никуда не переходит, и блока
+            // активного проекта — ход командой не открывается (см. ActiveProjectNotice#anchor).
             return new PromptRow(entity, gitCommand);
         }
         final String notice =
                 projectSwitchNotice(entity.getMeta()) + interjectionNotice(entity.getMeta());
-        if (notice.isEmpty() && inventory == null) {
+        if (notice.isEmpty() && inventory == null && activeProject.isEmpty()) {
             return new PromptRow(entity, entity.getContent());
         }
         return new PromptRow(
-                entity, notice + entity.getContent() + (inventory == null ? "" : inventory));
+                entity,
+                notice
+                        + entity.getContent()
+                        + (inventory == null ? "" : inventory)
+                        + (activeProject.isEmpty() ? "" : "\n\n" + activeProject));
     }
 
     /**
@@ -711,35 +752,6 @@ public class ChatHistoryService {
             return row.getType() == MessageType.USER ? Optional.of(row) : Optional.empty();
         }
         return Optional.empty();
-    }
-
-    /**
-     * Репозитории, на которых этот чат уже работал, в порядке появления, — то, что промпт называет
-     * модели как «выбирались раньше» ({@code ProjectPromptService}). Читающие инструменты берут
-     * проект аргументом, и без этого списка модель не знает ни одного id, кроме активного: спросить
-     * про репозиторий, из которого половина истории и прочитана, ей было бы нечем.
-     *
-     * <p>Источник — маркеры смены проекта на вопросах ({@code ChatMessageMeta}): чат хранит только
-     * текущий проект ({@code chat_topic.project}), а куда он ходил до того, знают лишь они. Обе
-     * стороны маркера идут в список: {@code from} — репозиторий, в котором читана история выше,
-     * {@code to} — тот, на который перешли (он же обычно активный, и его вызывающий отсеивает сам).
-     *
-     * <p>Активный проект сюда не подмешивается: этот метод отвечает на «где чат уже был», а «где он
-     * сейчас» знает вызывающий, и знает точнее — из прогона, а не из истории.
-     */
-    public List<String> earlierProjects(String conversationId) {
-        final LinkedHashSet<String> ordered = new LinkedHashSet<>();
-        for (ChatMessageEntity row : chatMessageRepository.findProjectSwitches(conversationId)) {
-            final ChatMessageMeta meta = row.getMeta();
-            if (meta == null || meta.projectSwitchFrom() == null) {
-                continue;
-            }
-            ordered.add(meta.projectSwitchFrom());
-            if (meta.project() != null) {
-                ordered.add(meta.project());
-            }
-        }
-        return List.copyOf(ordered);
     }
 
     /** Вся история чата для показа целиком, без строк-сводок. */

@@ -13,6 +13,7 @@ import io.github.trialiya.kb.config.model.SummarizeProperties;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
+import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService.PromptRow;
 import java.time.LocalDateTime;
@@ -47,12 +48,14 @@ class SummarizeServiceTest {
             new SummarizeProperties(30_000, 50, 30, 5, 5, 4);
 
     private ChatMessageRepository repository;
+    private ChatTopicRepository chatTopicRepository;
     private ChatHistoryService chatHistory;
     private OpenAiChatModel chatModel;
 
     @BeforeEach
     void setUp() {
         repository = mock(ChatMessageRepository.class);
+        chatTopicRepository = mock(ChatTopicRepository.class);
         chatHistory = mock(ChatHistoryService.class);
         chatModel = mock(OpenAiChatModel.class);
         when(chatModel.getOptions()).thenReturn(OpenAiChatOptions.builder().build());
@@ -193,6 +196,7 @@ class SummarizeServiceTest {
                 chatModel,
                 repository,
                 chatHistory,
+                chatTopicRepository,
                 new ByteArrayResource("summarize".getBytes()),
                 new SummaryWriter(repository, transactionManager()),
                 PRODUCTION,
