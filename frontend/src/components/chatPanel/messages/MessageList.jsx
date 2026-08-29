@@ -1,5 +1,5 @@
 // MessageList.jsx
-import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Message from './Message';
 import CompactNotice from './CompactNotice';
@@ -8,6 +8,7 @@ import DocChangeBlock from './DocChangeBlock';
 import FileChangeBlock from './FileChangeBlock';
 import { IconArrowDown } from '@/icons/index';
 import { modelLabelOf } from '../run/useModelConfig';
+import { compactSavingsIn } from './tokenUsage';
 import { SENDER } from '@/constants/messageSender';
 import {
   SCROLL_STICK_THRESHOLD as STICK_THRESHOLD,
@@ -88,6 +89,10 @@ const MessageList = ({
   const prependRef = useRef(null); // { prevScrollHeight, prevScrollTop } | null
   const loadingMoreRef = useRef(false);
   const [loadingMore, setLoadingMore] = useState(false);
+
+  // Экономия каждого сжатия — одним проходом по ленте: «после» плашка ищет вперёд по ней, и
+  // спрашивать это на каждой плашке значило бы обходить ленту столько раз, сколько в ней сжатий.
+  const compactSavings = useMemo(() => compactSavingsIn(messages, hasMore), [messages, hasMore]);
 
   const isAtBottom = (el) => el.scrollHeight - el.scrollTop - el.clientHeight < STICK_THRESHOLD;
 
@@ -283,6 +288,7 @@ const MessageList = ({
                   conversationId={conversationId}
                   messageId={msg.dbId}
                   compact={msg.compact}
+                  savings={compactSavings.get(msg.mid) ?? null}
                   timestamp={msg.timestamp}
                 />
               ) : (

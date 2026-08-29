@@ -323,6 +323,9 @@ export function applyChatEvent(chat, ev, ctx) {
         text: '',
         dbId: payload?.messageId ?? null,
         compact: { messages: payload?.messages ?? 0, summaryChars: payload?.summaryChars ?? 0 },
+        // Токены раунда — те же, что приедут из истории после перезагрузки: без них счётчик
+        // контекста и итоги чата в живой вкладке разошлись бы с перезагруженной.
+        ...(payload?.usage ? { usage: payload.usage } : {}),
         ...(payload?.createdAt ? { timestamp: payload.createdAt } : {}),
       };
       finalize(msgs, runId);

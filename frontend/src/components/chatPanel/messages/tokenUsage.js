@@ -67,18 +67,46 @@ export const usageTooltip = (usage, t, headKey) =>
   ].join('\n');
 
 /**
+ * Занятый контекст числом для показа. Оценка (см. contextUsageOf) получает «~»: разница между
+ * «примерно столько» и «столько» здесь принципиальна — первое сойдётся со следующим ответом лишь
+ * приблизительно, и молча выдавать его за замер нельзя.
+ */
+export const formatContext = (usage) => (usage?.estimated ? '~' : '') + formatTokens(usage?.contextTokens);
+
+/**
+ * Контекст сразу после сжатия — единственное место, где число оценивается, а не берётся замером.
+ *
+ * Замерить его некому: провайдер меряет запросы, а между сжатием и следующим вопросом запросов нет.
+ * Складывается из системной части (она сжатием не тронута) и документа, который написала модель, —
+ * это выход раунда сжатия, и он же теперь весь разговор. Мимо оценки проходят обёртка сводки
+ * (десятки токенов) и то, что первый вопрос чата входит в системную часть (см. baseContextOf), а
+ * токенизация склейки не равна сумме токенизаций частей.
+ *
+ * Точное число приезжает само — с первым же ответом после сжатия, и заменяет оценку.
+ *
+ * `null` — оценивать не из чего: системная часть неизвестна либо раунд сжатия не измерен. Пустой
+ * счётчик здесь честнее ноля и честнее числа до сжатия, завышенного в разы.
+ */
+const contextAfterCompact = (notice, base) =>
+  base == null || !hasUsage(notice.usage)
+    ? null
+    : { contextTokens: base + Number(notice.usage.outputTokens || 0), estimated: true };
+
+/**
  * Чем занят контекст чата сейчас — по последнему прогону, который это измерил. Ищем с конца, а не
  * суммируем: prompt каждого обращения уже включает всю историю до него, поэтому свежий замер и есть
  * ответ целиком (см. RunTokenUsage на бэке).
  *
  * Плашка сжатия обрывает поиск: /compact выбросил из контекста почти всё, и замер выше неё говорит
- * про историю, которой больше нет. Показать нечего до следующего ответа — и это честнее, чем число,
- * завышенное в разы.
+ * про историю, которой больше нет. Дальше отвечает оценка (contextAfterCompact) — её собственный
+ * замер описывает выброшенное окно и текущим контекстом быть не может.
+ *
+ * @param base системная часть контекста (baseContextOf) — нужна только для оценки после сжатия
  */
-export const contextUsageOf = (messages) => {
+export const contextUsageOf = (messages, base) => {
   for (let i = (messages?.length || 0) - 1; i >= 0; i--) {
     const m = messages[i];
-    if (m.compact) return null;
+    if (m.compact) return contextAfterCompact(m, base);
     if (hasUsage(m.usage)) return m.usage;
   }
   return null;
@@ -100,10 +128,76 @@ export const contextUsageOf = (messages) => {
 export const baseContextOf = (messages, partial) => {
   if (partial) return null;
   for (const m of messages || []) {
+    // Плашка сжатия тоже несёт замер, но её basePromptTokens — это всё окно, которое сжатие
+    // прочитало: у раунда из одного обращения «первый prompt» и есть весь его вход.
+    if (m.compact) continue;
     if (!hasUsage(m.usage)) continue;
     return Number(m.usage.basePromptTokens) || null;
   }
   return null;
+};
+
+/**
+ * Во что обошлось сжатие по его же плашке: сколько контекст занимал до раунда. Это вход раунда —
+ * провайдерский замер ровно того окна, которое сжатие выбросило (плюс собственная инструкция сжатия
+ * на пару тысяч токенов: отделить её нечем, prompt меряется целиком).
+ *
+ * `null` — раунд не измерен (эндпоинт не отдаёт usage либо сжатие прошло версией без этого поля).
+ */
+export const contextBeforeCompact = (notice) =>
+  hasUsage(notice?.usage) ? Number(notice.usage.promptTokens) || null : null;
+
+/**
+ * Во что обошёлся контекст следующему запросу: prompt его первого обращения — системная часть,
+ * сводка и сам вопрос, без наросшего за прогон. Именно это и есть «стало» для плашки сжатия;
+ * contextTokens того же прогона включал бы ещё и всё, что он дочитал инструментами.
+ *
+ * Запасной вариант — contextTokens: у прогонов, записанных до появления basePromptTokens, другого
+ * числа нет, и завышенное «стало» честнее пустого прочерка.
+ */
+const startingContextOf = (usage) => Number(usage.basePromptTokens) || Number(usage.contextTokens) || null;
+
+/**
+ * Экономия каждого сжатия в ленте: mid плашки → {before, after, percent, estimated}.
+ *
+ * «До» — замер самого раунда (вход, который он оплатил). «После» — первый измеренный прогон за
+ * плашкой, а пока его нет, оценка по системной части (см. contextAfterCompact); отсюда estimated,
+ * и его обязан показать интерфейс: до первого ответа число приблизительное.
+ *
+ * Одним проходом и картой, а не вопросом на каждую плашку: плашек в чате бывает несколько, и
+ * каждая ищет свой «после» вперёд по ленте — поиск на плашку дал бы квадрат по длине ленты.
+ *
+ * @param partial история загружена не с начала — тогда системная часть неизвестна (baseContextOf),
+ *     и плашка без измеренного ответа за собой останется с одним «до»
+ */
+export const compactSavingsIn = (messages, partial) => {
+  const base = baseContextOf(messages, partial);
+  const savings = new Map();
+  let pending = null;
+  const settle = (notice, after, estimated) => {
+    const before = contextBeforeCompact(notice);
+    if (!before) return;
+    savings.set(notice.mid, {
+      before,
+      after,
+      estimated,
+      percent: after == null ? null : Math.max(0, Math.round((1 - after / before) * 100)),
+    });
+  };
+  for (const m of messages || []) {
+    if (m.compact) {
+      // Предыдущая плашка так и не дождалась замера: между двумя сжатиями ответа не было.
+      if (pending) settle(pending, contextAfterCompact(pending, base)?.contextTokens ?? null, true);
+      pending = m;
+      continue;
+    }
+    if (pending && hasUsage(m.usage)) {
+      settle(pending, startingContextOf(m.usage), false);
+      pending = null;
+    }
+  }
+  if (pending) settle(pending, contextAfterCompact(pending, base)?.contextTokens ?? null, true);
+  return savings;
 };
 
 /**

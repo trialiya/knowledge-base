@@ -646,6 +646,16 @@ describe('applyChatEvent', () => {
     expect(chat.runKind).toBeNull();
   });
 
+  // Токены раунда приезжают событием, а не только из истории: иначе счётчик контекста и итоги
+  // чата в живой вкладке разошлись бы с перезагруженной до следующего ответа.
+  test('COMPACT_DONE carries the tokens of the round onto the notice', () => {
+    const usage = { contextTokens: 170200, promptTokens: 169000, outputTokens: 1200, modelCalls: 1 };
+    let chat = applyChatEvent(userChat(), { type: 'COMPACT_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(chat, { type: 'COMPACT_DONE', runId: 'r1', payload: { messageId: 5, usage } }, ctx);
+
+    expect(last(chat).usage).toEqual(usage);
+  });
+
   test('COMPACT_DONE survives finalize even though the notice bubble has no text', () => {
     let chat = applyChatEvent(userChat(), { type: 'COMPACT_STARTED', runId: 'r1' }, ctx);
     chat = applyChatEvent(chat, { type: 'COMPACT_DONE', runId: 'r1', payload: { messageId: 5, messages: 3 } }, ctx);

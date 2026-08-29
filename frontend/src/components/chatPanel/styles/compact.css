@@ -17,6 +17,14 @@
   font-size: 0.9em;
 }
 
+/* Числа — моноширинно и чуть тише текста: их сравнивают между собой, а не читают подряд. */
+.compact-notice__savings {
+  font-family: var(--kb-font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 0.95em;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+
 .compact-notice__details {
   background: none;
   border: none;

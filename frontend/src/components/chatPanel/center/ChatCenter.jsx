@@ -4,7 +4,7 @@ import { UPLOAD_ACCEPT } from '@/constants/uploadAccept';
 import ChatHeader from './ChatHeader';
 import ChatSearchBar from './ChatSearchBar';
 import MessageList from '../messages/MessageList';
-import { contextUsageOf, runInputGrowth } from '../messages/tokenUsage';
+import { runInputGrowth } from '../messages/tokenUsage';
 import MessageInput from '../composer/MessageInput';
 
 /**
@@ -15,6 +15,7 @@ import MessageInput from '../composer/MessageInput';
  * скрепка в композере открыла системный диалог, и наверх ему не за чем.
  *
  * @param {object} p
+ * @param {object} p.usage   токены чата (useChatUsage) — счётчику в шапке нужен только `current`
  * @param {object} p.search  результат useInChatSearch плюс `inputRef` и `canSearch`
  * @param {object} p.model   { config, options, selected, onChange } для селектора модели
  * @param {object} p.mode    { options, selected, onChange } для селектора режима
@@ -30,6 +31,7 @@ const ChatCenter = ({
   isOperation,
   isChatEmpty,
   isActive,
+  usage,
   search,
   staged,
   initialText,
@@ -55,10 +57,6 @@ const ChatCenter = ({
   // В обоих случаях ленты нет, а вместо композера — пояснение, почему нельзя писать.
   const unavailable = !!(chat?.notFound || chat?.loadError);
 
-  // Счётчик в шапке читает ту же ленту, что и плашки под ответами: другого источника у «сколько
-  // занято» нет — бэкенд измеряет контекст только прогоном.
-  const contextUsage = useMemo(() => contextUsageOf(messages), [messages]);
-
   // Строка над полем ввода на время занятости — и у генерации, и у сжатия: ждать приходится
   // одинаково, а сжатие ещё и дольше. Прироста input у операции при этом нет: он считается по
   // живым замерам прогона, а раунд сжатия — одно обращение, которое меряется только по концу.
@@ -81,7 +79,7 @@ const ChatCenter = ({
       {chat && (
         <ChatHeader
           chat={chat}
-          contextUsage={contextUsage}
+          contextUsage={usage?.current ?? null}
           canSearch={search.canSearch}
           searchOpen={search.open}
           onToggleSearch={() => (search.open ? search.close() : search.openBar())}

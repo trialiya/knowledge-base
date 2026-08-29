@@ -49,6 +49,10 @@ export const transformPage = (rawMsgs) => {
         dbId: m.id ?? null,
         sender: SENDER.AI,
         compact: { messages: m.compact.messages, summaryChars: m.compact.summaryChars },
+        // Токены самого раунда сжатия — тем же полем, что и у ответа: сжатие тоже обращение к
+        // модели, и в итогах чата оно обязано считаться наравне. По ним же плашка говорит,
+        // сколько контекст занимал до неё (см. contextBeforeCompact).
+        ...(m.usage ? { usage: m.usage } : {}),
         timestamp: m.timestamp || null,
       });
       continue;

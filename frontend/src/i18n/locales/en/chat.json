@@ -16,7 +16,8 @@
   },
   "header": {
     "context": "Context: {{context}}",
-    "contextTooltip": "Context in use: {{context}} tokens"
+    "contextTooltip": "Context in use: {{context}} tokens",
+    "contextEstimatedTooltip": "An estimate: nothing has measured the context since the compaction. The exact number arrives with the first answer."
   },
   "window": {
     "defaultTitle": "New chat",
@@ -237,7 +238,10 @@
     "summaryTitle": "Compaction summary",
     "summaryChars": "Summary length: {{chars}} characters.",
     "summaryLoadError": "Could not load the summary.",
-    "summaryNotFound": "The summary of this compaction was not found."
+    "summaryNotFound": "The summary of this compaction was not found.",
+    "savings": "Context: {{before}} → {{after}} (−{{percent}}%)",
+    "savingsBefore": "Context before compaction: {{before}}",
+    "savingsTooltip": "Left — what the compaction round read; right — the context of the next request. A «~» means no answer has followed the compaction yet, so the number is estimated from the system part."
   },
   "fileInput": {
     "hintStart": "Type a file name to search",

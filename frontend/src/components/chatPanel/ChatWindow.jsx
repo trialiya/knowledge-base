@@ -585,6 +585,7 @@ const ChatWindow = ({
             isOperation={isOperation}
             isChatEmpty={isChatEmpty}
             isActive={isActive}
+            usage={chatUsage}
             search={{ ...inChatSearch, inputRef: inChatSearchInputRef, canSearch: canSearchChat }}
             staged={getStagedFor(activeChatId)}
             initialText={getDraftFor(activeChatId)}
