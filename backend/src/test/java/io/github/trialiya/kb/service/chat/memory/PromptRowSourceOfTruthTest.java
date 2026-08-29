@@ -18,6 +18,7 @@ import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService.PromptRow;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
+import io.github.trialiya.kb.support.ActiveProjectNotices;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -51,7 +52,8 @@ class PromptRowSourceOfTruthTest {
                     chatMessageRepository,
                     contextItemService,
                     new ToolCallService(chatMessageRepository, mock(ToolCallIndexRepository.class)),
-                    new ToolCallEventPublisher(mock(ChatEventService.class), new RunRegistry()));
+                    new ToolCallEventPublisher(mock(ChatEventService.class), new RunRegistry()),
+                    ActiveProjectNotices.silent());
 
     /** Текст строки — content плюс опись; у сообщений без вложений он равен content. */
     @Test
@@ -120,6 +122,77 @@ class PromptRowSourceOfTruthTest {
         assertThat(rows.getFirst().text()).isEqualTo("по файлу вижу");
         assertThat(messages.getFirst().getText()).isEqualTo(rows.getFirst().text());
         assertThat(messages.getFirst().getMessageType()).isEqualTo(MessageType.ASSISTANT);
+    }
+
+    // ── Блок активного проекта: ровно один ряд, и последним куском его текста ─
+
+    private static final String BLOCK = "<active-project>\nкакой репозиторий\n</active-project>";
+
+    /** Тот же сервис, но нотис говорящий: проверяем не его текст, а место, куда он встаёт. */
+    private ChatHistoryService withNotice() {
+        final ActiveProjectNotice notice = mock(ActiveProjectNotice.class);
+        when(notice.render(anyString(), anyList())).thenReturn(BLOCK);
+        return new ChatHistoryService(
+                chatMessageRepository,
+                contextItemService,
+                new ToolCallService(chatMessageRepository, mock(ToolCallIndexRepository.class)),
+                new ToolCallEventPublisher(mock(ChatEventService.class), new RunRegistry()),
+                notice);
+    }
+
+    /**
+     * Блок стоит на последнем вопросе — и только на нём. У вопроса из середины истории активным был
+     * другой репозиторий, и копия блока там была бы прямой неправдой.
+     */
+    @Test
+    void theActiveProjectBlockStandsOnTheLastQuestionOnly() {
+        givenStored(
+                List.of(
+                        question(0, "первый", false),
+                        row(1, "ответ", MessageType.ASSISTANT, false),
+                        question(2, "второй", false)));
+
+        final List<PromptRow> rows = withNotice().promptRows(CONV);
+
+        assertThat(rows.get(0).text()).isEqualTo("первый");
+        assertThat(rows.get(1).text()).isEqualTo("ответ");
+        assertThat(rows.get(2).text()).endsWith(BLOCK).startsWith("второй");
+    }
+
+    /**
+     * Порядок кусков: вопрос, опись приложенного, блок. Блок последний намеренно — это действующая
+     * справка о том, где искать файлы, и стоять ей у самого места ответа.
+     */
+    @Test
+    void theBlockComesAfterTheInventoryNotBeforeIt() {
+        givenStored(List.of(question(0, "смотри файл", true)));
+
+        final String text = withNotice().promptRows(CONV).getFirst().text();
+
+        assertThat(text).isEqualTo("смотри файл" + INVENTORY + "\n\n" + BLOCK);
+    }
+
+    /** Ряд git-команды несёт только её: блок туда не попадает даже последним рядом окна. */
+    @Test
+    void aGitEventRowStaysBareEvenAsTheLastRow() {
+        final ChatMessageEntity git =
+                new ChatMessageEntity(
+                        1,
+                        CONV,
+                        "",
+                        MessageType.USER,
+                        1,
+                        false,
+                        false,
+                        LocalDateTime.now(),
+                        ChatMessageMeta.ofGitEvent(
+                                new io.github.trialiya.kb.model.chat.entity.GitEventMeta(
+                                        "pull", "kb", true, "ok", "main")));
+        givenStored(List.of(git));
+
+        assertThat(withNotice().promptRows(CONV).getFirst().text())
+                .startsWith("<git-command")
+                .doesNotContain(BLOCK);
     }
 
     private void givenStored(List<ChatMessageEntity> rows) {

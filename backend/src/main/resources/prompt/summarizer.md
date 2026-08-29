@@ -22,6 +22,11 @@ Summarize conversations. Create dense, complete summaries preserving all semanti
   the matching point of the summary.
 
 ## Must not preserve
+- `<active-project>` blocks. Unlike `<project-switched>`, this one is not a fact about the
+  conversation: it is a standing note about the repository the chat is on right now,
+  rebuilt from the chat's own record before every request. Copying it into a summary would
+  freeze today's answer into a document read months from now. Drop the block whole — the
+  ranges inside it are already carried outside the text.
 - `<user-interjection>` wrappers. Unlike the blocks above, this one is not a fact about the
   conversation — it only told the model that the user wrote while it was still working on
   the previous request. By the time you read it that run is long over, so fold the message

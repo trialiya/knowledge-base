@@ -21,6 +21,7 @@ import io.github.trialiya.kb.service.chat.memory.ToolCallEventPublisher;
 import io.github.trialiya.kb.service.chat.memory.ToolCallService;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import io.github.trialiya.kb.support.AbstractPostgresIntegrationTest;
+import io.github.trialiya.kb.support.ActiveProjectNotices;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
@@ -81,7 +82,8 @@ class ChatModelClientIT extends AbstractPostgresIntegrationTest {
                         new ToolCallEventPublisher(
                                 new ChatEventService(
                                         new ChatTimeoutProperties(Duration.ofMinutes(1))),
-                                new RunRegistry()));
+                                new RunRegistry()),
+                        ActiveProjectNotices.silent());
         ChatMemory chatMemory = new ChatHistoryMemory(history);
 
         // ── модель-заглушка ────────────────────────────────────────────────

@@ -8,7 +8,6 @@ import io.github.trialiya.kb.repository.ChatMessageRepository;
 import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.concurrent.locks.Lock;
-import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.stereotype.Service;
@@ -63,8 +62,8 @@ public class SummaryWriter {
      *     идёт по нему, а уже потом по позиции). У {@code /compact} это время завершения раунда:
      *     живого хвоста после него не остаётся, поэтому сводке нечего обгонять, зато её время видит
      *     пользователь — на строке-плашке (см. {@link #writeCompacted})
-     * @param project проект, на котором закончилась сжатая часть; {@code null} — чат никуда не
-     *     переезжал, и проект самого чата всё покрывает
+     * @param trace след проектов сжатой части — то, чем сводка отвечает на «в каком репозитории
+     *     читан файл из сообщения 40» после того, как само сообщение уехало из окна
      */
     public record SummaryRow(
             String conversationId,
@@ -73,7 +72,7 @@ public class SummaryWriter {
             long position,
             LocalDateTime createdAt,
             String text,
-            @Nullable String project) {}
+            ProjectTrace trace) {}
 
     /**
      * Выполняет раунд сжатия чата под замком этого чата (см. {@link #locks}). Обёртывать нужно всё
@@ -159,18 +158,17 @@ public class SummaryWriter {
                         false,
                         true,
                         row.createdAt(),
-                        row.project() == null ? null : ChatMessageMeta.ofProject(row.project())));
+                        metaOf(row.trace())));
     }
 
     /**
-     * На каком проекте закончился сжимаемый кусок — след смены проекта, который иначе исчез бы
-     * вместе со своим маркером. {@code null} — смены внутри куска не было.
+     * Мета строки-сводки: спаны — то, что читает промпт; одинокий {@code project} пишется рядом
+     * ради отката на версию, которая спанов ещё не знает (см. {@link ChatMessageMeta}).
      */
-    public static @Nullable String lastProject(Stream<ChatMessageEntity> rows) {
-        return rows.map(ChatMessageEntity::getMeta)
-                .filter(meta -> meta != null && meta.project() != null)
-                .reduce((first, second) -> second)
-                .map(ChatMessageMeta::project)
-                .orElse(null);
+    private static @Nullable ChatMessageMeta metaOf(ProjectTrace trace) {
+        if (trace.lastProject() == null && trace.spans().isEmpty()) {
+            return null;
+        }
+        return ChatMessageMeta.ofProject(trace.lastProject(), trace.spans());
     }
 }

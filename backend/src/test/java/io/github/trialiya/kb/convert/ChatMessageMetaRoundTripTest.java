@@ -8,6 +8,7 @@ import io.github.trialiya.kb.model.chat.entity.CompactMeta;
 import io.github.trialiya.kb.model.chat.entity.ContextItem;
 import io.github.trialiya.kb.model.chat.entity.ContextItemKind;
 import io.github.trialiya.kb.model.chat.entity.GitEventMeta;
+import io.github.trialiya.kb.model.chat.entity.ProjectSpan;
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
@@ -58,7 +59,11 @@ class ChatMessageMetaRoundTripTest {
                         new CompactMeta(21, 4096, 512),
                         new GitEventMeta("pull", "billing", true, "Fast-forward", "main"),
                         true,
-                        new RunTokenUsage(12_400, 700, 320, 31_000, 24_000, 1_100, 3));
+                        new RunTokenUsage(12_400, 700, 320, 31_000, 24_000, 1_100, 3),
+                        List.of(
+                                new ProjectSpan("kb", 1, 34),
+                                new ProjectSpan("billing", 35, 92),
+                                new ProjectSpan("kb", 93, 140)));
 
         final String json = new ChatMessageMetaToJsonConverter.Writer(objectMapper).convert(meta);
         final ChatMessageMeta read =
@@ -68,13 +73,12 @@ class ChatMessageMetaRoundTripTest {
     }
 
     /**
-     * Незаполненное поле в колонку не пишется. Это не только про размер: по подстроке в {@code
-     * meta} ходит запрос ({@code ChatMessageRepository#findProjectSwitches}), и выписанный {@code
-     * null} для него неотличим от настоящего значения.
+     * Незаполненное поле в колонку не пишется: у большинства рядов заполнено два-три поля из
+     * дюжины, а колонка есть у каждого сообщения каждого чата.
      */
     @Test
     void anEmptyFieldIsAbsentFromTheColumnRatherThanWrittenAsNull() {
-        final ChatMessageMeta sparse = ChatMessageMeta.ofProject("billing");
+        final ChatMessageMeta sparse = ChatMessageMeta.ofProject("billing", List.of());
 
         final String json = new ChatMessageMetaToJsonConverter.Writer(objectMapper).convert(sparse);
 
@@ -95,6 +99,6 @@ class ChatMessageMetaRoundTripTest {
                         + "\"compact\":null}";
 
         assertThat(new ChatMessageMetaToJsonConverter.Reader(objectMapper).convert(withNulls))
-                .isEqualTo(ChatMessageMeta.ofProject("billing"));
+                .isEqualTo(ChatMessageMeta.ofProject("billing", List.of()));
     }
 }

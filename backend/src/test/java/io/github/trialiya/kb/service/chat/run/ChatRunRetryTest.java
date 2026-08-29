@@ -17,7 +17,6 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.memory.SummarizeService;
-import io.github.trialiya.kb.service.chat.prompt.ProjectPromptService;
 import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.runtime.ConversationSlots;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
@@ -78,7 +77,6 @@ class ChatRunRetryTest {
                         events,
                         mock(ScriptGuideService.class),
                         mock(SystemPromptService.class),
-                        mock(ProjectPromptService.class),
                         pendingMessages,
                         mock(RunOptionsResolver.class),
                         runs,
@@ -99,7 +97,8 @@ class ChatRunRetryTest {
                 runService.start(CONV, USER, null, List.of(), options(), null);
 
         assertThat(started.userMessageId()).isEqualTo(42L);
-        verify(chatHistory, never()).saveUserMessage(anyString(), anyString(), anyList(), any());
+        verify(chatHistory, never())
+                .saveUserMessage(anyString(), anyString(), anyList(), any(), any());
     }
 
     /** Модель успела начать ответ — повторять нечего: 422, и заявка на чат не удерживается. */
@@ -135,7 +134,8 @@ class ChatRunRetryTest {
     /** Обычная отправка режим повтора не задевает: вопрос по-прежнему пишется до прогона. */
     @Test
     void ordinarySendStillPersistsTheQuestion() {
-        when(chatHistory.saveUserMessage(CONV, QUESTION, List.of(), null)).thenReturn(userRow(7L));
+        when(chatHistory.saveUserMessage(CONV, QUESTION, List.of(), "kb", null))
+                .thenReturn(userRow(7L));
 
         final ChatRunService.StartedRun started =
                 runService.start(CONV, USER, QUESTION, List.of(), options(), "msg-1");
@@ -146,6 +146,6 @@ class ChatRunRetryTest {
 
     /** Дефолтные настройки прогона: модель/режим/проект не выбраны. */
     private static ChatRunService.RunOptions options() {
-        return new ChatRunService.RunOptions(null, false, true, "", null, null);
+        return new ChatRunService.RunOptions(null, false, true, "", null, "kb", null);
     }
 }

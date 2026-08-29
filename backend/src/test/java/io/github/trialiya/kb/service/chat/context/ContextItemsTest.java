@@ -30,6 +30,7 @@ import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.memory.ToolCallEventPublisher;
 import io.github.trialiya.kb.service.chat.memory.ToolCallService;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
+import io.github.trialiya.kb.support.ActiveProjectNotices;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -98,7 +99,8 @@ class ContextItemsTest {
                         new ToolCallEventPublisher(
                                 new ChatEventService(
                                         new ChatTimeoutProperties(Duration.ofMinutes(1))),
-                                new RunRegistry()));
+                                new RunRegistry()),
+                        ActiveProjectNotices.silent());
     }
 
     /** Вложение чата видно только своему чату — этим и занимается запрос за метаданными. */
@@ -175,6 +177,7 @@ class ContextItemsTest {
                         conversationId,
                         QUESTION,
                         contextItemService.resolve(conversationId, List.of(attachmentRequest())),
+                        null,
                         null);
 
         // В БД — только ссылка: содержимое файла в историю не разворачивается.
@@ -223,6 +226,7 @@ class ContextItemsTest {
                 conversationId,
                 QUESTION,
                 contextItemService.resolve(conversationId, List.of(attachmentRequest())),
+                null,
                 null);
 
         memoryService.append(conversationId, memoryService.promptMessages(conversationId));
@@ -244,7 +248,7 @@ class ContextItemsTest {
         String conversationId = UUID.randomUUID().toString();
         haveAttachment(conversationId, "report.md");
         var items = contextItemService.resolve(conversationId, List.of(attachmentRequest()));
-        memoryService.saveUserMessage(conversationId, QUESTION, items, null);
+        memoryService.saveUserMessage(conversationId, QUESTION, items, null, null);
 
         when(attachmentService.findSummaries(anyString(), any())).thenReturn(List.of());
 
@@ -269,6 +273,7 @@ class ContextItemsTest {
                         conversationId,
                         QUESTION,
                         contextItemService.resolve(conversationId, List.of(attachmentRequest())),
+                        null,
                         null);
 
         final String lookup =
@@ -285,7 +290,7 @@ class ContextItemsTest {
     void messageWithoutContextIsUntouched() {
         String conversationId = UUID.randomUUID().toString();
 
-        var saved = memoryService.saveUserMessage(conversationId, QUESTION, List.of(), null);
+        var saved = memoryService.saveUserMessage(conversationId, QUESTION, List.of(), null, null);
 
         assertThat(saved.getMeta()).isNull();
         assertThat(memoryService.promptMessages(conversationId))
@@ -345,11 +350,15 @@ class ContextItemsTest {
     @Test
     void aProjectSwitchIsStampedAndWarnsTheModel() {
         String conversationId = UUID.randomUUID().toString();
-        memoryService.saveUserMessage(conversationId, "первый вопрос", List.of(), null);
+        memoryService.saveUserMessage(conversationId, "первый вопрос", List.of(), "kb", null);
 
         var switched =
                 memoryService.saveUserMessage(
-                        conversationId, QUESTION, List.of(), new ProjectSwitch("kb", "billing"));
+                        conversationId,
+                        QUESTION,
+                        List.of(),
+                        "billing",
+                        new ProjectSwitch("kb", "billing"));
 
         assertThat(messageRepo.findById(switched.getId()))
                 .hasValueSatisfying(
@@ -364,17 +373,42 @@ class ContextItemsTest {
         assertThat(switched.getContent()).isEqualTo(QUESTION);
     }
 
-    /** Первый вопрос чата ничего не «ломает» — маркер над пустой историей не ставится. */
+    /**
+     * Первый вопрос чата маркером не становится — предупреждать над пустой историей не о чем, — но
+     * проект называет: с этого штампа начинается след, по которому промпт и собирает таймлайн.
+     */
     @Test
-    void theFirstMessageOfAChatNeverCarriesASwitchMarker() {
+    void theFirstMessageCarriesTheProjectWithoutASwitchMarker() {
         String conversationId = UUID.randomUUID().toString();
 
         var first =
                 memoryService.saveUserMessage(
-                        conversationId, QUESTION, List.of(), new ProjectSwitch("kb", "billing"));
+                        conversationId,
+                        QUESTION,
+                        List.of(),
+                        "billing",
+                        new ProjectSwitch("kb", "billing"));
 
-        assertThat(first.getMeta()).isNull();
+        assertThat(first.getMeta().project()).isEqualTo("billing");
+        assertThat(first.getMeta().projectSwitchFrom()).isNull();
+        // Ни плашки на фронте, ни предупреждения модели: и то и другое ключуется по «откуда».
         assertThat(memoryService.promptRows(conversationId).getLast().text()).isEqualTo(QUESTION);
+    }
+
+    /**
+     * Повтор первого вопроса в другом проекте переписывает штамп. Оставить прежний значило бы
+     * назвать модели репозиторий, в котором прогон не идёт, — и получить ссылки на файлы в чужом
+     * дереве.
+     */
+    @Test
+    void aRetryOnTheFirstMessageRewritesTheStamp() {
+        String conversationId = UUID.randomUUID().toString();
+        var first = memoryService.saveUserMessage(conversationId, QUESTION, List.of(), "kb", null);
+
+        var marked = memoryService.markProjectSwitch(first, new ProjectSwitch("kb", "billing"));
+
+        assertThat(marked.getMeta().project()).isEqualTo("billing");
+        assertThat(marked.getMeta().projectSwitchFrom()).isNull();
     }
 
     /**
@@ -385,8 +419,9 @@ class ContextItemsTest {
     @Test
     void aRetryInAnotherProjectMarksTheQuestionItRepeats() {
         String conversationId = UUID.randomUUID().toString();
-        memoryService.saveUserMessage(conversationId, "первый вопрос", List.of(), null);
-        var question = memoryService.saveUserMessage(conversationId, QUESTION, List.of(), null);
+        memoryService.saveUserMessage(conversationId, "первый вопрос", List.of(), "kb", null);
+        var question =
+                memoryService.saveUserMessage(conversationId, QUESTION, List.of(), "kb", null);
 
         var marked = memoryService.markProjectSwitch(question, new ProjectSwitch("kb", "billing"));
         assertThat(marked.getMeta().projectSwitchFrom()).isEqualTo("kb");

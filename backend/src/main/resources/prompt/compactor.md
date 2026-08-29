@@ -31,6 +31,11 @@ only where repetition would begin.
   file; say where the rest lives (path, and line range when it was named).
 - **Exact user wording** wherever the user set a constraint, a preference or a refusal.
 
+Do **not** carry over the `<active-project>` block on the last user message. Unlike
+`<project-switched>`, it states nothing about the conversation — only which repository the
+chat is on right now, rebuilt before every request. Copied into the document it would go
+stale the moment the user switches projects.
+
 **Language**: write in the language the user writes in; keep terms, names and decisions in
 their original wording. Section headers stay in English, exactly as spelled below.
 

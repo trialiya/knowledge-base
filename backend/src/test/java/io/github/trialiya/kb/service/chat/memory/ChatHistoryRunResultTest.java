@@ -19,6 +19,7 @@ import io.github.trialiya.kb.service.chat.context.AttachmentService;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
+import io.github.trialiya.kb.support.ActiveProjectNotices;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -54,8 +55,8 @@ class ChatHistoryRunResultTest {
                         messageRepo,
                         new ContextItemService(mock(AttachmentService.class)),
                         new ToolCallService(messageRepo, mock(ToolCallIndexRepository.class)),
-                        new ToolCallEventPublisher(
-                                mock(ChatEventService.class), new RunRegistry()));
+                        new ToolCallEventPublisher(mock(ChatEventService.class), new RunRegistry()),
+                        ActiveProjectNotices.silent());
     }
 
     private static ChatMessageEntity row(

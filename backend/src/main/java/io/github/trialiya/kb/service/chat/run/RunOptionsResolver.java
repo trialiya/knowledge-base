@@ -84,6 +84,7 @@ public class RunOptionsResolver {
                 chatModelProperties.streamUsage(resolvedModel),
                 chatModeService.instructionsFor(resolveMode(conversationId, stored, mode)),
                 resolvedProject,
+                projectCatalog.require(resolvedProject).id(),
                 switched);
     }
 

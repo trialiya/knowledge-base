@@ -18,7 +18,6 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.memory.SummarizeService;
-import io.github.trialiya.kb.service.chat.prompt.ProjectPromptService;
 import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.run.PendingMessageService.Flushed;
 import io.github.trialiya.kb.service.chat.run.PendingMessageService.PendingOptions;
@@ -80,7 +79,6 @@ class ChatRunQueuedDeliveryTest {
                         events,
                         mock(ScriptGuideService.class),
                         mock(SystemPromptService.class),
-                        mock(ProjectPromptService.class),
                         pendingMessages,
                         runOptions,
                         runs,
@@ -105,7 +103,8 @@ class ChatRunQueuedDeliveryTest {
 
         verify(pendingMessages).flushPlain(CONV);
         verify(runOptions, never()).resolve(anyString(), any(), any(), any());
-        verify(chatHistory, never()).saveUserMessage(anyString(), anyString(), anyList(), any());
+        verify(chatHistory, never())
+                .saveUserMessage(anyString(), anyString(), anyList(), any(), any());
         assertThat(runs.size()).isZero();
     }
 
@@ -117,7 +116,7 @@ class ChatRunQueuedDeliveryTest {
      */
     @Test
     void aChatWithAnyLiveRunIsLeftAlone() {
-        when(chatHistory.saveUserMessage(eq(CONV), anyString(), anyList(), any()))
+        when(chatHistory.saveUserMessage(eq(CONV), anyString(), anyList(), any(), any()))
                 .thenReturn(userRow());
         runService.start(CONV, USER, "вопрос", List.of(), options(), null);
 
@@ -153,7 +152,7 @@ class ChatRunQueuedDeliveryTest {
      */
     @Test
     void aStartingRunFlushesLeftoversBeforePersistingItsOwnQuestion() {
-        when(chatHistory.saveUserMessage(eq(CONV), anyString(), anyList(), any()))
+        when(chatHistory.saveUserMessage(eq(CONV), anyString(), anyList(), any(), any()))
                 .thenReturn(userRow());
 
         runService.start(CONV, USER, "новый вопрос", List.of(), options(), "msg-1");
@@ -161,7 +160,7 @@ class ChatRunQueuedDeliveryTest {
         final InOrder order = inOrder(chatHistory, pendingMessages);
         order.verify(chatHistory).repairDanglingToolCalls(CONV);
         order.verify(pendingMessages).flushPlain(CONV);
-        order.verify(chatHistory).saveUserMessage(eq(CONV), anyString(), anyList(), any());
+        order.verify(chatHistory).saveUserMessage(eq(CONV), anyString(), anyList(), any(), any());
     }
 
     /**
@@ -172,7 +171,7 @@ class ChatRunQueuedDeliveryTest {
      */
     @Test
     void aClaimIsReportedAsAnOperationAndWithoutElapsed() {
-        when(chatHistory.saveUserMessage(eq(CONV), anyString(), anyList(), any()))
+        when(chatHistory.saveUserMessage(eq(CONV), anyString(), anyList(), any(), any()))
                 .thenReturn(userRow());
         runService.start(CONV, USER, "вопрос", List.of(), options(), null);
 
@@ -194,7 +193,7 @@ class ChatRunQueuedDeliveryTest {
      */
     @Test
     void aGenerationLeavingTheRegistryIsStillReportedAsGeneration() {
-        when(chatHistory.saveUserMessage(eq(CONV), anyString(), anyList(), any()))
+        when(chatHistory.saveUserMessage(eq(CONV), anyString(), anyList(), any(), any()))
                 .thenReturn(userRow());
         runService.start(CONV, USER, "вопрос", List.of(), options(), null);
         final String runId = runService.activeRun(CONV).orElseThrow().runId();
@@ -224,6 +223,6 @@ class ChatRunQueuedDeliveryTest {
 
     /** Дефолтные настройки прогона: модель/режим/проект не выбраны. */
     private static ChatRunService.RunOptions options() {
-        return new ChatRunService.RunOptions(null, false, true, "", null, null);
+        return new ChatRunService.RunOptions(null, false, true, "", null, "kb", null);
     }
 }

@@ -16,7 +16,6 @@ import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.memory.SummarizeService;
-import io.github.trialiya.kb.service.chat.prompt.ProjectPromptService;
 import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.run.PendingMessageService.Flushed;
 import io.github.trialiya.kb.service.chat.runtime.ConversationSlots;
@@ -73,7 +72,7 @@ class ChatRuntimeShutdownTest {
         chatMemory = mock(ChatMemory.class);
         chatHistory = mock(ChatHistoryService.class);
         // Вопрос пользователя сохраняется до старта прогона — прогон берёт из ряда id и текст.
-        when(chatHistory.saveUserMessage(anyString(), anyString(), anyList(), any()))
+        when(chatHistory.saveUserMessage(anyString(), anyString(), anyList(), any(), any()))
                 .thenAnswer(
                         inv ->
                                 new ChatMessageEntity(
@@ -254,7 +253,6 @@ class ChatRuntimeShutdownTest {
                 events,
                 mock(ScriptGuideService.class),
                 mock(SystemPromptService.class),
-                mock(ProjectPromptService.class),
                 pendingMessages,
                 mock(RunOptionsResolver.class),
                 runs,
@@ -264,6 +262,6 @@ class ChatRuntimeShutdownTest {
 
     /** Дефолтные настройки прогона: модель/режим/проект не выбраны. */
     private static ChatRunService.RunOptions options() {
-        return new ChatRunService.RunOptions(null, false, true, "", null, null);
+        return new ChatRunService.RunOptions(null, false, true, "", null, "kb", null);
     }
 }

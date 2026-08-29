@@ -1,5 +1,6 @@
 package io.github.trialiya.kb.service.chat.prompt;
 
+import io.github.trialiya.kb.model.chat.entity.ProjectSpan;
 import io.github.trialiya.kb.model.project.Project;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.service.file.project.ProjectCatalog;
@@ -8,22 +9,23 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 
 /**
- * Текст плейсхолдера {@code {project_context}} в {@code prompt/sys.md} — какой репозиторий читают
- * инструменты этого прогона.
+ * Текст блока «какой репозиторий читают инструменты этого чата» — тело нотиса {@code
+ * <active-project>}, который {@code ActiveProjectNotice} ставит на последний вопрос окна.
+ *
+ * <p>В системном промпте этого блока нет намеренно. Проект — свойство разговора, а не приложения:
+ * он меняется посреди чата, и сказанное в системном промпте относилось бы ко всей истории разом, в
+ * том числе к сообщениям, прочитанным в другом репозитории. В сообщении блок стоит там, где
+ * действует, — на текущем ходу, за спиной у истории, которая может быть чужой.
  *
  * <p>Модель обязана знать проект не «для сведения»: ссылку на файл пишет она, а `/files?path=…` без
- * проекта означает дефолтный. Не назвав проект в промпте, мы получили бы ссылки, которые в другом
- * репозитории откроют файл с тем же путём — ошибку, которую никто не заметит. Поэтому здесь же
- * выдаётся готовый кусок ссылки, а не предложение вывести его самостоятельно.
+ * проекта означает дефолтный. Не назвав проект, мы получили бы ссылки, которые в другом репозитории
+ * откроют файл с тем же путём — ошибку, которую никто не заметит. Поэтому здесь же выдаётся готовый
+ * кусок ссылки, а не предложение вывести его самостоятельно.
  *
- * <p>Здесь только то, что меняется от прогона к прогону: какой проект активен и какие ещё можно
- * назвать. Правила кросс-проектного чтения — что аргумент {@code project} есть у каждого читающего
+ * <p>Правила кросс-проектного чтения — что аргумент {@code project} есть у каждого читающего
  * инструмента, что id берётся из эха ответа, что правки остаются в активном проекте — статичны и
  * живут в {@code sys.md} («Reading another project»); дублировать их здесь значило бы платить за
  * них дважды и однажды разойтись.
- *
- * <p>Параллель {@code ScriptGuideService}/{@code SystemPromptService}: значение не бывает {@code
- * null} — незаполненный плейсхолдер роняет рендер шаблона.
  */
 @Service
 public class ProjectPromptService {
@@ -43,11 +45,11 @@ public class ProjectPromptService {
 
     /**
      * @param projectId проект прогона; {@code null} — «не выбран», т.е. дефолтный из списка
-     * @param earlierProjects репозитории, на которых этот чат уже работал ({@code
-     *     ChatHistoryService#earlierProjects}), в порядке появления; активный среди них
-     *     отфильтровывается здесь, чтобы вызывающему не приходилось знать, чем он разрешился
+     * @param visited где прожит каждый кусок чата, хронологически (см. {@link ProjectSpan});
+     *     активный проект среди отрезков есть и отфильтровывается здесь, чтобы вызывающему не
+     *     приходилось знать, чем он разрешился
      */
-    public String context(@Nullable String projectId, List<String> earlierProjects) {
+    public String context(@Nullable String projectId, List<ProjectSpan> visited) {
         Project project = catalog.find(projectId).orElseGet(catalog::defaultProject);
         return """
         ### Active project
@@ -56,24 +58,78 @@ public class ProjectPromptService {
         """
                         .formatted(project.label(), project.id(), project.id())
                 + allowGlobs(project, gitRegistry.editsAllowed(project.id()))
-                + otherProjects(project, earlierProjects);
+                + timeline(visited)
+                + otherProjects(project, visited);
+    }
+
+    /**
+     * Что где читано: отрезки чата с номерами сообщений. Печатается только у чата, который проект
+     * действительно менял, — там, где репозиторий один, строка «messages 1-140» не сообщает ничего,
+     * а платить за неё пришлось бы в каждом запросе каждого чата.
+     *
+     * <p>Диапазоны, а не список посещённых id: без них «этот проект выбирали раньше» не отвечает на
+     * единственный вопрос, ради которого след и хранится, — в каком репозитории читан файл, о
+     * котором речь в сообщении 40. Номера здесь те же, что в {@code [msg:N]}, и {@code
+     * getOriginalMessages} достаёт по ним даже сжатые сообщения, так что диапазон можно не только
+     * прочесть, но и раскрыть.
+     *
+     * <p>Проект, выбывший из конфигурации, остаётся в списке под своим id: история и правда читана
+     * в нём, и умолчать об этом значило бы приписать те сообщения соседнему репозиторию. Назвать
+     * его в аргументе {@code project} нельзя — этим занят список ниже, и туда он не попадает.
+     */
+    private String timeline(List<ProjectSpan> visited) {
+        if (visited.stream().map(ProjectSpan::project).distinct().count() <= 1) {
+            return "";
+        }
+        final StringBuilder sb =
+                new StringBuilder(
+                        "\n\nThis chat changed repository along the way. Which messages belong"
+                                + " where:");
+        for (int i = 0; i < visited.size(); i++) {
+            final ProjectSpan span = visited.get(i);
+            sb.append("\n- `")
+                    .append(span.project())
+                    .append("` — ")
+                    .append(catalog.find(span.project()).map(Project::label).orElse(span.project()))
+                    .append(" — ")
+                    .append(range(span, i == visited.size() - 1));
+        }
+        sb.append(
+                "\nPaths, file contents, grep hits and script output in a range belong to that"
+                        + " range's repository, whatever the active project is now.");
+        return sb.toString();
+    }
+
+    /**
+     * Диапазон одного отрезка. Последний открыт: чат в этом репозитории и продолжается, а
+     * фиксированный верхний номер устарел бы на следующем же сообщении.
+     */
+    private static String range(ProjectSpan span, boolean current) {
+        if (current) {
+            return "message " + span.from() + " onward (the active project)";
+        }
+        return span.from() == span.to()
+                ? "message " + span.from()
+                : "messages " + span.from() + "-" + span.to();
     }
 
     /**
      * Список репозиториев, которые модель вправе назвать в аргументе {@code project}. Без него
-     * аргумент бесполезен: id проекта модели взять неоткуда — в промпте до этого был только
-     * активный, а выдуманный id падает на {@code ProjectCatalog#require}.
+     * аргумент бесполезен: id проекта модели взять неоткуда — выше был назван только активный, а
+     * выдуманный id падает на {@code ProjectCatalog#require}.
      *
-     * <p>Проекты, на которых чат уже работал, помечены отдельно и идут первыми: чаще всего вопрос
-     * «а как это было в прошлом проекте» относится именно к ним, и половина истории чата прочитана
-     * там же. Порядок внутри пометки — порядок появления в чате.
+     * <p>Проекты, на которых чат уже работал, идут первыми: чаще всего вопрос «а как это было в
+     * прошлом проекте» относится именно к ним, и половина истории чата прочитана там же. Чем именно
+     * они заняты в этом чате, говорит таймлайн выше — здесь только отсылка к нему, чтобы двум
+     * текстам про одно и то же не разойтись.
      *
      * <p>Недоступные проекты (репозиторий не открылся) не перечисляются вовсе: назвать такой id
      * модель может только чтобы получить отказ.
      */
-    private String otherProjects(Project active, List<String> earlierProjects) {
-        List<String> visited =
-                earlierProjects.stream()
+    private String otherProjects(Project active, List<ProjectSpan> visited) {
+        List<String> earlier =
+                visited.stream()
+                        .map(ProjectSpan::project)
                         .filter(id -> !id.equals(active.id()))
                         .filter(catalog::isAllowed)
                         .filter(gitRegistry::isAvailable)
@@ -82,23 +138,22 @@ public class ProjectPromptService {
         List<Project> rest =
                 catalog.projects().stream()
                         .filter(p -> !p.id().equals(active.id()))
-                        .filter(p -> !visited.contains(p.id()))
+                        .filter(p -> !earlier.contains(p.id()))
                         .filter(p -> gitRegistry.isAvailable(p.id()))
                         .toList();
-        if (visited.isEmpty() && rest.isEmpty()) {
+        if (earlier.isEmpty() && rest.isEmpty()) {
             return "";
         }
         StringBuilder sb =
                 new StringBuilder("\n\nOther repositories you may read — pass the id as the");
         sb.append(" `project` argument of a read tool (see \"Reading another project\"):");
-        visited.forEach(
+        earlier.forEach(
                 id ->
                         sb.append("\n- `")
                                 .append(id)
                                 .append("` — ")
                                 .append(catalog.require(id).label())
-                                .append(" — selected earlier in this chat, so the paths and")
-                                .append(" contents read further up belong to it"));
+                                .append(" — this chat worked in it earlier, see the ranges above"));
         rest.forEach(p -> sb.append("\n- `").append(p.id()).append("` — ").append(p.label()));
         return sb.toString();
     }

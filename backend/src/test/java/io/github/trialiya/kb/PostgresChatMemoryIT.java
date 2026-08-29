@@ -26,6 +26,7 @@ import io.github.trialiya.kb.service.chat.memory.ToolCallService;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import io.github.trialiya.kb.service.chat.topic.ChatSearchService;
 import io.github.trialiya.kb.support.AbstractPostgresIntegrationTest;
+import io.github.trialiya.kb.support.ActiveProjectNotices;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import java.time.Clock;
 import java.time.Duration;
@@ -70,7 +71,8 @@ class PostgresChatMemoryIT extends AbstractPostgresIntegrationTest {
                 toolCalls(),
                 new ToolCallEventPublisher(
                         new ChatEventService(new ChatTimeoutProperties(Duration.ofMinutes(1))),
-                        new RunRegistry()));
+                        new RunRegistry()),
+                ActiveProjectNotices.silent());
     }
 
     private ToolCallService toolCalls() {

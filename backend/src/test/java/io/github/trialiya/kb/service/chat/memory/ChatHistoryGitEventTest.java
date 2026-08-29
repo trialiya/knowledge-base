@@ -15,6 +15,7 @@ import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService.PromptRow;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
+import io.github.trialiya.kb.support.ActiveProjectNotices;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -39,7 +40,8 @@ class ChatHistoryGitEventTest {
                     chatMessageRepository,
                     contextItemService,
                     new ToolCallService(chatMessageRepository, mock(ToolCallIndexRepository.class)),
-                    new ToolCallEventPublisher(mock(ChatEventService.class), new RunRegistry()));
+                    new ToolCallEventPublisher(mock(ChatEventService.class), new RunRegistry()),
+                    ActiveProjectNotices.silent());
 
     /** Успешная команда: модель узнаёт, что дерево сдвинулось, и что прочитанное могло устареть. */
     @Test

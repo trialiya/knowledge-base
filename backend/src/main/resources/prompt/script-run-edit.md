@@ -34,4 +34,4 @@ Changes **not committed**—user reviews and decides.
 - files to change per run: {{max_edited_files}};
 - total changed file size: {{max_edited_bytes}}—text and bytes share this budget;
 - `kb.edit`/`kb.create`: text files only, readable as whole.
-- untracked files (those the project's `allow-globs` serve): never creatable, and editable only if "Active project" says so—otherwise every write to one is refused.
+- untracked files (those the project's `allow-globs` serve): never creatable, and editable only if the `<active-project>` block says so—otherwise every write to one is refused.

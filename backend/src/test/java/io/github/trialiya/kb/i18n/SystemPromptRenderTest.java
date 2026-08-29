@@ -58,8 +58,6 @@ class SystemPromptRenderTest {
                                 "script_instructions",
                                 handbook,
                                 "system_extended",
-                                "",
-                                "project_context",
                                 ""));
 
         // The handbook arrives verbatim: braces inside a substituted value are content, not syntax.
@@ -79,8 +77,6 @@ class SystemPromptRenderTest {
                                                 "script_instructions",
                                                 "",
                                                 "system_extended",
-                                                "",
-                                                "project_context",
                                                 "")))
                 .doesNotThrowAnyException();
     }
@@ -119,11 +115,7 @@ class SystemPromptRenderTest {
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{(\\w+)}");
 
     private static final Set<String> FILLED_BY_THE_APPLICATION =
-            Set.of(
-                    "mode_instructions",
-                    "script_instructions",
-                    "system_extended",
-                    "project_context");
+            Set.of("mode_instructions", "script_instructions", "system_extended");
 
     private static Set<String> placeholdersOf(String template) {
         return PLACEHOLDER.matcher(template).results().map(m -> m.group(1)).collect(toSet());

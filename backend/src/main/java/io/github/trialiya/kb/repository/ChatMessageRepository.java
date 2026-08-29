@@ -41,6 +41,13 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
     Optional<ChatMessageEntity> findFirstByConversationIdOrderByPositionDesc(String conversationId);
 
     /**
+     * Весь чат целиком, включая строки-сводки и уже сжатые ряды, — для разовых проходов по истории
+     * ({@code ProjectStampBackfill}). Обычному чтению это не нужно: и промпту, и UI нужна половина
+     * чата, и обе половины отбирают запросы выше.
+     */
+    List<ChatMessageEntity> findByConversationIdOrderByPositionAsc(String conversationId);
+
+    /**
      * Хвост чата, свежее первым, — для читателей, которым мало последнего ряда: ряды git-команд
      * стоят между вопросом и ответом и не отвечают ни за то, ни за другое, поэтому «последний
      * вопрос» приходится искать сквозь них (см. {@code ChatHistoryService.unansweredUserMessage}).
@@ -79,31 +86,6 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
             @Param("beforeCreatedAt") LocalDateTime beforeCreatedAt,
             @Param("beforeId") long beforeId,
             @Param("limit") int limit);
-
-    /**
-     * Сообщения чата, несущие маркер смены проекта, — источник списка репозиториев, на которых чат
-     * уже работал ({@code ChatHistoryService#earlierProjects}).
-     *
-     * <p>Отбор по {@code type} — точный: маркер ставится только на вопрос пользователя ({@code
-     * ChatHistoryService#saveUserMessage} и {@code #markProjectSwitch}, куда приходит именно
-     * вопрос), ответы и tool-ряды его не несут никогда. Он и делает основную работу.
-     *
-     * <p>{@code LIKE} по JSON намеренно приблизительный: часть рядов хранит поле выписанным в
-     * {@code null}, и подстрока у них есть без всякой смены проекта. Сузить фильтр до {@code
-     * "projectSwitchFrom":"} значило бы привязаться к тому, как Jackson расставляет пробелы, и в
-     * обмен на несколько непрочитанных рядов получить риск потерять смену проекта молча. Решает
-     * разобранная {@code meta} у вызывающего — точность фильтра здесь вопрос цены запроса, а не
-     * правильности ответа.
-     */
-    @Query(
-            """
-    SELECT * FROM chat_message
-    WHERE conversation_id = :conversationId
-      AND type = 'USER'
-      AND meta LIKE '%projectSwitchFrom%'
-    ORDER BY position ASC
-    """)
-    List<ChatMessageEntity> findProjectSwitches(@Param("conversationId") String conversationId);
 
     /** Совпадения по тексту сообщения внутри чата, хронологически (для find-бара, Ctrl+F). */
     @Query(

@@ -14,12 +14,24 @@ import org.jspecify.annotations.Nullable;
  * разу — сами по себе. Отдельная таблица понадобится тогда, когда появится вид контекста с обратной
  * выборкой («все комментарии по файлу X»).
  *
- * <p>{@code project} и {@code projectSwitchFrom} — маркер смены проекта: этим сообщением чат
- * перешёл с {@code projectSwitchFrom} на {@code project} (оба — канонические id). Заполняются парой
- * и только на вопросе, который реально сменил проект, — история выше него относится к прежнему
- * репозиторию, и об этом предупреждают и модель (см. {@code ChatHistoryService.promptRow}), и
- * пользователь (плашка на фронте). На summary-строке {@code project} живёт без пары — это след «на
- * каком проекте закончилось сжатое», см. {@code SummarizeService}.
+ * <p>{@code project} и {@code projectSwitchFrom} — принадлежность истории репозиторию, в двух
+ * видах. Парой это маркер смены проекта: этим сообщением чат перешёл с {@code projectSwitchFrom} на
+ * {@code project} (оба — канонические id), история выше относится к прежнему репозиторию, и об этом
+ * предупреждают и модель (см. {@code ChatHistoryService.promptRow}), и пользователь (плашка на
+ * фронте). Один {@code project} без пары на ПЕРВОМ сообщении чата — базовый штамп: предупреждать
+ * над пустой историей не о чем, но назвать репозиторий, с которого чат начался, обязан кто-то, и
+ * это единственный ряд, который может сделать это без «откуда». Вместе они и есть весь след
+ * проектов в живой истории: {@code ActiveProjectNotice} собирает по ним таймлайн чата.
+ *
+ * <p>{@code visitedProjects} — тот же след, но за сжатую часть истории: хронологические отрезки
+ * «сообщения с N по M прожиты на этом репозитории» (см. {@link ProjectSpan}). Стоит на
+ * summary-строке и накапливается — каждая следующая сводка наследует спаны предыдущей и дописывает
+ * свои, поэтому последняя сводка окна знает всю историю смен, а тянуться за маркерами, которых в
+ * живом окне уже нет, не приходится. Пишет их {@code SummaryWriter.projectTrace}.
+ *
+ * <p>Одинокий {@code project} на summary-строке — прежний вид того же следа («на каком проекте
+ * закончилось сжатое»). Пишется до сих пор, чтобы откат приложения читал свои сводки, но в промпт
+ * не идёт: читателя у него больше нет, спаны отвечают на тот же вопрос точнее.
  *
  * <p>{@code model} — id модели, которая написала этот ответ (см. {@code
  * ChatHistoryService.markRunResult}). Только на ASSISTANT-рядах и только начиная с прогонов, где
@@ -56,11 +68,13 @@ public record ChatMessageMeta(
         @Nullable CompactMeta compact,
         @Nullable GitEventMeta gitEvent,
         boolean interjection,
-        @Nullable RunTokenUsage usage) {
+        @Nullable RunTokenUsage usage,
+        List<ProjectSpan> visitedProjects) {
 
     public ChatMessageMeta {
         invocations = invocations == null ? List.of() : invocations;
         contextItems = contextItems == null ? List.of() : contextItems;
+        visitedProjects = visitedProjects == null ? List.of() : visitedProjects;
     }
 
     public ChatMessageMeta(
@@ -82,7 +96,8 @@ public record ChatMessageMeta(
                 null,
                 null,
                 false,
-                null);
+                null,
+                List.of());
     }
 
     public ChatMessageMeta(
@@ -112,21 +127,24 @@ public record ChatMessageMeta(
         this(null, true, invocations, List.of());
     }
 
-    /** Метаданные сообщения пользователя: приложенный контекст и, если была, смена проекта. */
+    /**
+     * Метаданные сообщения пользователя: приложенный контекст и принадлежность репозиторию —
+     * маркером смены ({@code project} + {@code projectSwitchFrom}) или базовым штампом первого
+     * сообщения ({@code project} без пары).
+     *
+     * <p>{@code null} — сообщению нечего о себе сказать. Один только штамп таким случаем не
+     * является: без него у чата, который никуда не переключался, следа проекта не осталось бы
+     * вовсе, и промпту пришлось бы догадываться о репозитории по {@code chat_topic}.
+     */
     public static @Nullable ChatMessageMeta ofUserMessage(
             List<ContextItem> contextItems,
             @Nullable String project,
             @Nullable String projectSwitchFrom) {
-        if (contextItems.isEmpty() && projectSwitchFrom == null) {
+        if (contextItems.isEmpty() && project == null) {
             return null;
         }
         return new ChatMessageMeta(
-                null,
-                false,
-                List.of(),
-                contextItems,
-                projectSwitchFrom == null ? null : project,
-                projectSwitchFrom);
+                null, false, List.of(), contextItems, project, projectSwitchFrom);
     }
 
     /** Метаданные сообщения пользователя: кроме приложенного контекста в них ничего нет. */
@@ -139,7 +157,8 @@ public record ChatMessageMeta(
      */
     public static ChatMessageMeta ofCompact(CompactMeta compact) {
         return new ChatMessageMeta(
-                null, false, List.of(), List.of(), null, null, null, compact, null, false, null);
+                null, false, List.of(), List.of(), null, null, null, compact, null, false, null,
+                List.of());
     }
 
     /**
@@ -149,7 +168,8 @@ public record ChatMessageMeta(
      */
     public static ChatMessageMeta ofGitEvent(GitEventMeta gitEvent) {
         return new ChatMessageMeta(
-                null, false, List.of(), List.of(), null, null, null, null, gitEvent, false, null);
+                null, false, List.of(), List.of(), null, null, null, null, gitEvent, false, null,
+                List.of());
     }
 
     /**
@@ -160,12 +180,40 @@ public record ChatMessageMeta(
      */
     public static ChatMessageMeta ofInterjection(List<ContextItem> contextItems) {
         return new ChatMessageMeta(
-                null, false, List.of(), contextItems, null, null, null, null, null, true, null);
+                null,
+                false,
+                List.of(),
+                contextItems,
+                null,
+                null,
+                null,
+                null,
+                null,
+                true,
+                null,
+                List.of());
     }
 
-    /** Метаданные summary-строки: проект, на котором закончилась сжатая часть истории. */
-    public static ChatMessageMeta ofProject(String project) {
-        return new ChatMessageMeta(null, false, List.of(), List.of(), project, null);
+    /**
+     * Метаданные summary-строки: след проектов сжатой части истории. Спаны — то, что читают; {@code
+     * project} («на каком проекте закончилось сжатое») пишется тем же вызовом ради отката на
+     * прежнюю версию и в промпт не идёт.
+     */
+    public static ChatMessageMeta ofProject(
+            @Nullable String project, List<ProjectSpan> visitedProjects) {
+        return new ChatMessageMeta(
+                null,
+                false,
+                List.of(),
+                List.of(),
+                project,
+                null,
+                null,
+                null,
+                null,
+                false,
+                null,
+                visitedProjects);
     }
 
     /**
@@ -185,7 +233,8 @@ public record ChatMessageMeta(
                 compact,
                 gitEvent,
                 interjection,
-                usage);
+                usage,
+                visitedProjects);
     }
 
     /**
@@ -205,7 +254,8 @@ public record ChatMessageMeta(
                 compact,
                 gitEvent,
                 interjection,
-                usage);
+                usage,
+                visitedProjects);
     }
 
     /**
@@ -225,6 +275,7 @@ public record ChatMessageMeta(
                 compact,
                 gitEvent,
                 interjection,
-                usage);
+                usage,
+                visitedProjects);
     }
 }
