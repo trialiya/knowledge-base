@@ -8,8 +8,10 @@ paths:
 The least guessable part of the backend. Read this before touching chat
 persistence (`service/chat`) or the tool-call UI endpoints. The chat
 sub-packages depend one way — `event` ← `runtime` ← `memory` ← `run` — and
-each carries a `package-info.java` saying what belongs in it; read the one for
-the package you are editing before adding a class to it.
+each carries a `package-info.java`, but only `event/` and `runtime/` describe
+what belongs there; `memory/`'s and `run/`'s are `@NullMarked` boilerplate
+with no prose. Read the one for the package you are editing before adding a
+class to it — when it's empty, this file is what you have.
 
 ## `@Tool` signatures
 

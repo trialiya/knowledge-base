@@ -19,8 +19,9 @@ repo. Chat answers are background runs on virtual threads, streamed over one
 SSE event channel per chat, so an answer survives a page reload; search is
 hybrid — SQL keyword plus pgvector semantic.
 `service/chat` splits into sub-packages with a one-way dependency direction
-(`event` ← `runtime` ← `memory` ← `run`); its `package-info.java` files are
-the in-code map of what belongs where.
+(`event` ← `runtime` ← `memory` ← `run`); `event/` and `runtime/` carry a
+`package-info.java` describing what belongs there — `memory/` and `run/` have
+one too, but it is only the `@NullMarked` boilerplate, not a description.
 
 For anything deeper, start with `docs/проект/` rather than a cold read of the
 tree. The docs occasionally lag the code — verify load-bearing details in the
@@ -95,7 +96,7 @@ The wrapper deliberately does not cover:
   the invariant, the trap.
 - **Keep files focused — measured in lines of code.** Comments and blank lines
   don't count (`grep -cvE '^\s*(//|/?\*|$)' <file>` is the honest number; on
-  the backend Javadoc plus AOSP formatting make raw `wc -l` a third bigger
+  the backend Javadoc plus AOSP formatting make raw `wc -l` about 60% bigger
   than the code it holds). A frontend file nearing **~300** code lines — or
   holding 2+ exported components — and a backend Java file nearing **~500**
   are due for a split. Existing offenders are handled by "migrate on touch"
