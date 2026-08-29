@@ -16,11 +16,18 @@
  * text can't resolve that unknown state is reported as undetermined rather
  * than guessed.
  *
+ * Binary files (images, etc.) carry no diffable lines and are skipped
+ * entirely — not printed, not counted anywhere.
+ *
  * Usage:
  *   node scripts/commit-diff-categories.js [<commit>] [--file <path>]
+ *   node scripts/commit-diff-categories.js --table [<N>]
  *
  * <commit> defaults to HEAD. --file restricts the report to one path in the
  * commit (for spot-checking the classifier before trusting the full report).
+ * --table prints one row per commit for the last N commits (default 10,
+ * newest first): file count, the usual +added/-removed, and per-category
+ * added-minus-removed deltas.
  */
 
 const { execFileSync } = require("child_process");
@@ -280,63 +287,63 @@ function formatCounts(c) {
   );
 }
 
-function main() {
-  const args = process.argv.slice(2);
-  let commit = "HEAD";
-  let onlyFile = null;
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--file") {
-      onlyFile = args[++i];
-    } else {
-      commit = args[i];
-    }
-  }
-
-  let files = parseCommitDiff(commit);
-  if (onlyFile) {
-    files = files.filter((f) => f.path === onlyFile);
-    if (files.length === 0) {
-      console.error(`Файл не найден в коммите ${commit}: ${onlyFile}`);
-      process.exit(1);
-    }
-  }
+// Classifies every non-binary file of a commit, aggregating per-category
+// added/removed counts. Shared by the per-commit report and the table mode.
+function analyzeCommit(commit, onlyFile) {
+  let files = parseCommitDiff(commit).filter((f) => !f.isBinary);
+  if (onlyFile) files = files.filter((f) => f.path === onlyFile);
 
   const totals = {
     doc: { added: 0, removed: 0, files: 0 },
     build: { added: 0, removed: 0, files: 0 },
-    binary: { files: 0 },
     source: { added: emptyCounts(), removed: emptyCounts(), files: 0 },
   };
-
-  console.log(`Коммит: ${commit}\n`);
+  const perFile = [];
 
   for (const file of files) {
-    if (file.isBinary) {
-      totals.binary.files++;
-      console.log(`[бинарный]     ${file.path}  (строки не учитываются)`);
-      continue;
-    }
     const category = classifyFile(file.path);
     if (category === "doc") {
-      const { added, removed } = countPlainLines(file.hunks);
-      totals.doc.added += added;
-      totals.doc.removed += removed;
+      const counts = countPlainLines(file.hunks);
+      totals.doc.added += counts.added;
+      totals.doc.removed += counts.removed;
       totals.doc.files++;
-      console.log(`[документация] ${file.path}  +${added} -${removed}`);
+      perFile.push({ path: file.path, category, ...counts });
     } else if (category === "build") {
-      const { added, removed } = countPlainLines(file.hunks);
-      totals.build.added += added;
-      totals.build.removed += removed;
+      const counts = countPlainLines(file.hunks);
+      totals.build.added += counts.added;
+      totals.build.removed += counts.removed;
       totals.build.files++;
-      console.log(`[служебный]    ${file.path}  +${added} -${removed}`);
+      perFile.push({ path: file.path, category, ...counts });
     } else {
       const { added, removed } = processSourceFile(file.path, file.hunks);
       for (const k of Object.keys(added)) totals.source.added[k] += added[k];
       for (const k of Object.keys(removed)) totals.source.removed[k] += removed[k];
       totals.source.files++;
+      perFile.push({ path: file.path, category, added, removed });
+    }
+  }
+
+  return { totals, perFile, fileCount: files.length };
+}
+
+function printCommitReport(commit, onlyFile) {
+  const { totals, perFile, fileCount } = analyzeCommit(commit, onlyFile);
+  if (onlyFile && fileCount === 0) {
+    console.error(`Файл не найден в коммите ${commit}: ${onlyFile}`);
+    process.exit(1);
+  }
+
+  console.log(`Коммит: ${commit}\n`);
+
+  for (const file of perFile) {
+    if (file.category === "doc") {
+      console.log(`[документация] ${file.path}  +${file.added} -${file.removed}`);
+    } else if (file.category === "build") {
+      console.log(`[служебный]    ${file.path}  +${file.added} -${file.removed}`);
+    } else {
       console.log(`[основной]     ${file.path}`);
-      console.log(`  добавлено:\n${formatCounts(added)}`);
-      console.log(`  удалено:\n${formatCounts(removed)}`);
+      console.log(`  добавлено:\n${formatCounts(file.added)}`);
+      console.log(`  удалено:\n${formatCounts(file.removed)}`);
     }
   }
 
@@ -349,12 +356,94 @@ function main() {
   console.log(
     `Документация:               ${totals.doc.files} файл(ов), +${totals.doc.added} -${totals.doc.removed}`,
   );
-  console.log(`Бинарные файлы:              ${totals.binary.files} файл(ов) (строки не учитываются)`);
   console.log(`\nОсновные файлы: ${totals.source.files} файл(ов)`);
   console.log("  добавлено:");
   console.log(formatCounts(totals.source.added));
   console.log("  удалено:");
   console.log(formatCounts(totals.source.removed));
+}
+
+function fmtDelta(n) {
+  return n > 0 ? `+${n}` : `${n}`;
+}
+
+function getLastCommits(n) {
+  return execFileSync("git", ["log", `-n${n}`, "--format=%h %s"], { encoding: "utf8" })
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const sp = line.indexOf(" ");
+      return { hash: line.slice(0, sp), subject: line.slice(sp + 1) };
+    });
+}
+
+function truncate(s, max) {
+  return s.length > max ? s.slice(0, max - 1) + "…" : s;
+}
+
+function printCommitTable(n) {
+  const commits = getLastCommits(n);
+  const header = [
+    "Коммит",
+    "Файлов",
+    "+/-",
+    "Служебные",
+    "Документация",
+    "Import",
+    "Комментарии",
+    "Пустые",
+    "Код",
+    "Не определено",
+  ];
+  const rows = [header];
+
+  for (const { hash, subject } of commits) {
+    const { totals, fileCount } = analyzeCommit(hash);
+    const totalAdded = totals.build.added + totals.doc.added + totals.source.added.import
+      + totals.source.added.comment + totals.source.added.empty + totals.source.added.code
+      + totals.source.added.undetermined;
+    const totalRemoved = totals.build.removed + totals.doc.removed + totals.source.removed.import
+      + totals.source.removed.comment + totals.source.removed.empty + totals.source.removed.code
+      + totals.source.removed.undetermined;
+
+    rows.push([
+      `${hash} ${truncate(subject, 40)}`,
+      String(fileCount),
+      `+${totalAdded} -${totalRemoved}`,
+      fmtDelta(totals.build.added - totals.build.removed),
+      fmtDelta(totals.doc.added - totals.doc.removed),
+      fmtDelta(totals.source.added.import - totals.source.removed.import),
+      fmtDelta(totals.source.added.comment - totals.source.removed.comment),
+      fmtDelta(totals.source.added.empty - totals.source.removed.empty),
+      fmtDelta(totals.source.added.code - totals.source.removed.code),
+      fmtDelta(totals.source.added.undetermined - totals.source.removed.undetermined),
+    ]);
+  }
+
+  const widths = header.map((_, col) => Math.max(...rows.map((r) => r[col].length)));
+  const printRow = (r) => console.log("| " + r.map((c, i) => c.padEnd(widths[i])).join(" | ") + " |");
+  printRow(rows[0]);
+  console.log("| " + widths.map((w) => "-".repeat(w)).join(" | ") + " |");
+  for (const r of rows.slice(1)) printRow(r);
+}
+
+function main() {
+  const args = process.argv.slice(2);
+  if (args[0] === "--table") {
+    printCommitTable(Number(args[1]) || 10);
+    return;
+  }
+
+  let commit = "HEAD";
+  let onlyFile = null;
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--file") {
+      onlyFile = args[++i];
+    } else {
+      commit = args[i];
+    }
+  }
+  printCommitReport(commit, onlyFile);
 }
 
 main();
