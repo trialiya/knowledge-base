@@ -163,12 +163,12 @@ class ChatRunQueuedDeliveryTest {
 
     /**
      * Генерацию и всякую другую занятость чата вкладка различает по {@code kind}: остановить и
-     * дописать в очередь можно только первую. Длительность для таймера над полем ввода есть тоже
-     * только у неё — у заявки без прогона ({@code claim}) нет области прогона, и отсчитывать
-     * таймеру не от чего.
+     * дописать в очередь можно только первую. А длительность для таймера есть у обеих — своей
+     * области прогона у заявки без прогона ({@code claim}) нет, поэтому момент взятия помнит сама
+     * заявка. Без этого вкладка, открытая посреди сжатия, начинала бы отсчёт заново.
      */
     @Test
-    void aClaimIsReportedAsAnOperationAndWithoutElapsed() {
+    void aClaimIsReportedAsAnOperationThatStillKnowsHowLongItHasRun() {
         when(chatHistory.saveUserMessage(eq(CONV), anyString(), anyList(), any(), any()))
                 .thenReturn(userRow());
         runService.start(CONV, USER, "вопрос", List.of(), options(), null);
@@ -180,7 +180,7 @@ class ChatRunQueuedDeliveryTest {
         slots.claim("conv-2");
         final ChatRunService.ActiveRun claimed = runService.activeRun("conv-2").orElseThrow();
         assertThat(claimed.kind()).isEqualTo(ChatRunService.ActiveRun.Kind.OPERATION);
-        assertThat(claimed.elapsedMs()).isNull();
+        assertThat(claimed.elapsedMs()).isNotNull().isNotNegative();
     }
 
     /**
@@ -200,7 +200,8 @@ class ChatRunQueuedDeliveryTest {
 
         final ChatRunService.ActiveRun finishing = runService.activeRun(CONV).orElseThrow();
         assertThat(finishing.kind()).isEqualTo(ChatRunService.ActiveRun.Kind.GENERATION);
-        assertThat(finishing.elapsedMs()).isNull();
+        // Заявка ещё удержана, и длительность помнит она: в этом окне таймер не должен гаснуть.
+        assertThat(finishing.elapsedMs()).isNotNull().isNotNegative();
     }
 
     /** Свободный чат — пустой ответ, а не занятость с неизвестным видом. */

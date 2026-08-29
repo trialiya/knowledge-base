@@ -607,6 +607,20 @@ describe('applyChatEvent', () => {
     expect(last(chat)).toMatchObject({ sender: 'ai', runId: 'r1', text: 'сжимаю…' });
   });
 
+  // Таймер у сжатия по тем же правилам, что и у ответа: сжатие идёт по всему контексту сразу и
+  // живёт дольше среднего прогона, так что «сколько уже» здесь нужнее всего.
+  test('COMPACT_STARTED anchors the timer too, and the terminal event clears it', () => {
+    let chat = applyChatEvent(userChat(), { type: 'COMPACT_STARTED', runId: 'r1' }, ctx);
+    const anchored = chat.runStartedAt;
+    expect(anchored).toEqual(expect.any(Number));
+
+    chat = applyChatEvent(chat, { type: 'COMPACT_STARTED', runId: 'r1' }, ctx); // реплей
+    expect(chat.runStartedAt).toBe(anchored);
+
+    chat = applyChatEvent(chat, { type: 'COMPACT_DONE', runId: 'r1', payload: { messageId: 5 } }, ctx);
+    expect(chat.runStartedAt).toBeNull();
+  });
+
   test('COMPACT_DONE turns that bubble into the notice and unblocks the chat', () => {
     let chat = applyChatEvent(userChat(), { type: 'COMPACT_STARTED', runId: 'r1' }, ctx);
     chat = applyChatEvent(

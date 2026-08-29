@@ -305,7 +305,11 @@ export function applyChatEvent(chat, ev, ctx) {
       let idx = lastAiIndexForRun(msgs, runId);
       if (idx < 0) idx = pushAi(msgs, runId);
       msgs[idx] = { ...msgs[idx], text: ctx.compactingLabel };
-      return { ...chat, messages: msgs, runId, runKind: RUN_KIND.OPERATION };
+      // Якорь таймера — тем же правилом, что и у RUN_STARTED (реплей его не переставляет).
+      // Сжатие идёт по всему контексту сразу и живёт дольше среднего ответа, так что
+      // «сколько уже» здесь нужнее всего: без отсчёта плашка «сжимаю…» неотличима от зависшей.
+      const runStartedAt = chat.runId === runId && chat.runStartedAt ? chat.runStartedAt : Date.now();
+      return { ...chat, messages: msgs, runId, runKind: RUN_KIND.OPERATION, runStartedAt };
     }
 
     // Плашка «сжимаю…» становится плашкой итога — той же самой, что приезжает из истории

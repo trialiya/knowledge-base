@@ -118,9 +118,9 @@ describe('loadMessages return value', () => {
     expect(getChat().messages).toHaveLength(1);
   });
 
-  // Вкладка, открывшая чат посреди генерации, ставит таймер по elapsedMs с бэка: якорь — это
-  // «сейчас минус сколько уже идёт», а не ноль. Операция приходит без elapsedMs — там якоря
-  // нет и таймер не показывается.
+  // Вкладка, открывшая чат посреди занятости, ставит таймер по elapsedMs с бэка: якорь — это
+  // «сейчас минус сколько уже идёт», а не ноль. Так же и у операции: сжатие живёт десятками
+  // секунд, и перезагруженная вкладка обязана продолжить отсчёт, а не начать его заново.
   test('anchors the run timer from elapsedMs of the active run', async () => {
     const { result, getChat } = setup({ activeRun: { runId: 'r2', kind: 'GENERATION', elapsedMs: 90_000 } });
 
@@ -131,6 +131,18 @@ describe('loadMessages return value', () => {
 
     expect(getChat().runStartedAt).toBeGreaterThanOrEqual(before - 90_000);
     expect(getChat().runStartedAt).toBeLessThanOrEqual(Date.now() - 90_000);
+  });
+
+  test('anchors the timer of a running compaction too', async () => {
+    const { result, getChat } = setup({ activeRun: { runId: 'r2', kind: 'OPERATION', elapsedMs: 12_000 } });
+
+    const before = Date.now();
+    await act(async () => {
+      await result.current.loadMessages('c1');
+    });
+
+    expect(getChat().runKind).toBe('OPERATION');
+    expect(getChat().runStartedAt).toBeGreaterThanOrEqual(before - 12_000);
   });
 
   test('an active claim without elapsedMs leaves the timer unanchored', async () => {

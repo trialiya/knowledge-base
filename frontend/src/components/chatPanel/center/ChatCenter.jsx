@@ -59,14 +59,19 @@ const ChatCenter = ({
   // занято» нет — бэкенд измеряет контекст только прогоном.
   const contextUsage = useMemo(() => contextUsageOf(messages), [messages]);
 
-  // Строка над полем ввода на время генерации. У операции её нет: своя плашка в ленте, а
-  // замера прироста и якоря таймера у неё не бывает (см. GET /runs/active на бэке).
+  // Строка над полем ввода на время занятости — и у генерации, и у сжатия: ждать приходится
+  // одинаково, а сжатие ещё и дольше. Прироста input у операции при этом нет: он считается по
+  // живым замерам прогона, а раунд сжатия — одно обращение, которое меряется только по концу.
+  // Остаётся таймер, и это ровно то, чего плашке «сжимаю…» не хватало.
   const runId = chat?.runId;
   const runStartedAt = chat?.runStartedAt;
   const run = useMemo(
     () =>
-      isStreaming && !isOperation
-        ? { startedAt: runStartedAt ?? null, inputGrowth: runInputGrowth(messages, runId) }
+      isStreaming
+        ? {
+            startedAt: runStartedAt ?? null,
+            inputGrowth: isOperation ? null : runInputGrowth(messages, runId),
+          }
         : null,
     [isStreaming, isOperation, runStartedAt, runId, messages],
   );
