@@ -6,6 +6,32 @@ PostgreSQL 17 + pgvector, H2 for local runs and tests) and a React 19 frontend
 (`:frontend`), bundled into the backend JAR. Product docs (Russian) are in
 `docs/`.
 
+## Architecture in brief, and where to read more
+
+One SPA over one API. The frontend has four sections — chat, knowledge base,
+files, settings/admin — all rendered through the shared `WorkspaceLayout`; the
+URL is the navigation state and `navigation/useAppNavigation.js` is its only
+writer. The backend is layered controller → service → Spring AI `@Tool`
+functions → Spring Data JDBC. Chat answers are background runs on virtual
+threads, streamed over one SSE event channel per chat, so an answer survives a
+page reload; search is hybrid — SQL keyword plus pgvector semantic.
+`service/chat` splits into sub-packages with a one-way dependency direction
+(`event` ← `runtime` ← `memory` ← `run`); its `package-info.java` files are
+the in-code map of what belongs where.
+
+For anything deeper, start with `docs/проект/` rather than a cold read of the
+tree. The docs occasionally lag the code — verify load-bearing details in the
+source — but as orientation they are the fastest way in:
+
+| Question | Read in `docs/проект/` |
+| --- | --- |
+| Layers, stack, key decisions | `архитектура.md` |
+| Chat runs, SSE, advisors, memory | `обзор-чат-системы.md` |
+| Frontend structure and state | `фронтенд-обзор-архитектуры.md` |
+| Endpoints / config keys / entities | `api-reference.md` · `конфигурация.md` · `модели-данных/` |
+| The `@Tool` catalogue | `ai-инструменты.md` |
+| Search internals | `архитектура-и-реализация-поиска.md` |
+
 ## Running checks
 
 **Never assemble a `gradle` command by hand — every check goes through
@@ -64,6 +90,13 @@ The wrapper deliberately does not cover:
   confidently wrong comment costs more than a missing one. Name the source of
   truth instead, and spend the comment on what the code cannot show: the why,
   the invariant, the trap.
+- **Keep files focused — measured in lines of code.** Comments and blank lines
+  don't count (`grep -cvE '^\s*(//|/?\*|$)' <file>` is the honest number; on
+  the backend Javadoc plus AOSP formatting make raw `wc -l` a third bigger
+  than the code it holds). A frontend file nearing **~300** code lines — or
+  holding 2+ exported components — and a backend Java file nearing **~500**
+  are due for a split. Existing offenders are handled by "migrate on touch"
+  below: split a file the task already has open, don't hunt the rest down.
 - **Migrate on touch.** The codebase is mid-migration onto shared components.
   When you edit a file that still carries a legacy pattern — its own modal
   chrome, its own button classes, a panel-local copy of a shared concern —
