@@ -42,7 +42,8 @@ class ChatHistoryRunResultTest {
     private static final String CONV = "conv-1";
     private static final String RUN = "run-1";
     private static final String MODEL = "gpt-5";
-    private static final RunTokenUsage USAGE = new RunTokenUsage(12_400, 700, 320, 31_000, 0, 0, 3);
+    private static final RunTokenUsage USAGE =
+            new RunTokenUsage(12_400, 11_400, 700, 320, 31_000, 0, 0, 3);
 
     private ChatMessageRepository messageRepo;
     private ChatHistoryService history;

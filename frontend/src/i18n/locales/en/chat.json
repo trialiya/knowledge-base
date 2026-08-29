@@ -10,11 +10,9 @@
     "queued": "waiting to be sent…",
     "answeredBy": "Answered by {{model}}",
     "tokens": "{{context}} in context",
-    "tokensCached": "Cache read: {{cached}} ({{percent}}% of total input)",
     "tokensContext": "Context after this answer: {{context}} tokens",
-    "tokensTools": "Tools added: {{tools}}",
-    "tokensOutput": "Output: {{output}}",
-    "tokensInput": "Total input: {{input}} · model calls: {{calls}}"
+    "tokensMiss": "Input (Cache miss): {{input}}",
+    "tokensOutput": "Output: {{output}}"
   },
   "header": {
     "context": "Context: {{context}}",
@@ -46,15 +44,22 @@
     "mode": "Mode",
     "project": "Project",
     "id": "ID",
-    "draftNote": "Draft: the chat is created on the server with the first message.",
-    "contextTokens": "Context in use",
-    "outputTokens": "Output",
-    "cachedValue": "{{cached}} ({{percent}}%)",
+    "draftNote": "Draft: the chat is created on the server with the first message."
+  },
+  "usage": {
+    "tab": "Usage",
+    "empty": "No run of this chat has been measured yet.",
+    "partial": "Tokens are counted over the loaded part of the chat — scroll up to read in the rest.",
+    "context": "Context",
+    "system": "System + tools",
+    "input": "Input",
+    "cacheMiss": "Input (Cache miss)",
+    "cacheHit": "Input (Cache hit)",
+    "cacheWrite": "Cache write",
+    "output": "Output",
+    "total": "Total",
     "modelCalls": "Model calls",
-    "usagePartial": "Tokens are counted over the loaded part of the chat — scroll up to read in the rest.",
-    "inputTokens": "Total input",
-    "cacheReadTokens": "Cache read",
-    "cacheWriteTokens": "Cache write"
+    "valuePercent": "{{value}} ({{percent}}%)"
   },
   "errorModal": {
     "notFoundTitle": "Chat not found",

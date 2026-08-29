@@ -1,13 +1,15 @@
 import ChatInfo from './ChatInfo';
+import ChatUsage from './ChatUsage';
 import ChatRepoPanel from '../git/ChatRepoPanel';
 import AttachmentPanel from '@/components/common/attachments/AttachmentPanel';
-import { IconBranch, IconInfo, IconPaperclip } from '@/icons/index';
+import { IconBranch, IconChart, IconInfo, IconPaperclip } from '@/icons/index';
+import { CHAT_TAB } from '@/constants/chatTabs';
 import { RIGHT_TAB } from '@/constants/rightTabs';
 import { OWNER_TYPE } from '@/constants/ownerType';
 import { DRAFT_CHAT_ID } from '@/constants/storage';
 
 /**
- * Вкладки правой панели чата: метаданные и вложения.
+ * Вкладки правой панели чата: метаданные, токены и вложения.
  *
  * Функция-сборщик, а не компонент — как buildDetailTabs у базы знаний:
  * WorkspaceLayout принимает вкладки массивом ({ key, label, icon, badge,
@@ -32,15 +34,15 @@ export function buildChatTabs({
       key: RIGHT_TAB.INFO,
       label: t('tabs.info'),
       icon: <IconInfo size={16} />,
-      content: (
-        <ChatInfo
-          chat={infoChat}
-          modelLabel={modelLabel}
-          modeLabel={modeLabel}
-          projectLabel={projectLabel}
-          usage={usage}
-        />
-      ),
+      content: <ChatInfo chat={infoChat} modelLabel={modelLabel} modeLabel={modeLabel} projectLabel={projectLabel} />,
+    },
+    {
+      // Токены — второй вкладкой, сразу за «Инфо»: вопрос к ней («во что обошёлся чат») задают
+      // тем же движением, что и вопрос «что это за чат», а вложения открывают реже.
+      key: CHAT_TAB.USAGE,
+      label: t('usage.tab'),
+      icon: <IconChart size={16} />,
+      content: <ChatUsage usage={usage} />,
     },
     {
       key: RIGHT_TAB.ATTACHMENTS,

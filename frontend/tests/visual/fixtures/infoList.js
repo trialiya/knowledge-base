@@ -32,9 +32,7 @@ export const fileRows = [
  * как строка переносится целиком, оставляя значение справа, а не уводит его
  * под лейбл по левому краю. Дата с временем, наоборот, рядом с лейблом влезает.
  *
- * Хвост — расширенная статистика токенов (ChatInfo). Числа взяты правдоподобные и намеренно
- * разные по порядку: занято 21.1k, а total input 81.1k — разрыв объясняет строка Cache read, и
- * без него набор ничего бы не показывал.
+ * Токенов здесь нет: они уехали в свою вкладку «Usage» (фикстура chatUsage.js).
  */
 export const chatRows = [
   { label: 'Название', value: 'История коммитов backend/build.gradle' },
@@ -42,12 +40,6 @@ export const chatRows = [
   { label: 'Последнее изменение', value: '18.07.2026, 21:01:19' },
   { label: 'Модель', value: 'Default' },
   { label: 'ID', value: 'c5dfa618-0ad2-4845-a976-ada46c50f9a4', mono: true },
-  { label: 'Занято контекста', value: '21.1k' },
-  { label: 'Total input', value: '81.1k' },
-  { label: 'Output', value: '1.1k' },
-  { label: 'Cache read', value: '63.4k (78%)' },
-  { label: 'Cache write', value: '2.4k' },
-  { label: 'Обращений к модели', value: '6' },
 ];
 
 /**
