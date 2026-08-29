@@ -158,10 +158,16 @@ export default function useChatEventStream({
     // истории. Порядок тот же, что у settleStaleRun, и по той же причине: перезагрузка при
     // открытом потоке затёрла бы события, которые он уже успел применить, — а следующий прогон
     // (например, автозапуск по очереди) начинается сразу за терминальным событием этого.
-    const reloadGappedRun = () => {
+    const reloadGappedRun = (runId) => {
       closeStream();
       seqByChatRef.current.delete(chatId);
-      reloadMessages(chatId).then(() => setResyncTick((n) => n + 1));
+      reloadMessages(chatId).then((msgs) => {
+        setResyncTick((n) => n + 1);
+        // Вытеснено могло быть и TOOL_CALLS этого прогона, а на нём держится инвалидация
+        // кэшей базы знаний и файлов. Те же metas достаём из перезагруженной истории — как
+        // это делает settleStaleRun для прогона, прошедшего мимо целиком.
+        fireChangeRefs(runChangeRefs(msgs, runId));
+      });
     };
 
     // Идёт ли ещё прогон, который показывает UI. Спрашиваем бэк и сверяем с runId чата
@@ -259,7 +265,7 @@ export default function useChatEventStream({
           // поэтому курсор сбрасывает наравне с ним.
           seqByChatRef.current.delete(chatId);
           if (RUN_TERMINAL_EVENTS.has(ev.type)) onRunSettled(chatId);
-          if (gappedChatsRef.current.delete(chatId)) reloadGappedRun();
+          if (gappedChatsRef.current.delete(chatId)) reloadGappedRun(ev.runId);
         }
       },
       onReconnect: () => {
