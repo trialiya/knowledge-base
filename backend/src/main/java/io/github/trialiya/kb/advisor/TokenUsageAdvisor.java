@@ -76,9 +76,24 @@ public class TokenUsageAdvisor implements StreamAdvisor {
 
         return chain.nextStream(request)
                 .doOnNext(response -> onResponse(conversationId, scope, iteration, response))
-                // Итерация кончилась — её замер уходит в итог прогона. Именно doFinally: на
-                // остановке прогона поток отменяют, а потраченное к этому моменту потрачено.
-                .doFinally(signal -> scope.addCall(iteration.getAndSet(TokenUsage.EMPTY)));
+                // Итерация кончилась — её замер обязан попасть в итог прогона ДО того, как
+                // терминальный сигнал уйдёт вниз: onComplete последней итерации доходит до
+                // подписчика в ChatRunService, и тот сразу читает scope.usage() и пишет итог в
+                // мету ответа. doFinally здесь опоздал бы — он срабатывает после доставки сигнала,
+                // и последнее обращение прогона терялось бы из записанного итога (а прогон из
+                // одного обращения оставался бы без замера вовсе). Поэтому onComplete/onError
+                // сбрасывают замер до сигнала, а doFinally остаётся только на отмену: она приходит
+                // снизу и до этих колбэков не доходит, но потраченное к этому моменту потрачено.
+                // Повторный сброс безвреден: из ссылки второй раз достаётся EMPTY, и Tally его
+                // игнорирует.
+                .doOnComplete(() -> flush(scope, iteration))
+                .doOnError(error -> flush(scope, iteration))
+                .doFinally(signal -> flush(scope, iteration));
+    }
+
+    /** Отдаёт накопленный замер итерации в итог прогона; повторный вызов — no-op. */
+    private static void flush(RunScope scope, AtomicReference<TokenUsage> iteration) {
+        scope.addCall(iteration.getAndSet(TokenUsage.EMPTY));
     }
 
     /**
