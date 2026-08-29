@@ -6,7 +6,12 @@ paths:
 # Backend: chat persistence and tool calls
 
 The least guessable part of the backend. Read this before touching chat
-persistence (`service/chat/memory`) or the tool-call UI endpoints.
+persistence (`service/chat`) or the tool-call UI endpoints. The chat
+sub-packages depend one way — `event` ← `runtime` ← `memory` ← `run` — and
+each carries a `package-info.java`, but only `event/` and `runtime/` describe
+what belongs there; `memory/`'s and `run/`'s are `@NullMarked` boilerplate
+with no prose. Read the one for the package you are editing before adding a
+class to it — when it's empty, this file is what you have.
 
 ## `@Tool` signatures
 
@@ -29,6 +34,8 @@ both — read its javadoc for the why before writing a new `@Tool`.
   the issuing ASSISTANT segment, and the TOOL response row once it arrives.
   `ToolCallService.findToolCallDetail` is a plain lookup through it — do not
   reintroduce positional or offset arithmetic over message history.
+  `ToolCallService.index` is package-private on purpose: persistence
+  (`ChatHistoryService`, same package) is its only caller.
 - **The index is filled at persist time** (`ChatHistoryService.append` calls
   `ToolCallService.index`), not by a background job. Keep it in sync when
   changing how messages are saved — `repairDanglingToolCalls` writes its
@@ -57,11 +64,19 @@ Migrations for this live in both `db/migration` (Postgres) and `db/migration-h2`
   a single max query, so callers never hand it the history.
 - **Everything a run learns only at its end is written in one pass:**
   `ChatHistoryService.markRunResult` stamps the tool-call plaques, the model and
-  the run's tokens together. Do not split it back into two writes: the plaques
-  find un-enriched segments by `meta == null`, so a model stamped first hides the
-  run's own tool calls and the plaques never appear. It marks the rows after the
-  last USER message through the one shared rule,
+  the run's tokens together, scoped by `runId` (`meta.runId` ties every segment
+  to the run that wrote it). Do not split it back into two writes: a segment
+  counts as un-enriched while `meta == null`, or while it belongs to this run
+  and still lacks a model — a model stamped by a separate earlier write would
+  make the run's own segments look finished and the plaques never appear. It
+  marks the rows after the last USER message through the one shared rule,
   `ChatHistoryService.tailAfterLastUser`; do not re-derive that cut.
+- **`RunScope` is the run** — the per-run state object in
+  `service/chat/runtime`, owned by `RunRegistry`: cancellation, token usage,
+  the persist claim and the live tool-call counter all live there. A note on
+  names: the run *kind* is `ChatRunService.ActiveRun.Kind` in Java
+  (`GENERATION`/`OPERATION`) but `RUN_KIND` (`constants/runKind.js`) on the
+  frontend — a grep for `RunKind` in backend sources finds nothing.
 - **Live `TOOL_CALL` events number calls per run** (`ToolCallEventPublisher`
   over the counter in `RunScope`), matching `ToolInvocationCollector`'s counter.
   Do not recompute `callIndex` by scanning the tail of the history: after a retry

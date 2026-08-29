@@ -56,12 +56,13 @@ never in big-bang rewrites.
   rows and it drops the empty ones. Don't hand-roll another `dl`. Info carries
   dates, AI topic and model in chat; type, dates and versions in the knowledge
   base; path metadata plus the last commit that touched the file in files. Then
-  come the per-section tabs: chat → attachments; knowledge base → summary, folder
-  contents, attachments (built by `detailSidebar.jsx`); files → nothing else yet.
-  Tab keys shared
-  across sections live in `constants/rightTabs.js` (`RIGHT_TAB`) so `?right=info`
-  means the same thing everywhere; `DOC_TAB` holds the knowledge-base-only ones
-  and is right-panel keys, not center tabs.
+  come the per-section tabs: chat → repo (`buildRepoTab` in
+  `center/chatSidebar.jsx`) and attachments; knowledge base → summary, folder
+  contents, attachments (built by `detailSidebar.jsx`); files → nothing else
+  yet. Tab keys shared across sections live in `constants/rightTabs.js`
+  (`RIGHT_TAB`) so `?right=info` means the same thing everywhere; the
+  knowledge-base-only keys are `DOC_TAB` in `constants/docTabs.js` —
+  right-panel keys, not center tabs.
 - State shared by the center and the right panel (the KB content draft,
   fullscreen, history) lives in `useDetailPanel`, hoisted to `KnowledgeBase`. It
   is no longer remounted per document, so it resets on `nodeId` change itself —
@@ -110,7 +111,9 @@ Panel open/closed state is **controlled state that lives in the URL**
   dropdown, built on `useSearchDropdown`). A section passes only `search` (fetch)
   and `describeItem` (icon/title/subtitle/badge); common labels live in
   `common.json` under `panelSearch.*`. Don't write another search widget —
-  `ChatSearch`/`FileSearch`/`TreeSearch` are 40-line adapters.
+  `ChatSearch`/`FileSearch`/`TreeSearch` are 40-line adapters. The one other
+  search surface is the app-header `GlobalSearch` (`common/search/`); panels
+  always get `PanelSearch`.
 - Keyboard: the list **container** is the single tab stop (`tabIndex={0}` +
   `onKeyDown={useListNavigation()}`); rows carry `data-ws-item` + `tabIndex={-1}`
   and are reached with arrows (Enter/Space opens, ←/→ collapses/expands through
@@ -160,15 +163,16 @@ Panel open/closed state is **controlled state that lives in the URL**
   the path doesn't encode how deep the importer happens to be nested.
 - A folder that grows past ~15 files on one level is due for a split into
   sub-feature folders, the way `chatPanel/` (`composer/`, `list/`, `messages/`,
-  `run/`, `center/`) and `knowledgeBasePanel/` (`tree/`, `detail/`, `editor/`,
-  `modals/`) are split — group by what the files do together (the tree, the
-  detail panel, the editor), not by file type (all hooks in one folder, all
-  modals in another).
+  `run/`, `center/`, `git/`), `knowledgeBasePanel/` (`tree/`, `detail/`,
+  `editor/`, `modals/`) and `filesPanel/` (`git/`, `changes/`) are split —
+  group by what the files do together (the tree, the detail panel, the
+  editor), not by file type (all hooks in one folder, all modals in another).
 - Components render; hooks own state and API orchestration; pure logic goes in
   plain `.js` modules next to the feature (`treeOps.js`, `fileChips.js`).
-- Keep files focused: a file approaching ~300 lines or holding 2+ exported
-  components is due for a split — `wc -l` answers this, so no list of offenders
-  is kept here. The chat section shows the shape a split section takes:
+- Keep files focused: a file approaching ~300 lines of **code** — comments and
+  blank lines don't count; the counting rule and the backend threshold are in
+  `CLAUDE.md` — or holding 2+ exported components is due for a split; no list
+  of offenders is kept here. The chat section shows the shape a split section takes:
   `ChatWindow` only wires hooks into `WorkspaceLayout` slots, state lives in
   `useChatList` / `useChatRun` / `useChatAttachments`, the centre column is its
   own component and the right-panel tabs are a `build*Tabs` function.
@@ -178,8 +182,11 @@ Panel open/closed state is **controlled state that lives in the URL**
   pattern, which new preview kinds should reuse too), `useNotice` (one notice
   descriptor per section beats a boolean and a modal per reason), and
   `useCopyFeedback` for any copy-to-clipboard button (`writeText` plus the
-  transient "copied" state and its timer). Several components still inline the
-  copy hook's body — migrate one when you touch it, don't add another.
+  transient "copied" state and its timer), `useDismissable`
+  (`common/layout/`) for anything that closes on outside click or Escape —
+  header menus, popovers — and `useModalFind`/`ModalFindBar` (`common/modal/`)
+  for Ctrl+F find scoped to an open dialog. Several components still inline
+  the copy hook's body — migrate one when you touch it, don't add another.
 - Async effects must be cancellation-aware (a `cancelled` flag or an AbortSignal
   in cleanup), matching the existing preview hooks.
 - **An effect never calls `setState` synchronously** (`react-hooks/set-state-in-effect`
@@ -205,6 +212,13 @@ Panel open/closed state is **controlled state that lives in the URL**
   deps it was hiding from, and whoever passes it memoizes it (`usePreviewCache`'s
   `seed`). A ref that survives is written from an effect or a handler, and is not
   passed into another hook — pass a getter if a hook needs to read it.
+- Tool results in chat render through the registry in
+  `chatPanel/messages/resultViews/registry.js`: an ordered list of
+  (detect, view) pairs matched on the **shape** of the answer, never on tool
+  names — MCP tools arrive from outside, so a name switch cannot be complete.
+  A new kind is a pure detect function (tested, `.js` beside its view) plus a
+  component, registered above the catch-all `content` entry; read the registry
+  header before adding one.
 - The two trees are intentionally separate: `knowledgeBasePanel/tree/TreeNode`
   (editable — drag-drop, pagination) versus `filesPanel/FileTreeNode`
   (read-only). Do not unify them.

@@ -32,4 +32,6 @@ paths:
   `common/modal/modalShell.css` the only place modal chrome does. The
   panel-local families (`set-btn`, `detail-icon-btn`, `new-chat-button`,
   `modal-overlay`, `tcd-overlay`, …) have been folded into them — keep it
-  that way.
+  that way. Chrome that two surfaces must not let drift apart gets the same
+  treatment: `common/ui/gitChrome.css` holds the repo-state chrome shown both
+  over the file tree and in chat's Repo tab.
