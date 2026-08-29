@@ -8,9 +8,11 @@ import static io.github.trialiya.kb.model.chat.dto.ChatEventType.USER_MESSAGE;
 import io.github.trialiya.kb.advisor.MessageLoggingAdvisor;
 import io.github.trialiya.kb.config.ChatModelRegistry;
 import io.github.trialiya.kb.model.chat.dto.CompactDetail;
+import io.github.trialiya.kb.model.chat.dto.CompactErrorPayload;
 import io.github.trialiya.kb.model.chat.dto.CompactPayload;
 import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
+import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.chat.entity.CompactMeta;
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
@@ -27,7 +29,6 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Executor;
 import lombok.extern.slf4j.Slf4j;
@@ -85,7 +86,8 @@ import org.springframework.web.server.ResponseStatusException;
  * <p><b>Токены раунда — обычный замер обращения</b> ({@link RunTokenUsage} на один вызов), и он
  * ложится в мету строки-плашки. Без него сжатие было бы единственной операцией чата, которая тратит
  * деньги и не попадает в статистику: итог по чату переставал бы сходиться со счётом провайдера
- * ровно на стоимость каждого {@code /compact}.
+ * ровно на стоимость каждого {@code /compact}. Раунд, который сводки не дал, оплачен ровно так же —
+ * его замер записывается на строку самой команды (см. {@link #spentRound}).
  *
  * <p><b>Команда остаётся в истории, но не участвует в сжатии.</b> Сообщение {@code /compact
  * <текст>} сохраняется обычной USER-строкой — так же видимой, как любая другая реплика, — но само
@@ -306,15 +308,24 @@ public class CompactService {
         }
     }
 
-    /** Сжатие не состоялось: пишем в лог и снимаем блокировку со всех вкладок разом. */
+    /**
+     * Сжатие не состоялось: пишем в лог и снимаем блокировку со всех вкладок разом. Раунд, который
+     * до модели дошёл, отдаёт вкладкам ещё и свой замер (см. {@link #spentRound}) — до сюда он
+     * доезжает самой ошибкой.
+     */
     private void failed(String conversationId, String runId, Exception e) {
         log.error("[{}] Compaction failed: {}", conversationId, e.getMessage(), e);
+        final @Nullable CompactRoundFailed round =
+                e instanceof CompactRoundFailed failed ? failed : null;
         events.publish(
                 conversationId,
                 COMPACT_ERROR,
                 runId,
                 null,
-                Map.of("message", String.valueOf(e.getMessage())));
+                new CompactErrorPayload(
+                        String.valueOf(e.getMessage()),
+                        round == null ? null : round.messageId(),
+                        round == null ? null : round.usage()));
     }
 
     /**
@@ -374,6 +385,12 @@ public class CompactService {
             spec = spec.options(OpenAiChatOptions.builder().model(model));
         }
         final @Nullable ChatResponse response = spec.call().chatResponse();
+        // Замер обращения — накопителем прогона на один вызов: правило сборки у сжатия и у ответа
+        // обязано быть одним, иначе одни и те же деньги в двух местах статистики назывались бы
+        // разными числами. Снимается он ДО проверок ниже: раунд, который сводки не дал, провайдер
+        // посчитал так же, как удавшийся (см. spentRound). Пустой замер — «эндпоинт не измеряет», и
+        // в мету он не идёт ни там, ни здесь: «неизвестно» это не ноль.
+        final RunTokenUsage usage = RunTokenUsage.Tally.EMPTY.with(TokenUsage.of(response)).view();
         final @Nullable String content = answerOf(response);
         // Ответ с вызовом инструмента не годится в сводку, даже когда текст в нём есть. Модель
         // прочла схемы (они в запросе ради кэша) и не послушалась запрета из compactor.md, а
@@ -382,22 +399,17 @@ public class CompactService {
         // тексту, этой одной фразой был бы заменён весь контекст чата, и вернуть его уже неоткуда.
         // Исполнять вызов всё равно некому, так что раунд кончается здесь.
         if (calledTools(response)) {
-            throw new IllegalStateException(
-                    "The model called a tool instead of writing the compaction");
+            throw spentRound(
+                    commandRow, usage, "The model called a tool instead of writing the compaction");
         }
         if (content == null || content.isBlank()) {
             // Разметить окно сжатым, не сохранив сводку, значит стереть чат целиком. Сама команда
             // при этом уже сохранена и никуда не денется — останется в истории неотвеченной, как
             // любой упавший вопрос.
-            throw new IllegalStateException("The model returned an empty compaction");
+            throw spentRound(commandRow, usage, "The model returned an empty compaction");
         }
 
         final int messages = rows.size() + 1;
-        // Замер обращения — накопителем прогона на один вызов: правило сборки у сжатия и у ответа
-        // обязано быть одним, иначе одни и те же деньги в двух местах статистики назывались бы
-        // разными числами. Пустой замер (эндпоинт не отдаёт usage) в мету не идёт — «неизвестно»
-        // это не ноль.
-        final RunTokenUsage usage = RunTokenUsage.Tally.EMPTY.with(TokenUsage.of(response)).view();
         final ChatMessageEntity notice =
                 summaryWriter.writeCompacted(
                         new SummaryWriter.SummaryRow(
@@ -435,6 +447,60 @@ public class CompactService {
                 usage.cacheReadTokens(),
                 usage.outputTokens());
         return CompactPayload.of(notice);
+    }
+
+    /**
+     * Раунд не состоялся — но провайдер его посчитал. Записывает замер на строку самой команды и
+     * возвращает ошибку, которой раунд кончится.
+     *
+     * <p>Без этого сжатие оставалось бы единственной операцией чата, которая тратит деньги молча:
+     * удавшийся раунд кладёт свои токены на плашку ({@code SummaryWriter.CompactStats}), а
+     * несостоявшемуся плашки нет — сводки он не написал, и историю трогать нельзя. Остаётся сама
+     * команда: она уже сохранена и остаётся в истории неотвеченной, как любой упавший вопрос, а
+     * замер на ней читается тем же полем меты, что и у ответа, — итог по чату считается по всем
+     * рядам одним правилом и сходится со счётом провайдера.
+     *
+     * <p>Контекстом чата этот замер не является ни в каком виде: он описывает окно, которое раунд
+     * прочитал, вместе с его собственной инструкцией, а само окно осталось на месте. Отсюда правило
+     * на фронте: замер на USER-ряду идёт только в итог (см. {@code tokenUsage.js}).
+     */
+    private CompactRoundFailed spentRound(
+            ChatMessageEntity commandRow, RunTokenUsage usage, String reason) {
+        if (usage.isEmpty()) {
+            return new CompactRoundFailed(reason, commandRow.getId(), null);
+        }
+        final @Nullable ChatMessageMeta meta = commandRow.getMeta();
+        chatMessageRepository.save(
+                commandRow.withMeta(
+                        meta == null ? ChatMessageMeta.ofUsage(usage) : meta.withUsage(usage)));
+        return new CompactRoundFailed(reason, commandRow.getId(), usage);
+    }
+
+    /**
+     * Раунд сжатия, который обращение к модели сделал, а сводки не дал. Несёт замер и id команды,
+     * на которую он записан: {@code COMPACT_ERROR} отдаёт их вкладкам, чтобы те досчитали итог чата
+     * сразу, а не после перезагрузки.
+     */
+    public static class CompactRoundFailed extends IllegalStateException {
+
+        private final long messageId;
+
+        /** {@code transient} — {@link RunTokenUsage} не {@code Serializable}, а исключение да. */
+        private final transient @Nullable RunTokenUsage usage;
+
+        CompactRoundFailed(String reason, long messageId, @Nullable RunTokenUsage usage) {
+            super(reason);
+            this.messageId = messageId;
+            this.usage = usage;
+        }
+
+        public long messageId() {
+            return messageId;
+        }
+
+        public @Nullable RunTokenUsage usage() {
+            return usage;
+        }
     }
 
     /** Модель ответила вызовом инструмента — см. разбор отказа в {@link #compact}. */

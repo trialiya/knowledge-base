@@ -764,6 +764,24 @@ describe('applyChatEvent', () => {
     expect(chat.runKind).toBeNull();
   });
 
+  test('COMPACT_ERROR puts the tokens of the spent round on the command bubble', () => {
+    // Раунд до модели дошёл, сводки не дал — деньги потрачены, и бэкенд записал замер на строку
+    // команды. Вкладка обязана досчитать его сразу: иначе её итог по чату расходился бы с тем,
+    // что она увидит после перезагрузки.
+    const usage = { contextTokens: 169040, promptTokens: 169000, outputTokens: 40, modelCalls: 1 };
+    let chat = userChat();
+    chat.messages[0].dbId = 7;
+    chat = applyChatEvent(chat, { type: 'COMPACT_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(
+      chat,
+      { type: 'COMPACT_ERROR', runId: 'r1', payload: { message: 'boom', messageId: 7, usage } },
+      ctx,
+    );
+
+    expect(chat.messages[0].usage).toEqual(usage);
+    expect(last(chat)).toMatchObject({ error: true });
+  });
+
   test('RUN_USAGE marks the run bubble with the run state', () => {
     let chat = userChat();
     chat = applyChatEvent(chat, { type: 'RUN_STARTED', runId: 'r1' }, ctx);

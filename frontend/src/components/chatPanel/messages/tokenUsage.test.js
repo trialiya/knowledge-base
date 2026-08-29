@@ -216,6 +216,43 @@ describe('tokenUsage', () => {
     });
   });
 
+  // Замер на ряду пользователя бывает у одного случая — несостоявшегося сжатия, записанного на
+  // строку своей команды (CompactService.spentRound). Деньги за него заплачены, но контекст чата
+  // он не описывает: это прочитанное раундом окно плюс его собственная инструкция, а окно осталось
+  // в чате как было.
+  describe('замер несостоявшегося сжатия', () => {
+    const spent = { contextTokens: 169040, promptTokens: 169000, basePromptTokens: 169000, outputTokens: 40 };
+    const command = { mid: 9, sender: 'user', usage: { ...spent, modelCalls: 1 } };
+
+    test('идёт в счёт провайдера наравне с прогонами', () => {
+      const totals = chatUsageTotals([{ sender: 'ai', usage: { contextTokens: 12000, promptTokens: 11000 } }, command]);
+
+      expect(totals).toMatchObject({ runs: 2, promptTokens: 180000, modelCalls: 1 });
+    });
+
+    test('но не выдаёт себя ни за занятый контекст, ни за системную часть', () => {
+      const messages = [{ sender: 'ai', usage: { contextTokens: 12000, basePromptTokens: 9800 } }, command];
+
+      expect(contextUsageOf(messages)).toEqual({ contextTokens: 12000, basePromptTokens: 9800 });
+      expect(baseContextOf(messages)).toBe(9800);
+    });
+
+    test('и «стало» после сжатия им не закрывается — его закрывает ответ', () => {
+      const messages = [
+        {
+          mid: 7,
+          sender: 'ai',
+          compact: { messages: 40 },
+          usage: { contextTokens: 170200, promptTokens: 169000, outputTokens: 1200 },
+        },
+        command,
+        { sender: 'ai', usage: { contextTokens: 15000, basePromptTokens: 12000 } },
+      ];
+
+      expect(compactSavingsIn(messages).get(7)).toMatchObject({ after: 12000, estimated: false });
+    });
+  });
+
   describe('runInputGrowth', () => {
     const ai = (usage, rest = {}) => ({ sender: 'ai', usage, ...rest });
     const live = (usage) => ai(usage, { runId: 'r2' });

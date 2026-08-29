@@ -2,6 +2,7 @@ package io.github.trialiya.kb.service.chat.memory;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -16,6 +17,7 @@ import static org.mockito.Mockito.when;
 import io.github.trialiya.kb.config.ChatModelRegistry;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.CompactDetail;
+import io.github.trialiya.kb.model.chat.dto.CompactErrorPayload;
 import io.github.trialiya.kb.model.chat.dto.CompactPayload;
 import io.github.trialiya.kb.model.chat.dto.UserMessagePayload;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
@@ -345,6 +347,70 @@ class CompactServiceTest {
 
         assertThat(savedRows().get(1).getMeta().usage()).isNull();
         assertThat(payload.usage()).isNull();
+    }
+
+    /**
+     * Раунд, который сводки не дал, провайдер посчитал так же, как удавшийся: его замер обязан
+     * остаться в чате — на единственном ряду, который у несостоявшегося сжатия есть, — строке самой
+     * команды. Историю при этом он по-прежнему не трогает: разметки нет, сводки нет, записан ровно
+     * один ряд.
+     */
+    @Test
+    void aRoundThatWroteNoSummaryStillLeavesItsTokensInTheChat() {
+        answerWith("   ", new DefaultUsage(169_000, 40, 169_040, null, 160_000L, 0L));
+        final ChatMessageEntity command = commandRow(6).entity();
+
+        final Throwable thrown =
+                catchThrowable(() -> service().compact(CONV, turns(2), command, null, OPTIONS));
+
+        assertThat(thrown).isInstanceOf(CompactService.CompactRoundFailed.class);
+        final CompactService.CompactRoundFailed failed = (CompactService.CompactRoundFailed) thrown;
+        // Событию COMPACT_ERROR числа нужны здесь же: вкладка досчитывает итог чата, не дожидаясь
+        // перезагрузки.
+        assertThat(failed.messageId()).isEqualTo(command.getId());
+        assertThat(failed.usage()).isNotNull();
+        assertThat(failed.usage().promptTokens()).isEqualTo(169_000);
+
+        verify(repository, never()).updateSummarized(anyString(), anyLong(), anyLong());
+        final ArgumentCaptor<ChatMessageEntity> saved =
+                ArgumentCaptor.forClass(ChatMessageEntity.class);
+        verify(repository).save(saved.capture());
+        final ChatMessageMeta meta = saved.getValue().getMeta();
+        assertThat(saved.getValue().getId()).isEqualTo(command.getId());
+        assertThat(meta).isNotNull();
+        assertThat(meta.usage()).isNotNull();
+        assertThat(meta.usage().promptTokens()).isEqualTo(169_000);
+        assertThat(meta.usage().cacheReadTokens()).isEqualTo(160_000);
+    }
+
+    /**
+     * Тот же замер уезжает вкладкам событием — иначе живая вкладка разошлась бы с перезагруженной.
+     */
+    @Test
+    void theErrorEventCarriesTheTokensOfTheRoundThatFailed() {
+        when(slots.claim(CONV)).thenReturn("run-1");
+        final List<PromptRow> oldWindow = turns(1);
+        final PromptRow command = row(3, MessageType.USER, "/compact");
+        when(chatHistory.promptRows(CONV)).thenReturn(append(oldWindow, command));
+        when(chatHistory.promptRowsBefore(CONV, 3L)).thenReturn(oldWindow);
+        when(chatHistory.saveUserMessage(CONV, "/compact", List.of(), null, null))
+                .thenReturn(command.entity());
+        answerWith("", new DefaultUsage(12_000, 3, 12_003, null, 0L, 0L));
+
+        service().start(CONV, "/compact", null, OPTIONS, null);
+
+        final ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(events)
+                .publish(
+                        eq(CONV),
+                        eq(ChatEventType.COMPACT_ERROR),
+                        eq("run-1"),
+                        isNull(),
+                        payload.capture());
+        final CompactErrorPayload error = (CompactErrorPayload) payload.getValue();
+        assertThat(error.messageId()).isEqualTo(command.entity().getId());
+        assertThat(error.usage()).isNotNull();
+        assertThat(error.usage().promptTokens()).isEqualTo(12_000);
     }
 
     /**

@@ -338,6 +338,13 @@ export function applyChatEvent(chat, ev, ctx) {
       // Без retryMode: повтор здесь — это заново набранная команда, а не тот же ход
       // поверх той же истории (история могла и успеть измениться).
       msgs[idx] = { ...msgs[idx], text: ctx.compactErrorLabel, error: true };
+      // Раунд, который сводки не дал, провайдер всё равно посчитал, и бэкенд записал его замер
+      // на строку самой команды (см. CompactService.spentRound). Ставим его и здесь: иначе итог
+      // по чату в этой вкладке расходился бы с тем, что она увидит после перезагрузки.
+      if (payload?.usage && payload?.messageId != null) {
+        const command = msgs.findIndex((m) => m.dbId === payload.messageId);
+        if (command >= 0) msgs[command] = { ...msgs[command], usage: payload.usage };
+      }
       finalize(msgs, runId);
       return { ...chat, messages: msgs, ...IDLE_RUN_STATE };
     }

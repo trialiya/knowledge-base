@@ -180,6 +180,16 @@ describe('transformPage: compaction notice', () => {
     expect(bubbles[0].usage).toEqual(usage);
   });
 
+  test('a spent round that wrote no summary keeps its tokens on the command row', () => {
+    // Несостоявшееся сжатие оплачено так же, как удавшееся, и бэкенд пишет его замер на строку
+    // самой команды (CompactService.spentRound). Отбрось его загрузка — итог по чату после
+    // перезагрузки недосчитался бы этих денег.
+    const usage = { contextTokens: 169040, promptTokens: 169000, outputTokens: 40, modelCalls: 1 };
+    const { bubbles } = transformPage([{ id: 7, content: '/compact', type: 'USER', usage }]);
+
+    expect(bubbles[0]).toMatchObject({ sender: 'user', usage });
+  });
+
   test('does not glue a following tool-only segment onto the notice', () => {
     const { bubbles } = transformPage([
       { id: 1, content: '', type: 'ASSISTANT', compact: { messages: 4, summaryChars: 100, summaryId: 0 } },

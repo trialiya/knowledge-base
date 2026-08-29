@@ -31,6 +31,17 @@ export const formatTokens = (value) => {
 export const hasUsage = (usage) => !!usage && Number(usage.contextTokens) > 0;
 
 /**
+ * Замер, который описывает контекст чата, — то есть замер прогона. На ряду ПОЛЬЗОВАТЕЛЯ замер
+ * контекстом не является: там он бывает у одного случая — несостоявшегося сжатия, записанного на
+ * строку своей команды (см. CompactService.spentRound), — и описывает окно, которое раунд прочитал,
+ * вместе с его собственной инструкцией, при том что само окно осталось в чате как было.
+ *
+ * В счёт провайдера такой замер идёт наравне со всеми (chatUsageTotals: деньги потрачены), а в
+ * «сколько занято сейчас» и в «стало» после сжатия — нет.
+ */
+const runUsage = (m) => (m?.sender === SENDER.USER ? null : m?.usage);
+
+/**
  * Какая доля total input прочитана из кэша, в процентах. Именно она объясняет разрыв между
  * занятым контекстом и суммарным входом: повторная часть у провайдера идёт по ставке кэша.
  */
@@ -107,7 +118,7 @@ export const contextUsageOf = (messages, base) => {
   for (let i = (messages?.length || 0) - 1; i >= 0; i--) {
     const m = messages[i];
     if (m.compact) return contextAfterCompact(m, base);
-    if (hasUsage(m.usage)) return m.usage;
+    if (hasUsage(runUsage(m))) return m.usage;
   }
   return null;
 };
@@ -131,7 +142,7 @@ export const baseContextOf = (messages, partial) => {
     // Плашка сжатия тоже несёт замер, но её basePromptTokens — это всё окно, которое сжатие
     // прочитало: у раунда из одного обращения «первый prompt» и есть весь его вход.
     if (m.compact) continue;
-    if (!hasUsage(m.usage)) continue;
+    if (!hasUsage(runUsage(m))) continue;
     return Number(m.usage.basePromptTokens) || null;
   }
   return null;
@@ -191,7 +202,7 @@ export const compactSavingsIn = (messages, partial) => {
       pending = m;
       continue;
     }
-    if (pending && hasUsage(m.usage)) {
+    if (pending && hasUsage(runUsage(m))) {
       settle(pending, startingContextOf(m.usage), false);
       pending = null;
     }
