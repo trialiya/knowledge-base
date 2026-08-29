@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import InfoList from '@/components/common/ui/InfoList';
-import { cacheMissOf, cacheShare, formatTokens } from '../messages/tokenUsage';
+import { cacheMissOf, cacheShare, formatContext, formatTokens } from '../messages/tokenUsage';
 
 /**
  * Системная часть контекста: доля от занятого — там, где занятое известно. Она и есть ответ на
@@ -41,7 +41,7 @@ const ChatUsage = ({ usage }) => {
   const cached = totals ? Number(totals.cacheReadTokens) : 0;
 
   const rows = [
-    { label: t('usage.context'), value: current ? formatTokens(current.contextTokens) : null },
+    { label: t('usage.context'), value: current ? formatContext(current) : null },
     // Системная часть — под контекстом и с долей от него: вопрос к ней всегда «сколько занято ещё
     // до разговора», а он про отношение, а не про абсолютное число.
     { label: t('usage.system'), value: systemValue(usage?.base, current, t) },

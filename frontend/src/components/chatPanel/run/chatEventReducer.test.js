@@ -607,6 +607,20 @@ describe('applyChatEvent', () => {
     expect(last(chat)).toMatchObject({ sender: 'ai', runId: 'r1', text: 'сжимаю…' });
   });
 
+  // Таймер у сжатия по тем же правилам, что и у ответа: сжатие идёт по всему контексту сразу и
+  // живёт дольше среднего прогона, так что «сколько уже» здесь нужнее всего.
+  test('COMPACT_STARTED anchors the timer too, and the terminal event clears it', () => {
+    let chat = applyChatEvent(userChat(), { type: 'COMPACT_STARTED', runId: 'r1' }, ctx);
+    const anchored = chat.runStartedAt;
+    expect(anchored).toEqual(expect.any(Number));
+
+    chat = applyChatEvent(chat, { type: 'COMPACT_STARTED', runId: 'r1' }, ctx); // реплей
+    expect(chat.runStartedAt).toBe(anchored);
+
+    chat = applyChatEvent(chat, { type: 'COMPACT_DONE', runId: 'r1', payload: { messageId: 5 } }, ctx);
+    expect(chat.runStartedAt).toBeNull();
+  });
+
   test('COMPACT_DONE turns that bubble into the notice and unblocks the chat', () => {
     let chat = applyChatEvent(userChat(), { type: 'COMPACT_STARTED', runId: 'r1' }, ctx);
     chat = applyChatEvent(
@@ -630,6 +644,16 @@ describe('applyChatEvent', () => {
     expect(last(chat).runId).toBeUndefined();
     expect(chat.runId).toBeNull();
     expect(chat.runKind).toBeNull();
+  });
+
+  // Токены раунда приезжают событием, а не только из истории: иначе счётчик контекста и итоги
+  // чата в живой вкладке разошлись бы с перезагруженной до следующего ответа.
+  test('COMPACT_DONE carries the tokens of the round onto the notice', () => {
+    const usage = { contextTokens: 170200, promptTokens: 169000, outputTokens: 1200, modelCalls: 1 };
+    let chat = applyChatEvent(userChat(), { type: 'COMPACT_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(chat, { type: 'COMPACT_DONE', runId: 'r1', payload: { messageId: 5, usage } }, ctx);
+
+    expect(last(chat).usage).toEqual(usage);
   });
 
   test('COMPACT_DONE survives finalize even though the notice bubble has no text', () => {
@@ -738,6 +762,24 @@ describe('applyChatEvent', () => {
     expect(last(chat).retryMode).toBeUndefined();
     expect(chat.runId).toBeNull();
     expect(chat.runKind).toBeNull();
+  });
+
+  test('COMPACT_ERROR puts the tokens of the spent round on the command bubble', () => {
+    // Раунд до модели дошёл, сводки не дал — деньги потрачены, и бэкенд записал замер на строку
+    // команды. Вкладка обязана досчитать его сразу: иначе её итог по чату расходился бы с тем,
+    // что она увидит после перезагрузки.
+    const usage = { contextTokens: 169040, promptTokens: 169000, outputTokens: 40, modelCalls: 1 };
+    let chat = userChat();
+    chat.messages[0].dbId = 7;
+    chat = applyChatEvent(chat, { type: 'COMPACT_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(
+      chat,
+      { type: 'COMPACT_ERROR', runId: 'r1', payload: { message: 'boom', messageId: 7, usage } },
+      ctx,
+    );
+
+    expect(chat.messages[0].usage).toEqual(usage);
+    expect(last(chat)).toMatchObject({ error: true });
   });
 
   test('RUN_USAGE marks the run bubble with the run state', () => {

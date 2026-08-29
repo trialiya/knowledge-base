@@ -19,9 +19,12 @@ import { baseContextOf, chatUsageTotals, contextUsageOf } from '../messages/toke
  * @returns {{current: object|null, base: number|null, totals: object|null, partial: boolean}}
  */
 const useChatUsage = (messages, partial) => {
+  // Системная часть считается первой: сразу после сжатия занятый контекст не замерен ничем и
+  // оценивается по ней (см. contextUsageOf).
+  const base = baseContextOf(messages, partial);
   const fresh = {
-    current: contextUsageOf(messages),
-    base: baseContextOf(messages, partial),
+    current: contextUsageOf(messages, base),
+    base,
     totals: chatUsageTotals(messages),
     partial: !!partial,
   };

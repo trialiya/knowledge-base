@@ -4,6 +4,7 @@ import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
@@ -39,11 +40,24 @@ public class ConversationSlots {
     private final ConcurrentHashMap<String, Hold> byConversation = new ConcurrentHashMap<>();
 
     /**
-     * Кто держит чат: id операции и генерация ли это. Вид нужен ровно на то окно, когда прогон уже
-     * покинул реестр, а заявку ещё держит (терминальная обработка пишет в БД и доставляет очередь):
-     * реестра для ответа «что это было» там уже нет, а вкладка спрашивает.
+     * Кто держит чат: id операции, генерация ли это и когда её взяли. Вид нужен ровно на то окно,
+     * когда прогон уже покинул реестр, а заявку ещё держит (терминальная обработка пишет в БД и
+     * доставляет очередь): реестра для ответа «что это было» там уже нет, а вкладка спрашивает.
+     *
+     * <p>Момент взятия — по тем же монотонным часам, что и у прогона ({@code RunScope}): его читает
+     * таймер во вкладке, открытой посреди операции, а системное время между двумя чтениями умеет
+     * прыгнуть назад.
      */
-    private record Hold(String runId, boolean generation) {}
+    private record Hold(String runId, boolean generation, long startedAtNanos) {
+
+        Hold(String runId, boolean generation) {
+            this(runId, generation, System.nanoTime());
+        }
+
+        long elapsedMs() {
+            return (System.nanoTime() - startedAtNanos) / 1_000_000;
+        }
+    }
 
     public ConversationSlots(ChatEventService events) {
         this.events = events;
@@ -145,6 +159,18 @@ public class ConversationSlots {
     public boolean holdsGeneration(String conversationId, String runId) {
         final Hold hold = byConversation.get(conversationId);
         return hold != null && hold.runId().equals(runId) && hold.generation();
+    }
+
+    /**
+     * Сколько миллисекунд заявка держится — длительность для таймера во вкладке, открытой посреди
+     * операции. Параллель {@code RunScope#elapsedMs}, и другого источника у операции нет: своей
+     * области прогона она не заводит.
+     *
+     * <p>{@code null} — чат держит кто-то другой (или уже никто): показать таймер не от чего.
+     */
+    public @Nullable Long elapsedMs(String conversationId, String runId) {
+        final Hold hold = byConversation.get(conversationId);
+        return hold != null && hold.runId().equals(runId) ? hold.elapsedMs() : null;
     }
 
     /**

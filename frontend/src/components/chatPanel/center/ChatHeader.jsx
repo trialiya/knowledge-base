@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { IconTrash, IconSearch } from '@/icons/index';
-import { formatTokens, usageTooltip } from '../messages/tokenUsage';
+import { formatContext, usageTooltip } from '../messages/tokenUsage';
 
 /**
  * Шапка активного чата: заголовок с инлайн-переименованием и кнопки
@@ -24,7 +24,8 @@ import { formatTokens, usageTooltip } from '../messages/tokenUsage';
  *
  * props:
  *   chat            — активный чат (обязателен)
- *   contextUsage    — токены последнего измеренного прогона либо null (см. contextUsageOf)
+ *   contextUsage    — занятый контекст: замер последнего прогона, оценка сразу после
+ *                     сжатия (`estimated`) либо null (см. contextUsageOf)
  *   canSearch       — доступен ли find-бар для этого чата
  *   searchOpen      — find-бар открыт (подсветка кнопки)
  *   onToggleSearch  — () => void
@@ -91,8 +92,17 @@ const ChatHeader = ({ chat, contextUsage, canSearch, searchOpen, onToggleSearch,
         </h3>
       )}
       {contextUsage && (
-        <span className="chat-header__context" title={usageTooltip(contextUsage, t, 'header.contextTooltip')}>
-          {t('header.context', { context: formatTokens(contextUsage.contextTokens) })}
+        <span
+          className="chat-header__context"
+          title={
+            // У оценки разбивки нет: её слагаемые — из разных запросов, и подсказка про «этот
+            // прогон» соврала бы. Вместо неё одна строка о том, почему число приблизительное.
+            contextUsage.estimated
+              ? t('header.contextEstimatedTooltip')
+              : usageTooltip(contextUsage, t, 'header.contextTooltip')
+          }
+        >
+          {t('header.context', { context: formatContext(contextUsage) })}
         </span>
       )}
       <div className="workspace__head-actions">

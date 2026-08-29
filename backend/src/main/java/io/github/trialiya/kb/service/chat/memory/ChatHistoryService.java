@@ -559,6 +559,29 @@ public class ChatHistoryService {
     }
 
     /**
+     * Живое окно ДО указанной позиции — то же, что {@link #promptRows}, но без неё самой и всего,
+     * что за ней. Нужно сжатию ({@code CompactService}): команда {@code /compact} к моменту раунда
+     * уже сохранена, а материалом сжатия не является.
+     *
+     * <p>Отсечь хвост здесь, а не у вызывающего, обязательно из-за блока активного проекта: он
+     * достаётся ряду, открывшему последний ход ({@link ActiveProjectNotice#anchor}), а команда —
+     * обычный USER-ряд и ход открывает. Отфильтруй вызывающий готовые {@link PromptRow}, и блок
+     * уехал бы вместе с командой: модель не узнала бы, в каком репозитории написано то, что она
+     * сжимает, а окно разошлось бы с последним запросом чата на последнем же вопросе — то есть
+     * ровно там, где провайдер перестал бы засчитывать кэш промпта.
+     */
+    public List<PromptRow> promptRowsBefore(String conversationId, long position) {
+        return promptRowsFor(
+                conversationId,
+                chatMessageRepository
+                        .findChatMessageByConversationIdAndSummarizedFalseOrderByCreatedAtAscPositionAsc(
+                                conversationId)
+                        .stream()
+                        .filter(row -> row.getPosition() < position)
+                        .toList());
+    }
+
+    /**
      * Промпт-вид КОНКРЕТНЫХ рядов — для сообщений, которые доставлены внутрь уже идущего прогона и
      * должны доехать до модели этой же итерацией (см. {@code InterjectionAdvisor}): окно итерации
      * собрано advisor-ом памяти раньше, чем эти ряды записаны, и перечитывать его целиком ради

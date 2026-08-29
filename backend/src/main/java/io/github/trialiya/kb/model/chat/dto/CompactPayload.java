@@ -1,9 +1,12 @@
 package io.github.trialiya.kb.model.chat.dto;
 
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
+import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
 import io.github.trialiya.kb.model.chat.entity.CompactMeta;
+import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import java.time.LocalDateTime;
 import java.util.Objects;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Нагрузка события {@link ChatEventType#COMPACT_DONE}: чем закончилось сжатие контекста.
@@ -21,16 +24,28 @@ import java.util.Objects;
  *     показывает модалка деталей. С {@code messages} это ответ на «во сколько раз сжали», который
  *     иначе виден только в логах
  * @param createdAt время завершения раунда — оно же время плашки в ленте
+ * @param usage токены раунда сжатия ({@code null} — эндпоинт замера не отдал). Едут в событии по
+ *     той же причине, что и всё остальное здесь: вкладка, которая сжатие дождалась, обязана
+ *     показать плашку такой же, какой её увидит перезагруженная, — а та берёт эти числа из меты
+ *     ряда
  */
 public record CompactPayload(
-        long messageId, int messages, int summaryChars, LocalDateTime createdAt) {
+        long messageId,
+        int messages,
+        int summaryChars,
+        LocalDateTime createdAt,
+        @Nullable RunTokenUsage usage) {
 
     public static CompactPayload of(ChatMessageEntity notice) {
+        final ChatMessageMeta meta =
+                Objects.requireNonNull(notice.getMeta(), "not a compaction notice row");
         final CompactMeta compact =
-                Objects.requireNonNull(
-                        notice.getMeta() == null ? null : notice.getMeta().compact(),
-                        "not a compaction notice row");
+                Objects.requireNonNull(meta.compact(), "not a compaction notice row");
         return new CompactPayload(
-                notice.getId(), compact.messages(), compact.summaryChars(), notice.getCreatedAt());
+                notice.getId(),
+                compact.messages(),
+                compact.summaryChars(),
+                notice.getCreatedAt(),
+                meta.usage());
     }
 }

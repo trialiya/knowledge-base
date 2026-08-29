@@ -7,6 +7,7 @@ import RunStatus from '@/components/chatPanel/composer/RunStatus';
 import ChatRepoPanel from '@/components/chatPanel/git/ChatRepoPanel';
 import GitCommandsModal from '@/components/chatPanel/git/GitCommandsModal';
 import GitOutputCard from '@/components/chatPanel/git/GitOutputCard';
+import CompactNotice from '@/components/chatPanel/messages/CompactNotice';
 import ToolCallDetailModal from '@/components/chatPanel/messages/ToolCallDetailModal';
 import GitBranchBar from '@/components/filesPanel/git/GitBranchBar';
 import Breadcrumb from '@/components/filesPanel/Breadcrumb';
@@ -32,6 +33,7 @@ import * as aiConfig from '../fixtures/aiConfig';
 import * as chatHeader from '../fixtures/chatHeader';
 import * as chatRepo from '../fixtures/chatRepo';
 import * as chatUsage from '../fixtures/chatUsage';
+import * as compactNotice from '../fixtures/compactNotice';
 import * as composerToolbar from '../fixtures/composerToolbar';
 import * as detailHeader from '../fixtures/detailHeader';
 import * as detailPanel from '../fixtures/detailPanel';
@@ -190,6 +192,14 @@ const REGISTRY = [
     frame: 'feed',
     render: (p) => <RunStatus startedAt={p.startedAt} inputGrowth={p.inputGrowth} />,
   },
+
+  // Плашка сжатия — по состоянию экономии на кейс. Рамка `feed`: плашка живёт разделителем
+  // в ленте и меряется её шириной.
+  ...['measured', 'estimated', 'unmeasured'].map((name) => ({
+    id: `compactNotice.js#${name}`,
+    frame: 'feed',
+    render: (p) => <CompactNotice {...p} />,
+  })),
 
   // Нижняя панель композера — по состоянию занятости чата на кейс. Рамка `feed`:
   // панель живёт в колонке ленты, и ряд селекторов меряется её шириной.
@@ -438,6 +448,7 @@ const MODULES = {
   'operationRow.js': operationRow,
   'composerToolbar.js': composerToolbar,
   'phraseFill.js': phraseFill,
+  'compactNotice.js': compactNotice,
   'runStatus.js': runStatus,
   'syncDiff.js': syncDiff,
   'systemInfo.js': systemInfo,

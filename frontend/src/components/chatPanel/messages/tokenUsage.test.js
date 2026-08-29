@@ -4,7 +4,9 @@ import {
   cacheMissOf,
   cacheShare,
   chatUsageTotals,
+  compactSavingsIn,
   contextUsageOf,
+  formatContext,
   formatTokens,
   hasUsage,
   runInputGrowth,
@@ -87,6 +89,16 @@ describe('tokenUsage', () => {
       expect(baseContextOf([{ sender: 'user' }])).toBeNull();
       expect(baseContextOf(undefined)).toBeNull();
     });
+
+    test('плашка сжатия системной частью не притворяется: её база — всё прочитанное окно', () => {
+      // У раунда из одного обращения basePromptTokens и есть весь его вход.
+      const messages = [
+        { sender: 'ai', compact: { messages: 40 }, usage: { contextTokens: 170000, basePromptTokens: 169000 } },
+        ai({ contextTokens: 13000, basePromptTokens: 12000 }),
+      ];
+
+      expect(baseContextOf(messages)).toBe(12000);
+    });
   });
 
   describe('contextUsageOf', () => {
@@ -105,15 +117,139 @@ describe('tokenUsage', () => {
       expect(contextUsageOf(messages)).toEqual({ contextTokens: 11000 });
     });
 
-    test('после /compact счётчика нет: замер выше плашки описывает выброшенную историю', () => {
+    test('после /compact счётчик оценивается: системная часть плюс написанная сводка', () => {
+      const messages = [
+        ai({ contextTokens: 90000 }),
+        { sender: 'ai', compact: { messages: 40 }, usage: { contextTokens: 91000, outputTokens: 1200 } },
+      ];
+
+      // 9800 (системная часть) + 1200 (сводка) — и это оценка, а не замер: провайдер меряет
+      // запросы, а между сжатием и следующим вопросом запросов нет.
+      expect(contextUsageOf(messages, 9800)).toEqual({ contextTokens: 11000, estimated: true });
+      expect(formatContext(contextUsageOf(messages, 9800))).toBe('~11.0k');
+    });
+
+    test('замер выше плашки текущим контекстом не становится ни при каких условиях', () => {
       const messages = [ai({ contextTokens: 90000 }), { sender: 'ai', compact: { messages: 40 } }];
 
+      // Системная часть известна, но сам раунд не измерен — складывать не с чем.
+      expect(contextUsageOf(messages, 9800)).toBeNull();
+      // И тем более когда неизвестна и она.
       expect(contextUsageOf(messages)).toBeNull();
+    });
+
+    test('первый же ответ после сжатия вытесняет оценку замером', () => {
+      const messages = [
+        { sender: 'ai', compact: { messages: 40 }, usage: { contextTokens: 91000, outputTokens: 1200 } },
+        ai({ contextTokens: 13400 }),
+      ];
+
+      expect(contextUsageOf(messages, 9800)).toEqual({ contextTokens: 13400 });
     });
 
     test('в чате без единого замера показывать нечего', () => {
       expect(contextUsageOf([{ sender: 'user' }])).toBeNull();
       expect(contextUsageOf(undefined)).toBeNull();
+    });
+  });
+
+  describe('compactSavingsIn', () => {
+    const notice = (mid, usage) => ({ mid, sender: 'ai', compact: { messages: 40 }, usage });
+    const ai = (usage) => ({ sender: 'ai', usage });
+
+    test('«до» — вход раунда, «после» — начало следующего запроса, оба замерены', () => {
+      const messages = [
+        ai({ contextTokens: 168000, basePromptTokens: 9800 }),
+        notice(7, { contextTokens: 170200, promptTokens: 169000, outputTokens: 1200 }),
+        ai({ contextTokens: 15000, basePromptTokens: 12000 }),
+      ];
+
+      // 169 000 → 12 000: сжали на 93%. «После» берётся из базы следующего прогона, а не из его
+      // contextTokens — тот включал бы ещё и всё, что прогон дочитал инструментами.
+      expect(compactSavingsIn(messages)).toEqual(
+        new Map([[7, { before: 169000, after: 12000, estimated: false, percent: 93 }]]),
+      );
+    });
+
+    test('до первого ответа «после» оценивается по системной части и помечается', () => {
+      const messages = [
+        ai({ contextTokens: 168000, basePromptTokens: 9800 }),
+        notice(7, { contextTokens: 170200, promptTokens: 169000, outputTokens: 1200 }),
+      ];
+
+      expect(compactSavingsIn(messages).get(7)).toEqual({
+        before: 169000,
+        after: 11000,
+        estimated: true,
+        percent: 93,
+      });
+    });
+
+    test('своё «после» есть у каждого сжатия, даже когда между ними не отвечали', () => {
+      const messages = [
+        ai({ contextTokens: 168000, basePromptTokens: 9800 }),
+        notice(7, { contextTokens: 170200, promptTokens: 169000, outputTokens: 1200 }),
+        notice(8, { contextTokens: 12000, promptTokens: 11000, outputTokens: 900 }),
+        ai({ contextTokens: 15000, basePromptTokens: 12000 }),
+      ];
+
+      const savings = compactSavingsIn(messages);
+      // Первое сжатие замера за собой не дождалось — оценка; второе дождалось.
+      expect(savings.get(7)).toMatchObject({ before: 169000, estimated: true });
+      expect(savings.get(8)).toEqual({ before: 11000, after: 12000, estimated: false, percent: 0 });
+    });
+
+    test('неизмеренное сжатие в карту не попадает: «сэкономили ничего» — неправда', () => {
+      expect(compactSavingsIn([notice(7, undefined), ai({ contextTokens: 13000 })]).size).toBe(0);
+    });
+
+    test('без системной части у последней плашки остаётся одно «до»', () => {
+      const messages = [notice(7, { contextTokens: 170200, promptTokens: 169000, outputTokens: 1200 })];
+
+      // Лента загружена не с начала — системную часть взять неоткуда (см. baseContextOf).
+      expect(compactSavingsIn(messages, true).get(7)).toEqual({
+        before: 169000,
+        after: null,
+        estimated: true,
+        percent: null,
+      });
+    });
+  });
+
+  // Замер на ряду пользователя бывает у одного случая — несостоявшегося сжатия, записанного на
+  // строку своей команды (CompactService.spentRound). Деньги за него заплачены, но контекст чата
+  // он не описывает: это прочитанное раундом окно плюс его собственная инструкция, а окно осталось
+  // в чате как было.
+  describe('замер несостоявшегося сжатия', () => {
+    const spent = { contextTokens: 169040, promptTokens: 169000, basePromptTokens: 169000, outputTokens: 40 };
+    const command = { mid: 9, sender: 'user', usage: { ...spent, modelCalls: 1 } };
+
+    test('идёт в счёт провайдера наравне с прогонами', () => {
+      const totals = chatUsageTotals([{ sender: 'ai', usage: { contextTokens: 12000, promptTokens: 11000 } }, command]);
+
+      expect(totals).toMatchObject({ runs: 2, promptTokens: 180000, modelCalls: 1 });
+    });
+
+    test('но не выдаёт себя ни за занятый контекст, ни за системную часть', () => {
+      const messages = [{ sender: 'ai', usage: { contextTokens: 12000, basePromptTokens: 9800 } }, command];
+
+      expect(contextUsageOf(messages)).toEqual({ contextTokens: 12000, basePromptTokens: 9800 });
+      expect(baseContextOf(messages)).toBe(9800);
+    });
+
+    test('и «стало» после сжатия им не закрывается — его закрывает ответ', () => {
+      const messages = [
+        {
+          mid: 7,
+          sender: 'ai',
+          compact: { messages: 40 },
+          usage: { contextTokens: 170200, promptTokens: 169000, outputTokens: 1200 },
+        },
+        command,
+        { sender: 'ai', usage: { contextTokens: 15000, basePromptTokens: 12000 } },
+      ];
+
+      expect(compactSavingsIn(messages).get(7)).toMatchObject({ after: 12000, estimated: false });
     });
   });
 

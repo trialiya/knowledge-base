@@ -305,7 +305,11 @@ export function applyChatEvent(chat, ev, ctx) {
       let idx = lastAiIndexForRun(msgs, runId);
       if (idx < 0) idx = pushAi(msgs, runId);
       msgs[idx] = { ...msgs[idx], text: ctx.compactingLabel };
-      return { ...chat, messages: msgs, runId, runKind: RUN_KIND.OPERATION };
+      // Якорь таймера — тем же правилом, что и у RUN_STARTED (реплей его не переставляет).
+      // Сжатие идёт по всему контексту сразу и живёт дольше среднего ответа, так что
+      // «сколько уже» здесь нужнее всего: без отсчёта плашка «сжимаю…» неотличима от зависшей.
+      const runStartedAt = chat.runId === runId && chat.runStartedAt ? chat.runStartedAt : Date.now();
+      return { ...chat, messages: msgs, runId, runKind: RUN_KIND.OPERATION, runStartedAt };
     }
 
     // Плашка «сжимаю…» становится плашкой итога — той же самой, что приезжает из истории
@@ -319,6 +323,9 @@ export function applyChatEvent(chat, ev, ctx) {
         text: '',
         dbId: payload?.messageId ?? null,
         compact: { messages: payload?.messages ?? 0, summaryChars: payload?.summaryChars ?? 0 },
+        // Токены раунда — те же, что приедут из истории после перезагрузки: без них счётчик
+        // контекста и итоги чата в живой вкладке разошлись бы с перезагруженной.
+        ...(payload?.usage ? { usage: payload.usage } : {}),
         ...(payload?.createdAt ? { timestamp: payload.createdAt } : {}),
       };
       finalize(msgs, runId);
@@ -331,6 +338,13 @@ export function applyChatEvent(chat, ev, ctx) {
       // Без retryMode: повтор здесь — это заново набранная команда, а не тот же ход
       // поверх той же истории (история могла и успеть измениться).
       msgs[idx] = { ...msgs[idx], text: ctx.compactErrorLabel, error: true };
+      // Раунд, который сводки не дал, провайдер всё равно посчитал, и бэкенд записал его замер
+      // на строку самой команды (см. CompactService.spentRound). Ставим его и здесь: иначе итог
+      // по чату в этой вкладке расходился бы с тем, что она увидит после перезагрузки.
+      if (payload?.usage && payload?.messageId != null) {
+        const command = msgs.findIndex((m) => m.dbId === payload.messageId);
+        if (command >= 0) msgs[command] = { ...msgs[command], usage: payload.usage };
+      }
       finalize(msgs, runId);
       return { ...chat, messages: msgs, ...IDLE_RUN_STATE };
     }

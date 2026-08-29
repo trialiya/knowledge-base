@@ -1,9 +1,12 @@
 package io.github.trialiya.kb.service.chat.prompt;
 
 import io.github.trialiya.kb.config.model.SystemPromptProperties;
+import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
+import org.jspecify.annotations.Nullable;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StreamUtils;
@@ -21,12 +24,37 @@ import org.springframework.util.StreamUtils;
 @Service
 public class SystemPromptService {
 
+    private final ScriptGuideService scriptGuide;
     private final String extendedForWeakModel;
     private final String extendedForStrongModel;
 
-    public SystemPromptService(SystemPromptProperties properties) {
+    public SystemPromptService(SystemPromptProperties properties, ScriptGuideService scriptGuide) {
+        this.scriptGuide = scriptGuide;
         this.extendedForWeakModel = read(properties.extendedPrompt());
         this.extendedForStrongModel = "";
+    }
+
+    /**
+     * Все подстановки шаблона {@code sys.md} разом — и это единственное место, где они собираются.
+     *
+     * <p>Собираются вместе не ради краткости вызова: системное сообщение обычного прогона и
+     * системное сообщение раунда {@code /compact} обязаны получиться посимвольно одинаковыми. Оба
+     * запроса идут по одной и той же истории, и провайдер отдаёт повторную часть по ставке кэша
+     * ровно до первого расхождения — а системное сообщение стоит в самом начале, так что разойдись
+     * они хоть на одной подстановке, сжатие оплатит по полной ставке весь контекст, который оно
+     * пришло сократить. Двумя копиями списка это правило не держится: подстановка, добавленная в
+     * одну из них, тихо обнуляет кэш второй.
+     *
+     * @param weakModel {@code ChatModelProperties#isWeak} модели запроса
+     * @param project проект запроса; {@code null} — проект по умолчанию
+     * @param modeInstructions инструкции режима чата ({@code ChatModeService})
+     */
+    public Map<String, Object> placeholders(
+            boolean weakModel, @Nullable String project, String modeInstructions) {
+        return Map.of(
+                "mode_instructions", modeInstructions,
+                "script_instructions", scriptGuide.instructions(weakModel, project),
+                "system_extended", systemExtended(weakModel));
     }
 
     /**

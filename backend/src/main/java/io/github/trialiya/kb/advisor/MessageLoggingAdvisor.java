@@ -5,6 +5,8 @@ import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.ChatClientResponse;
+import org.springframework.ai.chat.client.advisor.api.CallAdvisor;
+import org.springframework.ai.chat.client.advisor.api.CallAdvisorChain;
 import org.springframework.ai.chat.client.advisor.api.StreamAdvisor;
 import org.springframework.ai.chat.client.advisor.api.StreamAdvisorChain;
 import org.springframework.ai.chat.memory.ChatMemory;
@@ -22,9 +24,14 @@ import reactor.core.publisher.Flux;
  *
  * <p>Включается логгером {@code io.github.trialiya.kb.advisor.MessageLoggingAdvisor} на уровне
  * {@code DEBUG} (по умолчанию выключен, см. {@code application.yaml}).
+ *
+ * <p>Умеет и стрим, и синхронный вызов — не про запас: чат стримит, а раунд {@code /compact}
+ * ({@code CompactService}) ходит к модели синхронно, и сравнить два запроса построчно можно только
+ * тогда, когда оба описаны одним и тем же кодом. Сравнивают их не от любопытства: сжатие обязано
+ * попасть в кэш промпта чата, а это ровно вопрос «совпадает ли начало списка сообщений».
  */
 @Slf4j
-public class MessageLoggingAdvisor implements StreamAdvisor {
+public class MessageLoggingAdvisor implements StreamAdvisor, CallAdvisor {
 
     @Override
     public String getName() {
@@ -42,13 +49,23 @@ public class MessageLoggingAdvisor implements StreamAdvisor {
     @Override
     public Flux<ChatClientResponse> adviseStream(
             ChatClientRequest request, StreamAdvisorChain chain) {
+        logRequest(request);
+        return chain.nextStream(request);
+    }
+
+    @Override
+    public ChatClientResponse adviseCall(ChatClientRequest request, CallAdvisorChain chain) {
+        logRequest(request);
+        return chain.nextCall(request);
+    }
+
+    private static void logRequest(ChatClientRequest request) {
         log.atDebug()
                 .setMessage("LLM request conversationId={} runId={} messages=[\n{}\n]")
                 .addArgument(() -> request.context().getOrDefault(ChatMemory.CONVERSATION_ID, "?"))
                 .addArgument(() -> request.context().getOrDefault(AdvisorParams.RUN_ID_PARAM, "?"))
                 .addArgument(() -> describe(request.prompt().getInstructions()))
                 .log();
-        return chain.nextStream(request);
     }
 
     private static String describe(List<Message> messages) {

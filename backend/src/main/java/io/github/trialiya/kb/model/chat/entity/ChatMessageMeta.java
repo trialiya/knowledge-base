@@ -165,6 +165,17 @@ public record ChatMessageMeta(
     }
 
     /**
+     * Метаданные ряда, от которого остался один замер токенов: раунд сжатия, который провайдер
+     * посчитал, но сводки не дал, — он записан на строку собственной команды (см. {@code
+     * CompactService}). Замер на USER-ряду бывает только так.
+     */
+    public static ChatMessageMeta ofUsage(RunTokenUsage usage) {
+        return new ChatMessageMeta(
+                null, false, List.of(), List.of(), null, null, null, null, null, false, usage,
+                List.of());
+    }
+
+    /**
      * Метаданные ряда git-команды. Проект остаётся внутри самого события: {@code project} на этом
      * уровне значит «проект, на котором закончилась сжатая история» (см. {@link #ofProject}), а
      * этот ряд историю ни во что не переводит.

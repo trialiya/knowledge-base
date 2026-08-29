@@ -27,7 +27,6 @@ import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.runtime.ConversationSlots;
 import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import io.github.trialiya.kb.service.chat.runtime.RunScope;
-import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
 import io.github.trialiya.kb.tools.RunCancellation;
 import io.github.trialiya.kb.tools.ToolInvocationCollector;
 import io.github.trialiya.kb.utils.ChatUtils;
@@ -85,7 +84,6 @@ public class ChatRunService {
     private final ChatHistoryService chatHistory;
     private final SummarizeService summarizeService;
     private final ChatEventService events;
-    private final ScriptGuideService scriptGuideService;
     private final SystemPromptService systemPromptService;
     private final PendingMessageService pendingMessages;
     private final RunOptionsResolver runOptions;
@@ -108,7 +106,6 @@ public class ChatRunService {
             ChatHistoryService chatHistory,
             SummarizeService summarizeService,
             ChatEventService events,
-            ScriptGuideService scriptGuideService,
             SystemPromptService systemPromptService,
             PendingMessageService pendingMessages,
             RunOptionsResolver runOptions,
@@ -120,7 +117,6 @@ public class ChatRunService {
         this.chatHistory = chatHistory;
         this.summarizeService = summarizeService;
         this.events = events;
-        this.scriptGuideService = scriptGuideService;
         this.systemPromptService = systemPromptService;
         this.pendingMessages = pendingMessages;
         this.runOptions = runOptions;
@@ -244,7 +240,9 @@ public class ChatRunService {
      *
      * @param elapsedMs сколько миллисекунд она уже идёт — для таймера над полем ввода. По часам
      *     сервера (наружу уходит длительность, а не момент старта: разница часов клиента и сервера
-     *     её не портит). Есть только у генерации: замерять нечем там, где нет области прогона
+     *     её не портит). Есть и у генерации, и у операции: у первой длительность помнит область
+     *     прогона, у второй — сама заявка ({@code ConversationSlots#elapsedMs}). {@code null}
+     *     остаётся только на гонке — заявку отдали между двумя чтениями
      * @param replayTruncated лог реплея этого чата успел потерять события текущего прогона (см.
      *     {@code ConversationHub}) — начало ответа вкладке придётся взять из истории, реплей его
      *     уже не принесёт
@@ -367,7 +365,13 @@ public class ChatRunService {
                                                                 runId,
                                                                 kindOutsideRegistry(
                                                                         conversationId, runId),
-                                                                null,
+                                                                // Области прогона нет —
+                                                                // длительность
+                                                                // помнит сама заявка. Операции это
+                                                                // единственный источник, и таймер
+                                                                // сжатия живёт им.
+                                                                slots.elapsedMs(
+                                                                        conversationId, runId),
                                                                 replayTruncated)));
     }
 
@@ -449,17 +453,11 @@ public class ChatRunService {
                             .prompt()
                             .system(
                                     sp ->
-                                            sp.param(
-                                                            "mode_instructions",
-                                                            options.modeInstructions())
-                                                    .param(
-                                                            "script_instructions",
-                                                            scriptGuideService.instructions(
-                                                                    weakModel, options.project()))
-                                                    .param(
-                                                            "system_extended",
-                                                            systemPromptService.systemExtended(
-                                                                    weakModel)))
+                                            sp.params(
+                                                    systemPromptService.placeholders(
+                                                            weakModel,
+                                                            options.project(),
+                                                            options.modeInstructions())))
                             // Своего .user(...) здесь намеренно нет: вопрос уже сохранён в
                             // истории (см. ChatHistoryService.saveUserMessage), и его подмешает
                             // advisor памяти. Передать его ещё и сюда — значит сохранить вторым
