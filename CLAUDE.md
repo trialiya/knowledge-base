@@ -11,10 +11,13 @@ PostgreSQL 17 + pgvector, H2 for local runs and tests) and a React 19 frontend
 One SPA over one API. The frontend has four sections — chat, knowledge base,
 files, settings/admin — all rendered through the shared `WorkspaceLayout`; the
 URL is the navigation state and `navigation/useAppNavigation.js` is its only
-writer. The backend is layered controller → service → Spring AI `@Tool`
-functions → Spring Data JDBC. Chat answers are background runs on virtual
-threads, streamed over one SSE event channel per chat, so an answer survives a
-page reload; search is hybrid — SQL keyword plus pgvector semantic.
+writer. Most controllers are a plain `controller → service → Spring Data JDBC`
+stack (documents, attachments, phrases, …); chat is the one path where the
+service layer also drives Spring AI, which calls back into services through
+`@Tool` functions (`functions/`) to read and write the knowledge base and the
+repo. Chat answers are background runs on virtual threads, streamed over one
+SSE event channel per chat, so an answer survives a page reload; search is
+hybrid — SQL keyword plus pgvector semantic.
 `service/chat` splits into sub-packages with a one-way dependency direction
 (`event` ← `runtime` ← `memory` ← `run`); its `package-info.java` files are
 the in-code map of what belongs where.
