@@ -1,5 +1,15 @@
 import { describe, test, expect } from 'vitest';
-import { cacheShare, chatUsageTotals, contextUsageOf, formatTokens, hasUsage, runInputGrowth } from './tokenUsage';
+import {
+  baseContextOf,
+  cacheMissOf,
+  cacheShare,
+  chatUsageTotals,
+  contextUsageOf,
+  formatTokens,
+  hasUsage,
+  runInputGrowth,
+  usageTooltip,
+} from './tokenUsage';
 
 describe('tokenUsage', () => {
   test('короткие числа показываются как есть', () => {
@@ -29,6 +39,54 @@ describe('tokenUsage', () => {
     expect(cacheShare({ promptTokens: 31100, cacheReadTokens: 20000 })).toBe(64);
     // Первое обращение прогона кэш ещё не читает — делить на ноль тут нечего.
     expect(cacheShare({ promptTokens: 0, cacheReadTokens: 0 })).toBe(0);
+  });
+
+  test('кэш-промах — это вход, за который заплачено по полной ставке', () => {
+    expect(cacheMissOf({ promptTokens: 31100, cacheReadTokens: 24000 })).toBe(7100);
+    expect(cacheMissOf({ promptTokens: 900 })).toBe(900);
+    // Провайдеру, посчитавшему кэша больше, чем всего входа, верить незачем.
+    expect(cacheMissOf({ promptTokens: 100, cacheReadTokens: 400 })).toBe(0);
+    expect(cacheMissOf(null)).toBe(0);
+  });
+
+  test('подсказка отвечает тремя строками: занято, обработано нового, сгенерировано', () => {
+    // Статистика за весь чат (total input, кэш, обращения) живёт во вкладке «Инфо» — здесь вопрос
+    // только про этот прогон.
+    const t = (key, vars) => `${key}:${JSON.stringify(vars)}`;
+    const usage = { contextTokens: 38600, outputTokens: 2700, promptTokens: 65300, cacheReadTokens: 46300 };
+
+    expect(usageTooltip(usage, t, 'head').split('\n')).toEqual([
+      'head:{"context":"38.6k"}',
+      'message.tokensMiss:{"input":"19.0k"}',
+      'message.tokensOutput:{"output":"2.7k"}',
+    ]);
+  });
+
+  describe('baseContextOf', () => {
+    const ai = (usage) => ({ sender: 'ai', usage });
+
+    test('системная часть — база ПЕРВОГО прогона: у следующих в неё входит вся история', () => {
+      const messages = [
+        { sender: 'user' },
+        ai({ contextTokens: 12000, basePromptTokens: 9800 }),
+        { sender: 'user' },
+        ai({ contextTokens: 31000, basePromptTokens: 24000 }),
+      ];
+
+      expect(baseContextOf(messages)).toBe(9800);
+    });
+
+    test('у частично загруженной ленты первый прогон не первый в чате', () => {
+      const messages = [ai({ contextTokens: 31000, basePromptTokens: 24000 })];
+
+      expect(baseContextOf(messages, true)).toBeNull();
+    });
+
+    test('прогон, измеренный версией без этого поля, показывать нечем', () => {
+      expect(baseContextOf([ai({ contextTokens: 12000 })])).toBeNull();
+      expect(baseContextOf([{ sender: 'user' }])).toBeNull();
+      expect(baseContextOf(undefined)).toBeNull();
+    });
   });
 
   describe('contextUsageOf', () => {

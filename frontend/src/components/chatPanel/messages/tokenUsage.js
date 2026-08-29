@@ -41,24 +41,30 @@ export const cacheShare = (usage) => {
 };
 
 /**
- * Разбивка токенов для подсказки: строки одна под другой. Первая своя у каждого места показа
+ * Вход, оплаченный по полной ставке: total input минус прочитанное из кэша. Это и есть то новое,
+ * что прогон добавил провайдеру к обработке, — остальное он уже видел.
+ */
+export const cacheMissOf = (usage) =>
+  Math.max(0, Number(usage?.promptTokens || 0) - Number(usage?.cacheReadTokens || 0));
+
+/**
+ * Разбивка токенов для подсказки: три строки одна под другой. Первая своя у каждого места показа
  * (плашка говорит про свой ответ, счётчик в шапке — про чат сейчас), остальные общие — держать их
  * двумя копиями значит однажды поправить одну.
+ *
+ * Больше трёх строк подсказке не нужно: total input, кэш и число обращений — статистика за весь
+ * чат, её место во вкладке «Инфо», где числа стоят рядом и сравниваются. Здесь же вопрос один — во
+ * что обошёлся ЭТОТ прогон: сколько после него занято, сколько нового пришлось обработать и сколько
+ * сгенерировано.
  *
  * @param headKey ключ первой строки; получает {@code context} — занятый контекст
  */
 export const usageTooltip = (usage, t, headKey) =>
   [
     t(headKey, { context: formatTokens(usage.contextTokens) }),
-    usage.toolTokens > 0 ? t('message.tokensTools', { tools: formatTokens(usage.toolTokens) }) : null,
+    t('message.tokensMiss', { input: formatTokens(cacheMissOf(usage)) }),
     t('message.tokensOutput', { output: formatTokens(usage.outputTokens) }),
-    t('message.tokensInput', { input: formatTokens(usage.promptTokens), calls: usage.modelCalls }),
-    usage.cacheReadTokens > 0
-      ? t('message.tokensCached', { cached: formatTokens(usage.cacheReadTokens), percent: cacheShare(usage) })
-      : null,
-  ]
-    .filter(Boolean)
-    .join('\n');
+  ].join('\n');
 
 /**
  * Чем занят контекст чата сейчас — по последнему прогону, который это измерил. Ищем с конца, а не
@@ -74,6 +80,28 @@ export const contextUsageOf = (messages) => {
     const m = messages[i];
     if (m.compact) return null;
     if (hasUsage(m.usage)) return m.usage;
+  }
+  return null;
+};
+
+/**
+ * Системная часть контекста: сколько занято ещё до разговора — системный промпт со схемами
+ * инструментов плюс сам первый вопрос. Это `basePromptTokens` (prompt первого обращения) ПЕРВОГО
+ * измеренного прогона чата: раньше него в контексте нет ничего, что написали бы в этом чате, а у
+ * любого следующего прогона в базу входит уже вся история до него.
+ *
+ * Сжатие эту цифру не отменяет: /compact выбрасывает разговор, а системную часть — нет.
+ *
+ * `null` — показывать нечего: лента загружена не с начала (тогда её первый прогон не первый в чате
+ * и число было бы завышено), либо прогон измерен версией без этого поля.
+ *
+ * @param partial история чата загружена частично (`chat.hasMore`)
+ */
+export const baseContextOf = (messages, partial) => {
+  if (partial) return null;
+  for (const m of messages || []) {
+    if (!hasUsage(m.usage)) continue;
+    return Number(m.usage.basePromptTokens) || null;
   }
   return null;
 };

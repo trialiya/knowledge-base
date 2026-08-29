@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { chatUsageTotals, contextUsageOf } from '../messages/tokenUsage';
+import { baseContextOf, chatUsageTotals, contextUsageOf } from '../messages/tokenUsage';
 
 /**
  * Токены чата для правой панели: занятый контекст сейчас и итоги по прогонам.
@@ -16,10 +16,15 @@ import { chatUsageTotals, contextUsageOf } from '../messages/tokenUsage';
  * @param messages лента чата (пузыри), может быть пустой
  * @param partial загружена не вся история (`chat.hasMore`) — итоги тогда относятся к загруженной
  *     части, и «Инфо» обязана это сказать: иначе число выглядит как итог по всему чату
- * @returns {{current: object|null, totals: object|null, partial: boolean}}
+ * @returns {{current: object|null, base: number|null, totals: object|null, partial: boolean}}
  */
 const useChatUsage = (messages, partial) => {
-  const fresh = { current: contextUsageOf(messages), totals: chatUsageTotals(messages), partial: !!partial };
+  const fresh = {
+    current: contextUsageOf(messages),
+    base: baseContextOf(messages, partial),
+    totals: chatUsageTotals(messages),
+    partial: !!partial,
+  };
   const key = JSON.stringify(fresh);
 
   // Замена во время рендера, а не эффектом (см. .claude/rules/frontend-ui.md): эффект отдал бы

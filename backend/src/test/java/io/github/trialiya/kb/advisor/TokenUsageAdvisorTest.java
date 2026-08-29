@@ -67,7 +67,7 @@ class TokenUsageAdvisorTest {
         advisor.adviseStream(request(), chain).blockLast();
         advisor.adviseStream(request(), chain).blockLast();
 
-        assertThat(scope.usage()).isEqualTo(usage(430, 300, 40, 500, 2));
+        assertThat(scope.usage()).isEqualTo(usage(430, 100, 300, 40, 500, 2));
     }
 
     /** Ответ без инструментов: наращивать контекст было нечем, прирост нулевой. */
@@ -78,7 +78,7 @@ class TokenUsageAdvisorTest {
 
         advisor.adviseStream(request(), chain).blockLast();
 
-        assertThat(scope.usage()).isEqualTo(usage(1050, 0, 50, 1000, 1));
+        assertThat(scope.usage()).isEqualTo(usage(1050, 1000, 0, 50, 1000, 1));
     }
 
     /** Нарастающий итог внутри одного обращения складывать нельзя — только брать максимум. */
@@ -90,7 +90,7 @@ class TokenUsageAdvisorTest {
 
         advisor.adviseStream(request(), chain).blockLast();
 
-        assertThat(scope.usage()).isEqualTo(usage(133, 0, 33, 100, 1));
+        assertThat(scope.usage()).isEqualTo(usage(133, 100, 0, 33, 100, 1));
     }
 
     /**
@@ -108,7 +108,7 @@ class TokenUsageAdvisorTest {
         advisor.adviseStream(request(), chain).blockLast();
 
         assertThat(publishedUsage()).extracting(RunTokenUsage::contextTokens).isSorted();
-        assertThat(scope.usage()).isEqualTo(usage(430, 300, 40, 500, 2));
+        assertThat(scope.usage()).isEqualTo(usage(430, 100, 300, 40, 500, 2));
     }
 
     /** Каждый непустой замер уезжает на фронт, и в событии — состояние всего прогона. */
@@ -124,9 +124,9 @@ class TokenUsageAdvisorTest {
 
         assertThat(publishedUsage())
                 .containsExactly(
-                        usage(105, 0, 5, 100, 1),
-                        usage(120, 0, 20, 100, 1),
-                        usage(430, 300, 50, 500, 2));
+                        usage(105, 100, 0, 5, 100, 1),
+                        usage(120, 100, 0, 20, 100, 1),
+                        usage(430, 100, 300, 50, 500, 2));
     }
 
     /**
@@ -141,7 +141,7 @@ class TokenUsageAdvisorTest {
 
         advisor.adviseStream(request(), chain).blockLast();
 
-        assertThat(publishedUsage()).containsExactly(usage(430, 0, 30, 400, 1));
+        assertThat(publishedUsage()).containsExactly(usage(430, 400, 0, 30, 400, 1));
     }
 
     /** Повтор того же замера событие не порождает: у провайдера с финальным чанком оно одно. */
@@ -153,7 +153,7 @@ class TokenUsageAdvisorTest {
 
         advisor.adviseStream(request(), chain).blockLast();
 
-        assertThat(publishedUsage()).containsExactly(usage(120, 0, 20, 100, 1));
+        assertThat(publishedUsage()).containsExactly(usage(120, 100, 0, 20, 100, 1));
     }
 
     /** Эндпоинт без usage в стриме: событий нет вовсе — «неизвестно» это не ноль. */
@@ -195,7 +195,7 @@ class TokenUsageAdvisorTest {
         advisor.adviseStream(request(), chain)
                 .subscribe(response -> {}, error -> {}, () -> seenAtComplete.set(scope.usage()));
 
-        assertThat(seenAtComplete.get()).isEqualTo(usage(1050, 0, 50, 1000, 1));
+        assertThat(seenAtComplete.get()).isEqualTo(usage(1050, 1000, 0, 50, 1000, 1));
     }
 
     /** То же для ошибки: onError тоже терминальный, и потраченное до неё уже в итоге. */
@@ -211,7 +211,7 @@ class TokenUsageAdvisorTest {
         advisor.adviseStream(request(), chain)
                 .subscribe(response -> {}, error -> seenAtError.set(scope.usage()));
 
-        assertThat(seenAtError.get()).isEqualTo(usage(1050, 0, 50, 1000, 1));
+        assertThat(seenAtError.get()).isEqualTo(usage(1050, 1000, 0, 50, 1000, 1));
     }
 
     /** Прогон остановили посреди обращения — потраченное к этому моменту потрачено. */
@@ -223,13 +223,13 @@ class TokenUsageAdvisorTest {
 
         advisor.adviseStream(request(), chain).take(1).blockLast();
 
-        assertThat(scope.usage()).isEqualTo(usage(110, 0, 10, 100, 1));
+        assertThat(scope.usage()).isEqualTo(usage(110, 100, 0, 10, 100, 1));
     }
 
     /** Ожидаемый итог прогона; кэш во всех сценариях здесь нулевой. */
     private static RunTokenUsage usage(
-            long context, long tools, long output, long prompt, int calls) {
-        return new RunTokenUsage(context, tools, output, prompt, 0, 0, calls);
+            long context, long base, long tools, long output, long prompt, int calls) {
+        return new RunTokenUsage(context, base, tools, output, prompt, 0, 0, calls);
     }
 
     /** Замеры, доехавшие до фронта, по порядку. */

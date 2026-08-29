@@ -16,7 +16,7 @@ import org.springframework.ai.tool.execution.DefaultToolCallResultConverter;
 class SearchAgentResultTest {
 
     private static final RunTokenUsage USAGE =
-            new RunTokenUsage(18_400, 5_310, 870, 41_260, 29_800, 1_180, 4);
+            new RunTokenUsage(18_400, 12_220, 5_310, 870, 41_260, 29_800, 1_180, 4);
 
     @Test
     void modelPayloadExposesReportButHidesCostAndDuration() {

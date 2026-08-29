@@ -21,6 +21,10 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
  * @param contextTokens сколько занято контекста после ответа: prompt последнего обращения плюс его
  *     же выход. Именно последнего: prompt каждого следующего обращения включает предыдущее целиком,
  *     так что последний и есть весь разговор, посчитанный один раз
+ * @param basePromptTokens prompt ПЕРВОГО обращения — с чего прогон начал. У первого прогона чата
+ *     это и есть системная часть контекста: системный промпт со схемами инструментов плюс сам
+ *     вопрос, то есть всё, что занято до разговора. Отдельным числом, а не разностью: из остальных
+ *     полей его не достать — выход последнего обращения в них не отделён от суммы по прогону
  * @param toolTokens насколько прогон нарастил контекст: prompt последнего обращения минус prompt
  *     первого. Разность съедает общую часть, оставляя ровно то, что дописали в диалог вызовы
  *     инструментов и ответы на них. Ноль у прогона без инструментов — там дописывать было нечего
@@ -37,6 +41,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
  */
 public record RunTokenUsage(
         long contextTokens,
+        long basePromptTokens,
         long toolTokens,
         long outputTokens,
         long promptTokens,
@@ -44,7 +49,7 @@ public record RunTokenUsage(
         long cacheWriteTokens,
         int modelCalls) {
 
-    public static final RunTokenUsage EMPTY = new RunTokenUsage(0, 0, 0, 0, 0, 0, 0);
+    public static final RunTokenUsage EMPTY = new RunTokenUsage(0, 0, 0, 0, 0, 0, 0, 0);
 
     /**
      * Не измерено ничего. Проверяем замеры, а не {@link #modelCalls}: обращение к эндпоинту без
@@ -108,6 +113,7 @@ public record RunTokenUsage(
         public RunTokenUsage view() {
             return new RunTokenUsage(
                     last.promptTokens() + last.completionTokens(),
+                    first.promptTokens(),
                     // Отрицательной разность быть не может — prompt следующего обращения включает
                     // предыдущее целиком, — но провайдеру, который посчитал иначе, верить незачем.
                     Math.max(0, last.promptTokens() - first.promptTokens()),

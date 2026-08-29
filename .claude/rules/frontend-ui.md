@@ -56,13 +56,14 @@ never in big-bang rewrites.
   rows and it drops the empty ones. Don't hand-roll another `dl`. Info carries
   dates, AI topic and model in chat; type, dates and versions in the knowledge
   base; path metadata plus the last commit that touched the file in files. Then
-  come the per-section tabs: chat → repo (`buildRepoTab` in
-  `center/chatSidebar.jsx`) and attachments; knowledge base → summary, folder
+  come the per-section tabs: chat → usage (`ChatUsage` — the chat's tokens),
+  repo (`buildRepoTab` in `center/chatSidebar.jsx`) and attachments; knowledge base → summary, folder
   contents, attachments (built by `detailSidebar.jsx`); files → nothing else
   yet. Tab keys shared across sections live in `constants/rightTabs.js`
   (`RIGHT_TAB`) so `?right=info` means the same thing everywhere; the
-  knowledge-base-only keys are `DOC_TAB` in `constants/docTabs.js` —
-  right-panel keys, not center tabs.
+  knowledge-base-only keys are `DOC_TAB` in `constants/docTabs.js` and the
+  chat-only ones `CHAT_TAB` in `constants/chatTabs.js` — right-panel keys,
+  not center tabs.
 - State shared by the center and the right panel (the KB content draft,
   fullscreen, history) lives in `useDetailPanel`, hoisted to `KnowledgeBase`. It
   is no longer remounted per document, so it resets on `nodeId` change itself —

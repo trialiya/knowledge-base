@@ -10,11 +10,9 @@
     "queued": "ожидает отправки…",
     "answeredBy": "Ответила модель {{model}}",
     "tokens": "{{context}} в контексте",
-    "tokensCached": "Cache read: {{cached}} ({{percent}}% от total input)",
     "tokensContext": "Контекст после этого ответа: {{context}} токенов",
-    "tokensTools": "Инструменты добавили: {{tools}}",
-    "tokensOutput": "Output: {{output}}",
-    "tokensInput": "Total input: {{input}} · обращений к модели: {{calls}}"
+    "tokensMiss": "Input (Cache miss): {{input}}",
+    "tokensOutput": "Output: {{output}}"
   },
   "header": {
     "context": "Контекст: {{context}}",
@@ -46,15 +44,22 @@
     "mode": "Режим",
     "project": "Проект",
     "id": "ID",
-    "draftNote": "Черновик: чат появится на сервере вместе с первым сообщением.",
-    "contextTokens": "Занято контекста",
-    "outputTokens": "Output",
-    "cachedValue": "{{cached}} ({{percent}}%)",
+    "draftNote": "Черновик: чат появится на сервере вместе с первым сообщением."
+  },
+  "usage": {
+    "tab": "Usage",
+    "empty": "Ни один прогон этого чата ещё не измерен.",
+    "partial": "Токены посчитаны по загруженной части чата — прокрутите ленту вверх, чтобы дочитать остальное.",
+    "context": "Context",
+    "system": "Системная часть",
+    "input": "Input",
+    "cacheMiss": "Input (Cache miss)",
+    "cacheHit": "Input (Cache hit)",
+    "cacheWrite": "Cache write",
+    "output": "Output",
+    "total": "Total",
     "modelCalls": "Обращений к модели",
-    "usagePartial": "Токены посчитаны по загруженной части чата — прокрутите ленту вверх, чтобы дочитать остальное.",
-    "inputTokens": "Total input",
-    "cacheReadTokens": "Cache read",
-    "cacheWriteTokens": "Cache write"
+    "valuePercent": "{{value}} ({{percent}}%)"
   },
   "errorModal": {
     "notFoundTitle": "Чат не найден",

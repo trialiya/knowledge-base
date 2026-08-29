@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import ChatHeader from '@/components/chatPanel/center/ChatHeader';
+import ChatUsage from '@/components/chatPanel/center/ChatUsage';
 import ComposerToolbar from '@/components/chatPanel/composer/ComposerToolbar';
 import PhraseFillModal from '@/components/chatPanel/composer/PhraseFillModal';
 import RunStatus from '@/components/chatPanel/composer/RunStatus';
@@ -30,6 +31,7 @@ import { IconRefresh, IconUpload } from '@/icons/index';
 import * as aiConfig from '../fixtures/aiConfig';
 import * as chatHeader from '../fixtures/chatHeader';
 import * as chatRepo from '../fixtures/chatRepo';
+import * as chatUsage from '../fixtures/chatUsage';
 import * as composerToolbar from '../fixtures/composerToolbar';
 import * as detailHeader from '../fixtures/detailHeader';
 import * as detailPanel from '../fixtures/detailPanel';
@@ -152,6 +154,8 @@ const REGISTRY = [
     frame: 'center',
     render: (p) => <ChatHeader {...p} onToggleSearch={noop} onRename={noop} onDelete={noop} />,
   },
+  { id: 'chatUsage.js#measuredChat', frame: 'panel', render: (p) => <ChatUsage {...p} /> },
+  { id: 'chatUsage.js#partialHistory', frame: 'panel', render: (p) => <ChatUsage {...p} /> },
   { id: 'chatRepo.js#repoTabIdle', frame: 'panel', render: (p) => <ChatRepoPanel {...p} /> },
   { id: 'chatRepo.js#repoTabBusy', frame: 'panel', render: (p) => <ChatRepoPanel {...p} /> },
   { id: 'chatRepo.js#repoTabMerging', frame: 'panel', render: (p) => <ChatRepoPanel {...p} /> },
@@ -428,6 +432,7 @@ const MODULES = {
   'detailPanel.js': detailPanel,
   'filesBreadcrumb.js': filesBreadcrumb,
   'gitMenu.js': gitMenu,
+  'chatUsage.js': chatUsage,
   'infoList.js': infoList,
   'modalFind.js': modalFind,
   'operationRow.js': operationRow,
