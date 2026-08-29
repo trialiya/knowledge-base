@@ -89,9 +89,10 @@ describe('useChatEventStream incomplete replay', () => {
 
   function setup() {
     let onEvent;
+    const close = vi.fn();
     openChatEventStream.mockImplementation((chatId, cb) => {
       onEvent = cb.onEvent;
-      return () => {};
+      return close;
     });
     const reloadMessages = vi.fn().mockResolvedValue([]);
 
@@ -110,7 +111,7 @@ describe('useChatEventStream incomplete replay', () => {
       }),
     );
 
-    return { fireEvent: (ev) => onEvent(ev), reloadMessages };
+    return { fireEvent: (ev) => onEvent(ev), reloadMessages, close };
   }
 
   afterEach(() => {
@@ -125,6 +126,26 @@ describe('useChatEventStream incomplete replay', () => {
 
     fireEvent({ type: 'RUN_DONE', runId: 'r1' });
     expect(reloadMessages).toHaveBeenCalledWith('c1');
+  });
+
+  /**
+   * Перезагрузка идёт при закрытом потоке и с переподпиской после неё — иначе она гоняется
+   * с уже начавшимся следующим прогоном (автозапуск по очереди идёт сразу за терминальным
+   * событием этого): страница из БД затёрла бы его первые события, а дальше их отбросил бы
+   * фильтр живого прогона — ответ пропал бы целиком.
+   */
+  test('closes the stream before rereading and resubscribes after', async () => {
+    const { fireEvent, reloadMessages, close } = setup();
+
+    fireEvent({ type: 'REPLAY_GAP', runId: 'r1' });
+    fireEvent({ type: 'RUN_DONE', runId: 'r1' });
+
+    expect(close).toHaveBeenCalled();
+    expect(reloadMessages).toHaveBeenCalledWith('c1');
+    await act(async () => {});
+    // Переподписка после перезагрузки: поток открыт заново, уже с fromSeq=0.
+    expect(openChatEventStream).toHaveBeenCalledTimes(2);
+    expect(openChatEventStream.mock.calls.at(-1)[1].fromSeq).toBe(0);
   });
 
   test('a run that replayed whole is not rereread at its end', () => {

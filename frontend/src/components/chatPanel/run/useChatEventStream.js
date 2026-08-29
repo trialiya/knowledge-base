@@ -7,14 +7,12 @@ import { CHAT_EVENT } from '@/constants/chatEventTypes';
 import { collectChangeRefs } from '../messages/toolMeta';
 import { fetchRunState, IDLE_RUN_STATE } from './activeRun';
 
-// Чем прогон кончается — любой: и генерация, и операция без собственного прогона.
-const TERMINAL_EVENTS = new Set([
-  CHAT_EVENT.RUN_DONE,
-  CHAT_EVENT.RUN_STOPPED,
-  CHAT_EVENT.RUN_ERROR,
-  CHAT_EVENT.COMPACT_DONE,
-  CHAT_EVENT.COMPACT_ERROR,
-]);
+// Чем кончается генерация: только эти события снимают занятость чата в UI.
+const RUN_TERMINAL_EVENTS = new Set([CHAT_EVENT.RUN_DONE, CHAT_EVENT.RUN_STOPPED, CHAT_EVENT.RUN_ERROR]);
+
+// Чем кончается любой прогон — и генерация, и операция без собственного прогона. За каждым из
+// них хаб чистит свой лог, поэтому курсор seq сбрасывают все они одинаково.
+const TERMINAL_EVENTS = new Set([...RUN_TERMINAL_EVENTS, CHAT_EVENT.COMPACT_DONE, CHAT_EVENT.COMPACT_ERROR]);
 
 // Мутации ОДНОГО прогона по загруженной истории: вызовы инструментов лежат у пузырей
 // ассистента с его runId (см. transformPage). Дальше последней страницы не смотрим —
@@ -137,6 +135,10 @@ export default function useChatEventStream({
     const settleStaleRun = (staleRunId) => {
       closeStream();
       seqByChatRef.current.delete(chatId);
+      // Историю всё равно перечитываем — дыра в реплее прошлого прогона зачтена этой
+      // перезагрузкой. Оставленная метка заставила бы перечитывать её ещё раз, уже за
+      // следующий, целиком приехавший прогон.
+      gappedChatsRef.current.delete(chatId);
       // runKind снимаем вместе с runId: занятость — это они вдвоём, и оставленный вид
       // операции пережил бы прогон, держа Stop выключенным во всех следующих генерациях
       // этого чата.
@@ -150,6 +152,16 @@ export default function useChatEventStream({
         // ли пользователь дальше (cancelled): кэши общие для всего приложения.
         fireChangeRefs(runChangeRefs(msgs, staleRunId));
       });
+    };
+
+    // Прогон кончился, а его реплей был неполон (REPLAY_GAP): целиком ответ есть только в
+    // истории. Порядок тот же, что у settleStaleRun, и по той же причине: перезагрузка при
+    // открытом потоке затёрла бы события, которые он уже успел применить, — а следующий прогон
+    // (например, автозапуск по очереди) начинается сразу за терминальным событием этого.
+    const reloadGappedRun = () => {
+      closeStream();
+      seqByChatRef.current.delete(chatId);
+      reloadMessages(chatId).then(() => setResyncTick((n) => n + 1));
     };
 
     // Идёт ли ещё прогон, который показывает UI. Спрашиваем бэк и сверяем с runId чата
@@ -206,6 +218,7 @@ export default function useChatEventStream({
         flushStream();
         if (ev.type === 'CHAT_DELETED') {
           seqByChatRef.current.delete(chatId);
+          gappedChatsRef.current.delete(chatId);
           onChatDeleted(chatId);
           return;
         }
@@ -222,26 +235,21 @@ export default function useChatEventStream({
         if (ev.type === CHAT_EVENT.GIT_COMMAND) {
           fireRepoChanged();
         }
-        // Сжатие контекста завершилось — хаб закрыл ту же заявку на чат, что и у прогона
-        // (см. ConversationSlots.claim), поэтому и курсор сбрасываем так же.
-        if (ev.type === CHAT_EVENT.COMPACT_DONE || ev.type === CHAT_EVENT.COMPACT_ERROR) {
-          seqByChatRef.current.delete(chatId);
-        }
         // Реплей неполон: часть событий прогона хаб успел вытеснить (см. ConversationHub).
         // Склеить показанный ответ нечем — дыра уже в нём; целиком он окажется в истории,
         // когда прогон кончится, тогда её и перечитываем.
         if (ev.type === CHAT_EVENT.REPLAY_GAP) {
           gappedChatsRef.current.add(chatId);
         }
-        if (TERMINAL_EVENTS.has(ev.type) && gappedChatsRef.current.delete(chatId)) {
-          reloadMessages(chatId);
-        }
-        if (ev.type === 'RUN_DONE' || ev.type === 'RUN_STOPPED' || ev.type === 'RUN_ERROR') {
+        if (TERMINAL_EVENTS.has(ev.type)) {
           // Прогон завершён: хаб очистит свой лог, а следующий прогон в этом чате начнёт
           // seq заново (в т.ч. с нового хаба после выгрузки простаивающего). Сбрасываем
-          // курсор, чтобы переподписка снова сделала полный реплей нового прогона.
+          // курсор, чтобы переподписка снова сделала полный реплей нового прогона. Сжатие
+          // контекста закрывает ту же заявку на чат, что и прогон (см. ConversationSlots.claim),
+          // поэтому курсор сбрасывает наравне с ним.
           seqByChatRef.current.delete(chatId);
-          onRunSettled(chatId);
+          if (RUN_TERMINAL_EVENTS.has(ev.type)) onRunSettled(chatId);
+          if (gappedChatsRef.current.delete(chatId)) reloadGappedRun();
         }
       },
       onReconnect: () => {
