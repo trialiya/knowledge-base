@@ -262,6 +262,29 @@ public record ChatMessageMeta(
     }
 
     /**
+     * Копия с заменённым следом проектов — обеими его половинами сразу: спанами и одиноким {@code
+     * project} рядом с ними (см. javadoc записи). Нужна разовому проходу {@code
+     * ProjectStampBackfill}, который дописывает след к ряду, записанному чужой версией: собери он
+     * мету заново, поле, о котором он не знает, пропало бы молча.
+     */
+    public ChatMessageMeta withProjectTrace(
+            @Nullable String project, List<ProjectSpan> visitedProjects) {
+        return new ChatMessageMeta(
+                runId,
+                toolCalls,
+                invocations,
+                contextItems,
+                project,
+                projectSwitchFrom,
+                model,
+                compact,
+                gitEvent,
+                interjection,
+                usage,
+                visitedProjects);
+    }
+
+    /**
      * Копия с заменённым маркером смены проекта. Как и {@link #withRun} — точечная замена, а не
      * пересборка через короткий конструктор: остальные поля обязаны пережить перезапись.
      */

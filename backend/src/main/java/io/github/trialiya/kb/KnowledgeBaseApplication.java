@@ -1,5 +1,6 @@
 package io.github.trialiya.kb;
 
+import io.github.trialiya.kb.config.model.BackfillProperties;
 import io.github.trialiya.kb.config.model.ChatModeProperties;
 import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
@@ -22,6 +23,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @SpringBootApplication
 @EnableScheduling
 @EnableConfigurationProperties({
+    BackfillProperties.class,
     DocumentsConfiguration.class,
     EmbeddingConfiguration.class,
     GitProperties.class,
