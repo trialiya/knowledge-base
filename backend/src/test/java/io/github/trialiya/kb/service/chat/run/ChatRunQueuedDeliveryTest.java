@@ -186,6 +186,26 @@ class ChatRunQueuedDeliveryTest {
         assertThat(claimed.elapsedMs()).isNull();
     }
 
+    /**
+     * Генерация уходит из реестра прогонов раньше, чем отдаёт заявку на чат: между ними она
+     * доставляет очередь и дописывает историю. Вкладка, спросившая занятость в это окно, обязана
+     * увидеть генерацию — «операция» заблокировала бы ей ввод и спрятала «Стоп» у прогона, который
+     * вот-вот закончится сам.
+     */
+    @Test
+    void aGenerationLeavingTheRegistryIsStillReportedAsGeneration() {
+        when(chatHistory.saveUserMessage(eq(CONV), anyString(), anyList(), any()))
+                .thenReturn(userRow());
+        runService.start(CONV, USER, "вопрос", List.of(), options(), null);
+        final String runId = runService.activeRun(CONV).orElseThrow().runId();
+
+        runs.close(runId);
+
+        final ChatRunService.ActiveRun finishing = runService.activeRun(CONV).orElseThrow();
+        assertThat(finishing.kind()).isEqualTo(ChatRunService.ActiveRun.Kind.GENERATION);
+        assertThat(finishing.elapsedMs()).isNull();
+    }
+
     /** Свободный чат — пустой ответ, а не занятость с неизвестным видом. */
     @Test
     void anIdleChatHasNoActiveRun() {

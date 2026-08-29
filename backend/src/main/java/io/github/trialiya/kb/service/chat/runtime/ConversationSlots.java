@@ -35,8 +35,15 @@ public class ConversationSlots {
 
     private final ChatEventService events;
 
-    /** conversationId -&gt; runId: гарантирует не более одной операции на чат. */
-    private final ConcurrentHashMap<String, String> byConversation = new ConcurrentHashMap<>();
+    /** conversationId -&gt; заявка: гарантирует не более одной операции на чат. */
+    private final ConcurrentHashMap<String, Hold> byConversation = new ConcurrentHashMap<>();
+
+    /**
+     * Кто держит чат: id операции и генерация ли это. Вид нужен ровно на то окно, когда прогон уже
+     * покинул реестр, а заявку ещё держит (терминальная обработка пишет в БД и доставляет очередь):
+     * реестра для ответа «что это было» там уже нет, а вкладка спрашивает.
+     */
+    private record Hold(String runId, boolean generation) {}
 
     public ConversationSlots(ChatEventService events) {
         this.events = events;
@@ -48,7 +55,11 @@ public class ConversationSlots {
      * @throws ResponseStatusException 409, если чат уже занят
      */
     public void take(String conversationId, String runId) {
-        if (byConversation.putIfAbsent(conversationId, runId) != null) {
+        hold(conversationId, new Hold(runId, true));
+    }
+
+    private void hold(String conversationId, Hold hold) {
+        if (byConversation.putIfAbsent(conversationId, hold) != null) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT, "A response is already being generated for this chat");
         }
@@ -73,7 +84,8 @@ public class ConversationSlots {
      * следующей операцией, остаётся за ней.
      */
     public void free(String conversationId, String runId) {
-        byConversation.remove(conversationId, runId);
+        byConversation.computeIfPresent(
+                conversationId, (id, hold) -> hold.runId().equals(runId) ? null : hold);
     }
 
     /**
@@ -92,7 +104,8 @@ public class ConversationSlots {
      * @throws ResponseStatusException 409, если чат уже занят
      */
     public String claim(String conversationId) {
-        final String runId = take(conversationId);
+        final String runId = UUID.randomUUID().toString();
+        hold(conversationId, new Hold(runId, false));
         events.startRun(conversationId, runId);
         return runId;
     }
@@ -120,6 +133,17 @@ public class ConversationSlots {
      */
     public Optional<String> activeRun(String conversationId) {
         return events.activeRunId(conversationId);
+    }
+
+    /**
+     * Генерация ли держит чат под этим {@code runId}. Спрашивают, когда прогона в реестре уже нет:
+     * ответ «нет» тогда значит не «операция», а «генерация в терминальной обработке» — заявку она
+     * ещё держит, и вкладке нужно показать её генерацией, а не операцией без кнопки «Стоп». Чужой
+     * (или уже снятый) {@code runId} — {@code false}: чат за кем-то другим.
+     */
+    public boolean holdsGeneration(String conversationId, String runId) {
+        final Hold hold = byConversation.get(conversationId);
+        return hold != null && hold.runId().equals(runId) && hold.generation();
     }
 
     /**

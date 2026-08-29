@@ -99,6 +99,15 @@ public class ChatEventService {
     }
 
     /**
+     * Полон ли лог реплея этого чата, или часть событий текущего прогона из него уже вытеснена (см.
+     * {@link ConversationHub#replayTruncated()}). Хаба нет — терять было нечего.
+     */
+    public boolean replayTruncated(String conversationId) {
+        final ConversationHub hub = hubs.get(conversationId);
+        return hub != null && hub.replayTruncated();
+    }
+
+    /**
      * Число живых хабов в реестре — для мониторинга утечек (см. {@code run.ChatRuntimeMonitor}).
      */
     public int hubCount() {

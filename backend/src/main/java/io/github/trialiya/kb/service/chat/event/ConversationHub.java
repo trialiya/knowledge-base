@@ -2,7 +2,9 @@ package io.github.trialiya.kb.service.chat.event;
 
 import io.github.trialiya.kb.model.chat.dto.ChatEvent;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
@@ -47,7 +49,9 @@ public class ConversationHub {
 
     private final String conversationId;
     private final ReentrantLock lock = new ReentrantLock();
-    private final List<ChatEvent> eventLog = new ArrayList<>();
+    // Дек, а не список: из переполненного лога уходит самое старое, и на горячем пути (событие
+    // на каждый токен) это должно стоить константу, а не сдвиг всего лога.
+    private final Deque<ChatEvent> eventLog = new ArrayDeque<>();
     private final List<SseEmitter> subscribers = new ArrayList<>();
 
     /** Колбэк «хаб простаивает» — реестр пытается выгрузить его (см. {@link ChatEventService}). */
@@ -134,7 +138,7 @@ public class ConversationHub {
         lock.lock();
         try {
             final ChatEvent event = new ChatEvent(++seq, type, runId, clientMsgId, payload);
-            eventLog.add(event);
+            eventLog.addLast(event);
             while (eventLog.size() > MAX_LOG_EVENTS) {
                 droppedThroughSeq = eventLog.removeFirst().seq();
             }
@@ -170,6 +174,20 @@ public class ConversationHub {
                 eventLog.clear();
                 droppedThroughSeq = 0;
             }
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * Успел ли лог реплея потерять события текущего прогона. Вкладке это говорит, что реплей начала
+     * прогона не восстановит, — и она грузит его из истории вместо того, чтобы ждать событий (см.
+     * {@code trimActiveRunTail} на фронте).
+     */
+    public boolean replayTruncated() {
+        lock.lock();
+        try {
+            return droppedThroughSeq > 0;
         } finally {
             lock.unlock();
         }

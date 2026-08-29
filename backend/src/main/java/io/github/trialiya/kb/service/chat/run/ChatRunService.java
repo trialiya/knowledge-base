@@ -248,8 +248,12 @@ public class ChatRunService {
      * @param elapsedMs сколько миллисекунд она уже идёт — для таймера над полем ввода. По часам
      *     сервера (наружу уходит длительность, а не момент старта: разница часов клиента и сервера
      *     её не портит). Есть только у генерации: замерять нечем там, где нет области прогона
+     * @param replayTruncated лог реплея этого чата успел потерять события текущего прогона (см.
+     *     {@code ConversationHub}) — начало ответа вкладке придётся взять из истории, реплей его
+     *     уже не принесёт
      */
-    public record ActiveRun(String runId, Kind kind, @Nullable Long elapsedMs) {
+    public record ActiveRun(
+            String runId, Kind kind, @Nullable Long elapsedMs, boolean replayTruncated) {
 
         /**
          * Что именно держит чат. Различие в том, что вкладке с этим делать: генерацию можно
@@ -344,6 +348,7 @@ public class ChatRunService {
      * перезагрузки.
      */
     public Optional<ActiveRun> activeRun(String conversationId) {
+        final boolean replayTruncated = events.replayTruncated(conversationId);
         return slots.activeRun(conversationId)
                 .map(
                         runId ->
@@ -353,13 +358,29 @@ public class ChatRunService {
                                                         new ActiveRun(
                                                                 runId,
                                                                 ActiveRun.Kind.GENERATION,
-                                                                scope.elapsedMs()))
+                                                                scope.elapsedMs(),
+                                                                replayTruncated))
                                         .orElseGet(
                                                 () ->
                                                         new ActiveRun(
                                                                 runId,
-                                                                ActiveRun.Kind.OPERATION,
-                                                                null)));
+                                                                kindOutsideRegistry(
+                                                                        conversationId, runId),
+                                                                null,
+                                                                replayTruncated)));
+    }
+
+    /**
+     * Вид занятости, когда прогона в реестре нет. Обычно это операция без прогона ({@code
+     * ConversationSlots#claim}), но так же выглядит и генерация в терминальной обработке: реестр
+     * она покидает ДО доставки очереди, а заявку на чат отдаёт только в самом конце. Вкладке,
+     * попавшей в это окно, «операция» стоила бы заблокированного ввода без кнопки «Стоп» до
+     * ближайшего события потока — поэтому вид спрашиваем у заявки, которая помнит, кто её взял.
+     */
+    private ActiveRun.Kind kindOutsideRegistry(String conversationId, String runId) {
+        return slots.holdsGeneration(conversationId, runId)
+                ? ActiveRun.Kind.GENERATION
+                : ActiveRun.Kind.OPERATION;
     }
 
     /**

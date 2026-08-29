@@ -496,9 +496,9 @@ public class ChatController {
 
     /**
      * Чем занят чат прямо сейчас (или пустой объект) — этим вкладка восстанавливает своё состояние
-     * после перезагрузки: {@code runId}, {@code kind} и, у генерации, {@code elapsedMs} — сколько
-     * прогон уже идёт, чтобы таймер встал на верное место. Смысл полей — в {@link
-     * ChatRunService.ActiveRun}.
+     * после перезагрузки: {@code runId}, {@code kind}, у генерации {@code elapsedMs} — сколько
+     * прогон уже идёт, чтобы таймер встал на верное место, — и {@code replayTruncated}, если реплей
+     * прогона уже неполон. Смысл полей — в {@link ChatRunService.ActiveRun}.
      */
     @GetMapping("/{conversationId}/runs/active")
     public Map<String, Object> activeRun(@PathVariable final String conversationId) {
@@ -512,6 +512,9 @@ public class ChatController {
                             body.put("kind", active.kind().name());
                             if (active.elapsedMs() != null) {
                                 body.put("elapsedMs", active.elapsedMs());
+                            }
+                            if (active.replayTruncated()) {
+                                body.put("replayTruncated", true);
                             }
                             return body;
                         })
