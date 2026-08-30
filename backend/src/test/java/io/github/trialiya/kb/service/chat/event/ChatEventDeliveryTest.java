@@ -84,6 +84,31 @@ class ChatEventDeliveryTest {
         assertThat(events.replayTruncated(CONV)).isTrue();
     }
 
+    /**
+     * Курсор из прошлой жизни хаба реплей не отрезает. Хаб живёт меньше вкладки: простаивающий
+     * выгружается из реестра, и перезапуск приложения его тем более не переживает, — а нумерация у
+     * нового начинается заново. Вкладка со старым курсором иначе не получила бы ни одного события
+     * уже идущего прогона: все они «старше» её курсора.
+     */
+    @Test
+    void aCursorFromAPreviousHubDoesNotSwallowTheReplay() throws Exception {
+        events.startRun(CONV, RUN);
+        events.publish(CONV, ChatEventType.COMPACT_STARTED, RUN, null, null);
+
+        // 340 — курсор вкладки, досчитанный на прошлом инстансе хаба этого же чата.
+        final String replay = body(subscribe(340));
+        assertThat(replay).contains("COMPACT_STARTED");
+        // И сразу честное «что из этого вы уже видели — не знаю»: часть реплея вкладка могла
+        // применить вживую до обрыва, поэтому историю по концу прогона она перечитает.
+        assertThat(replay).contains("REPLAY_GAP");
+    }
+
+    /** Реплеить нечего — и объявлять нечего: пустой лог вкладке ничего не задваивает. */
+    @Test
+    void aCursorFromAPreviousHubOverAnEmptyLogIsJustIgnored() throws Exception {
+        assertThat(body(subscribe(340))).doesNotContain("REPLAY_GAP");
+    }
+
     /** Новый прогон начинается с чистого лога — дыра прошлого на него не переезжает. */
     @Test
     void theGapDoesNotOutliveTheRunThatCausedIt() throws Exception {
