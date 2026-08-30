@@ -436,7 +436,10 @@ public class CompactService {
                                                         .orElse(null),
                                         commandRow.getPosition())),
                         new SummaryWriter.CompactStats(
-                                messages, content.length(), usage.isEmpty() ? null : usage));
+                                CompactMeta.Kind.COMPACT,
+                                messages,
+                                content.length(),
+                                usage.isEmpty() ? null : usage));
         log.info(
                 "[{}] Compaction finished: {} messages -> {} chars; input {} ({} from cache),"
                         + " output {}",

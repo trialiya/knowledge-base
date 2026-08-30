@@ -1,17 +1,21 @@
 package io.github.trialiya.kb.service.chat.memory;
 
+import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.config.model.SummarizeProperties;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
+import io.github.trialiya.kb.model.chat.entity.CompactMeta;
+import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
@@ -24,6 +28,9 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.MessageType;
+import org.springframework.ai.chat.metadata.ChatResponseMetadata;
+import org.springframework.ai.chat.metadata.DefaultUsage;
+import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -59,6 +66,9 @@ class SummarizeServiceTest {
         chatHistory = mock(ChatHistoryService.class);
         chatModel = mock(OpenAiChatModel.class);
         when(chatModel.getOptions()).thenReturn(OpenAiChatOptions.builder().build());
+        // Плашка ссылается на id сохранённой сводки, поэтому save обязан вернуть строку, а не
+        // умолчательный null мока.
+        when(repository.save(any(ChatMessageEntity.class))).thenAnswer(call -> call.getArgument(0));
         answerWith("summary of the earlier conversation");
     }
 
@@ -80,15 +90,68 @@ class SummarizeServiceTest {
         // 88 строк промпта, 88 - 30 = 58 по числу сообщений; граница — вопрос на позиции 87.
         verify(repository).updateSummarized(CONV, 0L, 86L);
 
-        final ArgumentCaptor<ChatMessageEntity> saved =
-                ArgumentCaptor.forClass(ChatMessageEntity.class);
-        verify(repository).save(saved.capture());
-        assertThat(saved.getValue().isSummary()).isTrue();
-        assertThat(saved.getValue().getType()).isEqualTo(MessageType.ASSISTANT);
-        assertThat(saved.getValue().getPosition()).isEqualTo(85L);
-        assertThat(saved.getValue().getContent())
+        final ChatMessageEntity summary = savedRows().getFirst();
+        assertThat(summary.isSummary()).isTrue();
+        assertThat(summary.getType()).isEqualTo(MessageType.ASSISTANT);
+        assertThat(summary.getPosition()).isEqualTo(85L);
+        assertThat(summary.getContent())
                 .contains("messages 0-86")
                 .contains("Continue from message 87");
+    }
+
+    /**
+     * За сводкой встаёт видимая плашка: без неё сжатие проходило бы молча — часть разговора уезжает
+     * из контекста, а лента выглядит нетронутой. Вид отличает её от {@code /compact}: сжато начало
+     * истории, живой хвост под плашкой остался.
+     */
+    @Test
+    void aRoundLeavesAVisibleNoticeOfItsOwnKind() {
+        givenLive(turns(44));
+
+        service().doSummarize(CONV);
+
+        final ChatMessageEntity notice = savedRows().get(1);
+        assertThat(notice.isSummary()).isFalse();
+        assertThat(notice.isSummarized()).isTrue();
+        // Сразу за сводкой (85): в ленте плашка встаёт между сжатым и живым хвостом.
+        assertThat(notice.getPosition()).isEqualTo(86L);
+        final CompactMeta compact = requireNonNull(notice.getMeta()).compact();
+        assertThat(compact).isNotNull();
+        assertThat(compact.kind()).isEqualTo(CompactMeta.Kind.SUMMARIZE);
+        assertThat(compact.messages()).isEqualTo(58);
+        assertThat(compact.summaryChars())
+                .isEqualTo("summary of the earlier conversation".length());
+    }
+
+    /**
+     * Токены раунда ложатся в мету плашки — тем же полем, что и у ответа: фоновое сжатие тратит те
+     * же деньги, что и прогон, и в итог по чату обязано попадать наравне с ним.
+     */
+    @Test
+    void theRoundsTokensAreRecordedOnTheNoticeRow() {
+        givenLive(turns(44));
+        answerWith(
+                "summary of the earlier conversation",
+                new DefaultUsage(48_000, 900, 48_900, null, 40_000L, 0L));
+
+        service().doSummarize(CONV);
+
+        final RunTokenUsage usage = requireNonNull(savedRows().get(1).getMeta()).usage();
+        assertThat(usage).isNotNull();
+        assertThat(usage.promptTokens()).isEqualTo(48_000);
+        assertThat(usage.cacheReadTokens()).isEqualTo(40_000);
+        assertThat(usage.outputTokens()).isEqualTo(900);
+        assertThat(usage.modelCalls()).isEqualTo(1);
+    }
+
+    /** Эндпоинт без замера — плашка без замера: «неизвестно» это не ноль. */
+    @Test
+    void anUnmeasuredRoundLeavesTheNoticeWithoutTokens() {
+        givenLive(turns(44));
+
+        service().doSummarize(CONV);
+
+        assertThat(requireNonNull(savedRows().get(1).getMeta()).usage()).isNull();
     }
 
     /**
@@ -104,11 +167,7 @@ class SummarizeServiceTest {
 
         service().doSummarize(CONV);
 
-        final ArgumentCaptor<ChatMessageEntity> saved =
-                ArgumentCaptor.forClass(ChatMessageEntity.class);
-        verify(repository).save(saved.capture());
-        assertThat(saved.getValue().getMeta()).isNotNull();
-        assertThat(saved.getValue().getMeta().project()).isEqualTo("billing");
+        assertThat(requireNonNull(savedRows().getFirst().getMeta()).project()).isEqualTo("billing");
     }
 
     /** Пороги не достигнуты — ни модель, ни репозиторий трогать не за чем. */
@@ -143,6 +202,22 @@ class SummarizeServiceTest {
         when(chatModel.call(any(Prompt.class)))
                 .thenReturn(
                         new ChatResponse(List.of(new Generation(new AssistantMessage(content)))));
+    }
+
+    private void answerWith(String content, Usage usage) {
+        when(chatModel.call(any(Prompt.class)))
+                .thenReturn(
+                        new ChatResponse(
+                                List.of(new Generation(new AssistantMessage(content))),
+                                ChatResponseMetadata.builder().usage(usage).build()));
+    }
+
+    /** Ряды раунда в порядке записи: сводка, за ней плашка. */
+    private List<ChatMessageEntity> savedRows() {
+        final ArgumentCaptor<ChatMessageEntity> saved =
+                ArgumentCaptor.forClass(ChatMessageEntity.class);
+        verify(repository, times(2)).save(saved.capture());
+        return saved.getAllValues();
     }
 
     private void givenLive(List<PromptRow> rows) {

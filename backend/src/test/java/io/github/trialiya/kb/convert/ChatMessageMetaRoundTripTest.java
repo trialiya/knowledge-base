@@ -56,7 +56,7 @@ class ChatMessageMetaRoundTripTest {
                         "billing",
                         "default",
                         "deepseek-chat",
-                        new CompactMeta(21, 4096, 512),
+                        new CompactMeta(21, 4096, 512, CompactMeta.Kind.SUMMARIZE),
                         new GitEventMeta("pull", "billing", true, "Fast-forward", "main"),
                         true,
                         new RunTokenUsage(12_400, 11_400, 700, 320, 31_000, 24_000, 1_100, 3),
@@ -100,5 +100,29 @@ class ChatMessageMetaRoundTripTest {
 
         assertThat(new ChatMessageMetaToJsonConverter.Reader(objectMapper).convert(withNulls))
                 .isEqualTo(ChatMessageMeta.ofProject("billing", List.of()));
+    }
+
+    /**
+     * Плашка сжатия без вида — это {@code /compact}: других сжатий, когда такие ряды писались, не
+     * было. Незнакомый вид читается так же: откат приложения не должен превращаться в отказ читать
+     * чат.
+     */
+    @Test
+    void aCompactionNoticeWithoutAKnownKindReadsAsTheUserCommand() {
+        final ChatMessageMetaToJsonConverter.Reader reader =
+                new ChatMessageMetaToJsonConverter.Reader(objectMapper);
+
+        assertThat(
+                        reader.convert(
+                                        "{\"compact\":{\"messages\":10,\"summaryChars\":128,"
+                                                + "\"summaryId\":7}}")
+                                .compact())
+                .isEqualTo(new CompactMeta(10, 128, 7, CompactMeta.Kind.COMPACT));
+        assertThat(
+                        reader.convert(
+                                        "{\"compact\":{\"messages\":10,\"summaryChars\":128,"
+                                                + "\"summaryId\":7,\"kind\":\"TELEPORT\"}}")
+                                .compact())
+                .isEqualTo(new CompactMeta(10, 128, 7, CompactMeta.Kind.COMPACT));
     }
 }

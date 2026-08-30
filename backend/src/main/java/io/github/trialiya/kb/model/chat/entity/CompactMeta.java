@@ -1,14 +1,62 @@
 package io.github.trialiya.kb.model.chat.entity;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import org.jspecify.annotations.Nullable;
+
 /**
- * Итог сжатия {@code /compact} на строке-плашке, которую видит пользователь (см. {@code
- * SummaryWriter.write}). Плашка — отдельный ряд, а не сама сводка: сводка уезжает модели и потому
- * из показа исключена целиком, а показать про неё надо ровно эти три числа.
+ * Итог сжатия контекста на строке-плашке, которую видит пользователь (см. {@code
+ * SummaryWriter.writeCompacted}). Плашка — отдельный ряд, а не сама сводка: сводка уезжает модели и
+ * потому из показа исключена целиком, а показать про неё надо ровно эти числа.
  *
  * @param messages сколько сообщений перестало ехать модели
  * @param summaryChars длина написанного моделью документа в символах (без протокольной обёртки, в
  *     которой сводка лежит в БД) — вместе с {@code messages} это и есть «во сколько раз сжали»
  * @param summaryId id ряда со сводкой: по нему эндпоинт деталей достаёт её текст, а плашка остаётся
  *     лёгкой — сводка бывает в десятки килобайт, и в каждую страницу истории она не нужна
+ * @param kind чем сжатие вызвано (см. {@link Kind}) — от этого зависит и вид плашки, и то, как её
+ *     замер читает счётчик контекста
  */
-public record CompactMeta(int messages, int summaryChars, long summaryId) {}
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record CompactMeta(int messages, int summaryChars, long summaryId, Kind kind) {
+
+    /**
+     * Чем вызвано сжатие. Различать их обязан не только текст плашки: {@link #COMPACT} и {@link
+     * #AUTO_COMPACT} заменяют сводкой весь живой контекст, а {@link #SUMMARIZE} — только его
+     * начало, и живой хвост остаётся. Отсюда разное чтение замера на плашке (см. {@code
+     * tokenUsage.js} на фронте): после полного сжатия контекст оценивается по сводке, после
+     * частичного — не оценивается вовсе, потому что размер оставшегося хвоста ниоткуда не известен.
+     */
+    public enum Kind {
+
+        /** Команда пользователя {@code /compact} (см. {@code CompactService}). */
+        COMPACT,
+
+        /** То же сжатие, но запущенное самим чатом при подходе к пределу контекста модели. */
+        AUTO_COMPACT,
+
+        /** Фоновая суммаризация начала истории (см. {@code SummarizeService}). */
+        SUMMARIZE;
+
+        /**
+         * Вид из записанного ряда. Незнакомое значение (ряд написан версией, которая знает вид, а
+         * эта — уже или ещё нет) читается как {@link #COMPACT}: откат приложения не должен
+         * превращаться в отказ читать чат целиком, а «сжали весь контекст» — безопасное прочтение
+         * для плашки, про которую больше ничего не известно.
+         */
+        @JsonCreator
+        static Kind of(@Nullable String raw) {
+            for (Kind kind : values()) {
+                if (kind.name().equals(raw)) {
+                    return kind;
+                }
+            }
+            return COMPACT;
+        }
+    }
+
+    /** Ряды, записанные до появления вида, — это {@code /compact}: другого сжатия тогда не было. */
+    public CompactMeta {
+        kind = kind == null ? Kind.COMPACT : kind;
+    }
+}

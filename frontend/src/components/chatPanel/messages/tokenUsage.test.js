@@ -151,6 +151,21 @@ describe('tokenUsage', () => {
       expect(contextUsageOf([{ sender: 'user' }])).toBeNull();
       expect(contextUsageOf(undefined)).toBeNull();
     });
+
+    test('после фоновой суммаризации счётчик пуст: живой хвост под плашкой не измерен', () => {
+      const messages = [
+        ai({ contextTokens: 90000 }),
+        {
+          sender: 'ai',
+          compact: { messages: 40, kind: 'SUMMARIZE' },
+          usage: { contextTokens: 62000, outputTokens: 1200 },
+        },
+      ];
+
+      // Оценивать нечем: сводка заменила только начало истории, а сколько занимает оставшийся
+      // хвост, не знает никто — и 90k выше плашки тем более не ответ.
+      expect(contextUsageOf(messages, 9800)).toBeNull();
+    });
   });
 
   describe('compactSavingsIn', () => {
@@ -197,6 +212,26 @@ describe('tokenUsage', () => {
       // Первое сжатие замера за собой не дождалось — оценка; второе дождалось.
       expect(savings.get(7)).toMatchObject({ before: 169000, estimated: true });
       expect(savings.get(8)).toEqual({ before: 11000, after: 12000, estimated: false, percent: 0 });
+    });
+
+    test('у фоновой суммаризации экономии нет: её раунд мерил не контекст чата', () => {
+      const summarized = {
+        mid: 8,
+        sender: 'ai',
+        compact: { messages: 40, kind: 'SUMMARIZE' },
+        usage: { contextTokens: 62000, promptTokens: 60000, outputTokens: 1200 },
+      };
+      const messages = [
+        ai({ contextTokens: 168000, basePromptTokens: 9800 }),
+        notice(7, { contextTokens: 170200, promptTokens: 169000, outputTokens: 1200 }),
+        summarized,
+        ai({ contextTokens: 15000, basePromptTokens: 12000 }),
+      ];
+
+      const savings = compactSavingsIn(messages);
+      expect(savings.has(8)).toBe(false);
+      // И «после» предыдущей плашки такая суммаризация обрывает: контекст она тоже изменила.
+      expect(savings.get(7)).toMatchObject({ before: 169000, estimated: true });
     });
 
     test('неизмеренное сжатие в карту не попадает: «сэкономили ничего» — неправда', () => {

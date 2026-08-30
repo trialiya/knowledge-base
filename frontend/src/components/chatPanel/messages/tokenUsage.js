@@ -2,6 +2,7 @@
 // здесь только показ — в футере ответа и в шапке помещается одно короткое число, разбивка живёт в
 // подсказке, а расширенная статистика по всему чату — во вкладке «Инфо».
 
+import { isFullCompaction } from '@/constants/compactKind';
 import { SENDER } from '@/constants/messageSender';
 
 const THOUSAND = 1000;
@@ -108,16 +109,19 @@ const contextAfterCompact = (notice, base) =>
  * суммируем: prompt каждого обращения уже включает всю историю до него, поэтому свежий замер и есть
  * ответ целиком (см. RunTokenUsage на бэке).
  *
- * Плашка сжатия обрывает поиск: /compact выбросил из контекста почти всё, и замер выше неё говорит
- * про историю, которой больше нет. Дальше отвечает оценка (contextAfterCompact) — её собственный
- * замер описывает выброшенное окно и текущим контекстом быть не может.
+ * Любая плашка сжатия обрывает поиск: замер выше неё говорит про историю, часть которой уже не
+ * едет модели. Дальше всё зависит от того, сколько сжатие выбросило. После полного (/compact и
+ * авто-compact) отвечает оценка по сводке — contextAfterCompact; после фоновой суммаризации не
+ * отвечает никто: под плашкой остался живой хвост, и его размер не измерен и не оценивается.
+ * Пустой счётчик здесь честнее числа, завышенного на весь сжатый кусок; точное придёт с первым же
+ * ответом.
  *
  * @param base системная часть контекста (baseContextOf) — нужна только для оценки после сжатия
  */
 export const contextUsageOf = (messages, base) => {
   for (let i = (messages?.length || 0) - 1; i >= 0; i--) {
     const m = messages[i];
-    if (m.compact) return contextAfterCompact(m, base);
+    if (m.compact) return isFullCompaction(m.compact) ? contextAfterCompact(m, base) : null;
     if (hasUsage(runUsage(m))) return m.usage;
   }
   return null;
@@ -139,8 +143,9 @@ export const contextUsageOf = (messages, base) => {
 export const baseContextOf = (messages, partial) => {
   if (partial) return null;
   for (const m of messages || []) {
-    // Плашка сжатия тоже несёт замер, но её basePromptTokens — это всё окно, которое сжатие
-    // прочитало: у раунда из одного обращения «первый prompt» и есть весь его вход.
+    // Плашка сжатия тоже несёт замер, но системной части чата в нём нет: у /compact
+    // basePromptTokens — это всё прочитанное раундом окно, у фоновой суммаризации — вовсе чужой
+    // системный промпт, суммаризатора.
     if (m.compact) continue;
     if (!hasUsage(runUsage(m))) continue;
     return Number(m.usage.basePromptTokens) || null;
@@ -169,11 +174,15 @@ export const contextBeforeCompact = (notice) =>
 const startingContextOf = (usage) => Number(usage.basePromptTokens) || Number(usage.contextTokens) || null;
 
 /**
- * Экономия каждого сжатия в ленте: mid плашки → {before, after, percent, estimated}.
+ * Экономия каждого ПОЛНОГО сжатия в ленте: mid плашки → {before, after, percent, estimated}.
  *
  * «До» — замер самого раунда (вход, который он оплатил). «После» — первый измеренный прогон за
  * плашкой, а пока его нет, оценка по системной части (см. contextAfterCompact); отсюда estimated,
  * и его обязан показать интерфейс: до первого ответа число приблизительное.
+ *
+ * У фоновой суммаризации экономии в этих числах нет: её раунд читал не контекст чата, а пересказ
+ * сжимаемого куска своим промптом, и «до» из такого замера — число про другой запрос. Плашку она
+ * получает без экономии, а поиск «после» для предыдущей — обрывает: контекст она тоже изменила.
  *
  * Одним проходом и картой, а не вопросом на каждую плашку: плашек в чате бывает несколько, и
  * каждая ищет свой «после» вперёд по ленте — поиск на плашку дал бы квадрат по длине ленты.
@@ -199,7 +208,7 @@ export const compactSavingsIn = (messages, partial) => {
     if (m.compact) {
       // Предыдущая плашка так и не дождалась замера: между двумя сжатиями ответа не было.
       if (pending) settle(pending, contextAfterCompact(pending, base)?.contextTokens ?? null, true);
-      pending = m;
+      pending = isFullCompaction(m.compact) ? m : null;
       continue;
     }
     if (pending && hasUsage(runUsage(m))) {

@@ -184,7 +184,8 @@ class CompactServiceTest {
                         true,
                         false,
                         LocalDateTime.now(),
-                        ChatMessageMeta.ofCompact(new CompactMeta(10, 128, 7L)));
+                        ChatMessageMeta.ofCompact(
+                                new CompactMeta(10, 128, 7L, CompactMeta.Kind.COMPACT)));
         when(repository.findById(8L)).thenReturn(Optional.of(notice));
         when(repository.findById(7L)).thenReturn(Optional.of(summary));
 

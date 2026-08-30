@@ -2,10 +2,13 @@ package io.github.trialiya.kb.service.chat.memory;
 
 import static io.github.trialiya.kb.utils.ChatUtils.context;
 
+import io.github.trialiya.kb.advisor.RoundUsageAdvisor;
 import io.github.trialiya.kb.config.model.SummarizeProperties;
 import io.github.trialiya.kb.functions.MessageLookupFunction;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
+import io.github.trialiya.kb.model.chat.entity.CompactMeta;
+import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
@@ -29,6 +32,11 @@ import org.springframework.stereotype.Service;
  * Background compression of long conversations. This class is the orchestration only — one round
  * per conversation at a time, the LLM call, the atomic persist; everything about WHERE the boundary
  * goes lives in {@link SummarizeWindow}.
+ *
+ * <p>Раунд оставляет за собой тот же видимый след, что и {@code /compact}, — строку-плашку со своим
+ * замером ({@link SummaryWriter#writeCompacted}). Молча сжимать нельзя по двум причинам сразу:
+ * пользователь иначе не узнаёт, что часть разговора модель больше не видит, а счётчик токенов чата
+ * продолжает показывать замер прогона, который мерил уже несуществующий контекст.
  */
 @Slf4j
 @Service
@@ -149,8 +157,17 @@ public class SummarizeService implements DisposableBean {
         final List<ChatMessageEntity> existingSummaries = window.summaries();
         final boolean collapseSummaries =
                 existingSummaries.size() + 1 >= summarizeProperties.summaryCollapseThreshold();
+        // Замер на весь раунд, включая обращения tool-цикла: у фоновой суммаризации своей области
+        // прогона нет, и без накопителя её токены не попали бы в итог по чату ни одним числом —
+        // при том что тратит она столько же, сколько ответ (см. RoundUsageAdvisor).
+        final RoundUsageAdvisor roundUsage = new RoundUsageAdvisor();
         final @Nullable String summaryContent =
-                generateSummary(conversationId, existingSummaries, toCompress, collapseSummaries);
+                generateSummary(
+                        conversationId,
+                        existingSummaries,
+                        toCompress,
+                        collapseSummaries,
+                        roundUsage);
         if (summaryContent == null || summaryContent.isBlank()) {
             log.error(
                     "[{}] Summarization produced an empty result, skipping this round",
@@ -166,12 +183,17 @@ public class SummarizeService implements DisposableBean {
                                 toCompress.getFirst().entity().getPosition(),
                                 window.endPosition());
 
+        final RunTokenUsage usage = roundUsage.usage();
         log.info(
-                "[{}] Summarization finished — compressed {} ({}) into ~{} tokens",
+                "[{}] Summarization finished — compressed {} ({}) into ~{} tokens;"
+                        + " the round itself: input {} ({} from cache), output {}",
                 conversationId,
                 MessageMix.of(toCompress),
                 window.sliceTokens(),
-                summaryText.length() / summarizeProperties.charsPerToken());
+                summaryText.length() / summarizeProperties.charsPerToken(),
+                usage.promptTokens(),
+                usage.cacheReadTokens(),
+                usage.outputTokens());
 
         persistSummary(
                 conversationId,
@@ -179,6 +201,8 @@ public class SummarizeService implements DisposableBean {
                 existingSummaries,
                 collapseSummaries,
                 summaryText,
+                summaryContent.length(),
+                usage,
                 window.endPosition());
     }
 
@@ -190,7 +214,8 @@ public class SummarizeService implements DisposableBean {
             String conversationId,
             List<ChatMessageEntity> existingSummaries,
             List<PromptRow> toCompress,
-            boolean collapseSummaries) {
+            boolean collapseSummaries,
+            RoundUsageAdvisor roundUsage) {
         final StringBuilder prompt = new StringBuilder();
 
         if (collapseSummaries) {
@@ -233,6 +258,7 @@ public class SummarizeService implements DisposableBean {
         return chatClient
                 .prompt(prompt.toString())
                 .toolContext(context(conversationId).build())
+                .advisors(a -> a.advisors(roundUsage))
                 .call()
                 .content();
     }
@@ -293,13 +319,27 @@ public class SummarizeService implements DisposableBean {
                 + "Treat this as authoritative context for the entire conversation so far.";
     }
 
-    /** Marks old messages as summarized and inserts the new summary row, atomically. */
+    /**
+     * Marks old messages as summarized and inserts the new summary row, atomically — together with
+     * the plaque the user sees in its place.
+     *
+     * <p>Плашка здесь та же, что у {@code /compact}, и это единственное, что о фоновом сжатии
+     * вообще можно узнать: сводка модели не показывается, а ряды, которые она заменила, с виду
+     * остаются прежними. Отличает её вид {@link CompactMeta.Kind#SUMMARIZE} — сжато начало истории,
+     * а не весь контекст, и живой хвост под плашкой остаётся.
+     *
+     * @param summaryChars длина документа модели — без обёртки, в которую он попадает в {@code
+     *     metaSummaryText}: плашка показывает это число рядом с самим документом
+     * @param usage токены раунда; пустой замер в мету не идёт — «неизвестно» это не ноль
+     */
     private void persistSummary(
             String conversationId,
             List<PromptRow> oldMessages,
             List<ChatMessageEntity> existingSummaries,
             boolean collapseSummaries,
             String metaSummaryText,
+            int summaryChars,
+            RunTokenUsage usage,
             long endPosition) {
         if (oldMessages.isEmpty()) {
             return;
@@ -308,7 +348,7 @@ public class SummarizeService implements DisposableBean {
                 collapseSummaries ? existingSummaries.getFirst() : oldMessages.getFirst().entity();
         final ChatMessageEntity lastMsg = oldMessages.getLast().entity();
 
-        summaryWriter.write(
+        summaryWriter.writeCompacted(
                 new SummaryWriter.SummaryRow(
                         conversationId,
                         firstMsg.getPosition(),
@@ -327,6 +367,11 @@ public class SummarizeService implements DisposableBean {
                                                 .findById(conversationId)
                                                 .map(ChatTopicEntity::getProject)
                                                 .orElse(null),
-                                endPosition)));
+                                endPosition)),
+                new SummaryWriter.CompactStats(
+                        CompactMeta.Kind.SUMMARIZE,
+                        oldMessages.size(),
+                        summaryChars,
+                        usage.isEmpty() ? null : usage));
     }
 }
