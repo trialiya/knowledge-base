@@ -138,7 +138,7 @@ class GitCommandsTest {
 
         assertThat(result.output()).startsWith("Committed ");
         assertThat(service.branchStatus().dirty()).isFalse();
-        assertThat(service.getCommitLog(1, null).getFirst().message()).isEqualTo("second");
+        assertThat(service.getCommitLog(1, null, false).getFirst().message()).isEqualTo("second");
     }
 
     @Test

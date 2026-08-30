@@ -353,8 +353,10 @@ public class GitService {
      *
      * @param maxCount max commits to return (default 20, capped at 100)
      * @param filePath optional — limit history to a specific file
+     * @param includeBody fill each commit's {@code body} with the message below the subject
      */
-    public List<GitCommit> getCommitLog(int maxCount, @Nullable String filePath) {
+    public List<GitCommit> getCommitLog(
+            int maxCount, @Nullable String filePath, boolean includeBody) {
         int limit = Math.min(Math.max(maxCount, 1), 100);
         try (ObjectReader reader = repository.newObjectReader()) {
             var logCommand = git.log().setMaxCount(limit);
@@ -363,7 +365,7 @@ public class GitService {
             }
             List<GitCommit> commits = new ArrayList<>();
             for (RevCommit commit : logCommand.call()) {
-                commits.add(toGitCommit(commit, null, reader));
+                commits.add(toGitCommit(commit, null, reader, includeBody));
             }
             return commits;
         } catch (NoHeadException e) {
@@ -406,7 +408,7 @@ public class GitService {
             for (RevCommit commit : walk) {
                 if (++scanned > COMMIT_SEARCH_SCAN) break;
                 if (!matchesCommit(commit, q)) continue;
-                matches.add(toGitCommit(commit, null, reader));
+                matches.add(toGitCommit(commit, null, reader, false));
                 if (matches.size() >= limit) break;
             }
             return matches;
@@ -484,7 +486,9 @@ public class GitService {
                     entries.add(toGitDiffEntry(entry, formatter, includePatch, patchOut));
                 }
             }
-            return toGitCommit(commit, entries, reader);
+            // Тело здесь без флага: спрашивали про один названный коммит, и рядом с его диффом
+            // сообщение — самая дешёвая половина ответа на «почему это меняли».
+            return toGitCommit(commit, entries, reader, true);
         } catch (MissingObjectException | IncorrectObjectTypeException e) {
             throw new IllegalArgumentException("Commit not found: " + hash, e);
         } catch (AmbiguousObjectException e) {
@@ -1420,7 +1424,10 @@ public class GitService {
     }
 
     private static GitCommit toGitCommit(
-            RevCommit commit, @Nullable List<GitDiffEntry> files, ObjectReader reader)
+            RevCommit commit,
+            @Nullable List<GitDiffEntry> files,
+            ObjectReader reader,
+            boolean includeBody)
             throws IOException {
         PersonIdent author = commit.getAuthorIdent();
         OffsetDateTime date =
@@ -1432,7 +1439,23 @@ public class GitService {
                 author.getEmailAddress(),
                 date,
                 commit.getShortMessage(),
+                includeBody ? messageBody(commit) : null,
                 files);
+    }
+
+    /**
+     * Всё сообщение коммита после первой пустой строки, или {@code null}, если тела нет.
+     *
+     * <p>Режем по пустой строке, а не вычитанием {@link RevCommit#getShortMessage()} из полного
+     * текста: короткое сообщение JGit склеивает перенесённый subject в одну строку через пробел, и
+     * такой префикс в полном тексте уже не найдётся.
+     */
+    private static @Nullable String messageBody(RevCommit commit) {
+        String full = commit.getFullMessage().replace("\r\n", "\n");
+        int blankLine = full.indexOf("\n\n");
+        if (blankLine < 0) return null;
+        String body = full.substring(blankLine + 2).strip();
+        return body.isEmpty() ? null : body;
     }
 
     /**

@@ -83,7 +83,7 @@ public class GitController {
         if (path != null && !path.isBlank()) {
             requireSafePath(path);
         }
-        return git(project).getCommitLog(limit, path);
+        return git(project).getCommitLog(limit, path, false);
     }
 
     /**

@@ -1025,7 +1025,7 @@ Fuzzy-поиск tracked-файлов по имени (subsequence match, рег
 | `limit` | int | `20` | Макс. коммитов (не больше 100) |
 | `project` | String? | `null` | ID проекта; пусто — дефолтный |
 
-**Response:** `List<GitCommit>` — `{ hash, shortHash, author, email, date, message }`
+**Response:** `List<GitCommit>` — `{ hash, shortHash, author, email, date, message }`. `message` — первая строка сообщения; поле `body` (полное сообщение) браузеру не заполняется — его запрашивает только инструмент `getCommitLog`
 
 ### GET `/api/git/commits/search`
 Поиск коммита для диалога заполнения плейсхолдеров (тип `commit`). Совпадением считается префикс хэша или подстрока темы коммита — регистр не важен. Тело сообщения не ищется: в строке выдачи видна только тема, и попадание по телу читалось бы как случайный результат.

@@ -158,12 +158,57 @@ class GitServiceTest {
                 .hasMessage("File not found: does-not-exist.txt");
     }
 
+    /**
+     * Тело коммита стоит контекста, поэтому в истории оно за флагом, а рядом с диффом одного
+     * названного коммита — всегда. Subject в обоих случаях остаётся одной строкой.
+     */
+    @Test
+    void theMessageBodyIsOptionalInTheLogAndUnconditionalNextToADiff() {
+        writeFile("a.txt", "x\n");
+        commitAll("Subject line\n\nWhy it was done.\n\nAnd a second paragraph.");
+
+        assertThat(service.getCommitLog(1, null, false).getFirst())
+                .satisfies(c -> assertThat(c.message()).isEqualTo("Subject line"))
+                .satisfies(c -> assertThat(c.body()).isNull());
+
+        GitCommit withBody = service.getCommitLog(1, null, true).getFirst();
+        assertThat(withBody.message()).isEqualTo("Subject line");
+        assertThat(withBody.body()).isEqualTo("Why it was done.\n\nAnd a second paragraph.");
+
+        assertThat(service.getCommitDiff(withBody.hash(), false).getFirst().body())
+                .isEqualTo(withBody.body());
+    }
+
+    /** Однострочное сообщение — тела нет, а не пустая строка: пустое поле незачем сериализовать. */
+    @Test
+    void aSubjectOnlyCommitHasNoBody() {
+        writeFile("a.txt", "x\n");
+        commitAll("Just a subject");
+
+        assertThat(service.getCommitLog(1, null, true).getFirst().body()).isNull();
+    }
+
+    /**
+     * Длинный subject git переносит на несколько строк, и {@code RevCommit.getShortMessage()}
+     * склеивает его обратно через пробел — режем по первой пустой строке, иначе такой перенос
+     * утащил бы хвост subject-а в тело.
+     */
+    @Test
+    void aWrappedSubjectDoesNotLeakIntoTheBody() {
+        writeFile("a.txt", "x\n");
+        commitAll("Subject that git\nwrapped onto two lines\n\nThe body.");
+
+        GitCommit commit = service.getCommitLog(1, null, true).getFirst();
+        assertThat(commit.message()).isEqualTo("Subject that git wrapped onto two lines");
+        assertThat(commit.body()).isEqualTo("The body.");
+    }
+
     @Test
     void rootCommitDiffIncludesTheInitialFiles() {
         writeFile("a.txt", "line1\nline2\n");
         commitAll();
 
-        List<GitCommit> log = service.getCommitLog(10, null);
+        List<GitCommit> log = service.getCommitLog(10, null, false);
         assertThat(log).hasSize(1);
 
         // Regression: `git diff-tree` needs --root to show anything for the very first commit;
@@ -301,7 +346,7 @@ class GitServiceTest {
         runGit("mv", "old-name.txt", "new-name.txt");
         runGit("commit", "-q", "-m", "rename");
 
-        List<GitCommit> log = service.getCommitLog(1, null);
+        List<GitCommit> log = service.getCommitLog(1, null, false);
         List<GitDiffEntry> files = service.getCommitDiff(log.get(0).hash(), false).get(0).files();
 
         assertThat(files).hasSize(1);
@@ -324,7 +369,7 @@ class GitServiceTest {
         writeFile("extra.txt", "shared\ncontent\nlines\n");
         commitAll();
 
-        List<GitCommit> log = service.getCommitLog(1, null);
+        List<GitCommit> log = service.getCommitLog(1, null, false);
         List<GitDiffEntry> files = service.getCommitDiff(log.get(0).hash(), false).get(0).files();
 
         // Both new files are byte-identical, so which one the detector promotes to RENAME (vs
@@ -368,7 +413,7 @@ class GitServiceTest {
         commitAll();
 
         // A backslash path must still find the commit that touched the file.
-        var log = service.getCommitLog(10, "src\\main\\Bar.java");
+        var log = service.getCommitLog(10, "src\\main\\Bar.java", false);
         assertThat(log).hasSize(1);
     }
 
@@ -376,7 +421,7 @@ class GitServiceTest {
     void windowsBackslashInCommitDiffFilePathIsNormalized() {
         writeFile("src/main/Baz.java", "class Baz {}\n");
         commitAll();
-        String hash = service.getCommitLog(1, null).get(0).hash();
+        String hash = service.getCommitLog(1, null, false).get(0).hash();
 
         // A backslash path must resolve to the same file the diff's PathFilter expects.
         var diff = service.getCommitDiff(hash, false, "src\\main\\Baz.java");
@@ -566,7 +611,7 @@ class GitServiceTest {
     void searchCommitsMatchesHashPrefix() {
         writeFile("a.txt", "a\n");
         commitAll("Only commit");
-        String hash = service.getCommitLog(1, null).get(0).hash();
+        String hash = service.getCommitLog(1, null, false).get(0).hash();
 
         assertThat(service.searchCommits(hash.substring(0, 6).toUpperCase(), 10))
                 .extracting(GitCommit::hash)
