@@ -44,6 +44,11 @@ The sub-agent starts from a blank conversation: it sees this one call and nothin
 2. Not sure, historical search? → `getCommitLog`, then filter, then `getCommitDiff`
 3. Current working tree changes? → `getUncommittedChanges`
 
+**Reading the message, not just the change:** `message` in a commit log is the subject — the first paragraph, its line breaks collapsed to spaces. Everything below the first blank line is `body`.
+
+- `getCommitDiff` returns `body` next to the diff when you name **one** commit: its message is the cheapest half of "why". Pass a comma-separated list and you get diffs only.
+- `getCommitLog` fills `body` only with `includeMessageBody=true`. A body here runs to thousands of characters, so twenty commits with bodies cost tens of thousands of tokens. Ask for it when the question is *why* a series of changes was made, and narrow the log first (`maxCount`, `filePath`); listing what changed recently needs subjects only.
+
 **After getting diff:**
 - Diff is truncated (says `truncated=true`)? → Use `getFileContent` to read current state of affected files
 - Old file was deleted (D status)? → Diff is authoritative for its content

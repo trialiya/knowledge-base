@@ -13,12 +13,21 @@ import org.jspecify.annotations.Nullable;
  * <p>Репозиторий коммит не называет: он один на всю выдачу и назван обёрткой ответа ({@code
  * ToolResult}).
  *
+ * <p>{@code body} в истории заполняется только по запросу: тела идут на тысячи символов каждое, и
+ * два десятка коммитов лога с телами — это десятки тысяч токенов контекста за ответ на «какие
+ * вообще были коммиты». Незаполненное поле всё равно печатается как {@code null}, а не выкидывается
+ * из JSON: список коммитов в «Обзоре» чата разбирается по совпадению набора ключей ({@code
+ * recordList.js}), и коммит с телом рядом с коммитом без тела развалил бы этот вид. В плашке UI
+ * ({@link #getFormattedResponse}) и в её мете тела нет ни при каких условиях: там строка на коммит.
+ *
  * @param hash полный SHA коммита
  * @param shortHash сокращённый SHA (минимум 7 символов, длиннее при неоднозначности)
  * @param author имя автора
  * @param email email автора
  * @param date дата коммита (ISO-8601 с offset)
- * @param message сообщение коммита (subject)
+ * @param message subject — первый абзац сообщения, переносы строк склеены пробелами
+ * @param body остальная часть сообщения — всё после первой пустой строки; {@code null}, если тела
+ *     нет или его не запрашивали
  * @param files список затронутых файлов (только если запрошены изменения)
  */
 public record GitCommit(
@@ -28,6 +37,7 @@ public record GitCommit(
         String email,
         OffsetDateTime date,
         String message,
+        @Nullable String body,
         @Nullable List<GitDiffEntry> files)
         implements ToolCallResponseItem, ToolCallResultMetaProvider {
 

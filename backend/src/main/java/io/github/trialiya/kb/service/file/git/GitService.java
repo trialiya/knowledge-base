@@ -353,8 +353,10 @@ public class GitService {
      *
      * @param maxCount max commits to return (default 20, capped at 100)
      * @param filePath optional — limit history to a specific file
+     * @param includeBody fill each commit's {@code body} with the message below the subject
      */
-    public List<GitCommit> getCommitLog(int maxCount, @Nullable String filePath) {
+    public List<GitCommit> getCommitLog(
+            int maxCount, @Nullable String filePath, boolean includeBody) {
         int limit = Math.min(Math.max(maxCount, 1), 100);
         try (ObjectReader reader = repository.newObjectReader()) {
             var logCommand = git.log().setMaxCount(limit);
@@ -363,7 +365,7 @@ public class GitService {
             }
             List<GitCommit> commits = new ArrayList<>();
             for (RevCommit commit : logCommand.call()) {
-                commits.add(toGitCommit(commit, null, reader));
+                commits.add(toGitCommit(commit, null, reader, includeBody));
             }
             return commits;
         } catch (NoHeadException e) {
@@ -406,7 +408,7 @@ public class GitService {
             for (RevCommit commit : walk) {
                 if (++scanned > COMMIT_SEARCH_SCAN) break;
                 if (!matchesCommit(commit, q)) continue;
-                matches.add(toGitCommit(commit, null, reader));
+                matches.add(toGitCommit(commit, null, reader, false));
                 if (matches.size() >= limit) break;
             }
             return matches;
@@ -434,7 +436,8 @@ public class GitService {
 
     /**
      * Returns changed files with optional unified diff for one or more commits, optionally
-     * restricted to a single file.
+     * restricted to a single file. A single named commit also carries its full message body; a list
+     * does not.
      *
      * @param commitHashes comma-separated commit hashes
      * @param includePatch whether to include unified diff text
@@ -447,17 +450,24 @@ public class GitService {
                 (filePath == null || filePath.isBlank())
                         ? null
                         : RepoPaths.toForwardSlashes(filePath.strip());
+        List<String> hashes =
+                Arrays.stream(commitHashes.split(","))
+                        .map(String::strip)
+                        .filter(h -> !h.isEmpty())
+                        .toList();
+        // Сообщение целиком — только когда коммит назвали один. Тогда спрашивают «почему это
+        // меняли», и тело рядом с диффом стоит дёшево; на списке из двадцати хешей оно вернуло бы
+        // ровно те десятки тысяч токенов, ради которых в getCommitLog заведён флаг.
+        boolean includeBody = hashes.size() == 1;
         List<GitCommit> result = new ArrayList<>();
-        for (String hash : commitHashes.split(",")) {
-            String h = hash.strip();
-            if (h.isEmpty()) continue;
-            result.add(diffForSingleCommit(h, includePatch, spec));
+        for (String hash : hashes) {
+            result.add(diffForSingleCommit(hash, includePatch, spec, includeBody));
         }
         return result;
     }
 
     private GitCommit diffForSingleCommit(
-            String hash, boolean includePatch, @Nullable String filePath) {
+            String hash, boolean includePatch, @Nullable String filePath, boolean includeBody) {
         try (RevWalk revWalk = new RevWalk(repository);
                 ObjectReader reader = repository.newObjectReader()) {
             RevCommit commit = revWalk.parseCommit(resolveCommitId(hash));
@@ -484,7 +494,7 @@ public class GitService {
                     entries.add(toGitDiffEntry(entry, formatter, includePatch, patchOut));
                 }
             }
-            return toGitCommit(commit, entries, reader);
+            return toGitCommit(commit, entries, reader, includeBody);
         } catch (MissingObjectException | IncorrectObjectTypeException e) {
             throw new IllegalArgumentException("Commit not found: " + hash, e);
         } catch (AmbiguousObjectException e) {
@@ -1420,7 +1430,10 @@ public class GitService {
     }
 
     private static GitCommit toGitCommit(
-            RevCommit commit, @Nullable List<GitDiffEntry> files, ObjectReader reader)
+            RevCommit commit,
+            @Nullable List<GitDiffEntry> files,
+            ObjectReader reader,
+            boolean includeBody)
             throws IOException {
         PersonIdent author = commit.getAuthorIdent();
         OffsetDateTime date =
@@ -1432,7 +1445,26 @@ public class GitService {
                 author.getEmailAddress(),
                 date,
                 commit.getShortMessage(),
+                includeBody ? messageBody(commit) : null,
                 files);
+    }
+
+    /**
+     * Всё сообщение коммита после первой пустой строки, или {@code null}, если тела нет.
+     *
+     * <p>Режем по пустой строке, а не вычитанием {@link RevCommit#getShortMessage()} из полного
+     * текста: короткое сообщение JGit склеивает перенесённый subject в одну строку через пробел, и
+     * такой префикс в полном тексте уже не найдётся.
+     */
+    private static @Nullable String messageBody(RevCommit commit) {
+        String full = commit.getFullMessage().replace("\r\n", "\n");
+        int blankLine = full.indexOf("\n\n");
+        if (blankLine < 0) return null;
+        // Слева режем только переносы, а не пробелы: тело часто открывается блоком кода, и
+        // strip() снял бы отступ у одной первой строки, оставив остальные — вышел бы сломанный
+        // отступ вместо цитаты.
+        String body = full.substring(blankLine + 2).stripTrailing().replaceFirst("^\n+", "");
+        return body.isBlank() ? null : body;
     }
 
     /**

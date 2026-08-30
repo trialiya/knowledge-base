@@ -122,11 +122,12 @@ public class GitFunction {
      *
      * @param maxCount maximum number of commits to return (default 20, max 100)
      * @param filePath optional — show only commits that touched this file
+     * @param includeMessageBody include each commit's message below the subject (default false)
      * @return list of commits with hash, author, date, and message
      */
     @Tool(
             description =
-                    "Recent commit history (newest first). Commit: hash, shortHash, author, email, date (ISO-8601), message. Use getCommitDiff to see file changes.",
+                    "Recent commit history (newest first). Commit: hash, shortHash, author, email, date (ISO-8601), message (subject only; full text in \"body\" with includeMessageBody). Use getCommitDiff to see file changes.",
             resultConverter = CompactToolResultConverter.class)
     public ToolResult<List<GitCommit>> getCommitLog(
             ToolContext context,
@@ -141,6 +142,12 @@ public class GitFunction {
                     @Nullable String filePath,
             @ToolParam(
                             description =
+                                    "Add each commit's full message body in \"body\". Turn on"
+                                            + " carefully, it may contain long bodies.",
+                            required = false)
+                    @Nullable Boolean includeMessageBody,
+            @ToolParam(
+                            description =
                                     "Optional: another project (repository id) to read instead of"
                                             + " the chat's active one; the response's"
                                             + " top-level \"project\" field says which"
@@ -148,13 +155,16 @@ public class GitFunction {
                             required = false)
                     @Nullable String project) {
         final int limit = positiveOrDefault(maxCount, 20);
+        final boolean withBody = orDefault(includeMessageBody, false);
         log.info(
-                "getCommitLog called: maxCount={}, filePath='{}', project='{}'",
+                "getCommitLog called: maxCount={}, filePath='{}', includeMessageBody={},"
+                        + " project='{}'",
                 limit,
                 filePath,
+                withBody,
                 project);
         GitService git = git(context, project);
-        List<GitCommit> commitLog = git.getCommitLog(limit, filePath);
+        List<GitCommit> commitLog = git.getCommitLog(limit, filePath, withBody);
         log.info("getCommitLog called: commitLog={}", commitLog);
         return answer(git, commitLog);
     }
@@ -171,7 +181,7 @@ public class GitFunction {
      */
     @Tool(
             description =
-                    "Changed files and diffs for one or more commits. Include status (A/M/D/R), path, additions, deletions, and optional unified diff.",
+                    "Changed files and diffs for one or more commits. A single hash also returns that commit's full message in \"body\". Files include status (A/M/D/R), path, additions, deletions, and optional unified diff.",
             resultConverter = CompactToolResultConverter.class)
     public ToolResult<List<GitCommit>> getCommitDiff(
             ToolContext context,

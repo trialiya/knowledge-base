@@ -46,12 +46,13 @@ class GitFunctionTest {
 
     private GitRegistry gitRegistry;
     private GitFunction function;
+    private GitService billing;
 
     @BeforeEach
     void setUp() {
         gitRegistry = mock(GitRegistry.class);
         function = new GitFunction(gitRegistry);
-        GitService billing = mock(GitService.class);
+        billing = mock(GitService.class);
         when(billing.project())
                 .thenReturn(
                         new Project(
@@ -86,7 +87,7 @@ class GitFunctionTest {
                         List.of(new GitFileNode("pom.xml", "pom.xml", FileEntryType.FILE, 10L)));
         when(billing.getFileOutline(anyString()))
                 .thenReturn(new GitFileOutline("Foo.java", "java", 10, "regex", List.of()));
-        when(billing.getCommitLog(anyInt(), any())).thenReturn(List.of(commit()));
+        when(billing.getCommitLog(anyInt(), any(), anyBoolean())).thenReturn(List.of(commit()));
         when(billing.getCommitDiff(anyString(), anyBoolean(), any())).thenReturn(List.of(commit()));
         when(billing.getUncommittedChanges(anyBoolean()))
                 .thenReturn(List.of(new GitDiffEntry("M", "pom.xml", null, 1, 0, null, null)));
@@ -95,7 +96,14 @@ class GitFunctionTest {
 
     private static GitCommit commit() {
         return new GitCommit(
-                "abc1234def", "abc1234", "Test", "t@e.st", OffsetDateTime.now(), "init", null);
+                "abc1234def",
+                "abc1234",
+                "Test",
+                "t@e.st",
+                OffsetDateTime.now(),
+                "init",
+                null,
+                null);
     }
 
     @Test
@@ -162,7 +170,7 @@ class GitFunctionTest {
                                 function.getFileTree(context, null, "billing"),
                                 function.searchFiles(context, "pom", null, "billing"),
                                 function.getFileOutline(context, "Foo.java", "billing"),
-                                function.getCommitLog(context, null, null, "billing"),
+                                function.getCommitLog(context, null, null, null, "billing"),
                                 function.getCommitDiff(context, "abc1234", null, null, "billing"),
                                 function.getUncommittedChanges(context, null, "billing")))
                 .allSatisfy(r -> assertThat(r.project()).isEqualTo("billing"))
@@ -179,14 +187,30 @@ class GitFunctionTest {
     void theItemsInsideCarryNoProjectOfTheirOwn() {
         ToolContext context = new ToolContext(Map.of());
 
-        ToolResult<List<GitCommit>> log = function.getCommitLog(context, null, null, "billing");
+        ToolResult<List<GitCommit>> log =
+                function.getCommitLog(context, null, null, null, "billing");
 
         assertThat(log.project()).isEqualTo("billing");
         assertThat(log.result())
                 .isNotEmpty()
-                .allSatisfy(c -> assertThat(c).hasNoNullFieldsOrPropertiesExcept("files"));
+                .allSatisfy(c -> assertThat(c).hasNoNullFieldsOrPropertiesExcept("files", "body"));
         assertThat(GitCommit.class.getRecordComponents())
                 .noneMatch(component -> "project".equals(component.getName()));
+    }
+
+    /**
+     * Пропущенный флаг — это «истории без тел», а не отказ вызова: {@code null} доезжает до сервиса
+     * как {@code false}, и модель, которая поле не заполнила, получает обычный лог.
+     */
+    @Test
+    void theMessageBodyIsOffUnlessTheCallAsksForIt() {
+        ToolContext context = new ToolContext(Map.of(ProjectContext.KEY, "billing"));
+
+        function.getCommitLog(context, null, null, null, null);
+        verify(billing).getCommitLog(20, null, false);
+
+        function.getCommitLog(context, 5, null, true, null);
+        verify(billing).getCommitLog(5, null, true);
     }
 
     @Test

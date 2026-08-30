@@ -138,6 +138,7 @@
         "email": "email",
         "date": "дата",
         "message": "сообщение",
+        "body": "описание",
         "updatedAt": "обновлён",
         "createdAt": "создан",
         "ownerType": "владелец",
