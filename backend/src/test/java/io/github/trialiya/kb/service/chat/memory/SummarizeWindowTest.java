@@ -10,6 +10,7 @@ import io.github.trialiya.kb.model.tool.ToolData;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService.PromptRow;
 import io.github.trialiya.kb.tools.ToolInvocationCollector.ToolInvocationStatus;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,7 +34,7 @@ class SummarizeWindowTest {
 
     /** Боевые значения из {@code application.yaml}. */
     private static final SummarizeProperties PRODUCTION =
-            new SummarizeProperties(30_000, 50, 30, 5, 5, 4);
+            new SummarizeProperties(30_000, 50, 30, 5, 5, Duration.ofMinutes(10), 0.5, 4);
 
     /**
      * Порог по токенам, до которого срезы в тестах про границу заведомо не дотягиваются: они про
@@ -475,6 +476,8 @@ class SummarizeWindowTest {
                 overlapMessages,
                 overlapUserMessages,
                 5,
+                Duration.ofMinutes(10),
+                0.5,
                 4);
     }
 

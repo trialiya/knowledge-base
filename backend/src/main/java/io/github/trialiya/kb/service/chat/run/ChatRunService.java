@@ -11,6 +11,7 @@ import static io.github.trialiya.kb.model.chat.dto.ChatEventType.USER_MESSAGE;
 
 import com.openai.models.chat.completions.ChatCompletion;
 import io.github.trialiya.kb.config.ChatClientRegistry;
+import io.github.trialiya.kb.config.model.ChatModelProperties;
 import io.github.trialiya.kb.model.chat.dto.ChatEventType;
 import io.github.trialiya.kb.model.chat.dto.StreamMessage;
 import io.github.trialiya.kb.model.chat.dto.ToolCallsMessage;
@@ -22,6 +23,7 @@ import io.github.trialiya.kb.model.project.ProjectSwitch;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
+import io.github.trialiya.kb.service.chat.memory.PendingSummaryService;
 import io.github.trialiya.kb.service.chat.memory.SummarizeService;
 import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.runtime.ConversationSlots;
@@ -83,6 +85,8 @@ public class ChatRunService {
     private final ChatMemory chatMemory;
     private final ChatHistoryService chatHistory;
     private final SummarizeService summarizeService;
+    private final PendingSummaryService pendingSummaries;
+    private final ChatModelProperties chatModels;
     private final ChatEventService events;
     private final SystemPromptService systemPromptService;
     private final PendingMessageService pendingMessages;
@@ -105,6 +109,8 @@ public class ChatRunService {
             ChatMemory chatMemory,
             ChatHistoryService chatHistory,
             SummarizeService summarizeService,
+            PendingSummaryService pendingSummaries,
+            ChatModelProperties chatModels,
             ChatEventService events,
             SystemPromptService systemPromptService,
             PendingMessageService pendingMessages,
@@ -116,6 +122,8 @@ public class ChatRunService {
         this.chatMemory = chatMemory;
         this.chatHistory = chatHistory;
         this.summarizeService = summarizeService;
+        this.pendingSummaries = pendingSummaries;
+        this.chatModels = chatModels;
         this.events = events;
         this.systemPromptService = systemPromptService;
         this.pendingMessages = pendingMessages;
@@ -164,6 +172,11 @@ public class ChatRunService {
             // после ремонта хвоста и строго до записи нового вопроса — иначе доставленное встало
             // бы в истории уже после него, то есть после ответа на него же.
             pendingMessages.flushPlain(conversationId);
+            // Момент, когда отложенная сводка обходится дешевле всего: разговор молчал, кэш
+            // промпта у провайдера всё равно остыл, а сжатая история нужна уже этому вопросу.
+            // Строго до записи вопроса — пауза меряется от последнего ряда чата, и записанный
+            // вопрос обнулил бы её сам.
+            pendingSummaries.applyIfPaused(conversationId);
             userRow =
                     userMessage != null
                             ? chatHistory.saveUserMessage(
@@ -598,6 +611,14 @@ public class ChatRunService {
         finishing.incrementAndGet();
         runs.close(scope.runId());
         try {
+            // Сводка, которая ждала паузы, но ждать больше не может: контекст дорос до доли окна
+            // модели, за которой разговор дорог сам по себе. Место выбрано замером: здесь на
+            // руках `contextTokens` только что законченного прогона — единственное честное
+            // «сколько сейчас занимает история».
+            pendingSummaries.applyIfOversized(
+                    scope.conversationId(),
+                    scope.usage().contextTokens(),
+                    chatModels.contextTokens(scope.model()));
             // Доставка ДО cleanup ещё и по второй причине: лог событий прогона живёт ровно
             // столько, сколько сам прогон (ConversationHub чистит его в endRun), а опубликованное
             // после закрытия не переживёт переподключения вкладки и вдобавок подняло бы хаб,

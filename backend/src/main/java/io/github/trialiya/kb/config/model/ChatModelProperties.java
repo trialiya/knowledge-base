@@ -32,6 +32,14 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
      *     and a run has nothing to count. Turn it off only for a gateway that rejects the field
      *     outright — such a gateway fails every run, and the price of the switch is that this
      *     model's answers carry no token figure.
+     * @param contextTokens the model's context window, in tokens. Not a limit the app enforces —
+     *     the provider does that — but the number every automatic decision about the size of the
+     *     history is measured against — so far, when a written summary stops waiting for a pause
+     *     and folds into the history ({@code kb.chat.summarize.apply-at-ratio}). It lives here, per
+     *     model, because the windows differ by an order of magnitude between them, and a share of
+     *     the wrong window is either a chat that folds its history for nothing or one that never
+     *     does it in time. Omitted — this model gets no such decision, and its summaries simply
+     *     wait for the pause.
      * @param baseUrl the OpenAI-compatible endpoint this model lives behind. Omitted — the model is
      *     served by {@code spring.ai.openai.base-url} with the deployment's own key, which is the
      *     usual case. Set — the model gets a connection of its own (see {@code ChatModelRegistry}),
@@ -48,6 +56,7 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
             String label,
             @DefaultValue("true") boolean weak,
             @DefaultValue("true") boolean streamUsage,
+            @Nullable Integer contextTokens,
             @JsonIgnore @Nullable String baseUrl,
             @JsonIgnore @Nullable String apiKey) {
 
@@ -70,9 +79,16 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
          */
         @Override
         public String toString() {
-            return "ModelOption[id=%s, label=%s, weak=%s, streamUsage=%s, baseUrl=%s, apiKey=%s]"
+            return ("ModelOption[id=%s, label=%s, weak=%s, streamUsage=%s, contextTokens=%s,"
+                            + " baseUrl=%s, apiKey=%s]")
                     .formatted(
-                            id, label, weak, streamUsage, baseUrl, apiKey == null ? null : "***");
+                            id,
+                            label,
+                            weak,
+                            streamUsage,
+                            contextTokens,
+                            baseUrl,
+                            apiKey == null ? null : "***");
         }
 
         /**
@@ -118,6 +134,22 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
                 .findFirst()
                 .map(ModelOption::weak)
                 .orElse(true);
+    }
+
+    /**
+     * Окно модели в токенах или {@code null}, если оно не названо. Разбор {@code id} — тот же, что
+     * у {@link #isWeak}; неизвестная модель окна не имеет: автоматика, не знающая предела, обязана
+     * не делать ничего, а не выбирать его за конфигурацию.
+     */
+    public @Nullable Integer contextTokens(@Nullable String id) {
+        if (id == null || id.equals(defaultModel.id())) {
+            return defaultModel.contextTokens();
+        }
+        return models.stream()
+                .filter(m -> id.equals(m.id()))
+                .findFirst()
+                .map(ModelOption::contextTokens)
+                .orElse(null);
     }
 
     /**

@@ -99,10 +99,17 @@ kb:
       # counterpart) spelled out, or does it manage from the reference half alone? Defaults to
       # true (the safe assumption) when omitted — see ScriptGuideService, ChatModelProperties.
       weak: ${AI_MODEL_WEAK:true}
+      # Контекстное окно модели в токенах. Не предел, который стережёт приложение (его стережёт
+      # провайдер), а число, от которого считаются автоматические решения о размере истории —
+      # сейчас одно: когда написанная сводка перестаёт ждать паузы (summarize.apply-at-ratio).
+      # Не задано — такого решения для этой модели не будет. См. ChatModelProperties.ModelOption.
+      context-tokens: ${AI_MODEL_CONTEXT_TOKENS:}
 #    models:
 #      - id: ${KB_CHAT_MODELS_0_ID}
 #        label: ${KB_CHAT_MODELS_0_LABEL}
 #        weak: ${KB_CHAT_MODELS_0_WEAK:true}
+#        # Окно этой модели в токенах — см. default-model.context-tokens выше.
+#        context-tokens: ${KB_CHAT_MODELS_0_CONTEXT_TOKENS:}
 #        # Own endpoint — optional. Omitted, the model is served by spring.ai.openai.base-url with
 #        # the same api-key. Set, it gets a connection of its own (ChatModelRegistry), and then
 #        # api-key is REQUIRED: a foreign host with the default host's token fails at startup.
@@ -157,6 +164,16 @@ kb:
       overlap-user-messages: ${KB_CHAT_SUMMARIZE_OVERLAP_USER_MESSAGES:5}
       # Number of stored summaries that triggers collapsing them into one meta-summary.
       summary-collapse-threshold: ${KB_CHAT_SUMMARIZE_SUMMARY_COLLAPSE_THRESHOLD:5}
+      # Сколько чат должен молчать, чтобы написанная сводка свернулась в историю. Пауза и делает
+      # свёртку бесплатной: провайдер кэширует промпт с первого байта, поэтому правка начала
+      # истории на горячем кэше стоит полностью неоплаченного запроса, а на остывшем — ничего.
+      # Меряется от последнего ряда чата. Ставить чуть больше времени жизни кэша у провайдера.
+      apply-after: ${KB_CHAT_SUMMARIZE_APPLY_AFTER:10m}
+      # Доля окна модели, на которой сводка применяется, не дожидаясь паузы: дальше разговор
+      # дорог сам по себе, и потерянный кэш — меньшая половина сделки. Доля, а не число токенов,
+      # потому что само число — модели (kb.chat...context-tokens); модель без окна порога не
+      # имеет и всегда ждёт паузы.
+      apply-at-ratio: ${KB_CHAT_SUMMARIZE_APPLY_AT_RATIO:0.5}
       # Characters per estimated token (rough heuristic, no real tokenizer) — the second opinion
       # next to the measurements, and the only weighing on a chat that carries none.
       chars-per-token: ${KB_CHAT_SUMMARIZE_CHARS_PER_TOKEN:4}

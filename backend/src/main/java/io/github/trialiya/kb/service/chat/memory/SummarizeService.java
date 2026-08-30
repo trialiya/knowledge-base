@@ -37,6 +37,11 @@ import org.springframework.stereotype.Service;
  * замером ({@link SummaryWriter#writeCompacted}). Молча сжимать нельзя по двум причинам сразу:
  * пользователь иначе не узнаёт, что часть разговора модель больше не видит, а счётчик токенов чата
  * продолжает показывать замер прогона, который мерил уже несуществующий контекст.
+ *
+ * <p>Написанное раунд не применяет — он его паркует ({@link PendingSummaryService}). Когда сжатое
+ * начало истории действительно перестанет ехать модели, решает уже не он: подмена начала истории
+ * обесценивает кэш промпта у провайдера, и стоит она по-разному в зависимости от того, когда её
+ * сделать.
  */
 @Slf4j
 @Service
@@ -58,6 +63,7 @@ public class SummarizeService implements DisposableBean {
     private final ChatTopicRepository chatTopicRepository;
     private final ExecutorService executorService;
     private final SummaryWriter summaryWriter;
+    private final PendingSummaryService pendingSummaries;
     private final SummarizeProperties summarizeProperties;
 
     public SummarizeService(
@@ -67,6 +73,7 @@ public class SummarizeService implements DisposableBean {
             ChatTopicRepository chatTopicRepository,
             @Value("classpath:prompt/summarizer.md") Resource summarizerPrompt,
             SummaryWriter summaryWriter,
+            PendingSummaryService pendingSummaries,
             SummarizeProperties summarizeProperties,
             ContextItemService contextItemService) {
         this.chatClient =
@@ -79,6 +86,7 @@ public class SummarizeService implements DisposableBean {
         this.chatHistory = chatHistory;
         this.chatTopicRepository = chatTopicRepository;
         this.summaryWriter = summaryWriter;
+        this.pendingSummaries = pendingSummaries;
         this.executorService = Executors.newVirtualThreadPerTaskExecutor();
         this.summarizeProperties = summarizeProperties;
     }
@@ -109,6 +117,15 @@ public class SummarizeService implements DisposableBean {
     }
 
     public void doSummarize(@Nonnull final String conversationId) {
+        // Прошлая сводка ещё ждёт применения — значит, сжатое ею начало истории пока живое, и
+        // раунд по нему сжал бы ровно то же самое второй раз.
+        if (pendingSummaries.isParked(conversationId)) {
+            log.info(
+                    "[{}] Skipping summarization — the previous summary is still waiting to be"
+                            + " applied",
+                    conversationId);
+            return;
+        }
         // promptRows is the one place that answers "what does the model see": every row carries the
         // text that will be sent, inventory included, not the text that happens to be stored. The
         // prompt below and the character estimate inside SummarizeWindow both measure exactly that
@@ -195,7 +212,7 @@ public class SummarizeService implements DisposableBean {
                 usage.cacheReadTokens(),
                 usage.outputTokens());
 
-        persistSummary(
+        parkSummary(
                 conversationId,
                 toCompress,
                 existingSummaries,
@@ -320,19 +337,20 @@ public class SummarizeService implements DisposableBean {
     }
 
     /**
-     * Marks old messages as summarized and inserts the new summary row, atomically — together with
-     * the plaque the user sees in its place.
+     * Паркует написанное до подходящего момента: разметка сжатого куска, строка-сводка и видимая
+     * плашка появятся вместе, когда {@link PendingSummaryService} решит, что подмена начала истории
+     * обойдётся дёшево.
      *
-     * <p>Плашка здесь та же, что у {@code /compact}, и это единственное, что о фоновом сжатии
-     * вообще можно узнать: сводка модели не показывается, а ряды, которые она заменила, с виду
-     * остаются прежними. Отличает её вид {@link CompactMeta.Kind#SUMMARIZE} — сжато начало истории,
-     * а не весь контекст, и живой хвост под плашкой остаётся.
+     * <p>Плашка — единственное, что о фоновом сжатии вообще можно узнать: сводка модели не
+     * показывается, а ряды, которые она заменила, с виду остаются прежними. Отличает её вид {@link
+     * CompactMeta.Kind#SUMMARIZE} — сжато начало истории, а не весь контекст, и живой хвост под
+     * плашкой остаётся.
      *
      * @param summaryChars длина документа модели — без обёртки, в которую он попадает в {@code
      *     metaSummaryText}: плашка показывает это число рядом с самим документом
      * @param usage токены раунда; пустой замер в мету не идёт — «неизвестно» это не ноль
      */
-    private void persistSummary(
+    private void parkSummary(
             String conversationId,
             List<PromptRow> oldMessages,
             List<ChatMessageEntity> existingSummaries,
@@ -348,7 +366,8 @@ public class SummarizeService implements DisposableBean {
                 collapseSummaries ? existingSummaries.getFirst() : oldMessages.getFirst().entity();
         final ChatMessageEntity lastMsg = oldMessages.getLast().entity();
 
-        summaryWriter.writeCompacted(
+        pendingSummaries.park(
+                conversationId,
                 new SummaryWriter.SummaryRow(
                         conversationId,
                         firstMsg.getPosition(),

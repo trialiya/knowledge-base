@@ -5,9 +5,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -20,6 +20,7 @@ import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
 import io.github.trialiya.kb.service.chat.context.ContextItemService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService.PromptRow;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -42,9 +43,10 @@ import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.SimpleTransactionStatus;
 
 /**
- * Проводка вокруг {@link SummarizeWindow}: что раунд действительно доходит до разметки и до строки
+ * Проводка вокруг {@link SummarizeWindow}: что раунд действительно доходит до парковки готовой
  * сводки, а на пустом результате модели — не доходит. Границы и пороги здесь не проверяются, для
- * них есть {@code SummarizeWindowTest} — там та же арифметика стоит без единого мока.
+ * них есть {@code SummarizeWindowTest} — там та же арифметика стоит без единого мока; что
+ * припаркованное потом попадает в историю, проверяет {@code PendingSummaryServiceTest}.
  */
 class SummarizeServiceTest {
 
@@ -52,12 +54,13 @@ class SummarizeServiceTest {
 
     /** Боевые значения из {@code application.yaml}. */
     private static final SummarizeProperties PRODUCTION =
-            new SummarizeProperties(30_000, 50, 30, 5, 5, 4);
+            new SummarizeProperties(30_000, 50, 30, 5, 5, Duration.ofMinutes(10), 0.5, 4);
 
     private ChatMessageRepository repository;
     private ChatTopicRepository chatTopicRepository;
     private ChatHistoryService chatHistory;
     private OpenAiChatModel chatModel;
+    private PendingSummaryService pendingSummaries;
 
     @BeforeEach
     void setUp() {
@@ -65,16 +68,15 @@ class SummarizeServiceTest {
         chatTopicRepository = mock(ChatTopicRepository.class);
         chatHistory = mock(ChatHistoryService.class);
         chatModel = mock(OpenAiChatModel.class);
+        pendingSummaries = mock(PendingSummaryService.class);
         when(chatModel.getOptions()).thenReturn(OpenAiChatOptions.builder().build());
-        // Плашка ссылается на id сохранённой сводки, поэтому save обязан вернуть строку, а не
-        // умолчательный null мока.
-        when(repository.save(any(ChatMessageEntity.class))).thenAnswer(call -> call.getArgument(0));
         answerWith("summary of the earlier conversation");
     }
 
     /**
-     * Раунд помечает сжатое по позициям — до первого оставленного сообщения — и кладёт сводку на
-     * позицию последнего сжатого, чтобы она встала перед живым хвостом при следующем чтении.
+     * Раунд паркует диапазон, который перестанет быть живым — до первого оставленного сообщения, —
+     * и позицию сводки: позицию последнего сжатого, чтобы при следующем чтении сводка встала перед
+     * живым хвостом.
      *
      * <p>Окно нарочно с протокольными TOOL-строками: их суммаризатор не читает, но разметка обязана
      * их накрыть, иначе хвост сжатого хода остался бы живым и осиротевшим. Из-за них размеченная
@@ -82,53 +84,45 @@ class SummarizeServiceTest {
      * обязан называть именно её, иначе «продолжай с 86» указывает на уже сжатую строку.
      */
     @Test
-    void aRoundMarksTheCompressedRangeAndStoresTheSummary() {
+    void aRoundParksTheCompressedRangeAndTheSummary() {
         givenLive(turns(44));
 
         service().doSummarize(CONV);
 
         // 88 строк промпта, 88 - 30 = 58 по числу сообщений; граница — вопрос на позиции 87.
-        verify(repository).updateSummarized(CONV, 0L, 86L);
-
-        final ChatMessageEntity summary = savedRows().getFirst();
-        assertThat(summary.isSummary()).isTrue();
-        assertThat(summary.getType()).isEqualTo(MessageType.ASSISTANT);
-        assertThat(summary.getPosition()).isEqualTo(85L);
-        assertThat(summary.getContent())
-                .contains("messages 0-86")
-                .contains("Continue from message 87");
+        final SummaryWriter.SummaryRow row = parked();
+        assertThat(row.startPosition()).isZero();
+        assertThat(row.endPosition()).isEqualTo(86L);
+        assertThat(row.position()).isEqualTo(85L);
+        assertThat(row.text()).contains("messages 0-86").contains("Continue from message 87");
+        // Историю раунд не трогает: разметку и ряды напишет применение.
+        verify(repository, never()).updateSummarized(anyString(), anyLong(), anyLong());
+        verify(repository, never()).save(any());
     }
 
     /**
-     * За сводкой встаёт видимая плашка: без неё сжатие проходило бы молча — часть разговора уезжает
-     * из контекста, а лента выглядит нетронутой. Вид отличает её от {@code /compact}: сжато начало
-     * истории, живой хвост под плашкой остался.
+     * Числа будущей плашки паркуются вместе со сводкой: без плашки сжатие прошло бы молча — часть
+     * разговора уезжает из контекста, а лента выглядит нетронутой. Вид отличает её от {@code
+     * /compact}: сжато начало истории, живой хвост под плашкой останется.
      */
     @Test
-    void aRoundLeavesAVisibleNoticeOfItsOwnKind() {
+    void aRoundParksTheNumbersOfItsFutureNotice() {
         givenLive(turns(44));
 
         service().doSummarize(CONV);
 
-        final ChatMessageEntity notice = savedRows().get(1);
-        assertThat(notice.isSummary()).isFalse();
-        assertThat(notice.isSummarized()).isTrue();
-        // Сразу за сводкой (85): в ленте плашка встаёт между сжатым и живым хвостом.
-        assertThat(notice.getPosition()).isEqualTo(86L);
-        final CompactMeta compact = requireNonNull(notice.getMeta()).compact();
-        assertThat(compact).isNotNull();
-        assertThat(compact.kind()).isEqualTo(CompactMeta.Kind.SUMMARIZE);
-        assertThat(compact.messages()).isEqualTo(58);
-        assertThat(compact.summaryChars())
-                .isEqualTo("summary of the earlier conversation".length());
+        final SummaryWriter.CompactStats stats = parkedStats();
+        assertThat(stats.kind()).isEqualTo(CompactMeta.Kind.SUMMARIZE);
+        assertThat(stats.messages()).isEqualTo(58);
+        assertThat(stats.summaryChars()).isEqualTo("summary of the earlier conversation".length());
     }
 
     /**
-     * Токены раунда ложатся в мету плашки — тем же полем, что и у ответа: фоновое сжатие тратит те
-     * же деньги, что и прогон, и в итог по чату обязано попадать наравне с ним.
+     * Токены раунда паркуются вместе с ним: фоновое сжатие тратит те же деньги, что и прогон, и в
+     * итог по чату обязано попадать наравне с ним — а до применения ждать иногда долго.
      */
     @Test
-    void theRoundsTokensAreRecordedOnTheNoticeRow() {
+    void theRoundsTokensAreParkedWithIt() {
         givenLive(turns(44));
         answerWith(
                 "summary of the earlier conversation",
@@ -136,30 +130,29 @@ class SummarizeServiceTest {
 
         service().doSummarize(CONV);
 
-        final RunTokenUsage usage = requireNonNull(savedRows().get(1).getMeta()).usage();
-        assertThat(usage).isNotNull();
+        final RunTokenUsage usage = requireNonNull(parkedStats().usage());
         assertThat(usage.promptTokens()).isEqualTo(48_000);
         assertThat(usage.cacheReadTokens()).isEqualTo(40_000);
         assertThat(usage.outputTokens()).isEqualTo(900);
         assertThat(usage.modelCalls()).isEqualTo(1);
     }
 
-    /** Эндпоинт без замера — плашка без замера: «неизвестно» это не ноль. */
+    /** Эндпоинт без замера — парковка без замера: «неизвестно» это не ноль. */
     @Test
-    void anUnmeasuredRoundLeavesTheNoticeWithoutTokens() {
+    void anUnmeasuredRoundParksWithoutTokens() {
         givenLive(turns(44));
 
         service().doSummarize(CONV);
 
-        assertThat(requireNonNull(savedRows().get(1).getMeta()).usage()).isNull();
+        assertThat(parkedStats().usage()).isNull();
     }
 
     /**
      * Сводка несёт проект, на котором закончилась сжатая часть: маркер смены проекта сжимается
-     * вместе со своим сообщением, а meta сводки остаётся его следом.
+     * вместе со своим сообщением, а след проектов остаётся на сводке.
      */
     @Test
-    void theSummaryRowCarriesTheProjectTheCompressedSliceEndedOn() {
+    void theSummaryCarriesTheProjectTheCompressedSliceEndedOn() {
         final List<PromptRow> live = new ArrayList<>(turns(44));
         // Вопрос внутри сжимаемой части (позиции 0..86) сменил проект.
         live.set(30, switchRow(30, "kb", "billing"));
@@ -167,10 +160,10 @@ class SummarizeServiceTest {
 
         service().doSummarize(CONV);
 
-        assertThat(requireNonNull(savedRows().getFirst().getMeta()).project()).isEqualTo("billing");
+        assertThat(parked().trace().lastProject()).isEqualTo("billing");
     }
 
-    /** Пороги не достигнуты — ни модель, ни репозиторий трогать не за чем. */
+    /** Пороги не достигнуты — ни модель, ни парковку трогать не за чем. */
     @Test
     void nothingHappensWhenNoThresholdIsReached() {
         givenLive(turns(15));
@@ -178,22 +171,36 @@ class SummarizeServiceTest {
         service().doSummarize(CONV);
 
         verify(chatModel, never()).call(any(Prompt.class));
-        verify(repository, never()).updateSummarized(anyString(), anyLong(), anyLong());
+        verify(pendingSummaries, never()).park(anyString(), any(), any());
     }
 
     /**
-     * Модель вернула пустой ответ — раунд обязан пропасть целиком. Разметить сообщения сжатыми, не
-     * сохранив сводку, значит потерять их из истории безвозвратно.
+     * Прошлая сводка ещё ждёт применения — значит, сжатое ею начало истории пока живое, и раунд по
+     * нему сжал бы ровно то же самое второй раз, заплатив за это дважды.
      */
     @Test
-    void anEmptyModelAnswerLeavesTheHistoryUntouched() {
+    void aRoundWaitsWhileTheEarlierSummaryIsStillParked() {
+        givenLive(turns(44));
+        when(pendingSummaries.isParked(CONV)).thenReturn(true);
+
+        service().doSummarize(CONV);
+
+        verify(chatModel, never()).call(any(Prompt.class));
+        verify(pendingSummaries, never()).park(anyString(), any(), any());
+    }
+
+    /**
+     * Модель вернула пустой ответ — раунд обязан пропасть целиком. Припарковать пустую сводку
+     * значит договориться потерять сжатые ею сообщения позже.
+     */
+    @Test
+    void anEmptyModelAnswerParksNothing() {
         givenLive(turns(44));
         answerWith("   ");
 
         service().doSummarize(CONV);
 
-        verify(repository, never()).updateSummarized(anyString(), anyLong(), anyLong());
-        verify(repository, never()).save(any());
+        verify(pendingSummaries, never()).park(anyString(), any(), any());
     }
 
     // -------------------------------------------------------------------------
@@ -212,12 +219,18 @@ class SummarizeServiceTest {
                                 ChatResponseMetadata.builder().usage(usage).build()));
     }
 
-    /** Ряды раунда в порядке записи: сводка, за ней плашка. */
-    private List<ChatMessageEntity> savedRows() {
-        final ArgumentCaptor<ChatMessageEntity> saved =
-                ArgumentCaptor.forClass(ChatMessageEntity.class);
-        verify(repository, times(2)).save(saved.capture());
-        return saved.getAllValues();
+    private SummaryWriter.SummaryRow parked() {
+        final ArgumentCaptor<SummaryWriter.SummaryRow> row =
+                ArgumentCaptor.forClass(SummaryWriter.SummaryRow.class);
+        verify(pendingSummaries).park(eq(CONV), row.capture(), any());
+        return row.getValue();
+    }
+
+    private SummaryWriter.CompactStats parkedStats() {
+        final ArgumentCaptor<SummaryWriter.CompactStats> stats =
+                ArgumentCaptor.forClass(SummaryWriter.CompactStats.class);
+        verify(pendingSummaries).park(eq(CONV), any(), stats.capture());
+        return stats.getValue();
     }
 
     private void givenLive(List<PromptRow> rows) {
@@ -274,6 +287,7 @@ class SummarizeServiceTest {
                 chatTopicRepository,
                 new ByteArrayResource("summarize".getBytes()),
                 new SummaryWriter(repository, transactionManager()),
+                pendingSummaries,
                 PRODUCTION,
                 mock(ContextItemService.class));
     }

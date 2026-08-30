@@ -322,7 +322,11 @@ export function applyChatEvent(chat, ev, ctx) {
         ...msgs[idx],
         text: '',
         dbId: payload?.messageId ?? null,
-        compact: { messages: payload?.messages ?? 0, summaryChars: payload?.summaryChars ?? 0 },
+        compact: {
+          messages: payload?.messages ?? 0,
+          summaryChars: payload?.summaryChars ?? 0,
+          kind: payload?.kind,
+        },
         // Токены раунда — те же, что приедут из истории после перезагрузки: без них счётчик
         // контекста и итоги чата в живой вкладке разошлись бы с перезагруженной.
         ...(payload?.usage ? { usage: payload.usage } : {}),
@@ -330,6 +334,36 @@ export function applyChatEvent(chat, ev, ctx) {
       };
       finalize(msgs, runId);
       return { ...chat, messages: msgs, ...IDLE_RUN_STATE };
+    }
+
+    // Фоновая сводка применена. Прогона за этим событием нет вовсе — пузырь искать не по чему,
+    // да и незачем: плашка встаёт в СЕРЕДИНУ ленты, там, где кончается свёрнутое. Место ищем по
+    // времени плашки — тем же порядком, каким ленту отдаёт история.
+    case CHAT_EVENT.SUMMARY_APPLIED: {
+      if (payload?.messageId == null) return chat;
+      if (msgs.some((m) => m.dbId === payload.messageId)) return chat;
+      const at = payload.createdAt ? Date.parse(payload.createdAt) : NaN;
+      // Якоря нет — лента прокручена мимо этого места и подгрузит плашку сама.
+      if (isNaN(at)) return chat;
+      const before = msgs.findIndex((m) => {
+        const stamp = m.timestamp ? Date.parse(m.timestamp) : NaN;
+        return !isNaN(stamp) && stamp > at;
+      });
+      const notice = {
+        mid: nextMessageId(),
+        sender: SENDER.AI,
+        text: '',
+        dbId: payload.messageId,
+        compact: {
+          messages: payload.messages ?? 0,
+          summaryChars: payload.summaryChars ?? 0,
+          kind: payload.kind,
+        },
+        ...(payload.usage ? { usage: payload.usage } : {}),
+        timestamp: payload.createdAt,
+      };
+      msgs.splice(before < 0 ? msgs.length : before, 0, notice);
+      return { ...chat, messages: msgs };
     }
 
     case CHAT_EVENT.COMPACT_ERROR: {

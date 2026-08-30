@@ -719,6 +719,7 @@ class CompactServiceTest {
                 mock(ChatTopicRepository.class),
                 repository,
                 new SummaryWriter(repository, transactionManager()),
+                mock(PendingSummaryService.class),
                 slots,
                 events,
                 systemPrompts,

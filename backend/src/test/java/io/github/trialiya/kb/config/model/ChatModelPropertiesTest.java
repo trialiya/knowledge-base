@@ -16,8 +16,8 @@ class ChatModelPropertiesTest {
 
     private static ChatModelProperties props() {
         return new ChatModelProperties(
-                new ModelOption("default-model", "Default", true, true, null, null),
-                List.of(new ModelOption("gpt-4o-mini", "Mini", false, true, null, null)));
+                new ModelOption("default-model", "Default", true, true, null, null, null),
+                List.of(new ModelOption("gpt-4o-mini", "Mini", false, true, null, null, null)));
     }
 
     @Test
@@ -48,10 +48,10 @@ class ChatModelPropertiesTest {
     void streamUsageIsResolvedPerModel() {
         final ChatModelProperties props =
                 new ChatModelProperties(
-                        new ModelOption("default-model", "Default", true, true, null, null),
+                        new ModelOption("default-model", "Default", true, true, null, null, null),
                         List.of(
                                 new ModelOption(
-                                        "picky-gateway", "Picky", false, false, null, null)));
+                                        "picky-gateway", "Picky", false, false, null, null, null)));
 
         assertThat(props.streamUsage("picky-gateway")).isFalse();
         assertThat(props.streamUsage("default-model")).isTrue();
@@ -62,11 +62,35 @@ class ChatModelPropertiesTest {
         assertThat(props.streamUsage("evil-model")).isTrue();
     }
 
+    /**
+     * Окно — свойство модели, и цена ошибки здесь противоположна {@code stream-usage}: выдуманное
+     * за конфигурацию число решает, когда переписать историю чата, поэтому неназванного окна не
+     * бывает — бывает только его отсутствие.
+     */
+    @Test
+    void contextTokensAreResolvedPerModelAndNeverGuessed() {
+        final ChatModelProperties props =
+                new ChatModelProperties(
+                        new ModelOption(
+                                "default-model", "Default", true, true, 200_000, null, null),
+                        List.of(
+                                new ModelOption("small", "Small", false, true, 8_000, null, null),
+                                new ModelOption(
+                                        "unnamed", "Unnamed", false, true, null, null, null)));
+
+        assertThat(props.contextTokens("small")).isEqualTo(8_000);
+        assertThat(props.contextTokens("default-model")).isEqualTo(200_000);
+        // null — «модель не переопределяли», то есть дефолтная; параллель isWeak.
+        assertThat(props.contextTokens(null)).isEqualTo(200_000);
+        assertThat(props.contextTokens("unnamed")).isNull();
+        assertThat(props.contextTokens("evil-model")).isNull();
+    }
+
     @Test
     void nullModelsListDefaultsToEmptyAndAllowsOnlyDefault() {
         ChatModelProperties only =
                 new ChatModelProperties(
-                        new ModelOption("solo", "Solo", true, true, null, null), null);
+                        new ModelOption("solo", "Solo", true, true, null, null, null), null);
         assertThat(only.models()).isEmpty();
         assertThat(only.isAllowed("solo")).isTrue();
         assertThat(only.isAllowed("anything-else")).isFalse();
@@ -86,13 +110,13 @@ class ChatModelPropertiesTest {
 
     @Test
     void aModelWithoutAnEndpointOfItsOwnSharesTheDefaultConnection() {
-        ModelOption shared = new ModelOption("shared", "Shared", true, true, null, null);
+        ModelOption shared = new ModelOption("shared", "Shared", true, true, null, null, null);
         assertThat(shared.hasOwnEndpoint()).isFalse();
     }
 
     @Test
     void blankBaseUrlAndApiKeyAreTheSameAsAbsent() {
-        ModelOption shared = new ModelOption("shared", "Shared", true, true, "  ", "  ");
+        ModelOption shared = new ModelOption("shared", "Shared", true, true, null, "  ", "  ");
         assertThat(shared.baseUrl()).isNull();
         assertThat(shared.apiKey()).isNull();
         assertThat(shared.hasOwnEndpoint()).isFalse();
@@ -102,7 +126,13 @@ class ChatModelPropertiesTest {
     void ownHostWithItsOwnTokenGetsAnEndpointOfItsOwn() {
         ModelOption own =
                 new ModelOption(
-                        "remote", "Remote", false, true, "https://llm.example/v1", "sk-remote");
+                        "remote",
+                        "Remote",
+                        false,
+                        true,
+                        null,
+                        "https://llm.example/v1",
+                        "sk-remote");
         assertThat(own.hasOwnEndpoint()).isTrue();
         assertThat(own.baseUrl()).isEqualTo("https://llm.example/v1");
     }
@@ -111,7 +141,7 @@ class ChatModelPropertiesTest {
     void ownTokenWithoutAHostIsAllowedAndStillNeedsItsOwnConnection() {
         // Same host, separate account or quota — nothing to guess, so nothing to reject.
         ModelOption ownKey =
-                new ModelOption("billed-apart", "Billed apart", false, true, null, "sk-two");
+                new ModelOption("billed-apart", "Billed apart", false, true, null, null, "sk-two");
         assertThat(ownKey.hasOwnEndpoint()).isTrue();
     }
 
@@ -126,6 +156,7 @@ class ChatModelPropertiesTest {
                                         "Remote",
                                         false,
                                         true,
+                                        null,
                                         "https://llm.example/v1",
                                         null))
                 .withMessageContaining("api-key");
@@ -144,6 +175,7 @@ class ChatModelPropertiesTest {
                                                 "Solo",
                                                 true,
                                                 true,
+                                                null,
                                                 "https://llm.example/v1",
                                                 "sk-solo"),
                                         List.of()))
@@ -155,7 +187,13 @@ class ChatModelPropertiesTest {
         // @JsonIgnore covers the API; toString is the other way a secret reaches a log line.
         ModelOption own =
                 new ModelOption(
-                        "remote", "Remote", false, true, "https://llm.example/v1", "sk-remote");
+                        "remote",
+                        "Remote",
+                        false,
+                        true,
+                        null,
+                        "https://llm.example/v1",
+                        "sk-remote");
         assertThat(own.toString()).doesNotContain("sk-remote").contains("remote", "***");
     }
 

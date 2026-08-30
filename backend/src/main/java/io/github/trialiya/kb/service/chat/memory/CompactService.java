@@ -112,6 +112,7 @@ public class CompactService {
     private final ChatTopicRepository chatTopicRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final SummaryWriter summaryWriter;
+    private final PendingSummaryService pendingSummaries;
     private final ConversationSlots slots;
     private final ChatEventService events;
     private final SystemPromptService systemPrompts;
@@ -131,6 +132,7 @@ public class CompactService {
             ChatTopicRepository chatTopicRepository,
             ChatMessageRepository chatMessageRepository,
             SummaryWriter summaryWriter,
+            PendingSummaryService pendingSummaries,
             ConversationSlots slots,
             ChatEventService events,
             SystemPromptService systemPrompts,
@@ -143,6 +145,7 @@ public class CompactService {
         this.chatTopicRepository = chatTopicRepository;
         this.chatMessageRepository = chatMessageRepository;
         this.summaryWriter = summaryWriter;
+        this.pendingSummaries = pendingSummaries;
         this.slots = slots;
         this.events = events;
         this.systemPrompts = systemPrompts;
@@ -299,6 +302,9 @@ public class CompactService {
                         }
                         final CompactPayload payload =
                                 compact(conversationId, rows, commandRow, instructions, options);
+                        // Отложенная фоновая сводка описывает начало истории, которого в промпте
+                        // больше нет: этот раунд заменил своей сводкой весь контекст целиком.
+                        pendingSummaries.discard(conversationId);
                         events.publish(conversationId, COMPACT_DONE, runId, null, payload);
                     });
         } catch (Exception e) {

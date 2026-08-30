@@ -9,7 +9,8 @@ import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Нагрузка события {@link ChatEventType#COMPACT_DONE}: чем закончилось сжатие контекста.
+ * Нагрузка событий {@link ChatEventType#COMPACT_DONE} и {@link ChatEventType#SUMMARY_APPLIED}: чем
+ * закончилось сжатие контекста.
  *
  * <p>Собирается из строки-плашки, которую сжатие оставило в истории (см. {@code
  * SummaryWriter.writeCompacted}), а не считается заново: живая вкладка и вкладка, открытая после
@@ -23,7 +24,11 @@ import org.jspecify.annotations.Nullable;
  * @param summaryChars длина написанного моделью документа в символах — того самого, который
  *     показывает модалка деталей. С {@code messages} это ответ на «во сколько раз сжали», который
  *     иначе виден только в логах
- * @param createdAt время завершения раунда — оно же время плашки в ленте
+ * @param kind чем сжатие вызвано; вкладке этого мало знать для текста плашки — от вида зависит и
+ *     то, считать ли по этому замеру экономию (см. {@code tokenUsage.js})
+ * @param createdAt время плашки в ленте: у полного сжатия — время завершения раунда, у фоновой
+ *     сводки — время последнего свёрнутого сообщения, потому что встаёт она туда же, где кончается
+ *     свёрнутое
  * @param usage токены раунда сжатия ({@code null} — эндпоинт замера не отдал). Едут в событии по
  *     той же причине, что и всё остальное здесь: вкладка, которая сжатие дождалась, обязана
  *     показать плашку такой же, какой её увидит перезагруженная, — а та берёт эти числа из меты
@@ -33,6 +38,7 @@ public record CompactPayload(
         long messageId,
         int messages,
         int summaryChars,
+        CompactMeta.Kind kind,
         LocalDateTime createdAt,
         @Nullable RunTokenUsage usage) {
 
@@ -45,6 +51,7 @@ public record CompactPayload(
                 notice.getId(),
                 compact.messages(),
                 compact.summaryChars(),
+                compact.kind(),
                 notice.getCreatedAt(),
                 meta.usage());
     }

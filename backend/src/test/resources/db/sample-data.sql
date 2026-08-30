@@ -41,6 +41,9 @@
 --    mid-run, delivered into chat_message within seconds or by crash recovery on startup).
 --    A fixture row would be injected into the captured chat as a real message on every
 --    boot of a manual-QA instance. SampleDataFixtureTest asserts the emptiness on purpose.
+--  * chat_pending_summary — EMPTY for the same reason: a parked summary is transient too, and
+--    a fixture row would fold the head of the captured chat away on the first pause. Its
+--    emptiness is asserted on purpose as well.
 --
 -- All explicit IDs are followed by ALTER TABLE ... ALTER COLUMN id RESTART WITH n,
 -- so inserting further rows afterwards (in a test or via the app) won't collide.

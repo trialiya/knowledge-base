@@ -25,7 +25,7 @@ import org.springframework.beans.factory.ObjectProvider;
 class ChatModelRegistryTest {
 
     private static final ModelOption DEFAULT_MODEL =
-            new ModelOption("default-model", "Default", true, true, null, null);
+            new ModelOption("default-model", "Default", true, true, null, null, null);
 
     @Test
     void onlyModelsWithTheirOwnEndpointGetAConnectionOfTheirOwn() {
@@ -33,10 +33,16 @@ class ChatModelRegistryTest {
         ChatModelRegistry registry =
                 build(
                         defaultConnection,
-                        new ModelOption("shared", "Shared", true, true, null, null),
+                        new ModelOption("shared", "Shared", true, true, null, null, null),
                         new ModelOption(
-                                "remote", "Remote", false, true, "https://llm.example/v1", "sk-r"),
-                        new ModelOption("own-key", "Own key", false, true, null, "sk-k"));
+                                "remote",
+                                "Remote",
+                                false,
+                                true,
+                                null,
+                                "https://llm.example/v1",
+                                "sk-r"),
+                        new ModelOption("own-key", "Own key", false, true, null, null, "sk-k"));
 
         assertThat(registry.ownEndpointModelIds()).containsExactlyInAnyOrder("remote", "own-key");
         // Никакого переопределения на прогон — дефолтное соединение.
@@ -58,7 +64,7 @@ class ChatModelRegistryTest {
         ChatModelRegistry registry =
                 build(
                         defaultConnection,
-                        new ModelOption("shared", "Shared", true, true, null, null));
+                        new ModelOption("shared", "Shared", true, true, null, null, null));
 
         assertThat(registry.ownEndpointModelIds()).isEmpty();
         assertThat(registry.forModel("shared")).isSameAs(defaultConnection);
@@ -78,6 +84,7 @@ class ChatModelRegistryTest {
                                 "Default",
                                 true,
                                 true,
+                                null,
                                 "https://llm.example/v1",
                                 "sk-d"));
 

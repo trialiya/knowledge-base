@@ -503,19 +503,25 @@ SSE-поток событий чата: стриминг ответа + крос
 
 **Response:** `text/event-stream` (SSE)
 - `ChatEvent` — каждое событие: `seq`, `type`, `runId`, `clientMsgId`, `payload`
-- Типы: `USER_MESSAGE`, `RUN_STARTED`, `STREAM`, `TOOL_CALL`, `TOOL_CALLS`, `RUN_USAGE`, `RUN_DONE`, `RUN_STOPPED`, `RUN_ERROR`, `REPLAY_GAP`, `CHAT_DELETED`, `COMPACT_STARTED`, `COMPACT_DONE`, `COMPACT_ERROR`, `GIT_COMMAND`
+- Типы: `USER_MESSAGE`, `RUN_STARTED`, `STREAM`, `TOOL_CALL`, `TOOL_CALLS`, `RUN_USAGE`, `RUN_DONE`, `RUN_STOPPED`, `RUN_ERROR`, `REPLAY_GAP`, `CHAT_DELETED`, `COMPACT_STARTED`, `COMPACT_DONE`, `COMPACT_ERROR`, `SUMMARY_APPLIED`, `GIT_COMMAND`
 - `COMPACT_DONE` несёт `CompactPayload`:
-  `{ "messageId": 512, "messages": 42, "summaryChars": 3800, "createdAt": "2026-08-25T12:00:00",
-  "usage": { … } }` — id строки-плашки «контекст сжат» (адрес деталей, см. `GET /compact`), сколько
-  сообщений заменила сводка, какой длины она получилась, когда раунд закончился и во сколько
-  токенов обошёлся (та же форма, что у `RUN_USAGE`; `null` — эндпоинт замера не отдал). Числа
-  берутся с самой плашки, а не считаются заново: живая вкладка и вкладка, открытая после
+  `{ "messageId": 512, "messages": 42, "summaryChars": 3800, "kind": "COMPACT",
+  "createdAt": "2026-08-25T12:00:00", "usage": { … } }` — id строки-плашки «контекст сжат» (адрес
+  деталей, см. `GET /compact`), сколько сообщений заменила сводка, какой длины она получилась, вид
+  сжатия (`COMPACT` — команда, `SUMMARIZE` — фоновая суммаризация), когда раунд закончился и во
+  сколько токенов обошёлся (та же форма, что у `RUN_USAGE`; `null` — эндпоинт замера не отдал).
+  Числа берутся с самой плашки, а не считаются заново: живая вкладка и вкладка, открытая после
   перезагрузки, обязаны показать одно и то же
 - `COMPACT_ERROR` несёт `CompactErrorPayload`: `{ "message": "…", "messageId": 512, "usage": { … } }`
   — причина отказа, а при ней замер раунда, который до модели дошёл, но сводки не написал, и id
   строки команды `/compact`, на которую этот замер записан (`null` в обоих полях — раунда не было
   вовсе). Деньги за такой раунд заплачены, и вкладка досчитывает их в итог чата сразу, не дожидаясь
   перезагрузки
+- `SUMMARY_APPLIED` несёт тот же `CompactPayload` (`kind` всегда `SUMMARIZE`) и приходит без
+  `runId`: фоновая сводка ложится в историю не прогоном, а поводом — паузой в разговоре или
+  размером контекста (см. `обзор-чат-системы.md`, «Применение сводки отложено»). Отличается от
+  `COMPACT_DONE` местом плашки: `createdAt` у неё — время сжатого куска, то есть середина ленты, а
+  не её конец, и вкладка вставляет плашку по времени
 - `REPLAY_GAP` приходит без payload и только той вкладке, чей `fromSeq` уже не покрывается логом
   хаба: лог держит не больше 2000 последних событий прогона, а событий у него столько же, сколько
   токенов в ответе. Показанный такой вкладкой ответ заведомо с дырой; целиком он окажется в
@@ -740,7 +746,7 @@ SSE-поток событий чата: стриминг ответа + крос
 ```json
 {
   "chat": {
-    "defaultModel": { "id": "gpt-4o", "label": "GPT-4o", "weak": true },
+    "defaultModel": { "id": "gpt-4o", "label": "GPT-4o", "weak": true, "contextTokens": 128000 },
     "models": [ ... ],
     "options": { "maxTokens": 30000, "temperature": 0.1, "topP": 0.8 }
   },
@@ -762,6 +768,8 @@ SSE-поток событий чата: стриминг ответа + крос
     "overlapMessages": 10,
     "overlapUserMessages": 5,
     "summaryCollapseThreshold": 5,
+    "applyAfter": "PT10M",
+    "applyAtRatio": 0.5,
     "charsPerToken": 4
   },
   "script": {
