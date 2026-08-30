@@ -18,6 +18,7 @@ import io.github.trialiya.kb.service.chat.memory.ChatHistoryService.PromptRow;
 import io.github.trialiya.kb.service.chat.memory.SummarizeWindow.MessageMix;
 import jakarta.annotation.Nonnull;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Stream;
@@ -26,6 +27,7 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
@@ -81,6 +83,7 @@ public class SummarizeService implements DisposableBean {
             ContextItemService contextItemService) {
         this.chatClient =
                 ChatClient.builder(openAiChatModel)
+                        .defaultOptions(callOptions(openAiChatModel, summarizeProperties))
                         .defaultSystem(summarizerPrompt)
                         .defaultTools(
                                 new MessageLookupFunction(
@@ -92,6 +95,31 @@ public class SummarizeService implements DisposableBean {
         this.pendingSummaries = pendingSummaries;
         this.executorService = Executors.newVirtualThreadPerTaskExecutor();
         this.summarizeProperties = summarizeProperties;
+    }
+
+    /**
+     * Опции обращения к суммаризатору — из {@link SummarizeProperties}. Стоят на клиенте, а не на
+     * вызове: клиент у раунда свой, и другого запроса на нём не бывает.
+     *
+     * <p>Начинать обязательно с опций самой модели, а не с чистого {@code
+     * OpenAiChatOptions.builder()}: у пустого билдера модель не пустая, а своя по умолчанию
+     * (библиотечная), и опции запроса кладутся ПОВЕРХ настроенных у модели — то есть чистый билдер
+     * молча увёл бы каждый раунд на чужую модель, о которой в конфигурации деплоя нет ни слова.
+     * Отсюда же и «не задано — не ставим»: настроенное у модели остаётся как есть.
+     */
+    private static OpenAiChatOptions.Builder callOptions(
+            OpenAiChatModel openAiChatModel, SummarizeProperties properties) {
+        final OpenAiChatOptions.Builder options = openAiChatModel.getOptions().mutate();
+        if (properties.model() != null) {
+            options.model(properties.model());
+        }
+        if (properties.reasoningEffort() != null) {
+            options.reasoningEffort(properties.reasoningEffort());
+        }
+        if (properties.thinking() != null) {
+            options.extraBody(Map.of("thinking", Map.of("type", properties.thinking())));
+        }
+        return options;
     }
 
     @Override

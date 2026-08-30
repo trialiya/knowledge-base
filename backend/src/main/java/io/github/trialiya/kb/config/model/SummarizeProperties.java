@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.config.model;
 
 import java.time.Duration;
+import org.jspecify.annotations.Nullable;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -53,6 +54,24 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param charsPerToken how many characters are used per estimated token — the second opinion next
  *     to the measurements, and the only weighing on a conversation that carries none. Lower it to 3
  *     for mostly-code conversations, raise it to 5 for prose.
+ * @param model the model a summarization round runs on. Blank — the chat's own default ({@code
+ *     spring.ai.openai.chat.model}), which is what the round used before this knob existed. The
+ *     round never sees the model the user picked in the chat: it is a background request of its
+ *     own, reading a slice nobody is waiting for, so it is the one place where a cheaper model is
+ *     free of any trade-off the answer path would have to make. The id must be served by {@code
+ *     spring.ai.openai.base-url} — this is an option on the request, not a second connection, so an
+ *     entry of {@code kb.chat.models} with an endpoint of its own cannot be named here.
+ * @param reasoningEffort the {@code reasoning_effort} of the summarization request. Blank — the
+ *     field is not sent, and the model reasons as much as it defaults to. The pair below with
+ *     {@code thinking}: two spellings of the same knob, and which one an endpoint understands is
+ *     the endpoint's business — {@code reasoning_effort} is the OpenAI one, {@code thinking} the
+ *     common vendor extension. Worth turning down here more than anywhere else: the summary is a
+ *     re-telling of material the model already has in front of it, and a round of it easily spends
+ *     more tokens on reasoning than the document it writes is long.
+ * @param thinking the {@code type} of the {@code thinking} field sent in the summarization
+ *     request's body — {@code disabled} to turn reasoning off on an endpoint that spells it this
+ *     way. Blank — the field is not sent at all, which is the only safe default: an endpoint that
+ *     does not know the field rejects the whole request rather than ignoring it.
  */
 @ConfigurationProperties(prefix = "kb.chat.summarize")
 public record SummarizeProperties(
@@ -65,4 +84,20 @@ public record SummarizeProperties(
         double applyAtRatio,
         int applyAtQueue,
         double autoCompactAtRatio,
-        int charsPerToken) {}
+        int charsPerToken,
+        @Nullable String model,
+        @Nullable String reasoningEffort,
+        @Nullable String thinking) {
+
+    public SummarizeProperties {
+        // Пустая строка приходит от `${ПЕРЕМЕННАЯ:}` в application.yaml — «не задано», а не
+        // «задано пустым»: пустая модель, отправленная провайдеру, это отказ на каждом раунде.
+        model = trimToNull(model);
+        reasoningEffort = trimToNull(reasoningEffort);
+        thinking = trimToNull(thinking);
+    }
+
+    private static @Nullable String trimToNull(@Nullable String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+}

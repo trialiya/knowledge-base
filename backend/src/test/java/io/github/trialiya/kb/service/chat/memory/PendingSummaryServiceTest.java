@@ -51,7 +51,8 @@ class PendingSummaryServiceTest {
 
     /** Боевые значения из {@code application.yaml}. */
     private static final SummarizeProperties PRODUCTION =
-            new SummarizeProperties(30_000, 50, 30, 5, 5, Duration.ofMinutes(10), 0.5, 3, 0.8, 4);
+            new SummarizeProperties(
+                    30_000, 50, 30, 5, 5, Duration.ofMinutes(10), 0.5, 3, 0.8, 4, null, null, null);
 
     private static final RunTokenUsage ROUND_USAGE =
             new RunTokenUsage(48_900, 48_000, 0, 900, 48_000, 40_000, 0, 1);

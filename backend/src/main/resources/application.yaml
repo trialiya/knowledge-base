@@ -192,6 +192,20 @@ kb:
       # Characters per estimated token (rough heuristic, no real tokenizer) — the second opinion
       # next to the measurements, and the only weighing on a chat that carries none.
       chars-per-token: ${KB_CHAT_SUMMARIZE_CHARS_PER_TOKEN:4}
+      # Модель фоновой суммаризации. Пусто — модель чата по умолчанию (spring.ai.openai.chat.model
+      # выше). Раунд идёт в фоне по срезу, которого никто не ждёт, и модель чата, выбранная
+      # пользователем, на него всё равно не влияет, — поэтому модель подешевле здесь ничем не
+      # оплачивается. Эндпоинт при этом остаётся spring.ai.openai.base-url: это опция запроса, а не
+      # второе подключение, и модель из kb.chat.models со своим base-url сюда не годится.
+      model: ${KB_CHAT_SUMMARIZE_MODEL:}
+      # Насколько суммаризатору «размышлять»: reasoning_effort у OpenAI, thinking.type — у
+      # распространённого вендорского расширения. Пусто — поле не отправляется вовсе; для thinking
+      # это единственный безопасный default, потому что эндпоинт, который поля не знает, отвергает
+      # весь запрос, а не игнорирует его. Убавлять стоит именно здесь: сводка пересказывает то, что
+      # у модели и так перед глазами, а раунд её запросто тратит на размышления больше токенов,
+      # чем длина документа, который он в итоге пишет.
+      reasoning-effort: ${KB_CHAT_SUMMARIZE_REASONING_EFFORT:}
+      thinking: ${KB_CHAT_SUMMARIZE_THINKING:}
   documents:
     export-path: ${DOCUMENTS_EXPORT_PATH}
     replace: true

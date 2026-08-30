@@ -26,7 +26,9 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -57,7 +59,8 @@ class SummarizeServiceTest {
 
     /** Боевые значения из {@code application.yaml}. */
     private static final SummarizeProperties PRODUCTION =
-            new SummarizeProperties(30_000, 50, 30, 5, 5, Duration.ofMinutes(10), 0.5, 3, 0.8, 4);
+            new SummarizeProperties(
+                    30_000, 50, 30, 5, 5, Duration.ofMinutes(10), 0.5, 3, 0.8, 4, null, null, null);
 
     private ChatMessageRepository repository;
     private ChatTopicRepository chatTopicRepository;
@@ -72,7 +75,9 @@ class SummarizeServiceTest {
         chatHistory = mock(ChatHistoryService.class);
         chatModel = mock(OpenAiChatModel.class);
         pendingSummaries = mock(PendingSummaryService.class);
-        when(chatModel.getOptions()).thenReturn(OpenAiChatOptions.builder().build());
+        // Модель чата со своими настройками — то, поверх чего кладутся опции раунда.
+        when(chatModel.getOptions())
+                .thenReturn(OpenAiChatOptions.builder().model("chat-default").build());
         answerWith("summary of the earlier conversation");
     }
 
@@ -266,6 +271,42 @@ class SummarizeServiceTest {
     }
 
     /**
+     * Настроенное для раунда доезжает до запроса. Своя модель и убавленные «размышления» — это
+     * настройка деплоя, а не то, чем распоряжается чат: суммаризация идёт в фоне, и выбор
+     * пользователя в чате её не касается.
+     */
+    @Test
+    void theRoundCarriesTheOptionsItIsConfiguredWith() {
+        givenLive(turns(44));
+
+        service(properties("cheap-model", "minimal", "disabled")).doSummarize(CONV);
+
+        final OpenAiChatOptions options = capturedOptions();
+        assertThat(options.getModel()).isEqualTo("cheap-model");
+        assertThat(options.getReasoningEffort()).isEqualTo("minimal");
+        assertThat(options.getExtraBody())
+                .isEqualTo(Map.of("thinking", Map.of("type", "disabled")));
+    }
+
+    /**
+     * Ничего не настроено — раунд идёт на модели чата с её же настройками. Пустое значение приходит
+     * из {@code application.yaml} наравне с заданным (там у всех трёх полей дефолт — пустая
+     * строка), и означать оно обязано «как у модели»: модель без имени и незнакомое провайдеру поле
+     * — это отказ на каждом раунде.
+     */
+    @Test
+    void anUnconfiguredRoundRunsOnTheChatsOwnModel() {
+        givenLive(turns(44));
+
+        service(properties("", "  ", null)).doSummarize(CONV);
+
+        final OpenAiChatOptions options = capturedOptions();
+        assertThat(options.getModel()).isEqualTo("chat-default");
+        assertThat(options.getReasoningEffort()).isNull();
+        assertThat(options.getExtraBody()).isNullOrEmpty();
+    }
+
+    /**
      * Модель вернула пустой ответ — раунд обязан пропасть целиком. Припарковать пустую сводку
      * значит договориться потерять сжатые ею сообщения позже.
      */
@@ -356,11 +397,19 @@ class SummarizeServiceTest {
 
     /** Текст запроса к суммаризатору — то, по чему видно, что именно раунд сжимает. */
     private String promptText() {
-        final ArgumentCaptor<Prompt> prompt = ArgumentCaptor.forClass(Prompt.class);
-        verify(chatModel).call(prompt.capture());
-        return prompt.getValue().getInstructions().stream()
+        return capturedPrompt().getInstructions().stream()
                 .map(message -> String.valueOf(message.getText()))
                 .collect(Collectors.joining("\n"));
+    }
+
+    private OpenAiChatOptions capturedOptions() {
+        return (OpenAiChatOptions) requireNonNull(capturedPrompt().getOptions());
+    }
+
+    private Prompt capturedPrompt() {
+        final ArgumentCaptor<Prompt> prompt = ArgumentCaptor.forClass(Prompt.class);
+        verify(chatModel).call(prompt.capture());
+        return prompt.getValue();
     }
 
     /** Ходы по три позиции: вопрос, ответ модели и пустая протокольная TOOL-строка за ним. */
@@ -405,7 +454,30 @@ class SummarizeServiceTest {
         return new PromptRow(entity, content);
     }
 
+    /** Боевые пороги с настройками обращения к модели, которые проверяет тест. */
+    private static SummarizeProperties properties(
+            @Nullable String model, @Nullable String reasoningEffort, @Nullable String thinking) {
+        return new SummarizeProperties(
+                30_000,
+                50,
+                30,
+                5,
+                5,
+                Duration.ofMinutes(10),
+                0.5,
+                3,
+                0.8,
+                4,
+                model,
+                reasoningEffort,
+                thinking);
+    }
+
     private SummarizeService service() {
+        return service(PRODUCTION);
+    }
+
+    private SummarizeService service(SummarizeProperties properties) {
         return new SummarizeService(
                 chatModel,
                 repository,
@@ -414,7 +486,7 @@ class SummarizeServiceTest {
                 new ByteArrayResource("summarize".getBytes()),
                 new SummaryWriter(repository, transactionManager()),
                 pendingSummaries,
-                PRODUCTION,
+                properties,
                 mock(ContextItemService.class));
     }
 

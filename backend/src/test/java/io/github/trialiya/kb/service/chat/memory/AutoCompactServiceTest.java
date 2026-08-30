@@ -173,7 +173,19 @@ class AutoCompactServiceTest {
                 new SummaryWriter(mock(ChatMessageRepository.class), transactionManager()),
                 events,
                 new SummarizeProperties(
-                        30_000, 50, 30, 5, 5, Duration.ofMinutes(10), 0.5, 3, 0.8, 4));
+                        30_000,
+                        50,
+                        30,
+                        5,
+                        5,
+                        Duration.ofMinutes(10),
+                        0.5,
+                        3,
+                        0.8,
+                        4,
+                        null,
+                        null,
+                        null));
     }
 
     private CompactService.CompactTarget capturedTarget() {
