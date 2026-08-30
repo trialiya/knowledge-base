@@ -656,6 +656,16 @@ describe('applyChatEvent', () => {
     expect(last(chat).usage).toEqual(usage);
   });
 
+  // Деньги отложенных сводок, выброшенных этим сжатием: своего ряда у них не осталось, и в итог
+  // по чату они идут с плашки. Из истории она приезжает с ними — живая вкладка обязана тоже.
+  test('COMPACT_DONE carries the money of the discarded parked summaries', () => {
+    const carried = { promptTokens: 24000, outputTokens: 900, modelCalls: 2 };
+    let chat = applyChatEvent(userChat(), { type: 'COMPACT_STARTED', runId: 'r1' }, ctx);
+    chat = applyChatEvent(chat, { type: 'COMPACT_DONE', runId: 'r1', payload: { messageId: 5, carried } }, ctx);
+
+    expect(last(chat).compact.carried).toEqual(carried);
+  });
+
   test('COMPACT_DONE survives finalize even though the notice bubble has no text', () => {
     let chat = applyChatEvent(userChat(), { type: 'COMPACT_STARTED', runId: 'r1' }, ctx);
     chat = applyChatEvent(chat, { type: 'COMPACT_DONE', runId: 'r1', payload: { messageId: 5, messages: 3 } }, ctx);

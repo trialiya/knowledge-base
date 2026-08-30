@@ -231,6 +231,10 @@ export default function useRunStarter({ getChats, patchChat, patchMessages, noti
           patchChat(conversationId, (c) => ({
             runId,
             runKind: RUN_KIND.OPERATION,
+            // Якорь таймера — здесь же, а не только в COMPACT_STARTED: событие приходит своим
+            // путём и может отстать (или потеряться при переподписке потока), а сжатие — самая
+            // долгая операция чата, и плашка «сжимаю…» без отсчёта неотличима от зависшей.
+            runStartedAt: c.runStartedAt ?? Date.now(),
             messages: patchedId
               ? (c.messages || []).map((m) => (m.clientMsgId === clientMsgId ? { ...m, dbId: patchedId } : m))
               : c.messages,

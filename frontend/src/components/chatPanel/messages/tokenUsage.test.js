@@ -199,24 +199,26 @@ describe('tokenUsage', () => {
         ai({ contextTokens: 15000, basePromptTokens: 12000 }),
       ];
 
-      // 169 000 → 12 000: сжали на 93%. «После» берётся из базы следующего прогона, а не из его
-      // contextTokens — тот включал бы ещё и всё, что прогон дочитал инструментами.
+      // Оба конца без системной части (9800): 159 200 → 2 200, сжали на 99%. «После» берётся из
+      // базы следующего прогона, а не из его contextTokens — тот включал бы ещё и всё, что прогон
+      // дочитал инструментами.
       expect(compactSavingsIn(messages)).toEqual(
-        new Map([[7, { before: 169000, after: 12000, estimated: false, percent: 93 }]]),
+        new Map([[7, { before: 159200, after: 2200, estimated: false, percent: 99 }]]),
       );
     });
 
-    test('до первого ответа «после» оценивается по системной части и помечается', () => {
+    test('до первого ответа «после» — это написанная сводка, и число помечено оценкой', () => {
       const messages = [
         ai({ contextTokens: 168000, basePromptTokens: 9800 }),
         notice(7, { contextTokens: 170200, promptTokens: 169000, outputTokens: 1200 }),
       ];
 
+      // Оценка «системная часть + сводка» за вычетом системной части — это ровно сводка.
       expect(compactSavingsIn(messages).get(7)).toEqual({
-        before: 169000,
-        after: 11000,
+        before: 159200,
+        after: 1200,
         estimated: true,
-        percent: 93,
+        percent: 99,
       });
     });
 
@@ -230,8 +232,8 @@ describe('tokenUsage', () => {
 
       const savings = compactSavingsIn(messages);
       // Первое сжатие замера за собой не дождалось — оценка; второе дождалось.
-      expect(savings.get(7)).toMatchObject({ before: 169000, estimated: true });
-      expect(savings.get(8)).toEqual({ before: 11000, after: 12000, estimated: false, percent: 0 });
+      expect(savings.get(7)).toMatchObject({ before: 159200, estimated: true });
+      expect(savings.get(8)).toEqual({ before: 1200, after: 2200, estimated: false, percent: 0 });
     });
 
     test('у фоновой суммаризации экономии нет: её раунд мерил не контекст чата', () => {
@@ -251,23 +253,25 @@ describe('tokenUsage', () => {
       const savings = compactSavingsIn(messages);
       expect(savings.has(8)).toBe(false);
       // И «после» предыдущей плашки такая суммаризация обрывает: контекст она тоже изменила.
-      expect(savings.get(7)).toMatchObject({ before: 169000, estimated: true });
+      expect(savings.get(7)).toMatchObject({ before: 159200, estimated: true });
     });
 
     test('неизмеренное сжатие в карту не попадает: «сэкономили ничего» — неправда', () => {
-      expect(compactSavingsIn([notice(7, undefined), ai({ contextTokens: 13000 })]).size).toBe(0);
+      const messages = [
+        ai({ contextTokens: 168000, basePromptTokens: 9800 }),
+        notice(7, undefined),
+        ai({ contextTokens: 13000 }),
+      ];
+
+      expect(compactSavingsIn(messages).size).toBe(0);
     });
 
-    test('без системной части у последней плашки остаётся одно «до»', () => {
+    test('без системной части чисел нет вовсе: вычитать её не из чего', () => {
       const messages = [notice(7, { contextTokens: 170200, promptTokens: 169000, outputTokens: 1200 })];
 
-      // Лента загружена не с начала — системную часть взять неоткуда (см. baseContextOf).
-      expect(compactSavingsIn(messages, true).get(7)).toEqual({
-        before: 169000,
-        after: null,
-        estimated: true,
-        percent: null,
-      });
+      // Лента загружена не с начала — системную часть взять неоткуда (см. baseContextOf), а
+      // показать «до» вместе с ней значило бы выдать за экономию разговора чужое слагаемое.
+      expect(compactSavingsIn(messages, true).size).toBe(0);
     });
   });
 
@@ -294,6 +298,7 @@ describe('tokenUsage', () => {
 
     test('и «стало» после сжатия им не закрывается — его закрывает ответ', () => {
       const messages = [
+        { sender: 'ai', usage: { contextTokens: 168000, basePromptTokens: 9800 } },
         {
           mid: 7,
           sender: 'ai',
@@ -304,7 +309,8 @@ describe('tokenUsage', () => {
         { sender: 'ai', usage: { contextTokens: 15000, basePromptTokens: 12000 } },
       ];
 
-      expect(compactSavingsIn(messages).get(7)).toMatchObject({ after: 12000, estimated: false });
+      // «После» — база ответа (12 000) без системной части (9 800), а не замер команды.
+      expect(compactSavingsIn(messages).get(7)).toMatchObject({ after: 2200, estimated: false });
     });
   });
 
