@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -32,6 +33,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.SimpleTransactionStatus;
@@ -246,10 +248,13 @@ class PendingSummaryServiceTest {
 
         service.applyIfPaused(CONV);
 
-        verify(parkedRepository).claim(anyLong());
-        // atLeastOnce: у записи транзакция своя, и на моке менеджера она не сливается с внешней, а
-        // откатывается отдельно. Проверяется здесь внешняя — та, в которой лежит заявка на строку.
-        verify(transactions, atLeastOnce()).rollback(any());
+        // Порядком, а не одним фактом отката: откат сам по себе будет и у записи — транзакция у
+        // неё своя, и на моке менеджера она с внешней не сливается. Регресс здесь ровно один —
+        // заявка снаружи транзакции, — и виден он только тем, что транзакция ОТКРЫТА до заявки.
+        final InOrder order = inOrder(transactions, parkedRepository);
+        order.verify(transactions).getTransaction(any());
+        order.verify(parkedRepository).claim(anyLong());
+        order.verify(transactions, atLeastOnce()).rollback(any());
         verify(events, never()).publish(anyString(), any(), any(), any(), any());
     }
 
