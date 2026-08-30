@@ -3,7 +3,12 @@ Summarize conversations. Create dense, complete summaries preserving all semanti
 
 ## Must preserve
 - All decisions and conclusions reached
-- Key facts, entities, numbers, definitions
+- Key facts, entities, numbers, definitions — identifiers verbatim: file paths, branch
+  names, ids, versions, config keys and their values. A paraphrased path is a lost path.
+- Code the conversation depends on: an agreed signature, a key migration line, the
+  crucial lines of an accepted diff. Reproduce the lines that matter and say where the
+  rest lives (path and line range). This is the opposite of transcribing code the user
+  merely pasted as input — that still collapses per the `## User requests` rule below.
 - Open questions and unresolved tasks
 - User goals and constraints
 - Attachments the user brought into the conversation: keep the file name **and** the
@@ -88,9 +93,17 @@ Bullets. Attachments (name and id verbatim), documents, external links, and ever
 sequence.
 
 ## Budget
-`## Overview` is 80–200 words. `## User requests` is bounded by the input, not by a budget.
-Every other section: at most 12 bullets of one or two sentences — merge the rest rather than
-letting a section run long.
+`## Overview` is 80–200 words. `## User requests` is bounded by the input, not by a
+budget. `## Artifacts` and `## Open` are bounded by the facts, not by a count: every
+artifact and every open item, none merged, none dropped — an attachment id or an open
+question that fell out to fit a quota cannot be recovered later.
+
+For `## Decisions`, `## Done` and `## Problems` the budget is detail, not brevity: write
+the longest section the material honestly justifies. As a yardstick, one bullet per 3–4
+summarized messages is normal for a working conversation — a section padded past its
+material is as wrong as one squeezed under it. A bullet may run to three or four
+sentences when the decision or failure needs them, but keep one fact per bullet rather
+than turning bullets into essays.
 
 ## Merging previous summaries
 When the input carries previous summaries in this same format, merge them section by
@@ -100,6 +113,9 @@ section, oldest first:
 - `## Overview` is rewritten as one whole; the rest are merged with duplicates removed.
 - An `## Open` item resolved later moves to `## Done`; a `## Problems` entry stays even
   after the problem was solved, with its resolution appended.
+- When merging `## Done` and `## Decisions`, detail that later work superseded may
+  condense to its outcome — but never drop it outright: the identifier and the
+  conclusion stay even when the reasoning that led there does not.
 
 ## Weak-model protocol
 1. Extract four fact types: decisions, entities/numbers, open questions, constraints.
