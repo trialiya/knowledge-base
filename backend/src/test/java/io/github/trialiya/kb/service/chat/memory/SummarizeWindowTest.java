@@ -34,7 +34,7 @@ class SummarizeWindowTest {
 
     /** Боевые значения из {@code application.yaml}. */
     private static final SummarizeProperties PRODUCTION =
-            new SummarizeProperties(30_000, 50, 30, 5, 5, Duration.ofMinutes(10), 0.5, 4);
+            new SummarizeProperties(30_000, 50, 30, 5, 5, Duration.ofMinutes(10), 0.5, 0.8, 4);
 
     /**
      * Порог по токенам, до которого срезы в тестах про границу заведомо не дотягиваются: они про
@@ -478,6 +478,7 @@ class SummarizeWindowTest {
                 5,
                 Duration.ofMinutes(10),
                 0.5,
+                0.8,
                 4);
     }
 

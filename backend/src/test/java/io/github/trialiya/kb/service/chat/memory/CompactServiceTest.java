@@ -108,7 +108,8 @@ class CompactServiceTest {
     @Test
     void theWholeLiveWindowPlusTheCommandIsCompactedIntoOneSummaryRow() {
         final CompactPayload payload =
-                service().compact(CONV, turns(3), commandRow(9).entity(), null, OPTIONS);
+                service()
+                        .compact(CONV, turns(3), forCommand(commandRow(9).entity()), null, OPTIONS);
 
         verify(repository).updateSummarized(CONV, 0L, 9L);
         final ChatMessageEntity summary = savedRows().get(0);
@@ -128,7 +129,8 @@ class CompactServiceTest {
     @Test
     void aVisibleNoticeRowSurvivesTheRoundAndPointsAtTheSummary() {
         final CompactPayload payload =
-                service().compact(CONV, turns(3), commandRow(9).entity(), null, OPTIONS);
+                service()
+                        .compact(CONV, turns(3), forCommand(commandRow(9).entity()), null, OPTIONS);
 
         final ChatMessageEntity notice = savedRows().get(1);
         assertThat(notice.isSummary()).isFalse();
@@ -153,7 +155,7 @@ class CompactServiceTest {
     void theSummaryIsDatedByTheEndOfTheRoundNotByTheCommand() {
         final ChatMessageEntity command = commandRow(9).entity();
 
-        service().compact(CONV, turns(3), command, null, OPTIONS);
+        service().compact(CONV, turns(3), forCommand(command), null, OPTIONS);
 
         assertThat(savedRows())
                 .allSatisfy(row -> assertThat(row.getCreatedAt()).isAfter(command.getCreatedAt()));
@@ -215,7 +217,7 @@ class CompactServiceTest {
         rows.set(1, withToolCall(1, "grepContent", "{\"query\":\"summarize\"}"));
         rows.set(2, withToolResponse(2, "grepContent", "SummarizeService.java:42 — the whole hit"));
 
-        service().compact(CONV, rows, commandRow(3).entity(), null, OPTIONS);
+        service().compact(CONV, rows, forCommand(commandRow(3).entity()), null, OPTIONS);
 
         final List<Message> sent = capturedPrompt().getInstructions();
         // system + 3 строки окна + инструкция; команда сама не входит.
@@ -242,7 +244,7 @@ class CompactServiceTest {
      */
     @Test
     void theRequestStartsExactlyLikeAChatRequestSoTheProviderCountsItAsCached() {
-        service().compact(CONV, turns(1), commandRow(3).entity(), null, OPTIONS);
+        service().compact(CONV, turns(1), forCommand(commandRow(3).entity()), null, OPTIONS);
 
         final Prompt prompt = capturedPrompt();
         assertThat(prompt.getInstructions().getFirst())
@@ -262,7 +264,7 @@ class CompactServiceTest {
      */
     @Test
     void theCompactionHandbookRidesInTheLastMessageNotInTheSystemOne() {
-        service().compact(CONV, turns(1), commandRow(3).entity(), null, OPTIONS);
+        service().compact(CONV, turns(1), forCommand(commandRow(3).entity()), null, OPTIONS);
 
         final List<Message> sent = capturedPrompt().getInstructions();
         assertThat(sent.getFirst().getText()).doesNotContain("COMPACTOR HANDBOOK");
@@ -281,7 +283,8 @@ class CompactServiceTest {
                 new DefaultUsage(169_000, 1_200, 170_200, null, 160_000L, 8_000L));
 
         final CompactPayload payload =
-                service().compact(CONV, turns(3), commandRow(9).entity(), null, OPTIONS);
+                service()
+                        .compact(CONV, turns(3), forCommand(commandRow(9).entity()), null, OPTIONS);
 
         final RunTokenUsage usage = savedRows().get(1).getMeta().usage();
         assertThat(usage).isNotNull();
@@ -330,7 +333,7 @@ class CompactServiceTest {
                                         .compact(
                                                 CONV,
                                                 turns(2),
-                                                commandRow(6).entity(),
+                                                forCommand(commandRow(6).entity()),
                                                 null,
                                                 OPTIONS))
                 .isInstanceOf(IllegalStateException.class)
@@ -344,7 +347,8 @@ class CompactServiceTest {
     @Test
     void anEndpointThatMeasuresNothingLeavesTheNoticeWithoutTokens() {
         final CompactPayload payload =
-                service().compact(CONV, turns(3), commandRow(9).entity(), null, OPTIONS);
+                service()
+                        .compact(CONV, turns(3), forCommand(commandRow(9).entity()), null, OPTIONS);
 
         assertThat(savedRows().get(1).getMeta().usage()).isNull();
         assertThat(payload.usage()).isNull();
@@ -362,7 +366,15 @@ class CompactServiceTest {
         final ChatMessageEntity command = commandRow(6).entity();
 
         final Throwable thrown =
-                catchThrowable(() -> service().compact(CONV, turns(2), command, null, OPTIONS));
+                catchThrowable(
+                        () ->
+                                service()
+                                        .compact(
+                                                CONV,
+                                                turns(2),
+                                                forCommand(command),
+                                                null,
+                                                OPTIONS));
 
         assertThat(thrown).isInstanceOf(CompactService.CompactRoundFailed.class);
         final CompactService.CompactRoundFailed failed = (CompactService.CompactRoundFailed) thrown;
@@ -423,7 +435,7 @@ class CompactServiceTest {
                 .compact(
                         CONV,
                         turns(1),
-                        commandRow(3).entity(),
+                        forCommand(commandRow(3).entity()),
                         "разбор миграций, остальное коротко",
                         OPTIONS);
 
@@ -438,7 +450,7 @@ class CompactServiceTest {
         final List<PromptRow> rows = new ArrayList<>(turns(2));
         rows.set(3, switchRow(3, "kb", "billing"));
 
-        service().compact(CONV, rows, commandRow(6).entity(), null, OPTIONS);
+        service().compact(CONV, rows, forCommand(commandRow(6).entity()), null, OPTIONS);
 
         final ChatMessageEntity summary = savedRows().get(0);
         assertThat(summary.getMeta()).isNotNull();
@@ -460,7 +472,7 @@ class CompactServiceTest {
                                         .compact(
                                                 CONV,
                                                 turns(2),
-                                                commandRow(6).entity(),
+                                                forCommand(commandRow(6).entity()),
                                                 null,
                                                 OPTIONS))
                 .isInstanceOf(IllegalStateException.class);
@@ -701,6 +713,14 @@ class CompactServiceTest {
                         LocalDateTime.now(),
                         null);
         return new PromptRow(entity, content);
+    }
+
+    /**
+     * Цель раунда по команде — ровно та, что собирает сам сервис для {@code /compact}: тесты здесь
+     * про эту ветку, и своя копия её правил разошлась бы с ней на первом же изменении.
+     */
+    private CompactService.CompactTarget forCommand(ChatMessageEntity commandRow) {
+        return service().commandTarget(commandRow);
     }
 
     private CompactService service() {

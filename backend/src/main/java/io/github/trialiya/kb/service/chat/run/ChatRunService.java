@@ -22,7 +22,9 @@ import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.model.project.ProjectSwitch;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
+import io.github.trialiya.kb.service.chat.memory.AutoCompactService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
+import io.github.trialiya.kb.service.chat.memory.CompactService;
 import io.github.trialiya.kb.service.chat.memory.PendingSummaryService;
 import io.github.trialiya.kb.service.chat.memory.SummarizeService;
 import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
@@ -86,6 +88,7 @@ public class ChatRunService {
     private final ChatHistoryService chatHistory;
     private final SummarizeService summarizeService;
     private final PendingSummaryService pendingSummaries;
+    private final AutoCompactService autoCompact;
     private final ChatModelProperties chatModels;
     private final ChatEventService events;
     private final SystemPromptService systemPromptService;
@@ -110,6 +113,7 @@ public class ChatRunService {
             ChatHistoryService chatHistory,
             SummarizeService summarizeService,
             PendingSummaryService pendingSummaries,
+            AutoCompactService autoCompact,
             ChatModelProperties chatModels,
             ChatEventService events,
             SystemPromptService systemPromptService,
@@ -123,6 +127,7 @@ public class ChatRunService {
         this.chatHistory = chatHistory;
         this.summarizeService = summarizeService;
         this.pendingSummaries = pendingSummaries;
+        this.autoCompact = autoCompact;
         this.chatModels = chatModels;
         this.events = events;
         this.systemPromptService = systemPromptService;
@@ -458,6 +463,21 @@ public class ChatRunService {
                 conversationId, RUN_STARTED, runId, clientMsgId, Map.of("model", scope.model()));
 
         try {
+            // Последняя проверка перед промптом: окно у предела модели сжимается прямо здесь, и
+            // собранный ниже запрос уедет уже сжатым. Место единственно возможное — вопрос уже
+            // сохранён (сжатие обязано оставить его живым и знает это по позиции), промпт ещё не
+            // собран, а деньги несостоявшегося раунда есть куда деть: область прогона на руках.
+            autoCompact.compactIfOversized(
+                    conversationId,
+                    runId,
+                    userRow.getPosition(),
+                    chatModels.contextTokens(scope.model()),
+                    new CompactService.CompactOptions(
+                            resolvedModel,
+                            weakModel,
+                            options.project(),
+                            options.modeInstructions()),
+                    scope::addCall);
             // The client, not just the model option, follows the resolved model: an entry of
             // kb.chat.models with its own base-url/api-key is served by a connection of its own.
             ChatClient.ChatClientRequestSpec spec =

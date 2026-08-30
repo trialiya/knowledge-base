@@ -34,12 +34,13 @@ public record ChatModelProperties(ModelOption defaultModel, List<ModelOption> mo
      *     model's answers carry no token figure.
      * @param contextTokens the model's context window, in tokens. Not a limit the app enforces —
      *     the provider does that — but the number every automatic decision about the size of the
-     *     history is measured against — so far, when a written summary stops waiting for a pause
-     *     and folds into the history ({@code kb.chat.summarize.apply-at-ratio}). It lives here, per
-     *     model, because the windows differ by an order of magnitude between them, and a share of
-     *     the wrong window is either a chat that folds its history for nothing or one that never
-     *     does it in time. Omitted — this model gets no such decision, and its summaries simply
-     *     wait for the pause.
+     *     history is measured against: when a written summary stops waiting for a pause and folds
+     *     into the history ({@code kb.chat.summarize.apply-at-ratio}), and when the chat compacts
+     *     itself before the next answer ({@code kb.chat.summarize.auto-compact-at-ratio}). It lives
+     *     here, per model, because the windows differ by an order of magnitude between them, and a
+     *     share of the wrong window is either a chat that rewrites its history for nothing or one
+     *     that never does it in time. Omitted — this model gets neither decision: its summaries
+     *     wait for the pause, and it is never compacted automatically.
      * @param baseUrl the OpenAI-compatible endpoint this model lives behind. Omitted — the model is
      *     served by {@code spring.ai.openai.base-url} with the deployment's own key, which is the
      *     usual case. Set — the model gets a connection of its own (see {@code ChatModelRegistry}),

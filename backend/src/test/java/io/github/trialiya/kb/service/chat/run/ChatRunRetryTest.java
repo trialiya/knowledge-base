@@ -17,6 +17,7 @@ import io.github.trialiya.kb.config.model.ChatModelProperties.ModelOption;
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
+import io.github.trialiya.kb.service.chat.memory.AutoCompactService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
 import io.github.trialiya.kb.service.chat.memory.PendingSummaryService;
 import io.github.trialiya.kb.service.chat.memory.SummarizeService;
@@ -77,6 +78,7 @@ class ChatRunRetryTest {
                         chatHistory,
                         mock(SummarizeService.class),
                         mock(PendingSummaryService.class),
+                        mock(AutoCompactService.class),
                         new ChatModelProperties(
                                 new ModelOption(
                                         "default-model", "Default", true, true, null, null, null),

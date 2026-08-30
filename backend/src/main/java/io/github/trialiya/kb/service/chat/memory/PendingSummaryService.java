@@ -1,6 +1,6 @@
 package io.github.trialiya.kb.service.chat.memory;
 
-import static io.github.trialiya.kb.model.chat.dto.ChatEventType.SUMMARY_APPLIED;
+import static io.github.trialiya.kb.model.chat.dto.ChatEventType.COMPACT_APPLIED;
 
 import io.github.trialiya.kb.config.model.SummarizeProperties;
 import io.github.trialiya.kb.model.chat.dto.CompactPayload;
@@ -224,7 +224,7 @@ public class PendingSummaryService {
                 reason);
         // Плашка встаёт в СЕРЕДИНУ ленты — там, где кончается свёрнутое, — поэтому вкладке мало
         // «допиши в конец»: место она ищет сама, по времени плашки (см. chatEventReducer).
-        events.publish(conversationId, SUMMARY_APPLIED, null, null, CompactPayload.of(notice));
+        events.publish(conversationId, COMPACT_APPLIED, null, null, CompactPayload.of(notice));
     }
 
     /**

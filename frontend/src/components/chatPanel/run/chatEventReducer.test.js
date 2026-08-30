@@ -668,7 +668,7 @@ describe('applyChatEvent', () => {
   // Плашка встаёт не в конец ленты, а туда, где кончается свёрнутое.
   const dated = (dbId, timestamp) => ({ dbId, sender: 'ai', text: 'ответ', timestamp });
 
-  test('SUMMARY_APPLIED splices the notice in by time, not at the end', () => {
+  test('COMPACT_APPLIED splices the notice in by time, not at the end', () => {
     const chat = applyChatEvent(
       {
         id: 'c',
@@ -676,7 +676,7 @@ describe('applyChatEvent', () => {
         runId: null,
       },
       {
-        type: 'SUMMARY_APPLIED',
+        type: 'COMPACT_APPLIED',
         payload: {
           messageId: 77,
           messages: 40,
@@ -699,10 +699,10 @@ describe('applyChatEvent', () => {
     expect(chat.runId).toBeNull();
   });
 
-  test('SUMMARY_APPLIED carries the tokens of the round and ignores a repeat', () => {
+  test('COMPACT_APPLIED carries the tokens of the round and ignores a repeat', () => {
     const usage = { contextTokens: 62000, outputTokens: 1200, modelCalls: 1 };
     const event = {
-      type: 'SUMMARY_APPLIED',
+      type: 'COMPACT_APPLIED',
       payload: { messageId: 77, messages: 40, createdAt: '2026-08-25T12:00:00', usage },
     };
     let chat = applyChatEvent({ id: 'c', messages: [dated(1, '2026-08-25T10:00:00')], runId: null }, event, ctx);

@@ -101,8 +101,9 @@ kb:
       weak: ${AI_MODEL_WEAK:true}
       # Контекстное окно модели в токенах. Не предел, который стережёт приложение (его стережёт
       # провайдер), а число, от которого считаются автоматические решения о размере истории —
-      # сейчас одно: когда написанная сводка перестаёт ждать паузы (summarize.apply-at-ratio).
-      # Не задано — такого решения для этой модели не будет. См. ChatModelProperties.ModelOption.
+      # когда написанная сводка перестаёт ждать паузы (summarize.apply-at-ratio) и когда чат
+      # сжимает себя сам (summarize.auto-compact-at-ratio). Не задано — таких решений для этой
+      # модели не будет вовсе. См. ChatModelProperties.ModelOption.
       context-tokens: ${AI_MODEL_CONTEXT_TOKENS:}
 #    models:
 #      - id: ${KB_CHAT_MODELS_0_ID}
@@ -174,6 +175,12 @@ kb:
       # потому что само число — модели (kb.chat...context-tokens); модель без окна порога не
       # имеет и всегда ждёт паузы.
       apply-at-ratio: ${KB_CHAT_SUMMARIZE_APPLY_AT_RATIO:0.5}
+      # Доля окна модели, на которой чат сжимает себя сам перед очередным ответом — последний
+      # рубеж, заметно выше apply-at-ratio: пара прогонов с инструментами набивает окно быстрее,
+      # чем фоновая суммаризация успевает что-то записать, а прогон за пределом окна не отвечает
+      # плохо — он не начинается. Запас под самим окном нужен: раунд сжатия читает тот же
+      # контекст, который сжимает. Модель без окна автоматически не сжимается.
+      auto-compact-at-ratio: ${KB_CHAT_SUMMARIZE_AUTO_COMPACT_AT_RATIO:0.8}
       # Characters per estimated token (rough heuristic, no real tokenizer) — the second opinion
       # next to the measurements, and the only weighing on a chat that carries none.
       chars-per-token: ${KB_CHAT_SUMMARIZE_CHARS_PER_TOKEN:4}

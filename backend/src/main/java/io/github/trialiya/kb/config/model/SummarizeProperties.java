@@ -38,6 +38,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *     is the cheaper half of the trade. A share rather than a number of tokens because the number
  *     itself is the model's — see {@code ChatModelProperties.ModelOption#contextTokens}; a model
  *     that names no window has no threshold at all and waits for the pause.
+ * @param autoCompactAtRatio the share of the model's context window at which the chat compacts
+ *     itself before the next answer ({@code AutoCompactService}) — the last line, well above {@code
+ *     applyAtRatio}: two or three tool-heavy rounds fill a window faster than background
+ *     summarization writes anything, and the run that crosses it does not fail on the provider's
+ *     limit, it never starts. The number is the model's for the same reason as above, and a model
+ *     with no named window is never compacted automatically. Leave room under the window itself:
+ *     the compaction round reads the same context it is compacting.
  * @param charsPerToken how many characters are used per estimated token — the second opinion next
  *     to the measurements, and the only weighing on a conversation that carries none. Lower it to 3
  *     for mostly-code conversations, raise it to 5 for prose.
@@ -51,4 +58,5 @@ public record SummarizeProperties(
         int summaryCollapseThreshold,
         Duration applyAfter,
         double applyAtRatio,
+        double autoCompactAtRatio,
         int charsPerToken) {}

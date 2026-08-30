@@ -54,7 +54,7 @@ class SummarizeServiceTest {
 
     /** Боевые значения из {@code application.yaml}. */
     private static final SummarizeProperties PRODUCTION =
-            new SummarizeProperties(30_000, 50, 30, 5, 5, Duration.ofMinutes(10), 0.5, 4);
+            new SummarizeProperties(30_000, 50, 30, 5, 5, Duration.ofMinutes(10), 0.5, 0.8, 4);
 
     private ChatMessageRepository repository;
     private ChatTopicRepository chatTopicRepository;

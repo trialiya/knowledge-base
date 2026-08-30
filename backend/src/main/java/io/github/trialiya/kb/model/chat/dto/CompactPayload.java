@@ -9,7 +9,7 @@ import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Нагрузка событий {@link ChatEventType#COMPACT_DONE} и {@link ChatEventType#SUMMARY_APPLIED}: чем
+ * Нагрузка событий {@link ChatEventType#COMPACT_DONE} и {@link ChatEventType#COMPACT_APPLIED}: чем
  * закончилось сжатие контекста.
  *
  * <p>Собирается из строки-плашки, которую сжатие оставило в истории (см. {@code

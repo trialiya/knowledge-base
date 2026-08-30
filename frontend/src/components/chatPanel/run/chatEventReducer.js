@@ -339,7 +339,7 @@ export function applyChatEvent(chat, ev, ctx) {
     // Фоновая сводка применена. Прогона за этим событием нет вовсе — пузырь искать не по чему,
     // да и незачем: плашка встаёт в СЕРЕДИНУ ленты, там, где кончается свёрнутое. Место ищем по
     // времени плашки — тем же порядком, каким ленту отдаёт история.
-    case CHAT_EVENT.SUMMARY_APPLIED: {
+    case CHAT_EVENT.COMPACT_APPLIED: {
       if (payload?.messageId == null) return chat;
       if (msgs.some((m) => m.dbId === payload.messageId)) return chat;
       const at = payload.createdAt ? Date.parse(payload.createdAt) : NaN;
