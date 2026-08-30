@@ -16,6 +16,26 @@ function hangingSseResponse() {
   };
 }
 
+// Отдаёт готовые кадры и после них «зависает»: соединение остаётся открытым, как настоящее.
+function sseResponse(events) {
+  const encoder = new TextEncoder();
+  let i = 0;
+  return {
+    ok: true,
+    body: {
+      getReader() {
+        return {
+          read: () =>
+            i < events.length
+              ? Promise.resolve({ done: false, value: encoder.encode(`data: ${JSON.stringify(events[i++])}\n\n`) })
+              : new Promise(() => {}),
+          cancel() {},
+        };
+      },
+    },
+  };
+}
+
 describe('openChatEventStream fromSeq', () => {
   let originalFetch;
   afterEach(() => {
@@ -53,6 +73,26 @@ describe('openChatEventStream fromSeq', () => {
     await Promise.resolve();
 
     expect(requested[0]).toContain('fromSeq=7');
+    close();
+  });
+
+  test('REPLAY_GAP ставит курсор на свою нумерацию, а не поднимает максимум', async () => {
+    // Курсор из прошлой жизни хаба (нумерация у нового своя, с нуля) выше всего, что новый
+    // хаб опубликует за целый прогон. Оставленный максимумом, он заставлял бы хаб на каждом
+    // обрыве реплеить лог целиком — поверх уже собранного пузыря, задваивая ответ.
+    const seen = [];
+    originalFetch = global.fetch;
+    global.fetch = vi.fn(() =>
+      Promise.resolve(
+        sseResponse([
+          { seq: 0, type: 'REPLAY_GAP' },
+          { seq: 1, type: 'STREAM' },
+        ]),
+      ),
+    );
+
+    const close = openChatEventStream('chat-a', { fromSeq: 340, onEvent: () => {}, onSeq: (s) => seen.push(s) });
+    await vi.waitFor(() => expect(seen).toEqual([0, 1]));
     close();
   });
 });
