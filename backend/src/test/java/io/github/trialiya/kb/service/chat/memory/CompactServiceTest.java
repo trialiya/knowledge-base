@@ -8,6 +8,8 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -42,6 +44,7 @@ import java.util.concurrent.RejectedExecutionException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
@@ -81,6 +84,8 @@ class CompactServiceTest {
             new CompactService.CompactOptions(null, false, "kb", "MODE");
 
     private ChatMessageRepository repository;
+    private PendingSummaryService pendingSummaries;
+    private PlatformTransactionManager transactions;
     private ChatHistoryService chatHistory;
     private ConversationSlots slots;
     private ChatEventService events;
@@ -89,6 +94,8 @@ class CompactServiceTest {
     @BeforeEach
     void setUp() {
         repository = mock(ChatMessageRepository.class);
+        pendingSummaries = mock(PendingSummaryService.class);
+        transactions = transactionManager();
         // Записанный ряд возвращается как есть: раунд читает id сводки, чтобы плашка знала,
         // где лежит её текст.
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -108,7 +115,8 @@ class CompactServiceTest {
     @Test
     void theWholeLiveWindowPlusTheCommandIsCompactedIntoOneSummaryRow() {
         final CompactPayload payload =
-                service().compact(CONV, turns(3), commandRow(9).entity(), null, OPTIONS);
+                service()
+                        .compact(CONV, turns(3), forCommand(commandRow(9).entity()), null, OPTIONS);
 
         verify(repository).updateSummarized(CONV, 0L, 9L);
         final ChatMessageEntity summary = savedRows().get(0);
@@ -121,6 +129,90 @@ class CompactServiceTest {
     }
 
     /**
+     * У автоматического сжатия лишнего ряда нет: граница кончается на последнем ряду окна, вопрос
+     * прогона остаётся живым, и «сколько сообщений перестало ехать модели» — это ровно окно. Число
+     * с плашки читает пользователь, и завышенное на команду, которой не было, оно просто неверно.
+     */
+    @Test
+    void anAutomaticRoundCountsTheWindowAlone() {
+        final List<PromptRow> rows = turns(3);
+        final ChatMessageEntity lastRow = rows.getLast().entity();
+
+        final CompactPayload payload =
+                service()
+                        .compact(
+                                CONV,
+                                rows,
+                                new CompactService.CompactTarget(
+                                        CompactMeta.Kind.AUTO_COMPACT,
+                                        lastRow.getPosition(),
+                                        lastRow.getCreatedAt(),
+                                        (call, usage) -> null),
+                                null,
+                                OPTIONS);
+
+        assertThat(payload.messages()).isEqualTo(rows.size());
+        verify(repository).updateSummarized(CONV, 0L, lastRow.getPosition());
+    }
+
+    /**
+     * Полное сжатие выбрасывает очередь отложенных сводок — их кусок оно заменило собой, — а деньги
+     * их раундов забирает на свою плашку. Другого ряда у этих денег нет, и молча потерянные, они
+     * разошлись бы со счётом провайдера ровно на стоимость этих сводок.
+     */
+    @Test
+    void theMoneyOfTheDiscardedQueueLandsOnTheNotice() {
+        final RunTokenUsage carried = new RunTokenUsage(0, 0, 0, 900, 61_000, 40_000, 0, 2);
+        when(pendingSummaries.discard(CONV)).thenReturn(carried);
+
+        final CompactPayload payload =
+                service()
+                        .compact(CONV, turns(3), forCommand(commandRow(9).entity()), null, OPTIONS);
+
+        assertThat(payload.carried()).isEqualTo(carried);
+        final CompactMeta compact = savedRows().get(1).getMeta().compact();
+        assertThat(compact).isNotNull();
+        assertThat(compact.carried()).isEqualTo(carried);
+    }
+
+    /**
+     * Выбрасывание очереди лежит внутри той же транзакции, что и запись плашки. Порознь нельзя:
+     * удаление, пережившее неудавшуюся запись, стёрло бы написанные моделью сводки насовсем —
+     * вместе с их деньгами, — а второй раз их никто не напишет.
+     */
+    @Test
+    void theQueueIsDiscardedInsideTheTransactionThatWritesTheNotice() {
+        service().compact(CONV, turns(3), forCommand(commandRow(9).entity()), null, OPTIONS);
+
+        final InOrder order = inOrder(transactions, pendingSummaries, repository);
+        order.verify(transactions).getTransaction(any());
+        order.verify(pendingSummaries).discard(CONV);
+        order.verify(repository, atLeastOnce()).save(any());
+    }
+
+    /**
+     * Упавший раунд очередь не трогает: сжатия не было, отложенные сводки по-прежнему описывают
+     * живое начало истории, и выбросить их значит потерять и их текст, и их деньги разом.
+     */
+    @Test
+    void aRoundThatWroteNoSummaryLeavesTheQueueParked() {
+        answerWith("");
+
+        assertThatThrownBy(
+                        () ->
+                                service()
+                                        .compact(
+                                                CONV,
+                                                turns(3),
+                                                forCommand(commandRow(9).entity()),
+                                                null,
+                                                OPTIONS))
+                .isInstanceOf(IllegalStateException.class);
+
+        verify(pendingSummaries, never()).discard(anyString());
+    }
+
+    /**
      * Второй записанный ряд — видимая плашка «контекст сжат»: показывается ({@code summary =
      * false}), модели не едет ({@code summarized = true}) и знает, где лежит её сводка. Без неё
      * перезагруженная вкладка показала бы команду, за которой ничего не произошло.
@@ -128,7 +220,8 @@ class CompactServiceTest {
     @Test
     void aVisibleNoticeRowSurvivesTheRoundAndPointsAtTheSummary() {
         final CompactPayload payload =
-                service().compact(CONV, turns(3), commandRow(9).entity(), null, OPTIONS);
+                service()
+                        .compact(CONV, turns(3), forCommand(commandRow(9).entity()), null, OPTIONS);
 
         final ChatMessageEntity notice = savedRows().get(1);
         assertThat(notice.isSummary()).isFalse();
@@ -153,7 +246,7 @@ class CompactServiceTest {
     void theSummaryIsDatedByTheEndOfTheRoundNotByTheCommand() {
         final ChatMessageEntity command = commandRow(9).entity();
 
-        service().compact(CONV, turns(3), command, null, OPTIONS);
+        service().compact(CONV, turns(3), forCommand(command), null, OPTIONS);
 
         assertThat(savedRows())
                 .allSatisfy(row -> assertThat(row.getCreatedAt()).isAfter(command.getCreatedAt()));
@@ -184,7 +277,8 @@ class CompactServiceTest {
                         true,
                         false,
                         LocalDateTime.now(),
-                        ChatMessageMeta.ofCompact(new CompactMeta(10, 128, 7L)));
+                        ChatMessageMeta.ofCompact(
+                                new CompactMeta(10, 128, 7L, CompactMeta.Kind.COMPACT, null)));
         when(repository.findById(8L)).thenReturn(Optional.of(notice));
         when(repository.findById(7L)).thenReturn(Optional.of(summary));
 
@@ -214,7 +308,7 @@ class CompactServiceTest {
         rows.set(1, withToolCall(1, "grepContent", "{\"query\":\"summarize\"}"));
         rows.set(2, withToolResponse(2, "grepContent", "SummarizeService.java:42 — the whole hit"));
 
-        service().compact(CONV, rows, commandRow(3).entity(), null, OPTIONS);
+        service().compact(CONV, rows, forCommand(commandRow(3).entity()), null, OPTIONS);
 
         final List<Message> sent = capturedPrompt().getInstructions();
         // system + 3 строки окна + инструкция; команда сама не входит.
@@ -241,7 +335,7 @@ class CompactServiceTest {
      */
     @Test
     void theRequestStartsExactlyLikeAChatRequestSoTheProviderCountsItAsCached() {
-        service().compact(CONV, turns(1), commandRow(3).entity(), null, OPTIONS);
+        service().compact(CONV, turns(1), forCommand(commandRow(3).entity()), null, OPTIONS);
 
         final Prompt prompt = capturedPrompt();
         assertThat(prompt.getInstructions().getFirst())
@@ -261,7 +355,7 @@ class CompactServiceTest {
      */
     @Test
     void theCompactionHandbookRidesInTheLastMessageNotInTheSystemOne() {
-        service().compact(CONV, turns(1), commandRow(3).entity(), null, OPTIONS);
+        service().compact(CONV, turns(1), forCommand(commandRow(3).entity()), null, OPTIONS);
 
         final List<Message> sent = capturedPrompt().getInstructions();
         assertThat(sent.getFirst().getText()).doesNotContain("COMPACTOR HANDBOOK");
@@ -280,7 +374,8 @@ class CompactServiceTest {
                 new DefaultUsage(169_000, 1_200, 170_200, null, 160_000L, 8_000L));
 
         final CompactPayload payload =
-                service().compact(CONV, turns(3), commandRow(9).entity(), null, OPTIONS);
+                service()
+                        .compact(CONV, turns(3), forCommand(commandRow(9).entity()), null, OPTIONS);
 
         final RunTokenUsage usage = savedRows().get(1).getMeta().usage();
         assertThat(usage).isNotNull();
@@ -329,7 +424,7 @@ class CompactServiceTest {
                                         .compact(
                                                 CONV,
                                                 turns(2),
-                                                commandRow(6).entity(),
+                                                forCommand(commandRow(6).entity()),
                                                 null,
                                                 OPTIONS))
                 .isInstanceOf(IllegalStateException.class)
@@ -343,7 +438,8 @@ class CompactServiceTest {
     @Test
     void anEndpointThatMeasuresNothingLeavesTheNoticeWithoutTokens() {
         final CompactPayload payload =
-                service().compact(CONV, turns(3), commandRow(9).entity(), null, OPTIONS);
+                service()
+                        .compact(CONV, turns(3), forCommand(commandRow(9).entity()), null, OPTIONS);
 
         assertThat(savedRows().get(1).getMeta().usage()).isNull();
         assertThat(payload.usage()).isNull();
@@ -361,7 +457,15 @@ class CompactServiceTest {
         final ChatMessageEntity command = commandRow(6).entity();
 
         final Throwable thrown =
-                catchThrowable(() -> service().compact(CONV, turns(2), command, null, OPTIONS));
+                catchThrowable(
+                        () ->
+                                service()
+                                        .compact(
+                                                CONV,
+                                                turns(2),
+                                                forCommand(command),
+                                                null,
+                                                OPTIONS));
 
         assertThat(thrown).isInstanceOf(CompactService.CompactRoundFailed.class);
         final CompactService.CompactRoundFailed failed = (CompactService.CompactRoundFailed) thrown;
@@ -422,7 +526,7 @@ class CompactServiceTest {
                 .compact(
                         CONV,
                         turns(1),
-                        commandRow(3).entity(),
+                        forCommand(commandRow(3).entity()),
                         "разбор миграций, остальное коротко",
                         OPTIONS);
 
@@ -437,7 +541,7 @@ class CompactServiceTest {
         final List<PromptRow> rows = new ArrayList<>(turns(2));
         rows.set(3, switchRow(3, "kb", "billing"));
 
-        service().compact(CONV, rows, commandRow(6).entity(), null, OPTIONS);
+        service().compact(CONV, rows, forCommand(commandRow(6).entity()), null, OPTIONS);
 
         final ChatMessageEntity summary = savedRows().get(0);
         assertThat(summary.getMeta()).isNotNull();
@@ -459,7 +563,7 @@ class CompactServiceTest {
                                         .compact(
                                                 CONV,
                                                 turns(2),
-                                                commandRow(6).entity(),
+                                                forCommand(commandRow(6).entity()),
                                                 null,
                                                 OPTIONS))
                 .isInstanceOf(IllegalStateException.class);
@@ -702,6 +806,14 @@ class CompactServiceTest {
         return new PromptRow(entity, content);
     }
 
+    /**
+     * Цель раунда по команде — ровно та, что собирает сам сервис для {@code /compact}: тесты здесь
+     * про эту ветку, и своя копия её правил разошлась бы с ней на первом же изменении.
+     */
+    private CompactService.CompactTarget forCommand(ChatMessageEntity commandRow) {
+        return service().commandTarget(commandRow);
+    }
+
     private CompactService service() {
         return service(Runnable::run);
     }
@@ -717,14 +829,16 @@ class CompactServiceTest {
                 chatHistory,
                 mock(ChatTopicRepository.class),
                 repository,
-                new SummaryWriter(repository, transactionManager()),
+                new SummaryWriter(repository, transactions),
+                pendingSummaries,
                 slots,
                 events,
                 systemPrompts,
                 new ChatToolset(List.of(toolCallback("getFileContent")), List.of()),
                 new ByteArrayResource("SYSTEM {mode} {scripts}".getBytes()),
                 new ByteArrayResource("COMPACTOR HANDBOOK".getBytes()),
-                executor);
+                executor,
+                transactions);
     }
 
     /** Заглушка инструмента: раунду важна только схема — вызывать её здесь некому. */

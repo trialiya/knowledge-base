@@ -17,6 +17,16 @@
   font-size: 0.9em;
 }
 
+/* Фоновая суммаризация: та же плашка, но тише — её никто не просил, и разговор она не прерывает. */
+.compact-notice--slim {
+  margin: 0.15rem 0;
+  font-size: 0.72rem;
+  opacity: 0.7;
+}
+.compact-notice--slim .compact-notice__icon {
+  font-size: 0.8em;
+}
+
 /* Числа — моноширинно и чуть тише текста: их сравнивают между собой, а не читают подряд. */
 .compact-notice__savings {
   font-family: var(--kb-font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);

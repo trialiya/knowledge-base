@@ -2,10 +2,14 @@ package io.github.trialiya.kb.service.chat.memory;
 
 import static io.github.trialiya.kb.utils.ChatUtils.context;
 
+import io.github.trialiya.kb.advisor.RoundUsageAdvisor;
 import io.github.trialiya.kb.config.model.SummarizeProperties;
 import io.github.trialiya.kb.functions.MessageLookupFunction;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
+import io.github.trialiya.kb.model.chat.entity.ChatPendingSummaryEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
+import io.github.trialiya.kb.model.chat.entity.CompactMeta;
+import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
@@ -16,9 +20,11 @@ import jakarta.annotation.Nonnull;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,6 +35,16 @@ import org.springframework.stereotype.Service;
  * Background compression of long conversations. This class is the orchestration only — one round
  * per conversation at a time, the LLM call, the atomic persist; everything about WHERE the boundary
  * goes lives in {@link SummarizeWindow}.
+ *
+ * <p>Раунд оставляет за собой тот же видимый след, что и {@code /compact}, — строку-плашку со своим
+ * замером ({@link SummaryWriter#writeCompacted}). Молча сжимать нельзя по двум причинам сразу:
+ * пользователь иначе не узнаёт, что часть разговора модель больше не видит, а счётчик токенов чата
+ * продолжает показывать замер прогона, который мерил уже несуществующий контекст.
+ *
+ * <p>Написанное раунд не применяет — он его паркует ({@link PendingSummaryService}). Когда сжатое
+ * начало истории действительно перестанет ехать модели, решает уже не он: подмена начала истории
+ * обесценивает кэш промпта у провайдера, и стоит она по-разному в зависимости от того, когда её
+ * сделать.
  */
 @Slf4j
 @Service
@@ -50,6 +66,7 @@ public class SummarizeService implements DisposableBean {
     private final ChatTopicRepository chatTopicRepository;
     private final ExecutorService executorService;
     private final SummaryWriter summaryWriter;
+    private final PendingSummaryService pendingSummaries;
     private final SummarizeProperties summarizeProperties;
 
     public SummarizeService(
@@ -59,6 +76,7 @@ public class SummarizeService implements DisposableBean {
             ChatTopicRepository chatTopicRepository,
             @Value("classpath:prompt/summarizer.md") Resource summarizerPrompt,
             SummaryWriter summaryWriter,
+            PendingSummaryService pendingSummaries,
             SummarizeProperties summarizeProperties,
             ContextItemService contextItemService) {
         this.chatClient =
@@ -71,6 +89,7 @@ public class SummarizeService implements DisposableBean {
         this.chatHistory = chatHistory;
         this.chatTopicRepository = chatTopicRepository;
         this.summaryWriter = summaryWriter;
+        this.pendingSummaries = pendingSummaries;
         this.executorService = Executors.newVirtualThreadPerTaskExecutor();
         this.summarizeProperties = summarizeProperties;
     }
@@ -105,8 +124,11 @@ public class SummarizeService implements DisposableBean {
         // text that will be sent, inventory included, not the text that happens to be stored. The
         // prompt below and the character estimate inside SummarizeWindow both measure exactly that
         // — and the estimate is what weighs a slice the provider's measurements do not cover.
+        final List<ChatPendingSummaryEntity> parked = pendingSummaries.parked(conversationId);
         final SummarizeWindow window =
-                new SummarizeWindow(chatHistory.promptRows(conversationId), summarizeProperties);
+                new SummarizeWindow(
+                        withParked(chatHistory.promptRows(conversationId), parked),
+                        summarizeProperties);
 
         // The second mix is spelled out only when it differs — that is, when the window carries
         // empty TOOL protocol rows: context the model pays for but the summarizer never sees.
@@ -147,10 +169,26 @@ public class SummarizeService implements DisposableBean {
         // Collapse existing summaries into one meta-summary if this round's new summary would
         // otherwise push the count to summaryCollapseThreshold.
         final List<ChatMessageEntity> existingSummaries = window.summaries();
+        // Пока очередь не применена, схлопывания не бывает: метасводка заменяет собой те сводки,
+        // которые перечислила, а у припаркованной замена означала бы потерянный ряд — с ним и её
+        // плашку, и деньги её раунда, которых больше нигде нет. Ряды очереди схлопнутся следующим
+        // раундом после применения, как обычные, а порог считает только применённые: сводка,
+        // которой в промпте ещё нет, его и не удлиняет.
         final boolean collapseSummaries =
-                existingSummaries.size() + 1 >= summarizeProperties.summaryCollapseThreshold();
+                parked.isEmpty()
+                        && existingSummaries.size() + 1
+                                >= summarizeProperties.summaryCollapseThreshold();
+        // Замер на весь раунд, включая обращения tool-цикла: у фоновой суммаризации своей области
+        // прогона нет, и без накопителя её токены не попали бы в итог по чату ни одним числом —
+        // при том что тратит она столько же, сколько ответ (см. RoundUsageAdvisor).
+        final RoundUsageAdvisor roundUsage = new RoundUsageAdvisor();
         final @Nullable String summaryContent =
-                generateSummary(conversationId, existingSummaries, toCompress, collapseSummaries);
+                generateSummary(
+                        conversationId,
+                        existingSummaries,
+                        toCompress,
+                        collapseSummaries,
+                        roundUsage);
         if (summaryContent == null || summaryContent.isBlank()) {
             log.error(
                     "[{}] Summarization produced an empty result, skipping this round",
@@ -166,19 +204,26 @@ public class SummarizeService implements DisposableBean {
                                 toCompress.getFirst().entity().getPosition(),
                                 window.endPosition());
 
+        final RunTokenUsage usage = roundUsage.usage();
         log.info(
-                "[{}] Summarization finished — compressed {} ({}) into ~{} tokens",
+                "[{}] Summarization finished — compressed {} ({}) into ~{} tokens;"
+                        + " the round itself: input {} ({} from cache), output {}",
                 conversationId,
                 MessageMix.of(toCompress),
                 window.sliceTokens(),
-                summaryText.length() / summarizeProperties.charsPerToken());
+                summaryText.length() / summarizeProperties.charsPerToken(),
+                usage.promptTokens(),
+                usage.cacheReadTokens(),
+                usage.outputTokens());
 
-        persistSummary(
+        parkSummary(
                 conversationId,
                 toCompress,
                 existingSummaries,
                 collapseSummaries,
                 summaryText,
+                summaryContent.length(),
+                usage,
                 window.endPosition());
     }
 
@@ -186,11 +231,70 @@ public class SummarizeService implements DisposableBean {
     // The LLM round
     // -------------------------------------------------------------------------
 
+    /**
+     * Живое окно, каким его увидел бы раунд, если бы очередь уже применили: ряды, сжатые
+     * припаркованными сводками, заменены самими сводками.
+     *
+     * <p>Без этой подмены очередь останавливала бы суммаризацию до самого применения — сжатый кусок
+     * в промпте всё ещё живой, и раунд сжимал бы его второй раз, заплатив за это дважды. С ней
+     * раунд идёт как обычно: припаркованное он получает контекстом ({@link #generateSummary}), а
+     * сжимает то, что накопилось за ним.
+     *
+     * <p>Подмена только здесь и только для решения «что сжать». Модели чат по-прежнему возит
+     * несжатую историю — в том и смысл отложенного применения, что промпт не меняется, пока за его
+     * переписывание берут деньги (см. {@link PendingSummaryService}).
+     *
+     * <p>Ряды очереди — те же, что запишет применение: тот же текст с обёрткой, та же позиция, то
+     * же время, та же мета. Флаг {@code summary} делает их для {@link SummarizeWindow} уже сжатым
+     * прошлым — дальше она сама не считает их ни в срезе, ни в весе.
+     *
+     * <p>Уходят отсюда только ЖИВЫЕ ряды сжатого куска. Применённые сводки остаются все до одной,
+     * хотя позиции у них ниже: они уже сжатое прошлое, и, потеряв их, раунд написал бы сводку без
+     * начала разговора — а след проектов ({@link ProjectTrace#of}) наследуется по цепочке и
+     * оборвался бы вместе с ними.
+     */
+    private static List<PromptRow> withParked(
+            List<PromptRow> rows, List<ChatPendingSummaryEntity> parked) {
+        if (parked.isEmpty()) {
+            return rows;
+        }
+        final long compressed = parked.getLast().getEndPosition();
+        return Stream.of(
+                        rows.stream()
+                                .filter(row -> row.entity().isSummary())
+                                .filter(row -> row.entity().getPosition() <= compressed),
+                        parked.stream().map(SummarizeService::parkedRow),
+                        rows.stream().filter(row -> row.entity().getPosition() > compressed))
+                .flatMap(stream -> stream)
+                .toList();
+    }
+
+    /**
+     * Припаркованная сводка в виде ряда истории — такого же, каким её запишет применение. Мета
+     * оттуда же: в ней спаны проектов, которые следующая сводка обязана унаследовать (см. {@link
+     * ProjectTrace#of}), иначе на ней оборвётся весь след сжатой истории.
+     */
+    private static PromptRow parkedRow(ChatPendingSummaryEntity parked) {
+        final ChatMessageEntity entity =
+                new ChatMessageEntity(
+                        0L,
+                        parked.getConversationId(),
+                        parked.getText(),
+                        MessageType.ASSISTANT,
+                        parked.getSummaryPosition(),
+                        false,
+                        true,
+                        parked.getSummaryCreatedAt(),
+                        parked.getMeta());
+        return new PromptRow(entity, parked.getText());
+    }
+
     private @Nullable String generateSummary(
             String conversationId,
             List<ChatMessageEntity> existingSummaries,
             List<PromptRow> toCompress,
-            boolean collapseSummaries) {
+            boolean collapseSummaries,
+            RoundUsageAdvisor roundUsage) {
         final StringBuilder prompt = new StringBuilder();
 
         if (collapseSummaries) {
@@ -233,6 +337,7 @@ public class SummarizeService implements DisposableBean {
         return chatClient
                 .prompt(prompt.toString())
                 .toolContext(context(conversationId).build())
+                .advisors(a -> a.advisors(roundUsage))
                 .call()
                 .content();
     }
@@ -293,13 +398,28 @@ public class SummarizeService implements DisposableBean {
                 + "Treat this as authoritative context for the entire conversation so far.";
     }
 
-    /** Marks old messages as summarized and inserts the new summary row, atomically. */
-    private void persistSummary(
+    /**
+     * Паркует написанное до подходящего момента: разметка сжатого куска, строка-сводка и видимая
+     * плашка появятся вместе, когда {@link PendingSummaryService} решит, что подмена начала истории
+     * обойдётся дёшево.
+     *
+     * <p>Плашка — единственное, что о фоновом сжатии вообще можно узнать: сводка модели не
+     * показывается, а ряды, которые она заменила, с виду остаются прежними. Отличает её вид {@link
+     * CompactMeta.Kind#SUMMARIZE} — сжато начало истории, а не весь контекст, и живой хвост под
+     * плашкой остаётся.
+     *
+     * @param summaryChars длина документа модели — без обёртки, в которую он попадает в {@code
+     *     metaSummaryText}: плашка показывает это число рядом с самим документом
+     * @param usage токены раунда; пустой замер в мету не идёт — «неизвестно» это не ноль
+     */
+    private void parkSummary(
             String conversationId,
             List<PromptRow> oldMessages,
             List<ChatMessageEntity> existingSummaries,
             boolean collapseSummaries,
             String metaSummaryText,
+            int summaryChars,
+            RunTokenUsage usage,
             long endPosition) {
         if (oldMessages.isEmpty()) {
             return;
@@ -308,7 +428,8 @@ public class SummarizeService implements DisposableBean {
                 collapseSummaries ? existingSummaries.getFirst() : oldMessages.getFirst().entity();
         final ChatMessageEntity lastMsg = oldMessages.getLast().entity();
 
-        summaryWriter.write(
+        pendingSummaries.park(
+                conversationId,
                 new SummaryWriter.SummaryRow(
                         conversationId,
                         firstMsg.getPosition(),
@@ -327,6 +448,12 @@ public class SummarizeService implements DisposableBean {
                                                 .findById(conversationId)
                                                 .map(ChatTopicEntity::getProject)
                                                 .orElse(null),
-                                endPosition)));
+                                endPosition)),
+                new SummaryWriter.CompactStats(
+                        CompactMeta.Kind.SUMMARIZE,
+                        oldMessages.size(),
+                        summaryChars,
+                        usage.isEmpty() ? null : usage,
+                        null));
     }
 }

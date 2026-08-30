@@ -2,6 +2,7 @@
 // здесь только показ — в футере ответа и в шапке помещается одно короткое число, разбивка живёт в
 // подсказке, а расширенная статистика по всему чату — во вкладке «Инфо».
 
+import { isFullCompaction } from '@/constants/compactKind';
 import { SENDER } from '@/constants/messageSender';
 
 const THOUSAND = 1000;
@@ -104,21 +105,49 @@ const contextAfterCompact = (notice, base) =>
     : { contextTokens: base + Number(notice.usage.outputTokens || 0), estimated: true };
 
 /**
+ * Ряд, которым кончается самая поздняя фоновая суммаризация в ленте, — по нему видно, какие замеры
+ * она обесценила. Плашка такой суммаризации встаёт в СЕРЕДИНУ ленты (её время — время свёрнутого
+ * куска), а записана она в момент применения, то есть позже всего, что к тому моменту в чате было.
+ * Поэтому «свежесть» замера решает не место в ленте, а id ряда: прогон с id меньше этого мерил
+ * историю, часть которой сводка уже заменила собой.
+ *
+ * `null` — фоновых плашек в загруженной ленте нет, обесценивать нечем. Ряд без `dbId` — созданный
+ * прямо сейчас в этой вкладке, то есть заведомо новее любой плашки.
+ */
+const lastPartialCompactId = (messages) => {
+  let last = null;
+  for (const m of messages || []) {
+    if (!m.compact || isFullCompaction(m.compact) || m.dbId == null) continue;
+    if (last == null || m.dbId > last) last = m.dbId;
+  }
+  return last;
+};
+
+/**
  * Чем занят контекст чата сейчас — по последнему прогону, который это измерил. Ищем с конца, а не
  * суммируем: prompt каждого обращения уже включает всю историю до него, поэтому свежий замер и есть
  * ответ целиком (см. RunTokenUsage на бэке).
  *
- * Плашка сжатия обрывает поиск: /compact выбросил из контекста почти всё, и замер выше неё говорит
- * про историю, которой больше нет. Дальше отвечает оценка (contextAfterCompact) — её собственный
- * замер описывает выброшенное окно и текущим контекстом быть не может.
+ * Любая плашка сжатия обрывает поиск: замер выше неё говорит про историю, часть которой уже не
+ * едет модели. Дальше всё зависит от того, сколько сжатие выбросило. После полного (/compact и
+ * авто-compact) отвечает оценка по сводке — contextAfterCompact; после фоновой суммаризации не
+ * отвечает никто: под плашкой остался живой хвост, и его размер не измерен и не оценивается.
+ * Пустой счётчик здесь честнее числа, завышенного на весь сжатый кусок; точное придёт с первым же
+ * ответом.
+ *
+ * Место в ленте для фоновой плашки этого не решает: она встаёт в середину, и поиск с конца
+ * находит замеры ЗА ней — сделанные, пока сжатая ею голова истории была ещё живой. Отсюда сверка
+ * по id (lastPartialCompactId): такой замер описывает контекст до применения сводки и завышен
+ * ровно на неё.
  *
  * @param base системная часть контекста (baseContextOf) — нужна только для оценки после сжатия
  */
 export const contextUsageOf = (messages, base) => {
+  const applied = lastPartialCompactId(messages);
   for (let i = (messages?.length || 0) - 1; i >= 0; i--) {
     const m = messages[i];
-    if (m.compact) return contextAfterCompact(m, base);
-    if (hasUsage(runUsage(m))) return m.usage;
+    if (m.compact) return isFullCompaction(m.compact) ? contextAfterCompact(m, base) : null;
+    if (hasUsage(runUsage(m))) return applied != null && m.dbId != null && m.dbId < applied ? null : m.usage;
   }
   return null;
 };
@@ -139,8 +168,9 @@ export const contextUsageOf = (messages, base) => {
 export const baseContextOf = (messages, partial) => {
   if (partial) return null;
   for (const m of messages || []) {
-    // Плашка сжатия тоже несёт замер, но её basePromptTokens — это всё окно, которое сжатие
-    // прочитало: у раунда из одного обращения «первый prompt» и есть весь его вход.
+    // Плашка сжатия тоже несёт замер, но системной части чата в нём нет: у /compact
+    // basePromptTokens — это всё прочитанное раундом окно, у фоновой суммаризации — вовсе чужой
+    // системный промпт, суммаризатора.
     if (m.compact) continue;
     if (!hasUsage(runUsage(m))) continue;
     return Number(m.usage.basePromptTokens) || null;
@@ -169,11 +199,15 @@ export const contextBeforeCompact = (notice) =>
 const startingContextOf = (usage) => Number(usage.basePromptTokens) || Number(usage.contextTokens) || null;
 
 /**
- * Экономия каждого сжатия в ленте: mid плашки → {before, after, percent, estimated}.
+ * Экономия каждого ПОЛНОГО сжатия в ленте: mid плашки → {before, after, percent, estimated}.
  *
  * «До» — замер самого раунда (вход, который он оплатил). «После» — первый измеренный прогон за
  * плашкой, а пока его нет, оценка по системной части (см. contextAfterCompact); отсюда estimated,
  * и его обязан показать интерфейс: до первого ответа число приблизительное.
+ *
+ * У фоновой суммаризации экономии в этих числах нет: её раунд читал не контекст чата, а пересказ
+ * сжимаемого куска своим промптом, и «до» из такого замера — число про другой запрос. Плашку она
+ * получает без экономии, а поиск «после» для предыдущей — обрывает: контекст она тоже изменила.
  *
  * Одним проходом и картой, а не вопросом на каждую плашку: плашек в чате бывает несколько, и
  * каждая ищет свой «после» вперёд по ленте — поиск на плашку дал бы квадрат по длине ленты.
@@ -199,7 +233,7 @@ export const compactSavingsIn = (messages, partial) => {
     if (m.compact) {
       // Предыдущая плашка так и не дождалась замера: между двумя сжатиями ответа не было.
       if (pending) settle(pending, contextAfterCompact(pending, base)?.contextTokens ?? null, true);
-      pending = m;
+      pending = isFullCompaction(m.compact) ? m : null;
       continue;
     }
     if (pending && hasUsage(runUsage(m))) {
@@ -260,6 +294,11 @@ export const runInputGrowth = (messages, runId) => {
  * прогонов общий и растёт, а не набирается, и сумма по ним была бы просто числом ниоткуда.
  * «Сколько занято сейчас» отвечает contextUsageOf.
  *
+ * Деньги, унесённые плашкой сжатия (`compact.carried`), складываются наравне: это оплаченные
+ * раунды фоновых сводок, которые сжатие выбросило вместе с их куском истории, и своего ряда у них
+ * не осталось. В `runs` они не идут — прогоном в ленте они больше не представлены, — а вот в счёт
+ * провайдера идут, и без них Total разошёлся бы с ним ровно на их стоимость.
+ *
  * `null` — ни один прогон чата не измерен: показывать нечего, и ноль здесь был бы неправдой.
  */
 export const chatUsageTotals = (messages) => {
@@ -271,14 +310,22 @@ export const chatUsageTotals = (messages) => {
     cacheWriteTokens: 0,
     modelCalls: 0,
   };
+  const addMoney = (usage) => {
+    totals.outputTokens += Number(usage.outputTokens || 0);
+    totals.promptTokens += Number(usage.promptTokens || 0);
+    totals.cacheReadTokens += Number(usage.cacheReadTokens || 0);
+    totals.cacheWriteTokens += Number(usage.cacheWriteTokens || 0);
+    totals.modelCalls += Number(usage.modelCalls || 0);
+  };
+  let carried = false;
   for (const m of messages || []) {
+    if (m.compact?.carried) {
+      addMoney(m.compact.carried);
+      carried = true;
+    }
     if (!hasUsage(m.usage)) continue;
     totals.runs += 1;
-    totals.outputTokens += Number(m.usage.outputTokens || 0);
-    totals.promptTokens += Number(m.usage.promptTokens || 0);
-    totals.cacheReadTokens += Number(m.usage.cacheReadTokens || 0);
-    totals.cacheWriteTokens += Number(m.usage.cacheWriteTokens || 0);
-    totals.modelCalls += Number(m.usage.modelCalls || 0);
+    addMoney(m.usage);
   }
-  return totals.runs > 0 ? totals : null;
+  return totals.runs > 0 || carried ? totals : null;
 };

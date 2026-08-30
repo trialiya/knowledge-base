@@ -62,6 +62,19 @@ public interface ChatMessageRepository extends CrudRepository<ChatMessageEntity,
     """)
     long maxPosition(@Param("conversationId") String conversationId);
 
+    /**
+     * Время последнего ряда чата — им меряется пауза в разговоре ({@code PendingSummaryService}).
+     * Именно последнего ряда, а не последнего вопроса: пауза здесь про кэш промпта у провайдера, а
+     * он остывает от последнего обращения к модели, чем бы то обращение ни было. Пустой чат ({@code
+     * Optional.empty()}) паузой не считается — сжимать в нём нечего.
+     */
+    @Query(
+            """
+    SELECT MAX(created_at) FROM chat_message
+    WHERE conversation_id = :conversationId
+    """)
+    Optional<LocalDateTime> lastCreatedAt(@Param("conversationId") String conversationId);
+
     @Query(
             """
     SELECT * FROM chat_message

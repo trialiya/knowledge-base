@@ -41,14 +41,21 @@ export const transformPage = (rawMsgs) => {
       }
       continue; // преамбулу как сообщение не рендерим
     }
-    // След команды /compact: ряд без текста, весь смысл которого — в мете (см.
+    // След сжатия контекста: ряд без текста, весь смысл которого — в мете (см.
     // SummaryWriter.writeCompacted). Отдельным пузырём-плашкой, а не репликой ассистента.
     if (m.compact) {
       bubbles.push({
         mid: nextMessageId(),
         dbId: m.id ?? null,
         sender: SENDER.AI,
-        compact: { messages: m.compact.messages, summaryChars: m.compact.summaryChars },
+        compact: {
+          messages: m.compact.messages,
+          summaryChars: m.compact.summaryChars,
+          kind: m.compact.kind,
+          // Деньги отложенных сводок, которые это сжатие выбросило: своего ряда у них не
+          // осталось, и в итог по чату они идут отсюда (см. chatUsageTotals).
+          ...(m.compact.carried ? { carried: m.compact.carried } : {}),
+        },
         // Токены самого раунда сжатия — тем же полем, что и у ответа: сжатие тоже обращение к
         // модели, и в итогах чата оно обязано считаться наравне. По ним же плашка говорит,
         // сколько контекст занимал до неё (см. contextBeforeCompact).

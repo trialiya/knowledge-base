@@ -663,6 +663,72 @@ describe('applyChatEvent', () => {
     expect(chat.messages.filter((m) => m.compact)).toHaveLength(1);
   });
 
+  // ─── Фоновая сводка ───────────────────────────────────────────────────────
+  // Прогона нет вовсе: сводку написали раньше, а применили в первый подходящий момент.
+  // Плашка встаёт не в конец ленты, а туда, где кончается свёрнутое.
+  const dated = (dbId, timestamp) => ({ dbId, sender: 'ai', text: 'ответ', timestamp });
+
+  test('COMPACT_APPLIED splices the notice in by time, not at the end', () => {
+    const chat = applyChatEvent(
+      {
+        id: 'c',
+        messages: [dated(1, '2026-08-25T10:00:00'), dated(2, '2026-08-25T14:00:00')],
+        runId: null,
+      },
+      {
+        type: 'COMPACT_APPLIED',
+        payload: {
+          messageId: 77,
+          messages: 40,
+          summaryChars: 2048,
+          kind: 'SUMMARIZE',
+          createdAt: '2026-08-25T12:00:00',
+        },
+      },
+      ctx,
+    );
+
+    expect(chat.messages.map((m) => m.dbId)).toEqual([1, 77, 2]);
+    // Вид едет в плашку: от него зависит и её текст, и то, читается ли по её замеру экономия.
+    expect(chat.messages[1]).toMatchObject({
+      text: '',
+      compact: { messages: 40, summaryChars: 2048, kind: 'SUMMARIZE' },
+      timestamp: '2026-08-25T12:00:00',
+    });
+    // Чат событие не занимает и прогона не заводит: разговор оно не прерывает.
+    expect(chat.runId).toBeNull();
+  });
+
+  // Свёрнутые ряды из ленты не исчезают, поэтому плашка старше всего загруженного означает одно:
+  // её место в ещё не подгруженной странице. Вставленная в начало, она встретилась бы там со своей
+  // же копией, как только пользователь прокрутит ленту вверх.
+  test('COMPACT_APPLIED skips a notice older than the loaded page', () => {
+    const chat = applyChatEvent(
+      { id: 'c', messages: [dated(1, '2026-08-25T14:00:00')], runId: null },
+      {
+        type: 'COMPACT_APPLIED',
+        payload: { messageId: 77, messages: 40, kind: 'SUMMARIZE', createdAt: '2026-08-25T10:00:00' },
+      },
+      ctx,
+    );
+
+    expect(chat.messages.map((m) => m.dbId)).toEqual([1]);
+  });
+
+  test('COMPACT_APPLIED carries the tokens of the round and ignores a repeat', () => {
+    const usage = { contextTokens: 62000, outputTokens: 1200, modelCalls: 1 };
+    const event = {
+      type: 'COMPACT_APPLIED',
+      payload: { messageId: 77, messages: 40, createdAt: '2026-08-25T12:00:00', usage },
+    };
+    let chat = applyChatEvent({ id: 'c', messages: [dated(1, '2026-08-25T10:00:00')], runId: null }, event, ctx);
+    expect(last(chat).usage).toEqual(usage);
+
+    // Реплей того же события (переподключение вкладки) второй плашки не заводит.
+    chat = applyChatEvent(chat, event, ctx);
+    expect(chat.messages.filter((m) => m.compact)).toHaveLength(1);
+  });
+
   // ─── Git-команда пользователя ──────────────────────────────────────────────
   // Прогона нет: команду выполнил человек, а не модель. Ряд просто дописывается
   // в конец — тем же, чем приехал бы из истории после перезагрузки.

@@ -228,6 +228,7 @@
   "compact": {
     "running": "Compacting the chat context…",
     "done": "Context compacted: {{messages}} messages replaced by a single summary.",
+    "summarized": "The earlier {{messages}} messages folded into a summary.",
     "error": "Compaction failed. The chat context is unchanged.",
     "unavailableTitle": "Nothing to compact",
     "draftMessage": "This chat has not started yet — there is nothing to compact.",

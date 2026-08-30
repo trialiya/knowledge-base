@@ -12,10 +12,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.github.trialiya.kb.config.ChatClientRegistry;
+import io.github.trialiya.kb.config.model.ChatModelProperties;
+import io.github.trialiya.kb.config.model.ChatModelProperties.ModelOption;
 import io.github.trialiya.kb.config.model.ChatTimeoutProperties;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.service.chat.event.ChatEventService;
+import io.github.trialiya.kb.service.chat.memory.AutoCompactService;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService;
+import io.github.trialiya.kb.service.chat.memory.PendingSummaryService;
 import io.github.trialiya.kb.service.chat.memory.SummarizeService;
 import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.runtime.ConversationSlots;
@@ -73,6 +77,12 @@ class ChatRunRetryTest {
                         mock(ChatMemory.class),
                         chatHistory,
                         mock(SummarizeService.class),
+                        mock(PendingSummaryService.class),
+                        mock(AutoCompactService.class),
+                        new ChatModelProperties(
+                                new ModelOption(
+                                        "default-model", "Default", true, true, null, null, null),
+                                List.of()),
                         events,
                         mock(SystemPromptService.class),
                         pendingMessages,

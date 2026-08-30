@@ -1,17 +1,22 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { isFullCompaction } from '@/constants/compactKind';
 import CompactSummaryModal from './CompactSummaryModal';
 import { formatTokens } from './tokenUsage';
 import '../styles/compact.css';
 
 /**
- * След команды `/compact` в ленте: сколько сообщений свернулось в сводку, во сколько раз от этого
+ * След сжатия контекста в ленте: сколько сообщений свернулось в сводку, во сколько раз от этого
  * похудел контекст и кнопка, открывающая саму сводку.
  *
  * Плашка приходит из истории отдельным сообщением (`compact` в его мете — см.
  * `SummaryWriter.writeCompacted`), поэтому она переживает перезагрузку страницы и выглядит
  * одинаково в живом потоке и после неё. Пузырём с текстом её не рисуем: сжатие — это не реплика
  * ассистента, а событие с самим чатом, и разделитель читается как событие.
+ *
+ * Фоновая суммаризация получает тот же разделитель, но тоньше и без чисел экономии: её никто не
+ * просил, под ней остался живой хвост, и во что она обошлась контексту, по её замеру не считается
+ * (см. compactSavingsIn). Разговор она не прерывает — и плашка не должна.
  *
  * @param messageId id строки-плашки — адрес сводки. Без него (очень старый прогон, чьи события
  *   переигрались без id) плашка остаётся, а кнопка деталей не рисуется: открывать нечего.
@@ -23,16 +28,19 @@ const CompactNotice = ({ conversationId, messageId, compact, savings, timestamp 
   const { t, i18n } = useTranslation('chat');
   const [showSummary, setShowSummary] = useState(false);
   const canOpen = !!(conversationId && messageId != null);
+  const full = isFullCompaction(compact);
   const time = timestamp ? new Date(timestamp) : null;
   const title = time && !isNaN(time) ? time.toLocaleString(i18n.language) : undefined;
 
   return (
-    <div className="compact-notice" role="note" title={title}>
+    <div className={`compact-notice${full ? '' : ' compact-notice--slim'}`} role="note" title={title}>
       <span className="compact-notice__icon" aria-hidden="true">
         🗜️
       </span>
-      <span className="compact-notice__text">{t('compact.done', { messages: compact.messages })}</span>
-      {savings && (
+      <span className="compact-notice__text">
+        {t(full ? 'compact.done' : 'compact.summarized', { messages: compact.messages })}
+      </span>
+      {full && savings && (
         <span className="compact-notice__savings" title={t('compact.savingsTooltip')}>
           {savings.after == null
             ? t('compact.savingsBefore', { before: formatTokens(savings.before) })

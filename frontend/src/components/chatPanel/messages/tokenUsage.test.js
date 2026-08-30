@@ -151,6 +151,41 @@ describe('tokenUsage', () => {
       expect(contextUsageOf([{ sender: 'user' }])).toBeNull();
       expect(contextUsageOf(undefined)).toBeNull();
     });
+
+    test('после фоновой суммаризации счётчик пуст: живой хвост под плашкой не измерен', () => {
+      const messages = [
+        ai({ contextTokens: 90000 }),
+        {
+          sender: 'ai',
+          compact: { messages: 40, kind: 'SUMMARIZE' },
+          usage: { contextTokens: 62000, outputTokens: 1200 },
+        },
+      ];
+
+      // Оценивать нечем: сводка заменила только начало истории, а сколько занимает оставшийся
+      // хвост, не знает никто — и 90k выше плашки тем более не ответ.
+      expect(contextUsageOf(messages, 9800)).toBeNull();
+    });
+
+    test('замер прогона, который шёл до применения сводки, счётчиком не становится', () => {
+      // Плашка фоновой суммаризации стоит в СЕРЕДИНЕ ленты — ответ ниже неё старше её самой
+      // (dbId 40 против 41): он мерил историю, начало которой сводка уже заменила собой.
+      const messages = [
+        { sender: 'ai', dbId: 41, compact: { messages: 40, kind: 'SUMMARIZE' } },
+        { ...ai({ contextTokens: 90000 }), dbId: 40 },
+      ];
+
+      expect(contextUsageOf(messages, 9800)).toBeNull();
+    });
+
+    test('первый же ответ после применения сводки счётчик восстанавливает', () => {
+      const messages = [
+        { sender: 'ai', dbId: 41, compact: { messages: 40, kind: 'SUMMARIZE' } },
+        { ...ai({ contextTokens: 30000 }), dbId: 42 },
+      ];
+
+      expect(contextUsageOf(messages, 9800)).toEqual({ contextTokens: 30000 });
+    });
   });
 
   describe('compactSavingsIn', () => {
@@ -197,6 +232,26 @@ describe('tokenUsage', () => {
       // Первое сжатие замера за собой не дождалось — оценка; второе дождалось.
       expect(savings.get(7)).toMatchObject({ before: 169000, estimated: true });
       expect(savings.get(8)).toEqual({ before: 11000, after: 12000, estimated: false, percent: 0 });
+    });
+
+    test('у фоновой суммаризации экономии нет: её раунд мерил не контекст чата', () => {
+      const summarized = {
+        mid: 8,
+        sender: 'ai',
+        compact: { messages: 40, kind: 'SUMMARIZE' },
+        usage: { contextTokens: 62000, promptTokens: 60000, outputTokens: 1200 },
+      };
+      const messages = [
+        ai({ contextTokens: 168000, basePromptTokens: 9800 }),
+        notice(7, { contextTokens: 170200, promptTokens: 169000, outputTokens: 1200 }),
+        summarized,
+        ai({ contextTokens: 15000, basePromptTokens: 12000 }),
+      ];
+
+      const savings = compactSavingsIn(messages);
+      expect(savings.has(8)).toBe(false);
+      // И «после» предыдущей плашки такая суммаризация обрывает: контекст она тоже изменила.
+      expect(savings.get(7)).toMatchObject({ before: 169000, estimated: true });
     });
 
     test('неизмеренное сжатие в карту не попадает: «сэкономили ничего» — неправда', () => {
@@ -346,6 +401,20 @@ describe('tokenUsage', () => {
       });
       // Контекст у прогонов общий и растёт, а не набирается: 4000 + 11000 было бы числом ниоткуда.
       expect(totals).not.toHaveProperty('contextTokens');
+    });
+
+    test('деньги выброшенных сжатием сводок считаются наравне, но прогонами не становятся', () => {
+      // Полное сжатие выбросило две отложенные сводки: своего ряда у их раундов не осталось, и
+      // без этого числа Total разошёлся бы со счётом провайдера ровно на их стоимость.
+      const totals = chatUsageTotals([
+        run({ contextTokens: 4000, outputTokens: 300, promptTokens: 9000, modelCalls: 1 }),
+        {
+          sender: 'ai',
+          compact: { messages: 40, carried: { outputTokens: 900, promptTokens: 61000, modelCalls: 2 } },
+        },
+      ]);
+
+      expect(totals).toMatchObject({ runs: 1, outputTokens: 1200, promptTokens: 70000, modelCalls: 3 });
     });
 
     test('чат без единого измеренного прогона итогов не даёт', () => {

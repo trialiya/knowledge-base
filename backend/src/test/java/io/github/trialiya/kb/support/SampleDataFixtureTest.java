@@ -81,6 +81,10 @@ class SampleDataFixtureTest {
         // в контракте фикстуры — уехавшая из db/migration-h2 схема уронит его первым.
         assertThat(jdbc.queryForObject("select count(*) from chat_pending_message", Integer.class))
                 .isEqualTo(0);
+        // И по той же причине: припаркованная сводка свернула бы начало захваченного чата на
+        // первой же паузе.
+        assertThat(jdbc.queryForObject("select count(*) from chat_pending_summary", Integer.class))
+                .isEqualTo(0);
     }
 
     @Test
