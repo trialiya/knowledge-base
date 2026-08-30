@@ -34,7 +34,7 @@ class SummarizeWindowTest {
 
     /** Боевые значения из {@code application.yaml}. */
     private static final SummarizeProperties PRODUCTION =
-            new SummarizeProperties(30_000, 50, 30, 5, 5, Duration.ofMinutes(10), 0.5, 3, 0.8, 4);
+            new SummarizeProperties(30_000, 30, 30, 3, 3, Duration.ofMinutes(10), 0.5, 3, 0.8, 4);
 
     /**
      * Порог по токенам, до которого срезы в тестах про границу заведомо не дотягиваются: они про
@@ -185,17 +185,17 @@ class SummarizeWindowTest {
     }
 
     /**
-     * Заявленная граница политики, а не упущение: tool-марафон внутри последних пяти вопросов
+     * Заявленная граница политики, а не упущение: tool-марафон внутри последних трёх вопросов
      * остаётся живым целиком. Все три правила хвоста двигают границу только назад, поэтому шесть
-     * вопросов с тысячей строк ответов дают срез в одно сообщение — ни один порог до него не
+     * вопросов с тысячей строк ответов дают срез в три сообщения — ни один порог до него не
      * дотягивается, ведь оба меряют срез.
      *
      * <p>Окно не заперто навсегда: следующий тест — та же история, ушедшая дальше.
      */
     @Test
-    void aToolMarathonInsideTheLastFiveTurnsStaysLive() {
+    void aToolMarathonInsideTheLastThreeTurnsStaysLive() {
         // 6 вопросов подряд, дальше — только ответы. По 500 символов на сообщение: живое окно
-        // весит ~129 000 токенов при пороге 30 000, но срез — ровно одно сообщение (~129 токенов).
+        // весит ~129 000 токенов при пороге 30 000, но срез — три сообщения (~387 токенов).
         final List<PromptRow> live = new ArrayList<>();
         for (int i = 0; i < 6; i++) {
             live.add(row(i, MessageType.USER, 500));
@@ -207,7 +207,7 @@ class SummarizeWindowTest {
         final SummarizeWindow window = window(live, PRODUCTION);
 
         assertThat(window.worthARound()).isFalse();
-        assertThat(window.toCompress()).hasSize(1);
+        assertThat(window.toCompress()).hasSize(3);
         assertThat(window.windowTokens().tokens()).isGreaterThan(PRODUCTION.tokenThreshold());
     }
 
@@ -219,7 +219,7 @@ class SummarizeWindowTest {
     @Test
     void theMarathonIsCompressedOnceLaterQuestionsPushItOutOfTheTail() {
         // 0 — вопрос, 1..99 — марафон ответов, дальше 30 сообщений обычного диалога. Правило по
-        // числу сообщений даёт 130 - 30 = 100, правило по вопросам — 120; побеждает раннее, а 100
+        // числу сообщений даёт 130 - 30 = 100, правило по вопросам — 124; побеждает раннее, а 100
         // и так открывает ход.
         final List<PromptRow> live = new ArrayList<>(List.of(row(0, MessageType.USER)));
         for (int i = 1; i < 100; i++) {
@@ -344,15 +344,15 @@ class SummarizeWindowTest {
      */
     @Test
     void theSliceIsWeighedByTheDifferenceBetweenTwoMeasurements() {
-        final List<PromptRow> live = new ArrayList<>(alternating(0, 60));
+        final List<PromptRow> live = new ArrayList<>(alternating(0, 58));
         live.set(1, measured(1, 10_000, 11_000));
-        live.set(29, measured(29, 44_000, 45_000));
+        live.set(27, measured(27, 44_000, 45_000));
 
         final SummarizeWindow window = window(live, PRODUCTION);
 
-        // Срез — 0..29: 30 сообщений, меньше message-count-threshold, так что о раунде может
+        // Срез — 0..27: 28 сообщений, меньше message-count-threshold, так что о раунде может
         // попросить только вес.
-        assertThat(window.toCompress()).hasSize(30);
+        assertThat(window.toCompress()).hasSize(28);
         // 1 000 роста первого прогона + 33 000 разрыва до второго + 1 000 его роста.
         assertThat(window.sliceTokens()).isEqualTo(new SummarizeWindow.Weight(35_000, true));
         assertThat(window.worthARound()).isTrue();
@@ -370,8 +370,8 @@ class SummarizeWindowTest {
      */
     @Test
     void aMeasurementInTheLiveTailWeighsTheWindowButNotTheSlice() {
-        final List<PromptRow> live = new ArrayList<>(alternating(0, 60));
-        live.set(59, measured(59, 100_000, 900_000));
+        final List<PromptRow> live = new ArrayList<>(alternating(0, 58));
+        live.set(57, measured(57, 100_000, 900_000));
 
         final SummarizeWindow window = window(live, PRODUCTION);
 
@@ -389,16 +389,16 @@ class SummarizeWindowTest {
     @Test
     void aSliceMeasuredOnlyInPartFallsBackToTheHeavierEstimate() {
         final List<PromptRow> live = new ArrayList<>();
-        for (int i = 0; i < 60; i++) {
+        for (int i = 0; i < 58; i++) {
             live.add(row(i, i % 2 == 0 ? MessageType.USER : MessageType.ASSISTANT, 5_000));
         }
         // Единственный измеренный прогон — последний ряд среза, и вырос он всего на 500 токенов.
-        live.set(29, measured(29, 10_000, 10_500));
+        live.set(27, measured(27, 10_000, 10_500));
 
         final SummarizeWindow window = window(live, PRODUCTION);
 
-        // Срез — 30 сообщений, меньше message-count-threshold: о раунде просит только вес.
-        assertThat(window.toCompress()).hasSize(30);
+        // Срез — 28 сообщений, меньше message-count-threshold: о раунде просит только вес.
+        assertThat(window.toCompress()).hasSize(28);
         assertThat(window.sliceTokens().measured()).isFalse();
         assertThat(window.sliceTokens().tokens()).isGreaterThan(PRODUCTION.tokenThreshold());
         assertThat(window.worthARound()).isTrue();
@@ -414,10 +414,10 @@ class SummarizeWindowTest {
      */
     @Test
     void aMeasurementOnAUserRowIsNotContext() {
-        final List<PromptRow> live = new ArrayList<>(alternating(0, 60));
+        final List<PromptRow> live = new ArrayList<>(alternating(0, 58));
         live.set(1, measured(1, 10_000, 11_000));
-        live.set(28, measured(28, MessageType.USER, 10_000, 500_000));
-        live.set(29, measured(29, 11_500, 12_000));
+        live.set(26, measured(26, MessageType.USER, 10_000, 500_000));
+        live.set(27, measured(27, 11_500, 12_000));
 
         final SummarizeWindow window = window(live, PRODUCTION);
 
@@ -452,9 +452,9 @@ class SummarizeWindowTest {
      */
     @Test
     void aRunRecordedWithoutTheBasePromptFallsBackToTheEstimate() {
-        final List<PromptRow> live = new ArrayList<>(alternating(0, 60));
+        final List<PromptRow> live = new ArrayList<>(alternating(0, 58));
         live.set(1, measured(1, 0, 11_000));
-        live.set(29, measured(29, 0, 45_000));
+        live.set(27, measured(27, 0, 45_000));
 
         final SummarizeWindow window = window(live, PRODUCTION);
 

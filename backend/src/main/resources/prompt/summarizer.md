@@ -58,7 +58,7 @@ emit an empty one and never invent one of your own. The summary covers the **ent
 conversation, not just its recent part.
 
 ### `## Overview`
-Prose, 80–200 words, no bullets. What this conversation is about as a whole: the subject,
+Prose, 80–500 words, no bullets. What this conversation is about as a whole: the subject,
 the user's goal, where things stand now. The only section a reader can use on its own.
 
 ### `## User requests`
@@ -93,7 +93,7 @@ Bullets. Attachments (name and id verbatim), documents, external links, and ever
 sequence.
 
 ## Budget
-`## Overview` is 80–200 words. `## User requests` is bounded by the input, not by a
+`## Overview` is 80–500 words. `## User requests` is bounded by the input, not by a
 budget. `## Artifacts` and `## Open` are bounded by the facts, not by a count: every
 artifact and every open item, none merged, none dropped — an attachment id or an open
 question that fell out to fit a quota cannot be recovered later.

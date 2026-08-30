@@ -154,7 +154,7 @@ kb:
       token-threshold: ${KB_CHAT_SUMMARIZE_TOKEN_THRESHOLD:30000}
       # Compressible messages that trigger a round — the cheap half of the pair above, for long
       # dialogues that are not yet heavy in tokens.
-      message-count-threshold: ${KB_CHAT_SUMMARIZE_MESSAGE_COUNT_THRESHOLD:50}
+      message-count-threshold: ${KB_CHAT_SUMMARIZE_MESSAGE_COUNT_THRESHOLD:30}
       # Recent messages kept outside the summarized window as live context.
       overlap-messages: ${KB_CHAT_SUMMARIZE_OVERLAP_MESSAGES:30}
       # Recent USER messages kept outside the summarized window. Works together with
