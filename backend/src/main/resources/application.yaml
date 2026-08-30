@@ -141,8 +141,8 @@ kb:
       # Tokens in the compressible slice that trigger a round. Measured on the slice — what is
       # older than the live tail — not on the whole window, so it asks the same question
       # message-count-threshold asks, just by weight instead of by count. Either one is enough.
-      # The weight is the provider's own number where the chat carries measurements, and the
-      # chars-per-token estimate only where it does not.
+      # The weight is the heavier of two answers: the provider's own measurements where the chat
+      # carries them, and the chars-per-token estimate.
       token-threshold: ${KB_CHAT_SUMMARIZE_TOKEN_THRESHOLD:30000}
       # Compressible messages that trigger a round — the cheap half of the pair above, for long
       # dialogues that are not yet heavy in tokens.
@@ -157,8 +157,8 @@ kb:
       overlap-user-messages: ${KB_CHAT_SUMMARIZE_OVERLAP_USER_MESSAGES:5}
       # Number of stored summaries that triggers collapsing them into one meta-summary.
       summary-collapse-threshold: ${KB_CHAT_SUMMARIZE_SUMMARY_COLLAPSE_THRESHOLD:5}
-      # Characters per estimated token (rough heuristic, no real tokenizer) — the fallback weighing,
-      # used only where the chat carries no measurements.
+      # Characters per estimated token (rough heuristic, no real tokenizer) — the second opinion
+      # next to the measurements, and the only weighing on a chat that carries none.
       chars-per-token: ${KB_CHAT_SUMMARIZE_CHARS_PER_TOKEN:4}
   documents:
     export-path: ${DOCUMENTS_EXPORT_PATH}

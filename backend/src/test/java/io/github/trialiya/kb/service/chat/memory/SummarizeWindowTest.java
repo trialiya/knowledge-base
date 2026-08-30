@@ -362,6 +362,10 @@ class SummarizeWindowTest {
      * Замер из живого хвоста в срез не входит: он описывает контекст, набранный уже после границы,
      * и взяв его верхним концом, срез весил бы весь чат. Мерить срез нечем — считает оценка, при
      * том что окно целиком замером как раз меряется.
+     *
+     * <p>Окно весит весь {@code contextTokens} последнего прогона, вместе с системной частью: она в
+     * каждый запрос и уезжает. Складывать слагаемые, как у среза, здесь было бы ошибкой — вышло бы
+     * ровно на системную часть меньше того, что оплачивается.
      */
     @Test
     void aMeasurementInTheLiveTailWeighsTheWindowButNotTheSlice() {
@@ -372,7 +376,32 @@ class SummarizeWindowTest {
 
         assertThat(window.sliceTokens().measured()).isFalse();
         assertThat(window.worthARound()).isFalse();
-        assertThat(window.windowTokens()).isEqualTo(new SummarizeWindow.Weight(800_000, true));
+        assertThat(window.windowTokens()).isEqualTo(new SummarizeWindow.Weight(900_000, true));
+    }
+
+    /**
+     * Замеры покрывают срез не обязательно целиком: у истории, записанной версией без них, измерены
+     * только последние прогоны. Взять тогда один лишь замер значило бы объявить сорок тяжёлых
+     * вопросов почти невесомыми и не сжимать этот чат вовсе, пока не сработает порог по числу
+     * сообщений. Поэтому из замера и оценки берётся больший — здесь побеждает оценка.
+     */
+    @Test
+    void aSliceMeasuredOnlyInPartFallsBackToTheHeavierEstimate() {
+        final List<PromptRow> live = new ArrayList<>();
+        for (int i = 0; i < 60; i++) {
+            live.add(row(i, i % 2 == 0 ? MessageType.USER : MessageType.ASSISTANT, 5_000));
+        }
+        // Единственный измеренный прогон — последний ряд среза, и вырос он всего на 500 токенов.
+        live.set(29, measured(29, 10_000, 10_500));
+
+        final SummarizeWindow window = window(live, PRODUCTION);
+
+        // Срез — 30 сообщений, меньше message-count-threshold: о раунде просит только вес.
+        assertThat(window.toCompress()).hasSize(30);
+        assertThat(window.sliceTokens().measured()).isFalse();
+        assertThat(window.sliceTokens().tokens()).isGreaterThan(PRODUCTION.tokenThreshold());
+        assertThat(window.worthARound()).isTrue();
+        assertThat(window.trigger()).isEqualTo("token weight");
     }
 
     /**

@@ -104,7 +104,7 @@ public class SummarizeService implements DisposableBean {
         // promptRows is the one place that answers "what does the model see": every row carries the
         // text that will be sent, inventory included, not the text that happens to be stored. The
         // prompt below and the character estimate inside SummarizeWindow both measure exactly that
-        // — and the estimate only runs where the provider measured nothing.
+        // — and the estimate is what weighs a slice the provider's measurements do not cover.
         final SummarizeWindow window =
                 new SummarizeWindow(chatHistory.promptRows(conversationId), summarizeProperties);
 
