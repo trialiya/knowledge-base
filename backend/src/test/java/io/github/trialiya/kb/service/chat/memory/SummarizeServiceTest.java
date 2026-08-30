@@ -197,7 +197,12 @@ class SummarizeServiceTest {
         // Первый живой ряд за припаркованным куском — с него и начинается новый.
         assertThat(parked().startPosition()).isEqualTo(6L);
         final String prompt = promptText();
-        assertThat(prompt).contains("do not re-summarize").contains("parked summary 0-5");
+        assertThat(prompt)
+                .contains("do not re-summarize")
+                // Пересказ контекстных сводок — не стилистика, а оплаченный дубль: они остаются в
+                // разговоре рядом с новой, и скопированное модель читает дважды.
+                .contains("ONLY the messages listed")
+                .contains("parked summary 0-5");
         // Ряды сжатого куска в раунд не попадают ни одной строкой — иначе это оплаченный дубль.
         assertThat(prompt).doesNotContain("[msg:0]").doesNotContain("[msg:5]");
         assertThat(prompt).contains("[msg:6]");

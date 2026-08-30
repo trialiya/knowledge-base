@@ -54,8 +54,23 @@ public class SummarizeService implements DisposableBean {
 
     private static final String COLLAPSE_HEADER =
             "The following are consecutive summaries of a long conversation:\n";
+
+    /**
+     * Заголовок контекстных сводок. Говорит не только «не пересказывай», но и почему: эти документы
+     * остаются в разговоре рядом с тем, что раунд напишет, — скопированное в новую сводку модель с
+     * тех пор читает и оплачивает дважды. Особенно заметно после {@code /compact}, чья сводка
+     * покрывает весь разговор целиком и своей обёрткой (см. {@code CompactService#summaryText})
+     * зовёт себя «authoritative context for the entire conversation» — та обёртка написана чату, а
+     * не суммаризатору.
+     */
     private static final String CONTEXT_HEADER =
-            "Previous summaries (for context only — do not re-summarize):\n";
+            """
+        Previous summaries — context only, do not re-summarize them. They stay in the \
+        conversation exactly as they are, right next to what you write, so anything carried \
+        over from them is read twice and paid for twice. Summarize ONLY the messages listed \
+        after them:
+        """;
+
     private static final String COLLAPSE_FOOTER =
             """
         Now produce a SINGLE merged summary that combines ALL the previous summaries (above) \
