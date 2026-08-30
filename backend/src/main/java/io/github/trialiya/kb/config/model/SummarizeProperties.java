@@ -6,11 +6,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * Thresholds driving {@code SummarizeService}. Bound from {@code kb.chat.summarize} — the values in
  * effect, and the environment variables that override them, are in {@code application.yaml}.
  *
- * @param tokenThreshold estimated tokens in the compressible slice that trigger a round. Measured
- *     on the slice — the messages older than the live tail — not on the whole window: it asks "is
- *     there enough here to be worth compressing", which is the same question {@code
- *     messageCountThreshold} asks by count, and either answer is enough to start a round. Rule of
- *     thumb: 1 token ≈ 4 characters (English/code mix).
+ * @param tokenThreshold tokens in the compressible slice that trigger a round. Measured on the
+ *     slice — the messages older than the live tail — not on the whole window: it asks "is there
+ *     enough here to be worth compressing", which is the same question {@code
+ *     messageCountThreshold} asks by count, and either answer is enough to start a round. The
+ *     weight is the heavier of two answers — the provider's own measurements wherever the
+ *     conversation carries them, and the {@code charsPerToken} estimate — so the same number means
+ *     real tokens on a measured chat and a rough guess on an unmeasured one.
  * @param messageCountThreshold number of compressible messages that trigger a round. The cheap half
  *     of the pair above: it catches long dialogues that are not yet heavy in tokens.
  * @param overlapMessages number of recent messages kept *outside* the summarized window so the
@@ -24,8 +26,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *     it out.
  * @param summaryCollapseThreshold when the number of stored summary messages would reach this
  *     value, they are collapsed into a single meta-summary instead.
- * @param charsPerToken how many characters are used per estimated token. Lower it to 3 for
- *     mostly-code conversations, raise it to 5 for prose.
+ * @param charsPerToken how many characters are used per estimated token — the second opinion next
+ *     to the measurements, and the only weighing on a conversation that carries none. Lower it to 3
+ *     for mostly-code conversations, raise it to 5 for prose.
  */
 @ConfigurationProperties(prefix = "kb.chat.summarize")
 public record SummarizeProperties(

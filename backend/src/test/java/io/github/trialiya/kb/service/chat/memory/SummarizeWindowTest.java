@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.github.trialiya.kb.config.model.SummarizeProperties;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
+import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.model.tool.ToolData;
 import io.github.trialiya.kb.model.tool.ToolInvocationMeta;
 import io.github.trialiya.kb.service.chat.memory.ChatHistoryService.PromptRow;
@@ -206,7 +207,7 @@ class SummarizeWindowTest {
 
         assertThat(window.worthARound()).isFalse();
         assertThat(window.toCompress()).hasSize(1);
-        assertThat(window.windowTokens()).isGreaterThan(PRODUCTION.tokenThreshold());
+        assertThat(window.windowTokens().tokens()).isGreaterThan(PRODUCTION.tokenThreshold());
     }
 
     /**
@@ -253,7 +254,7 @@ class SummarizeWindowTest {
 
         assertThat(window.toCompress()).hasSize(28);
         assertThat(window.worthARound()).isTrue();
-        assertThat(window.trigger()).isEqualTo("token estimate");
+        assertThat(window.trigger()).isEqualTo("token weight");
         assertThat(window.endPosition()).isEqualTo(27L);
     }
 
@@ -288,7 +289,7 @@ class SummarizeWindowTest {
 
         // Срез — позиции 0..2: (16+100) + (16+200) + (16+400) = 748 символов / 4.
         assertThat(window.toCompress()).hasSize(2); // пустая TOOL-строка в промпт не входит
-        assertThat(window.sliceTokens()).isEqualTo(187);
+        assertThat(window.sliceTokens()).isEqualTo(new SummarizeWindow.Weight(187, false));
     }
 
     /**
@@ -328,6 +329,136 @@ class SummarizeWindowTest {
         assertThat(withSummary.summaries()).hasSize(1);
         assertThat(withSummary.sliceTokens()).isEqualTo(withoutSummary.sliceTokens());
         assertThat(withSummary.toCompress()).hasSameSizeAs(withoutSummary.toCompress());
+    }
+
+    // -------------------------------------------------------------------------
+    // Вес по замерам
+    // -------------------------------------------------------------------------
+
+    /**
+     * Вес среза складывается по прогонам: собственный рост каждого плюс разрыв до предыдущего —
+     * вопрос, с которого прогон начался. Системная часть входит в оба конца каждой разности и в них
+     * сокращается. По символам то же окно весит полторы сотни токенов и ни один порог не трогает;
+     * по замерам оно набирает 35 000 и раунд запускает.
+     */
+    @Test
+    void theSliceIsWeighedByTheDifferenceBetweenTwoMeasurements() {
+        final List<PromptRow> live = new ArrayList<>(alternating(0, 60));
+        live.set(1, measured(1, 10_000, 11_000));
+        live.set(29, measured(29, 44_000, 45_000));
+
+        final SummarizeWindow window = window(live, PRODUCTION);
+
+        // Срез — 0..29: 30 сообщений, меньше message-count-threshold, так что о раунде может
+        // попросить только вес.
+        assertThat(window.toCompress()).hasSize(30);
+        // 1 000 роста первого прогона + 33 000 разрыва до второго + 1 000 его роста.
+        assertThat(window.sliceTokens()).isEqualTo(new SummarizeWindow.Weight(35_000, true));
+        assertThat(window.worthARound()).isTrue();
+        assertThat(window.trigger()).isEqualTo("token weight");
+    }
+
+    /**
+     * Замер из живого хвоста в срез не входит: он описывает контекст, набранный уже после границы,
+     * и взяв его верхним концом, срез весил бы весь чат. Мерить срез нечем — считает оценка, при
+     * том что окно целиком замером как раз меряется.
+     *
+     * <p>Окно весит весь {@code contextTokens} последнего прогона, вместе с системной частью: она в
+     * каждый запрос и уезжает. Складывать слагаемые, как у среза, здесь было бы ошибкой — вышло бы
+     * ровно на системную часть меньше того, что оплачивается.
+     */
+    @Test
+    void aMeasurementInTheLiveTailWeighsTheWindowButNotTheSlice() {
+        final List<PromptRow> live = new ArrayList<>(alternating(0, 60));
+        live.set(59, measured(59, 100_000, 900_000));
+
+        final SummarizeWindow window = window(live, PRODUCTION);
+
+        assertThat(window.sliceTokens().measured()).isFalse();
+        assertThat(window.worthARound()).isFalse();
+        assertThat(window.windowTokens()).isEqualTo(new SummarizeWindow.Weight(900_000, true));
+    }
+
+    /**
+     * Замеры покрывают срез не обязательно целиком: у истории, записанной версией без них, измерены
+     * только последние прогоны. Взять тогда один лишь замер значило бы объявить сорок тяжёлых
+     * вопросов почти невесомыми и не сжимать этот чат вовсе, пока не сработает порог по числу
+     * сообщений. Поэтому из замера и оценки берётся больший — здесь побеждает оценка.
+     */
+    @Test
+    void aSliceMeasuredOnlyInPartFallsBackToTheHeavierEstimate() {
+        final List<PromptRow> live = new ArrayList<>();
+        for (int i = 0; i < 60; i++) {
+            live.add(row(i, i % 2 == 0 ? MessageType.USER : MessageType.ASSISTANT, 5_000));
+        }
+        // Единственный измеренный прогон — последний ряд среза, и вырос он всего на 500 токенов.
+        live.set(29, measured(29, 10_000, 10_500));
+
+        final SummarizeWindow window = window(live, PRODUCTION);
+
+        // Срез — 30 сообщений, меньше message-count-threshold: о раунде просит только вес.
+        assertThat(window.toCompress()).hasSize(30);
+        assertThat(window.sliceTokens().measured()).isFalse();
+        assertThat(window.sliceTokens().tokens()).isGreaterThan(PRODUCTION.tokenThreshold());
+        assertThat(window.worthARound()).isTrue();
+        assertThat(window.trigger()).isEqualTo("token weight");
+    }
+
+    /**
+     * Замер на ряду ПОЛЬЗОВАТЕЛЯ контекстом не является: там он бывает у одного случая —
+     * несостоявшегося сжатия, записанного на строку своей команды ({@code
+     * CompactService#spentRound}), — и описывает окно, которое тот раунд прочитал вместе со своей
+     * инструкцией, при том что само окно осталось в чате как было. Прими мы его верхним концом,
+     * срез весил бы полмиллиона и раунд стартовал бы на ровном месте.
+     */
+    @Test
+    void aMeasurementOnAUserRowIsNotContext() {
+        final List<PromptRow> live = new ArrayList<>(alternating(0, 60));
+        live.set(1, measured(1, 10_000, 11_000));
+        live.set(28, measured(28, MessageType.USER, 10_000, 500_000));
+        live.set(29, measured(29, 11_500, 12_000));
+
+        final SummarizeWindow window = window(live, PRODUCTION);
+
+        assertThat(window.sliceTokens()).isEqualTo(new SummarizeWindow.Weight(2_000, true));
+        assertThat(window.worthARound()).isFalse();
+    }
+
+    /**
+     * Длинный чат сжимали не раз, и прогоны по разные стороны сжатия меряли разные истории: у
+     * раннего в контексте вся история целиком (50 000), у позднего — уже сводка вместо неё (10
+     * 000). Одной разностью между концами среза такое окно весило бы отрицательно, то есть ноль — и
+     * чат, который сжимали чаще всех, перестал бы сжиматься совсем. Слагаемые же считаются каждое
+     * внутри своей истории: разрыв между прогонами отрицательный и отбрасывается, а собственный
+     * рост обоих остаётся в весе.
+     */
+    @Test
+    void aHistoryRewrittenBetweenTwoRunsCostsOneGapAndNotTheWholeWeight() {
+        final List<PromptRow> live = new ArrayList<>(alternating(0, 60));
+        live.set(1, measured(1, 40_000, 50_000));
+        live.set(29, measured(29, 10_000, 12_000));
+
+        final SummarizeWindow window = window(live, PRODUCTION);
+
+        // 10 000 роста раннего прогона + отброшенный разрыв + 2 000 роста позднего.
+        assertThat(window.sliceTokens()).isEqualTo(new SummarizeWindow.Weight(12_000, true));
+    }
+
+    /**
+     * У прогона, записанного версией без {@code basePromptTokens}, нижнего конца нет — вычитать не
+     * из чего, и разность выродилась бы в «весь контекст вместе с системной частью». Такой замер к
+     * весу не допускается вовсе: считает оценка.
+     */
+    @Test
+    void aRunRecordedWithoutTheBasePromptFallsBackToTheEstimate() {
+        final List<PromptRow> live = new ArrayList<>(alternating(0, 60));
+        live.set(1, measured(1, 0, 11_000));
+        live.set(29, measured(29, 0, 45_000));
+
+        final SummarizeWindow window = window(live, PRODUCTION);
+
+        assertThat(window.sliceTokens().measured()).isFalse();
+        assertThat(window.worthARound()).isFalse();
     }
 
     // -------------------------------------------------------------------------
@@ -400,6 +531,25 @@ class SummarizeWindowTest {
     /** {@code chars} — длина текста: она и есть вес сообщения для оценки токенов. */
     private static PromptRow row(long position, MessageType type, int chars) {
         final ChatMessageEntity entity = entity(position, type, text(chars), null, null);
+        return new PromptRow(entity, entity.getContent());
+    }
+
+    /**
+     * Ответ модели с замером прогона: {@code base} — занято до прогона, {@code context} — после.
+     */
+    private static PromptRow measured(long position, long base, long context) {
+        return measured(position, MessageType.ASSISTANT, base, context);
+    }
+
+    private static PromptRow measured(long position, MessageType type, long base, long context) {
+        final ChatMessageEntity entity =
+                entity(
+                        position,
+                        type,
+                        text(3),
+                        ChatMessageMeta.ofUsage(
+                                new RunTokenUsage(context, base, 0, 0, base, 0, 0, 1)),
+                        null);
         return new PromptRow(entity, entity.getContent());
     }
 
