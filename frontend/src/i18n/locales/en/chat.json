@@ -241,8 +241,7 @@
     "summaryLoadError": "Could not load the summary.",
     "summaryNotFound": "The summary of this compaction was not found.",
     "savings": "{{before}} → {{after}} (−{{percent}}%)",
-    "savingsBefore": "was {{before}}",
-    "savingsTooltip": "Left — what the compaction round read; right — the context of the next request. A «~» means no answer has followed the compaction yet, so the number is estimated from the system part."
+    "savingsTooltip": "The conversation alone: the system prompt with its tool schemas is left out of both numbers — compaction does not touch it. Left is what the compaction round read, right is what the conversation takes now. A «~» means no answer has followed the compaction yet, so the number is the summary the model wrote."
   },
   "fileInput": {
     "hintStart": "Type a file name to search",

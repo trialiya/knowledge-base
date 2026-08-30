@@ -20,9 +20,10 @@ import '../styles/compact.css';
  *
  * @param messageId id строки-плашки — адрес сводки. Без него (очень старый прогон, чьи события
  *   переигрались без id) плашка остаётся, а кнопка деталей не рисуется: открывать нечего.
- * @param savings {before, after, percent, estimated} либо null — во что сжатие обошлось контексту
- *   (см. compactSavingsIn). Оба числа провайдерские, кроме случая `estimated`: до первого ответа
- *   «после» ещё никем не замерено и считается оценкой — тогда «~» стоит и в подписи
+ * @param savings {before, after, percent, estimated} либо null — во что сжатие обошлось разговору
+ *   (см. compactSavingsIn: системной части в этих числах нет, сжатие её не трогает). Оба числа
+ *   провайдерские, кроме случая `estimated`: до первого ответа «после» ещё никем не замерено и
+ *   считается оценкой — тогда «~» стоит и в подписи
  */
 const CompactNotice = ({ conversationId, messageId, compact, savings, timestamp }) => {
   const { t, i18n } = useTranslation('chat');
@@ -42,13 +43,11 @@ const CompactNotice = ({ conversationId, messageId, compact, savings, timestamp 
       </span>
       {full && savings && (
         <span className="compact-notice__savings" title={t('compact.savingsTooltip')}>
-          {savings.after == null
-            ? t('compact.savingsBefore', { before: formatTokens(savings.before) })
-            : t('compact.savings', {
-                before: formatTokens(savings.before),
-                after: (savings.estimated ? '~' : '') + formatTokens(savings.after),
-                percent: savings.percent,
-              })}
+          {t('compact.savings', {
+            before: formatTokens(savings.before),
+            after: (savings.estimated ? '~' : '') + formatTokens(savings.after),
+            percent: savings.percent,
+          })}
         </span>
       )}
       {canOpen && (

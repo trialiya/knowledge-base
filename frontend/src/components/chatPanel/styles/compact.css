@@ -27,11 +27,11 @@
   font-size: 0.8em;
 }
 
-/* Числа — моноширинно и чуть тише текста: их сравнивают между собой, а не читают подряд. */
+/* Числа набраны шрифтом самой плашки: строка читается подряд как одно сообщение, и вставка
+   другого шрифта посреди неё видна как чужая. Цифры — табличные, чтобы «до» и «после» стояли
+   в колонку у соседних плашек. */
 .compact-notice__savings {
-  font-family: var(--kb-font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
-  font-size: 0.95em;
-  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 

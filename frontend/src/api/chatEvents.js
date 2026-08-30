@@ -8,6 +8,7 @@
 // Разбор кадров — общий (api/sse.js); здесь остаётся только то, что специфично
 // для чата: переподключение с backoff и курсор seq.
 
+import { CHAT_EVENT } from '@/constants/chatEventTypes';
 import { readSseStream } from './sse';
 
 const enc = (id) => encodeURIComponent(id);
@@ -51,7 +52,13 @@ export function openChatEventStream(chatId, { onEvent, onStatus, onReconnect, fr
         try {
           const ev = JSON.parse(data);
           if (typeof ev.seq === 'number') {
-            lastSeq = Math.max(lastSeq, ev.seq);
+            // REPLAY_GAP не «ещё одно событие», а ответ хаба про сам курсор: его seq — то
+            // значение, с которого реплей продолжится. Присваиваем, а не поднимаем максимум:
+            // курсор из чужой нумерации (хаб пережил не всякую вкладку, а новый начинает счёт
+            // заново — см. ConversationHub#ownCursor) выше всего, что этот хаб опубликует
+            // за целый прогон, и максимум оставил бы его стоять — тогда каждый обрыв связи
+            // приносил бы полный реплей поверх уже собранного пузыря, задваивая ответ.
+            lastSeq = ev.type === CHAT_EVENT.REPLAY_GAP ? ev.seq : Math.max(lastSeq, ev.seq);
             onSeq?.(lastSeq);
           }
           onEvent?.(ev);
