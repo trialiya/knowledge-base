@@ -139,7 +139,8 @@ public class SummaryWriter {
                                                     stats.messages(),
                                                     stats.summaryChars(),
                                                     summary.getId(),
-                                                    stats.kind()));
+                                                    stats.kind(),
+                                                    stats.carried()));
                             return chatMessageRepository.save(
                                     new ChatMessageEntity(
                                             0L,
@@ -170,9 +171,15 @@ public class SummaryWriter {
      *     null} — эндпоинт замера не отдал. Заголовочный {@code contextTokens} здесь описывает
      *     контекст самого раунда (сжатое окно плюс сводка), а не то, что осталось в чате после
      *     него: раунд читал историю целиком, и это последнее место, где она была измерена
+     * @param carried деньги отложенных сводок, выброшенных этим раундом (см. {@link
+     *     CompactMeta#carried}); {@code null} — выбрасывать было нечего
      */
     public record CompactStats(
-            CompactMeta.Kind kind, int messages, int summaryChars, @Nullable RunTokenUsage usage) {}
+            CompactMeta.Kind kind,
+            int messages,
+            int summaryChars,
+            @Nullable RunTokenUsage usage,
+            @Nullable RunTokenUsage carried) {}
 
     /** Разметка сжатого куска и сама строка-сводка; вызывать только внутри транзакции. */
     private ChatMessageEntity saveSummary(SummaryRow row) {

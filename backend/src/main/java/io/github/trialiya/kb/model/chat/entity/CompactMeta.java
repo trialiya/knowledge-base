@@ -16,9 +16,21 @@ import org.jspecify.annotations.Nullable;
  *     лёгкой — сводка бывает в десятки килобайт, и в каждую страницу истории она не нужна
  * @param kind чем сжатие вызвано (см. {@link Kind}) — от этого зависит и вид плашки, и то, как её
  *     замер читает счётчик контекста
+ * @param carried деньги отложенных фоновых сводок, которые это сжатие выбросило ({@code null} —
+ *     выбрасывать было нечего). Полное сжатие заменяет сводкой весь контекст, и написанные, но не
+ *     применённые сводки после него описывают историю, которой в промпте больше нет — а заплачено
+ *     за них уже было. Своего ряда у этих денег не осталось (плашка бывает только у применённой
+ *     сводки), и без этого поля они пропали бы из итога по чату: сжатие стало бы единственной
+ *     тратой мимо собственной статистики чата. Замер здесь — только деньги, без контекстных чисел
+ *     (см. {@link RunTokenUsage#spentTogether})
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record CompactMeta(int messages, int summaryChars, long summaryId, Kind kind) {
+public record CompactMeta(
+        int messages,
+        int summaryChars,
+        long summaryId,
+        Kind kind,
+        @Nullable RunTokenUsage carried) {
 
     /**
      * Чем вызвано сжатие. Различать их обязан не только текст плашки: {@link #COMPACT} и {@link

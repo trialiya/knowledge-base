@@ -364,6 +364,7 @@ export function applyChatEvent(chat, ev, ctx) {
           messages: payload.messages ?? 0,
           summaryChars: payload.summaryChars ?? 0,
           kind: payload.kind,
+          ...(payload.carried ? { carried: payload.carried } : {}),
         },
         ...(payload.usage ? { usage: payload.usage } : {}),
         timestamp: payload.createdAt,

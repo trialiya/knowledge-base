@@ -57,14 +57,12 @@ class AutoCompactServiceTest {
 
     private ChatHistoryService chatHistory;
     private CompactService compactService;
-    private PendingSummaryService pendingSummaries;
     private ChatEventService events;
 
     @BeforeEach
     void setUp() {
         chatHistory = mock(ChatHistoryService.class);
         compactService = mock(CompactService.class);
-        pendingSummaries = mock(PendingSummaryService.class);
         events = mock(ChatEventService.class);
         when(compactService.compact(anyString(), any(), any(), any(), any())).thenReturn(payload());
     }
@@ -137,8 +135,6 @@ class AutoCompactServiceTest {
                         eq(RUN),
                         isNull(),
                         any(CompactPayload.class));
-        // Отложенная фоновая сводка описывает начало истории, которого в промпте больше нет.
-        verify(pendingSummaries).discard(CONV);
     }
 
     /**
@@ -164,9 +160,8 @@ class AutoCompactServiceTest {
         service().compactIfOversized(CONV, RUN, QUESTION, MODEL_WINDOW, OPTIONS, folded::set);
 
         assertThat(folded.get()).isEqualTo(spent);
-        // Раунд упал — плашки нет, и припаркованная сводка по-прежнему описывает живое начало.
+        // Раунд упал — плашки нет.
         verify(events, never()).publish(anyString(), any(), any(), any(), any());
-        verify(pendingSummaries, never()).discard(anyString());
     }
 
     // -------------------------------------------------------------------------
@@ -175,10 +170,10 @@ class AutoCompactServiceTest {
         return new AutoCompactService(
                 chatHistory,
                 compactService,
-                pendingSummaries,
                 new SummaryWriter(mock(ChatMessageRepository.class), transactionManager()),
                 events,
-                new SummarizeProperties(30_000, 50, 30, 5, 5, Duration.ofMinutes(10), 0.5, 0.8, 4));
+                new SummarizeProperties(
+                        30_000, 50, 30, 5, 5, Duration.ofMinutes(10), 0.5, 3, 0.8, 4));
     }
 
     private CompactService.CompactTarget capturedTarget() {
@@ -244,7 +239,7 @@ class AutoCompactServiceTest {
     /** Ответ удавшегося раунда: здесь важно только то, что он есть и уезжает плашкой. */
     private static CompactPayload payload() {
         return new CompactPayload(
-                42L, 6, 500, CompactMeta.Kind.AUTO_COMPACT, LocalDateTime.now(), null);
+                42L, 6, 500, CompactMeta.Kind.AUTO_COMPACT, LocalDateTime.now(), null, null);
     }
 
     private static PlatformTransactionManager transactionManager() {

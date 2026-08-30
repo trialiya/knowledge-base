@@ -166,6 +166,26 @@ describe('tokenUsage', () => {
       // хвост, не знает никто — и 90k выше плашки тем более не ответ.
       expect(contextUsageOf(messages, 9800)).toBeNull();
     });
+
+    test('замер прогона, который шёл до применения сводки, счётчиком не становится', () => {
+      // Плашка фоновой суммаризации стоит в СЕРЕДИНЕ ленты — ответ ниже неё старше её самой
+      // (dbId 40 против 41): он мерил историю, начало которой сводка уже заменила собой.
+      const messages = [
+        { sender: 'ai', dbId: 41, compact: { messages: 40, kind: 'SUMMARIZE' } },
+        { ...ai({ contextTokens: 90000 }), dbId: 40 },
+      ];
+
+      expect(contextUsageOf(messages, 9800)).toBeNull();
+    });
+
+    test('первый же ответ после применения сводки счётчик восстанавливает', () => {
+      const messages = [
+        { sender: 'ai', dbId: 41, compact: { messages: 40, kind: 'SUMMARIZE' } },
+        { ...ai({ contextTokens: 30000 }), dbId: 42 },
+      ];
+
+      expect(contextUsageOf(messages, 9800)).toEqual({ contextTokens: 30000 });
+    });
   });
 
   describe('compactSavingsIn', () => {
@@ -381,6 +401,20 @@ describe('tokenUsage', () => {
       });
       // Контекст у прогонов общий и растёт, а не набирается: 4000 + 11000 было бы числом ниоткуда.
       expect(totals).not.toHaveProperty('contextTokens');
+    });
+
+    test('деньги выброшенных сжатием сводок считаются наравне, но прогонами не становятся', () => {
+      // Полное сжатие выбросило две отложенные сводки: своего ряда у их раундов не осталось, и
+      // без этого числа Total разошёлся бы со счётом провайдера ровно на их стоимость.
+      const totals = chatUsageTotals([
+        run({ contextTokens: 4000, outputTokens: 300, promptTokens: 9000, modelCalls: 1 }),
+        {
+          sender: 'ai',
+          compact: { messages: 40, carried: { outputTokens: 900, promptTokens: 61000, modelCalls: 2 } },
+        },
+      ]);
+
+      expect(totals).toMatchObject({ runs: 1, outputTokens: 1200, promptTokens: 70000, modelCalls: 3 });
     });
 
     test('чат без единого измеренного прогона итогов не даёт', () => {

@@ -40,7 +40,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  *       история впервые понадобится;
  *   <li>{@link #applyIfOversized} — ждать больше нельзя: контекст дорос до предела, с которого
  *       начинает быть дорогим сам разговор. Предел зависит от окна модели и потому приходит
- *       параметром (см. {@code ChatModelProperties.ModelOption#contextTokens}).
+ *       параметром (см. {@code ChatModelProperties.ModelOption#contextTokens});
+ *   <li>{@link #applyIfQueued} — ждать больше не окупается: сводок накопилось столько, что оплата
+ *       непрерывно растущего промпта перевесила кэш, который применение обесценит. Для чата на
+ *       модели без названного окна это единственный предел, кроме паузы.
  * </ul>
  *
  * <p>Пока сводка припаркована, начало истории всё ещё живое: модель видит её несжатой. Раунды от
@@ -116,6 +119,26 @@ public class PendingSummaryService {
                 row.startPosition(),
                 row.endPosition(),
                 stats.messages());
+        applyIfQueued(conversationId);
+    }
+
+    /**
+     * Применяет очередь, когда ждать дальше дороже, чем потерять кэш: отложенное сжатие промпт не
+     * укорачивает, и каждый следующий раунд читает окно длиннее предыдущего. Зовётся сразу после
+     * парковки — под тем же замком чата, что и раунд, поэтому {@code tryInConversation} внутри
+     * своего же замка проходит. Не бросает — см. {@link #apply}.
+     *
+     * <p>Для чата на модели без названного окна это единственный предел, кроме паузы: {@link
+     * #applyIfOversized} там считать не от чего, и разговор без перерывов иначе рос бы очередью без
+     * конца.
+     */
+    private void applyIfQueued(String conversationId) {
+        apply(
+                conversationId,
+                parked ->
+                        parked.size() >= properties.applyAtQueue()
+                                ? "the queue reached " + parked.size() + " summaries"
+                                : null);
     }
 
     /**
@@ -166,17 +189,36 @@ public class PendingSummaryService {
     }
 
     /**
-     * Забывает припаркованную сводку. Зовёт {@code /compact}: он заменяет сводкой весь контекст, и
-     * отложенная сводка после него описывает историю, которой в промпте больше нет.
+     * Забывает припаркованные сводки. Зовёт полное сжатие ({@code CompactService}): оно заменяет
+     * своей сводкой весь контекст, и отложенные после него описывают историю, которой в промпте
+     * больше нет.
+     *
+     * @return деньги выброшенных раундов одним замером — их забирает себе плашка сжатия (см. {@code
+     *     CompactMeta#carried}), потому что своего ряда у них не осталось. {@code null} —
+     *     выбрасывать было нечего или ни один из раундов не измерен
      */
-    public void discard(String conversationId) {
-        final int discarded = repository.deleteByConversationId(conversationId);
-        if (discarded > 0) {
-            log.info(
-                    "[{}] Parked summaries discarded ({}) — the context was compacted",
-                    conversationId,
-                    discarded);
+    public @Nullable RunTokenUsage discard(String conversationId) {
+        final List<ChatPendingSummaryEntity> parked = parked(conversationId);
+        if (parked.isEmpty()) {
+            return null;
         }
+        repository.deleteByConversationId(conversationId);
+        final RunTokenUsage carried =
+                RunTokenUsage.spentTogether(
+                        parked.stream()
+                                .map(ChatPendingSummaryEntity::getMeta)
+                                .filter(Objects::nonNull)
+                                .map(ChatMessageMeta::usage)
+                                .filter(Objects::nonNull)
+                                .toList());
+        log.info(
+                "[{}] Parked summaries discarded ({}) — the context was compacted; {}",
+                conversationId,
+                parked.size(),
+                carried.isEmpty()
+                        ? "none of their rounds was measured"
+                        : carried.promptTokens() + " input tokens go on the compaction notice");
+        return carried.isEmpty() ? null : carried;
     }
 
     /**
@@ -189,8 +231,7 @@ public class PendingSummaryService {
      * двумя сжатыми.
      *
      * @param due почему применяем — {@code null} значит «ещё рано»; строка едет в лог, потому что
-     *     иначе по логам не отличить бесплатное применение от вынужденного. Спрашиваем по самой
-     *     ранней сводке очереди: ждала она дольше всех, и повод — про неё
+     *     иначе по логам не отличить бесплатное применение от вынужденного
      */
     private void apply(String conversationId, DueCheck due) {
         // Не бросаем ничего: применение — это оптимизация цены, и зовут её с чужих путей, где
@@ -202,7 +243,7 @@ public class PendingSummaryService {
             if (parked.isEmpty()) {
                 return;
             }
-            final @Nullable String reason = due.reason(parked.getFirst());
+            final @Nullable String reason = due.reason(parked);
             if (reason == null) {
                 return;
             }
@@ -291,7 +332,10 @@ public class PendingSummaryService {
                         CompactMeta.Kind.SUMMARIZE,
                         parked.getMessages(),
                         parked.getSummaryChars(),
-                        meta == null ? null : meta.usage()));
+                        meta == null ? null : meta.usage(),
+                        // Применённая сводка ничего не выбрасывает: очередь выбрасывает только
+                        // полное сжатие (см. CompactMeta#carried).
+                        null));
     }
 
     /**
@@ -309,9 +353,9 @@ public class PendingSummaryService {
         return usage == null ? meta : meta.withUsage(usage);
     }
 
-    /** Повод применить сводку или {@code null}, если его ещё нет. */
+    /** Повод применить очередь или {@code null}, если его ещё нет. */
     @FunctionalInterface
     private interface DueCheck {
-        @Nullable String reason(ChatPendingSummaryEntity parked);
+        @Nullable String reason(List<ChatPendingSummaryEntity> parked);
     }
 }

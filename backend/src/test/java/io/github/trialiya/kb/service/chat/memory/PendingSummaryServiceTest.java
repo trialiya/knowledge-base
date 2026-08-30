@@ -51,7 +51,7 @@ class PendingSummaryServiceTest {
 
     /** Боевые значения из {@code application.yaml}. */
     private static final SummarizeProperties PRODUCTION =
-            new SummarizeProperties(30_000, 50, 30, 5, 5, Duration.ofMinutes(10), 0.5, 0.8, 4);
+            new SummarizeProperties(30_000, 50, 30, 5, 5, Duration.ofMinutes(10), 0.5, 3, 0.8, 4);
 
     private static final RunTokenUsage ROUND_USAGE =
             new RunTokenUsage(48_900, 48_000, 0, 900, 48_000, 40_000, 0, 1);
@@ -152,6 +152,36 @@ class PendingSummaryServiceTest {
         verify(events, times(2)).publish(anyString(), any(), any(), any(), any());
     }
 
+    /**
+     * Очередь не растёт без предела. Отложенное сжатие промпт не укорачивает, и каждый следующий
+     * раунд читает окно длиннее предыдущего: на {@code apply-at-queue} сводках эта длина
+     * перевешивает кэш, который применение обесценит. Для модели без названного окна это
+     * единственный предел, кроме паузы, — считать долю там не от чего.
+     */
+    @Test
+    void aQueueThatReachedItsLimitAppliesItselfRightAfterParking() {
+        when(parkedRepository.findByConversationIdOrderByStartPositionAsc(CONV))
+                .thenReturn(
+                        List.of(queued(1L, 0L, 40L), queued(2L, 41L, 60L), queued(3L, 61L, 86L)));
+
+        service.park(CONV, row(), stats(ROUND_USAGE));
+
+        verify(chatMessages).updateSummarized(CONV, 0L, 40L);
+        verify(chatMessages).updateSummarized(CONV, 61L, 86L);
+        verify(events, times(3)).publish(anyString(), any(), any(), any(), any());
+    }
+
+    /** Пока очередь короче предела, парковка остаётся парковкой: кэш ещё дороже. */
+    @Test
+    void aShortQueueStaysParkedAfterParking() {
+        when(parkedRepository.findByConversationIdOrderByStartPositionAsc(CONV))
+                .thenReturn(List.of(queued(1L, 0L, 40L), queued(2L, 41L, 86L)));
+
+        service.park(CONV, row(), stats(ROUND_USAGE));
+
+        verifyNothingWritten();
+    }
+
     /** Разговор идёт — кэш горячий, и свёртка стоила бы целого неоплаченного запроса. */
     @Test
     void aLiveChatKeepsItsSummaryParked() {
@@ -246,15 +276,30 @@ class PendingSummaryServiceTest {
     }
 
     /**
-     * {@code /compact} заменил своей сводкой весь контекст — отложенной больше нечего описывать.
+     * Полное сжатие заменило своей сводкой весь контекст — отложенным больше нечего описывать. А
+     * вот деньги их раундов остаются: они уже потрачены, и своего ряда у них после удаления нет —
+     * отдаём их вызвавшему, чтобы тот положил их на плашку сжатия.
      */
     @Test
-    void compactionThrowsTheParkedSummaryAway() {
-        when(parkedRepository.deleteByConversationId(CONV)).thenReturn(1);
+    void compactionThrowsTheParkedSummariesAwayButKeepsTheirMoney() {
+        givenParked(ROUND_USAGE);
 
-        service.discard(CONV);
+        final RunTokenUsage carried = requireNonNull(service.discard(CONV));
 
         verify(parkedRepository).deleteByConversationId(CONV);
+        assertThat(carried.promptTokens()).isEqualTo(ROUND_USAGE.promptTokens());
+        assertThat(carried.outputTokens()).isEqualTo(ROUND_USAGE.outputTokens());
+        assertThat(carried.cacheReadTokens()).isEqualTo(ROUND_USAGE.cacheReadTokens());
+        assertThat(carried.modelCalls()).isEqualTo(ROUND_USAGE.modelCalls());
+        // Контекст не складывается и не переносится: он у раундов общий и растёт, а не набирается.
+        assertThat(carried.contextTokens()).isZero();
+    }
+
+    /** Выбрасывать нечего — и денег нет: пустой замер на плашке был бы нулём ниоткуда. */
+    @Test
+    void anEmptyQueueCarriesNothing() {
+        assertThat(service.discard(CONV)).isNull();
+        verify(parkedRepository, never()).deleteByConversationId(anyString());
     }
 
     /**
@@ -350,7 +395,7 @@ class PendingSummaryServiceTest {
     }
 
     private static SummaryWriter.CompactStats stats(RunTokenUsage usage) {
-        return new SummaryWriter.CompactStats(CompactMeta.Kind.SUMMARIZE, 58, 4096, usage);
+        return new SummaryWriter.CompactStats(CompactMeta.Kind.SUMMARIZE, 58, 4096, usage, null);
     }
 
     /**

@@ -33,6 +33,9 @@ import org.jspecify.annotations.Nullable;
  *     той же причине, что и всё остальное здесь: вкладка, которая сжатие дождалась, обязана
  *     показать плашку такой же, какой её увидит перезагруженная, — а та берёт эти числа из меты
  *     ряда
+ * @param carried деньги отложенных сводок, выброшенных этим сжатием (см. {@link
+ *     CompactMeta#carried}) — едут по той же причине: без них живая вкладка недосчитается их в
+ *     итоге по чату до самой перезагрузки
  */
 public record CompactPayload(
         long messageId,
@@ -40,7 +43,8 @@ public record CompactPayload(
         int summaryChars,
         CompactMeta.Kind kind,
         LocalDateTime createdAt,
-        @Nullable RunTokenUsage usage) {
+        @Nullable RunTokenUsage usage,
+        @Nullable RunTokenUsage carried) {
 
     public static CompactPayload of(ChatMessageEntity notice) {
         final ChatMessageMeta meta =
@@ -53,6 +57,7 @@ public record CompactPayload(
                 compact.summaryChars(),
                 compact.kind(),
                 notice.getCreatedAt(),
-                meta.usage());
+                meta.usage(),
+                compact.carried());
     }
 }

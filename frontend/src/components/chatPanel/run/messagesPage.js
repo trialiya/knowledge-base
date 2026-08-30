@@ -52,6 +52,9 @@ export const transformPage = (rawMsgs) => {
           messages: m.compact.messages,
           summaryChars: m.compact.summaryChars,
           kind: m.compact.kind,
+          // Деньги отложенных сводок, которые это сжатие выбросило: своего ряда у них не
+          // осталось, и в итог по чату они идут отсюда (см. chatUsageTotals).
+          ...(m.compact.carried ? { carried: m.compact.carried } : {}),
         },
         // Токены самого раунда сжатия — тем же полем, что и у ответа: сжатие тоже обращение к
         // модели, и в итогах чата оно обязано считаться наравне. По ним же плашка говорит,

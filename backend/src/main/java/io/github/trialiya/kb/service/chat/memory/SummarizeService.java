@@ -453,6 +453,7 @@ public class SummarizeService implements DisposableBean {
                         CompactMeta.Kind.SUMMARIZE,
                         oldMessages.size(),
                         summaryChars,
-                        usage.isEmpty() ? null : usage));
+                        usage.isEmpty() ? null : usage,
+                        null));
     }
 }

@@ -38,6 +38,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *     is the cheaper half of the trade. A share rather than a number of tokens because the number
  *     itself is the model's — see {@code ChatModelProperties.ModelOption#contextTokens}; a model
  *     that names no window has no threshold at all and waits for the pause.
+ * @param applyAtQueue how many parked summaries make the queue apply itself with no other reason. A
+ *     parked summary does not shorten the prompt, so every next round reads a window longer than
+ *     the one before it: after a few rounds in a row that length outweighs the cache the fold would
+ *     cost. On a model that names no context window this is the only bound besides the pause —
+ *     {@code applyAtRatio} has no number to work from there.
  * @param autoCompactAtRatio the share of the model's context window at which the chat compacts
  *     itself before the next answer ({@code AutoCompactService}) — the last line, well above {@code
  *     applyAtRatio}: two or three tool-heavy rounds fill a window faster than background
@@ -58,5 +63,6 @@ public record SummarizeProperties(
         int summaryCollapseThreshold,
         Duration applyAfter,
         double applyAtRatio,
+        int applyAtQueue,
         double autoCompactAtRatio,
         int charsPerToken) {}

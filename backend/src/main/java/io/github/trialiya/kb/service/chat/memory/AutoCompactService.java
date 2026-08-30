@@ -40,7 +40,6 @@ public class AutoCompactService {
 
     private final ChatHistoryService chatHistory;
     private final CompactService compactService;
-    private final PendingSummaryService pendingSummaries;
     private final SummaryWriter summaryWriter;
     private final ChatEventService events;
     private final SummarizeProperties properties;
@@ -48,13 +47,11 @@ public class AutoCompactService {
     public AutoCompactService(
             ChatHistoryService chatHistory,
             CompactService compactService,
-            PendingSummaryService pendingSummaries,
             SummaryWriter summaryWriter,
             ChatEventService events,
             SummarizeProperties properties) {
         this.chatHistory = chatHistory;
         this.compactService = compactService;
-        this.pendingSummaries = pendingSummaries;
         this.summaryWriter = summaryWriter;
         this.events = events;
         this.properties = properties;
@@ -146,8 +143,6 @@ public class AutoCompactService {
                                 }),
                         null,
                         options);
-        // Отложенная фоновая сводка описывает начало истории, которого в промпте больше нет.
-        pendingSummaries.discard(conversationId);
         // runId — прогона, который за раунд заплатил; своего прогона у сжатия нет, и занятость чата
         // вкладкам уже показывает сам прогон.
         events.publish(conversationId, COMPACT_APPLIED, runId, null, payload);

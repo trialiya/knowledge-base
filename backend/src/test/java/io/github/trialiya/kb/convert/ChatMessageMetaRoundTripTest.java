@@ -56,7 +56,12 @@ class ChatMessageMetaRoundTripTest {
                         "billing",
                         "default",
                         "deepseek-chat",
-                        new CompactMeta(21, 4096, 512, CompactMeta.Kind.SUMMARIZE),
+                        new CompactMeta(
+                                21,
+                                4096,
+                                512,
+                                CompactMeta.Kind.SUMMARIZE,
+                                new RunTokenUsage(0, 0, 0, 900, 61_000, 40_000, 0, 2)),
                         new GitEventMeta("pull", "billing", true, "Fast-forward", "main"),
                         true,
                         new RunTokenUsage(12_400, 11_400, 700, 320, 31_000, 24_000, 1_100, 3),
@@ -117,12 +122,12 @@ class ChatMessageMetaRoundTripTest {
                                         "{\"compact\":{\"messages\":10,\"summaryChars\":128,"
                                                 + "\"summaryId\":7}}")
                                 .compact())
-                .isEqualTo(new CompactMeta(10, 128, 7, CompactMeta.Kind.COMPACT));
+                .isEqualTo(new CompactMeta(10, 128, 7, CompactMeta.Kind.COMPACT, null));
         assertThat(
                         reader.convert(
                                         "{\"compact\":{\"messages\":10,\"summaryChars\":128,"
                                                 + "\"summaryId\":7,\"kind\":\"TELEPORT\"}}")
                                 .compact())
-                .isEqualTo(new CompactMeta(10, 128, 7, CompactMeta.Kind.COMPACT));
+                .isEqualTo(new CompactMeta(10, 128, 7, CompactMeta.Kind.COMPACT, null));
     }
 }

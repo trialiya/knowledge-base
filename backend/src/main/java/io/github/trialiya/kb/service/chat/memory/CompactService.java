@@ -4,6 +4,7 @@ import static io.github.trialiya.kb.model.chat.dto.ChatEventType.COMPACT_DONE;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.COMPACT_ERROR;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.COMPACT_STARTED;
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.USER_MESSAGE;
+import static java.util.Objects.requireNonNull;
 
 import io.github.trialiya.kb.advisor.MessageLoggingAdvisor;
 import io.github.trialiya.kb.config.ChatModelRegistry;
@@ -44,6 +45,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StreamUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
@@ -123,6 +126,7 @@ public class CompactService {
     private final Resource sysPrompt;
     private final String compactorPrompt;
     private final Executor executor;
+    private final TransactionTemplate transactionTemplate;
 
     /** Границы обёртки сводки — общие у {@link #summaryText} и {@link #unwrap}. */
     private static final String OPEN = "<summary>\n";
@@ -142,7 +146,8 @@ public class CompactService {
             ChatToolset chatToolset,
             @Value("classpath:prompt/sys.md") Resource sysPrompt,
             @Value("classpath:prompt/compactor.md") Resource compactorPrompt,
-            @Qualifier("chatRunExecutor") Executor executor) {
+            @Qualifier("chatRunExecutor") Executor executor,
+            PlatformTransactionManager transactionManager) {
         this.chatModelRegistry = chatModelRegistry;
         this.chatHistory = chatHistory;
         this.chatTopicRepository = chatTopicRepository;
@@ -159,6 +164,7 @@ public class CompactService {
         // SystemPromptService).
         this.compactorPrompt = read(compactorPrompt);
         this.executor = executor;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     private static String read(Resource resource) {
@@ -350,9 +356,6 @@ public class CompactService {
                                         commandTarget(commandRow),
                                         instructions,
                                         options);
-                        // Отложенная фоновая сводка описывает начало истории, которого в промпте
-                        // больше нет: этот раунд заменил своей сводкой весь контекст целиком.
-                        pendingSummaries.discard(conversationId);
                         events.publish(conversationId, COMPACT_DONE, runId, null, payload);
                     });
         } catch (Exception e) {
@@ -474,33 +477,17 @@ public class CompactService {
         // автоматического сжатия граница кончается на последнем ряду окна, и лишнего ряда нет.
         final int messages = rows.size() + (target.boundaryPosition() > oldEndPosition ? 1 : 0);
         final ChatMessageEntity notice =
-                summaryWriter.writeCompacted(
-                        new SummaryWriter.SummaryRow(
-                                conversationId,
-                                startPosition,
-                                // У команды диапазон захватывает и её саму — не только сжатое
-                                // окно, — поэтому дальше она видна в истории, но модели больше не
-                                // едет. Где проходит граница, решает вызвавший (см. CompactTarget).
-                                target.boundaryPosition(),
-                                target.boundaryPosition(),
-                                target.createdAt(),
-                                summaryText(content),
-                                // Сводка остаётся единственной памятью разговора, и следом
-                                // проектов — тоже: маркеры смены уезжают вместе с окном.
-                                ProjectTrace.of(
-                                        entities(rows, true),
-                                        entities(rows, false),
-                                        () ->
-                                                chatTopicRepository
-                                                        .findById(conversationId)
-                                                        .map(ChatTopicEntity::getProject)
-                                                        .orElse(null),
-                                        target.boundaryPosition())),
-                        new SummaryWriter.CompactStats(
-                                target.kind(),
-                                messages,
-                                content.length(),
-                                usage.isEmpty() ? null : usage));
+                requireNonNull(
+                        transactionTemplate.execute(
+                                s ->
+                                        writeNotice(
+                                                conversationId,
+                                                rows,
+                                                target,
+                                                startPosition,
+                                                messages,
+                                                content,
+                                                usage)));
         log.info(
                 "[{}] Compaction finished: {} messages -> {} chars; input {} ({} from cache),"
                         + " output {}",
@@ -511,6 +498,55 @@ public class CompactService {
                 usage.cacheReadTokens(),
                 usage.outputTokens());
         return CompactPayload.of(notice);
+    }
+
+    /**
+     * Записывает сводку и её плашку, выбросив перед этим очередь отложенных сводок: после этого
+     * раунда их кусок истории заменён целиком, и описывают они то, чего в промпте больше нет.
+     * Деньги их раундов уезжают на плашку — другого ряда у этих денег не остаётся (см. {@link
+     * CompactMeta#carried}).
+     *
+     * <p>Звать только внутри транзакции: удаление, пережившее неудавшуюся запись, стёрло бы
+     * написанные моделью сводки насовсем, а второй раз их никто не напишет — сжатый ими кусок к
+     * тому времени уже не живой.
+     */
+    private ChatMessageEntity writeNotice(
+            String conversationId,
+            List<PromptRow> rows,
+            CompactTarget target,
+            long startPosition,
+            int messages,
+            String content,
+            RunTokenUsage usage) {
+        final @Nullable RunTokenUsage carried = pendingSummaries.discard(conversationId);
+        return summaryWriter.writeCompacted(
+                new SummaryWriter.SummaryRow(
+                        conversationId,
+                        startPosition,
+                        // У команды диапазон захватывает и её саму — не только сжатое окно, —
+                        // поэтому дальше она видна в истории, но модели больше не едет. Где
+                        // проходит граница, решает вызвавший (см. CompactTarget).
+                        target.boundaryPosition(),
+                        target.boundaryPosition(),
+                        target.createdAt(),
+                        summaryText(content),
+                        // Сводка остаётся единственной памятью разговора, и следом проектов —
+                        // тоже: маркеры смены уезжают вместе с окном.
+                        ProjectTrace.of(
+                                entities(rows, true),
+                                entities(rows, false),
+                                () ->
+                                        chatTopicRepository
+                                                .findById(conversationId)
+                                                .map(ChatTopicEntity::getProject)
+                                                .orElse(null),
+                                target.boundaryPosition())),
+                new SummaryWriter.CompactStats(
+                        target.kind(),
+                        messages,
+                        content.length(),
+                        usage.isEmpty() ? null : usage,
+                        carried));
     }
 
     /**

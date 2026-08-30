@@ -8,6 +8,8 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -42,6 +44,7 @@ import java.util.concurrent.RejectedExecutionException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.MessageType;
@@ -81,6 +84,8 @@ class CompactServiceTest {
             new CompactService.CompactOptions(null, false, "kb", "MODE");
 
     private ChatMessageRepository repository;
+    private PendingSummaryService pendingSummaries;
+    private PlatformTransactionManager transactions;
     private ChatHistoryService chatHistory;
     private ConversationSlots slots;
     private ChatEventService events;
@@ -89,6 +94,8 @@ class CompactServiceTest {
     @BeforeEach
     void setUp() {
         repository = mock(ChatMessageRepository.class);
+        pendingSummaries = mock(PendingSummaryService.class);
+        transactions = transactionManager();
         // Записанный ряд возвращается как есть: раунд читает id сводки, чтобы плашка знала,
         // где лежит её текст.
         when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -146,6 +153,63 @@ class CompactServiceTest {
 
         assertThat(payload.messages()).isEqualTo(rows.size());
         verify(repository).updateSummarized(CONV, 0L, lastRow.getPosition());
+    }
+
+    /**
+     * Полное сжатие выбрасывает очередь отложенных сводок — их кусок оно заменило собой, — а деньги
+     * их раундов забирает на свою плашку. Другого ряда у этих денег нет, и молча потерянные, они
+     * разошлись бы со счётом провайдера ровно на стоимость этих сводок.
+     */
+    @Test
+    void theMoneyOfTheDiscardedQueueLandsOnTheNotice() {
+        final RunTokenUsage carried = new RunTokenUsage(0, 0, 0, 900, 61_000, 40_000, 0, 2);
+        when(pendingSummaries.discard(CONV)).thenReturn(carried);
+
+        final CompactPayload payload =
+                service()
+                        .compact(CONV, turns(3), forCommand(commandRow(9).entity()), null, OPTIONS);
+
+        assertThat(payload.carried()).isEqualTo(carried);
+        final CompactMeta compact = savedRows().get(1).getMeta().compact();
+        assertThat(compact).isNotNull();
+        assertThat(compact.carried()).isEqualTo(carried);
+    }
+
+    /**
+     * Выбрасывание очереди лежит внутри той же транзакции, что и запись плашки. Порознь нельзя:
+     * удаление, пережившее неудавшуюся запись, стёрло бы написанные моделью сводки насовсем —
+     * вместе с их деньгами, — а второй раз их никто не напишет.
+     */
+    @Test
+    void theQueueIsDiscardedInsideTheTransactionThatWritesTheNotice() {
+        service().compact(CONV, turns(3), forCommand(commandRow(9).entity()), null, OPTIONS);
+
+        final InOrder order = inOrder(transactions, pendingSummaries, repository);
+        order.verify(transactions).getTransaction(any());
+        order.verify(pendingSummaries).discard(CONV);
+        order.verify(repository, atLeastOnce()).save(any());
+    }
+
+    /**
+     * Упавший раунд очередь не трогает: сжатия не было, отложенные сводки по-прежнему описывают
+     * живое начало истории, и выбросить их значит потерять и их текст, и их деньги разом.
+     */
+    @Test
+    void aRoundThatWroteNoSummaryLeavesTheQueueParked() {
+        answerWith("");
+
+        assertThatThrownBy(
+                        () ->
+                                service()
+                                        .compact(
+                                                CONV,
+                                                turns(3),
+                                                forCommand(commandRow(9).entity()),
+                                                null,
+                                                OPTIONS))
+                .isInstanceOf(IllegalStateException.class);
+
+        verify(pendingSummaries, never()).discard(anyString());
     }
 
     /**
@@ -214,7 +278,7 @@ class CompactServiceTest {
                         false,
                         LocalDateTime.now(),
                         ChatMessageMeta.ofCompact(
-                                new CompactMeta(10, 128, 7L, CompactMeta.Kind.COMPACT)));
+                                new CompactMeta(10, 128, 7L, CompactMeta.Kind.COMPACT, null)));
         when(repository.findById(8L)).thenReturn(Optional.of(notice));
         when(repository.findById(7L)).thenReturn(Optional.of(summary));
 
@@ -765,15 +829,16 @@ class CompactServiceTest {
                 chatHistory,
                 mock(ChatTopicRepository.class),
                 repository,
-                new SummaryWriter(repository, transactionManager()),
-                mock(PendingSummaryService.class),
+                new SummaryWriter(repository, transactions),
+                pendingSummaries,
                 slots,
                 events,
                 systemPrompts,
                 new ChatToolset(List.of(toolCallback("getFileContent")), List.of()),
                 new ByteArrayResource("SYSTEM {mode} {scripts}".getBytes()),
                 new ByteArrayResource("COMPACTOR HANDBOOK".getBytes()),
-                executor);
+                executor,
+                transactions);
     }
 
     /** Заглушка инструмента: раунду важна только схема — вызывать её здесь некому. */

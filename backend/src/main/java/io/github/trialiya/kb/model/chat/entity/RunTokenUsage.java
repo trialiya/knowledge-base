@@ -70,6 +70,32 @@ public record RunTokenUsage(
     }
 
     /**
+     * Деньги нескольких раундов, у которых своего ряда в истории не осталось, одним числом (см.
+     * {@code CompactMeta#carried}). Складываются только те поля, которые у раунда свои: выход,
+     * total input, кэш и число обращений — они и есть счёт от провайдера.
+     *
+     * <p>Контекстные числа при этом остаются нулями, а не суммой: контекст у раундов общий и
+     * растёт, а не набирается (см. {@link #contextTokens}), так что сумма по ним была бы числом
+     * ниоткуда. Отсюда и правило чтения на фронте — такой замер идёт только в итог по чату, и
+     * никогда в «сколько занято сейчас».
+     */
+    public static RunTokenUsage spentTogether(Iterable<RunTokenUsage> rounds) {
+        long output = 0;
+        long prompt = 0;
+        long cacheRead = 0;
+        long cacheWrite = 0;
+        int calls = 0;
+        for (RunTokenUsage round : rounds) {
+            output += round.outputTokens();
+            prompt += round.promptTokens();
+            cacheRead += round.cacheReadTokens();
+            cacheWrite += round.cacheWriteTokens();
+            calls += round.modelCalls();
+        }
+        return new RunTokenUsage(0, 0, 0, output, prompt, cacheRead, cacheWrite, calls);
+    }
+
+    /**
      * Накопитель прогона: из него получается {@link RunTokenUsage}. Держит первое и последнее
      * обращение отдельно от суммы, потому что три числа выше считаются по-разному и из одной лишь
      * суммы два из них уже не достать.
