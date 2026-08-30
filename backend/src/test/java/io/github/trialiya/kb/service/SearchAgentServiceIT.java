@@ -181,7 +181,7 @@ class SearchAgentServiceIT {
         ArgumentCaptor<Prompt> prompts = ArgumentCaptor.forClass(Prompt.class);
         verify(chatModel, times(4)).call(prompts.capture());
         assertThat(lastUserText(prompts.getAllValues().getFirst()))
-                .contains("ИЗВЕСТНО ВЫЗЫВАЮЩЕЙ СТОРОНЕ")
+                .contains("KNOWN TO THE CALLER")
                 .contains("AuthService уже проверен");
         // Именно в напоминании исходной задачи — предпоследнем сообщении финального запроса, за
         // которым идёт только инструкция «сформулируй отчёт». Искать брифинг по всему запросу

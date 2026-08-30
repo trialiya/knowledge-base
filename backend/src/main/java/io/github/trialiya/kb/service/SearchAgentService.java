@@ -329,20 +329,19 @@ public class SearchAgentService {
             @Nullable String context,
             @Nullable String scope,
             @Nullable String pathGlob) {
-        final StringBuilder sb = new StringBuilder("ЗАДАЧА ПОИСКА:\n").append(task);
+        final StringBuilder sb = new StringBuilder("SEARCH TASK:\n").append(task);
         if (context != null && !context.isBlank()) {
-            // Названо чужим — «известно вызывающей стороне», а не «известно тебе»: это не находки
+            // Названо чужим — «known to the caller», а не «известно тебе»: это не находки
             // сабагента, проверять их он не обязан, а вот противоречие им — повод сказать об этом
             // в отчёте, а не молча подстроиться.
-            sb.append(
-                            "\n\nИЗВЕСТНО ВЫЗЫВАЮЩЕЙ СТОРОНЕ (контекст разговора и требования к отчёту):\n")
+            sb.append("\n\nKNOWN TO THE CALLER (conversation context and report requirements):\n")
                     .append(context.trim());
         }
         if (scope != null && !scope.isBlank()) {
-            sb.append("\n\nОбласть: ").append(scope.trim());
+            sb.append("\n\nScope: ").append(scope.trim());
         }
         if (pathGlob != null && !pathGlob.isBlank()) {
-            sb.append("\nОграничение путей (glob): ").append(pathGlob.trim());
+            sb.append("\nPath restriction (glob): ").append(pathGlob.trim());
         }
         return sb.toString();
     }

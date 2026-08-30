@@ -56,14 +56,10 @@ public class SearchAgentFunction {
                     String task,
             @ToolParam(
                             description =
-                                    "Optional: what the conversation already established that the"
-                                            + " sub-agent has no way of knowing — findings from earlier"
-                                            + " searches, paths and names already ruled in or out, the"
-                                            + " user's constraint behind the question — plus any extra"
-                                            + " requirement on the report (what to include, what to"
-                                            + " skip, how deep to go). The sub-agent starts from a"
-                                            + " blank conversation and sees nothing but this call, so"
-                                            + " state facts here rather than referring to \"the above\".",
+                                    "Optional: what the conversation already established (findings,"
+                                            + " paths and names ruled out) and any extra requirement"
+                                            + " on the report. The sub-agent sees nothing but this"
+                                            + " call — state facts, not \"the above\".",
                             required = false)
                     @Nullable String context,
             @ToolParam(
