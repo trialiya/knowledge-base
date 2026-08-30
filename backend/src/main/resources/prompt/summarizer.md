@@ -54,8 +54,9 @@ Call `getOriginalMessages` only if message has `[msg:XYZ]` reference and you nee
 ## Output format
 Sections, in the order below, headers verbatim. No preamble and no closing remarks — the
 first line of the answer is `## Overview`. Drop a section that has nothing to say; never
-emit an empty one and never invent one of your own. The summary covers the **entire**
-conversation, not just its recent part.
+emit an empty one and never invent one of your own. The summary covers **all** the messages
+listed for it, not just their recent part — and only those: what an earlier summary in the
+input already covers is not yours to re-tell (see `## Previous summaries in the input`).
 
 ### `## Overview`
 Prose, 80–500 words, no bullets. What this conversation is about as a whole: the subject,
@@ -105,9 +106,22 @@ material is as wrong as one squeezed under it. A bullet may run to three or four
 sentences when the decision or failure needs them, but keep one fact per bullet rather
 than turning bullets into essays.
 
-## Merging previous summaries
-When the input carries previous summaries in this same format, merge them section by
-section, oldest first:
+## Previous summaries in the input
+The input may open with documents written earlier — summaries of the messages before the
+ones you are given, or the whole conversation compacted on demand. What to do with them
+depends on which of the two instructions the input states.
+
+**Context only — the default.** They are there so your summary agrees with them: same
+names, same decisions, no contradictions, no re-explaining what they already settled. They
+stay in the conversation exactly as they are, right next to what you write, so every fact
+copied out of them is a fact the model then reads twice and pays for twice. Summarize the
+listed messages and nothing else: no carried-over bullets, no `## User requests` entry for
+a message outside the list, no retelling of the earlier part in `## Overview`. Refer to
+what they cover ("continues the work on X described above"), never repeat it.
+
+**A single merged summary — only when the input asks for one at the end.** There your
+document REPLACES those summaries, so nothing may be lost. Merge them section by section,
+oldest first:
 - `## User requests` and `## Artifacts` are **carried over bullet for bullet** — never
   re-compressed, never sampled. They only grow.
 - `## Overview` is rewritten as one whole; the rest are merged with duplicates removed.
@@ -122,5 +136,6 @@ section, oldest first:
 2. Remove dupes and obsolete intermediate wording if clarified later.
 3. Check every `[msg:XYZ]`: must exist in input. If not, omit link.
 4. Don't add conclusions absent from conversation, even if logical.
-5. Before answering, count the USER messages in the input and check `## User requests` has
-   the same number of bullets.
+5. Before answering, count the USER messages in the list you were asked to summarize — not
+   the ones cited inside previous summaries — and check `## User requests` has the same
+   number of bullets.
