@@ -43,8 +43,9 @@ import org.springframework.core.io.Resource;
  * <p>Design choices:
  *
  * <ul>
- *   <li><b>No chat memory.</b> The only input is the {@code task} string; nothing leaks in or out
- *       of the parent conversation window.
+ *   <li><b>No chat memory.</b> The sub-agent never reads the parent conversation. Its whole input
+ *       is what the call hands over: the {@code task}, plus the optional {@code context} briefing
+ *       the caller chose to include. Nothing crosses that boundary on its own, in either direction.
  *   <li><b>Manual loop with a cap.</b> When the cap is hit we do NOT dump the last raw tool output;
  *       instead we issue a final summarization call with {@code tool_choice=none} — the tool set
  *       stays declared (so the gathered evidence remains a cache-eligible prefix) but the model
@@ -112,7 +113,11 @@ public class SearchAgentService {
      * Runs the search sub-agent for a single task and returns a compact, citation-bearing report.
      * Never throws into the parent tool loop — failures are returned as a short message string.
      *
-     * @param task detailed natural-language search task (the "context")
+     * @param task detailed natural-language search task
+     * @param context optional briefing from the calling conversation: what it already established
+     *     (findings, paths and names ruled in or out, the constraint behind the question) and what
+     *     it wants from the report beyond the task. The sub-agent has no other way to learn any of
+     *     it — see the "no chat memory" note on the class
      * @param scope optional area hint: "code" | "docs" | "all"
      * @param pathGlob optional glob to restrict code paths (e.g. {@code "backend/**\/*.java"})
      * @param parentContext the parent tool context, for the conversation id and the run's project —
@@ -123,6 +128,7 @@ public class SearchAgentService {
      */
     public SearchAgentResult run(
             String task,
+            @Nullable String context,
             @Nullable String scope,
             @Nullable String pathGlob,
             @Nullable ToolContext parentContext,
@@ -140,7 +146,7 @@ public class SearchAgentService {
                         .forProject(ProjectContext.resolve(parentContext, requestedProject))
                         .project()
                         .id();
-        final String fullTask = buildTask(task, scope, pathGlob);
+        final String fullTask = buildTask(task, context, scope, pathGlob);
 
         final OpenAiChatOptions toolOptions =
                 OpenAiChatOptions.builder()
@@ -313,9 +319,25 @@ public class SearchAgentService {
         }
     }
 
+    /**
+     * Задача сабагенту одной строкой. Контекст стоит ПОСЛЕ задачи, а не перед ней: задача — то, за
+     * чем вызвали, и она же повторяется при финальной суммаризации ({@link #summarize}); брифинг же
+     * бывает длинным, и открывать им запрос значило бы топить формулировку под чужими фактами.
+     */
     private static String buildTask(
-            String task, @Nullable String scope, @Nullable String pathGlob) {
+            String task,
+            @Nullable String context,
+            @Nullable String scope,
+            @Nullable String pathGlob) {
         final StringBuilder sb = new StringBuilder("ЗАДАЧА ПОИСКА:\n").append(task);
+        if (context != null && !context.isBlank()) {
+            // Названо чужим — «известно вызывающей стороне», а не «известно тебе»: это не находки
+            // сабагента, проверять их он не обязан, а вот противоречие им — повод сказать об этом
+            // в отчёте, а не молча подстроиться.
+            sb.append(
+                            "\n\nИЗВЕСТНО ВЫЗЫВАЮЩЕЙ СТОРОНЕ (контекст разговора и требования к отчёту):\n")
+                    .append(context.trim());
+        }
         if (scope != null && !scope.isBlank()) {
             sb.append("\n\nОбласть: ").append(scope.trim());
         }
