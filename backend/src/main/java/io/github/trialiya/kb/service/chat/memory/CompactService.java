@@ -181,7 +181,7 @@ public class CompactService {
 
     /**
      * Настройки запроса сжатия. Это те же настройки, на которых идёт сам чат ({@code
-     * ChatRunService.RunOptions}) — все три поля влияют на начало запроса, а от него зависит,
+     * ChatRunService.RunOptions}) — все четыре поля влияют на начало запроса, а от него зависит,
      * попадёт ли раунд в кэш промпта (см. javadoc класса).
      *
      * <p>Своя запись, а не {@code RunOptions}: пакеты чата зависят в одну сторону ({@code event} ←
@@ -529,7 +529,7 @@ public class CompactService {
                         target.boundaryPosition(),
                         target.boundaryPosition(),
                         target.createdAt(),
-                        summaryText(content),
+                        summaryText(content, target.kind()),
                         // Сводка остаётся единственной памятью разговора, и следом проектов —
                         // тоже: маркеры смены уезжают вместе с окном.
                         ProjectTrace.of(
@@ -738,10 +738,21 @@ public class CompactService {
     /**
      * Обёртка вокруг ответа модели — та же роль, что у заголовка фоновой сводки: сказать модели,
      * что перед ней не реплика ассистента, а вся память разговора. Диапазона «продолжай с N» здесь
-     * нет намеренно — продолжать неоткуда, живого хвоста после сжатия не остаётся.
+     * нет намеренно: у {@code /compact} продолжать неоткуда, живого хвоста после сжатия не
+     * остаётся; у автоматического сжатия хвост есть — это как раз вопрос, ради которого чат сжался,
+     * — но продолжает его уже сам чат обычным прогоном, а не эта сводка.
+     *
+     * @param kind {@code COMPACT} — сжатие запрошено пользователем, заголовок так и говорит; {@code
+     *     AUTO_COMPACT} — запрошено чатом, и упоминать пользователя здесь нечестно
      */
-    private static String summaryText(String content) {
-        return "Compacted conversation summary (requested by the user):\n"
+    private static String summaryText(String content, CompactMeta.Kind kind) {
+        final String requestedBy =
+                kind == CompactMeta.Kind.AUTO_COMPACT
+                        ? "automatically, at the model's context limit"
+                        : "requested by the user";
+        return "Compacted conversation summary ("
+                + requestedBy
+                + "):\n"
                 + OPEN
                 + content
                 + CLOSE
