@@ -20,6 +20,8 @@ import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Когда написанная сводка попадает в историю — единственный писатель и читатель {@code
@@ -53,6 +55,7 @@ public class PendingSummaryService {
     private final ChatEventService events;
     private final SummarizeProperties properties;
     private final Clock clock;
+    private final TransactionTemplate transactionTemplate;
 
     public PendingSummaryService(
             ChatPendingSummaryRepository repository,
@@ -60,13 +63,15 @@ public class PendingSummaryService {
             SummaryWriter summaryWriter,
             ChatEventService events,
             SummarizeProperties properties,
-            Clock clock) {
+            Clock clock,
+            PlatformTransactionManager transactionManager) {
         this.repository = repository;
         this.chatMessages = chatMessages;
         this.summaryWriter = summaryWriter;
         this.events = events;
         this.properties = properties;
         this.clock = clock;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     /** Ждёт ли этот чат применения сводки. */
@@ -110,7 +115,7 @@ public class PendingSummaryService {
     /**
      * Применяет сводку, если разговор достаточно долго молчал. Зовётся перед новым вопросом, а
      * значит пауза здесь — это пауза ДО него: следующий ряд ещё не записан, и {@code lastCreatedAt}
-     * отвечает про последний обмен репликами.
+     * отвечает про последний обмен репликами. Не бросает — см. {@link #apply}.
      */
     public void applyIfPaused(String conversationId) {
         apply(
@@ -129,7 +134,7 @@ public class PendingSummaryService {
 
     /**
      * Применяет сводку, если контекст дорос до предела, с которого ждать паузы уже дороже, чем
-     * потерять кэш.
+     * потерять кэш. Не бросает — см. {@link #apply}.
      *
      * @param contextTokens замер последнего прогона; {@code 0} — прогон не измерен, и судить не по
      *     чему: такой чат дождётся паузы
@@ -173,49 +178,43 @@ public class PendingSummaryService {
      *     иначе по логам не отличить бесплатное применение от вынужденного
      */
     private void apply(String conversationId, DueCheck due) {
-        final Optional<ChatPendingSummaryEntity> parked =
-                repository.findByConversationId(conversationId);
-        if (parked.isEmpty()) {
-            return;
-        }
-        final @Nullable String reason = due.reason(parked.get());
-        if (reason == null) {
-            return;
-        }
-        final boolean ran =
-                summaryWriter.tryInConversation(
-                        conversationId, () -> write(conversationId, parked.get(), reason));
-        if (!ran) {
-            log.debug(
-                    "[{}] Skipping summary apply — a compaction round holds the chat",
-                    conversationId);
+        // Не бросаем ничего: применение — это оптимизация цены, и зовут её с чужих путей, где
+        // прогон уже начат или ещё только начинается. Упавшая оптимизация не повод отказать
+        // пользователю в вопросе (start) и тем более не повод не доставить очередь и не снять
+        // заявку на чат (onTerminal) — сводка просто останется припаркованной до следующего повода.
+        try {
+            final Optional<ChatPendingSummaryEntity> parked =
+                    repository.findByConversationId(conversationId);
+            if (parked.isEmpty()) {
+                return;
+            }
+            final @Nullable String reason = due.reason(parked.get());
+            if (reason == null) {
+                return;
+            }
+            final boolean ran =
+                    summaryWriter.tryInConversation(
+                            conversationId, () -> write(conversationId, parked.get(), reason));
+            if (!ran) {
+                log.debug(
+                        "[{}] Skipping summary apply — a compaction round holds the chat",
+                        conversationId);
+            }
+        } catch (Exception e) {
+            log.error(
+                    "[{}] Applying the parked summary failed: {}",
+                    conversationId,
+                    e.getMessage(),
+                    e);
         }
     }
 
     private void write(String conversationId, ChatPendingSummaryEntity parked, String reason) {
-        // Заявка через удаление: точек применения несколько, и без неё пауза и предел контекста,
-        // сойдясь на одном чате, записали бы одну сводку двумя рядами.
-        if (repository.claim(parked.getId()) == 0) {
+        final @Nullable ChatMessageEntity notice =
+                transactionTemplate.execute(s -> claimAndWrite(conversationId, parked));
+        if (notice == null) {
             return;
         }
-        final @Nullable ChatMessageMeta meta = parked.getMeta();
-        final ChatMessageEntity notice =
-                summaryWriter.writeCompacted(
-                        new SummaryWriter.SummaryRow(
-                                conversationId,
-                                parked.getStartPosition(),
-                                parked.getEndPosition(),
-                                parked.getSummaryPosition(),
-                                parked.getSummaryCreatedAt(),
-                                parked.getText(),
-                                new ProjectTrace(
-                                        meta == null ? List.of() : meta.visitedProjects(),
-                                        meta == null ? null : meta.project())),
-                        new SummaryWriter.CompactStats(
-                                CompactMeta.Kind.SUMMARIZE,
-                                parked.getMessages(),
-                                parked.getSummaryChars(),
-                                meta == null ? null : meta.usage()));
         log.info(
                 "[{}] Summary applied: positions {}-{} are no longer live — {}",
                 conversationId,
@@ -225,6 +224,43 @@ public class PendingSummaryService {
         // Плашка встаёт в СЕРЕДИНУ ленты — там, где кончается свёрнутое, — поэтому вкладке мало
         // «допиши в конец»: место она ищет сама, по времени плашки (см. chatEventReducer).
         events.publish(conversationId, COMPACT_APPLIED, null, null, CompactPayload.of(notice));
+    }
+
+    /**
+     * Заявка на строку и запись по ней — одной транзакцией. Заявка через удаление: точек применения
+     * несколько (пауза перед вопросом, предел контекста в конце прогона), и без неё две из них,
+     * сойдясь на одном чате, записали бы одну сводку двумя рядами.
+     *
+     * <p>Транзакция здесь ровно затем, чтобы удаление не пережило неудавшуюся запись: сводку писала
+     * модель, и второй раз её никто не напишет — {@link SummarizeService} следующий раунд по этому
+     * куску не начнёт, кусок-то уже не живой. Откат возвращает строку на место, и повод применить
+     * придёт снова. Запись при этом идёт своей транзакцией ({@code SummaryWriter#writeCompacted}) —
+     * она присоединяется к этой, поэтому разметка, сводка и плашка по-прежнему неделимы.
+     *
+     * @return {@code null} — строку забрал кто-то другой, и применять нечего
+     */
+    private @Nullable ChatMessageEntity claimAndWrite(
+            String conversationId, ChatPendingSummaryEntity parked) {
+        if (repository.claim(parked.getId()) == 0) {
+            return null;
+        }
+        final @Nullable ChatMessageMeta meta = parked.getMeta();
+        return summaryWriter.writeCompacted(
+                new SummaryWriter.SummaryRow(
+                        conversationId,
+                        parked.getStartPosition(),
+                        parked.getEndPosition(),
+                        parked.getSummaryPosition(),
+                        parked.getSummaryCreatedAt(),
+                        parked.getText(),
+                        new ProjectTrace(
+                                meta == null ? List.of() : meta.visitedProjects(),
+                                meta == null ? null : meta.project())),
+                new SummaryWriter.CompactStats(
+                        CompactMeta.Kind.SUMMARIZE,
+                        parked.getMessages(),
+                        parked.getSummaryChars(),
+                        meta == null ? null : meta.usage()));
     }
 
     /**

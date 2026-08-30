@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -56,6 +57,7 @@ class PendingSummaryServiceTest {
     private ChatPendingSummaryRepository parkedRepository;
     private ChatMessageRepository chatMessages;
     private ChatEventService events;
+    private PlatformTransactionManager transactions;
     private PendingSummaryService service;
 
     @BeforeEach
@@ -65,14 +67,16 @@ class PendingSummaryServiceTest {
         events = mock(ChatEventService.class);
         when(chatMessages.save(any(ChatMessageEntity.class))).thenAnswer(c -> c.getArgument(0));
         when(parkedRepository.claim(anyLong())).thenReturn(1);
+        transactions = transactionManager();
         service =
                 new PendingSummaryService(
                         parkedRepository,
                         chatMessages,
-                        new SummaryWriter(chatMessages, transactionManager()),
+                        new SummaryWriter(chatMessages, transactions),
                         events,
                         PRODUCTION,
-                        CLOCK);
+                        CLOCK,
+                        transactions);
     }
 
     /**
@@ -227,6 +231,28 @@ class PendingSummaryServiceTest {
         verify(parkedRepository).deleteByConversationId(CONV);
     }
 
+    /**
+     * Запись упала. Два требования сразу, и оба про то, что применение — оптимизация цены, а не
+     * часть чьей-то работы: заявка на строку откатывается вместе с записью (сводку писала модель, и
+     * второй раз её никто не напишет), а наружу ничего не летит — зовут применение с путей, где
+     * прогон начинается или заканчивается, и уронить их ему нечем.
+     */
+    @Test
+    void aFailedWriteKeepsTheSummaryParkedAndStaysQuiet() {
+        givenParked(ROUND_USAGE);
+        givenLastRowAt(NOW.minusMinutes(11));
+        when(chatMessages.save(any(ChatMessageEntity.class)))
+                .thenThrow(new IllegalStateException("the database went away"));
+
+        service.applyIfPaused(CONV);
+
+        verify(parkedRepository).claim(anyLong());
+        // atLeastOnce: у записи транзакция своя, и на моке менеджера она не сливается с внешней, а
+        // откатывается отдельно. Проверяется здесь внешняя — та, в которой лежит заявка на строку.
+        verify(transactions, atLeastOnce()).rollback(any());
+        verify(events, never()).publish(anyString(), any(), any(), any(), any());
+    }
+
     /** Пустой чат паузой не считается: мерить её не от чего, а сжимать в нём нечего. */
     @Test
     void anEmptyChatIsNoPause() {
@@ -281,7 +307,10 @@ class PendingSummaryServiceTest {
         return new SummaryWriter.CompactStats(CompactMeta.Kind.SUMMARIZE, 58, 4096, usage);
     }
 
-    /** Транзакции здесь ничего не защищают — тест смотрит только на вызовы репозиториев. */
+    /**
+     * Транзакция настоящей работы не делает — сохранение здесь мок, — но откат по ней виден, и на
+     * нём держится проверка «упавшая запись оставляет сводку припаркованной».
+     */
     private static PlatformTransactionManager transactionManager() {
         final PlatformTransactionManager manager = mock(PlatformTransactionManager.class);
         final TransactionStatus status = new SimpleTransactionStatus();

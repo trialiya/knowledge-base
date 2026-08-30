@@ -469,7 +469,10 @@ public class CompactService {
             throw spentRound(target, call, usage, "The model returned an empty compaction");
         }
 
-        final int messages = rows.size() + 1;
+        // Сколько рядов перестало ехать модели: всё сжатое окно и, у команды, она сама — её позиция
+        // лежит за окном (см. CompactTarget#boundaryPosition), и разметка накрывает и её. У
+        // автоматического сжатия граница кончается на последнем ряду окна, и лишнего ряда нет.
+        final int messages = rows.size() + (target.boundaryPosition() > oldEndPosition ? 1 : 0);
         final ChatMessageEntity notice =
                 summaryWriter.writeCompacted(
                         new SummaryWriter.SummaryRow(

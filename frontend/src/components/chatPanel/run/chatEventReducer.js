@@ -350,6 +350,11 @@ export function applyChatEvent(chat, ev, ctx) {
         const stamp = m.timestamp ? Date.parse(m.timestamp) : NaN;
         return !isNaN(stamp) && stamp > at;
       });
+      // Место плашки — за последним свёрнутым рядом, а свёрнутые ряды в ленте остаются: если
+      // ничего старше плашки не загружено, свёрнутое лежит в ещё не подгруженной странице, и
+      // плашка вместе с ним. Вставить её тут значит поставить вторую такую же: догрузка старых
+      // страниц дописывает их в начало как есть, не сверяясь с тем, что уже показано.
+      if (before === 0 || !msgs.length) return chat;
       const notice = {
         mid: nextMessageId(),
         sender: SENDER.AI,

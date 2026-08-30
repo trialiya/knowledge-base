@@ -699,6 +699,22 @@ describe('applyChatEvent', () => {
     expect(chat.runId).toBeNull();
   });
 
+  // Свёрнутые ряды из ленты не исчезают, поэтому плашка старше всего загруженного означает одно:
+  // её место в ещё не подгруженной странице. Вставленная в начало, она встретилась бы там со своей
+  // же копией, как только пользователь прокрутит ленту вверх.
+  test('COMPACT_APPLIED skips a notice older than the loaded page', () => {
+    const chat = applyChatEvent(
+      { id: 'c', messages: [dated(1, '2026-08-25T14:00:00')], runId: null },
+      {
+        type: 'COMPACT_APPLIED',
+        payload: { messageId: 77, messages: 40, kind: 'SUMMARIZE', createdAt: '2026-08-25T10:00:00' },
+      },
+      ctx,
+    );
+
+    expect(chat.messages.map((m) => m.dbId)).toEqual([1]);
+  });
+
   test('COMPACT_APPLIED carries the tokens of the round and ignores a repeat', () => {
     const usage = { contextTokens: 62000, outputTokens: 1200, modelCalls: 1 };
     const event = {

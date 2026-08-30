@@ -122,6 +122,33 @@ class CompactServiceTest {
     }
 
     /**
+     * У автоматического сжатия лишнего ряда нет: граница кончается на последнем ряду окна, вопрос
+     * прогона остаётся живым, и «сколько сообщений перестало ехать модели» — это ровно окно. Число
+     * с плашки читает пользователь, и завышенное на команду, которой не было, оно просто неверно.
+     */
+    @Test
+    void anAutomaticRoundCountsTheWindowAlone() {
+        final List<PromptRow> rows = turns(3);
+        final ChatMessageEntity lastRow = rows.getLast().entity();
+
+        final CompactPayload payload =
+                service()
+                        .compact(
+                                CONV,
+                                rows,
+                                new CompactService.CompactTarget(
+                                        CompactMeta.Kind.AUTO_COMPACT,
+                                        lastRow.getPosition(),
+                                        lastRow.getCreatedAt(),
+                                        (call, usage) -> null),
+                                null,
+                                OPTIONS);
+
+        assertThat(payload.messages()).isEqualTo(rows.size());
+        verify(repository).updateSummarized(CONV, 0L, lastRow.getPosition());
+    }
+
+    /**
      * Второй записанный ряд — видимая плашка «контекст сжат»: показывается ({@code summary =
      * false}), модели не едет ({@code summarized = true}) и знает, где лежит её сводка. Без неё
      * перезагруженная вкладка показала бы команду, за которой ничего не произошло.
