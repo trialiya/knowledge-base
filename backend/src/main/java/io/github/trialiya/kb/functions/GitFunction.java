@@ -127,7 +127,7 @@ public class GitFunction {
      */
     @Tool(
             description =
-                    "Recent commit history (newest first). Commit: hash, shortHash, author, email, date (ISO-8601), message (subject only unless includeMessageBody). Use getCommitDiff to see file changes.",
+                    "Recent commit history (newest first). Commit: hash, shortHash, author, email, date (ISO-8601), message (subject only; full text in \"body\" with includeMessageBody). Use getCommitDiff to see file changes.",
             resultConverter = CompactToolResultConverter.class)
     public ToolResult<List<GitCommit>> getCommitLog(
             ToolContext context,
@@ -181,7 +181,7 @@ public class GitFunction {
      */
     @Tool(
             description =
-                    "Changed files and diffs for one or more commits, plus each commit's full message (\"body\"). Files include status (A/M/D/R), path, additions, deletions, and optional unified diff.",
+                    "Changed files and diffs for one or more commits. A single hash also returns that commit's full message in \"body\". Files include status (A/M/D/R), path, additions, deletions, and optional unified diff.",
             resultConverter = CompactToolResultConverter.class)
     public ToolResult<List<GitCommit>> getCommitDiff(
             ToolContext context,

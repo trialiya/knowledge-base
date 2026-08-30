@@ -104,11 +104,15 @@
   color: #999;
 }
 
+/* `pre-wrap` — ради многострочных значений: тело коммита (`body` у `GitCommit`)
+   идёт абзацами и списком, и без переносов разворот склеивал бы его в один
+   абзац. Однострочным значениям правило ничего не меняет. */
 .tool-records__field-value {
   margin: 0;
   color: #333;
   min-width: 0;
   overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 /* ── Скаляр ──

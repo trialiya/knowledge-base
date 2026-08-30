@@ -160,7 +160,7 @@ class GitServiceTest {
 
     /**
      * Тело коммита стоит контекста, поэтому в истории оно за флагом, а рядом с диффом одного
-     * названного коммита — всегда. Subject в обоих случаях остаётся одной строкой.
+     * названного коммита — без флага. Subject в обоих случаях остаётся отдельно от тела.
      */
     @Test
     void theMessageBodyIsOptionalInTheLogAndUnconditionalNextToADiff() {
@@ -177,6 +177,48 @@ class GitServiceTest {
 
         assertThat(service.getCommitDiff(withBody.hash(), false).getFirst().body())
                 .isEqualTo(withBody.body());
+    }
+
+    /**
+     * Дифф по списку хешей тел не отдаёт: иначе цена контекста, ради которой в логе заведён флаг,
+     * вернулась бы через соседний инструмент — «покажи, что менялось в двадцати коммитах».
+     */
+    @Test
+    void aListOfCommitsGetsDiffsWithoutTheirBodies() {
+        writeFile("a.txt", "1\n");
+        commitAll("First\n\nBody one.");
+        writeFile("a.txt", "2\n");
+        commitAll("Second\n\nBody two.");
+
+        List<GitCommit> log = service.getCommitLog(2, null, false);
+        String pair = log.get(0).hash() + "," + log.get(1).hash();
+
+        assertThat(service.getCommitDiff(pair, false))
+                .hasSize(2)
+                .allSatisfy(c -> assertThat(c.body()).isNull())
+                .allSatisfy(c -> assertThat(c.files()).isNotEmpty());
+    }
+
+    /**
+     * Слева у тела снимаются только переносы: тело часто открывается блоком кода, и общий {@code
+     * strip()} снял бы отступ у одной первой строки, оставив остальные.
+     */
+    @Test
+    void anIndentedFirstBodyLineKeepsItsIndentation() {
+        writeFile("a.txt", "x\n");
+        commitAll("Fix the parser\n\n    if (x) {\n        return y;\n    }\n");
+
+        assertThat(service.getCommitLog(1, null, true).getFirst().body())
+                .isEqualTo("    if (x) {\n        return y;\n    }");
+    }
+
+    /** Тело из одних пробелов — это отсутствие тела, а не значение. */
+    @Test
+    void aWhitespaceOnlyBodyIsNoBody() {
+        writeFile("a.txt", "x\n");
+        commitAll("Subject\n\n   \n  \n");
+
+        assertThat(service.getCommitLog(1, null, true).getFirst().body()).isNull();
     }
 
     /** Однострочное сообщение — тела нет, а не пустая строка: пустое поле незачем сериализовать. */

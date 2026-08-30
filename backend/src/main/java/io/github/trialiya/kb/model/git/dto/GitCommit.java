@@ -25,7 +25,7 @@ import org.jspecify.annotations.Nullable;
  * @param author имя автора
  * @param email email автора
  * @param date дата коммита (ISO-8601 с offset)
- * @param message первая строка сообщения (subject)
+ * @param message subject — первый абзац сообщения, переносы строк склеены пробелами
  * @param body остальная часть сообщения — всё после первой пустой строки; {@code null}, если тела
  *     нет или его не запрашивали
  * @param files список затронутых файлов (только если запрошены изменения)

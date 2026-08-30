@@ -138,6 +138,7 @@
         "email": "email",
         "date": "date",
         "message": "message",
+        "body": "description",
         "updatedAt": "updated",
         "createdAt": "created",
         "ownerType": "owner",

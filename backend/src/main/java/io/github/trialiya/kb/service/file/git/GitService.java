@@ -436,7 +436,8 @@ public class GitService {
 
     /**
      * Returns changed files with optional unified diff for one or more commits, optionally
-     * restricted to a single file.
+     * restricted to a single file. A single named commit also carries its full message body; a list
+     * does not.
      *
      * @param commitHashes comma-separated commit hashes
      * @param includePatch whether to include unified diff text
@@ -449,17 +450,24 @@ public class GitService {
                 (filePath == null || filePath.isBlank())
                         ? null
                         : RepoPaths.toForwardSlashes(filePath.strip());
+        List<String> hashes =
+                Arrays.stream(commitHashes.split(","))
+                        .map(String::strip)
+                        .filter(h -> !h.isEmpty())
+                        .toList();
+        // Сообщение целиком — только когда коммит назвали один. Тогда спрашивают «почему это
+        // меняли», и тело рядом с диффом стоит дёшево; на списке из двадцати хешей оно вернуло бы
+        // ровно те десятки тысяч токенов, ради которых в getCommitLog заведён флаг.
+        boolean includeBody = hashes.size() == 1;
         List<GitCommit> result = new ArrayList<>();
-        for (String hash : commitHashes.split(",")) {
-            String h = hash.strip();
-            if (h.isEmpty()) continue;
-            result.add(diffForSingleCommit(h, includePatch, spec));
+        for (String hash : hashes) {
+            result.add(diffForSingleCommit(hash, includePatch, spec, includeBody));
         }
         return result;
     }
 
     private GitCommit diffForSingleCommit(
-            String hash, boolean includePatch, @Nullable String filePath) {
+            String hash, boolean includePatch, @Nullable String filePath, boolean includeBody) {
         try (RevWalk revWalk = new RevWalk(repository);
                 ObjectReader reader = repository.newObjectReader()) {
             RevCommit commit = revWalk.parseCommit(resolveCommitId(hash));
@@ -486,9 +494,7 @@ public class GitService {
                     entries.add(toGitDiffEntry(entry, formatter, includePatch, patchOut));
                 }
             }
-            // Тело здесь без флага: спрашивали про один названный коммит, и рядом с его диффом
-            // сообщение — самая дешёвая половина ответа на «почему это меняли».
-            return toGitCommit(commit, entries, reader, true);
+            return toGitCommit(commit, entries, reader, includeBody);
         } catch (MissingObjectException | IncorrectObjectTypeException e) {
             throw new IllegalArgumentException("Commit not found: " + hash, e);
         } catch (AmbiguousObjectException e) {
@@ -1454,8 +1460,11 @@ public class GitService {
         String full = commit.getFullMessage().replace("\r\n", "\n");
         int blankLine = full.indexOf("\n\n");
         if (blankLine < 0) return null;
-        String body = full.substring(blankLine + 2).strip();
-        return body.isEmpty() ? null : body;
+        // Слева режем только переносы, а не пробелы: тело часто открывается блоком кода, и
+        // strip() снял бы отступ у одной первой строки, оставив остальные — вышел бы сломанный
+        // отступ вместо цитаты.
+        String body = full.substring(blankLine + 2).stripTrailing().replaceFirst("^\n+", "");
+        return body.isBlank() ? null : body;
     }
 
     /**
