@@ -44,10 +44,29 @@ class SkillServiceTest {
         assertThat(catalogue).contains("`script-writing`").doesNotContain("`script-editing`");
     }
 
-    /** Слабая модель несёт оба туториала прямо в системном промпте — каталог ей не показывается. */
+    /**
+     * Слабая модель несёт те же тексты прямо в системном промпте, поэтому грузить ей нечего — но
+     * инструмент у неё в наборе есть (набор один на приложение), и его описание ссылается на этот
+     * раздел. Пустой раздел стоил бы вызова наугад, поэтому вместо каталога — прямой запрет.
+     */
     @Test
-    void theCatalogueIsEmptyForAWeakModel() {
-        assertThat(service(true).catalogue(true, null)).isEmpty();
+    void aWeakModelIsToldThereIsNothingToLoad() {
+        String catalogue = service(true).catalogue(true, null);
+        assertThat(catalogue)
+                .contains("## Skills")
+                .contains("do not call `readSkill`")
+                .doesNotContain("`script-writing`");
+    }
+
+    /** Навыков нет вовсе — раздела нет ни у какой модели: ссылаться не на что. */
+    @Test
+    void theSectionIsAbsentForEveryModelWhenNoSkillExists() {
+        ScriptGuideService guides = mock(ScriptGuideService.class);
+        when(guides.tutorial()).thenReturn("");
+        when(guides.editTutorial()).thenReturn("");
+        SkillService service = new SkillService(guides, mock(ScriptEditPolicy.class));
+        assertThat(service.catalogue(true, null)).isEmpty();
+        assertThat(service.catalogue(false, null)).isEmpty();
     }
 
     /** Скрипты выключены — туториалы пусты, навыков нет, и каталог, и инструмент исчезают. */
