@@ -109,7 +109,7 @@ class SearchAgentServiceIT {
                 .thenReturn(text("Итог: найдено в AuthService.java:2"));
 
         SearchAgentResult result =
-                newService(6).run("Где определён " + MAGIC + "?", "code", null, null, null);
+                newService(6).run("Где определён " + MAGIC + "?", null, "code", null, null, null);
 
         assertThat(result.report()).isEqualTo("Итог: найдено в AuthService.java:2");
         assertThat(result.complete()).isTrue();
@@ -133,7 +133,8 @@ class SearchAgentServiceIT {
                 .thenReturn(toolCall("grepContent", "{\"pattern\":\"class\"}"))
                 .thenReturn(text("Итог: сводка по бюджету."));
 
-        SearchAgentResult result = newService(2).run("исследуй " + MAGIC, null, null, null, null);
+        SearchAgentResult result =
+                newService(2).run("исследуй " + MAGIC, null, null, null, null, null);
 
         assertThat(result.report()).isEqualTo("Итог: сводка по бюджету.");
         assertThat(result.complete()).isFalse();
@@ -154,6 +155,44 @@ class SearchAgentServiceIT {
         assertThat(lastUserText(finalCall)).contains("Лимит шагов поиска исчерпан");
     }
 
+    /**
+     * Брифинг вызывающей стороны доезжает до сабагента — и остаётся с ним до конца прогона: при
+     * финальной суммаризации задача повторяется целиком, вместе с ним. Иначе требования к отчёту
+     * («не пересказывай то-то», «покажи такие-то места») действовали бы только до первой итерации —
+     * ровно до того момента, когда отчёт наконец пишут.
+     */
+    @Test
+    void callersBriefingTravelsWithTheTask() {
+        when(chatModel.call(any(Prompt.class)))
+                .thenReturn(toolCall("grepContent", "{\"pattern\":\"" + MAGIC + "\"}"))
+                .thenReturn(toolCall("grepContent", "{\"pattern\":\"check\"}"))
+                .thenReturn(toolCall("grepContent", "{\"pattern\":\"class\"}"))
+                .thenReturn(text("Итог: сводка."));
+
+        newService(2)
+                .run(
+                        "Где определён " + MAGIC + "?",
+                        "AuthService уже проверен, туда не ходи",
+                        "code",
+                        null,
+                        null,
+                        null);
+
+        ArgumentCaptor<Prompt> prompts = ArgumentCaptor.forClass(Prompt.class);
+        verify(chatModel, times(4)).call(prompts.capture());
+        assertThat(lastUserText(prompts.getAllValues().getFirst()))
+                .contains("KNOWN TO THE CALLER")
+                .contains("AuthService уже проверен");
+        // Именно в напоминании исходной задачи — предпоследнем сообщении финального запроса, за
+        // которым идёт только инструкция «сформулируй отчёт». Искать брифинг по всему запросу
+        // бессмысленно: там же лежит и первое сообщение прогона, так что проверка проходила бы
+        // и без напоминания вовсе.
+        List<Message> finalMessages = prompts.getAllValues().get(3).getInstructions();
+        assertThat(finalMessages.get(finalMessages.size() - 2).getText())
+                .contains("Напоминание исходной задачи")
+                .contains("AuthService уже проверен");
+    }
+
     @Test
     void run_neverThrowsWhenModelEmitsUnknownTool() {
         // A malformed/unknown tool call must not propagate as an exception into the parent loop.
@@ -162,7 +201,7 @@ class SearchAgentServiceIT {
                 .thenReturn(text("Итог: восстановился после ошибки."));
 
         SearchAgentResult result =
-                newService(3).run("проверка устойчивости", null, null, null, null);
+                newService(3).run("проверка устойчивости", null, null, null, null, null);
 
         assertThat(result.report()).isNotBlank();
     }

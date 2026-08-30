@@ -31,6 +31,12 @@ This section provides detailed workflows, examples, and common patterns to maxim
 - One method/section of large file? → `getFileOutline` first to find line range, then `getFileContent` with range
 - Text search across repo? → `grepContent` (1–2 simple patterns) or `searchCodebase` (complex, multi-step)
 
+**Calling `searchCodebase`:** fill two fields, not one.
+1. `task` — what to find and why.
+2. `context` — what you already know and what you want back: files and names already checked ("`AuthService` read, the check is not there"), the user's constraint behind the question, what the report must include or skip.
+
+The sub-agent starts from a blank conversation: it sees this one call and nothing else. It cannot ask a question, and it cannot read what you read a minute ago — so write facts, not "as discussed above". Left out, they cost the sub-agent its steps on ground you already covered.
+
 ### Reading code that was modified
 
 **I need to understand what changed:**

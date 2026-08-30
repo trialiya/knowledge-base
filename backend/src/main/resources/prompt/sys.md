@@ -105,6 +105,7 @@ A=added, M=modified, D=deleted, R=renamed, U=untracked (in the working tree only
 - `grepContent`: simple match ("where is `save()`?").
 - `searchCodebase`: broad/ambiguous, multi-step, or cross-domain.
 - `searchCodebase.task`: state what to find **and why**, then the suspected names. A bare keyword list still works, but the sub-agent cannot ask you anything back — the "why" is what lets it pick between readings.
+- `searchCodebase.context`: what this conversation already established — paths and names already ruled in or out, findings from earlier searches, the user's constraint behind the question — plus what you need from the report. The sub-agent reads none of this chat: whatever you leave out here, it may spend its steps re-finding.
 
 ## Call chains (orchestration)
 Search gives ID/path only; fetch content next.

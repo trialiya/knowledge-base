@@ -22,6 +22,10 @@ import org.springframework.ai.tool.annotation.ToolParam;
  * <p>This tool is intentionally NOT part of the sub-agent's own tool set (see {@code
  * kb.search.subagent.allowed-tools}) — that is the recursion guard.
  *
+ * <p>The sub-agent never sees the conversation that called it, so everything it needs to know about
+ * it travels in the arguments. {@code context} is that channel and the only one: what the chat has
+ * already established, and what it wants from the report beyond the task itself.
+ *
  * <p>Like the git read tools, it takes an optional {@code project}: the whole sub-run then reads
  * that repository, and the report echoes which one it was. The sub-agent's own prompt says nothing
  * about projects, so it never wanders off on its own — the repository is decided here, once.
@@ -44,12 +48,20 @@ public class SearchAgentFunction {
                     """,
             resultConverter = CompactToolResultConverter.class)
     public SearchAgentResult searchCodebase(
-            ToolContext context,
+            ToolContext toolContext,
             @ToolParam(
                             description =
                                     "Detailed search task in natural language: what to find and why. "
                                             + "Be specific with keywords, class/method names, or scope for best results.")
                     String task,
+            @ToolParam(
+                            description =
+                                    "Optional: what the conversation already established (findings,"
+                                            + " paths and names ruled out) and any extra requirement"
+                                            + " on the report. The sub-agent sees nothing but this"
+                                            + " call — state facts, not \"the above\".",
+                            required = false)
+                    @Nullable String context,
             @ToolParam(
                             description =
                                     "Search scope: \"code\" | \"docs\" | \"all\" (default all).",
@@ -70,13 +82,14 @@ public class SearchAgentFunction {
                     @Nullable String project) {
         requireText(task, "task");
         final String effectiveScope = orDefault(scope, "all");
-        final String conversationId = conversationId(context);
+        final String conversationId = conversationId(toolContext);
         log.info(
-                "[{}] searchCodebase called: scope={} pathGlob={} project={}",
+                "[{}] searchCodebase called: scope={} pathGlob={} project={} contextChars={}",
                 conversationId,
                 effectiveScope,
                 pathGlob,
-                project);
-        return searchAgent.run(task, effectiveScope, pathGlob, context, project);
+                project,
+                context == null ? 0 : context.length());
+        return searchAgent.run(task, context, effectiveScope, pathGlob, toolContext, project);
     }
 }
