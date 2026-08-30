@@ -14,6 +14,7 @@ import io.github.trialiya.kb.functions.GitFunction;
 import io.github.trialiya.kb.functions.MessageLookupFunction;
 import io.github.trialiya.kb.functions.ScriptFunction;
 import io.github.trialiya.kb.functions.SearchAgentFunction;
+import io.github.trialiya.kb.functions.SkillFunction;
 import io.github.trialiya.kb.functions.TopicFunction;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
@@ -26,6 +27,7 @@ import io.github.trialiya.kb.service.chat.runtime.RunRegistry;
 import io.github.trialiya.kb.service.chat.script.ScriptCancelledException;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
 import io.github.trialiya.kb.service.chat.script.ScriptRunner;
+import io.github.trialiya.kb.service.chat.skill.SkillService;
 import io.github.trialiya.kb.service.document.DocumentService;
 import io.github.trialiya.kb.service.file.git.GitRegistry;
 import io.github.trialiya.kb.tools.ChatToolset;
@@ -130,6 +132,23 @@ public class ChatConfig {
     public ScriptFunction scriptFunction(ScriptRunner scriptRunner, GitRegistry gitRegistry) {
         log.info("Script tool enabled (runScript)");
         return ScriptFunction.forChat(scriptRunner, gitRegistry);
+    }
+
+    /**
+     * The {@code readSkill} tool — on-demand instruction files ({@code SkillService}). Absent when
+     * there are no skills to read: today every skill is a half of the {@code runScript} handbook,
+     * so {@code kb.script.enabled=false} means no tool and an empty {@code {skill_catalogue}} — the
+     * model is never offered a reader with an empty shelf.
+     */
+    @Bean
+    @Nullable
+    public SkillFunction skillFunction(SkillService skillService) {
+        if (!skillService.anySkills()) {
+            log.info("Skill tool is NOT exposed to the model: no skills available");
+            return null;
+        }
+        log.info("Skill tool enabled (readSkill)");
+        return new SkillFunction(skillService);
     }
 
     /**
@@ -256,6 +275,7 @@ public class ChatConfig {
             ContextItemService contextItemService,
             ObjectProvider<SearchAgentService> searchAgentService,
             ObjectProvider<ScriptFunction> scriptFunction,
+            ObjectProvider<SkillFunction> skillFunction,
             McpProperties mcpProperties,
             ObjectProvider<ToolCallbackProvider> mcpToolCallbackProvider) {
         List<Object> functions =
@@ -274,6 +294,8 @@ public class ChatConfig {
         gitEditFunction.ifAvailable(functions::add);
         // Present only when kb.script.enabled=true (see scriptFunction bean).
         scriptFunction.ifAvailable(functions::add);
+        // Present only when there are skills to read (see skillFunction bean).
+        skillFunction.ifAvailable(functions::add);
 
         // MCP-derived tools (see spring.ai.mcp.client.* connections) are merged in only when
         // kb.mcp.enabled=true — external MCP servers run arbitrary local commands or call

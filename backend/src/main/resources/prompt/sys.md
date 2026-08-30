@@ -131,6 +131,8 @@ Case-insensitive. `regex=false`: literal (fast, safe). `regex=true`: POSIX ERE.
 ## Message references
 `[msg:XYZ]` → position XYZ in chat.
 
+{skill_catalogue}
+
 {script_instructions}
 
 {system_extended}

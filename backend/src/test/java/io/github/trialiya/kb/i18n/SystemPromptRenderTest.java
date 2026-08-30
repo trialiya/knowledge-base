@@ -11,6 +11,7 @@ import io.github.trialiya.kb.config.model.SystemPromptProperties;
 import io.github.trialiya.kb.service.chat.prompt.SystemPromptService;
 import io.github.trialiya.kb.service.chat.script.ScriptEditPolicy;
 import io.github.trialiya.kb.service.chat.script.ScriptGuideService;
+import io.github.trialiya.kb.service.chat.skill.SkillService;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -53,6 +54,8 @@ class SystemPromptRenderTest {
                         Map.of(
                                 "mode_instructions",
                                 "",
+                                "skill_catalogue",
+                                "",
                                 "script_instructions",
                                 handbook,
                                 "system_extended",
@@ -71,6 +74,8 @@ class SystemPromptRenderTest {
                                         systemPrompt(),
                                         Map.of(
                                                 "mode_instructions",
+                                                "",
+                                                "skill_catalogue",
                                                 "",
                                                 "script_instructions",
                                                 "",
@@ -111,14 +116,20 @@ class SystemPromptRenderTest {
     private static Map<String, Object> placeholders() {
         ScriptGuideService guide = mock(ScriptGuideService.class);
         when(guide.instructions(false, null)).thenReturn("");
-        return new SystemPromptService(new SystemPromptProperties(null, null), guide)
+        SkillService skills = mock(SkillService.class);
+        when(skills.catalogue(false, null)).thenReturn("");
+        return new SystemPromptService(new SystemPromptProperties(null, null), guide, skills)
                 .placeholders(false, null, "");
     }
 
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{(\\w+)}");
 
     private static final Set<String> FILLED_BY_THE_APPLICATION =
-            Set.of("mode_instructions", "script_instructions", "system_extended");
+            Set.of(
+                    "mode_instructions",
+                    "skill_catalogue",
+                    "script_instructions",
+                    "system_extended");
 
     private static Set<String> placeholdersOf(String template) {
         return PLACEHOLDER.matcher(template).results().map(m -> m.group(1)).collect(toSet());

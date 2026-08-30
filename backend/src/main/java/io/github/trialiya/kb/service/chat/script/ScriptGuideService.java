@@ -29,7 +29,9 @@ import org.springframework.util.unit.DataSize;
  * examples — is the part a strong model already knows; a run whose model is flagged {@code weak:
  * false} ({@code ChatModelProperties.ModelOption}) gets the reference half only, which keeps its
  * prompt short. The same split applies to the write appendix, so a strong model losing the tutorial
- * cannot lose the edit rules along with it.
+ * cannot lose the edit rules along with it. Совсем без туториала сильная модель всё же не остаётся:
+ * обе его половины доступны ей по требованию как навыки {@code readSkill} — {@link #tutorial()} и
+ * {@link #editTutorial()} отдаёт {@code SkillService}.
  *
  * <p>The four combinations (tutorial on/off × writes on/off) are rendered once at startup rather
  * than per request: nothing in a rendering depends on the request, only on which of the two
@@ -47,6 +49,8 @@ public class ScriptGuideService {
     private final String instructionsForStrongModel;
     private final String readOnlyInstructionsForWeakModel;
     private final String readOnlyInstructionsForStrongModel;
+    private final String tutorial;
+    private final String editTutorial;
 
     public ScriptGuideService(ScriptProperties properties, ScriptEditPolicy editPolicy) {
         this.editPolicy = editPolicy;
@@ -57,6 +61,14 @@ public class ScriptGuideService {
                 properties.enabled() ? render(properties, true, false) : "";
         this.readOnlyInstructionsForStrongModel =
                 properties.enabled() ? render(properties, false, false) : "";
+        this.tutorial =
+                properties.enabled()
+                        ? substitute(read(properties.extendedGuide()), properties)
+                        : "";
+        this.editTutorial =
+                properties.enabled()
+                        ? substitute(read(properties.extendedEditGuide()), properties)
+                        : "";
     }
 
     /**
@@ -96,21 +108,22 @@ public class ScriptGuideService {
         return weak ? readOnlyInstructionsForWeakModel : readOnlyInstructionsForStrongModel;
     }
 
+    /**
+     * The tutorial half of the handbook as a standalone text, {@code ""} when the tool is off — the
+     * content behind the {@code script-writing} skill ({@code SkillService}), rendered with the
+     * same limit substitutions as the handbook itself so the two can never quote different budgets.
+     */
+    public String tutorial() {
+        return tutorial;
+    }
+
+    /** The write-appendix tutorial as a standalone text — the {@code script-editing} skill. */
+    public String editTutorial() {
+        return editTutorial;
+    }
+
     private static String render(
             ScriptProperties properties, boolean extended, boolean editEnabled) {
-        ScriptProperties.Limits limits = properties.limits();
-        Map<String, String> values =
-                Map.ofEntries(
-                        Map.entry("max_files_read", String.valueOf(limits.maxFilesRead())),
-                        Map.entry("max_bytes_read", humanBytes(limits.maxBytesRead())),
-                        Map.entry("max_calls", String.valueOf(limits.maxCalls())),
-                        Map.entry("max_log_chars", String.valueOf(limits.maxLogChars())),
-                        Map.entry("max_result_chars", String.valueOf(limits.maxResultChars())),
-                        Map.entry("max_edited_files", String.valueOf(limits.maxEditedFiles())),
-                        Map.entry("max_edited_bytes", humanBytes(limits.maxEditedBytes())),
-                        Map.entry("timeout", properties.timeout().toSeconds() + " с"),
-                        Map.entry("max_timeout", properties.maxTimeout().toSeconds() + " с"));
-
         // Two independent gates. The write appendices are added only when kb.edit/kb.create are
         // actually bound, so the handbook can never describe a method the sandbox does not have;
         // the extended halves are added only for a run whose model is flagged weak.
@@ -124,7 +137,22 @@ public class ScriptGuideService {
                 append(handbook, properties.extendedEditGuide());
             }
         }
-        String text = handbook.toString();
+        return substitute(handbook.toString(), properties);
+    }
+
+    private static String substitute(String text, ScriptProperties properties) {
+        ScriptProperties.Limits limits = properties.limits();
+        Map<String, String> values =
+                Map.ofEntries(
+                        Map.entry("max_files_read", String.valueOf(limits.maxFilesRead())),
+                        Map.entry("max_bytes_read", humanBytes(limits.maxBytesRead())),
+                        Map.entry("max_calls", String.valueOf(limits.maxCalls())),
+                        Map.entry("max_log_chars", String.valueOf(limits.maxLogChars())),
+                        Map.entry("max_result_chars", String.valueOf(limits.maxResultChars())),
+                        Map.entry("max_edited_files", String.valueOf(limits.maxEditedFiles())),
+                        Map.entry("max_edited_bytes", humanBytes(limits.maxEditedBytes())),
+                        Map.entry("timeout", properties.timeout().toSeconds() + " с"),
+                        Map.entry("max_timeout", properties.maxTimeout().toSeconds() + " с"));
         for (Map.Entry<String, String> entry : values.entrySet()) {
             text = text.replace("{{" + entry.getKey() + "}}", entry.getValue());
         }
