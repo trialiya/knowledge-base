@@ -183,9 +183,14 @@ class SearchAgentServiceIT {
         assertThat(lastUserText(prompts.getAllValues().getFirst()))
                 .contains("ИЗВЕСТНО ВЫЗЫВАЮЩЕЙ СТОРОНЕ")
                 .contains("AuthService уже проверен");
-        // Напоминание исходной задачи перед финальным ответом — предпоследнее сообщение запроса.
-        assertThat(prompts.getAllValues().get(3).getInstructions().stream().map(Message::getText))
-                .anySatisfy(text -> assertThat(text).contains("AuthService уже проверен"));
+        // Именно в напоминании исходной задачи — предпоследнем сообщении финального запроса, за
+        // которым идёт только инструкция «сформулируй отчёт». Искать брифинг по всему запросу
+        // бессмысленно: там же лежит и первое сообщение прогона, так что проверка проходила бы
+        // и без напоминания вовсе.
+        List<Message> finalMessages = prompts.getAllValues().get(3).getInstructions();
+        assertThat(finalMessages.get(finalMessages.size() - 2).getText())
+                .contains("Напоминание исходной задачи")
+                .contains("AuthService уже проверен");
     }
 
     @Test
