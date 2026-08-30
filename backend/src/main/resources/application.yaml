@@ -154,7 +154,7 @@ kb:
       token-threshold: ${KB_CHAT_SUMMARIZE_TOKEN_THRESHOLD:30000}
       # Compressible messages that trigger a round — the cheap half of the pair above, for long
       # dialogues that are not yet heavy in tokens.
-      message-count-threshold: ${KB_CHAT_SUMMARIZE_MESSAGE_COUNT_THRESHOLD:50}
+      message-count-threshold: ${KB_CHAT_SUMMARIZE_MESSAGE_COUNT_THRESHOLD:30}
       # Recent messages kept outside the summarized window as live context.
       overlap-messages: ${KB_CHAT_SUMMARIZE_OVERLAP_MESSAGES:30}
       # Recent USER messages kept outside the summarized window. Works together with
@@ -162,9 +162,11 @@ kb:
       # question followed by a long tool marathon cannot push the user's own recent questions
       # into the summary just because the raw message count already fits. Note that every tail
       # rule only moves the boundary earlier, so none of them caps the size of the live window.
-      overlap-user-messages: ${KB_CHAT_SUMMARIZE_OVERLAP_USER_MESSAGES:5}
-      # Number of stored summaries that triggers collapsing them into one meta-summary.
-      summary-collapse-threshold: ${KB_CHAT_SUMMARIZE_SUMMARY_COLLAPSE_THRESHOLD:5}
+      overlap-user-messages: ${KB_CHAT_SUMMARIZE_OVERLAP_USER_MESSAGES:3}
+      # Number of stored summaries that triggers collapsing them into one meta-summary. Kept low
+      # on purpose: summaries now carry more detail (see prompt/summarizer.md's Budget section),
+      # so the cap on how many uncollapsed ones ride along at once matters more than it used to.
+      summary-collapse-threshold: ${KB_CHAT_SUMMARIZE_SUMMARY_COLLAPSE_THRESHOLD:3}
       # Сколько чат должен молчать, чтобы написанная сводка свернулась в историю. Пауза и делает
       # свёртку бесплатной: провайдер кэширует промпт с первого байта, поэтому правка начала
       # истории на горячем кэше стоит полностью неоплаченного запроса, а на остывшем — ничего.
