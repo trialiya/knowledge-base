@@ -14,7 +14,9 @@ import static org.mockito.Mockito.when;
 import io.github.trialiya.kb.config.model.SummarizeProperties;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageMeta;
+import io.github.trialiya.kb.model.chat.entity.ChatPendingSummaryEntity;
 import io.github.trialiya.kb.model.chat.entity.CompactMeta;
+import io.github.trialiya.kb.model.chat.entity.ProjectSpan;
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
 import io.github.trialiya.kb.repository.ChatMessageRepository;
 import io.github.trialiya.kb.repository.ChatTopicRepository;
@@ -24,6 +26,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -175,18 +178,91 @@ class SummarizeServiceTest {
     }
 
     /**
-     * Прошлая сводка ещё ждёт применения — значит, сжатое ею начало истории пока живое, и раунд по
-     * нему сжал бы ровно то же самое второй раз, заплатив за это дважды.
+     * Прошлая сводка ещё ждёт применения — значит, сжатый ею кусок в промпте пока живой, и сжать
+     * его второй раз значит заплатить дважды за одно и то же. Раунд поэтому идёт не по нему:
+     * припаркованное он получает контекстом, а сжимает накопившееся ЗА ним.
      */
     @Test
-    void aRoundWaitsWhileTheEarlierSummaryIsStillParked() {
+    void aRoundCompressesWhatCameAfterTheParkedSummary() {
         givenLive(turns(44));
-        when(pendingSummaries.isParked(CONV)).thenReturn(true);
+        givenParked(parkedSummary(0L, 5L));
 
         service().doSummarize(CONV);
 
-        verify(chatModel, never()).call(any(Prompt.class));
-        verify(pendingSummaries, never()).park(anyString(), any(), any());
+        // Первый живой ряд за припаркованным куском — с него и начинается новый.
+        assertThat(parked().startPosition()).isEqualTo(6L);
+        final String prompt = promptText();
+        assertThat(prompt).contains("do not re-summarize").contains("parked summary 0-5");
+        // Ряды сжатого куска в раунд не попадают ни одной строкой — иначе это оплаченный дубль.
+        assertThat(prompt).doesNotContain("[msg:0]").doesNotContain("[msg:5]");
+        assertThat(prompt).contains("[msg:6]");
+    }
+
+    /**
+     * Применённые сводки лежат по позициям ДО припаркованного куска, но выбрасывать их вместе с ним
+     * нельзя: это уже сжатое прошлое, и без него раунд напишет сводку без начала разговора.
+     */
+    @Test
+    void anAppliedSummaryStaysInContextNextToTheParkedOne() {
+        final List<PromptRow> live = new ArrayList<>(turns(44));
+        live.set(0, summaryRow(0L, "applied summary of the beginning"));
+        givenLive(live);
+        givenParked(parkedSummary(1L, 5L));
+
+        service().doSummarize(CONV);
+
+        assertThat(promptText())
+                .contains("applied summary of the beginning")
+                .contains("parked summary 1-5");
+    }
+
+    /**
+     * След проектов наследуется по цепочке сводок, и припаркованная — такое же звено: потеряй раунд
+     * её спаны, и «в каком репозитории читан файл из сообщения 3» перестало бы иметь ответ.
+     */
+    @Test
+    void theParkedSummaryPassesItsProjectSpansOn() {
+        givenLive(turns(44));
+        givenParked(
+                parkedSummary(
+                        0L,
+                        5L,
+                        ChatMessageMeta.ofProject(
+                                "billing", List.of(new ProjectSpan("billing", 0, 5)))));
+
+        service().doSummarize(CONV);
+
+        // Ряды после припаркованной сводки своего проекта не называют, поэтому её спан не
+        // копируется, а продолжается до конца нового куска: важно, что он начат с нуля и «billing».
+        assertThat(parked().trace().spans())
+                .first()
+                .satisfies(
+                        span -> {
+                            assertThat(span.project()).isEqualTo("billing");
+                            assertThat(span.from()).isZero();
+                        });
+    }
+
+    /**
+     * Схлопывание в метасводку ждёт применения очереди: метасводка заменяет собой перечисленные ею
+     * сводки, а у припаркованной замена означала бы потерянный ряд — с ним её плашку и деньги её
+     * раунда, которых больше нигде нет. Порог считает применённые сводки, и припаркованные его не
+     * приближают: в промпте их ещё нет.
+     */
+    @Test
+    void aParkedQueueIsNeverCollapsedIntoAMetaSummary() {
+        givenLive(turns(44));
+        givenParked(
+                parkedSummary(0L, 1L),
+                parkedSummary(2L, 3L),
+                parkedSummary(4L, 5L),
+                parkedSummary(6L, 7L));
+
+        service().doSummarize(CONV);
+
+        final String prompt = promptText();
+        assertThat(prompt).contains("do not re-summarize");
+        assertThat(prompt).doesNotContain("SINGLE merged summary");
     }
 
     /**
@@ -235,6 +311,56 @@ class SummarizeServiceTest {
 
     private void givenLive(List<PromptRow> rows) {
         when(chatHistory.promptRows(CONV)).thenReturn(rows);
+    }
+
+    private void givenParked(ChatPendingSummaryEntity... parked) {
+        when(pendingSummaries.parked(CONV)).thenReturn(List.of(parked));
+    }
+
+    /** Припаркованная сводка сжатого куска — ровно то, что вернёт {@code PendingSummaryService}. */
+    private static ChatPendingSummaryEntity parkedSummary(long start, long end) {
+        return parkedSummary(start, end, null);
+    }
+
+    private static ChatPendingSummaryEntity parkedSummary(
+            long start, long end, ChatMessageMeta meta) {
+        return new ChatPendingSummaryEntity(
+                start + 1,
+                CONV,
+                start,
+                end,
+                end,
+                LocalDateTime.now(),
+                "parked summary " + start + "-" + end,
+                2,
+                64,
+                meta,
+                LocalDateTime.now());
+    }
+
+    /** Уже применённая сводка — обычный ряд истории с флагом {@code summary}. */
+    private static PromptRow summaryRow(long position, String text) {
+        final ChatMessageEntity entity =
+                new ChatMessageEntity(
+                        position + 1,
+                        CONV,
+                        text,
+                        MessageType.ASSISTANT,
+                        position,
+                        false,
+                        true,
+                        LocalDateTime.now(),
+                        null);
+        return new PromptRow(entity, text);
+    }
+
+    /** Текст запроса к суммаризатору — то, по чему видно, что именно раунд сжимает. */
+    private String promptText() {
+        final ArgumentCaptor<Prompt> prompt = ArgumentCaptor.forClass(Prompt.class);
+        verify(chatModel).call(prompt.capture());
+        return prompt.getValue().getInstructions().stream()
+                .map(message -> String.valueOf(message.getText()))
+                .collect(Collectors.joining("\n"));
     }
 
     /** Ходы по три позиции: вопрос, ответ модели и пустая протокольная TOOL-строка за ним. */

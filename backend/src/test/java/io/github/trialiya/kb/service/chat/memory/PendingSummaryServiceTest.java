@@ -128,6 +128,30 @@ class PendingSummaryServiceTest {
         assertThat(requireNonNull(notice.getMeta()).usage()).isEqualTo(ROUND_USAGE);
     }
 
+    /**
+     * Очередь применяется целиком, по порядку и внутри одной транзакции. Порознь нельзя: её сводки
+     * — куски одной непрерывной головы разговора, и остановка на середине оставила бы в промпте
+     * живой кусок между двумя сжатыми.
+     */
+    @Test
+    void theWholeQueueIsAppliedAtOnceAndInOrder() {
+        when(parkedRepository.findByConversationIdOrderByStartPositionAsc(CONV))
+                .thenReturn(List.of(queued(1L, 0L, 40L), queued(2L, 41L, 86L)));
+        givenLastRowAt(NOW.minusMinutes(11));
+
+        service.applyIfPaused(CONV);
+
+        final InOrder order = inOrder(transactions, parkedRepository, chatMessages);
+        // Транзакция открыта до первой заявки — как и у одиночного применения.
+        order.verify(transactions).getTransaction(any());
+        order.verify(parkedRepository).claim(1L);
+        order.verify(chatMessages).updateSummarized(CONV, 0L, 40L);
+        order.verify(parkedRepository).claim(2L);
+        order.verify(chatMessages).updateSummarized(CONV, 41L, 86L);
+        // Плашка у каждой своя: у них разные куски и разные деньги.
+        verify(events, times(2)).publish(anyString(), any(), any(), any(), any());
+    }
+
     /** Разговор идёт — кэш горячий, и свёртка стоила бы целого неоплаченного запроса. */
     @Test
     void aLiveChatKeepsItsSummaryParked() {
@@ -276,7 +300,8 @@ class PendingSummaryServiceTest {
         final ArgumentCaptor<ChatPendingSummaryEntity> saved =
                 ArgumentCaptor.forClass(ChatPendingSummaryEntity.class);
         verify(parkedRepository).save(saved.capture());
-        when(parkedRepository.findByConversationId(CONV)).thenReturn(Optional.of(saved.getValue()));
+        when(parkedRepository.findByConversationIdOrderByStartPositionAsc(CONV))
+                .thenReturn(List.of(saved.getValue()));
     }
 
     private void givenLastRowAt(LocalDateTime at) {
@@ -295,6 +320,22 @@ class PendingSummaryServiceTest {
         verify(chatMessages, never()).updateSummarized(anyString(), anyLong(), anyLong());
         verify(chatMessages, never()).save(any(ChatMessageEntity.class));
         verify(events, never()).publish(anyString(), any(), any(), any(), any());
+    }
+
+    /** Строка очереди: сжатый кусок, готовый к записи. */
+    private static ChatPendingSummaryEntity queued(long id, long start, long end) {
+        return new ChatPendingSummaryEntity(
+                id,
+                CONV,
+                start,
+                end,
+                end - 1,
+                NOW.minusHours(1),
+                "summary " + start + "-" + end,
+                20,
+                2048,
+                null,
+                NOW.minusHours(1));
     }
 
     private static SummaryWriter.SummaryRow row() {

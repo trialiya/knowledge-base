@@ -1,7 +1,7 @@
 package io.github.trialiya.kb.repository;
 
 import io.github.trialiya.kb.model.chat.entity.ChatPendingSummaryEntity;
-import java.util.Optional;
+import java.util.List;
 import org.springframework.data.jdbc.repository.query.Modifying;
 import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.CrudRepository;
@@ -10,8 +10,12 @@ import org.springframework.data.repository.query.Param;
 public interface ChatPendingSummaryRepository
         extends CrudRepository<ChatPendingSummaryEntity, Long> {
 
-    /** Припаркованная сводка чата; их не бывает двух — колонка уникальна. */
-    Optional<ChatPendingSummaryEntity> findByConversationId(String conversationId);
+    /**
+     * Очередь неприменённых сводок чата, в порядке сжатых ими кусков — в том же порядке они и
+     * применяются: каждая следующая описывает то, что накопилось за предыдущей.
+     */
+    List<ChatPendingSummaryEntity> findByConversationIdOrderByStartPositionAsc(
+            String conversationId);
 
     /**
      * Заявка на применение — claim-through-delete, как у очереди сообщений: применяет тот, чей

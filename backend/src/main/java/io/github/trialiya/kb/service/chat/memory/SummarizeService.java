@@ -6,6 +6,7 @@ import io.github.trialiya.kb.advisor.RoundUsageAdvisor;
 import io.github.trialiya.kb.config.model.SummarizeProperties;
 import io.github.trialiya.kb.functions.MessageLookupFunction;
 import io.github.trialiya.kb.model.chat.entity.ChatMessageEntity;
+import io.github.trialiya.kb.model.chat.entity.ChatPendingSummaryEntity;
 import io.github.trialiya.kb.model.chat.entity.ChatTopicEntity;
 import io.github.trialiya.kb.model.chat.entity.CompactMeta;
 import io.github.trialiya.kb.model.chat.entity.RunTokenUsage;
@@ -19,9 +20,11 @@ import jakarta.annotation.Nonnull;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Value;
@@ -117,21 +120,15 @@ public class SummarizeService implements DisposableBean {
     }
 
     public void doSummarize(@Nonnull final String conversationId) {
-        // Прошлая сводка ещё ждёт применения — значит, сжатое ею начало истории пока живое, и
-        // раунд по нему сжал бы ровно то же самое второй раз.
-        if (pendingSummaries.isParked(conversationId)) {
-            log.info(
-                    "[{}] Skipping summarization — the previous summary is still waiting to be"
-                            + " applied",
-                    conversationId);
-            return;
-        }
         // promptRows is the one place that answers "what does the model see": every row carries the
         // text that will be sent, inventory included, not the text that happens to be stored. The
         // prompt below and the character estimate inside SummarizeWindow both measure exactly that
         // — and the estimate is what weighs a slice the provider's measurements do not cover.
+        final List<ChatPendingSummaryEntity> parked = pendingSummaries.parked(conversationId);
         final SummarizeWindow window =
-                new SummarizeWindow(chatHistory.promptRows(conversationId), summarizeProperties);
+                new SummarizeWindow(
+                        withParked(chatHistory.promptRows(conversationId), parked),
+                        summarizeProperties);
 
         // The second mix is spelled out only when it differs — that is, when the window carries
         // empty TOOL protocol rows: context the model pays for but the summarizer never sees.
@@ -172,8 +169,15 @@ public class SummarizeService implements DisposableBean {
         // Collapse existing summaries into one meta-summary if this round's new summary would
         // otherwise push the count to summaryCollapseThreshold.
         final List<ChatMessageEntity> existingSummaries = window.summaries();
+        // Пока очередь не применена, схлопывания не бывает: метасводка заменяет собой те сводки,
+        // которые перечислила, а у припаркованной замена означала бы потерянный ряд — с ним и её
+        // плашку, и деньги её раунда, которых больше нигде нет. Ряды очереди схлопнутся следующим
+        // раундом после применения, как обычные, а порог считает только применённые: сводка,
+        // которой в промпте ещё нет, его и не удлиняет.
         final boolean collapseSummaries =
-                existingSummaries.size() + 1 >= summarizeProperties.summaryCollapseThreshold();
+                parked.isEmpty()
+                        && existingSummaries.size() + 1
+                                >= summarizeProperties.summaryCollapseThreshold();
         // Замер на весь раунд, включая обращения tool-цикла: у фоновой суммаризации своей области
         // прогона нет, и без накопителя её токены не попали бы в итог по чату ни одним числом —
         // при том что тратит она столько же, сколько ответ (см. RoundUsageAdvisor).
@@ -226,6 +230,64 @@ public class SummarizeService implements DisposableBean {
     // -------------------------------------------------------------------------
     // The LLM round
     // -------------------------------------------------------------------------
+
+    /**
+     * Живое окно, каким его увидел бы раунд, если бы очередь уже применили: ряды, сжатые
+     * припаркованными сводками, заменены самими сводками.
+     *
+     * <p>Без этой подмены очередь останавливала бы суммаризацию до самого применения — сжатый кусок
+     * в промпте всё ещё живой, и раунд сжимал бы его второй раз, заплатив за это дважды. С ней
+     * раунд идёт как обычно: припаркованное он получает контекстом ({@link #generateSummary}), а
+     * сжимает то, что накопилось за ним.
+     *
+     * <p>Подмена только здесь и только для решения «что сжать». Модели чат по-прежнему возит
+     * несжатую историю — в том и смысл отложенного применения, что промпт не меняется, пока за его
+     * переписывание берут деньги (см. {@link PendingSummaryService}).
+     *
+     * <p>Ряды очереди — те же, что запишет применение: тот же текст с обёрткой, та же позиция, то
+     * же время, та же мета. Флаг {@code summary} делает их для {@link SummarizeWindow} уже сжатым
+     * прошлым — дальше она сама не считает их ни в срезе, ни в весе.
+     *
+     * <p>Уходят отсюда только ЖИВЫЕ ряды сжатого куска. Применённые сводки остаются все до одной,
+     * хотя позиции у них ниже: они уже сжатое прошлое, и, потеряв их, раунд написал бы сводку без
+     * начала разговора — а след проектов ({@link ProjectTrace#of}) наследуется по цепочке и
+     * оборвался бы вместе с ними.
+     */
+    private static List<PromptRow> withParked(
+            List<PromptRow> rows, List<ChatPendingSummaryEntity> parked) {
+        if (parked.isEmpty()) {
+            return rows;
+        }
+        final long compressed = parked.getLast().getEndPosition();
+        return Stream.of(
+                        rows.stream()
+                                .filter(row -> row.entity().isSummary())
+                                .filter(row -> row.entity().getPosition() <= compressed),
+                        parked.stream().map(SummarizeService::parkedRow),
+                        rows.stream().filter(row -> row.entity().getPosition() > compressed))
+                .flatMap(stream -> stream)
+                .toList();
+    }
+
+    /**
+     * Припаркованная сводка в виде ряда истории — такого же, каким её запишет применение. Мета
+     * оттуда же: в ней спаны проектов, которые следующая сводка обязана унаследовать (см. {@link
+     * ProjectTrace#of}), иначе на ней оборвётся весь след сжатой истории.
+     */
+    private static PromptRow parkedRow(ChatPendingSummaryEntity parked) {
+        final ChatMessageEntity entity =
+                new ChatMessageEntity(
+                        0L,
+                        parked.getConversationId(),
+                        parked.getText(),
+                        MessageType.ASSISTANT,
+                        parked.getSummaryPosition(),
+                        false,
+                        true,
+                        parked.getSummaryCreatedAt(),
+                        parked.getMeta());
+        return new PromptRow(entity, parked.getText());
+    }
 
     private @Nullable String generateSummary(
             String conversationId,

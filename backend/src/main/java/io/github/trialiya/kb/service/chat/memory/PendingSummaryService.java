@@ -1,6 +1,7 @@
 package io.github.trialiya.kb.service.chat.memory;
 
 import static io.github.trialiya.kb.model.chat.dto.ChatEventType.COMPACT_APPLIED;
+import static java.util.Objects.requireNonNull;
 
 import io.github.trialiya.kb.config.model.SummarizeProperties;
 import io.github.trialiya.kb.model.chat.dto.CompactPayload;
@@ -16,6 +17,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
@@ -41,9 +43,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  *       параметром (см. {@code ChatModelProperties.ModelOption#contextTokens}).
  * </ul>
  *
- * <p>Пока сводка припаркована, начало истории всё ещё живое: модель видит её несжатой, а следующий
- * раунд по тому же куску не начинается ({@link #isParked}). Плата за отложенность — эти несколько
- * запросов на несжатой истории; выигрыш — целый кэш чата, который стоит дороже.
+ * <p>Пока сводка припаркована, начало истории всё ещё живое: модель видит её несжатой. Раунды от
+ * этого не останавливаются — следующий получает припаркованное контекстом и сжимает то, что
+ * накопилось за ним ({@link #parked}), а очередь применяется разом. Плата за отложенность — эти
+ * несколько запросов на несжатой истории; выигрыш — целый кэш чата, который стоит дороже.
  */
 @Slf4j
 @Service
@@ -74,22 +77,25 @@ public class PendingSummaryService {
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
-    /** Ждёт ли этот чат применения сводки. */
-    public boolean isParked(String conversationId) {
-        return repository.findByConversationId(conversationId).isPresent();
+    /**
+     * Очередь неприменённых сводок чата, от самой ранней. Её читает следующий раунд: сжатые ею
+     * куски он берёт контекстом вместо живых рядов, которые их всё ещё дублируют (см. {@code
+     * SummarizeService}).
+     */
+    public List<ChatPendingSummaryEntity> parked(String conversationId) {
+        return repository.findByConversationIdOrderByStartPositionAsc(conversationId);
     }
 
     /**
-     * Откладывает написанную сводку до подходящего момента. Звать под замком чата ({@code
-     * SummaryWriter#inConversation}): парковка закрывает окно для следующего раунда, и без замка
-     * два раунда сжали бы один и тот же кусок.
+     * Откладывает написанную сводку до подходящего момента, дописывая её в конец очереди чата.
+     * Звать под замком чата ({@code SummaryWriter#inConversation}): парковка закрывает свой кусок
+     * для следующего раунда, и без замка два раунда сжали бы один и тот же.
      *
      * @param stats числа для будущей плашки; {@code kind} у припаркованной сводки всегда {@link
      *     CompactMeta.Kind#SUMMARIZE} — команду пользователя ждать незачем, её применяют сразу
      */
     public void park(
             String conversationId, SummaryWriter.SummaryRow row, SummaryWriter.CompactStats stats) {
-        repository.deleteByConversationId(conversationId);
         repository.save(
                 new ChatPendingSummaryEntity(
                         0L,
@@ -164,8 +170,12 @@ public class PendingSummaryService {
      * отложенная сводка после него описывает историю, которой в промпте больше нет.
      */
     public void discard(String conversationId) {
-        if (repository.deleteByConversationId(conversationId) > 0) {
-            log.info("[{}] Parked summary discarded — the context was compacted", conversationId);
+        final int discarded = repository.deleteByConversationId(conversationId);
+        if (discarded > 0) {
+            log.info(
+                    "[{}] Parked summaries discarded ({}) — the context was compacted",
+                    conversationId,
+                    discarded);
         }
     }
 
@@ -174,8 +184,13 @@ public class PendingSummaryService {
      * с пути живого запроса, а раунд сжатия под тем же замком держит обращение к модели; повод
      * применить придёт снова, и терять на нём секунды ответа не за что.
      *
+     * <p>Очередь применяется целиком и в одной транзакции: её сводки — куски одной непрерывной
+     * головы разговора, и остановиться на середине значит оставить в промпте живой кусок между
+     * двумя сжатыми.
+     *
      * @param due почему применяем — {@code null} значит «ещё рано»; строка едет в лог, потому что
-     *     иначе по логам не отличить бесплатное применение от вынужденного
+     *     иначе по логам не отличить бесплатное применение от вынужденного. Спрашиваем по самой
+     *     ранней сводке очереди: ждала она дольше всех, и повод — про неё
      */
     private void apply(String conversationId, DueCheck due) {
         // Не бросаем ничего: применение — это оптимизация цены, и зовут её с чужих путей, где
@@ -183,18 +198,17 @@ public class PendingSummaryService {
         // пользователю в вопросе (start) и тем более не повод не доставить очередь и не снять
         // заявку на чат (onTerminal) — сводка просто останется припаркованной до следующего повода.
         try {
-            final Optional<ChatPendingSummaryEntity> parked =
-                    repository.findByConversationId(conversationId);
+            final List<ChatPendingSummaryEntity> parked = parked(conversationId);
             if (parked.isEmpty()) {
                 return;
             }
-            final @Nullable String reason = due.reason(parked.get());
+            final @Nullable String reason = due.reason(parked.getFirst());
             if (reason == null) {
                 return;
             }
             final boolean ran =
                     summaryWriter.tryInConversation(
-                            conversationId, () -> write(conversationId, parked.get(), reason));
+                            conversationId, () -> write(conversationId, parked, reason));
             if (!ran) {
                 log.debug(
                         "[{}] Skipping summary apply — a compaction round holds the chat",
@@ -209,21 +223,38 @@ public class PendingSummaryService {
         }
     }
 
-    private void write(String conversationId, ChatPendingSummaryEntity parked, String reason) {
-        final @Nullable ChatMessageEntity notice =
-                transactionTemplate.execute(s -> claimAndWrite(conversationId, parked));
-        if (notice == null) {
+    private void write(
+            String conversationId, List<ChatPendingSummaryEntity> parked, String reason) {
+        final List<ChatMessageEntity> notices =
+                requireNonNull(
+                        transactionTemplate.execute(
+                                s ->
+                                        parked.stream()
+                                                .map(one -> claimAndWrite(conversationId, one))
+                                                .filter(Objects::nonNull)
+                                                .toList()));
+        if (notices.isEmpty()) {
             return;
         }
         log.info(
-                "[{}] Summary applied: positions {}-{} are no longer live — {}",
+                "[{}] Summaries applied ({} of {}): positions {}-{} are no longer live — {}",
                 conversationId,
-                parked.getStartPosition(),
-                parked.getEndPosition(),
+                notices.size(),
+                parked.size(),
+                parked.getFirst().getStartPosition(),
+                parked.getLast().getEndPosition(),
                 reason);
-        // Плашка встаёт в СЕРЕДИНУ ленты — там, где кончается свёрнутое, — поэтому вкладке мало
-        // «допиши в конец»: место она ищет сама, по времени плашки (см. chatEventReducer).
-        events.publish(conversationId, COMPACT_APPLIED, null, null, CompactPayload.of(notice));
+        // Событие на плашку: каждая встаёт в СЕРЕДИНУ ленты — там, где кончается её кусок, —
+        // поэтому вкладке мало «допиши в конец», место она ищет сама, по времени плашки (см.
+        // chatEventReducer). Публикуем после коммита: вкладка на событие ходит за деталями.
+        notices.forEach(
+                notice ->
+                        events.publish(
+                                conversationId,
+                                COMPACT_APPLIED,
+                                null,
+                                null,
+                                CompactPayload.of(notice)));
     }
 
     /**
